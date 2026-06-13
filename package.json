@@ -1,0 +1,26 @@
+{
+  "name": "popcharts",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.10"
+  },
+  "scripts": {
+    "setup": "pnpm --dir app install --frozen-lockfile && pnpm --dir protocol install --frozen-lockfile --ignore-workspace",
+    "dev": "pnpm --dir app dev",
+    "app:dev": "pnpm --dir app dev",
+    "app:build": "pnpm --dir app build",
+    "app:check": "pnpm --dir app format:check && pnpm --dir app lint && pnpm --dir app typecheck && pnpm --dir app test:unit",
+    "app:test": "pnpm --dir app test:unit",
+    "app:e2e": "pnpm --dir app test:e2e",
+    "app:e2e:smoke": "pnpm --dir app test:e2e:smoke",
+    "protocol:build": "pnpm --dir protocol build",
+    "protocol:check": "pnpm --dir protocol format:check && pnpm --dir protocol lint:sol && pnpm --dir protocol typecheck && pnpm --dir protocol test",
+    "protocol:test": "pnpm --dir protocol test",
+    "test": "pnpm run app:test && pnpm run protocol:test",
+    "check": "pnpm run app:check && pnpm run protocol:check",
+    "format": "pnpm --dir app format && pnpm --dir protocol format",
+    "format:check": "pnpm --dir app format:check && pnpm --dir protocol format:check"
+  }
+}

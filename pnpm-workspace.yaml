@@ -1,0 +1,8 @@
+packages:
+  - app
+  - protocol
+
+ignoredBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver
