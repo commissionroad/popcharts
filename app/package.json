@@ -19,10 +19,16 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@privy-io/chains": "^0.3.0",
+    "@privy-io/react-auth": "^3.30.0",
+    "@privy-io/wagmi": "^4.0.12",
+    "@tanstack/react-query": "^5.101.0",
     "lucide-react": "^1.18.0",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "viem": "^2.52.0",
+    "wagmi": "^3.6.16"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

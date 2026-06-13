@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { Market, MarketSide } from "@/domain/markets/types";
+import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { cn } from "@/lib/cn";
 import { formatCents } from "@/lib/format";
 
@@ -16,6 +17,7 @@ const sideOptions = [
 ];
 
 export function ReceiptTicket({ market }: { market: Market }) {
+  const wallet = useWalletAccount();
   const [amount, setAmount] = useState("250");
   const [side, setSide] = useState<MarketSide>("yes");
   const price = side === "yes" ? market.yesPriceCents : market.noPriceCents;
@@ -26,6 +28,7 @@ export function ReceiptTicket({ market }: { market: Market }) {
     [numericAmount, price]
   );
   const impact = Math.min((numericAmount / market.b) * 3.4, 9);
+  const receiptAction = getReceiptAction(wallet, side);
 
   return (
     <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6">
@@ -78,13 +81,15 @@ export function ReceiptTicket({ market }: { market: Market }) {
       </div>
       <Button
         className="w-full"
+        disabled={receiptAction.disabled}
         glow={false}
+        onClick={receiptAction.onClick}
         style={{
           background: sideColor,
           boxShadow: side === "yes" ? "var(--glow-lime)" : "var(--glow-magenta)",
         }}
       >
-        Place {side === "yes" ? "YES" : "NO"} receipt
+        {receiptAction.label}
       </Button>
       <div className="flex gap-2.5">
         <ShieldAlert className="mt-0.5 shrink-0 text-[var(--text-muted)]" size={15} />
@@ -95,6 +100,59 @@ export function ReceiptTicket({ market }: { market: Market }) {
       </div>
     </section>
   );
+}
+
+function getReceiptAction(
+  wallet: ReturnType<typeof useWalletAccount>,
+  side: MarketSide
+) {
+  const sideLabel = side === "yes" ? "YES" : "NO";
+
+  if (!wallet.enabled) {
+    return {
+      disabled: true,
+      label: "Sign in unavailable",
+      onClick: undefined,
+    };
+  }
+
+  if (!wallet.ready) {
+    return {
+      disabled: true,
+      label: "Preparing wallet",
+      onClick: undefined,
+    };
+  }
+
+  if (!wallet.authenticated) {
+    return {
+      disabled: false,
+      label: "Sign in to place receipt",
+      onClick: wallet.login,
+    };
+  }
+
+  if (!wallet.address) {
+    return {
+      disabled: false,
+      label: "Create or link wallet",
+      onClick: wallet.connectOrCreateWallet,
+    };
+  }
+
+  if (!wallet.isSupportedChain) {
+    return {
+      disabled: Boolean(wallet.pendingAction),
+      label: `Switch to ${wallet.defaultChain.name}`,
+      onClick: () => void wallet.switchChain(wallet.defaultChain.id),
+    };
+  }
+
+  return {
+    disabled: false,
+    label: `Place ${sideLabel} receipt`,
+    onClick: undefined,
+  };
 }
 
 function TicketRow({

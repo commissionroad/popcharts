@@ -14,6 +14,23 @@ pnpm test:e2e:smoke
 pnpm build
 ```
 
+## Wallet Configuration
+
+The app uses Privy for email, Google, embedded-wallet, and external EVM wallet
+login. Set these public environment variables in local/dev deployments:
+
+```bash
+NEXT_PUBLIC_PRIVY_APP_ID=...
+NEXT_PUBLIC_PRIVY_CLIENT_ID=... # optional, for Privy app clients
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=... # optional
+NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS=true # optional, adds Base Sepolia
+```
+
+Enable email, Google, and wallet login in the Privy dashboard. The app creates an
+Ethereum embedded wallet for users without an existing wallet and keeps wallet
+SDK usage inside `src/integrations/wallet/` so Solana support can be added there
+later without changing domain modules.
+
 ## Product Shape
 
 Pop Charts starts where a Polymarket-style venue cannot: before a market has
