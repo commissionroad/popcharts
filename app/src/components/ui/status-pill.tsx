@@ -9,6 +9,11 @@ const STATUS: Record<MarketStatus, { color: string; label: string; pulse: boolea
     label: "Bootstrap",
     pulse: true,
   },
+  cancelled: {
+    color: "var(--status-refunded)",
+    label: "Cancelled",
+    pulse: false,
+  },
   graduated: {
     color: "var(--status-graduated)",
     label: "Graduated",

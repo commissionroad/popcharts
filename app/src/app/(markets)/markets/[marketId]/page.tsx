@@ -8,13 +8,15 @@ type PageProps = {
   params: Promise<{ marketId: string }>;
 };
 
-export function generateStaticParams() {
-  return getMarkets().map((market) => ({ marketId: market.id }));
+export async function generateStaticParams() {
+  const markets = await getMarkets();
+
+  return markets.map((market) => ({ marketId: market.id }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { marketId } = await params;
-  const market = getMarketById(marketId);
+  const market = await getMarketById(marketId);
 
   if (!market) {
     return { title: "Market not found" };
@@ -28,7 +30,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function Page({ params }: PageProps) {
   const { marketId } = await params;
-  const market = getMarketById(marketId);
+  const market = await getMarketById(marketId);
 
   if (!market) {
     notFound();
