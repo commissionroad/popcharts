@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  land [PR_NUMBER | PR_URL | BRANCH]
+
+Land a GitHub PR, update the base branch locally, and clean up the feature
+branch/worktree. If no argument is provided, land the PR for the current branch.
+
+Options:
+  --merge        Use a merge commit (default)
+  --squash       Squash merge the PR
+  --rebase       Rebase merge the PR
+  -h, --help     Show this help
+
+Examples:
+  land
+  land 12
+  land codex/my-feature
+USAGE
+}
+
+die() {
+  printf 'land: %s\n' "$*" >&2
+  exit 1
+}
+
+say() {
+  printf '==> %s\n' "$*" >&2
+}
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+worktree_for_branch() {
+  local branch_ref="refs/heads/$1"
+  git worktree list --porcelain | awk -v branch="$branch_ref" '
+    $1 == "worktree" { path = substr($0, 10) }
+    $1 == "branch" && $2 == branch { print path; exit }
+  '
+}
+
+remote_branch_exists() {
+  git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1
+}
+
+require git
+require gh
+require jq
+
+merge_method="merge"
+selector=""
+
+while (($#)); do
+  case "$1" in
+    --merge)
+      merge_method="merge"
+      ;;
+    --squash)
+      merge_method="squash"
+      ;;
+    --rebase)
+      merge_method="rebase"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      [[ -z "$selector" ]] || die "only one PR number, URL, or branch can be provided"
+      selector="$1"
+      ;;
+  esac
+  shift
+done
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || die "run this from inside a git repository"
+cd "$repo_root"
+
+current_branch="$(git branch --show-current)"
+[[ -n "$current_branch" ]] || die "current checkout is detached; provide a PR number or URL"
+
+if [[ -z "$selector" ]]; then
+  [[ "$current_branch" != "main" && "$current_branch" != "master" ]] || \
+    die "provide a PR number or branch when running from $current_branch"
+  selector="$current_branch"
+fi
+
+if [[ "$selector" =~ ^[0-9]+$ || "$selector" =~ ^https?:// ]]; then
+  pr_ref="$selector"
+else
+  pr_ref="$(gh pr list --state all --head "$selector" --json number --jq '.[0].number')"
+  [[ -n "$pr_ref" && "$pr_ref" != "null" ]] || die "no PR found for branch: $selector"
+fi
+
+pr_json="$(gh pr view "$pr_ref" --json number,state,headRefName,baseRefName,url,isCrossRepository)"
+
+number="$(jq -r '.number' <<<"$pr_json")"
+state="$(jq -r '.state' <<<"$pr_json")"
+head_branch="$(jq -r '.headRefName' <<<"$pr_json")"
+base_branch="$(jq -r '.baseRefName' <<<"$pr_json")"
+url="$(jq -r '.url' <<<"$pr_json")"
+is_cross_repo="$(jq -r '.isCrossRepository' <<<"$pr_json")"
+
+case "$state" in
+  MERGED)
+    say "PR #$number is already merged"
+    ;;
+  OPEN)
+    say "Merging PR #$number with method: $merge_method"
+    gh api -X PUT "repos/:owner/:repo/pulls/$number/merge" -f merge_method="$merge_method" >/dev/null
+    ;;
+  *)
+    die "PR #$number is $state, not open or merged"
+    ;;
+esac
+
+pr_json="$(gh pr view "$number" --json state,mergeCommit,mergedAt)"
+state="$(jq -r '.state' <<<"$pr_json")"
+merge_oid="$(jq -r '.mergeCommit.oid // empty' <<<"$pr_json")"
+[[ "$state" == "MERGED" ]] || die "merge did not complete for PR #$number"
+
+say "Merged $url at ${merge_oid:0:7}"
+
+if [[ "$is_cross_repo" == "true" ]]; then
+  say "Skipping remote branch deletion for cross-repository PR head: $head_branch"
+elif remote_branch_exists "$head_branch"; then
+  say "Deleting remote branch origin/$head_branch"
+  git push origin --delete "$head_branch"
+else
+  say "Remote branch origin/$head_branch is already gone"
+fi
+
+base_worktree="$(worktree_for_branch "$base_branch")"
+if [[ -n "$base_worktree" ]]; then
+  if [[ -n "$(git -C "$base_worktree" status --short)" ]]; then
+    die "base worktree has uncommitted changes: $base_worktree"
+  fi
+  say "Pulling $base_branch in $base_worktree"
+  git -C "$base_worktree" pull --ff-only origin "$base_branch"
+  admin_repo="$base_worktree"
+else
+  say "No worktree found for $base_branch; fetching local branch instead"
+  git fetch origin "$base_branch:refs/heads/$base_branch"
+  admin_repo="$repo_root"
+fi
+
+head_worktree="$(git -C "$admin_repo" worktree list --porcelain | awk -v branch="refs/heads/$head_branch" '
+  $1 == "worktree" { path = substr($0, 10) }
+  $1 == "branch" && $2 == branch { print path; exit }
+')"
+
+if [[ -n "$head_worktree" ]]; then
+  if [[ -n "$(git -C "$head_worktree" status --short)" ]]; then
+    die "feature worktree has uncommitted changes: $head_worktree"
+  fi
+  say "Removing worktree $head_worktree"
+  cd "$HOME"
+  git -C "$admin_repo" worktree remove "$head_worktree"
+fi
+
+if git -C "$admin_repo" show-ref --verify --quiet "refs/heads/$head_branch"; then
+  say "Deleting local branch $head_branch"
+  git -C "$admin_repo" branch -D "$head_branch"
+fi
+
+git -C "$admin_repo" fetch --prune origin >/dev/null 2>&1 || true
+
+say "Verifying cleanup"
+if git -C "$admin_repo" branch --list "$head_branch" | grep -q .; then
+  die "local branch still exists: $head_branch"
+fi
+if git -C "$admin_repo" branch -r --list "origin/$head_branch" | grep -q .; then
+  die "remote tracking branch still exists: origin/$head_branch"
+fi
+
+say "Done: PR #$number landed into $base_branch at ${merge_oid:0:7}"
