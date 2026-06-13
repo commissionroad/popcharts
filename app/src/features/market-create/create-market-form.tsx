@@ -129,12 +129,19 @@ export function CreateMarketForm() {
                   gently per receipt.
                 </p>
               </div>
-              <Field id="collateral-token" label="Collateral token" mono value="pUSD" />
+              <Field
+                id="collateral-token"
+                label="Collateral token"
+                mono
+                readOnly
+                value="pUSD"
+              />
               <Field
                 hint="At close, unmatched receipts refund automatically."
                 id="trading-close"
                 label="Trading close"
                 mono
+                readOnly
                 value="2026-08-01 00:00 UTC"
               />
             </div>
