@@ -23,7 +23,7 @@ TypeScript tests are for offchain orchestration and integration:
 - viem typed contract interaction
 - fixture reuse
 - event and read-model checks
-- end-to-end market flows once buying and clearing exist
+- manager deployment and end-to-end market flows once buying and clearing exist
 
 Use Node's built-in test runner, `node:assert/strict`, `network.create()`, and
 the viem helpers from `@nomicfoundation/hardhat-toolbox-viem`.

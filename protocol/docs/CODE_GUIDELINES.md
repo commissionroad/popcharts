@@ -18,6 +18,12 @@ Use explicit custom errors instead of generic revert strings.
 Use OpenZeppelin for standards such as ERC-20 behavior, ownership, and safe
 token transfer helpers.
 
+Use NatSpec triple-slash comments for contracts, events, functions, enums,
+structs, and struct fields. Prefer `@notice` for protocol semantics that should
+appear in generated docs, and reserve `@dev` for implementation constraints.
+This keeps the source friendly to Solidity compiler metadata and Markdown
+generators such as `solidity-docgen`.
+
 Keep external functions thin:
 
 - validate inputs
@@ -31,7 +37,7 @@ large lifecycle functions.
 
 Prefer immutable deployment configuration for values that define a market:
 collateral token, creator, metadata hash, opening probability, `b`, graduation
-threshold, and close time.
+threshold, graduation deadline, and resolution deadline.
 
 Document only non-obvious accounting or security constraints. Do not restate
 what the code already says.
