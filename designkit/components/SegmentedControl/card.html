@@ -1,0 +1,14 @@
+<!-- @dsCard group="Components" viewport="700x150" subtitle="Mutually-exclusive toggle — YES/NO, tabs, Basic/Advanced" name="SegmentedControl" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:26px;display:flex;flex-direction:column;gap:16px}
+  .track{display:inline-flex;gap:4px;padding:4px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-md)}
+  .seg{font-family:var(--font-display);font-weight:700;font-size:14px;padding:10px 18px;border-radius:var(--radius-sm);border:1px solid transparent;color:var(--text-secondary);background:transparent}
+  .yes{background:var(--yes);color:var(--pc-ink)}
+  .no{background:var(--no);color:var(--pc-ink)}
+  .on{background:var(--accent);color:var(--pc-ink);box-shadow:0 0 18px rgba(255,46,151,.25)}
+</style></head><body>
+  <div class="track"><span class="seg yes">YES</span><span class="seg">NO</span></div>
+  <div class="track"><span class="seg on">Trending</span><span class="seg">New</span><span class="seg">Graduating</span><span class="seg">Ending soon</span></div>
+</body></html>

@@ -1,0 +1,9 @@
+/*
+ * Pop Charts Design System — entry point.
+ * Consumers link THIS file. It is an @import manifest only — no rules live here.
+ */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/effects.css";

@@ -1,0 +1,31 @@
+/*
+ * Pop Charts — Effects: radius, neon glow, motion.
+ * Corners are ROUNDED (snack-pop), never sharp. Glow is the only "shadow" —
+ * use it sparingly to make a neon element feel lit, never as ambient elevation.
+ */
+:root {
+  /* Radius — rounded snack-pop. Nothing is sharp. */
+  --radius-xs: 6px;     /* micro chips */
+  --radius-sm: 10px;    /* inputs, small buttons */
+  --radius-md: 14px;    /* buttons, outcome cells */
+  --radius-lg: 18px;    /* cards */
+  --radius-xl: 22px;    /* large surfaces, app-icon tiles */
+  --radius-pill: 999px; /* status pills, avatars */
+
+  /* Neon glow — colored, soft, low-spread. Reach for the matching accent. */
+  --glow-magenta: 0 0 30px rgba(255, 46, 151, 0.30);
+  --glow-magenta-strong: 0 0 34px rgba(255, 46, 151, 0.45);
+  --glow-cyan: 0 0 26px rgba(31, 224, 255, 0.22);
+  --glow-lime: 0 0 26px rgba(198, 255, 61, 0.22);
+  --glow-amber: 0 0 26px rgba(255, 176, 32, 0.22);
+  --glow-violet: 0 0 26px rgba(184, 92, 255, 0.22);
+
+  /* Plain depth — used rarely, only to lift an app-icon tile off ink */
+  --shadow-tile: 0 18px 40px rgba(0, 0, 0, 0.5);
+
+  /* Motion — quick and functional. No bounce, no spring. */
+  --ease-default: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-marquee: 30s;
+}

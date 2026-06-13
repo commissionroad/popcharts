@@ -1,0 +1,17 @@
+<!-- @dsCard group="Components" viewport="700x230" subtitle="Mono label, dark rounded input, focus→cyan, optional suffix" name="Field" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:24px;display:flex;flex-direction:column;gap:16px}
+  .f{display:flex;flex-direction:column;gap:8px}
+  .lab{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary)}
+  .box{display:flex;align-items:center;gap:10px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 14px;height:46px}
+  .box.focus{border-color:var(--pc-cyan)}
+  input{flex:1;background:transparent;border:none;outline:none;color:var(--text-primary);font-family:var(--font-sans);font-size:15px}
+  .mono input{font-family:var(--font-mono)}
+  .suf{font-family:var(--font-mono);font-size:13px;color:var(--text-muted)}
+  .hint{font-size:12px;color:var(--text-muted)}
+</style></head><body>
+  <div class="f"><span class="lab">Question</span><div class="box focus"><input value="Will ETH flip $5,000 before August?"></div></div>
+  <div class="f mono"><span class="lab">Liquidity b</span><div class="box"><input value="5,000"><span class="suf">virtual</span></div><span class="hint">Higher b = smoother price, slower to move. Backed by no bankroll.</span></div>
+</body></html>

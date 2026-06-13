@@ -1,0 +1,22 @@
+<!-- @dsCard group="Components" viewport="700x150" subtitle="YES / NO price cells — outlined idle, filled when selected" name="OutcomeButton" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:24px;display:flex;gap:24px}
+  .pair{display:flex;gap:12px;flex:1}
+  .cell{flex:1;display:flex;flex-direction:column;gap:3px;background:var(--surface-raised);border-radius:var(--radius-md);padding:13px 16px}
+  .lab{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.06em}
+  .px{font-family:var(--font-display);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums}
+  .yes{border:1px solid var(--yes-border)}.yes .lab,.yes .px{color:var(--yes)}
+  .no{border:1px solid var(--no-border)}.no .lab,.no .px{color:var(--no)}
+  .selYes{background:var(--yes);border-color:var(--yes)}.selYes .lab,.selYes .px{color:var(--pc-ink)}
+</style></head><body>
+  <div class="pair">
+    <div class="cell yes"><span class="lab">YES</span><span class="px">64¢</span></div>
+    <div class="cell no"><span class="lab">NO</span><span class="px">36¢</span></div>
+  </div>
+  <div class="pair">
+    <div class="cell selYes"><span class="lab">YES</span><span class="px">64¢</span></div>
+    <div class="cell no"><span class="lab">NO</span><span class="px">36¢</span></div>
+  </div>
+</body></html>

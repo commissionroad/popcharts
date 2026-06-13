@@ -1,0 +1,32 @@
+/*
+ * Pop Charts — Spacing & layout tokens
+ * 4px base grid. Generous padding inside the rounded snack-pop cards.
+ */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 72px;
+  --space-11: 96px;
+  --space-12: 128px;
+
+  /* Component padding defaults */
+  --pad-card: 28px;
+  --pad-card-sm: 20px;
+  --pad-button-x: 20px;
+  --pad-button-y: 14px;
+  --pad-chip-x: 11px;
+  --pad-chip-y: 5px;
+
+  /* Layout */
+  --layout-max: 1180px;       /* marketing + app content cap */
+  --layout-feed-max: 1240px;
+  --layout-gutter: 32px;
+  --layout-gutter-mobile: 18px;
+}

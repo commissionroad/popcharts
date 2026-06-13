@@ -1,0 +1,17 @@
+<!-- @dsCard group="Components" viewport="700x190" subtitle="Magenta primary, outline secondary, ghost — rounded, glow optional" name="Button" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:24px;display:flex;flex-direction:column;gap:16px}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn{font-family:var(--font-display);font-weight:800;border:1px solid transparent;border-radius:var(--radius-md);padding:14px 20px;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;gap:9px}
+  .primary{background:var(--accent);color:var(--accent-content);box-shadow:var(--glow-magenta)}
+  .secondary{background:transparent;color:var(--text-primary);border-color:var(--border-strong)}
+  .ghost{background:transparent;color:var(--text-secondary);font-weight:600}
+  .sm{padding:9px 14px;font-size:13px;border-radius:var(--radius-sm)}
+  .lab{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.14em;text-transform:uppercase;width:80px}
+</style></head><body>
+  <div class="row"><span class="lab">Primary</span><button class="btn primary">Pop a market →</button><button class="btn primary sm">Place receipt</button></div>
+  <div class="row"><span class="lab">Secondary</span><button class="btn secondary">Browse markets</button><button class="btn secondary sm">Advanced</button></div>
+  <div class="row"><span class="lab">Ghost</span><button class="btn ghost">Cancel</button><button class="btn ghost" style="opacity:.45">Disabled</button></div>
+</body></html>

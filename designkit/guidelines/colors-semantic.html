@@ -1,0 +1,26 @@
+<!-- @dsCard group="Colors" viewport="700x200" subtitle="Market sides + the lifecycle status ladder" name="Semantic & status" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);font-family:var(--font-sans);color:var(--text-primary);padding:22px}
+  .grp{font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);margin:0 0 10px}
+  .pills{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .pill{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid currentColor;display:flex;align-items:center;gap:7px}
+  .dot{width:7px;height:7px;border-radius:var(--radius-pill);background:currentColor}
+  .sides{display:flex;gap:12px}
+  .side{flex:1;border-radius:var(--radius-md);padding:13px 16px;font-family:var(--font-mono)}
+</style></head><body>
+  <div class="grp">Status ladder</div>
+  <div class="pills">
+    <span class="pill" style="color:var(--status-bootstrap)"><span class="dot"></span>BOOTSTRAP</span>
+    <span class="pill" style="color:var(--status-graduating)"><span class="dot"></span>GRADUATING</span>
+    <span class="pill" style="color:var(--status-graduated)"><span class="dot"></span>GRADUATED</span>
+    <span class="pill" style="color:var(--status-resolved)"><span class="dot"></span>RESOLVED</span>
+    <span class="pill" style="color:var(--status-refunded)"><span class="dot"></span>REFUNDED</span>
+  </div>
+  <div class="grp">Market sides</div>
+  <div class="sides">
+    <div class="side" style="background:var(--yes-wash);border:1px solid var(--yes-border);color:var(--yes)">YES &nbsp;64¢</div>
+    <div class="side" style="background:var(--no-wash);border:1px solid var(--no-border);color:var(--no)">NO &nbsp;36¢</div>
+  </div>
+</body></html>

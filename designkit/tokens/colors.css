@@ -1,0 +1,75 @@
+/*
+ * Pop Charts — Color tokens
+ * Black does the heavy lifting. The neon spectrum comes off the pastry sprinkles:
+ * magenta leads, cyan / lime / amber / violet punctuate.
+ * Base ramps first, then semantic aliases. Use the SEMANTIC names in product code.
+ */
+:root {
+  /* ───────── INK — the near-black neutral ramp ───────── */
+  --pc-ink: #08080A;          /* page — true canvas */
+  --pc-carbon: #0E0E13;       /* card surface */
+  --pc-coal: #131319;         /* raised surface / inputs */
+  --pc-slate: #1B1B22;        /* hover surface */
+  --pc-line-soft: #1F1F27;    /* hairline dividers on ink */
+  --pc-line: #26262F;         /* default border */
+  --pc-line-strong: #34343E;  /* prominent border / focus ring base */
+  --pc-fog: #6A6A74;          /* faint metadata, disabled */
+  --pc-mist: #9A9AA4;         /* secondary text */
+  --pc-paper: #FFFFFF;        /* primary text, knockout */
+
+  /* ───────── NEON — the sprinkle spectrum ───────── */
+  --pc-magenta: #FF2E97;      /* PRIMARY brand accent */
+  --pc-magenta-deep: #C71E72; /* pressed / borders */
+  --pc-cyan: #1FE0FF;
+  --pc-lime: #C6FF3D;
+  --pc-amber: #FFB020;
+  --pc-violet: #B85CFF;
+
+  /* Tinted fills (neon at low alpha, for chips / wash backgrounds on ink) */
+  --pc-magenta-wash: rgba(255, 46, 151, 0.12);
+  --pc-cyan-wash: rgba(31, 224, 255, 0.12);
+  --pc-lime-wash: rgba(198, 255, 61, 0.12);
+  --pc-amber-wash: rgba(255, 176, 32, 0.12);
+  --pc-violet-wash: rgba(184, 92, 255, 0.12);
+
+  /* ───────── SEMANTIC ALIASES — use these in product code ───────── */
+  --color-page-bg: var(--pc-ink);
+  --surface-card: var(--pc-carbon);
+  --surface-raised: var(--pc-coal);
+  --surface-hover: var(--pc-slate);
+
+  --border: var(--pc-line);
+  --border-soft: var(--pc-line-soft);
+  --border-strong: var(--pc-line-strong);
+
+  --text-primary: var(--pc-paper);
+  --text-secondary: var(--pc-mist);
+  --text-muted: var(--pc-fog);
+
+  --accent: var(--pc-magenta);
+  --accent-pressed: var(--pc-magenta-deep);
+  --accent-content: var(--pc-ink);   /* text/icon ON a magenta fill */
+  --accent-wash: var(--pc-magenta-wash);
+
+  /* Market sides — YES is acid lime, NO is hot magenta */
+  --yes: var(--pc-lime);
+  --yes-border: #3C6B1E;
+  --yes-wash: var(--pc-lime-wash);
+  --no: var(--pc-magenta);
+  --no-border: #5B2B3F;
+  --no-wash: var(--pc-magenta-wash);
+
+  /* Status — lifecycle of a market */
+  --status-bootstrap: var(--pc-cyan);   /* pre-graduation, virtual LMSR live */
+  --status-graduating: var(--pc-amber); /* enough opposing demand forming */
+  --status-graduated: var(--pc-lime);   /* cleared to CTF complete sets */
+  --status-resolved: var(--pc-violet);  /* outcome settled */
+  --status-refunded: var(--pc-fog);     /* cancelled / expired, refunded */
+
+  /* Generic feedback */
+  --positive: var(--pc-lime);
+  --negative: var(--pc-magenta);
+  --info: var(--pc-cyan);
+  --warning: var(--pc-amber);
+  --danger: #FF4D4D;
+}
