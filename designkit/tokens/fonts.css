@@ -1,0 +1,7 @@
+/*
+ * Pop Charts — Webfonts
+ * Three Google Fonts: Unbounded (display/wordmark), Space Grotesk (UI/body),
+ * Space Mono (tabular data, prices, labels). Loaded from the Google CDN —
+ * functionally identical to bundled woff2. Request licensed files for offline.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");

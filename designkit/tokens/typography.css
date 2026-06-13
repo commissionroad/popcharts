@@ -1,0 +1,44 @@
+/*
+ * Pop Charts — Typography tokens
+ * Unbounded = loud display & wordmark. Space Grotesk = UI/body. Space Mono = data.
+ * Numbers are ALWAYS tabular (font-variant-numeric: tabular-nums) — prices, odds, volume.
+ */
+:root {
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 900;   /* display only */
+
+  /* Type scale (px). Display sizes pair with --font-display. */
+  --text-3xs: 10px;      /* micro chips */
+  --text-2xs: 11px;      /* eyebrows, mono labels */
+  --text-xs: 12px;       /* captions, table data */
+  --text-sm: 13px;
+  --text-body: 15px;     /* default body */
+  --text-md: 17px;
+  --text-lg: 20px;
+  --text-xl: 24px;       /* card titles (display) */
+  --text-2xl: 30px;      /* section heads */
+  --text-3xl: 40px;
+  --text-4xl: 54px;
+  --text-display: 76px;  /* hero wordmark / big odds */
+
+  /* Letter-spacing */
+  --tracking-tight: -0.03em;  /* display headlines */
+  --tracking-snug: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.14em;    /* uppercase eyebrows */
+  --tracking-wider: 0.26em;   /* section eyebrows */
+
+  /* Line-height */
+  --leading-none: 0.9;
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+}

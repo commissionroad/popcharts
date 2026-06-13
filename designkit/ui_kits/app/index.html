@@ -1,0 +1,465 @@
+<!-- @dsCard group="App" viewport="1280x880" subtitle="Interactive app — Discover · Create (advanced b) · Market+Trade · Graduation clearing" name="App (web)" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pop Charts — App</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--pc-ink);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+  button{font-family:inherit}
+  .mono{font-family:var(--font-mono)}
+  .disp{font-family:var(--font-display)}
+  .lucide{width:1em;height:1em;stroke-width:1.75}
+  .tnum{font-variant-numeric:tabular-nums}
+  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--pc-line);border-radius:8px}
+  input,textarea{font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+/* ─────────── icon helper (Lucide) ─────────── */
+function Icon({ name, size = 18, color, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.innerHTML = '';
+      const i = document.createElement('i');
+      i.setAttribute('data-lucide', name);
+      ref.current.appendChild(i);
+      if (window.lucide) window.lucide.createIcons();
+    }
+  });
+  return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center', fontSize: size, color, ...style }} />;
+}
+
+/* ─────────── primitives (mirror the DS components) ─────────── */
+function Button({ variant = 'primary', size = 'md', glow = variant === 'primary', full, leftIcon, rightIcon, children, style = {}, ...rest }) {
+  const [h, setH] = useState(false);
+  const s = { sm: ['9px 14px', 13], md: ['14px 20px', 16], lg: ['16px 24px', 17] }[size];
+  const v = {
+    primary: { background: 'var(--accent)', color: 'var(--accent-content)', boxShadow: glow ? 'var(--glow-magenta)' : 'none' },
+    secondary: { background: 'transparent', color: 'var(--text-primary)', border: `1px solid ${h ? 'var(--pc-cyan)' : 'var(--border-strong)'}` },
+    ghost: { background: h ? 'var(--surface-hover)' : 'transparent', color: 'var(--text-secondary)' }
+  }[variant];
+  return <button onMouseEnter={() => setH(1)} onMouseLeave={() => setH(0)} style={{
+    fontFamily: 'var(--font-display)', fontWeight: variant === 'ghost' ? 600 : 800, fontSize: s[1], padding: s[0],
+    borderRadius: 'var(--radius-md)', border: '1px solid transparent', cursor: 'pointer', display: 'inline-flex',
+    alignItems: 'center', justifyContent: 'center', gap: 9, width: full ? '100%' : 'auto', whiteSpace: 'nowrap',
+    transition: 'transform .12s, border-color .12s', transform: h ? 'translateY(-2px)' : 'none', ...v, ...style
+  }} {...rest}>{leftIcon}{children}{rightIcon}</button>;
+}
+
+const STAT = {
+  bootstrap: ['Bootstrap', 'var(--status-bootstrap)', 1], graduating: ['Graduating', 'var(--status-graduating)', 1],
+  graduated: ['Graduated', 'var(--status-graduated)', 0], resolved: ['Resolved', 'var(--status-resolved)', 0], refunded: ['Refunded', 'var(--status-refunded)', 0]
+};
+function StatusPill({ status, size = 'md' }) {
+  const [l, c, pulse] = STAT[status] || STAT.bootstrap;
+  const fs = size === 'sm' ? 10 : 11, pad = size === 'sm' ? '3px 9px' : '5px 12px', d = size === 'sm' ? 6 : 7;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'var(--font-mono)', fontSize: fs, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: c, border: `1px solid ${c}`, borderRadius: '999px', padding: pad }}>
+    <span style={{ width: d, height: d, borderRadius: '999px', background: 'currentColor', animation: pulse ? 'pcp 1.8s ease-in-out infinite' : 'none' }} />{l}
+  </span>;
+}
+
+function OutcomeButton({ side, price, selected, onClick, sub }) {
+  const [h, setH] = useState(false);
+  const yes = side === 'yes', c = yes ? 'var(--yes)' : 'var(--no)', bd = yes ? 'var(--yes-border)' : 'var(--no-border)';
+  return <button onClick={onClick} onMouseEnter={() => setH(1)} onMouseLeave={() => setH(0)} style={{
+    flex: 1, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', textAlign: 'left',
+    background: selected ? c : 'var(--surface-raised)', border: `1px solid ${selected ? c : (h ? c : bd)}`,
+    borderRadius: 'var(--radius-md)', padding: '13px 16px', cursor: 'pointer', transition: 'border-color .12s'
+  }}>
+    <span className="mono" style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', color: selected ? 'var(--pc-ink)' : c }}>{yes ? 'YES' : 'NO'}</span>
+    <span className="disp tnum" style={{ fontWeight: 800, fontSize: 26, color: selected ? 'var(--pc-ink)' : c }}>{price}¢</span>
+    {sub && <span className="mono" style={{ fontSize: 10, color: selected ? 'rgba(8,8,10,.6)' : 'var(--text-muted)' }}>{sub}</span>}
+  </button>;
+}
+
+function GraduationBar({ matched, target, height = 6, caption = true }) {
+  const pct = Math.min((matched / target) * 100, 100), ready = pct >= 100;
+  const c = ready ? 'var(--status-graduated)' : 'var(--status-graduating)';
+  const f = n => n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n}`;
+  return <div>
+    {caption && <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 7 }}>
+      <span style={{ color: 'var(--text-muted)', letterSpacing: '.04em' }}>{ready ? 'READY TO GRADUATE' : 'GRADUATION'}</span>
+      <span style={{ color: c }}>{f(matched)} <span style={{ color: 'var(--text-muted)' }}>/ {f(target)} matched</span></span>
+    </div>}
+    <div style={{ height, background: 'var(--surface-raised)', borderRadius: '999px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div style={{ width: pct + '%', height: '100%', background: c, borderRadius: '999px', boxShadow: ready ? 'var(--glow-lime)' : 'var(--glow-amber)', transition: 'width .3s' }} />
+    </div>
+  </div>;
+}
+
+function Field({ label, hint, suffix, mono, multiline, value, onChange, placeholder, type = 'text', style }) {
+  const [f, setF] = useState(false);
+  const inp = { width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 15, fontFamily: mono ? 'var(--font-mono)' : 'var(--font-sans)', resize: 'vertical' };
+  return <label style={{ display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
+    {label && <span className="mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{label}</span>}
+    <div style={{ display: 'flex', alignItems: multiline ? 'flex-start' : 'center', gap: 10, background: 'var(--surface-raised)', border: `1px solid ${f ? 'var(--pc-cyan)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: multiline ? '12px 14px' : '0 14px', height: multiline ? 'auto' : 46, transition: 'border-color .12s' }}>
+      {multiline
+        ? <textarea rows={3} value={value} placeholder={placeholder} onChange={onChange} onFocus={() => setF(1)} onBlur={() => setF(0)} style={inp} />
+        : <input type={type} value={value} placeholder={placeholder} onChange={onChange} onFocus={() => setF(1)} onBlur={() => setF(0)} style={inp} />}
+      {suffix && <span className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{suffix}</span>}
+    </div>
+    {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>{hint}</span>}
+  </label>;
+}
+
+function Segmented({ options, value, onChange, accentBy, full, size = 'md' }) {
+  const pad = size === 'sm' ? '7px 12px' : '10px 16px', fs = size === 'sm' ? 12 : 14;
+  return <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', width: full ? '100%' : 'auto' }}>
+    {options.map(o => {
+      const val = o.value || o, lab = o.label || o, sel = val === value, ac = accentBy ? accentBy(val) : 'var(--accent)';
+      return <button key={val} onClick={() => onChange(val)} style={{ flex: full ? 1 : 'none', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: fs, padding: pad, borderRadius: 'var(--radius-sm)', border: '1px solid transparent', cursor: 'pointer', transition: 'all .12s', background: sel ? ac : 'transparent', color: sel ? 'var(--pc-ink)' : 'var(--text-secondary)' }}>{lab}</button>;
+    })}
+  </div>;
+}
+
+const Glyph = ({ size = 34 }) => <img src="../../assets/pop-charts-glyph.svg" width={size} height={size} alt="" style={{ display: 'block' }} />;
+
+/* ─────────── data ─────────── */
+const MARKETS = [
+  { id: 'eth-5k', cat: 'Crypto', catC: 'var(--pc-cyan)', status: 'graduating', q: 'Will ETH flip $5,000 before August?', yes: 64, no: 36, vol: 482300, b: 5000, matched: 356000, target: 482000, receipts: 1284 },
+  { id: 'fed-cut', cat: 'Politics', catC: 'var(--pc-violet)', status: 'bootstrap', q: 'Will the Fed cut rates at the next meeting?', yes: 41, no: 59, vol: 96700, b: 3000, matched: 38000, target: 150000, receipts: 412 },
+  { id: 'underdog', cat: 'Sports', catC: 'var(--pc-lime)', status: 'bootstrap', q: 'Will an underdog win the next major final?', yes: 22, no: 78, vol: 54100, b: 2500, matched: 12500, target: 120000, receipts: 207 },
+  { id: 'gpt6', cat: 'Tech', catC: 'var(--pc-cyan)', status: 'graduating', q: 'Will a frontier lab ship a new model this quarter?', yes: 73, no: 27, vol: 318900, b: 5000, matched: 214000, target: 300000, receipts: 901 },
+  { id: 'btc-ath', cat: 'Crypto', catC: 'var(--pc-cyan)', status: 'graduated', q: 'Did BTC set a new all-time high in Q2?', yes: 88, no: 12, vol: 1240000, b: 8000, matched: 760000, target: 700000, receipts: 3120 },
+  { id: 'film', cat: 'Culture', catC: 'var(--pc-amber)', status: 'bootstrap', q: 'Will the summer tentpole cross $1B worldwide?', yes: 35, no: 65, vol: 41200, b: 2000, matched: 8200, target: 90000, receipts: 158 }
+];
+const FILTERS = ['Trending', 'New', 'Graduating', 'Ending soon'];
+const CATS = ['Crypto', 'Politics', 'Sports', 'Tech', 'Culture', 'Econ'];
+const fmtVol = n => n >= 1000000 ? `$${(n / 1000000).toFixed(2)}M` : n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n}`;
+
+/* ─────────── market card ─────────── */
+function MarketCard({ m, onOpen }) {
+  const [h, setH] = useState(false);
+  const live = m.status === 'bootstrap' || m.status === 'graduating';
+  return <div onClick={() => onOpen(m)} onMouseEnter={() => setH(1)} onMouseLeave={() => setH(0)} style={{
+    background: 'var(--surface-card)', border: `1px solid ${h ? 'var(--border-strong)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)',
+    padding: 24, display: 'flex', flexDirection: 'column', gap: 16, cursor: 'pointer', transition: 'all .12s', transform: h ? 'translateY(-3px)' : 'none'
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span className="mono" style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: m.catC, border: `1px solid ${m.catC}`, borderRadius: '999px', padding: '3px 9px' }}>{m.cat}</span>
+      <StatusPill status={m.status} size="sm" />
+    </div>
+    <div className="disp" style={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2, minHeight: 68 }}>{m.q}</div>
+    <div style={{ display: 'flex', gap: 10 }}>
+      <OutcomeButton side="yes" price={m.yes} onClick={e => { e.stopPropagation(); onOpen(m, 'yes'); }} />
+      <OutcomeButton side="no" price={m.no} onClick={e => { e.stopPropagation(); onOpen(m, 'no'); }} />
+    </div>
+    {live && <GraduationBar matched={m.matched} target={m.target} caption={false} />}
+    <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
+      <span>Vol {fmtVol(m.vol)}</span><span>b = {m.b.toLocaleString()}</span>
+    </div>
+  </div>;
+}
+
+/* ─────────── DISCOVER ─────────── */
+function Discover({ onOpen }) {
+  const [filter, setFilter] = useState('Trending');
+  const [cat, setCat] = useState('All');
+  const list = MARKETS.filter(m => cat === 'All' || m.cat === cat);
+  return <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+      <div>
+        <div className="mono" style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 10 }}>Discover</div>
+        <h1 className="disp" style={{ fontWeight: 800, fontSize: 38, margin: 0, letterSpacing: '-.02em' }}>Markets popping off</h1>
+      </div>
+      <Segmented options={FILTERS} value={filter} onChange={setFilter} />
+    </div>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
+      {['All', ...CATS].map(c => <button key={c} onClick={() => setCat(c)} className="mono" style={{
+        fontSize: 12, letterSpacing: '.06em', padding: '7px 14px', borderRadius: '999px', cursor: 'pointer',
+        border: `1px solid ${cat === c ? 'var(--pc-magenta)' : 'var(--border)'}`, background: cat === c ? 'var(--accent-wash)' : 'transparent', color: cat === c ? 'var(--pc-magenta)' : 'var(--text-secondary)'
+      }}>{c}</button>)}
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 18 }}>
+      {list.map(m => <MarketCard key={m.id} m={m} onOpen={onOpen} />)}
+    </div>
+  </div>;
+}
+
+/* ─────────── CREATE (pump.fun-style + advanced b) ─────────── */
+function Create({ onLaunch }) {
+  const [q, setQ] = useState('Will ETH flip $5,000 before August?');
+  const [cat, setCat] = useState('Crypto');
+  const [yesP, setYesP] = useState(50);
+  const [advanced, setAdvanced] = useState(false);
+  const [b, setB] = useState(5000);
+  const noP = 100 - yesP;
+  return <div>
+    <div style={{ marginBottom: 26 }}>
+      <div className="mono" style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 10 }}>Launchpad</div>
+      <h1 className="disp" style={{ fontWeight: 800, fontSize: 38, margin: 0, letterSpacing: '-.02em' }}>Bake a market</h1>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 15, margin: '12px 0 0', maxWidth: 560, lineHeight: 1.5 }}>No startup liquidity. It prices on a virtual curve from the first bet and graduates when real opposing demand shows up.</p>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1.15fr .85fr', gap: 24, alignItems: 'start' }}>
+      {/* form */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28 }}>
+        <Field label="Market question" value={q} onChange={e => setQ(e.target.value)} placeholder="Will X happen by Y?" hint="Phrase it so it resolves to a clear YES or NO." />
+        <div>
+          <span className="mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Category</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            {CATS.map(c => <button key={c} onClick={() => setCat(c)} className="mono" style={{ fontSize: 12, padding: '7px 13px', borderRadius: '999px', cursor: 'pointer', border: `1px solid ${cat === c ? 'var(--pc-magenta)' : 'var(--border)'}`, background: cat === c ? 'var(--accent-wash)' : 'transparent', color: cat === c ? 'var(--pc-magenta)' : 'var(--text-secondary)' }}>{c}</button>)}
+          </div>
+        </div>
+        <Field label="Description" multiline placeholder="Context, sources, and exactly how this resolves." />
+        {/* opening probability */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Opening probability</span>
+            <span className="mono tnum" style={{ fontSize: 13, color: 'var(--text-muted)' }}>P₀ = {yesP}%</span>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span className="disp tnum" style={{ color: 'var(--yes)', fontWeight: 800, fontSize: 22, width: 56 }}>{yesP}%</span>
+            <input type="range" min="2" max="98" value={yesP} onChange={e => setYesP(+e.target.value)} style={{ flex: 1, accentColor: '#FF2E97' }} />
+            <span className="disp tnum" style={{ color: 'var(--no)', fontWeight: 800, fontSize: 22, width: 56, textAlign: 'right' }}>{noP}%</span>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' }}>Markets needn't open at 50/50 — start a longshot at 5% or a near-consensus at 80%. It's a coordinate, not collateral.</p>
+        </div>
+        {/* advanced */}
+        <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 18 }}>
+          <button onClick={() => setAdvanced(a => !a)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}>
+            <Icon name="sliders-horizontal" size={15} color="var(--pc-cyan)" />
+            <span className="mono" style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 700 }}>Advanced</span>
+            <Icon name={advanced ? 'chevron-up' : 'chevron-down'} size={15} />
+          </button>
+          {advanced && <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+                <span className="mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Liquidity parameter b</span>
+                <span className="mono tnum" style={{ fontSize: 15, color: 'var(--pc-cyan)' }}>{b.toLocaleString()}</span>
+              </div>
+              <input type="range" min="500" max="10000" step="500" value={b} onChange={e => setB(+e.target.value)} style={{ width: '100%', accentColor: '#1FE0FF' }} />
+              <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}><span>Sharp · 500</span><span>Smooth · 10,000</span></div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}><strong style={{ color: 'var(--text-secondary)' }}>Virtual smoothness, not a bankroll.</strong> Higher b moves the price more gently per bet. Backed by no capital — set it freely.</p>
+            </div>
+            <Field label="Collateral token" mono value="pUSD" suffix="0x7a3…f01" onChange={() => {}} />
+            <Field label="Trading close" mono value="2026-08-01 00:00 UTC" onChange={() => {}} hint="At close, unmatched receipts refund automatically." />
+          </div>}
+        </div>
+      </div>
+      {/* preview */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, position: 'sticky', top: 90 }}>
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="mono" style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Live preview</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="mono" style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--pc-cyan)', border: '1px solid var(--pc-cyan)', borderRadius: '999px', padding: '3px 9px' }}>{cat}</span>
+            <StatusPill status="bootstrap" size="sm" />
+          </div>
+          <div className="disp" style={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2, minHeight: 46 }}>{q || 'Your question appears here'}</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1, background: 'var(--surface-raised)', border: '1px solid var(--yes-border)', borderRadius: 'var(--radius-md)', padding: '11px 14px' }}>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--yes)' }}>YES</div>
+              <div className="disp tnum" style={{ fontWeight: 800, fontSize: 22, color: 'var(--yes)' }}>{yesP}¢</div>
+            </div>
+            <div style={{ flex: 1, background: 'var(--surface-raised)', border: '1px solid var(--no-border)', borderRadius: 'var(--radius-md)', padding: '11px 14px' }}>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--no)' }}>NO</div>
+              <div className="disp tnum" style={{ fontWeight: 800, fontSize: 22, color: 'var(--no)' }}>{noP}¢</div>
+            </div>
+          </div>
+          <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
+            <span>Vol $0</span><span>b = {b.toLocaleString()}</span>
+          </div>
+        </div>
+        <div style={{ background: 'var(--accent-wash)', border: '1px solid var(--no-border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', gap: 11 }}>
+          <Icon name="info" size={16} color="var(--pc-magenta)" style={{ flex: 'none', marginTop: 1 }} />
+          <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>Bets are <strong style={{ color: 'var(--text-primary)' }}>receipts</strong>, not fills. They clear at graduation; unmatched amounts refund at exact path cost.</span>
+        </div>
+        <Button full size="lg" leftIcon={<Icon name="rocket" size={18} />} onClick={onLaunch}>Pop a market</Button>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No seed capital required</span>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ─────────── MARKET DETAIL + TRADE ─────────── */
+function PriceCurve({ color }) {
+  // decorative LMSR-ish curve
+  const pts = '0,86 30,80 60,70 90,66 120,54 150,50 180,40 210,36 240,26 270,22 300,16';
+  return <svg viewBox="0 0 300 100" width="100%" height="120" preserveAspectRatio="none" style={{ display: 'block' }}>
+    <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.28" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+    <polygon points={`${pts} 300,100 0,100`} fill="url(#cg)" />
+    <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>;
+}
+function Row({ k, v, c }) {
+  return <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+    <span style={{ color: 'var(--text-muted)' }} className="mono">{k}</span>
+    <span className="mono tnum" style={{ color: c || 'var(--text-primary)' }}>{v}</span>
+  </div>;
+}
+function MarketDetail({ m, initialSide, onBack, onGraduation }) {
+  const [side, setSide] = useState(initialSide || 'yes');
+  const [amt, setAmt] = useState('250');
+  const price = side === 'yes' ? m.yes : m.no;
+  const num = parseFloat(amt) || 0;
+  const exposure = num > 0 ? (num / (price / 100)) : 0;
+  const impact = num > 0 ? Math.min((num / m.b) * 3.4, 9).toFixed(2) : '0.00';
+  const sideC = side === 'yes' ? 'var(--yes)' : 'var(--no)';
+  return <div>
+    <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, marginBottom: 20, padding: 0 }} className="mono">
+      <Icon name="arrow-left" size={15} /> All markets
+    </button>
+    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr .85fr', gap: 24, alignItems: 'start' }}>
+      {/* left */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="mono" style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: m.catC, border: `1px solid ${m.catC}`, borderRadius: '999px', padding: '4px 11px' }}>{m.cat}</span>
+          <StatusPill status={m.status} />
+        </div>
+        <h1 className="disp" style={{ fontWeight: 700, fontSize: 30, margin: 0, lineHeight: 1.14 }}>{m.q}</h1>
+        <div style={{ display: 'flex', gap: 28, alignItems: 'baseline' }}>
+          <div><span className="disp tnum" style={{ fontWeight: 800, fontSize: 44, color: 'var(--yes)' }}>{m.yes}%</span><span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>YES</span></div>
+          <div><span className="disp tnum" style={{ fontWeight: 800, fontSize: 28, color: 'var(--no)' }}>{m.no}%</span><span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>NO</span></div>
+        </div>
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
+          <div className="mono" style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Virtual LMSR · implied probability</div>
+          <PriceCurve color={sideC} />
+        </div>
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <GraduationBar matched={m.matched} target={m.target} height={8} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, borderTop: '1px solid var(--border-soft)', paddingTop: 16 }}>
+            {[['Volume', fmtVol(m.vol)], ['Receipts', m.receipts.toLocaleString()], ['b', m.b.toLocaleString()]].map(([k, v]) =>
+              <div key={k}><div className="mono" style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{k}</div><div className="disp tnum" style={{ fontWeight: 700, fontSize: 20, marginTop: 4 }}>{v}</div></div>)}
+          </div>
+          {(m.status === 'graduating') && <button onClick={() => onGraduation(m)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-raised)', border: '1px solid var(--status-graduating)', borderRadius: 'var(--radius-md)', padding: '13px 16px', cursor: 'pointer', color: 'var(--status-graduating)' }} className="mono">
+            <span style={{ fontSize: 12, letterSpacing: '.06em' }}>VIEW GRADUATION CLEARING</span><Icon name="arrow-up-right" size={16} />
+          </button>}
+        </div>
+      </div>
+      {/* trade panel */}
+      <div style={{ position: 'sticky', top: 90, background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div className="mono" style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Place a receipt</div>
+        <Segmented full options={[{ value: 'yes', label: 'YES' }, { value: 'no', label: 'NO' }]} value={side} onChange={setSide} accentBy={v => v === 'yes' ? 'var(--yes)' : 'var(--no)'} />
+        <Field label="Amount" mono value={amt} onChange={e => setAmt(e.target.value.replace(/[^0-9.]/g, ''))} suffix="pUSD" />
+        <div style={{ display: 'flex', gap: 8 }}>{['50', '250', '1000', 'Max'].map(p => <button key={p} onClick={() => setAmt(p === 'Max' ? '5000' : p)} className="mono" style={{ flex: 1, fontSize: 12, padding: '8px 0', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>{p}</button>)}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
+          <Row k="Avg price" v={`${price}¢`} />
+          <Row k="Est. exposure" v={`${exposure.toFixed(0)} sh`} c={sideC} />
+          <Row k="Price impact" v={`+${impact} pts`} c={+impact >= 5 ? 'var(--status-graduating)' : 'var(--text-primary)'} />
+          <Row k="Slippage cap" v="1.5%" />
+        </div>
+        <Button full size="lg" style={{ background: sideC, boxShadow: side === 'yes' ? 'var(--glow-lime)' : 'var(--glow-magenta)' }}>Place {side === 'yes' ? 'YES' : 'NO'} receipt</Button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Icon name="shield-alert" size={15} color="var(--text-muted)" style={{ flex: 'none', marginTop: 1 }} />
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>Not a guaranteed fill. Clears at graduation; worst case is a full refund at your exact path cost.</span>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ─────────── GRADUATION / CLEARING ─────────── */
+function BandStrip({ m }) {
+  // probability axis 0..100; YES demand swept low→high bands, NO high→low; overlap = matched
+  const bands = [];
+  for (let p = 0; p < 100; p += 10) {
+    const yes = p >= 20 && p < 70;   // YES demand covered 20–70
+    const no = p >= 40 && p < 90;    // NO demand covered 40–90
+    const matched = yes && no;       // overlap 40–70
+    bands.push({ p, yes, no, matched });
+  }
+  return <div>
+    <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+      {bands.map(b => <div key={b.p} style={{ flex: 1, height: 56, position: 'relative', background: b.matched ? 'var(--status-graduated)' : b.yes ? 'var(--yes-wash)' : b.no ? 'var(--no-wash)' : 'var(--surface-raised)', borderRight: b.p < 90 ? '1px solid var(--border)' : 'none', boxShadow: b.matched ? 'inset 0 0 18px rgba(198,255,61,.35)' : 'none' }}>
+        <span className="mono" style={{ position: 'absolute', bottom: 3, left: 4, fontSize: 9, color: b.matched ? 'var(--pc-ink)' : 'var(--text-muted)' }}>{b.p}</span>
+      </div>)}
+    </div>
+    <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap' }}>
+      {[['var(--status-graduated)', 'Matched → complete sets'], ['var(--yes-wash)', 'YES only → refund'], ['var(--no-wash)', 'NO only → refund'], ['var(--surface-raised)', 'No demand']].map(([c, l]) =>
+        <span key={l} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-secondary)' }}><span style={{ width: 12, height: 12, borderRadius: 3, background: c, border: '1px solid var(--border)' }} />{l}</span>)}
+    </div>
+  </div>;
+}
+function Graduation({ m, onBack }) {
+  const ready = m.matched >= m.target;
+  return <div>
+    <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, marginBottom: 20, padding: 0 }} className="mono">
+      <Icon name="arrow-left" size={15} /> Back to market
+    </button>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+      <div>
+        <div className="mono" style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--status-graduating)', marginBottom: 10 }}>Band-pass clearing</div>
+        <h1 className="disp" style={{ fontWeight: 800, fontSize: 32, margin: 0, letterSpacing: '-.02em', maxWidth: 620, lineHeight: 1.12 }}>{m.q}</h1>
+      </div>
+      <StatusPill status={ready ? 'graduating' : 'graduating'} />
+    </div>
+
+    <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24, marginBottom: 20 }}>
+      <GraduationBar matched={m.matched} target={m.target} height={10} />
+    </div>
+
+    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr .7fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
+        <div className="mono" style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Price-band overlap · which bands both sides crossed</div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 18px', lineHeight: 1.5, maxWidth: 560 }}>Clearing passes exactly the bands crossed by YES and NO demand in opposite directions. Matched bands mint fully-collateralized complete sets; everything else refunds at its exact path cost.</p>
+        <BandStrip m={m} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {[['Matched market cap', fmtVol(m.matched), 'var(--status-graduated)', 'check-circle-2'],
+          ['Complete sets minted', Math.round(m.matched).toLocaleString(), 'var(--text-primary)', 'coins'],
+          ['Refunded (unmatched)', fmtVol(Math.round(m.vol - m.matched)), 'var(--pc-magenta)', 'rotate-ccw'],
+          ['Receipts cleared', m.receipts.toLocaleString(), 'var(--text-primary)', 'receipt']].map(([k, v, c, ic]) =>
+          <div key={k} style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <Icon name={ic} size={20} color={c} />
+            <div><div className="mono" style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{k}</div><div className="disp tnum" style={{ fontWeight: 800, fontSize: 22, color: c, marginTop: 2 }}>{v}</div></div>
+          </div>)}
+        <Button full size="lg" leftIcon={<Icon name="git-merge" size={18} />}>Graduate market</Button>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>Locked collateral provably equals max payout. No bad debt.</span>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ─────────── shell ─────────── */
+function App() {
+  const [view, setView] = useState('discover');
+  const [sel, setSel] = useState(null);
+  const [side, setSide] = useState('yes');
+  const open = (m, s) => { setSel(m); setSide(s || 'yes'); setView('market'); window.scrollTo(0, 0); };
+  const nav = (v) => { setView(v); window.scrollTo(0, 0); };
+  return <div>
+    <nav style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(8,8,10,.74)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border-soft)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 28px', height: 66, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+          <div onClick={() => nav('discover')} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <Glyph size={32} /><span className="disp" style={{ fontWeight: 800, fontSize: 21 }}>Pop<span style={{ color: 'var(--pc-magenta)' }}>Charts</span></span>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[['discover', 'Discover'], ['create', 'Create'], ['portfolio', 'Portfolio']].map(([v, l]) =>
+              <button key={v} onClick={() => nav(v)} className="mono" style={{ fontSize: 13, letterSpacing: '.04em', padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', background: (view === v || (v === 'discover' && view === 'market')) ? 'var(--surface-hover)' : 'transparent', color: (view === v) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{l}</button>)}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {view !== 'create' && <Button size="sm" leftIcon={<Icon name="rocket" size={15} />} onClick={() => nav('create')}>Pop a market</Button>}
+          <button className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}><Icon name="wallet" size={15} color="var(--pc-cyan)" />0x7a3…f01</button>
+        </div>
+      </div>
+    </nav>
+    <main style={{ maxWidth: 1240, margin: '0 auto', padding: '34px 28px 80px' }}>
+      {view === 'discover' && <Discover onOpen={open} />}
+      {view === 'create' && <Create onLaunch={() => nav('discover')} />}
+      {view === 'market' && sel && <MarketDetail m={sel} initialSide={side} onBack={() => nav('discover')} onGraduation={(m) => { setSel(m); nav('graduation'); }} />}
+      {view === 'graduation' && sel && <Graduation m={sel} onBack={() => nav('market')} />}
+      {view === 'portfolio' && <div style={{ textAlign: 'center', padding: '90px 0', color: 'var(--text-muted)' }} className="mono">Portfolio · receipts & positions (stub)</div>}
+    </main>
+    <style>{'@keyframes pcp{0%,100%{opacity:.45}50%{opacity:1}} input[type=range]{height:4px;border-radius:999px;background:var(--pc-line);outline:none;-webkit-appearance:none} input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:999px;background:#fff;cursor:pointer}'}</style>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

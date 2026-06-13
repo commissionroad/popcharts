@@ -1,0 +1,19 @@
+<!-- @dsCard group="Components" viewport="700x150" subtitle="Matched liquidity toward the clearing target — amber filling, lime when ready" name="GraduationBar" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:26px;display:flex;flex-direction:column;gap:20px}
+  .cap{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;margin-bottom:7px}
+  .mut{color:var(--text-muted);letter-spacing:.04em}
+  .track{height:8px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-pill);overflow:hidden}
+  .fill{height:100%;border-radius:var(--radius-pill)}
+</style></head><body>
+  <div>
+    <div class="cap"><span class="mut">GRADUATION</span><span style="color:var(--status-graduating)">$356.0K <span class="mut">/ $482.0K matched</span></span></div>
+    <div class="track"><div class="fill" style="width:74%;background:var(--status-graduating);box-shadow:var(--glow-amber)"></div></div>
+  </div>
+  <div>
+    <div class="cap"><span class="mut">READY TO GRADUATE</span><span style="color:var(--status-graduated)">$482.0K <span class="mut">/ $482.0K matched</span></span></div>
+    <div class="track"><div class="fill" style="width:100%;background:var(--status-graduated);box-shadow:var(--glow-lime)"></div></div>
+  </div>
+</body></html>

@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x440" subtitle="Discovery tile — status, question, YES/NO, graduation, volume + b" name="MarketCard" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:26px;display:flex;justify-content:center}
+  .card{width:420px;background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--pad-card);display:flex;flex-direction:column;gap:18px}
+  .top{display:flex;justify-content:space-between;align-items:center}
+  .chip{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--pc-cyan);border:1px solid var(--pc-cyan);border-radius:var(--radius-pill);padding:4px 11px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--status-graduating);border:1px solid var(--status-graduating);border-radius:var(--radius-pill);padding:3px 9px}
+  .dot{width:6px;height:6px;border-radius:999px;background:currentColor}
+  .q{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.18}
+  .row{display:flex;gap:12px}
+  .cell{flex:1;display:flex;flex-direction:column;gap:3px;background:var(--surface-raised);border-radius:var(--radius-md);padding:13px 16px}
+  .cell .l{font-family:var(--font-mono);font-size:12px;font-weight:700}
+  .cell .p{font-family:var(--font-display);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums}
+  .yes{border:1px solid var(--yes-border)}.yes .l,.yes .p{color:var(--yes)}
+  .no{border:1px solid var(--no-border)}.no .l,.no .p{color:var(--no)}
+  .cap{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:7px}
+  .track{height:6px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-pill);overflow:hidden}
+  .fill{height:100%;width:74%;background:var(--status-graduating);box-shadow:var(--glow-amber);border-radius:var(--radius-pill)}
+  .foot{display:flex;justify-content:space-between;border-top:1px solid var(--border-soft);padding-top:14px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted)}
+</style></head><body>
+  <div class="card">
+    <div class="top"><span class="chip">Crypto</span><span class="pill"><span class="dot"></span>Graduating</span></div>
+    <div class="q">Will ETH flip $5,000 before August?</div>
+    <div class="row">
+      <div class="cell yes"><span class="l">YES</span><span class="p">64¢</span></div>
+      <div class="cell no"><span class="l">NO</span><span class="p">36¢</span></div>
+    </div>
+    <div>
+      <div class="cap"><span>GRADUATION</span><span style="color:var(--status-graduating)">$356.0K / $482.0K matched</span></div>
+      <div class="track"><div class="fill"></div></div>
+    </div>
+    <div class="foot"><span>Vol $482.3K</span><span>b = 5,000</span></div>
+  </div>
+</body></html>

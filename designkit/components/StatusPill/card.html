@@ -1,0 +1,16 @@
+<!-- @dsCard group="Components" viewport="700x130" subtitle="Bootstrap → Graduating → Graduated → Resolved → Refunded" name="StatusPill" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;background:var(--pc-ink);padding:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor;border-radius:var(--radius-pill);padding:5px 12px}
+  .dot{width:7px;height:7px;border-radius:999px;background:currentColor}
+  @keyframes pc-pulse{0%,100%{opacity:.45}50%{opacity:1}}
+  .live .dot{animation:pc-pulse 1.8s ease-in-out infinite}
+</style></head><body>
+  <span class="pill live" style="color:var(--status-bootstrap)"><span class="dot"></span>Bootstrap</span>
+  <span class="pill live" style="color:var(--status-graduating)"><span class="dot"></span>Graduating</span>
+  <span class="pill" style="color:var(--status-graduated)"><span class="dot"></span>Graduated</span>
+  <span class="pill" style="color:var(--status-resolved)"><span class="dot"></span>Resolved</span>
+  <span class="pill" style="color:var(--status-refunded)"><span class="dot"></span>Refunded</span>
+</body></html>
