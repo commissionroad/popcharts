@@ -27,6 +27,7 @@ the full command menu.
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
 just app-check      # app format, lint, typecheck, and unit tests
+just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
 just check          # app-check and protocol-check
 just test           # app unit tests and protocol tests
@@ -37,6 +38,18 @@ just land 12        # merge a PR with scripts/land
 Root commands delegate into the existing package-local workflows. The app keeps
 its `app/pnpm-lock.yaml` for the Vercel project rooted at `app/`, and the
 protocol keeps its own `protocol/pnpm-lock.yaml`.
+
+## Devchain Integration
+
+Run a full local app/protocol smoke test with:
+
+```bash
+pnpm run devchain:e2e
+```
+
+That command starts a local Hardhat chain, deploys the protocol, writes local
+app env values, and runs the Playwright `@chain` smoke. See
+[`docs/devchain.md`](docs/devchain.md) for Tenderly and Vercel Preview setup.
 
 ## Engineering Skills
 

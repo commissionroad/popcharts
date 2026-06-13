@@ -2,5 +2,6 @@
 /cache/
 /coverage/
 coverage.json
+/deployments/*.local.json
 /node_modules/
 /types/

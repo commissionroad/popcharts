@@ -10,6 +10,8 @@
   "scripts": {
     "build": "hardhat build",
     "clean": "hardhat clean",
+    "devchain:deploy": "hardhat build && node scripts/deploy-devchain.mjs",
+    "devchain:node": "hardhat node",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",

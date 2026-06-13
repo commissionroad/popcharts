@@ -4,6 +4,7 @@ import { http } from "wagmi";
 
 import {
   defaultPrivyChain,
+  getWalletRpcUrlForChain,
   supportedPrivyChains,
   supportedWagmiChains,
 } from "@/integrations/wallet/chains";
@@ -13,8 +14,7 @@ const popChartsTheme = {
   background: "#08080a",
 } as const;
 
-const walletConnectCloudProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+const walletConnectCloudProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
 export const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 export const privyClientId = process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
@@ -24,7 +24,10 @@ export const wagmiConfig = createConfig({
   chains: supportedWagmiChains,
   ssr: true,
   transports: Object.fromEntries(
-    supportedWagmiChains.map((chain) => [chain.id, http()])
+    supportedWagmiChains.map((chain) => [
+      chain.id,
+      http(getWalletRpcUrlForChain(chain.id)),
+    ])
   ),
 });
 
@@ -54,7 +57,5 @@ export const privyConfig = {
   },
   loginMethods: ["email", "google", "wallet"],
   supportedChains: [...supportedPrivyChains],
-  ...(walletConnectCloudProjectId
-    ? { walletConnectCloudProjectId }
-    : {}),
+  ...(walletConnectCloudProjectId ? { walletConnectCloudProjectId } : {}),
 } satisfies PrivyClientConfig;

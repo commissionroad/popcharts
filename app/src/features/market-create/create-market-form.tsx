@@ -27,18 +27,18 @@ import {
   validateCreateMarketDraft,
 } from "@/domain/market-creation/create-market";
 import type {
+  CreatedMarket,
   CreateMarketDraft,
   CreateMarketDraftField,
   CreateMarketPreview,
   CreateMarketValidationErrors,
-  MockCreatedMarket,
 } from "@/domain/market-creation/types";
 import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 import { formatB, formatCents, formatUsdWhole } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
-import { createMockMarket } from "./create-market-service";
+import { createMarket } from "./create-market-service";
 
 type CreateMarketStage = "edit" | "review" | "success";
 
@@ -72,7 +72,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const [hasTriedReview, setHasTriedReview] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [createdMarket, setCreatedMarket] = useState<MockCreatedMarket | null>(null);
+  const [createdMarket, setCreatedMarket] = useState<CreatedMarket | null>(null);
 
   const validationErrors = validateCreateMarketDraft(draft);
   const visibleErrors: CreateMarketValidationErrors =
@@ -154,11 +154,11 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
     setSubmitError(null);
 
     try {
-      const result = await createMockMarket(draft);
+      const result = await createMarket(draft);
       setCreatedMarket(result);
       setStage("success");
-    } catch {
-      setSubmitError("The mock creation service could not create this market.");
+    } catch (error) {
+      setSubmitError(getCreateMarketErrorMessage(error));
     } finally {
       setIsCreating(false);
     }
@@ -415,6 +415,12 @@ function getLiveDeadlineErrors(
   }
 
   return liveErrors;
+}
+
+function getCreateMarketErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "The creation service could not create this market.";
 }
 
 function CategoryPicker({
@@ -688,8 +694,10 @@ function SuccessPanel({
   result,
 }: {
   onReset: () => void;
-  result: MockCreatedMarket;
+  result: CreatedMarket;
 }) {
+  const onChain = result.creationMode === "devchain";
+
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-6">
       <div className="flex items-center gap-3">
@@ -698,14 +706,19 @@ function SuccessPanel({
         </span>
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-            Mock created
+            {onChain ? "On-chain created" : "Mock created"}
           </div>
-          <h2 className="font-display text-xl font-black">Market draft ready</h2>
+          <h2 className="font-display text-xl font-black">
+            {onChain ? "Market live on devchain" : "Market draft ready"}
+          </h2>
         </div>
       </div>
 
       <div className="flex flex-col divide-y divide-[var(--border-soft)] rounded-[var(--radius-md)] border border-[var(--border-soft)]">
         <ReviewRow label="Market ID" mono value={result.marketId} />
+        {result.transactionHash ? (
+          <ReviewRow label="Transaction" mono value={result.transactionHash} />
+        ) : null}
         <ReviewRow label="Metadata hash" mono value={result.metadataHash} />
         <ReviewRow
           label="Target"

@@ -52,6 +52,8 @@ export type CreateMarketPreview = {
   protocolParams: ProtocolCreateMarketParams;
 };
 
-export type MockCreatedMarket = CreateMarketPreview & {
+export type CreatedMarket = CreateMarketPreview & {
+  creationMode: "devchain" | "mock";
   marketId: string;
+  transactionHash?: `0x${string}`;
 };
