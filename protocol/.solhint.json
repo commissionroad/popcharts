@@ -1,0 +1,13 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "compiler-version": ["error", "^0.8.28"],
+    "func-name-mixedcase": "off",
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "gas-strict-inequalities": "off",
+    "gas-struct-packing": "off",
+    "import-path-check": "off",
+    "not-rely-on-time": "off",
+    "reason-string": "off"
+  }
+}

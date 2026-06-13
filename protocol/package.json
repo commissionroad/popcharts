@@ -1,0 +1,36 @@
+{
+  "name": "@popcharts/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.10"
+  },
+  "scripts": {
+    "build": "hardhat build",
+    "clean": "hardhat clean",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",
+    "test": "hardhat test",
+    "test:nodejs": "hardhat test nodejs",
+    "test:solidity": "hardhat test solidity",
+    "typecheck": "hardhat build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "@prb/math": "4.1.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
+    "@types/node": "22.19.21",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.7",
+    "hardhat": "3.9.0",
+    "prettier": "3.8.4",
+    "prettier-plugin-solidity": "2.3.1",
+    "solhint": "6.2.1",
+    "typescript": "6.0.3",
+    "viem": "2.52.2"
+  }
+}
