@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 
 type FieldProps = {
   className?: string;
+  error?: string | undefined;
   hint?: string;
   id: string;
   label: string;
@@ -24,6 +25,7 @@ type FieldProps = {
 
 export function Field({
   className,
+  error,
   hint,
   id,
   label,
@@ -48,12 +50,15 @@ export function Field({
       </span>
       <span
         className={cn(
-          "flex gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 transition-colors duration-[var(--duration-fast)] focus-within:border-[var(--pc-cyan)]",
+          "flex gap-2.5 rounded-[var(--radius-sm)] border bg-[var(--surface-raised)] px-3.5 transition-colors duration-[var(--duration-fast)] focus-within:border-[var(--pc-cyan)]",
+          error ? "border-[var(--no-border)]" : "border-[var(--border)]",
           multiline ? "items-start py-3" : "h-11 items-center"
         )}
       >
         {multiline ? (
           <textarea
+            aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+            aria-invalid={error ? true : undefined}
             className={inputClassName}
             id={id}
             onChange={onChange}
@@ -64,6 +69,8 @@ export function Field({
           />
         ) : (
           <input
+            aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+            aria-invalid={error ? true : undefined}
             className={inputClassName}
             id={id}
             onChange={onChange}
@@ -79,8 +86,18 @@ export function Field({
           </span>
         ) : null}
       </span>
-      {hint ? (
-        <span className="text-xs leading-5 text-[var(--text-muted)]">{hint}</span>
+      {error ? (
+        <span
+          className="text-xs leading-5 text-[var(--no)]"
+          id={`${id}-error`}
+          role="alert"
+        >
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="text-xs leading-5 text-[var(--text-muted)]" id={`${id}-hint`}>
+          {hint}
+        </span>
       ) : null}
     </label>
   );

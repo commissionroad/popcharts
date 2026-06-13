@@ -23,6 +23,13 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await page.getByRole("link", { name: "Create" }).click();
   await expect(page.getByRole("heading", { name: "Bake a market" })).toBeVisible();
   await expect(page.getByText("Bets are receipts, not fills")).toBeVisible();
+  await page.getByLabel("Market question").fill("Will the smoke test market graduate?");
+  await page
+    .getByLabel("Resolution criteria")
+    .fill("Resolves YES if this mocked market reaches graduation.");
+  await page.getByRole("button", { name: "Review market" }).click();
+  await expect(page.getByText("Metadata hash")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create market" })).toBeVisible();
 
   await page.getByRole("link", { name: "Portfolio" }).click();
   await expect(

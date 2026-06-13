@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: "Create",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function Page() {
-  return <CreateMarketPage />;
+  return <CreateMarketPage initialNow={new Date().toISOString()} />;
 }
