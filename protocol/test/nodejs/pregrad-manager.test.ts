@@ -12,7 +12,7 @@ type MarketConfig = {
   openingProbabilityWad: bigint;
   liquidityParameter: bigint;
   graduationThreshold: bigint;
-  graduationTime: bigint;
+  graduationDeadline: bigint;
   resolutionTime: bigint;
 };
 
@@ -23,7 +23,7 @@ type MarketState = {
   path: bigint;
   yesShares: bigint;
   noShares: bigint;
-  frozenAt: bigint;
+  graduationStartedAt: bigint;
 };
 
 type ReceiptQuote = {
@@ -44,6 +44,18 @@ type Receipt = {
   active: boolean;
 };
 
+type ClearingRoot = {
+  merkleRoot: `0x${string}`;
+  submitter: `0x${string}`;
+  snapshotHash: `0x${string}`;
+  submittedAt: bigint;
+  challengeDeadline: bigint;
+  matchedMarketCap: bigint;
+  retainedCostTotal: bigint;
+  refundTotal: bigint;
+  completeSetCount: bigint;
+};
+
 describe("PregradManager", async function () {
   const { viem, networkHelpers } = await network.create();
 
@@ -59,8 +71,8 @@ describe("PregradManager", async function () {
     const [creator] = await viem.getWalletClients();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/example"));
-    const graduationTime = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
-    const resolutionTime = graduationTime + 7n * 24n * 60n * 60n;
+    const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
 
     await viem.assertions.emitWithArgs(
       manager.write.createMarket([
@@ -70,7 +82,7 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
           graduationThreshold: 40_000n * WAD,
-          graduationTime,
+          graduationDeadline,
           resolutionTime,
         },
       ]),
@@ -84,7 +96,7 @@ describe("PregradManager", async function () {
         (50n * WAD) / 100n,
         5_000n * WAD,
         40_000n * WAD,
-        graduationTime,
+        graduationDeadline,
         resolutionTime,
       ],
     );
@@ -103,7 +115,7 @@ describe("PregradManager", async function () {
     assert.equal(config.openingProbabilityWad, (50n * WAD) / 100n);
     assert.equal(config.liquidityParameter, 5_000n * WAD);
     assert.equal(config.graduationThreshold, 40_000n * WAD);
-    assert.equal(config.graduationTime, graduationTime);
+    assert.equal(config.graduationDeadline, graduationDeadline);
     assert.equal(config.resolutionTime, resolutionTime);
     assert.equal(Number(state.status), 0);
     assert.equal(state.receiptCount, 0n);
@@ -111,17 +123,18 @@ describe("PregradManager", async function () {
     assert.equal(state.path, 0n);
     assert.equal(state.yesShares, 0n);
     assert.equal(state.noShares, 0n);
-    assert.equal(state.frozenAt, 0n);
+    assert.equal(state.graduationStartedAt, 0n);
   });
 
   it("keeps market configs isolated by market ID", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [, alice, bob] = await viem.getWalletClients();
 
-    const firstGraduationTime = BigInt(await networkHelpers.time.latest()) + 3n * 24n * 60n * 60n;
-    const secondGraduationTime = firstGraduationTime + 11n * 24n * 60n * 60n;
-    const firstResolutionTime = firstGraduationTime + 27n * 24n * 60n * 60n;
-    const secondResolutionTime = secondGraduationTime + 46n * 24n * 60n * 60n;
+    const firstGraduationDeadline =
+      BigInt(await networkHelpers.time.latest()) + 3n * 24n * 60n * 60n;
+    const secondGraduationDeadline = firstGraduationDeadline + 11n * 24n * 60n * 60n;
+    const firstResolutionTime = firstGraduationDeadline + 27n * 24n * 60n * 60n;
+    const secondResolutionTime = secondGraduationDeadline + 46n * 24n * 60n * 60n;
     const firstMetadataHash = keccak256(stringToBytes("ipfs://popcharts/first"));
     const secondMetadataHash = keccak256(stringToBytes("ipfs://popcharts/second"));
 
@@ -133,7 +146,7 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
           graduationThreshold: 25_000n * WAD,
-          graduationTime: firstGraduationTime,
+          graduationDeadline: firstGraduationDeadline,
           resolutionTime: firstResolutionTime,
         },
       ],
@@ -148,7 +161,7 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
           graduationThreshold: 100_000n * WAD,
-          graduationTime: secondGraduationTime,
+          graduationDeadline: secondGraduationDeadline,
           resolutionTime: secondResolutionTime,
         },
       ],
@@ -165,8 +178,8 @@ describe("PregradManager", async function () {
     assert.equal(secondConfig.metadataHash, secondMetadataHash);
     assert.equal(firstConfig.openingProbabilityWad, (20n * WAD) / 100n);
     assert.equal(secondConfig.openingProbabilityWad, (80n * WAD) / 100n);
-    assert.equal(firstConfig.graduationTime, firstGraduationTime);
-    assert.equal(secondConfig.graduationTime, secondGraduationTime);
+    assert.equal(firstConfig.graduationDeadline, firstGraduationDeadline);
+    assert.equal(secondConfig.graduationDeadline, secondGraduationDeadline);
     assert.equal(firstConfig.resolutionTime, firstResolutionTime);
     assert.equal(secondConfig.resolutionTime, secondResolutionTime);
   });
@@ -176,8 +189,8 @@ describe("PregradManager", async function () {
     const [, buyer] = await viem.getWalletClients();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/receipt"));
-    const graduationTime = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
-    const resolutionTime = graduationTime + 7n * 24n * 60n * 60n;
+    const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
     const shares = 100n * WAD;
 
     await manager.write.createMarket([
@@ -187,7 +200,7 @@ describe("PregradManager", async function () {
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
         graduationThreshold: 40_000n * WAD,
-        graduationTime,
+        graduationDeadline,
         resolutionTime,
       },
     ]);
@@ -256,5 +269,96 @@ describe("PregradManager", async function () {
       await collateral.read.balanceOf([buyer.account.address]),
       1_000n * WAD - quote.cost,
     );
+  });
+
+  it("starts graduation and accepts a manager-submitted clearing root", async function () {
+    const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
+    const [, buyer] = await viem.getWalletClients();
+
+    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/graduation"));
+    const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
+    const shares = 100n * WAD;
+    const matchedMarketCap = 50n * WAD;
+    const merkleRoot = keccak256(stringToBytes("clearing-root"));
+
+    await manager.write.createMarket([
+      {
+        collateral: collateral.address,
+        metadataHash,
+        openingProbabilityWad: (50n * WAD) / 100n,
+        liquidityParameter: 5_000n * WAD,
+        graduationThreshold: matchedMarketCap,
+        graduationDeadline,
+        resolutionTime,
+      },
+    ]);
+
+    await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
+    await collateral.write.approve([manager.address, 1_000n * WAD], {
+      account: buyer.account,
+    });
+
+    const quote = (await manager.read.quoteReceipt([1n, 0, shares])) as ReceiptQuote;
+    await manager.write.placeReceipt(
+      [
+        {
+          marketId: 1n,
+          side: 0,
+          shares,
+          maxCost: quote.cost,
+        },
+      ],
+      { account: buyer.account },
+    );
+
+    await viem.assertions.emit(manager.write.startGraduation([1n]), manager, "GraduationStarted");
+
+    const graduatingState = (await manager.read.getMarketState([1n])) as MarketState;
+    const snapshotHash = (await manager.read.graduationSnapshotHash([1n])) as `0x${string}`;
+
+    assert.equal(Number(graduatingState.status), 2);
+    assert.equal(graduatingState.receiptCount, 1n);
+    assert.equal(graduatingState.totalEscrowed, quote.cost);
+    assert.equal(graduatingState.graduationStartedAt > 0n, true);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.submitClearingRoot([
+        {
+          marketId: 1n,
+          merkleRoot,
+          matchedMarketCap,
+          retainedCostTotal: matchedMarketCap,
+          refundTotal: quote.cost - matchedMarketCap,
+          completeSetCount: matchedMarketCap,
+        },
+      ]),
+      manager,
+      "ClearingRootSubmitted",
+      [
+        1n,
+        getAddress((await viem.getWalletClients())[0].account.address),
+        merkleRoot,
+        snapshotHash,
+        matchedMarketCap,
+        matchedMarketCap,
+        quote.cost - matchedMarketCap,
+        matchedMarketCap,
+        (value: bigint) => value > 0n,
+        (value: bigint) => value > 0n,
+      ],
+    );
+
+    const clearingRoot = (await manager.read.getClearingRoot([1n])) as ClearingRoot;
+    const challengePeriod = (await manager.read.CLEARING_CHALLENGE_PERIOD()) as bigint;
+
+    assert.equal(await manager.read.hasClearingRoot([1n]), true);
+    assert.equal(clearingRoot.merkleRoot, merkleRoot);
+    assert.equal(clearingRoot.snapshotHash, snapshotHash);
+    assert.equal(clearingRoot.matchedMarketCap, matchedMarketCap);
+    assert.equal(clearingRoot.retainedCostTotal, matchedMarketCap);
+    assert.equal(clearingRoot.refundTotal, quote.cost - matchedMarketCap);
+    assert.equal(clearingRoot.completeSetCount, matchedMarketCap);
+    assert.equal(clearingRoot.challengeDeadline, clearingRoot.submittedAt + challengePeriod);
   });
 });

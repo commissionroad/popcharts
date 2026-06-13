@@ -16,7 +16,7 @@ Pop Charts pre-graduation markets all share the same mechanics:
 - virtual LMSR state
 - locked non-transferable receipts
 - collateral escrow
-- freeze / refund / graduation lifecycle
+- manager-started graduation / refund lifecycle
 - deterministic receipt accounting
 
 Those markets are not independent AMMs with bespoke reserves. They are many

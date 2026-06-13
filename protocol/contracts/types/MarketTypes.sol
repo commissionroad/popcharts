@@ -17,8 +17,10 @@ library MarketTypes {
   enum MarketStatus {
     /// @notice The market accepts locked pre-graduation receipts priced by virtual LMSR.
     Active,
-    /// @notice The receipt book is frozen and awaiting clearing result finalization.
+    /// @notice The market is suspicious or manually paused; reserved for future use.
     Frozen,
+    /// @notice The receipt book is locked while the offchain clearing service computes graduation.
+    Graduating,
     /// @notice Clearing finalized and matched receipt segments can claim postgrad outcome tokens.
     Graduated,
     /// @notice The market did not graduate and receipt escrow is refundable.
@@ -43,8 +45,8 @@ library MarketTypes {
     uint256 liquidityParameter;
     /// @notice Minimum matched market cap required before the market can graduate.
     uint256 graduationThreshold;
-    /// @notice Unix timestamp by which the market must graduate or become refundable.
-    uint64 graduationTime;
+    /// @notice Deadline after which an ungraduated market becomes refundable.
+    uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
   }
@@ -62,8 +64,8 @@ library MarketTypes {
     uint256 liquidityParameter;
     /// @notice Minimum matched market cap required before the market can graduate.
     uint256 graduationThreshold;
-    /// @notice Unix timestamp by which the market must graduate or become refundable.
-    uint64 graduationTime;
+    /// @notice Deadline after which an ungraduated market becomes refundable.
+    uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
   }
@@ -82,8 +84,8 @@ library MarketTypes {
     uint256 yesShares;
     /// @notice Total provisional NO shares recorded for this market.
     uint256 noShares;
-    /// @notice Unix timestamp when the receipt book was frozen, or zero if not frozen.
-    uint64 frozenAt;
+    /// @notice Unix timestamp when graduation started, or zero if not graduating/graduated.
+    uint64 graduationStartedAt;
   }
 
   /// @notice Full stored record for a pregrad market.
@@ -136,5 +138,61 @@ library MarketTypes {
     uint64 sequence;
     /// @notice Whether the receipt remains active for future clearing or refund.
     bool active;
+  }
+
+  /// @notice Inputs required to submit an optimistic offchain clearing root.
+  struct SubmitClearingRootParams {
+    /// @notice Market whose locked receipt book was cleared offchain.
+    uint256 marketId;
+    /// @notice Merkle root of per-receipt claim outcomes.
+    bytes32 merkleRoot;
+    /// @notice Path-compatible filled market cap proven by the offchain clearing run.
+    uint256 matchedMarketCap;
+    /// @notice Sum of retained cost across all receipt claim leaves.
+    uint256 retainedCostTotal;
+    /// @notice Sum of refund amounts across all receipt claim leaves.
+    uint256 refundTotal;
+    /// @notice Number of complete sets represented by the retained matched exposure.
+    uint256 completeSetCount;
+  }
+
+  /// @notice Stored optimistic clearing commitment for a graduating market.
+  struct ClearingRoot {
+    /// @notice Merkle root of per-receipt claim outcomes.
+    bytes32 merkleRoot;
+    /// @notice Account that submitted the clearing root.
+    address submitter;
+    /// @notice Snapshot hash of the locked market state this root clears.
+    bytes32 snapshotHash;
+    /// @notice Timestamp when the root was submitted.
+    uint64 submittedAt;
+    /// @notice Timestamp after which a valid unchallenged root may be finalized.
+    uint64 challengeDeadline;
+    /// @notice Path-compatible filled market cap proven by the offchain clearing run.
+    uint256 matchedMarketCap;
+    /// @notice Sum of retained cost across all receipt claim leaves.
+    uint256 retainedCostTotal;
+    /// @notice Sum of refund amounts across all receipt claim leaves.
+    uint256 refundTotal;
+    /// @notice Number of complete sets represented by the retained matched exposure.
+    uint256 completeSetCount;
+  }
+
+  /// @notice Per-receipt claim payload committed by a clearing root leaf.
+  struct ReceiptClaim {
+    /// @notice Market that owns the receipt.
+    uint256 marketId;
+    /// @notice Receipt being settled.
+    uint256 receiptId;
+    /// @notice Account that owns the receipt.
+    address owner;
+    /// @notice YES or NO side purchased by the receipt.
+    Side side;
+    /// @notice Retained shares that graduate into postgrad outcome tokens.
+    uint256 retainedShares;
+    /// @notice Retained cost assigned to graduated path segments.
+    uint256 retainedCost;
+    /// @notice Refund owed for unmatched or crowded-out path segments.
+    uint256 refund;
   }
 }

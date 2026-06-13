@@ -29,7 +29,7 @@ a focused postgrad adapter. That adapter's job is to initialize or reference the
 postgrad condition, split matched collateral into complete sets, and distribute
 retained YES/NO balances according to finalized receipt claims.
 
-The pregrad manager remains responsible for receipt escrow, freeze, clearing
+The pregrad manager remains responsible for receipt escrow, graduation start, clearing
 root acceptance, refunds, and claim accounting. The postgrad layer remains
 responsible for transferable fixed-payout outcome tokens and later redemption.
 

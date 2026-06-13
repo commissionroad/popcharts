@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
@@ -10,15 +11,26 @@ import {MarketTypes} from "./types/MarketTypes.sol";
 /// @title PregradManager
 /// @author Pop Charts
 /// @notice Singleton manager for all Pop Charts pre-graduation markets.
-contract PregradManager is ReentrancyGuard {
+contract PregradManager is Ownable, ReentrancyGuard {
   using SafeERC20 for IERC20;
+
+  /// @notice Challenge period used after an optimistic clearing root is submitted.
+  uint64 public constant CLEARING_CHALLENGE_PERIOD = 1 days;
+  /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
+  bytes32 public constant GRADUATION_SNAPSHOT_TYPEHASH = keccak256(
+    "GraduationSnapshot(uint256 chainId,address manager,uint256 marketId,uint256 receiptCount,uint256 totalEscrowed,int256 path,uint256 yesShares,uint256 noShares,uint64 graduationStartedAt)"
+  );
+  /// @notice Domain hash for per-receipt clearing claim Merkle leaves.
+  bytes32 public constant RECEIPT_CLAIM_TYPEHASH = keccak256(
+    "ReceiptClaim(uint256 marketId,uint256 receiptId,address owner,uint8 side,uint256 retainedShares,uint256 retainedCost,uint256 refund)"
+  );
 
   /// @notice Reverts when a market is created with the zero collateral address.
   error InvalidCollateral();
   /// @notice Reverts when a market is created without a metadata hash.
   error InvalidMetadataHash();
   /// @notice Reverts when the graduation deadline is not in the future.
-  error InvalidGraduationTime();
+  error InvalidGraduationDeadline();
   /// @notice Reverts when the resolution deadline is not after the graduation deadline.
   error InvalidResolutionTime();
   /// @notice Reverts when a market is created without a graduation threshold.
@@ -50,11 +62,45 @@ contract PregradManager is ReentrancyGuard {
   );
   /// @notice Reverts when receipt placement or quoting is attempted after the graduation deadline.
   /// @param marketId Market whose graduation deadline has passed.
-  /// @param graduationTime Market graduation deadline.
-  error MarketPastGraduationTime(uint256 marketId, uint64 graduationTime);
+  /// @param graduationDeadline Market graduation deadline.
+  error MarketPastGraduationDeadline(uint256 marketId, uint64 graduationDeadline);
+  /// @notice Reverts when a market is expired before its graduation deadline.
+  /// @param marketId Market whose graduation deadline has not passed.
+  /// @param graduationDeadline Market graduation deadline.
+  error MarketBeforeGraduationDeadline(uint256 marketId, uint64 graduationDeadline);
   /// @notice Reverts when the per-market receipt sequence cannot fit in uint64.
   /// @param receiptCount Receipt count that would overflow the stored sequence type.
   error ReceiptCountOverflow(uint256 receiptCount);
+  /// @notice Reverts when an account is not allowed to manage graduation.
+  /// @param account Unauthorized account.
+  error UnauthorizedGraduationManager(address account);
+  /// @notice Reverts when a clearing root is zero.
+  error InvalidClearingRoot();
+  /// @notice Reverts when a clearing root already exists for a market.
+  /// @param marketId Market that already has a clearing root.
+  error ClearingRootAlreadySubmitted(uint256 marketId);
+  /// @notice Reverts when a clearing root's matched cap is below the market threshold.
+  /// @param matchedMarketCap Matched market cap submitted by the offchain clearing service.
+  /// @param graduationThreshold Minimum matched market cap required for the market.
+  error MatchedMarketCapBelowThreshold(uint256 matchedMarketCap, uint256 graduationThreshold);
+  /// @notice Reverts when clearing totals do not preserve escrow accounting.
+  /// @param retainedCostTotal Sum of retained cost submitted by the offchain clearing service.
+  /// @param refundTotal Sum of refunds submitted by the offchain clearing service.
+  /// @param totalEscrowed Locked market escrow total.
+  error InvalidClearingTotals(
+    uint256 retainedCostTotal,
+    uint256 refundTotal,
+    uint256 totalEscrowed
+  );
+  /// @notice Reverts when matched cap, retained cost, and complete sets disagree.
+  /// @param matchedMarketCap Path-compatible filled market cap.
+  /// @param retainedCostTotal Sum of retained cost across claim leaves.
+  /// @param completeSetCount Complete sets represented by retained exposure.
+  error InvalidCompleteSetCount(
+    uint256 matchedMarketCap,
+    uint256 retainedCostTotal,
+    uint256 completeSetCount
+  );
 
   /// @notice Emitted when a new active market is created.
   /// @param marketId Canonical pregrad market ID.
@@ -64,7 +110,7 @@ contract PregradManager is ReentrancyGuard {
   /// @param openingProbabilityWad Opening YES probability, scaled by 1e18.
   /// @param liquidityParameter Virtual LMSR smoothness parameter.
   /// @param graduationThreshold Minimum matched market cap required to graduate.
-  /// @param graduationTime Timestamp by which the market must graduate or become refundable.
+  /// @param graduationDeadline Timestamp by which the market must graduate or become refundable.
   /// @param resolutionTime Timestamp by which the postgrad market should resolve.
   event MarketCreated(
     uint256 indexed marketId,
@@ -74,7 +120,7 @@ contract PregradManager is ReentrancyGuard {
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
     uint256 graduationThreshold,
-    uint64 graduationTime,
+    uint64 graduationDeadline,
     uint64 resolutionTime
   );
 
@@ -100,10 +146,71 @@ contract PregradManager is ReentrancyGuard {
     uint64 sequence
   );
 
+  /// @notice Emitted when the manager locks a market's receipt book for offchain clearing.
+  /// @param marketId Market entering the Graduating lifecycle state.
+  /// @param manager Account that started graduation.
+  /// @param receiptCount Locked receipt count.
+  /// @param totalEscrowed Locked escrow total.
+  /// @param path Locked LMSR path coordinate.
+  /// @param yesShares Locked provisional YES shares.
+  /// @param noShares Locked provisional NO shares.
+  /// @param graduationStartedAt Timestamp when graduation started.
+  /// @param snapshotHash Hash of the locked market state used by the offchain clearing service.
+  event GraduationStarted(
+    uint256 indexed marketId,
+    address indexed manager,
+    uint256 receiptCount,
+    uint256 totalEscrowed,
+    int256 path,
+    uint256 yesShares,
+    uint256 noShares,
+    uint64 graduationStartedAt,
+    bytes32 snapshotHash
+  );
+
+  /// @notice Emitted when the manager submits an optimistic offchain clearing commitment.
+  /// @param marketId Market whose receipt book was cleared offchain.
+  /// @param submitter Account that submitted the clearing root.
+  /// @param merkleRoot Merkle root of per-receipt claim outcomes.
+  /// @param snapshotHash Hash of the locked market state cleared by the root.
+  /// @param matchedMarketCap Path-compatible filled market cap.
+  /// @param retainedCostTotal Sum of retained cost across all claim leaves.
+  /// @param refundTotal Sum of refunds across all claim leaves.
+  /// @param completeSetCount Complete sets represented by retained matched exposure.
+  /// @param submittedAt Timestamp when the root was submitted.
+  /// @param challengeDeadline Timestamp after which the root may be finalized.
+  event ClearingRootSubmitted(
+    uint256 indexed marketId,
+    address indexed submitter,
+    bytes32 indexed merkleRoot,
+    bytes32 snapshotHash,
+    uint256 matchedMarketCap,
+    uint256 retainedCostTotal,
+    uint256 refundTotal,
+    uint256 completeSetCount,
+    uint64 submittedAt,
+    uint64 challengeDeadline
+  );
+
+  /// @notice Emitted when an ungraduated market passes its deadline and enters refund status.
+  /// @param marketId Market that became refundable.
+  /// @param totalEscrowed Escrow available for future refund claims.
+  event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
+
   uint256 private _nextMarketId = 1;
   uint256 private _nextReceiptId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
+  mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
+
+  /// @notice Initializes the contract owner as the first graduation manager.
+  constructor() Ownable(msg.sender) {}
+
+  /// @notice Restricts a function to the contract's current graduation manager set.
+  modifier onlyGraduationManager() {
+    _requireGraduationManager(msg.sender);
+    _;
+  }
 
   /// @notice Creates a new market in Active status.
   /// @param params Market creation parameters, excluding creator.
@@ -124,7 +231,7 @@ contract PregradManager is ReentrancyGuard {
       openingProbabilityWad: params.openingProbabilityWad,
       liquidityParameter: params.liquidityParameter,
       graduationThreshold: params.graduationThreshold,
-      graduationTime: params.graduationTime,
+      graduationDeadline: params.graduationDeadline,
       resolutionTime: params.resolutionTime
     });
     market.state.status = MarketTypes.MarketStatus.Active;
@@ -141,7 +248,7 @@ contract PregradManager is ReentrancyGuard {
       params.openingProbabilityWad,
       params.liquidityParameter,
       params.graduationThreshold,
-      params.graduationTime,
+      params.graduationDeadline,
       params.resolutionTime
     );
   }
@@ -210,6 +317,48 @@ contract PregradManager is ReentrancyGuard {
     return _receipts[receiptId];
   }
 
+  /// @notice Returns whether `account` can manage graduation.
+  /// @param account Account to check.
+  /// @return True if the account can start graduation or submit clearing roots.
+  function isGraduationManager(address account) public view returns (bool) {
+    return account == owner();
+  }
+
+  /// @notice Returns the optimistic clearing root stored for a market.
+  /// @param marketId Market ID to read.
+  /// @return Stored clearing root, or a zero-valued record if none was submitted.
+  function getClearingRoot(
+    uint256 marketId
+  ) external view returns (MarketTypes.ClearingRoot memory) {
+    _requireMarketExists(marketId);
+    return _clearingRoots[marketId];
+  }
+
+  /// @notice Returns whether a market already has a submitted clearing root.
+  /// @param marketId Market ID to check.
+  /// @return True if the market has a nonzero clearing root.
+  function hasClearingRoot(uint256 marketId) public view returns (bool) {
+    _requireMarketExists(marketId);
+    return _clearingRoots[marketId].merkleRoot != bytes32(0);
+  }
+
+  /// @notice Computes the current graduation snapshot hash for a market.
+  /// @param marketId Market ID to hash.
+  /// @return Snapshot hash for the market's current lifecycle/accounting state.
+  function graduationSnapshotHash(uint256 marketId) external view returns (bytes32) {
+    _requireMarketExists(marketId);
+    return _graduationSnapshotHash(marketId, _markets[marketId].state);
+  }
+
+  /// @notice Hashes a per-receipt clearing claim for Merkle tree construction.
+  /// @param claim Claim payload committed by the clearing root.
+  /// @return Merkle leaf hash.
+  function hashReceiptClaim(
+    MarketTypes.ReceiptClaim calldata claim
+  ) external pure returns (bytes32) {
+    return _hashReceiptClaim(claim);
+  }
+
   /// @notice Returns the current quote for a prospective receipt.
   /// @param marketId Market receiving the receipt.
   /// @param side YES or NO side to buy.
@@ -225,7 +374,7 @@ contract PregradManager is ReentrancyGuard {
 
     MarketTypes.MarketRecord storage market = _markets[marketId];
     _requireActiveMarket(marketId, market);
-    _requireBeforeGraduationTime(marketId, market.config.graduationTime);
+    _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
 
     return _quoteReceipt(market, side, shares);
   }
@@ -241,7 +390,7 @@ contract PregradManager is ReentrancyGuard {
 
     MarketTypes.MarketRecord storage market = _markets[params.marketId];
     _requireActiveMarket(params.marketId, market);
-    _requireBeforeGraduationTime(params.marketId, market.config.graduationTime);
+    _requireBeforeGraduationDeadline(params.marketId, market.config.graduationDeadline);
 
     MarketTypes.ReceiptQuote memory quote = _quoteReceipt(market, params.side, params.shares);
     if (quote.cost > params.maxCost) {
@@ -266,6 +415,91 @@ contract PregradManager is ReentrancyGuard {
       quote.rHigh,
       sequence
     );
+  }
+
+  /// @notice Locks an active market's receipt book while the offchain service computes clearing.
+  /// @param marketId Market entering the Graduating lifecycle state.
+  /// @return snapshotHash Hash of the locked market state.
+  function startGraduation(
+    uint256 marketId
+  ) external onlyGraduationManager returns (bytes32 snapshotHash) {
+    _requireMarketExists(marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireActiveMarket(marketId, market);
+    _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
+
+    market.state.status = MarketTypes.MarketStatus.Graduating;
+    market.state.graduationStartedAt = uint64(block.timestamp);
+    snapshotHash = _graduationSnapshotHash(marketId, market.state);
+
+    emit GraduationStarted(
+      marketId,
+      msg.sender,
+      market.state.receiptCount,
+      market.state.totalEscrowed,
+      market.state.path,
+      market.state.yesShares,
+      market.state.noShares,
+      market.state.graduationStartedAt,
+      snapshotHash
+    );
+  }
+
+  /// @notice Stores an optimistic clearing root computed by the offchain clearing service.
+  /// @param params Clearing root totals and Merkle root.
+  /// @return snapshotHash Hash of the locked market state cleared by the root.
+  function submitClearingRoot(
+    MarketTypes.SubmitClearingRootParams calldata params
+  ) external onlyGraduationManager returns (bytes32 snapshotHash) {
+    _requireMarketExists(params.marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[params.marketId];
+    _requireGraduatingMarket(params.marketId, market);
+    _validateClearingRoot(params, market);
+
+    snapshotHash = _graduationSnapshotHash(params.marketId, market.state);
+    uint64 submittedAt = uint64(block.timestamp);
+    uint64 challengeDeadline = submittedAt + CLEARING_CHALLENGE_PERIOD;
+
+    _clearingRoots[params.marketId] = MarketTypes.ClearingRoot({
+      merkleRoot: params.merkleRoot,
+      submitter: msg.sender,
+      snapshotHash: snapshotHash,
+      submittedAt: submittedAt,
+      challengeDeadline: challengeDeadline,
+      matchedMarketCap: params.matchedMarketCap,
+      retainedCostTotal: params.retainedCostTotal,
+      refundTotal: params.refundTotal,
+      completeSetCount: params.completeSetCount
+    });
+
+    emit ClearingRootSubmitted(
+      params.marketId,
+      msg.sender,
+      params.merkleRoot,
+      snapshotHash,
+      params.matchedMarketCap,
+      params.retainedCostTotal,
+      params.refundTotal,
+      params.completeSetCount,
+      submittedAt,
+      challengeDeadline
+    );
+  }
+
+  /// @notice Marks an active market refundable after its graduation deadline passes.
+  /// @param marketId Market that did not enter graduation before its deadline.
+  function markRefundable(uint256 marketId) external {
+    _requireMarketExists(marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireActiveMarket(marketId, market);
+    _requireAtOrAfterGraduationDeadline(marketId, market.config.graduationDeadline);
+
+    market.state.status = MarketTypes.MarketStatus.Refunded;
+
+    emit MarketRefundsAvailable(marketId, market.state.totalEscrowed);
   }
 
   /// @notice Stores receipt data and updates per-market accounting before collateral transfer.
@@ -314,10 +548,10 @@ contract PregradManager is ReentrancyGuard {
     if (params.metadataHash == bytes32(0)) {
       revert InvalidMetadataHash();
     }
-    if (params.graduationTime <= block.timestamp) {
-      revert InvalidGraduationTime();
+    if (params.graduationDeadline <= block.timestamp) {
+      revert InvalidGraduationDeadline();
     }
-    if (params.resolutionTime <= params.graduationTime) {
+    if (params.resolutionTime <= params.graduationDeadline) {
       revert InvalidResolutionTime();
     }
     if (params.graduationThreshold == 0) {
@@ -370,6 +604,44 @@ contract PregradManager is ReentrancyGuard {
     }
   }
 
+  /// @notice Validates an optimistic clearing root against a graduating market.
+  /// @param params Clearing root parameters submitted by the offchain clearing service.
+  /// @param market Market storage record being cleared.
+  function _validateClearingRoot(
+    MarketTypes.SubmitClearingRootParams calldata params,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (params.merkleRoot == bytes32(0)) {
+      revert InvalidClearingRoot();
+    }
+    if (_clearingRoots[params.marketId].merkleRoot != bytes32(0)) {
+      revert ClearingRootAlreadySubmitted(params.marketId);
+    }
+    if (params.matchedMarketCap < market.config.graduationThreshold) {
+      revert MatchedMarketCapBelowThreshold(
+        params.matchedMarketCap,
+        market.config.graduationThreshold
+      );
+    }
+    if (params.retainedCostTotal + params.refundTotal != market.state.totalEscrowed) {
+      revert InvalidClearingTotals(
+        params.retainedCostTotal,
+        params.refundTotal,
+        market.state.totalEscrowed
+      );
+    }
+    if (
+      params.retainedCostTotal != params.matchedMarketCap ||
+      params.completeSetCount != params.matchedMarketCap
+    ) {
+      revert InvalidCompleteSetCount(
+        params.matchedMarketCap,
+        params.retainedCostTotal,
+        params.completeSetCount
+      );
+    }
+  }
+
   /// @notice Requires a market to be in Active status.
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
@@ -382,12 +654,51 @@ contract PregradManager is ReentrancyGuard {
     }
   }
 
+  /// @notice Requires a market to be in Graduating status.
+  /// @param marketId Market ID being guarded.
+  /// @param market Market storage record being guarded.
+  function _requireGraduatingMarket(
+    uint256 marketId,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (market.state.status != MarketTypes.MarketStatus.Graduating) {
+      revert InvalidMarketStatus(
+        marketId,
+        market.state.status,
+        MarketTypes.MarketStatus.Graduating
+      );
+    }
+  }
+
   /// @notice Requires the current block timestamp to be before the market graduation deadline.
   /// @param marketId Market ID being guarded.
-  /// @param graduationTime Market graduation deadline.
-  function _requireBeforeGraduationTime(uint256 marketId, uint64 graduationTime) private view {
-    if (block.timestamp >= graduationTime) {
-      revert MarketPastGraduationTime(marketId, graduationTime);
+  /// @param graduationDeadline Market graduation deadline.
+  function _requireBeforeGraduationDeadline(
+    uint256 marketId,
+    uint64 graduationDeadline
+  ) private view {
+    if (block.timestamp >= graduationDeadline) {
+      revert MarketPastGraduationDeadline(marketId, graduationDeadline);
+    }
+  }
+
+  /// @notice Requires the current block timestamp to be at or after the graduation deadline.
+  /// @param marketId Market ID being guarded.
+  /// @param graduationDeadline Market graduation deadline.
+  function _requireAtOrAfterGraduationDeadline(
+    uint256 marketId,
+    uint64 graduationDeadline
+  ) private view {
+    if (block.timestamp < graduationDeadline) {
+      revert MarketBeforeGraduationDeadline(marketId, graduationDeadline);
+    }
+  }
+
+  /// @notice Requires an account to be authorized for graduation management.
+  /// @param account Account to check.
+  function _requireGraduationManager(address account) private view {
+    if (!isGraduationManager(account)) {
+      revert UnauthorizedGraduationManager(account);
     }
   }
 
@@ -417,5 +728,51 @@ contract PregradManager is ReentrancyGuard {
     }
 
     return uint64(nextSequence);
+  }
+
+  /// @notice Computes the hash for a market's graduation snapshot.
+  /// @param marketId Market ID to hash.
+  /// @param state Market state to commit.
+  /// @return Snapshot hash.
+  function _graduationSnapshotHash(
+    uint256 marketId,
+    MarketTypes.MarketState storage state
+  ) private view returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          GRADUATION_SNAPSHOT_TYPEHASH,
+          block.chainid,
+          address(this),
+          marketId,
+          state.receiptCount,
+          state.totalEscrowed,
+          state.path,
+          state.yesShares,
+          state.noShares,
+          state.graduationStartedAt
+        )
+      );
+  }
+
+  /// @notice Computes the Merkle leaf hash for a receipt claim.
+  /// @param claim Claim payload to hash.
+  /// @return Merkle leaf hash.
+  function _hashReceiptClaim(
+    MarketTypes.ReceiptClaim calldata claim
+  ) private pure returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          RECEIPT_CLAIM_TYPEHASH,
+          claim.marketId,
+          claim.receiptId,
+          claim.owner,
+          uint8(claim.side),
+          claim.retainedShares,
+          claim.retainedCost,
+          claim.refund
+        )
+      );
   }
 }

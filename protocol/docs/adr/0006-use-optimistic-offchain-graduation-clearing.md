@@ -19,7 +19,7 @@ Running the full sweep directly onchain creates liveness and gas risks:
 - popular markets may become uneconomical or impossible to clear in one
   transaction
 - chunked onchain clearing introduces partial-progress, rounding, and stuck
-  frozen-state edge cases
+  locked-state edge cases
 - late reverts waste large amounts of gas and can make graduation fragile
 
 The protocol still needs onchain custody, deterministic settlement, and user
@@ -33,10 +33,12 @@ Use optimistic offchain graduation clearing for v1.
 The target flow is:
 
 ```txt
-1. freezeMarket(marketId)
+1. startGraduation(marketId)
+   - manager-only in v1
    - locks receiptCount and final LMSR state
+   - enters `Graduating`
 
-2. offchain solver computes band-pass clearing
+2. offchain API service computes band-pass clearing
    - deterministic from onchain receipt book/events
 
 3. submitClearingRoot(...)
@@ -62,6 +64,11 @@ The target flow is:
 The clearing root must commit to enough data to verify each receipt's outcome:
 retained shares, retained cost, refund, side, owner, and receipt identity.
 
+`graduationDeadline` is a deadline, not the earliest graduation time. A market
+can enter `Graduating` before the deadline if the manager starts offchain
+clearing. If the deadline passes while the market is still active, the market
+becomes refundable instead of entering graduation.
+
 ## Consequences
 
 Graduation liveness no longer depends on fitting the full band sweep into one
@@ -75,7 +82,7 @@ tests.
 
 The onchain contract must make invalid or stale roots hard to submit:
 
-- roots are tied to `marketId`, frozen receipt count, and frozen LMSR state
+- roots are tied to `marketId`, locked receipt count, and locked LMSR state
 - root totals must match escrow-level conservation checks
 - finalization must wait through the challenge window
 - claims must be one-time and proof-checked
