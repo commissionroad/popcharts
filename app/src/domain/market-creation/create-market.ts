@@ -154,12 +154,10 @@ export function validateCreateMarketDraft(
   if (
     graduationDate &&
     resolutionDate &&
-    graduationDate.getTime() > now.getTime() &&
-    resolutionDate.getTime() > now.getTime() &&
     graduationDate.getTime() >= resolutionDate.getTime()
   ) {
-    errors.graduationTime = "Graduation deadline must be before resolution.";
-    errors.resolutionTime = "Resolution deadline must be after graduation.";
+    errors.graduationTime ??= "Graduation deadline must be before resolution.";
+    errors.resolutionTime ??= "Resolution deadline must be after graduation.";
   }
 
   return errors;

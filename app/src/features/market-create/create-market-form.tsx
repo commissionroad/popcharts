@@ -29,6 +29,7 @@ import {
 import type {
   CreateMarketDraft,
   CreateMarketPreview,
+  CreateMarketValidationErrors,
   MockCreatedMarket,
 } from "@/domain/market-creation/types";
 import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
@@ -52,7 +53,10 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const [createdMarket, setCreatedMarket] = useState<MockCreatedMarket | null>(null);
 
   const validationErrors = validateCreateMarketDraft(draft);
-  const visibleErrors = hasTriedReview || stage === "review" ? validationErrors : {};
+  const visibleErrors: CreateMarketValidationErrors =
+    hasTriedReview || stage === "review"
+      ? validationErrors
+      : getLiveDeadlineErrors(validationErrors);
   const hasErrors = Object.keys(validationErrors).length > 0;
   const preview = buildCreateMarketPreview(draft);
 
@@ -339,6 +343,22 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
       </aside>
     </div>
   );
+}
+
+function getLiveDeadlineErrors(
+  validationErrors: CreateMarketValidationErrors
+): CreateMarketValidationErrors {
+  const liveErrors: CreateMarketValidationErrors = {};
+
+  if (validationErrors.graduationTime) {
+    liveErrors.graduationTime = validationErrors.graduationTime;
+  }
+
+  if (validationErrors.resolutionTime) {
+    liveErrors.resolutionTime = validationErrors.resolutionTime;
+  }
+
+  return liveErrors;
 }
 
 function CategoryPicker({

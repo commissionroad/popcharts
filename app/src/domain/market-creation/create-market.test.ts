@@ -47,7 +47,24 @@ describe("market creation draft", () => {
   test("marks individual deadline fields for invalid or past dates", () => {
     const draft = {
       ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
-      graduationTime: "not-a-date",
+      graduationTime: "0123-06-13T17:27",
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+      resolutionTime: "0122-06-20T16:27",
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      graduationTime: "Graduation deadline must be in the future.",
+      resolutionTime: "Resolution deadline must be in the future.",
+    });
+  });
+
+  test("marks graduation too when resolution is before it but has its own error", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      graduationTime: toDateTimeLocalValue(new Date("2026-06-13T13:00:00Z")),
       question: "Will the demo market graduate?",
       resolutionCriteria: "Resolves YES if the demo condition is met.",
       resolutionTime: toDateTimeLocalValue(new Date("2026-06-13T11:00:00Z")),
@@ -56,8 +73,23 @@ describe("market creation draft", () => {
     expect(
       validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
     ).toMatchObject({
-      graduationTime: "Choose a graduation deadline.",
+      graduationTime: "Graduation deadline must be before resolution.",
       resolutionTime: "Resolution deadline must be in the future.",
+    });
+  });
+
+  test("marks nonsensical deadline fields individually", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      graduationTime: "not-a-date",
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      graduationTime: "Choose a graduation deadline.",
     });
   });
 
