@@ -1,52 +1,65 @@
 # Vercel Deployments
 
-Pop Charts deploys the frontend app from `app/` through GitHub Actions using
-Vercel prebuilt deployments.
+Pop Charts deploys the frontend app from `app/` through Vercel's GitHub
+integration.
 
 ## What Runs
 
-- Pull requests to `main` that touch `app/**` create a Vercel Preview
-  deployment and update one PR comment with the latest URL.
-- Pushes to `main` that touch `app/**` create a Vercel Production deployment.
-- The workflow runs `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, and
-  `pnpm test:e2e:smoke` before deploying.
-- Preview deployments run only for same-repository PRs. GitHub does not expose
-  repository secrets to untrusted fork PRs.
+- Pull requests to `main` create Vercel Preview deployments.
+- Pushes to `main` create Vercel Production deployments.
+- The Vercel project root directory is `app`.
+- The production branch is `main`.
 
-The workflow owns deployment automation. `app/vercel.json` disables Vercel's
-dashboard Git auto-deploys to avoid duplicate builds for the same commit.
+GitHub Actions still runs app quality gates in `.github/workflows/app-ci.yml`.
+Deployment itself is owned by Vercel, so no `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID` GitHub secrets are required.
 
-## Required GitHub Secrets
+## Project Settings
 
-Add these repository secrets before expecting deployments to pass:
+The Vercel project is linked to:
 
 ```txt
-VERCEL_TOKEN
-VERCEL_ORG_ID
-VERCEL_PROJECT_ID
+sentilesdal/popcharts
 ```
 
-The Vercel project should use `app` as its project root. Keep `.vercel/`
+The local project link lives in `app/.vercel/project.json`. Keep `.vercel/`
 uncommitted; `app/.gitignore` already excludes it.
 
-## Finding The IDs
-
-From a local Vercel login:
+To recreate the Vercel setup from a logged-in local CLI:
 
 ```bash
 cd app
-vercel link
-cat .vercel/project.json
+vercel link --yes --scope sentilesdals-projects --project popcharts
+vercel git connect git@github.com:sentilesdal/popcharts.git --scope sentilesdals-projects
 ```
 
-Use `orgId` for `VERCEL_ORG_ID` and `projectId` for
-`VERCEL_PROJECT_ID`. Create a Vercel token in the dashboard and store it as
-`VERCEL_TOKEN`.
-
-Using GitHub CLI:
+Set or confirm the project root directory:
 
 ```bash
-gh secret set VERCEL_TOKEN --repo sentilesdal/popcharts
-gh secret set VERCEL_ORG_ID --repo sentilesdal/popcharts
-gh secret set VERCEL_PROJECT_ID --repo sentilesdal/popcharts
+ORG_ID="$(jq -r '.orgId' .vercel/project.json)"
+PROJECT_ID="$(jq -r '.projectId' .vercel/project.json)"
+body="$(mktemp)"
+cat >"$body" <<'JSON'
+{
+  "rootDirectory": "app",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build"
+}
+JSON
+vercel api "/v9/projects/${PROJECT_ID}?teamId=${ORG_ID}" -X PATCH --input "$body"
+rm "$body"
+```
+
+## Verification
+
+Run the same app checks locally before landing deployment changes:
+
+```txt
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test:unit
+pnpm build
+pnpm test:e2e:smoke
 ```
