@@ -76,6 +76,12 @@ library MarketTypes {
     uint256 receiptCount;
     /// @notice Total collateral currently escrowed by active receipts.
     uint256 totalEscrowed;
+    /// @notice Current one-dimensional LMSR path coordinate.
+    int256 path;
+    /// @notice Total provisional YES shares recorded for this market.
+    uint256 yesShares;
+    /// @notice Total provisional NO shares recorded for this market.
+    uint256 noShares;
     /// @notice Unix timestamp when the receipt book was frozen, or zero if not frozen.
     uint64 frozenAt;
   }
@@ -88,8 +94,32 @@ library MarketTypes {
     MarketState state;
   }
 
+  /// @notice Inputs required to place a locked pre-graduation receipt.
+  struct PlaceReceiptParams {
+    /// @notice Market that will receive the receipt.
+    uint256 marketId;
+    /// @notice YES or NO side to buy.
+    Side side;
+    /// @notice Provisional share quantity to sweep through the virtual LMSR.
+    uint256 shares;
+    /// @notice Maximum collateral the buyer is willing to escrow for this receipt.
+    uint256 maxCost;
+  }
+
+  /// @notice Current LMSR quote for a prospective receipt.
+  struct ReceiptQuote {
+    /// @notice Collateral that must be escrowed if the receipt is placed now.
+    uint256 cost;
+    /// @notice Lower bound of the LMSR path interval the receipt would traverse.
+    int256 rLow;
+    /// @notice Upper bound of the LMSR path interval the receipt would traverse.
+    int256 rHigh;
+  }
+
   /// @notice Stored record for one locked pre-graduation priced intent.
   struct Receipt {
+    /// @notice Market that owns the receipt.
+    uint256 marketId;
     /// @notice Account that owns the receipt and will claim tokens/refund after clearing.
     address owner;
     /// @notice YES or NO side purchased by the receipt.

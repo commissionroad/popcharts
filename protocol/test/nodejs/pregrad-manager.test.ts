@@ -20,7 +20,28 @@ type MarketState = {
   status: number;
   receiptCount: bigint;
   totalEscrowed: bigint;
+  path: bigint;
+  yesShares: bigint;
+  noShares: bigint;
   frozenAt: bigint;
+};
+
+type ReceiptQuote = {
+  cost: bigint;
+  rLow: bigint;
+  rHigh: bigint;
+};
+
+type Receipt = {
+  marketId: bigint;
+  owner: `0x${string}`;
+  side: number;
+  shares: bigint;
+  cost: bigint;
+  rLow: bigint;
+  rHigh: bigint;
+  sequence: bigint;
+  active: boolean;
 };
 
 describe("PregradManager", async function () {
@@ -87,6 +108,9 @@ describe("PregradManager", async function () {
     assert.equal(Number(state.status), 0);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
+    assert.equal(state.path, 0n);
+    assert.equal(state.yesShares, 0n);
+    assert.equal(state.noShares, 0n);
     assert.equal(state.frozenAt, 0n);
   });
 
@@ -145,5 +169,92 @@ describe("PregradManager", async function () {
     assert.equal(secondConfig.graduationTime, secondGraduationTime);
     assert.equal(firstConfig.resolutionTime, firstResolutionTime);
     assert.equal(secondConfig.resolutionTime, secondResolutionTime);
+  });
+
+  it("places a locked receipt and escrows collateral", async function () {
+    const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
+    const [, buyer] = await viem.getWalletClients();
+
+    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/receipt"));
+    const graduationTime = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationTime + 7n * 24n * 60n * 60n;
+    const shares = 100n * WAD;
+
+    await manager.write.createMarket([
+      {
+        collateral: collateral.address,
+        metadataHash,
+        openingProbabilityWad: (50n * WAD) / 100n,
+        liquidityParameter: 5_000n * WAD,
+        graduationThreshold: 40_000n * WAD,
+        graduationTime,
+        resolutionTime,
+      },
+    ]);
+
+    await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
+    await collateral.write.approve([manager.address, 1_000n * WAD], {
+      account: buyer.account,
+    });
+
+    const quote = (await manager.read.quoteReceipt([1n, 0, shares])) as ReceiptQuote;
+
+    assert.equal(quote.rLow, 0n);
+    assert.equal(quote.rHigh, shares);
+    assert.equal(quote.cost > 50n * WAD, true);
+    assert.equal(quote.cost < 51n * WAD, true);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.placeReceipt(
+        [
+          {
+            marketId: 1n,
+            side: 0,
+            shares,
+            maxCost: quote.cost,
+          },
+        ],
+        { account: buyer.account },
+      ),
+      manager,
+      "ReceiptPlaced",
+      [
+        1n,
+        1n,
+        getAddress(buyer.account.address),
+        0,
+        shares,
+        quote.cost,
+        quote.rLow,
+        quote.rHigh,
+        1n,
+      ],
+    );
+
+    const receipt = (await manager.read.getReceipt([1n])) as Receipt;
+    const state = (await manager.read.getMarketState([1n])) as MarketState;
+
+    assert.equal(await manager.read.totalReceiptCount(), 1n);
+    assert.equal(await manager.read.nextReceiptId(), 2n);
+    assert.equal(await manager.read.receiptExists([1n]), true);
+    assert.equal(receipt.marketId, 1n);
+    assert.equal(getAddress(receipt.owner), getAddress(buyer.account.address));
+    assert.equal(Number(receipt.side), 0);
+    assert.equal(receipt.shares, shares);
+    assert.equal(receipt.cost, quote.cost);
+    assert.equal(receipt.rLow, quote.rLow);
+    assert.equal(receipt.rHigh, quote.rHigh);
+    assert.equal(receipt.sequence, 1n);
+    assert.equal(receipt.active, true);
+    assert.equal(state.receiptCount, 1n);
+    assert.equal(state.totalEscrowed, quote.cost);
+    assert.equal(state.path, quote.rHigh);
+    assert.equal(state.yesShares, shares);
+    assert.equal(state.noShares, 0n);
+    assert.equal(await collateral.read.balanceOf([manager.address]), quote.cost);
+    assert.equal(
+      await collateral.read.balanceOf([buyer.account.address]),
+      1_000n * WAD - quote.cost,
+    );
   });
 });
