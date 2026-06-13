@@ -1,0 +1,19 @@
+<svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pop Charts">
+  <g transform="rotate(-7 62 58)">
+    <rect x="33" y="18" width="60" height="76" rx="16" stroke="#fff" stroke-width="6"></rect>
+    <g stroke-width="5" stroke-linecap="round">
+      <line x1="45" y1="31" x2="51" y2="29" stroke="#FF2E97"></line>
+      <line x1="61" y1="27" x2="68" y2="29" stroke="#1FE0FF"></line>
+      <line x1="77" y1="33" x2="82" y2="39" stroke="#C6FF3D"></line>
+      <line x1="43" y1="47" x2="48" y2="52" stroke="#FFB020"></line>
+      <line x1="79" y1="55" x2="85" y2="53" stroke="#B85CFF"></line>
+    </g>
+  </g>
+  <g stroke="#fff" stroke-width="4.5" stroke-linecap="round" opacity="0.5">
+    <line x1="46" y1="78" x2="46" y2="92"></line>
+    <line x1="58" y1="72" x2="58" y2="92"></line>
+    <line x1="70" y1="80" x2="70" y2="92"></line>
+  </g>
+  <path d="M39 90 L53 73 L65 81 L92 49" stroke="#FF2E97" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path d="M76 47 L95 45 L93 64" stroke="#FF2E97" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

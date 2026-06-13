@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@import "../design-system/tokens.css";
+
+@theme inline {
+  --color-background: var(--color-page-bg);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface-card);
+  --color-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --font-display: var(--font-unbounded);
+  --font-mono: var(--font-space-mono);
+  --font-sans: var(--font-space-grotesk);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-page-bg);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-page-bg);
+  color: var(--text-primary);
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-content);
+}
+
+::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pc-line);
+  border-radius: var(--radius-pill);
+}
+
+.font-display {
+  font-family: var(--font-unbounded), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-space-mono), ui-monospace, monospace;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.focus-ring:focus-visible {
+  border-color: var(--pc-cyan);
+  box-shadow: 0 0 0 3px rgb(31 224 255 / 18%);
+}
+
+input[type="range"] {
+  height: 4px;
+  appearance: none;
+  border-radius: var(--radius-pill);
+  background: var(--pc-line);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  border-radius: var(--radius-pill);
+  background: var(--pc-paper);
+  cursor: pointer;
+}
+
+@keyframes pc-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

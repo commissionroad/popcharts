@@ -1,0 +1,91 @@
+:root {
+  --pc-ink: #08080a;
+  --pc-carbon: #0e0e13;
+  --pc-coal: #131319;
+  --pc-slate: #1b1b22;
+  --pc-line-soft: #1f1f27;
+  --pc-line: #26262f;
+  --pc-line-strong: #34343e;
+  --pc-fog: #6a6a74;
+  --pc-mist: #9a9aa4;
+  --pc-paper: #ffffff;
+
+  --pc-magenta: #ff2e97;
+  --pc-magenta-deep: #c71e72;
+  --pc-cyan: #1fe0ff;
+  --pc-lime: #c6ff3d;
+  --pc-amber: #ffb020;
+  --pc-violet: #b85cff;
+
+  --pc-magenta-wash: rgb(255 46 151 / 12%);
+  --pc-cyan-wash: rgb(31 224 255 / 12%);
+  --pc-lime-wash: rgb(198 255 61 / 12%);
+  --pc-amber-wash: rgb(255 176 32 / 12%);
+  --pc-violet-wash: rgb(184 92 255 / 12%);
+
+  --color-page-bg: var(--pc-ink);
+  --surface-card: var(--pc-carbon);
+  --surface-raised: var(--pc-coal);
+  --surface-hover: var(--pc-slate);
+
+  --border: var(--pc-line);
+  --border-soft: var(--pc-line-soft);
+  --border-strong: var(--pc-line-strong);
+
+  --text-primary: var(--pc-paper);
+  --text-secondary: var(--pc-mist);
+  --text-muted: var(--pc-fog);
+
+  --accent: var(--pc-magenta);
+  --accent-pressed: var(--pc-magenta-deep);
+  --accent-content: var(--pc-ink);
+  --accent-wash: var(--pc-magenta-wash);
+
+  --yes: var(--pc-lime);
+  --yes-border: #3c6b1e;
+  --yes-wash: var(--pc-lime-wash);
+  --no: var(--pc-magenta);
+  --no-border: #5b2b3f;
+  --no-wash: var(--pc-magenta-wash);
+
+  --status-bootstrap: var(--pc-cyan);
+  --status-graduating: var(--pc-amber);
+  --status-graduated: var(--pc-lime);
+  --status-resolved: var(--pc-violet);
+  --status-refunded: var(--pc-fog);
+
+  --positive: var(--pc-lime);
+  --negative: var(--pc-magenta);
+  --info: var(--pc-cyan);
+  --warning: var(--pc-amber);
+  --danger: #ff4d4d;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 72px;
+  --layout-max: 1180px;
+  --layout-feed-max: 1240px;
+
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --glow-magenta: 0 0 24px rgb(255 46 151 / 36%);
+  --glow-cyan: 0 0 24px rgb(31 224 255 / 28%);
+  --glow-lime: 0 0 24px rgb(198 255 61 / 32%);
+  --glow-amber: 0 0 24px rgb(255 176 32 / 28%);
+  --shadow-tile: 0 16px 42px rgb(0 0 0 / 45%);
+}
