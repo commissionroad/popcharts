@@ -33,6 +33,21 @@ protocol-check:
 protocol-test:
     pnpm run protocol:test
 
+server-install:
+    pnpm run server:install
+
+server-dev:
+    pnpm run server:dev
+
+server-api:
+    pnpm run server:api
+
+server-indexer:
+    pnpm run server:indexer
+
+server-check:
+    pnpm run server:check
+
 test:
     pnpm run test
 
@@ -47,4 +62,3 @@ format-check:
 
 land *args:
     scripts/land {{args}}
-
