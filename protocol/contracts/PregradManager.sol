@@ -13,22 +13,47 @@ import {MarketTypes} from "./types/MarketTypes.sol";
 contract PregradManager is ReentrancyGuard {
   using SafeERC20 for IERC20;
 
+  /// @notice Reverts when a market is created with the zero collateral address.
   error InvalidCollateral();
+  /// @notice Reverts when a market is created without a metadata hash.
   error InvalidMetadataHash();
+  /// @notice Reverts when the graduation deadline is not in the future.
   error InvalidGraduationTime();
+  /// @notice Reverts when the resolution deadline is not after the graduation deadline.
   error InvalidResolutionTime();
+  /// @notice Reverts when a market is created without a graduation threshold.
   error InvalidGraduationThreshold();
+  /// @notice Reverts when a receipt is placed or quoted with zero shares.
   error InvalidShares();
+  /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
+  /// @param cost Current quoted receipt cost.
+  /// @param maxCost Maximum cost accepted by the buyer.
   error CostExceedsLimit(uint256 cost, uint256 maxCost);
+  /// @notice Reverts when an ERC20 transfer delivers less or more collateral than expected.
+  /// @param expected Exact collateral amount that should have reached escrow.
+  /// @param received Actual collateral amount observed by balance delta.
   error InvalidCollateralTransfer(uint256 expected, uint256 received);
+  /// @notice Reverts when a market-scoped operation references an unknown market.
+  /// @param marketId Market ID that does not exist.
   error MarketDoesNotExist(uint256 marketId);
+  /// @notice Reverts when a receipt-scoped operation references an unknown receipt.
+  /// @param receiptId Receipt ID that does not exist.
   error ReceiptDoesNotExist(uint256 receiptId);
+  /// @notice Reverts when a market operation is attempted in the wrong lifecycle status.
+  /// @param marketId Market whose status failed the guard.
+  /// @param actual Current market status.
+  /// @param expected Required market status.
   error InvalidMarketStatus(
     uint256 marketId,
     MarketTypes.MarketStatus actual,
     MarketTypes.MarketStatus expected
   );
+  /// @notice Reverts when receipt placement or quoting is attempted after the graduation deadline.
+  /// @param marketId Market whose graduation deadline has passed.
+  /// @param graduationTime Market graduation deadline.
   error MarketPastGraduationTime(uint256 marketId, uint64 graduationTime);
+  /// @notice Reverts when the per-market receipt sequence cannot fit in uint64.
+  /// @param receiptCount Receipt count that would overflow the stored sequence type.
   error ReceiptCountOverflow(uint256 receiptCount);
 
   /// @notice Emitted when a new active market is created.
@@ -122,39 +147,46 @@ contract PregradManager is ReentrancyGuard {
   }
 
   /// @notice Returns the next market ID that will be assigned.
+  /// @return Next market ID.
   function nextMarketId() external view returns (uint256) {
     return _nextMarketId;
   }
 
   /// @notice Returns the next receipt ID that will be assigned.
+  /// @return Next receipt ID.
   function nextReceiptId() external view returns (uint256) {
     return _nextReceiptId;
   }
 
   /// @notice Returns the total number of markets created.
+  /// @return Number of markets created by this manager.
   function marketCount() external view returns (uint256) {
     return _nextMarketId - 1;
   }
 
   /// @notice Returns the total number of receipts created.
+  /// @return Number of receipts created by this manager.
   function totalReceiptCount() external view returns (uint256) {
     return _nextReceiptId - 1;
   }
 
   /// @notice Returns whether `marketId` exists.
   /// @param marketId Market ID to check.
+  /// @return True if the market exists.
   function marketExists(uint256 marketId) public view returns (bool) {
     return marketId != 0 && marketId < _nextMarketId;
   }
 
   /// @notice Returns whether `receiptId` exists.
   /// @param receiptId Receipt ID to check.
+  /// @return True if the receipt exists.
   function receiptExists(uint256 receiptId) public view returns (bool) {
     return receiptId != 0 && receiptId < _nextReceiptId;
   }
 
   /// @notice Returns immutable market configuration.
   /// @param marketId Market ID to read.
+  /// @return Market configuration.
   function getMarketConfig(
     uint256 marketId
   ) external view returns (MarketTypes.MarketConfig memory) {
@@ -164,6 +196,7 @@ contract PregradManager is ReentrancyGuard {
 
   /// @notice Returns mutable market lifecycle and accounting state.
   /// @param marketId Market ID to read.
+  /// @return Market lifecycle and accounting state.
   function getMarketState(uint256 marketId) external view returns (MarketTypes.MarketState memory) {
     _requireMarketExists(marketId);
     return _markets[marketId].state;
@@ -171,6 +204,7 @@ contract PregradManager is ReentrancyGuard {
 
   /// @notice Returns a stored locked receipt.
   /// @param receiptId Receipt ID to read.
+  /// @return Locked receipt record.
   function getReceipt(uint256 receiptId) external view returns (MarketTypes.Receipt memory) {
     _requireReceiptExists(receiptId);
     return _receipts[receiptId];
@@ -180,6 +214,7 @@ contract PregradManager is ReentrancyGuard {
   /// @param marketId Market receiving the receipt.
   /// @param side YES or NO side to buy.
   /// @param shares Provisional share quantity to buy.
+  /// @return Current receipt quote.
   function quoteReceipt(
     uint256 marketId,
     MarketTypes.Side side,
@@ -233,6 +268,12 @@ contract PregradManager is ReentrancyGuard {
     );
   }
 
+  /// @notice Stores receipt data and updates per-market accounting before collateral transfer.
+  /// @param receiptId Canonical receipt ID.
+  /// @param market Market storage record being updated.
+  /// @param params Receipt placement parameters.
+  /// @param quote Current quote being committed.
+  /// @return sequence Per-market receipt sequence assigned to the receipt.
   function _storeReceipt(
     uint256 receiptId,
     MarketTypes.MarketRecord storage market,
@@ -262,6 +303,8 @@ contract PregradManager is ReentrancyGuard {
     });
   }
 
+  /// @notice Validates immutable market creation inputs.
+  /// @param params Market creation parameters.
   function _validateCreateMarketParams(
     MarketTypes.CreateMarketParams calldata params
   ) private view {
@@ -285,6 +328,10 @@ contract PregradManager is ReentrancyGuard {
     LmsrMath.validateLiquidityParameter(params.liquidityParameter);
   }
 
+  /// @notice Transfers receipt collateral and rejects tokens whose received amount differs from cost.
+  /// @param collateral ERC20 collateral token.
+  /// @param from Account paying the receipt cost.
+  /// @param cost Exact collateral amount expected in escrow.
   function _transferEscrow(IERC20 collateral, address from, uint256 cost) private {
     uint256 balanceBefore = collateral.balanceOf(address(this));
     collateral.safeTransferFrom(from, address(this), cost);
@@ -296,6 +343,11 @@ contract PregradManager is ReentrancyGuard {
     }
   }
 
+  /// @notice Quotes a receipt against the market's current path state.
+  /// @param market Market storage record being quoted.
+  /// @param side YES or NO side to buy.
+  /// @param shares Provisional share quantity to buy.
+  /// @return Current receipt quote.
   function _quoteReceipt(
     MarketTypes.MarketRecord storage market,
     MarketTypes.Side side,
@@ -310,12 +362,17 @@ contract PregradManager is ReentrancyGuard {
       );
   }
 
+  /// @notice Validates that a receipt quote or placement has nonzero shares.
+  /// @param shares Provisional share quantity to validate.
   function _validateReceiptShares(uint256 shares) private pure {
     if (shares == 0) {
       revert InvalidShares();
     }
   }
 
+  /// @notice Requires a market to be in Active status.
+  /// @param marketId Market ID being guarded.
+  /// @param market Market storage record being guarded.
   function _requireActiveMarket(
     uint256 marketId,
     MarketTypes.MarketRecord storage market
@@ -325,24 +382,34 @@ contract PregradManager is ReentrancyGuard {
     }
   }
 
+  /// @notice Requires the current block timestamp to be before the market graduation deadline.
+  /// @param marketId Market ID being guarded.
+  /// @param graduationTime Market graduation deadline.
   function _requireBeforeGraduationTime(uint256 marketId, uint64 graduationTime) private view {
     if (block.timestamp >= graduationTime) {
       revert MarketPastGraduationTime(marketId, graduationTime);
     }
   }
 
+  /// @notice Requires a market ID to exist.
+  /// @param marketId Market ID to check.
   function _requireMarketExists(uint256 marketId) private view {
     if (!marketExists(marketId)) {
       revert MarketDoesNotExist(marketId);
     }
   }
 
+  /// @notice Requires a receipt ID to exist.
+  /// @param receiptId Receipt ID to check.
   function _requireReceiptExists(uint256 receiptId) private view {
     if (!receiptExists(receiptId)) {
       revert ReceiptDoesNotExist(receiptId);
     }
   }
 
+  /// @notice Computes the next uint64 per-market receipt sequence.
+  /// @param receiptCount Current per-market receipt count.
+  /// @return Next per-market receipt sequence.
   function _nextReceiptSequence(uint256 receiptCount) private pure returns (uint64) {
     uint256 nextSequence = receiptCount + 1;
     if (nextSequence > type(uint64).max) {

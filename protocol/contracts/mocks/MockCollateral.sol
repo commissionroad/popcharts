@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @author Pop Charts
 /// @notice Test-only collateral token for local protocol tests.
 contract MockCollateral is ERC20 {
+  /// @notice Initializes the mock collateral token metadata.
   constructor() ERC20("Pop Charts Test USD", "pUSD") {}
 
   /// @notice Mints test collateral to an account.

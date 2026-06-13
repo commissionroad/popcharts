@@ -10,6 +10,7 @@ contract MockFeeCollateral is ERC20 {
   uint256 private constant FEE_BPS = 100;
   uint256 private constant BPS_DENOMINATOR = 10_000;
 
+  /// @notice Initializes the fee-charging mock collateral token metadata.
   constructor() ERC20("Pop Charts Fee USD", "fUSD") {}
 
   /// @notice Mints test collateral to an account.
@@ -19,6 +20,10 @@ contract MockFeeCollateral is ERC20 {
     _mint(account, amount);
   }
 
+  /// @notice Applies the mock transfer fee on non-mint and non-burn transfers.
+  /// @param from Sender address, or zero during mint.
+  /// @param to Recipient address, or zero during burn.
+  /// @param value Token amount before the transfer fee.
   function _update(address from, address to, uint256 value) internal override {
     if (from == address(0) || to == address(0) || value == 0) {
       super._update(from, to, value);
