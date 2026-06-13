@@ -60,6 +60,63 @@ export function marginalPriceCents(state: VirtualLmsrState, side: MarketSide) {
   return side === "yes" ? yesPrice : 100 - yesPrice;
 }
 
+export function sharesForBudget({
+  budget,
+  side,
+  state,
+}: {
+  budget: number;
+  side: MarketSide;
+  state: VirtualLmsrState;
+}) {
+  if (!Number.isFinite(budget) || budget < 0) {
+    throw new Error("budget must be non-negative");
+  }
+
+  if (budget === 0) {
+    return 0;
+  }
+
+  let high = Math.max(
+    1,
+    budget / Math.max(marginalPriceCents(state, side) / 100, 0.01)
+  );
+
+  while (costToBuyShares({ shares: high, side, state }) < budget) {
+    high *= 2;
+  }
+
+  let low = 0;
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    const mid = (low + high) / 2;
+    const cost = costToBuyShares({ shares: mid, side, state });
+
+    if (cost < budget) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return (low + high) / 2;
+}
+
+export function stateAfterBudgetBuy({
+  budget,
+  side,
+  state,
+}: {
+  budget: number;
+  side: MarketSide;
+  state: VirtualLmsrState;
+}) {
+  return stateAfterBuy({
+    shares: sharesForBudget({ budget, side, state }),
+    side,
+    state,
+  });
+}
+
 export function stateAfterBuy({
   shares,
   side,

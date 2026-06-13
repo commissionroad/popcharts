@@ -1,6 +1,6 @@
 import { CreateMarketForm } from "@/features/market-create/create-market-form";
 
-export function CreateMarketPage() {
+export function CreateMarketPage({ initialNow }: { initialNow: string }) {
   return (
     <div>
       <div className="mb-7">
@@ -15,7 +15,7 @@ export function CreateMarketPage() {
           graduates when real opposing demand shows up.
         </p>
       </div>
-      <CreateMarketForm />
+      <CreateMarketForm initialNow={initialNow} />
     </div>
   );
 }

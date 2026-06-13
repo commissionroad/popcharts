@@ -5,6 +5,8 @@ import {
   costToBuyShares,
   createOpeningState,
   marginalPriceCents,
+  sharesForBudget,
+  stateAfterBudgetBuy,
   stateAfterBuy,
   yesProbability,
 } from "./lmsr";
@@ -39,5 +41,23 @@ describe("virtual LMSR", () => {
     const state = createOpeningState({ b: 3_000, openingProbability: 35 });
 
     expect(costToBuyShares({ shares: 100, side: "no", state })).toBeGreaterThan(0);
+  });
+
+  test("budget quotes spend close to the requested amount", () => {
+    const state = createOpeningState({ b: 5_000, openingProbability: 50 });
+    const shares = sharesForBudget({ budget: 100, side: "yes", state });
+
+    expect(costToBuyShares({ shares, side: "yes", state })).toBeCloseTo(100, 8);
+  });
+
+  test("budget buys move the quoted side price", () => {
+    const state = createOpeningState({ b: 5_000, openingProbability: 50 });
+    const before = marginalPriceCents(state, "yes");
+    const after = marginalPriceCents(
+      stateAfterBudgetBuy({ budget: 100, side: "yes", state }),
+      "yes"
+    );
+
+    expect(after).toBeGreaterThan(before);
   });
 });
