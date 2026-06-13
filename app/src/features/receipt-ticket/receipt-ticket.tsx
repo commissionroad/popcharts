@@ -111,7 +111,7 @@ function getReceiptAction(
   if (!wallet.enabled) {
     return {
       disabled: true,
-      label: "Wallet setup required",
+      label: "Sign in unavailable",
       onClick: undefined,
     };
   }

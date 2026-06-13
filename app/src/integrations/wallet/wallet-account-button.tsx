@@ -20,10 +20,11 @@ export function WalletAccountButton() {
   const wallet = useWalletAccount();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showConfigWarning, setShowConfigWarning] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) {
+    if (!open && !showConfigWarning) {
       return;
     }
 
@@ -34,12 +35,14 @@ export function WalletAccountButton() {
         !menuRef.current.contains(event.target)
       ) {
         setOpen(false);
+        setShowConfigWarning(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
+        setShowConfigWarning(false);
       }
     }
 
@@ -50,7 +53,7 @@ export function WalletAccountButton() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [open, showConfigWarning]);
 
   useEffect(() => {
     if (!copied) {
@@ -64,14 +67,29 @@ export function WalletAccountButton() {
 
   if (!wallet.enabled) {
     return (
-      <button
-        className="focus-ring inline-flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-transparent px-3.5 py-2 font-mono text-[13px] text-[var(--text-muted)] max-[420px]:px-3 max-[420px]:text-[12px]"
-        title="Set NEXT_PUBLIC_PRIVY_APP_ID to enable wallet login."
-        type="button"
-      >
-        <Wallet color="var(--pc-amber)" size={15} />
-        Wallet setup
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          aria-expanded={showConfigWarning}
+          className="focus-ring inline-flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3.5 py-2 font-mono text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[rgb(255_176_32/18%)] max-[420px]:px-3 max-[420px]:text-[12px]"
+          onClick={() => setShowConfigWarning((current) => !current)}
+          title="Wallet login is not configured for this deployment."
+          type="button"
+        >
+          <Wallet color="var(--status-graduating)" size={15} />
+          Sign in
+        </button>
+        {showConfigWarning ? (
+          <div className="absolute right-0 z-50 mt-3 w-[min(92vw,320px)] rounded-[var(--radius-lg)] border border-[var(--status-graduating)] bg-[var(--surface-card)] p-3 shadow-[var(--shadow-tile)]">
+            <div className="flex gap-2 text-[11px] leading-5 text-[var(--status-graduating)]">
+              <AlertTriangle className="mt-1 shrink-0" size={14} />
+              <span>
+                Sign-in is not configured for this deployment. Add the Privy
+                public app ID in Vercel to enable email, Google, and wallet login.
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
