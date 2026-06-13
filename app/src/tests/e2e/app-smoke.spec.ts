@@ -7,6 +7,9 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await expect(
     page.getByRole("heading", { name: "Markets popping off" })
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /sign in|wallet setup/i })
+  ).toBeVisible();
 
   await page
     .getByRole("link", { name: /Will ETH flip/ })

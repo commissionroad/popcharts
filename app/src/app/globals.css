@@ -22,6 +22,27 @@ html {
 }
 
 body {
+  --privy-border-radius-sm: var(--radius-sm);
+  --privy-border-radius-md: var(--radius-md);
+  --privy-border-radius-lg: var(--radius-lg);
+  --privy-border-radius-full: var(--radius-pill);
+  --privy-color-background: var(--pc-ink);
+  --privy-color-background-2: var(--surface-card);
+  --privy-color-background-3: var(--surface-raised);
+  --privy-color-foreground: var(--text-primary);
+  --privy-color-foreground-2: var(--text-secondary);
+  --privy-color-foreground-3: var(--text-muted);
+  --privy-color-foreground-4: var(--pc-fog);
+  --privy-color-foreground-accent: var(--pc-ink);
+  --privy-color-accent: var(--pc-magenta);
+  --privy-color-accent-light: var(--pc-magenta-wash);
+  --privy-color-accent-lightest: var(--pc-magenta-wash);
+  --privy-color-accent-dark: var(--pc-magenta-deep);
+  --privy-color-accent-darkest: var(--pc-magenta-deep);
+  --privy-color-success: var(--positive);
+  --privy-color-error: var(--danger);
+  --privy-color-error-light: rgb(255 77 77 / 14%);
+
   min-height: 100vh;
   background: var(--color-page-bg);
   color: var(--text-primary);

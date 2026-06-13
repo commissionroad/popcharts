@@ -12,7 +12,7 @@ export function Logo() {
           width={26}
         />
       </span>
-      <span className="font-display text-xl font-black">
+      <span className="font-display text-xl font-black max-[460px]:hidden">
         Pop<span className="text-[var(--accent)]">Charts</span>
       </span>
     </span>

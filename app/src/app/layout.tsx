@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono, Unbounded } from "next/font/google";
 
 import { AppNav } from "@/components/layout/app-nav";
+import { WalletProviders } from "@/integrations/wallet/wallet-provider";
 
 const unbounded = Unbounded({
   subsets: ["latin"],
@@ -41,10 +42,12 @@ export default function RootLayout({
       lang="en"
     >
       <body>
-        <AppNav />
-        <main className="mx-auto w-full max-w-[1240px] px-[18px] py-8 sm:px-7 sm:py-9">
-          {children}
-        </main>
+        <WalletProviders>
+          <AppNav />
+          <main className="mx-auto w-full max-w-[1240px] px-[18px] py-8 sm:px-7 sm:py-9">
+            {children}
+          </main>
+        </WalletProviders>
       </body>
     </html>
   );

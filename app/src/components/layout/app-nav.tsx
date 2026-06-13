@@ -1,13 +1,13 @@
 "use client";
 
-import { Rocket, Wallet } from "lucide-react";
+import { Rocket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
+import { WalletAccountButton } from "@/integrations/wallet/wallet-account-button";
 import { cn } from "@/lib/cn";
-import { formatAddress } from "@/lib/format";
 
 const navItems = [
   { href: "/", label: "Discover" },
@@ -52,22 +52,13 @@ export function AppNav() {
         </div>
         <div className="flex items-center gap-3">
           {pathname !== "/create" ? (
-            <Button
-              className="hidden sm:inline-flex"
-              href="/create"
-              leftIcon={<Rocket size={16} />}
-              size="sm"
-            >
-              Pop a market
-            </Button>
+            <div className="hidden sm:block">
+              <Button href="/create" leftIcon={<Rocket size={16} />} size="sm">
+                Pop a market
+              </Button>
+            </div>
           ) : null}
-          <button
-            className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-transparent px-3.5 py-2 font-mono text-[13px] text-[var(--text-primary)]"
-            type="button"
-          >
-            <Wallet color="var(--pc-cyan)" size={15} />
-            {formatAddress("0x7a3e4b92f01")}
-          </button>
+          <WalletAccountButton />
         </div>
       </div>
     </header>
