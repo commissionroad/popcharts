@@ -27,8 +27,6 @@ export const RESOLUTION_PRESETS = [
   { label: "1m", milliseconds: 30 * 24 * 60 * 60 * 1000 },
 ] as const;
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
 export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
   return {
     category: "Crypto",
@@ -149,7 +147,18 @@ export function validateCreateMarketDraft(
 
   if (!resolutionDate) {
     errors.resolutionTime = "Choose a resolution deadline.";
-  } else if (graduationDate && resolutionDate.getTime() <= graduationDate.getTime()) {
+  } else if (resolutionDate.getTime() <= now.getTime()) {
+    errors.resolutionTime = "Resolution deadline must be in the future.";
+  }
+
+  if (
+    graduationDate &&
+    resolutionDate &&
+    graduationDate.getTime() > now.getTime() &&
+    resolutionDate.getTime() > now.getTime() &&
+    graduationDate.getTime() >= resolutionDate.getTime()
+  ) {
+    errors.graduationTime = "Graduation deadline must be before resolution.";
     errors.resolutionTime = "Resolution deadline must be after graduation.";
   }
 
@@ -164,20 +173,6 @@ export function applyGraduationTime(
   draft: CreateMarketDraft,
   graduationTime: string
 ): CreateMarketDraft {
-  const graduationDate = dateTimeLocalToDate(graduationTime);
-  const resolutionDate = dateTimeLocalToDate(draft.resolutionTime);
-
-  if (
-    graduationDate &&
-    (!resolutionDate || resolutionDate.getTime() <= graduationDate.getTime())
-  ) {
-    return {
-      ...draft,
-      graduationTime,
-      resolutionTime: toDateTimeLocalValue(addMilliseconds(graduationDate, ONE_DAY_MS)),
-    };
-  }
-
   return {
     ...draft,
     graduationTime,
@@ -188,20 +183,6 @@ export function applyResolutionTime(
   draft: CreateMarketDraft,
   resolutionTime: string
 ): CreateMarketDraft {
-  const graduationDate = dateTimeLocalToDate(draft.graduationTime);
-  const resolutionDate = dateTimeLocalToDate(resolutionTime);
-
-  if (
-    graduationDate &&
-    resolutionDate &&
-    resolutionDate.getTime() <= graduationDate.getTime()
-  ) {
-    return {
-      ...draft,
-      resolutionTime: toDateTimeLocalValue(addMilliseconds(graduationDate, ONE_DAY_MS)),
-    };
-  }
-
   return {
     ...draft,
     resolutionTime,

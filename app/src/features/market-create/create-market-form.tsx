@@ -289,7 +289,8 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
                   value={draft.liquidityParameter}
                 />
                 <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
-                  Higher b makes each receipt move the price more gently.
+                  Larger b is smoother and raises the graduation target. Smaller b gets
+                  there faster, but price moves more sharply on early receipts.
                 </p>
               </div>
 

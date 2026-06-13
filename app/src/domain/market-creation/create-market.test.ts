@@ -4,6 +4,7 @@ import {
   buildCreateMarketPreview,
   createInitialMarketDraft,
   deriveGraduationThreshold,
+  toDateTimeLocalValue,
   validateCreateMarketDraft,
 } from "./create-market";
 
@@ -37,8 +38,26 @@ describe("market creation draft", () => {
     expect(
       validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
     ).toMatchObject({
+      graduationTime: "Graduation deadline must be before resolution.",
       resolutionTime: "Resolution deadline must be after graduation.",
       resolutionUrl: "Use a valid http or https URL.",
+    });
+  });
+
+  test("marks individual deadline fields for invalid or past dates", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      graduationTime: "not-a-date",
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+      resolutionTime: toDateTimeLocalValue(new Date("2026-06-13T11:00:00Z")),
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      graduationTime: "Choose a graduation deadline.",
+      resolutionTime: "Resolution deadline must be in the future.",
     });
   });
 
