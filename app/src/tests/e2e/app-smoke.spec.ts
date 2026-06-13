@@ -23,6 +23,9 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await page.getByRole("link", { name: "Create" }).click();
   await expect(page.getByRole("heading", { name: "Bake a market" })).toBeVisible();
   await expect(page.getByText("Bets are receipts, not fills")).toBeVisible();
+  await page.getByRole("button", { name: "Review market" }).click();
+  await expect(page.getByText("Fix 2 fields to review this market.")).toBeVisible();
+  await expect(page.getByLabel("Market question")).toBeFocused();
   await page.getByLabel("Market question").fill("Will the smoke test market graduate?");
   await page
     .getByLabel("Resolution criteria")

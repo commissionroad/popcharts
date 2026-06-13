@@ -28,6 +28,7 @@ import {
 } from "@/domain/market-creation/create-market";
 import type {
   CreateMarketDraft,
+  CreateMarketDraftField,
   CreateMarketPreview,
   CreateMarketValidationErrors,
   MockCreatedMarket,
@@ -40,6 +41,27 @@ import { BImpactPreview } from "./b-impact-preview";
 import { createMockMarket } from "./create-market-service";
 
 type CreateMarketStage = "edit" | "review" | "success";
+
+const REVIEW_ERROR_FIELD_ORDER: ReadonlyArray<CreateMarketDraftField> = [
+  "question",
+  "category",
+  "resolutionCriteria",
+  "resolutionUrl",
+  "openingProbability",
+  "graduationTime",
+  "resolutionTime",
+  "liquidityParameter",
+  "graduationThreshold",
+];
+
+const REVIEW_ERROR_TARGET_IDS: Partial<Record<CreateMarketDraftField, string>> = {
+  graduationTime: "graduation-time",
+  openingProbability: "opening-probability",
+  question: "question",
+  resolutionCriteria: "resolution-criteria",
+  resolutionTime: "resolution-time",
+  resolutionUrl: "resolution-url",
+};
 
 export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const [advanced, setAdvanced] = useState(false);
@@ -58,6 +80,8 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
       ? validationErrors
       : getLiveDeadlineErrors(validationErrors);
   const hasErrors = Object.keys(validationErrors).length > 0;
+  const reviewErrorCount =
+    hasTriedReview && stage === "edit" ? countErrors(validationErrors) : 0;
   const preview = buildCreateMarketPreview(draft);
 
   function updateDraft<K extends keyof CreateMarketDraft>(
@@ -108,6 +132,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
 
     if (Object.keys(nextErrors).length > 0) {
       setStage("edit");
+      focusFirstReviewError(nextErrors);
       return;
     }
 
@@ -213,6 +238,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
               aria-describedby="opening-probability-hint"
               aria-label="Opening YES probability"
               className="flex-1 accent-[var(--accent)]"
+              id="opening-probability"
               max="98"
               min="2"
               onChange={(event) =>
@@ -338,11 +364,37 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
             submitError={submitError}
           />
         ) : (
-          <LivePreviewPanel draft={draft} onReview={handleReview} preview={preview} />
+          <LivePreviewPanel
+            draft={draft}
+            onReview={handleReview}
+            preview={preview}
+            reviewErrorCount={reviewErrorCount}
+          />
         )}
       </aside>
     </div>
   );
+}
+
+function countErrors(errors: CreateMarketValidationErrors) {
+  return Object.keys(errors).length;
+}
+
+function focusFirstReviewError(errors: CreateMarketValidationErrors) {
+  const targetId = REVIEW_ERROR_FIELD_ORDER.map((field) =>
+    errors[field] ? REVIEW_ERROR_TARGET_IDS[field] : undefined
+  ).find(Boolean);
+
+  if (!targetId) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    const target = document.getElementById(targetId);
+
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.focus({ preventScroll: true });
+  });
 }
 
 function getLiveDeadlineErrors(
@@ -453,10 +505,12 @@ function LivePreviewPanel({
   draft,
   onReview,
   preview,
+  reviewErrorCount,
 }: {
   draft: CreateMarketDraft;
   onReview: () => void;
   preview: CreateMarketPreview;
+  reviewErrorCount: number;
 }) {
   return (
     <>
@@ -492,6 +546,18 @@ function LivePreviewPanel({
           refund at exact path cost.
         </p>
       </div>
+      {reviewErrorCount > 0 ? (
+        <div
+          className="flex gap-3 rounded-[var(--radius-md)] border border-[var(--no-border)] bg-[var(--surface-raised)] p-4"
+          role="alert"
+        >
+          <Info className="mt-0.5 shrink-0 text-[var(--no)]" size={16} />
+          <p className="text-[12.5px] leading-5 text-[var(--text-secondary)]">
+            Fix {reviewErrorCount} {reviewErrorCount === 1 ? "field" : "fields"} to
+            review this market.
+          </p>
+        </div>
+      ) : null}
       <Button leftIcon={<Wand2 size={18} />} onClick={onReview} size="lg">
         Review market
       </Button>
