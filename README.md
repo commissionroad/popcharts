@@ -1,5 +1,43 @@
 # popcharts
 
+## Quickstart
+
+Use [`mise`](https://mise.jdx.dev/) to install the repo's pinned command-line
+tools, then use either `just` or `pnpm` from the repository root.
+
+```bash
+mise install
+just setup
+just dev
+```
+
+The same workflow is available without `just`:
+
+```bash
+pnpm run setup
+pnpm run dev
+```
+
+The default dev server is the Next.js app in `app/`. Run `just --list` to see
+the full command menu.
+
+## Common Commands
+
+```bash
+just setup          # install app and protocol dependencies
+just dev            # run the app locally
+just app-check      # app format, lint, typecheck, and unit tests
+just protocol-check # protocol format, lint, typecheck, and tests
+just check          # app-check and protocol-check
+just test           # app unit tests and protocol tests
+just format         # format app and protocol files
+just land 12        # merge a PR with scripts/land
+```
+
+Root commands delegate into the existing package-local workflows. The app keeps
+its `app/pnpm-lock.yaml` for the Vercel project rooted at `app/`, and the
+protocol keeps its own `protocol/pnpm-lock.yaml`.
+
 ## Engineering Skills
 
 The `skills/` directory vendors the engineering skills selected for Pop Charts'
