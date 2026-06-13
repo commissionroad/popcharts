@@ -16,6 +16,7 @@ Start here:
 ```bash
 pnpm install
 pnpm build
+pnpm metadata:check
 pnpm test
 pnpm lint:sol
 pnpm format:check
@@ -37,3 +38,14 @@ pnpm typecheck
 markets. It currently supports market creation, receipt placement, virtual LMSR
 quotes, and collateral escrow. Freeze, clearing roots, graduation, and claims
 will land in later vertical slices.
+
+## Public Contract Metadata
+
+`pnpm build` exports generated `PregradManager` metadata from the Hardhat
+artifact into `src/generated/pregrad-manager.ts`. The package entrypoint at
+`src/index.ts` re-exports the ABI, deployment registry shape, optional
+deployment block, and typed helpers for future server/frontend imports.
+
+Deployment addresses live in `deployments/protocol.json`. Leave a contract
+entry absent until a network deployment exists; include `deployBlock` when the
+deployment block is known.

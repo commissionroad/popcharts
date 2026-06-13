@@ -1,0 +1,14 @@
+{
+  "local": {
+    "chainId": 31337,
+    "contracts": {}
+  },
+  "baseSepolia": {
+    "chainId": 84532,
+    "contracts": {}
+  },
+  "base": {
+    "chainId": 8453,
+    "contracts": {}
+  }
+}
