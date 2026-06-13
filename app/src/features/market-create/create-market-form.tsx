@@ -108,20 +108,22 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
     }
   }
 
-  function applyGraduationPreset(milliseconds: number) {
+  function applyGraduationPreset(preset: (typeof GRADUATION_PRESETS)[number]) {
     updateDraftWith((current) =>
       applyGraduationTime(
         current,
-        toDateTimeLocalValue(new Date(Date.now() + milliseconds))
+        toDateTimeLocalValue(new Date(Date.now() + preset.milliseconds)),
+        preset.label
       )
     );
   }
 
-  function applyResolutionPreset(milliseconds: number) {
+  function applyResolutionPreset(preset: (typeof RESOLUTION_PRESETS)[number]) {
     updateDraftWith((current) =>
       applyResolutionTime(
         current,
-        toDateTimeLocalValue(new Date(Date.now() + milliseconds))
+        toDateTimeLocalValue(new Date(Date.now() + preset.milliseconds)),
+        preset.label
       )
     );
   }
@@ -269,6 +271,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
             }
             onPreset={applyGraduationPreset}
             presets={GRADUATION_PRESETS}
+            selectedPreset={draft.graduationPreset}
             value={draft.graduationTime}
           />
           <DeadlineControl
@@ -280,6 +283,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
             }
             onPreset={applyResolutionPreset}
             presets={RESOLUTION_PRESETS}
+            selectedPreset={draft.resolutionPreset}
             value={draft.resolutionTime}
           />
         </div>
@@ -454,23 +458,32 @@ function CategoryPicker({
   );
 }
 
-function DeadlineControl({
+type DeadlinePresetOption = {
+  label: string;
+  milliseconds: number;
+};
+
+function DeadlineControl<TPreset extends DeadlinePresetOption>({
   error,
   id,
   label,
   onChange,
   onPreset,
   presets,
+  selectedPreset,
   value,
 }: {
   error?: string | undefined;
   id: string;
   label: string;
   onChange: (value: string) => void;
-  onPreset: (milliseconds: number) => void;
-  presets: ReadonlyArray<{ label: string; milliseconds: number }>;
+  onPreset: (preset: TPreset) => void;
+  presets: ReadonlyArray<TPreset>;
+  selectedPreset: string;
   value: string;
 }) {
+  const customSelected = selectedPreset === "custom";
+
   return (
     <div>
       <Field
@@ -483,17 +496,36 @@ function DeadlineControl({
         value={value}
       />
       <div className="mt-2 flex flex-wrap gap-2">
-        {presets.map((preset) => (
-          <button
-            className="focus-ring rounded-[var(--radius-pill)] border border-[var(--border)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--pc-cyan)]"
-            key={preset.label}
-            onClick={() => onPreset(preset.milliseconds)}
-            type="button"
-          >
-            {preset.label}
-          </button>
-        ))}
-        <span className="rounded-[var(--radius-pill)] border border-[var(--border-soft)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-muted)]">
+        {presets.map((preset) => {
+          const selected = selectedPreset === preset.label;
+
+          return (
+            <button
+              aria-pressed={selected}
+              className={cn(
+                "focus-ring rounded-[var(--radius-pill)] border px-2.5 py-1.5 font-mono text-[11px] transition-colors",
+                selected
+                  ? "border-[var(--pc-cyan)] bg-[var(--accent-wash)] text-[var(--pc-cyan)]"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--pc-cyan)]"
+              )}
+              key={preset.label}
+              onClick={() => onPreset(preset)}
+              type="button"
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+        <span
+          aria-current={customSelected ? "true" : undefined}
+          className={cn(
+            "rounded-[var(--radius-pill)] border px-2.5 py-1.5 font-mono text-[11px]",
+            customSelected
+              ? "border-[var(--pc-cyan)] bg-[var(--accent-wash)] text-[var(--pc-cyan)]"
+              : "border-[var(--border-soft)] text-[var(--text-muted)]"
+          )}
+          data-deadline-custom={id}
+        >
           Custom
         </span>
       </div>

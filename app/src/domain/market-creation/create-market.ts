@@ -4,8 +4,10 @@ import type {
   CreateMarketDraft,
   CreateMarketPreview,
   CreateMarketValidationErrors,
+  GraduationPresetLabel,
   MarketMetadata,
   ProtocolCreateMarketParams,
+  ResolutionPresetLabel,
 } from "./types";
 
 const WAD = 10n ** 18n;
@@ -32,6 +34,7 @@ export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
     category: "Crypto",
     createdAt: now.toISOString(),
     description: "",
+    graduationPreset: GRADUATION_PRESETS[0].label,
     graduationTime: toDateTimeLocalValue(
       addMilliseconds(now, GRADUATION_PRESETS[0].milliseconds)
     ),
@@ -39,6 +42,7 @@ export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
     openingProbability: 50,
     question: "",
     resolutionCriteria: "",
+    resolutionPreset: RESOLUTION_PRESETS[1].label,
     resolutionTime: toDateTimeLocalValue(
       addMilliseconds(now, RESOLUTION_PRESETS[1].milliseconds)
     ),
@@ -169,20 +173,24 @@ export function deriveGraduationThreshold(liquidityParameter: number) {
 
 export function applyGraduationTime(
   draft: CreateMarketDraft,
-  graduationTime: string
+  graduationTime: string,
+  graduationPreset: GraduationPresetLabel | "custom" = "custom"
 ): CreateMarketDraft {
   return {
     ...draft,
+    graduationPreset,
     graduationTime,
   };
 }
 
 export function applyResolutionTime(
   draft: CreateMarketDraft,
-  resolutionTime: string
+  resolutionTime: string,
+  resolutionPreset: ResolutionPresetLabel | "custom" = "custom"
 ): CreateMarketDraft {
   return {
     ...draft,
+    resolutionPreset,
     resolutionTime,
   };
 }

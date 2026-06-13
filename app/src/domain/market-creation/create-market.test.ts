@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  applyGraduationTime,
+  applyResolutionTime,
   buildCreateMarketPreview,
   createInitialMarketDraft,
   deriveGraduationThreshold,
@@ -17,12 +19,27 @@ describe("market creation draft", () => {
   test("validates required creation fields", () => {
     const draft = createInitialMarketDraft(new Date("2026-06-13T12:00:00Z"));
 
+    expect(draft.graduationPreset).toBe("1h");
+    expect(draft.resolutionPreset).toBe("1w");
     expect(
       validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
     ).toMatchObject({
       question: "Add a market question.",
       resolutionCriteria: "Add resolution criteria.",
     });
+  });
+
+  test("tracks preset deadline selection until manual edits", () => {
+    const draft = createInitialMarketDraft(new Date("2026-06-13T12:00:00Z"));
+    const graduation = applyGraduationTime(draft, "2026-06-13T18:00", "6h");
+    const customGraduation = applyGraduationTime(graduation, "2026-06-13T18:30");
+    const resolution = applyResolutionTime(draft, "2026-06-14T12:00", "1d");
+    const customResolution = applyResolutionTime(resolution, "2026-06-15T12:00");
+
+    expect(graduation.graduationPreset).toBe("6h");
+    expect(customGraduation.graduationPreset).toBe("custom");
+    expect(resolution.resolutionPreset).toBe("1d");
+    expect(customResolution.resolutionPreset).toBe("custom");
   });
 
   test("rejects unsupported resolution URLs and deadline ordering", () => {

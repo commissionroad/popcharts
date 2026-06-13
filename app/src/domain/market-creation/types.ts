@@ -1,14 +1,19 @@
 import type { MarketCategory } from "@/domain/markets/types";
 
+export type GraduationPresetLabel = "1h" | "6h" | "24h";
+export type ResolutionPresetLabel = "1d" | "1w" | "1m";
+
 export type CreateMarketDraft = {
   category: MarketCategory;
   createdAt: string;
   description: string;
+  graduationPreset: GraduationPresetLabel | "custom";
   graduationTime: string;
   liquidityParameter: number;
   openingProbability: number;
   question: string;
   resolutionCriteria: string;
+  resolutionPreset: ResolutionPresetLabel | "custom";
   resolutionTime: string;
   resolutionUrl: string;
 };
