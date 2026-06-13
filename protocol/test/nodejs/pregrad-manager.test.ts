@@ -12,7 +12,8 @@ type MarketConfig = {
   openingProbabilityWad: bigint;
   liquidityParameter: bigint;
   graduationThreshold: bigint;
-  closeTime: bigint;
+  graduationTime: bigint;
+  resolutionTime: bigint;
 };
 
 type MarketState = {
@@ -32,12 +33,13 @@ describe("PregradManager", async function () {
     return { collateral, manager };
   }
 
-  it("creates a bootstrap market with a stable market ID", async function () {
+  it("creates an active market with a stable market ID", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/example"));
-    const closeTime = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const graduationTime = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationTime + 7n * 24n * 60n * 60n;
 
     await viem.assertions.emitWithArgs(
       manager.write.createMarket([
@@ -47,7 +49,8 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
           graduationThreshold: 40_000n * WAD,
-          closeTime,
+          graduationTime,
+          resolutionTime,
         },
       ]),
       manager,
@@ -60,7 +63,8 @@ describe("PregradManager", async function () {
         (50n * WAD) / 100n,
         5_000n * WAD,
         40_000n * WAD,
-        closeTime,
+        graduationTime,
+        resolutionTime,
       ],
     );
 
@@ -78,7 +82,8 @@ describe("PregradManager", async function () {
     assert.equal(config.openingProbabilityWad, (50n * WAD) / 100n);
     assert.equal(config.liquidityParameter, 5_000n * WAD);
     assert.equal(config.graduationThreshold, 40_000n * WAD);
-    assert.equal(config.closeTime, closeTime);
+    assert.equal(config.graduationTime, graduationTime);
+    assert.equal(config.resolutionTime, resolutionTime);
     assert.equal(Number(state.status), 0);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
@@ -89,8 +94,10 @@ describe("PregradManager", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [, alice, bob] = await viem.getWalletClients();
 
-    const firstCloseTime = BigInt(await networkHelpers.time.latest()) + 3n * 24n * 60n * 60n;
-    const secondCloseTime = firstCloseTime + 11n * 24n * 60n * 60n;
+    const firstGraduationTime = BigInt(await networkHelpers.time.latest()) + 3n * 24n * 60n * 60n;
+    const secondGraduationTime = firstGraduationTime + 11n * 24n * 60n * 60n;
+    const firstResolutionTime = firstGraduationTime + 27n * 24n * 60n * 60n;
+    const secondResolutionTime = secondGraduationTime + 46n * 24n * 60n * 60n;
     const firstMetadataHash = keccak256(stringToBytes("ipfs://popcharts/first"));
     const secondMetadataHash = keccak256(stringToBytes("ipfs://popcharts/second"));
 
@@ -102,7 +109,8 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
           graduationThreshold: 25_000n * WAD,
-          closeTime: firstCloseTime,
+          graduationTime: firstGraduationTime,
+          resolutionTime: firstResolutionTime,
         },
       ],
       { account: alice.account },
@@ -116,7 +124,8 @@ describe("PregradManager", async function () {
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
           graduationThreshold: 100_000n * WAD,
-          closeTime: secondCloseTime,
+          graduationTime: secondGraduationTime,
+          resolutionTime: secondResolutionTime,
         },
       ],
       { account: bob.account },
@@ -132,7 +141,9 @@ describe("PregradManager", async function () {
     assert.equal(secondConfig.metadataHash, secondMetadataHash);
     assert.equal(firstConfig.openingProbabilityWad, (20n * WAD) / 100n);
     assert.equal(secondConfig.openingProbabilityWad, (80n * WAD) / 100n);
-    assert.equal(firstConfig.closeTime, firstCloseTime);
-    assert.equal(secondConfig.closeTime, secondCloseTime);
+    assert.equal(firstConfig.graduationTime, firstGraduationTime);
+    assert.equal(secondConfig.graduationTime, secondGraduationTime);
+    assert.equal(firstConfig.resolutionTime, firstResolutionTime);
+    assert.equal(secondConfig.resolutionTime, secondResolutionTime);
   });
 });

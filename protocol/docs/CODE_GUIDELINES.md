@@ -37,7 +37,7 @@ large lifecycle functions.
 
 Prefer immutable deployment configuration for values that define a market:
 collateral token, creator, metadata hash, opening probability, `b`, graduation
-threshold, and close time.
+threshold, graduation deadline, and resolution deadline.
 
 Document only non-obvious accounting or security constraints. Do not restate
 what the code already says.

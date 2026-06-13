@@ -16,7 +16,7 @@ library MarketTypes {
   /// @notice Lifecycle status for a market managed by the pregrad singleton.
   enum MarketStatus {
     /// @notice The market accepts locked pre-graduation receipts priced by virtual LMSR.
-    Bootstrap,
+    Active,
     /// @notice The receipt book is frozen and awaiting clearing result finalization.
     Frozen,
     /// @notice Clearing finalized and matched receipt segments can claim postgrad outcome tokens.
@@ -43,8 +43,10 @@ library MarketTypes {
     uint256 liquidityParameter;
     /// @notice Minimum matched market cap required before the market can graduate.
     uint256 graduationThreshold;
-    /// @notice Unix timestamp after which an ungraduated market can refund.
-    uint64 closeTime;
+    /// @notice Unix timestamp by which the market must graduate or become refundable.
+    uint64 graduationTime;
+    /// @notice Unix timestamp by which the postgrad market should resolve.
+    uint64 resolutionTime;
   }
 
   /// @notice Inputs required to create a market.
@@ -60,8 +62,10 @@ library MarketTypes {
     uint256 liquidityParameter;
     /// @notice Minimum matched market cap required before the market can graduate.
     uint256 graduationThreshold;
-    /// @notice Unix timestamp after which an ungraduated market can refund.
-    uint64 closeTime;
+    /// @notice Unix timestamp by which the market must graduate or become refundable.
+    uint64 graduationTime;
+    /// @notice Unix timestamp by which the postgrad market should resolve.
+    uint64 resolutionTime;
   }
 
   /// @notice Mutable lifecycle and accounting state for a market.

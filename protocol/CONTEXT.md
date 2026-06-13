@@ -64,7 +64,6 @@ sets are the post-graduation fixed-payout market object.
 
 ## Status Ladder
 
-The product lifecycle vocabulary is `Bootstrap`, `Graduating`, `Graduated`,
-`Resolved`, and `Refunded`. Contract lifecycle states may include finer-grained
-implementation states such as frozen-for-clearing, but product reads should map
-back to this ladder.
+The contract lifecycle vocabulary is `Active`, `Frozen`, `Graduated`,
+`Refunded`, `Resolved`, and `Cancelled`. Product reads may group or rename these
+states for UI, but protocol code should use this ladder.

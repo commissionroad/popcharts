@@ -20,7 +20,8 @@ contract PregradManagerTest is Test {
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
     uint256 graduationThreshold,
-    uint64 closeTime
+    uint64 graduationTime,
+    uint64 resolutionTime
   );
 
   MockCollateral private collateral;
@@ -31,9 +32,10 @@ contract PregradManagerTest is Test {
     manager = new PregradManager();
   }
 
-  function test_CreateMarketStoresBootstrapConfigAndEmitsEvent() public {
+  function test_CreateMarketStoresActiveConfigAndEmitsEvent() public {
     bytes32 metadataHash = keccak256("ipfs://popcharts/example");
-    uint64 closeTime = uint64(block.timestamp + 7 days);
+    uint64 graduationTime = uint64(block.timestamp + 7 days);
+    uint64 resolutionTime = uint64(block.timestamp + 14 days);
 
     vm.expectEmit(true, true, true, true, address(manager));
     emit MarketCreated(
@@ -44,7 +46,8 @@ contract PregradManagerTest is Test {
       (50 * WAD) / 100,
       5_000 * WAD,
       40_000 * WAD,
-      closeTime
+      graduationTime,
+      resolutionTime
     );
 
     uint256 marketId = manager.createMarket(
@@ -54,7 +57,8 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 40_000 * WAD,
-        closeTime: closeTime
+        graduationTime: graduationTime,
+        resolutionTime: resolutionTime
       })
     );
 
@@ -71,8 +75,9 @@ contract PregradManagerTest is Test {
     assertEq(config.openingProbabilityWad, (50 * WAD) / 100);
     assertEq(config.liquidityParameter, 5_000 * WAD);
     assertEq(config.graduationThreshold, 40_000 * WAD);
-    assertEq(config.closeTime, closeTime);
-    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Bootstrap));
+    assertEq(config.graduationTime, graduationTime);
+    assertEq(config.resolutionTime, resolutionTime);
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
     assertEq(state.frozenAt, 0);
@@ -92,7 +97,8 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
         graduationThreshold: 25_000 * WAD,
-        closeTime: uint64(block.timestamp + 3 days)
+        graduationTime: uint64(block.timestamp + 3 days),
+        resolutionTime: uint64(block.timestamp + 30 days)
       })
     );
 
@@ -104,7 +110,8 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
         graduationThreshold: 100_000 * WAD,
-        closeTime: uint64(block.timestamp + 14 days)
+        graduationTime: uint64(block.timestamp + 14 days),
+        resolutionTime: uint64(block.timestamp + 60 days)
       })
     );
 
@@ -134,7 +141,8 @@ contract PregradManagerTest is Test {
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
       graduationThreshold: 40_000 * WAD,
-      closeTime: uint64(block.timestamp + 7 days)
+      graduationTime: uint64(block.timestamp + 7 days),
+      resolutionTime: uint64(block.timestamp + 14 days)
     });
 
     vm.expectRevert(PregradManager.InvalidCollateral.selector);
@@ -165,8 +173,17 @@ contract PregradManagerTest is Test {
     manager.createMarket(params);
 
     params.graduationThreshold = 40_000 * WAD;
-    params.closeTime = uint64(block.timestamp);
-    vm.expectRevert(PregradManager.InvalidCloseTime.selector);
+    params.graduationTime = uint64(block.timestamp);
+    vm.expectRevert(PregradManager.InvalidGraduationTime.selector);
+    manager.createMarket(params);
+
+    params.graduationTime = uint64(block.timestamp + 7 days);
+    params.resolutionTime = params.graduationTime;
+    vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
+    manager.createMarket(params);
+
+    params.resolutionTime = uint64(block.timestamp);
+    vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
     manager.createMarket(params);
   }
 }

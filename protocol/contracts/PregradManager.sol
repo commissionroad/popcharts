@@ -10,11 +10,12 @@ import {MarketTypes} from "./types/MarketTypes.sol";
 contract PregradManager {
   error InvalidCollateral();
   error InvalidMetadataHash();
-  error InvalidCloseTime();
+  error InvalidGraduationTime();
+  error InvalidResolutionTime();
   error InvalidGraduationThreshold();
   error MarketDoesNotExist(uint256 marketId);
 
-  /// @notice Emitted when a new bootstrap market is created.
+  /// @notice Emitted when a new active market is created.
   /// @param marketId Canonical pregrad market ID.
   /// @param creator Account that created the market.
   /// @param metadataHash Hash of market metadata and resolution rules.
@@ -22,7 +23,8 @@ contract PregradManager {
   /// @param openingProbabilityWad Opening YES probability, scaled by 1e18.
   /// @param liquidityParameter Virtual LMSR smoothness parameter.
   /// @param graduationThreshold Minimum matched market cap required to graduate.
-  /// @param closeTime Timestamp after which an ungraduated market can refund.
+  /// @param graduationTime Timestamp by which the market must graduate or become refundable.
+  /// @param resolutionTime Timestamp by which the postgrad market should resolve.
   event MarketCreated(
     uint256 indexed marketId,
     address indexed creator,
@@ -31,13 +33,14 @@ contract PregradManager {
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
     uint256 graduationThreshold,
-    uint64 closeTime
+    uint64 graduationTime,
+    uint64 resolutionTime
   );
 
   uint256 private _nextMarketId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
 
-  /// @notice Creates a new market in Bootstrap status.
+  /// @notice Creates a new market in Active status.
   /// @param params Market creation parameters, excluding creator.
   /// @return marketId Canonical pregrad market ID.
   function createMarket(
@@ -56,9 +59,10 @@ contract PregradManager {
       openingProbabilityWad: params.openingProbabilityWad,
       liquidityParameter: params.liquidityParameter,
       graduationThreshold: params.graduationThreshold,
-      closeTime: params.closeTime
+      graduationTime: params.graduationTime,
+      resolutionTime: params.resolutionTime
     });
-    market.state.status = MarketTypes.MarketStatus.Bootstrap;
+    market.state.status = MarketTypes.MarketStatus.Active;
 
     emit MarketCreated(
       marketId,
@@ -68,7 +72,8 @@ contract PregradManager {
       params.openingProbabilityWad,
       params.liquidityParameter,
       params.graduationThreshold,
-      params.closeTime
+      params.graduationTime,
+      params.resolutionTime
     );
   }
 
@@ -113,8 +118,11 @@ contract PregradManager {
     if (params.metadataHash == bytes32(0)) {
       revert InvalidMetadataHash();
     }
-    if (params.closeTime <= block.timestamp) {
-      revert InvalidCloseTime();
+    if (params.graduationTime <= block.timestamp) {
+      revert InvalidGraduationTime();
+    }
+    if (params.resolutionTime <= params.graduationTime) {
+      revert InvalidResolutionTime();
     }
     if (params.graduationThreshold == 0) {
       revert InvalidGraduationThreshold();
