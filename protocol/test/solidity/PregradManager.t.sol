@@ -5,6 +5,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {MockCollateral} from "../../contracts/mocks/MockCollateral.sol";
+import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
@@ -24,6 +25,18 @@ contract PregradManagerTest is Test {
     uint64 resolutionTime
   );
 
+  event ReceiptPlaced(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    MarketTypes.Side side,
+    uint256 shares,
+    uint256 cost,
+    int256 rLow,
+    int256 rHigh,
+    uint64 sequence
+  );
+
   MockCollateral private collateral;
   PregradManager private manager;
 
@@ -34,8 +47,7 @@ contract PregradManagerTest is Test {
 
   function test_CreateMarketStoresActiveConfigAndEmitsEvent() public {
     bytes32 metadataHash = keccak256("ipfs://popcharts/example");
-    uint64 graduationTime = uint64(block.timestamp + 7 days);
-    uint64 resolutionTime = uint64(block.timestamp + 14 days);
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.expectEmit(true, true, true, true, address(manager));
     emit MarketCreated(
@@ -43,24 +55,14 @@ contract PregradManagerTest is Test {
       address(this),
       metadataHash,
       address(collateral),
-      (50 * WAD) / 100,
-      5_000 * WAD,
-      40_000 * WAD,
-      graduationTime,
-      resolutionTime
+      params.openingProbabilityWad,
+      params.liquidityParameter,
+      params.graduationThreshold,
+      params.graduationTime,
+      params.resolutionTime
     );
 
-    uint256 marketId = manager.createMarket(
-      MarketTypes.CreateMarketParams({
-        collateral: address(collateral),
-        metadataHash: metadataHash,
-        openingProbabilityWad: (50 * WAD) / 100,
-        liquidityParameter: 5_000 * WAD,
-        graduationThreshold: 40_000 * WAD,
-        graduationTime: graduationTime,
-        resolutionTime: resolutionTime
-      })
-    );
+    uint256 marketId = manager.createMarket(params);
 
     MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
     MarketTypes.MarketState memory state = manager.getMarketState(marketId);
@@ -75,11 +77,14 @@ contract PregradManagerTest is Test {
     assertEq(config.openingProbabilityWad, (50 * WAD) / 100);
     assertEq(config.liquidityParameter, 5_000 * WAD);
     assertEq(config.graduationThreshold, 40_000 * WAD);
-    assertEq(config.graduationTime, graduationTime);
-    assertEq(config.resolutionTime, resolutionTime);
+    assertEq(config.graduationTime, params.graduationTime);
+    assertEq(config.resolutionTime, params.resolutionTime);
     assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
+    assertEq(state.path, int256(0));
+    assertEq(state.yesShares, 0);
+    assertEq(state.noShares, 0);
     assertEq(state.frozenAt, 0);
   }
 
@@ -129,9 +134,139 @@ contract PregradManagerTest is Test {
     assertEq(bobConfig.openingProbabilityWad, (80 * WAD) / 100);
   }
 
+  function test_PlaceReceiptEmitsEventAndEscrowsCollateral() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = _createDefaultMarket();
+    uint256 shares = 100 * WAD;
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+
+    assertGt(quote.cost, 50 * WAD);
+    assertLt(quote.cost, 51 * WAD);
+    assertEq(quote.rLow, int256(0));
+    assertEq(quote.rHigh, int256(shares));
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit ReceiptPlaced(
+      1,
+      marketId,
+      buyer,
+      MarketTypes.Side.Yes,
+      shares,
+      quote.cost,
+      quote.rLow,
+      quote.rHigh,
+      1
+    );
+
+    vm.prank(buyer);
+    uint256 receiptId = manager.placeReceipt(
+      MarketTypes.PlaceReceiptParams({
+        marketId: marketId,
+        side: MarketTypes.Side.Yes,
+        shares: shares,
+        maxCost: quote.cost
+      })
+    );
+
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+
+    assertEq(receiptId, 1);
+    assertEq(manager.totalReceiptCount(), 1);
+    assertEq(state.totalEscrowed, quote.cost);
+    assertEq(collateral.balanceOf(address(manager)), quote.cost);
+    assertEq(collateral.balanceOf(buyer), 1_000 * WAD - quote.cost);
+  }
+
+  function test_PlaceReceiptStoresReceiptAndUpdatesMarketState() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = _createDefaultMarket();
+    uint256 shares = 100 * WAD;
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+
+    MarketTypes.Receipt memory receipt = manager.getReceipt(receiptId);
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+
+    assertEq(manager.nextReceiptId(), 2);
+    assertTrue(manager.receiptExists(receiptId));
+    assertEq(receipt.marketId, marketId);
+    assertEq(receipt.owner, buyer);
+    assertEq(uint256(receipt.side), uint256(MarketTypes.Side.Yes));
+    assertEq(receipt.shares, shares);
+    assertEq(receipt.cost, quote.cost);
+    assertEq(receipt.rLow, quote.rLow);
+    assertEq(receipt.rHigh, quote.rHigh);
+    assertEq(receipt.sequence, 1);
+    assertTrue(receipt.active);
+    assertEq(state.receiptCount, 1);
+    assertEq(state.totalEscrowed, quote.cost);
+    assertEq(state.path, quote.rHigh);
+    assertEq(state.yesShares, shares);
+    assertEq(state.noShares, 0);
+  }
+
+  function test_PlaceReceiptIdsIncrementAndMarketsAreIsolated() public {
+    address buyer = makeAddr("buyer");
+    uint256 firstMarketId = _createDefaultMarket();
+    uint256 secondMarketId = _createSecondDefaultMarket();
+
+    uint256 firstShares = 50 * WAD;
+    uint256 secondShares = 25 * WAD;
+    _fundAndApprove(buyer, 1_000 * WAD);
+
+    (uint256 firstReceiptId, MarketTypes.ReceiptQuote memory firstQuote) = _placeReceiptAs(
+      buyer,
+      firstMarketId,
+      MarketTypes.Side.Yes,
+      firstShares
+    );
+    (uint256 secondReceiptId, MarketTypes.ReceiptQuote memory secondQuote) = _placeReceiptAs(
+      buyer,
+      secondMarketId,
+      MarketTypes.Side.No,
+      secondShares
+    );
+
+    MarketTypes.Receipt memory firstReceipt = manager.getReceipt(firstReceiptId);
+    MarketTypes.Receipt memory secondReceipt = manager.getReceipt(secondReceiptId);
+    MarketTypes.MarketState memory firstState = manager.getMarketState(firstMarketId);
+    MarketTypes.MarketState memory secondState = manager.getMarketState(secondMarketId);
+
+    assertEq(firstReceiptId, 1);
+    assertEq(secondReceiptId, 2);
+    assertEq(firstReceipt.sequence, 1);
+    assertEq(secondReceipt.sequence, 1);
+    assertEq(firstState.receiptCount, 1);
+    assertEq(secondState.receiptCount, 1);
+    assertEq(firstState.totalEscrowed, firstQuote.cost);
+    assertEq(secondState.totalEscrowed, secondQuote.cost);
+    assertEq(firstState.path, firstQuote.rHigh);
+    assertEq(secondState.path, secondQuote.rLow);
+    assertEq(firstState.yesShares, firstShares);
+    assertEq(firstState.noShares, 0);
+    assertEq(secondState.yesShares, 0);
+    assertEq(secondState.noShares, secondShares);
+    assertEq(collateral.balanceOf(address(manager)), firstQuote.cost + secondQuote.cost);
+  }
+
   function test_RevertsForUnknownMarket() public {
     vm.expectRevert(abi.encodeWithSelector(PregradManager.MarketDoesNotExist.selector, 1));
     manager.getMarketConfig(1);
+
+    vm.expectRevert(abi.encodeWithSelector(PregradManager.ReceiptDoesNotExist.selector, 1));
+    manager.getReceipt(1);
   }
 
   function test_RevertsForInvalidMarketConfig() public {
@@ -185,5 +320,150 @@ contract PregradManagerTest is Test {
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
     manager.createMarket(params);
+  }
+
+  function test_RevertsForInvalidReceiptPlacement() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = _createDefaultMarket();
+    uint256 shares = 100 * WAD;
+    MarketTypes.PlaceReceiptParams memory params = MarketTypes.PlaceReceiptParams({
+      marketId: 999,
+      side: MarketTypes.Side.Yes,
+      shares: shares,
+      maxCost: type(uint256).max
+    });
+
+    vm.expectRevert(abi.encodeWithSelector(PregradManager.MarketDoesNotExist.selector, 999));
+    manager.placeReceipt(params);
+
+    params.marketId = marketId;
+    params.shares = 0;
+    vm.expectRevert(PregradManager.InvalidShares.selector);
+    manager.placeReceipt(params);
+
+    vm.expectRevert(PregradManager.InvalidShares.selector);
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, 0);
+
+    params.shares = shares;
+    MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+    params.maxCost = quote.cost - 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.CostExceedsLimit.selector, quote.cost, quote.cost - 1)
+    );
+    manager.placeReceipt(params);
+
+    collateral.mint(buyer, 1_000 * WAD);
+    vm.prank(buyer);
+    collateral.approve(address(manager), type(uint256).max);
+
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    vm.warp(config.graduationTime);
+    params.maxCost = quote.cost;
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MarketPastGraduationTime.selector,
+        marketId,
+        config.graduationTime
+      )
+    );
+    manager.placeReceipt(params);
+  }
+
+  function test_RevertsWhenCollateralTransferDoesNotMatchReceiptCost() public {
+    address buyer = makeAddr("buyer");
+    MockFeeCollateral feeCollateral = new MockFeeCollateral();
+    uint256 marketId = manager.createMarket(
+      MarketTypes.CreateMarketParams({
+        collateral: address(feeCollateral),
+        metadataHash: keccak256("ipfs://popcharts/fee-collateral"),
+        openingProbabilityWad: (50 * WAD) / 100,
+        liquidityParameter: 5_000 * WAD,
+        graduationThreshold: 40_000 * WAD,
+        graduationTime: uint64(block.timestamp + 7 days),
+        resolutionTime: uint64(block.timestamp + 14 days)
+      })
+    );
+
+    uint256 shares = 100 * WAD;
+    MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+    uint256 received = quote.cost - ((quote.cost * 100) / 10_000);
+
+    feeCollateral.mint(buyer, 1_000 * WAD);
+    vm.prank(buyer);
+    feeCollateral.approve(address(manager), type(uint256).max);
+
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidCollateralTransfer.selector,
+        quote.cost,
+        received
+      )
+    );
+    manager.placeReceipt(
+      MarketTypes.PlaceReceiptParams({
+        marketId: marketId,
+        side: MarketTypes.Side.Yes,
+        shares: shares,
+        maxCost: quote.cost
+      })
+    );
+  }
+
+  function _createDefaultMarket() private returns (uint256) {
+    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/example")));
+  }
+
+  function _createSecondDefaultMarket() private returns (uint256) {
+    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/second")));
+  }
+
+  function _defaultMarketParams(
+    bytes32 metadataHash
+  ) private view returns (MarketTypes.CreateMarketParams memory) {
+    return
+      MarketTypes.CreateMarketParams({
+        collateral: address(collateral),
+        metadataHash: metadataHash,
+        openingProbabilityWad: (50 * WAD) / 100,
+        liquidityParameter: 5_000 * WAD,
+        graduationThreshold: 40_000 * WAD,
+        graduationTime: uint64(block.timestamp + 7 days),
+        resolutionTime: uint64(block.timestamp + 14 days)
+      });
+  }
+
+  function _fundAndApprove(address account, uint256 amount) private {
+    collateral.mint(account, amount);
+    vm.prank(account);
+    collateral.approve(address(manager), type(uint256).max);
+  }
+
+  function _placeReceiptAs(
+    address buyer,
+    uint256 marketId,
+    MarketTypes.Side side,
+    uint256 shares
+  ) private returns (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) {
+    quote = manager.quoteReceipt(marketId, side, shares);
+
+    vm.prank(buyer);
+    receiptId = manager.placeReceipt(
+      MarketTypes.PlaceReceiptParams({
+        marketId: marketId,
+        side: side,
+        shares: shares,
+        maxCost: quote.cost
+      })
+    );
   }
 }

@@ -1,19 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
 /// @title PregradManager
 /// @author Pop Charts
 /// @notice Singleton manager for all Pop Charts pre-graduation markets.
-contract PregradManager {
+contract PregradManager is ReentrancyGuard {
+  using SafeERC20 for IERC20;
+
   error InvalidCollateral();
   error InvalidMetadataHash();
   error InvalidGraduationTime();
   error InvalidResolutionTime();
   error InvalidGraduationThreshold();
+  error InvalidShares();
+  error CostExceedsLimit(uint256 cost, uint256 maxCost);
+  error InvalidCollateralTransfer(uint256 expected, uint256 received);
   error MarketDoesNotExist(uint256 marketId);
+  error ReceiptDoesNotExist(uint256 receiptId);
+  error InvalidMarketStatus(
+    uint256 marketId,
+    MarketTypes.MarketStatus actual,
+    MarketTypes.MarketStatus expected
+  );
+  error MarketPastGraduationTime(uint256 marketId, uint64 graduationTime);
+  error ReceiptCountOverflow(uint256 receiptCount);
 
   /// @notice Emitted when a new active market is created.
   /// @param marketId Canonical pregrad market ID.
@@ -37,8 +53,32 @@ contract PregradManager {
     uint64 resolutionTime
   );
 
+  /// @notice Emitted when a locked pre-graduation receipt is placed.
+  /// @param receiptId Canonical receipt ID.
+  /// @param marketId Market that owns the receipt.
+  /// @param owner Account that owns the receipt.
+  /// @param side YES or NO side purchased by the receipt.
+  /// @param shares Provisional share quantity swept by the receipt.
+  /// @param cost Collateral transferred into escrow for the receipt.
+  /// @param rLow Lower bound of the LMSR path interval traversed by the receipt.
+  /// @param rHigh Upper bound of the LMSR path interval traversed by the receipt.
+  /// @param sequence Per-market receipt sequence.
+  event ReceiptPlaced(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    MarketTypes.Side side,
+    uint256 shares,
+    uint256 cost,
+    int256 rLow,
+    int256 rHigh,
+    uint64 sequence
+  );
+
   uint256 private _nextMarketId = 1;
+  uint256 private _nextReceiptId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
+  mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
 
   /// @notice Creates a new market in Active status.
   /// @param params Market creation parameters, excluding creator.
@@ -63,6 +103,10 @@ contract PregradManager {
       resolutionTime: params.resolutionTime
     });
     market.state.status = MarketTypes.MarketStatus.Active;
+    market.state.path = LmsrMath.openingPath(
+      params.openingProbabilityWad,
+      params.liquidityParameter
+    );
 
     emit MarketCreated(
       marketId,
@@ -82,15 +126,31 @@ contract PregradManager {
     return _nextMarketId;
   }
 
+  /// @notice Returns the next receipt ID that will be assigned.
+  function nextReceiptId() external view returns (uint256) {
+    return _nextReceiptId;
+  }
+
   /// @notice Returns the total number of markets created.
   function marketCount() external view returns (uint256) {
     return _nextMarketId - 1;
+  }
+
+  /// @notice Returns the total number of receipts created.
+  function totalReceiptCount() external view returns (uint256) {
+    return _nextReceiptId - 1;
   }
 
   /// @notice Returns whether `marketId` exists.
   /// @param marketId Market ID to check.
   function marketExists(uint256 marketId) public view returns (bool) {
     return marketId != 0 && marketId < _nextMarketId;
+  }
+
+  /// @notice Returns whether `receiptId` exists.
+  /// @param receiptId Receipt ID to check.
+  function receiptExists(uint256 receiptId) public view returns (bool) {
+    return receiptId != 0 && receiptId < _nextReceiptId;
   }
 
   /// @notice Returns immutable market configuration.
@@ -107,6 +167,99 @@ contract PregradManager {
   function getMarketState(uint256 marketId) external view returns (MarketTypes.MarketState memory) {
     _requireMarketExists(marketId);
     return _markets[marketId].state;
+  }
+
+  /// @notice Returns a stored locked receipt.
+  /// @param receiptId Receipt ID to read.
+  function getReceipt(uint256 receiptId) external view returns (MarketTypes.Receipt memory) {
+    _requireReceiptExists(receiptId);
+    return _receipts[receiptId];
+  }
+
+  /// @notice Returns the current quote for a prospective receipt.
+  /// @param marketId Market receiving the receipt.
+  /// @param side YES or NO side to buy.
+  /// @param shares Provisional share quantity to buy.
+  function quoteReceipt(
+    uint256 marketId,
+    MarketTypes.Side side,
+    uint256 shares
+  ) external view returns (MarketTypes.ReceiptQuote memory) {
+    _requireMarketExists(marketId);
+    _validateReceiptShares(shares);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireActiveMarket(marketId, market);
+    _requireBeforeGraduationTime(marketId, market.config.graduationTime);
+
+    return _quoteReceipt(market, side, shares);
+  }
+
+  /// @notice Places a locked pre-graduation receipt and escrows its collateral cost.
+  /// @param params Receipt placement parameters.
+  /// @return receiptId Canonical receipt ID.
+  function placeReceipt(
+    MarketTypes.PlaceReceiptParams calldata params
+  ) external nonReentrant returns (uint256 receiptId) {
+    _requireMarketExists(params.marketId);
+    _validateReceiptShares(params.shares);
+
+    MarketTypes.MarketRecord storage market = _markets[params.marketId];
+    _requireActiveMarket(params.marketId, market);
+    _requireBeforeGraduationTime(params.marketId, market.config.graduationTime);
+
+    MarketTypes.ReceiptQuote memory quote = _quoteReceipt(market, params.side, params.shares);
+    if (quote.cost > params.maxCost) {
+      revert CostExceedsLimit(quote.cost, params.maxCost);
+    }
+
+    receiptId = _nextReceiptId;
+    ++_nextReceiptId;
+
+    uint64 sequence = _storeReceipt(receiptId, market, params, quote);
+
+    _transferEscrow(IERC20(market.config.collateral), msg.sender, quote.cost);
+
+    emit ReceiptPlaced(
+      receiptId,
+      params.marketId,
+      msg.sender,
+      params.side,
+      params.shares,
+      quote.cost,
+      quote.rLow,
+      quote.rHigh,
+      sequence
+    );
+  }
+
+  function _storeReceipt(
+    uint256 receiptId,
+    MarketTypes.MarketRecord storage market,
+    MarketTypes.PlaceReceiptParams calldata params,
+    MarketTypes.ReceiptQuote memory quote
+  ) private returns (uint64 sequence) {
+    sequence = _nextReceiptSequence(market.state.receiptCount);
+    market.state.receiptCount = sequence;
+    market.state.totalEscrowed += quote.cost;
+    market.state.path = params.side == MarketTypes.Side.Yes ? quote.rHigh : quote.rLow;
+    if (params.side == MarketTypes.Side.Yes) {
+      market.state.yesShares += params.shares;
+    } else {
+      market.state.noShares += params.shares;
+    }
+
+    _receipts[receiptId] = MarketTypes.Receipt({
+      marketId: params.marketId,
+      owner: msg.sender,
+      side: params.side,
+      shares: params.shares,
+      cost: quote.cost,
+      rLow: quote.rLow,
+      rHigh: quote.rHigh,
+      sequence: sequence,
+      active: true
+    });
   }
 
   function _validateCreateMarketParams(
@@ -132,9 +285,70 @@ contract PregradManager {
     LmsrMath.validateLiquidityParameter(params.liquidityParameter);
   }
 
+  function _transferEscrow(IERC20 collateral, address from, uint256 cost) private {
+    uint256 balanceBefore = collateral.balanceOf(address(this));
+    collateral.safeTransferFrom(from, address(this), cost);
+    uint256 balanceAfter = collateral.balanceOf(address(this));
+    uint256 received = balanceAfter > balanceBefore ? balanceAfter - balanceBefore : 0;
+
+    if (received != cost) {
+      revert InvalidCollateralTransfer(cost, received);
+    }
+  }
+
+  function _quoteReceipt(
+    MarketTypes.MarketRecord storage market,
+    MarketTypes.Side side,
+    uint256 shares
+  ) private view returns (MarketTypes.ReceiptQuote memory) {
+    return
+      LmsrMath.quoteBinaryReceipt(
+        market.state.path,
+        side,
+        shares,
+        market.config.liquidityParameter
+      );
+  }
+
+  function _validateReceiptShares(uint256 shares) private pure {
+    if (shares == 0) {
+      revert InvalidShares();
+    }
+  }
+
+  function _requireActiveMarket(
+    uint256 marketId,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (market.state.status != MarketTypes.MarketStatus.Active) {
+      revert InvalidMarketStatus(marketId, market.state.status, MarketTypes.MarketStatus.Active);
+    }
+  }
+
+  function _requireBeforeGraduationTime(uint256 marketId, uint64 graduationTime) private view {
+    if (block.timestamp >= graduationTime) {
+      revert MarketPastGraduationTime(marketId, graduationTime);
+    }
+  }
+
   function _requireMarketExists(uint256 marketId) private view {
     if (!marketExists(marketId)) {
       revert MarketDoesNotExist(marketId);
     }
+  }
+
+  function _requireReceiptExists(uint256 receiptId) private view {
+    if (!receiptExists(receiptId)) {
+      revert ReceiptDoesNotExist(receiptId);
+    }
+  }
+
+  function _nextReceiptSequence(uint256 receiptCount) private pure returns (uint64) {
+    uint256 nextSequence = receiptCount + 1;
+    if (nextSequence > type(uint64).max) {
+      revert ReceiptCountOverflow(nextSequence);
+    }
+
+    return uint64(nextSequence);
   }
 }

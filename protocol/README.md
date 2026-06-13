@@ -34,5 +34,6 @@ pnpm typecheck
 ## Current Contract Entry Point
 
 `contracts/PregradManager.sol` is the singleton manager for all pre-graduation
-markets. It currently supports market creation only; receipt placement, LMSR
-math, freeze, clearing roots, and claims will land in later vertical slices.
+markets. It currently supports market creation, receipt placement, virtual LMSR
+quotes, and collateral escrow. Freeze, clearing roots, graduation, and claims
+will land in later vertical slices.
