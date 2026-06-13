@@ -1,39 +1,42 @@
 import type {
-  MarketCategory,
   MarketCreatedEventResponse,
   MarketResponse,
 } from "src/api/models/markets";
 import { db } from "src/db/client";
-import { and, desc, eq, schema } from "src/db/client";
+import { and, desc, eq, gt, schema } from "src/db/client";
 
-export async function getMarkets(chainId?: number): Promise<MarketResponse[]> {
+const MARKET_LIST_LIMIT = 200;
+
+export async function getMarkets({
+  chainId,
+  since,
+}: {
+  chainId?: number;
+  since?: string;
+}): Promise<MarketResponse[] | null> {
+  const sinceDate = parseSinceTimestamp(since);
+  if (since && !sinceDate) {
+    return null;
+  }
+
+  const conditions = [
+    chainId === undefined ? undefined : eq(schema.markets.chainId, chainId),
+    sinceDate ? gt(schema.markets.createdBlockTimestamp, sinceDate) : undefined,
+  ].filter(isDefined);
+
   const rows =
-    chainId === undefined
+    conditions.length === 0
       ? await db
-          .select({
-            market: schema.markets,
-            metadata: schema.marketMetadata,
-          })
+          .select()
           .from(schema.markets)
-          .leftJoin(
-            schema.marketMetadata,
-            eq(schema.markets.metadataHash, schema.marketMetadata.metadataHash),
-          )
           .orderBy(desc(schema.markets.createdBlockTimestamp))
-          .limit(100)
+          .limit(MARKET_LIST_LIMIT)
       : await db
-          .select({
-            market: schema.markets,
-            metadata: schema.marketMetadata,
-          })
+          .select()
           .from(schema.markets)
-          .leftJoin(
-            schema.marketMetadata,
-            eq(schema.markets.metadataHash, schema.marketMetadata.metadataHash),
-          )
-          .where(eq(schema.markets.chainId, chainId))
+          .where(and(...conditions))
           .orderBy(desc(schema.markets.createdBlockTimestamp))
-          .limit(100);
+          .limit(MARKET_LIST_LIMIT);
 
   return rows.map(serializeMarketRow);
 }
@@ -51,15 +54,8 @@ export async function getMarketById(
   }
 
   const rows = await db
-    .select({
-      market: schema.markets,
-      metadata: schema.marketMetadata,
-    })
+    .select()
     .from(schema.markets)
-    .leftJoin(
-      schema.marketMetadata,
-      eq(schema.markets.metadataHash, schema.marketMetadata.metadataHash),
-    )
     .where(
       and(
         eq(schema.markets.chainId, chainId),
@@ -114,43 +110,44 @@ export async function getMarketCreatedEvents(
   }));
 }
 
-function serializeMarketRow(row: {
-  market: typeof schema.markets.$inferSelect;
-  metadata: typeof schema.marketMetadata.$inferSelect | null;
-}): MarketResponse {
+function serializeMarketRow(
+  market: typeof schema.markets.$inferSelect,
+): MarketResponse {
   return {
-    chainId: row.market.chainId,
-    collateral: row.market.collateral,
-    createdAt: row.market.createdAt.toISOString(),
-    createdBlockNumber: row.market.createdBlockNumber.toString(),
-    createdBlockTimestamp: row.market.createdBlockTimestamp.toISOString(),
-    createdLogIndex: row.market.createdLogIndex,
-    createdTransactionHash: row.market.createdTransactionHash,
-    creator: row.market.creator,
-    graduationThreshold: row.market.graduationThreshold.toString(),
-    graduationTime: row.market.graduationTime.toISOString(),
-    liquidityParameter: row.market.liquidityParameter.toString(),
-    marketId: row.market.marketId.toString(),
-    metadata: row.metadata
-      ? {
-          category: row.metadata.category as MarketCategory,
-          createdAt: row.metadata.createdAt.toISOString(),
-          description: row.metadata.description,
-          metadataHash: row.metadata.metadataHash,
-          question: row.metadata.question,
-          resolutionCriteria: row.metadata.resolutionCriteria,
-          resolutionUrl: row.metadata.resolutionUrl ?? undefined,
-          version: 1 as const,
-        }
-      : null,
-    metadataHash: row.market.metadataHash,
-    noShares: row.market.noShares.toString(),
-    openingProbabilityWad: row.market.openingProbabilityWad.toString(),
-    receiptCount: row.market.receiptCount.toString(),
-    resolutionTime: row.market.resolutionTime.toISOString(),
-    status: row.market.status,
-    totalEscrowed: row.market.totalEscrowed.toString(),
-    updatedAt: row.market.updatedAt.toISOString(),
-    yesShares: row.market.yesShares.toString(),
+    chainId: market.chainId,
+    collateral: market.collateral,
+    createdAt: market.createdAt.toISOString(),
+    createdBlockNumber: market.createdBlockNumber.toString(),
+    createdBlockTimestamp: market.createdBlockTimestamp.toISOString(),
+    createdLogIndex: market.createdLogIndex,
+    createdTransactionHash: market.createdTransactionHash,
+    creator: market.creator,
+    graduationThreshold: market.graduationThreshold.toString(),
+    graduationTime: market.graduationTime.toISOString(),
+    liquidityParameter: market.liquidityParameter.toString(),
+    marketId: market.marketId.toString(),
+    metadataHash: market.metadataHash,
+    noShares: market.noShares.toString(),
+    openingProbabilityWad: market.openingProbabilityWad.toString(),
+    receiptCount: market.receiptCount.toString(),
+    resolutionTime: market.resolutionTime.toISOString(),
+    status: market.status,
+    totalEscrowed: market.totalEscrowed.toString(),
+    updatedAt: market.updatedAt.toISOString(),
+    yesShares: market.yesShares.toString(),
   };
+}
+
+export function parseSinceTimestamp(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
 }

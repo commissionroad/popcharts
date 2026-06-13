@@ -6,11 +6,11 @@ Date: 2026-06-13
 
 ## Context
 
-Pop Charts needs an API server and chain indexer for market creation events,
-market metadata, and future receipt/graduation projections. The sibling
-CommissionRoad repository already proved a useful backend shape: Elysia routes
-with generated OpenAPI, Drizzle/PostgreSQL persistence, and a viem event indexer
-that recovers missed logs before starting live watchers.
+Pop Charts needs an API server and chain indexer for market creation events and
+future receipt/graduation projections. The sibling CommissionRoad repository
+already proved a useful backend shape: Elysia routes with generated OpenAPI,
+Drizzle/PostgreSQL persistence, and a viem event indexer that recovers missed
+logs before starting live watchers.
 
 The existing Pop Charts app and protocol packages use pnpm and Node-oriented
 tooling. The protocol package depends on Hardhat 3, whose documented support is
@@ -28,7 +28,9 @@ The initial server package owns:
 - Network and contract configuration for local, Base Sepolia, and Base.
 - A viem indexer that watches `PregradManager.MarketCreated`.
 - Raw event tables plus API projection tables.
-- Canonical market metadata storage keyed by `metadataHash`.
+- Read-only market APIs that serve indexed chain data to the frontend.
+- A non-mutating graduation request stub for a future server-mediated
+  transaction flow.
 
 Do not convert `app/` or `protocol/` to Bun in this slice. Keep their existing
 pnpm workflows intact.
@@ -56,4 +58,6 @@ Tradeoffs:
 - Export generated contract ABIs and deployment addresses from `protocol/`.
 - Replace app fixture market queries with the server API.
 - Add `ReceiptPlaced` indexing after market creation is stable.
+- Decide where full market metadata is fetched from once the protocol metadata
+  hash points at a durable source.
 - Add a generated API client once frontend integration begins.

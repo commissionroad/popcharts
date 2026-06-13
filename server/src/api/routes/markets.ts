@@ -1,16 +1,10 @@
 import { Elysia, t } from "elysia";
 
 import {
-  CreateMarketMetadataBodySchema,
-  CreateMarketMetadataResponseSchema,
+  GraduationRequestStubSchema,
   MarketCreatedEventSchema,
   MarketSchema,
-  MarketMetadataResponseSchema,
 } from "src/api/models/markets";
-import {
-  getMarketMetadata,
-  saveMarketMetadata,
-} from "src/api/services/metadata";
 import {
   getMarketById,
   getMarketCreatedEvents,
@@ -19,27 +13,38 @@ import {
 
 export const marketRoutes = new Elysia({ prefix: "" })
   .model({
-    CreateMarketMetadataBody: CreateMarketMetadataBodySchema,
-    CreateMarketMetadataResponse: CreateMarketMetadataResponseSchema,
+    GraduationRequestStub: GraduationRequestStubSchema,
     Market: MarketSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
-    MarketMetadata: MarketMetadataResponseSchema,
   })
   .get(
     "/markets",
-    ({ query }) =>
-      getMarkets(
-        query.chainId ? Number.parseInt(query.chainId, 10) : undefined,
-      ),
+    async ({ query, set }) => {
+      const markets = await getMarkets({
+        chainId: query.chainId ? Number.parseInt(query.chainId, 10) : undefined,
+        since: query.since,
+      });
+
+      if (!markets) {
+        set.status = 400;
+        return "Invalid since timestamp";
+      }
+
+      return markets;
+    },
     {
       query: t.Object({
         chainId: t.Optional(t.String()),
+        since: t.Optional(t.String()),
       }),
       response: {
         200: t.Array(MarketSchema),
+        400: t.String(),
       },
       detail: {
         summary: "List indexed markets",
+        description:
+          "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
         tags: ["Markets"],
       },
     },
@@ -95,39 +100,29 @@ export const marketRoutes = new Elysia({ prefix: "" })
       },
     },
   )
-  .post("/market-metadata", ({ body }) => saveMarketMetadata(body), {
-    body: CreateMarketMetadataBodySchema,
-    response: {
-      200: CreateMarketMetadataResponseSchema,
-    },
-    detail: {
-      summary: "Save canonical market metadata",
-      tags: ["Metadata"],
-    },
-  })
-  .get(
-    "/market-metadata/:metadataHash",
-    async ({ params, set }) => {
-      const metadata = await getMarketMetadata(params.metadataHash);
-
-      if (!metadata) {
-        set.status = 404;
-        return "Metadata not found";
-      }
-
-      return metadata;
+  .post(
+    "/markets/:chainId/:marketId/graduate",
+    ({ set }) => {
+      set.status = 501;
+      return {
+        message:
+          "Graduation requests are not implemented yet. A future server flow will check eligibility and submit graduation.",
+        status: "not_implemented" as const,
+      };
     },
     {
       params: t.Object({
-        metadataHash: t.String(),
+        chainId: t.String(),
+        marketId: t.String(),
       }),
       response: {
-        200: MarketMetadataResponseSchema,
-        404: t.String(),
+        501: GraduationRequestStubSchema,
       },
       detail: {
-        summary: "Get canonical market metadata",
-        tags: ["Metadata"],
+        summary: "Request market graduation",
+        description:
+          "Stubbed endpoint for the future server-mediated graduation flow.",
+        tags: ["Graduation"],
       },
     },
   );

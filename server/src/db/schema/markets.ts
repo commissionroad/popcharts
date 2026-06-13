@@ -1,7 +1,6 @@
 import {
   bigint,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -22,26 +21,6 @@ export const marketStatus = pgEnum("market_status", [
   "refunded",
   "cancelled",
 ]);
-
-export const marketMetadata = pgTable(
-  "market_metadata",
-  {
-    id: serial("id").primaryKey(),
-    metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
-    version: integer("version").notNull(),
-    question: text("question").notNull(),
-    description: text("description").notNull(),
-    category: varchar("category", { length: 32 }).notNull(),
-    resolutionCriteria: text("resolution_criteria").notNull(),
-    resolutionUrl: text("resolution_url"),
-    metadataJson: jsonb("metadata_json")
-      .$type<Record<string, unknown>>()
-      .notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [uniqueIndex("market_metadata_hash_idx").on(table.metadataHash)],
-);
 
 export const markets = pgTable(
   "markets",

@@ -12,7 +12,7 @@ export const app = new Elysia()
     openapi({
       documentation: {
         info: {
-          description: "API for Pop Charts market indexing and metadata.",
+          description: "Read API for Pop Charts indexed market events.",
           title: "Pop Charts API",
           version: "0.1.0",
         },

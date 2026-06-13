@@ -38,20 +38,6 @@ CREATE TABLE "market_created_events" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "market_metadata" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"metadata_hash" varchar(66) NOT NULL,
-	"version" integer NOT NULL,
-	"question" text NOT NULL,
-	"description" text NOT NULL,
-	"category" varchar(32) NOT NULL,
-	"resolution_criteria" text NOT NULL,
-	"resolution_url" text,
-	"metadata_json" jsonb NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "markets" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"chain_id" integer NOT NULL,
@@ -83,6 +69,5 @@ ALTER TABLE "markets" ADD CONSTRAINT "markets_contract_id_contracts_id_fk" FOREI
 CREATE UNIQUE INDEX "contracts_address_chain_idx" ON "contracts" USING btree ("address","chain_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "indexer_cursors_identity_idx" ON "indexer_cursors" USING btree ("contract_address","chain_id","cursor_name");--> statement-breakpoint
 CREATE UNIQUE INDEX "market_created_events_chain_tx_log_idx" ON "market_created_events" USING btree ("chain_id","transaction_hash","log_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "market_metadata_hash_idx" ON "market_metadata" USING btree ("metadata_hash");--> statement-breakpoint
 CREATE UNIQUE INDEX "markets_chain_market_idx" ON "markets" USING btree ("chain_id","market_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "markets_created_tx_log_idx" ON "markets" USING btree ("created_transaction_hash","created_log_index");

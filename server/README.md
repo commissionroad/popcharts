@@ -31,6 +31,11 @@ bun run dev:indexer
 ## First Indexed Event
 
 The first indexing slice watches `PregradManager.MarketCreated`, writes a raw
-event row, and upserts a market projection for API reads. Market metadata is
-stored separately by `metadataHash`; the app should eventually save metadata
-through the API before submitting `createMarket` on-chain.
+event row, and upserts a market projection for API reads.
+
+`GET /markets` returns at most 200 markets sorted by latest creation time. Pass
+an ISO `since` timestamp to fetch markets created after the previous cursor
+time.
+
+`POST /markets/:chainId/:marketId/graduate` is a non-mutating stub for the
+future server-mediated graduation flow.
