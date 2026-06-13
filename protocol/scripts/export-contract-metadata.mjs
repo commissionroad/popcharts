@@ -9,6 +9,7 @@ const CONTRACT_NAME = "PregradManager";
 const NETWORK_CHAIN_IDS = {
   local: 31337,
   baseSepolia: 84532,
+  tenderly: 88445533,
   base: 8453,
 };
 

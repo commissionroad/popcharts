@@ -7,6 +7,10 @@
     "chainId": 84532,
     "contracts": {}
   },
+  "tenderly": {
+    "chainId": 88445533,
+    "contracts": {}
+  },
   "base": {
     "chainId": 8453,
     "contracts": {}
