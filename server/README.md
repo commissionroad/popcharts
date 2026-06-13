@@ -28,6 +28,21 @@ Run the indexer in a second terminal after setting `PREGRAD_MANAGER_ADDRESS`:
 bun run dev:indexer
 ```
 
+## Local Chain Smoke
+
+From the repository root, run the full local smoke workflow:
+
+```bash
+just setup
+just local-smoke
+```
+
+It starts docker-compose Postgres, deploys local protocol contracts to a
+Hardhat node, generates `server/.env.local-chain`, runs the API and indexer,
+creates a market, and verifies that `GET /markets?chainId=31337` returns the
+indexed market. Use `just local-smoke --keep-running` when you want to inspect
+the running API/indexer after the smoke passes.
+
 ## First Indexed Event
 
 The first indexing slice watches `PregradManager.MarketCreated`, writes a raw

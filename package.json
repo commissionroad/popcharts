@@ -26,6 +26,7 @@
     "server:api": "cd server && bun run dev:api",
     "server:indexer": "cd server && bun run dev:indexer",
     "server:check": "cd server && bun run typecheck && bun test",
+    "local:smoke": "node scripts/local-chain-smoke.mjs",
     "test": "pnpm run app:test && pnpm run protocol:test && cd server && bun test",
     "check": "pnpm run app:check && pnpm run protocol:check && pnpm run server:check",
     "format": "pnpm --dir app format && pnpm --dir protocol format",

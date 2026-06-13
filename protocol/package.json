@@ -19,6 +19,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",
+    "local:create-market": "hardhat run scripts/create-local-market.ts --network localhost",
+    "local:deploy-pregrad": "hardhat run scripts/deploy-local-pregrad.ts --network localhost",
     "metadata:check": "hardhat build && node scripts/export-contract-metadata.mjs --check",
     "test": "hardhat test",
     "test:nodejs": "hardhat test nodejs",

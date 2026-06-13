@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+.pnpm-store/
+.bun-cache/
+.cache/
+.local-home/
 
 # Local environment
 .env
@@ -8,6 +12,8 @@ node_modules/
 
 # Build and test output
 .next/
+artifacts/
+cache/
 out/
 build/
 dist/
@@ -25,4 +31,3 @@ yarn-error.log*
 
 # OS/editor
 .DS_Store
-

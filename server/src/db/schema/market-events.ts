@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { contracts } from "./contracts";
+import { uint256 } from "./uint256";
 
 export const marketCreatedEvents = pgTable(
   "market_created_events",
@@ -27,15 +28,11 @@ export const marketCreatedEvents = pgTable(
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
     collateral: text("collateral").notNull(),
-    openingProbabilityWad: bigint("opening_probability_wad", {
-      mode: "bigint",
-    }).notNull(),
-    liquidityParameter: bigint("liquidity_parameter", {
-      mode: "bigint",
-    }).notNull(),
-    graduationThreshold: bigint("graduation_threshold", {
-      mode: "bigint",
-    }).notNull(),
+    // WAD-scaled protocol values can exceed Postgres int64, so these use the
+    // uint256 numeric mapper rather than pg bigint.
+    openingProbabilityWad: uint256("opening_probability_wad").notNull(),
+    liquidityParameter: uint256("liquidity_parameter").notNull(),
+    graduationThreshold: uint256("graduation_threshold").notNull(),
     graduationTimeUnix: bigint("graduation_time_unix", {
       mode: "bigint",
     }).notNull(),
