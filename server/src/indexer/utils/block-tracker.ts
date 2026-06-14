@@ -59,18 +59,18 @@ export async function getRecoveryStartBlock(
     return lastProcessed + 1n;
   }
 
-  if (config.chainId === 31337) {
-    console.log(
-      `[BlockTracker] Local network detected; skipping historical recovery for ${cursorName}`,
-    );
-    return currentBlock;
-  }
-
   if (config.deployBlock > 0n) {
     console.log(
       `[BlockTracker] Using deployment block ${config.deployBlock} for ${cursorName}`,
     );
     return config.deployBlock;
+  }
+
+  if (config.chainId === 31337) {
+    console.log(
+      `[BlockTracker] Local network has no deploy block; starting ${cursorName} recovery at current block`,
+    );
+    return currentBlock;
   }
 
   const fallbackBlock = currentBlock > 10_000n ? currentBlock - 10_000n : 1n;

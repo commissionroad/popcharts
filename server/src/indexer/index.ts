@@ -1,13 +1,18 @@
 import { unlinkSync, writeFileSync } from "fs";
 
 import { config, validateIndexerConfig } from "src/config";
-import { createBlockchainClient } from "src/indexer/blockchain/client";
+import {
+  createBlockchainClient,
+  type BlockchainClient,
+} from "src/indexer/blockchain/client";
 import {
   recoverMarketCreatedEvents,
   recoverReceiptPlacedEvents,
   watchMarketCreatedEvents,
   watchReceiptPlacedEvents,
 } from "src/indexer/watchers";
+
+const LOCAL_RECOVERY_POLL_INTERVAL_MS = 2_000;
 
 function markHealthy() {
   try {
@@ -43,8 +48,7 @@ async function main() {
   console.log(`Current block: ${currentBlock}`);
 
   console.log("\n--- Recovering missed events ---");
-  await recoverMarketCreatedEvents(client, currentBlock);
-  await recoverReceiptPlacedEvents(client, currentBlock);
+  await recoverMissedEvents(client);
 
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
@@ -54,10 +58,21 @@ async function main() {
   console.log("\nIndexer is running and healthy");
 
   const healthInterval = setInterval(markHealthy, 30_000);
+  const recoveryInterval =
+    config.name === "local"
+      ? setInterval(() => {
+          void recoverMissedEvents(client, { quiet: true }).catch((error) => {
+            console.error("[Recovery] Poll error:", error);
+          });
+        }, LOCAL_RECOVERY_POLL_INTERVAL_MS)
+      : null;
 
   const shutdown = () => {
     console.log("\nShutting down indexer...");
     clearInterval(healthInterval);
+    if (recoveryInterval) {
+      clearInterval(recoveryInterval);
+    }
     markUnhealthy();
     unwatchMarketCreated();
     unwatchReceiptPlaced();
@@ -69,6 +84,16 @@ async function main() {
   process.on("SIGTERM", shutdown);
 
   await new Promise(() => {});
+}
+
+async function recoverMissedEvents(
+  client: BlockchainClient,
+  { quiet = false }: { quiet?: boolean } = {},
+) {
+  const currentBlock = await client.getBlockNumber();
+
+  await recoverMarketCreatedEvents(client, currentBlock, { quiet });
+  await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
 }
 
 main().catch((error) => {

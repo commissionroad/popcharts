@@ -20,6 +20,7 @@ export type GetMarketsByChainIdByMarketId200 = {
   graduationTime: string;
   liquidityParameter: string;
   marketId: string;
+  matchedMarketCap: string;
   metadataHash: string;
   noShares: string;
   openingProbabilityWad: string;

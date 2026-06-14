@@ -19,6 +19,7 @@ const apiMarket: ApiMarket = {
   graduationTime: "2026-06-20T12:00:00.000Z",
   liquidityParameter: "5000000000000000000000",
   marketId: "7",
+  matchedMarketCap: "0",
   metadataHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   noShares: "0",
   openingProbabilityWad: "500000000000000000",
@@ -66,7 +67,7 @@ describe("market queries", () => {
       description: "Resolves using the official source.",
       graduationTargetUsd: 40_000,
       id: "84532:7",
-      matchedUsd: 125,
+      matchedUsd: 0,
       noPriceCents: 50,
       openingProbability: 50,
       question: "Will this local market show its real question?",
@@ -82,6 +83,7 @@ describe("market queries", () => {
       markets: [
         {
           ...apiMarket,
+          matchedMarketCap: "25000000000000000000",
           metadata,
           totalEscrowed: "50400000000000000000",
           yesShares: "100000000000000000000",
@@ -98,6 +100,7 @@ describe("market queries", () => {
     expect(market?.openingProbability).toBe(50);
     expect(market?.yesPriceCents).toBeGreaterThan(50);
     expect(market?.noPriceCents).toBeLessThan(50);
+    expect(market?.matchedUsd).toBe(25);
     expect(market?.volumeUsd).toBe(50.4);
   });
 

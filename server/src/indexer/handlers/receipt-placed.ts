@@ -17,7 +17,8 @@ export type ReceiptPlacedLog = Log & {
   };
 };
 
-export type ReceiptPlacedRecord = typeof schema.receiptPlacedEvents.$inferInsert;
+export type ReceiptPlacedRecord =
+  typeof schema.receiptPlacedEvents.$inferInsert;
 
 export function buildReceiptPlacedRecord({
   blockTimestamp,
@@ -51,6 +52,8 @@ export function buildReceiptPlacedRecord({
 
 export async function persistReceiptPlacedRecord(record: ReceiptPlacedRecord) {
   await db.transaction(async (tx) => {
+    const costIncrement = record.cost.toString();
+    const sharesIncrement = record.shares.toString();
     const inserted = await tx
       .insert(schema.receiptPlacedEvents)
       .values(record)
@@ -65,11 +68,15 @@ export async function persistReceiptPlacedRecord(record: ReceiptPlacedRecord) {
       .update(schema.markets)
       .set({
         receiptCount: record.sequence,
-        totalEscrowed: sql`${schema.markets.totalEscrowed} + ${record.cost}`,
+        totalEscrowed: sql`${schema.markets.totalEscrowed} + ${costIncrement}::numeric(78, 0)`,
         updatedAt: new Date(),
         ...(record.side === 0
-          ? { yesShares: sql`${schema.markets.yesShares} + ${record.shares}` }
-          : { noShares: sql`${schema.markets.noShares} + ${record.shares}` }),
+          ? {
+              yesShares: sql`${schema.markets.yesShares} + ${sharesIncrement}::numeric(78, 0)`,
+            }
+          : {
+              noShares: sql`${schema.markets.noShares} + ${sharesIncrement}::numeric(78, 0)`,
+            }),
       })
       .where(
         and(

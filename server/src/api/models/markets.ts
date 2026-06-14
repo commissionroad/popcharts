@@ -56,6 +56,7 @@ export const MarketSchema = t.Object({
   graduationTime: t.String(),
   liquidityParameter: t.String(),
   marketId: t.String(),
+  matchedMarketCap: t.String(),
   metadata: t.Optional(MarketMetadataSchema),
   metadataHash: t.String(),
   noShares: t.String(),

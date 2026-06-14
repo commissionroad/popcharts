@@ -29,6 +29,7 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
   });
   const yesPriceCents = marginalPriceCents(currentState, "yes");
   const noPriceCents = 100 - yesPriceCents;
+  const matchedMarketCap = wadToNumber(apiMarket.matchedMarketCap);
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
   const metadata = apiMarket.metadata;
 
@@ -40,7 +41,7 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     description: marketDescription(apiMarket),
     graduationTargetUsd: wadToNumber(apiMarket.graduationThreshold),
     id: apiMarketAppId(apiMarket),
-    matchedUsd: totalEscrowed,
+    matchedUsd: matchedMarketCap,
     noPriceCents,
     openingProbability,
     pricePath: buildPricePath(openingProbability, yesPriceCents),

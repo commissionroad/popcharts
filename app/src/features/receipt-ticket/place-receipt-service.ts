@@ -135,6 +135,19 @@ async function placeContractReceipt({
   const sideIndex = side === "yes" ? 0 : 1;
 
   options.onStep?.("quoting");
+  const marketExists = await wallet.publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: environment.config.pregradManagerAddress,
+    functionName: "marketExists",
+    args: [environment.marketId],
+  });
+
+  if (!marketExists) {
+    throw new Error(
+      "This market is not available on the current PregradManager. Create a new local market and try again."
+    );
+  }
+
   const chainQuote = await wallet.publicClient.readContract({
     abi: pregradManagerAbi,
     address: environment.config.pregradManagerAddress,
@@ -223,21 +236,13 @@ async function ensureCollateralReady({
   });
 
   if (balance < cost) {
-    if (!canMintLocalCollateral(config)) {
-      throw new Error("Your wallet does not have enough pUSD for this receipt.");
-    }
-
-    onStep?.("minting");
-    const mintHash = await wallet.walletClient.writeContract({
-      abi: erc20Abi,
-      account: wallet.accountAddress,
-      address: config.collateralAddress,
-      chain: wallet.walletClient.chain,
-      functionName: "mint",
-      args: [wallet.accountAddress, cost - balance],
-    });
-
-    await wallet.publicClient.waitForTransactionReceipt({ hash: mintHash });
+    throw new Error(
+      `Insufficient pUSD. You have ${formatTokenAmount(
+        balance
+      )} pUSD available, but this receipt can cost up to ${formatTokenAmount(
+        cost
+      )} pUSD.`
+    );
   }
 
   const allowance = await wallet.publicClient.readContract({
@@ -264,11 +269,43 @@ async function ensureCollateralReady({
   await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });
 }
 
+export async function mintLocalCollateral({
+  amountUsd,
+  config,
+  onStep,
+  wallet,
+}: {
+  amountUsd: number;
+  config: PopChartsContractConfig;
+  onStep?: (step: ReceiptPlacementStep) => void;
+  wallet: PlaceReceiptWallet;
+}) {
+  if (!canMintLocalCollateral(config)) {
+    throw new Error("Test pUSD minting is only available on local dev chains.");
+  }
+
+  if (wallet.activeChainId !== config.chainId) {
+    throw new Error(`Switch your wallet to chain ${config.chainId}.`);
+  }
+
+  onStep?.("minting");
+  const hash = await wallet.walletClient.writeContract({
+    abi: erc20Abi,
+    account: wallet.accountAddress,
+    address: config.collateralAddress,
+    chain: wallet.walletClient.chain,
+    functionName: "mint",
+    args: [wallet.accountAddress, toTokenUnits(amountUsd)],
+  });
+
+  await wallet.publicClient.waitForTransactionReceipt({ hash });
+}
+
 function applySlippage(cost: bigint, slippageBps: number) {
   return (cost * BigInt(10_000 + slippageBps) + 9_999n) / 10_000n;
 }
 
-function canMintLocalCollateral(config: PopChartsContractConfig) {
+export function canMintLocalCollateral(config: PopChartsContractConfig) {
   return config.chainEnv === "local" || config.chainEnv === "mock";
 }
 
@@ -278,4 +315,13 @@ function toTokenUnits(value: number) {
 
 function toDecimalString(value: number) {
   return value.toFixed(8).replace(/\.?0+$/, "");
+}
+
+function formatTokenAmount(value: bigint) {
+  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
+
+  return amount.toLocaleString("en-US", {
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
+  });
 }
