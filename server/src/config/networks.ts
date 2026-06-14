@@ -1,6 +1,8 @@
 import type { Chain } from "viem";
 import { base, baseSepolia, hardhat } from "viem/chains";
 
+import { getDatabaseConnectionString } from "./database";
+
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export type NetworkId = "local" | "baseSepolia" | "base";
@@ -149,10 +151,7 @@ function readBigInt(names: string[]) {
 }
 
 function readDatabaseUrl() {
-  return (
-    process.env.DATABASE_URL ??
-    "postgresql://postgres:postgres@localhost:5433/popcharts"
-  );
+  return getDatabaseConnectionString();
 }
 
 function isNetworkId(value: string): value is NetworkId {
