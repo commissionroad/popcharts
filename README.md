@@ -30,6 +30,7 @@ just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
 just server-check   # server typecheck and Bun unit tests
+just local-smoke    # deploy local protocol, run server/indexer, verify /markets
 just check          # app-check, protocol-check, and server-check
 just test           # app, protocol, and server tests
 just format         # format app and protocol files
@@ -67,6 +68,26 @@ pnpm run devchain:e2e
 That command starts a local Hardhat chain, deploys the protocol, writes local
 app env values, and runs the Playwright `@chain` smoke. See
 [`docs/devchain.md`](docs/devchain.md) for Tenderly and Vercel Preview setup.
+
+## Local Chain Server Smoke
+
+For an end-to-end local chain/server smoke, run:
+
+```bash
+just setup
+just local-smoke
+```
+
+The smoke command starts docker-compose Postgres, runs Drizzle push, starts a
+local Hardhat node, deploys `MockCollateral` and `PregradManager`, writes
+`server/.env.local-chain`, starts the API and indexer with those env values,
+creates a market, and polls `GET /markets?chainId=31337` until the indexed
+market appears. Pass `--keep-running` to keep the Hardhat node, API, and indexer
+alive after verification:
+
+```bash
+just local-smoke --keep-running
+```
 
 ## Engineering Skills
 

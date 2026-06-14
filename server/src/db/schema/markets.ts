@@ -12,6 +12,7 @@ import {
 import { sql } from "drizzle-orm";
 
 import { contracts } from "./contracts";
+import { uint256 } from "./uint256";
 
 export const marketStatus = pgEnum("market_status", [
   "bootstrap",
@@ -35,27 +36,25 @@ export const markets = pgTable(
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
     collateral: text("collateral").notNull(),
-    openingProbabilityWad: bigint("opening_probability_wad", {
-      mode: "bigint",
-    }).notNull(),
-    liquidityParameter: bigint("liquidity_parameter", {
-      mode: "bigint",
-    }).notNull(),
-    graduationThreshold: bigint("graduation_threshold", {
-      mode: "bigint",
-    }).notNull(),
+    // These are EVM uint256 values. Use numeric(78, 0) via uint256 so realistic
+    // WAD-sized market parameters survive round-trips through Postgres.
+    openingProbabilityWad: uint256("opening_probability_wad").notNull(),
+    liquidityParameter: uint256("liquidity_parameter").notNull(),
+    graduationThreshold: uint256("graduation_threshold").notNull(),
     graduationTime: timestamp("graduation_time").notNull(),
     resolutionTime: timestamp("resolution_time").notNull(),
-    receiptCount: bigint("receipt_count", { mode: "bigint" })
+    // Mutable protocol counters and share totals also use uint256 storage for
+    // the same reason, even though early smoke values are small.
+    receiptCount: uint256("receipt_count")
       .default(sql`0`)
       .notNull(),
-    totalEscrowed: bigint("total_escrowed", { mode: "bigint" })
+    totalEscrowed: uint256("total_escrowed")
       .default(sql`0`)
       .notNull(),
-    yesShares: bigint("yes_shares", { mode: "bigint" })
+    yesShares: uint256("yes_shares")
       .default(sql`0`)
       .notNull(),
-    noShares: bigint("no_shares", { mode: "bigint" })
+    noShares: uint256("no_shares")
       .default(sql`0`)
       .notNull(),
     createdBlockNumber: bigint("created_block_number", {
