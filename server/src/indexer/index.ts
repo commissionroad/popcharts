@@ -4,7 +4,9 @@ import { config, validateIndexerConfig } from "src/config";
 import { createBlockchainClient } from "src/indexer/blockchain/client";
 import {
   recoverMarketCreatedEvents,
+  recoverReceiptPlacedEvents,
   watchMarketCreatedEvents,
+  watchReceiptPlacedEvents,
 } from "src/indexer/watchers";
 
 function markHealthy() {
@@ -42,9 +44,11 @@ async function main() {
 
   console.log("\n--- Recovering missed events ---");
   await recoverMarketCreatedEvents(client, currentBlock);
+  await recoverReceiptPlacedEvents(client, currentBlock);
 
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
+  const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
 
   markHealthy();
   console.log("\nIndexer is running and healthy");
@@ -56,6 +60,7 @@ async function main() {
     clearInterval(healthInterval);
     markUnhealthy();
     unwatchMarketCreated();
+    unwatchReceiptPlaced();
     console.log("Shutdown complete");
     process.exit(0);
   };

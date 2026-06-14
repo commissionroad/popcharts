@@ -22,6 +22,13 @@
       "when": 1781404403014,
       "tag": "0002_free_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781410399801,
+      "tag": "0003_special_avengers",
+      "breakpoints": true
     }
   ]
 }

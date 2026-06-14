@@ -77,6 +77,30 @@ describe("market queries", () => {
     });
   });
 
+  it("maps indexed receipt shares into current app prices", async () => {
+    const client = createClient({
+      markets: [
+        {
+          ...apiMarket,
+          metadata,
+          totalEscrowed: "50400000000000000000",
+          yesShares: "100000000000000000000",
+        },
+      ],
+    });
+
+    const [market] = await getMarkets({
+      chainId: 84532,
+      client,
+      source: "api",
+    });
+
+    expect(market?.openingProbability).toBe(50);
+    expect(market?.yesPriceCents).toBeGreaterThan(50);
+    expect(market?.noPriceCents).toBeLessThan(50);
+    expect(market?.volumeUsd).toBe(50.4);
+  });
+
   it("reads individual API markets by chain-prefixed app id", async () => {
     const client = createClient({ market: apiMarket });
 

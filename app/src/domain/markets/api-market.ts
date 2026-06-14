@@ -1,3 +1,8 @@
+import {
+  createOpeningState,
+  marginalPriceCents,
+  type VirtualLmsrState,
+} from "@/domain/lmsr/lmsr";
 import type { ApiMarket } from "@/integrations/indexer/markets-api";
 
 import type { Market, MarketCategory, MarketStatus } from "./types";
@@ -14,13 +19,21 @@ const generatedCategories: MarketCategory[] = [
 ];
 
 export function apiMarketToMarket(apiMarket: ApiMarket): Market {
-  const yesPriceCents = wadToCents(apiMarket.openingProbabilityWad);
+  const b = wadToNumber(apiMarket.liquidityParameter);
+  const openingProbability = wadToCents(apiMarket.openingProbabilityWad);
+  const currentState = currentLmsrState({
+    b,
+    noShares: wadToNumber(apiMarket.noShares),
+    openingProbability,
+    yesShares: wadToNumber(apiMarket.yesShares),
+  });
+  const yesPriceCents = marginalPriceCents(currentState, "yes");
   const noPriceCents = 100 - yesPriceCents;
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
   const metadata = apiMarket.metadata;
 
   return {
-    b: wadToNumber(apiMarket.liquidityParameter),
+    b,
     category: categoryForApiMarket(apiMarket),
     chainId: apiMarket.chainId,
     closesAt: apiMarket.resolutionTime,
@@ -29,8 +42,8 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     id: apiMarketAppId(apiMarket),
     matchedUsd: totalEscrowed,
     noPriceCents,
-    openingProbability: yesPriceCents,
-    pricePath: buildPricePath(yesPriceCents),
+    openingProbability,
+    pricePath: buildPricePath(openingProbability, yesPriceCents),
     question: metadata?.question?.trim() || `Market #${apiMarket.marketId}`,
     receiptCount: bigintStringToNumber(apiMarket.receiptCount),
     status: apiMarket.status satisfies MarketStatus,
@@ -98,8 +111,34 @@ function isMarketCategory(value: string | undefined): value is MarketCategory {
   return Boolean(value && generatedCategories.includes(value as MarketCategory));
 }
 
-function buildPricePath(priceCents: number) {
-  return [priceCents, priceCents, priceCents, priceCents, priceCents];
+function currentLmsrState({
+  b,
+  noShares,
+  openingProbability,
+  yesShares,
+}: {
+  b: number;
+  noShares: number;
+  openingProbability: number;
+  yesShares: number;
+}): VirtualLmsrState {
+  const openingState = createOpeningState({ b, openingProbability });
+
+  return {
+    ...openingState,
+    noShares: openingState.noShares + noShares,
+    yesShares: openingState.yesShares + yesShares,
+  };
+}
+
+function buildPricePath(openingPriceCents: number, currentPriceCents: number) {
+  const steps = 5;
+  const stride = (currentPriceCents - openingPriceCents) / (steps - 1);
+
+  return Array.from(
+    { length: steps },
+    (_, index) => openingPriceCents + stride * index
+  );
 }
 
 function wadToCents(value: string) {

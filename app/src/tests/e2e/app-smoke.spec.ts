@@ -16,19 +16,26 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await expect(
     page.getByRole("heading", { name: "Markets popping off" })
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /sign in|connect wallet/i })
+  ).toBeVisible();
 
-  await page
-    .getByRole("link", { name: /Will ETH flip/ })
-    .first()
-    .click();
+  await page.goto("/markets/eth-5000-august");
   await expect(page.getByRole("heading", { name: /Will ETH flip/ })).toBeVisible();
   await expect(page.getByText("Place a receipt")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Receipt book locked" })).toBeVisible();
   await expect(page.getByText("Not a guaranteed fill")).toBeVisible();
 
   await page.getByRole("link", { name: /View graduation clearing/i }).click();
   await expect(page.getByRole("heading", { name: /Will ETH flip/ })).toBeVisible();
   await expect(page.getByText("Band-pass clearing")).toBeVisible();
+
+  await page.goto("/markets/fed-cut-next-meeting");
+  await expect(page.getByRole("heading", { name: /Will the Fed cut/ })).toBeVisible();
+  await expect(page.getByText("Fixture-backed trading preview.")).toBeVisible();
+  await expect(page.getByText("Price band")).toBeVisible();
+  await page.getByRole("button", { name: "Place mock YES receipt" }).click();
+  await expect(page.getByText("Receipt placed")).toBeVisible();
 
   await page.getByRole("link", { name: "Create" }).click();
   await expect(page.getByRole("heading", { name: "Bake a market" })).toBeVisible();
@@ -75,5 +82,8 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await page.getByRole("link", { name: "Portfolio" }).click();
   await expect(
     page.getByRole("heading", { name: "Receipts and backed positions" })
+  ).toBeVisible();
+  await expect(
+    page.getByText("Will the Fed cut rates at the next meeting?")
   ).toBeVisible();
 });
