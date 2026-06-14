@@ -74,7 +74,9 @@ Useful context values:
 -c stage=staging
 -c network=baseSepolia      # baseSepolia or base
 -c enableServices=false     # create shared infra first
--c enableServices=true      # create ECS services and ALB
+-c enableServices=true      # create both ECS services and the API ALB
+-c enableApiService=true    # create only the API service and ALB
+-c enableIndexerService=true # create only the singleton indexer service
 -c pregradManagerAddress=0x...
 -c pregradManagerDeployBlock=123456
 -c certificateArn=arn:aws:acm:...
@@ -141,6 +143,10 @@ pnpm --dir infra cdk deploy \
   -c pregradManagerAddress=0x... \
   -c pregradManagerDeployBlock=123456
 ```
+
+Use `-c enableApiService=true` without `enableIndexerService` when the API
+should go live before the protocol deployment address and RPC WSS secret are
+ready.
 
 ## Scaling
 

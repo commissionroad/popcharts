@@ -14,7 +14,8 @@ export type NetworkId = "baseSepolia" | "base";
 export type PopChartsInfraStackProps = cdk.StackProps & {
   certificateArn?: string;
   domainName?: string;
-  enableServices: boolean;
+  enableApiService: boolean;
+  enableIndexerService: boolean;
   network: NetworkId;
   pregradManagerAddress: string;
   pregradManagerDeployBlock: string;
@@ -288,12 +289,14 @@ export class PopChartsInfraStack extends cdk.Stack {
       secrets: databaseSecrets,
     });
 
-    if (props.enableServices) {
+    if (props.enableApiService || props.enableIndexerService) {
       this.createServices({
         apiTaskDefinition,
         certificateArn: props.certificateArn,
         cluster,
         domainName: props.domainName,
+        enableApiService: props.enableApiService,
+        enableIndexerService: props.enableIndexerService,
         indexerTaskDefinition,
         isProduction,
         namePrefix,
@@ -334,6 +337,8 @@ export class PopChartsInfraStack extends cdk.Stack {
     certificateArn,
     cluster,
     domainName,
+    enableApiService,
+    enableIndexerService,
     indexerTaskDefinition,
     isProduction,
     namePrefix,
@@ -344,95 +349,102 @@ export class PopChartsInfraStack extends cdk.Stack {
     certificateArn?: string;
     cluster: ecs.Cluster;
     domainName?: string;
+    enableApiService: boolean;
+    enableIndexerService: boolean;
     indexerTaskDefinition: ecs.FargateTaskDefinition;
     isProduction: boolean;
     namePrefix: string;
     serviceSecurityGroup: ec2.SecurityGroup;
     vpc: ec2.Vpc;
   }) {
-    const alb = new elbv2.ApplicationLoadBalancer(this, "ApiLoadBalancer", {
-      internetFacing: true,
-      loadBalancerName: `${namePrefix}-api`,
-      vpc,
-    });
+    if (enableApiService) {
+      const alb = new elbv2.ApplicationLoadBalancer(this, "ApiLoadBalancer", {
+        internetFacing: true,
+        loadBalancerName: `${namePrefix}-api`,
+        vpc,
+      });
 
-    const apiService = new ecs.FargateService(this, "ApiService", {
-      assignPublicIp: false,
-      circuitBreaker: {
-        rollback: true,
-      },
-      cluster,
-      desiredCount: isProduction ? 2 : 1,
-      enableExecuteCommand: true,
-      healthCheckGracePeriod: cdk.Duration.seconds(60),
-      securityGroups: [serviceSecurityGroup],
-      taskDefinition: apiTaskDefinition,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
+      const apiService = new ecs.FargateService(this, "ApiService", {
+        assignPublicIp: false,
+        circuitBreaker: {
+          rollback: true,
+        },
+        cluster,
+        desiredCount: isProduction ? 2 : 1,
+        enableExecuteCommand: true,
+        healthCheckGracePeriod: cdk.Duration.seconds(60),
+        securityGroups: [serviceSecurityGroup],
+        taskDefinition: apiTaskDefinition,
+        vpcSubnets: {
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        },
+      });
 
-    const listener = this.createListener({
-      alb,
-      certificateArn,
-    });
+      const listener = this.createListener({
+        alb,
+        certificateArn,
+      });
 
-    const targetGroup = listener.addTargets("ApiTargets", {
-      deregistrationDelay: cdk.Duration.seconds(30),
-      healthCheck: {
-        healthyHttpCodes: "200",
-        interval: cdk.Duration.seconds(30),
-        path: "/health",
-        timeout: cdk.Duration.seconds(5),
-      },
-      port: CONTAINER_PORT,
-      targets: [apiService],
-    });
+      const targetGroup = listener.addTargets("ApiTargets", {
+        deregistrationDelay: cdk.Duration.seconds(30),
+        healthCheck: {
+          healthyHttpCodes: "200",
+          interval: cdk.Duration.seconds(30),
+          path: "/health",
+          timeout: cdk.Duration.seconds(5),
+        },
+        port: CONTAINER_PORT,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [apiService],
+      });
 
-    const scaling = apiService.autoScaleTaskCount({
-      maxCapacity: isProduction ? 10 : 3,
-      minCapacity: isProduction ? 2 : 1,
-    });
+      const scaling = apiService.autoScaleTaskCount({
+        maxCapacity: isProduction ? 10 : 3,
+        minCapacity: isProduction ? 2 : 1,
+      });
 
-    scaling.scaleOnCpuUtilization("CpuScaling", {
-      scaleInCooldown: cdk.Duration.seconds(120),
-      scaleOutCooldown: cdk.Duration.seconds(60),
-      targetUtilizationPercent: 60,
-    });
+      scaling.scaleOnCpuUtilization("CpuScaling", {
+        scaleInCooldown: cdk.Duration.seconds(120),
+        scaleOutCooldown: cdk.Duration.seconds(60),
+        targetUtilizationPercent: 60,
+      });
 
-    scaling.scaleOnMemoryUtilization("MemoryScaling", {
-      scaleInCooldown: cdk.Duration.seconds(120),
-      scaleOutCooldown: cdk.Duration.seconds(60),
-      targetUtilizationPercent: 70,
-    });
+      scaling.scaleOnMemoryUtilization("MemoryScaling", {
+        scaleInCooldown: cdk.Duration.seconds(120),
+        scaleOutCooldown: cdk.Duration.seconds(60),
+        targetUtilizationPercent: 70,
+      });
 
-    scaling.scaleOnRequestCount("RequestScaling", {
-      requestsPerTarget: 1000,
-      targetGroup,
-    });
+      scaling.scaleOnRequestCount("RequestScaling", {
+        requestsPerTarget: 1000,
+        targetGroup,
+      });
 
-    new ecs.FargateService(this, "IndexerService", {
-      assignPublicIp: false,
-      circuitBreaker: {
-        rollback: true,
-      },
-      cluster,
-      desiredCount: 1,
-      enableExecuteCommand: true,
-      securityGroups: [serviceSecurityGroup],
-      taskDefinition: indexerTaskDefinition,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
+      new cdk.CfnOutput(this, "ApiLoadBalancerDnsName", {
+        value: alb.loadBalancerDnsName,
+      });
 
-    new cdk.CfnOutput(this, "ApiLoadBalancerDnsName", {
-      value: alb.loadBalancerDnsName,
-    });
+      if (domainName) {
+        new cdk.CfnOutput(this, "ApiDomainName", {
+          value: domainName,
+        });
+      }
+    }
 
-    if (domainName) {
-      new cdk.CfnOutput(this, "ApiDomainName", {
-        value: domainName,
+    if (enableIndexerService) {
+      new ecs.FargateService(this, "IndexerService", {
+        assignPublicIp: false,
+        circuitBreaker: {
+          rollback: true,
+        },
+        cluster,
+        desiredCount: 1,
+        enableExecuteCommand: true,
+        securityGroups: [serviceSecurityGroup],
+        taskDefinition: indexerTaskDefinition,
+        vpcSubnets: {
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        },
       });
     }
   }

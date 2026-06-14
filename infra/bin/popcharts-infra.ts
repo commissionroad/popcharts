@@ -7,12 +7,15 @@ const app = new cdk.App();
 
 const stage = readStringContext(app, "stage", "staging");
 const network = readNetworkContext(app, "network", "baseSepolia");
+const enableApiService = readBooleanContext(app, "enableApiService", false);
+const enableIndexerService = readBooleanContext(app, "enableIndexerService", false);
 const enableServices = readBooleanContext(app, "enableServices", false);
 
 new PopChartsInfraStack(app, `popcharts-${stage}`, {
   certificateArn: readOptionalStringContext(app, "certificateArn"),
   domainName: readOptionalStringContext(app, "domainName"),
-  enableServices,
+  enableApiService: enableServices || enableApiService,
+  enableIndexerService: enableServices || enableIndexerService,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION ?? "us-east-1",
