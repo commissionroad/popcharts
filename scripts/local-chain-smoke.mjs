@@ -9,6 +9,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const protocolDir = resolve(repoRoot, "protocol");
 const serverDir = resolve(repoRoot, "server");
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
+const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
 
 // This script intentionally orchestrates the whole server/indexer path instead
 // of mocking anything: Postgres, Hardhat, the API, the indexer, and one onchain
@@ -60,24 +61,10 @@ async function main() {
   // it so this run proves the newly started indexer reached healthy state.
   rmSync(healthFile, { force: true });
 
-  // Postgres is the only long-lived dependency we leave running. Docker Compose
-  // handles idempotency here, so repeated smoke runs reuse the same container.
-  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
-    cwd: repoRoot,
-  });
-  await waitFor("Postgres readiness", () =>
-    commandSucceeds("docker", [
-      "compose",
-      "exec",
-      "-T",
-      "postgres",
-      "pg_isready",
-      "-U",
-      "postgres",
-      "-d",
-      "popcharts",
-    ]),
-  );
+  // Postgres is the only long-lived dependency we leave running. Existing local
+  // containers may have been created by another worktree, so reuse the
+  // deterministic container name before asking Compose to create one.
+  await ensurePostgres();
 
   // db:push keeps the smoke useful while migrations are evolving. It applies
   // the current Drizzle schema before the indexer tries to persist events.
@@ -244,6 +231,57 @@ function ensureDependenciesInstalled() {
       " and ",
     )}. Run 'just setup' before 'just local-smoke'.`,
   );
+}
+
+async function ensurePostgres() {
+  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
+    console.log(
+      `[local-smoke] using existing Docker container ${POSTGRES_CONTAINER_NAME}`,
+    );
+    await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
+      cwd: repoRoot,
+    });
+    await waitFor("Postgres readiness", () =>
+      commandSucceeds("docker", [
+        "exec",
+        POSTGRES_CONTAINER_NAME,
+        "pg_isready",
+        "-U",
+        "postgres",
+        "-d",
+        "popcharts",
+      ]),
+    );
+    return;
+  }
+
+  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
+    cwd: repoRoot,
+  });
+  await waitFor("Postgres readiness", () =>
+    commandSucceeds("docker", [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "pg_isready",
+      "-U",
+      "postgres",
+      "-d",
+      "popcharts",
+    ]),
+  );
+}
+
+async function dockerContainerExists(name) {
+  const result = await collect("docker", ["container", "inspect", name], {
+    cwd: repoRoot,
+    env: process.env,
+    print: false,
+    rejectOnFailure: false,
+  });
+
+  return result.code === 0;
 }
 
 function buildServerEnv(overrides = {}) {
