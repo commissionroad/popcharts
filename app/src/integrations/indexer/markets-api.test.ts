@@ -1,12 +1,12 @@
 import { describe, expect, it, type MockedFunction, vi } from "vitest";
 
 import {
-  createIndexerMarketsApiClient,
-  type IndexedMarket,
-  type IndexerFetch,
+  type ApiMarket,
+  createMarketsApiClient,
+  type MarketsApiFetch,
 } from "./markets-api";
 
-const indexedMarket: IndexedMarket = {
+const apiMarket: ApiMarket = {
   chainId: 84532,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",
@@ -31,18 +31,18 @@ const indexedMarket: IndexedMarket = {
   yesShares: "0",
 };
 
-describe("createIndexerMarketsApiClient", () => {
+describe("createMarketsApiClient", () => {
   it("fetches markets with the documented query parameters", async () => {
-    const fetcher: MockedFunction<IndexerFetch> = vi.fn(async () =>
-      jsonResponse([indexedMarket])
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse([apiMarket])
     );
-    const client = createIndexerMarketsApiClient({
+    const client = createMarketsApiClient({
       baseUrl: "http://localhost:3001",
       fetcher,
     });
 
     await client.getMarkets({
-      chainId: 84532,
+      chainId: "84532",
       since: "2026-06-13T12:00:00.000Z",
     });
 
@@ -57,11 +57,11 @@ describe("createIndexerMarketsApiClient", () => {
     expect(init?.headers).toEqual({ accept: "application/json" });
   });
 
-  it("fetches an individual indexed market", async () => {
-    const fetcher: MockedFunction<IndexerFetch> = vi.fn(async () =>
-      jsonResponse(indexedMarket)
+  it("fetches an individual API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse(apiMarket)
     );
-    const client = createIndexerMarketsApiClient({
+    const client = createMarketsApiClient({
       baseUrl: "http://localhost:3001/",
       fetcher,
     });
@@ -74,11 +74,11 @@ describe("createIndexerMarketsApiClient", () => {
     );
   });
 
-  it("returns null for a missing indexed market", async () => {
-    const fetcher: MockedFunction<IndexerFetch> = vi.fn(
+  it("returns null for a missing API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () => new Response("Market not found", { status: 404 })
     );
-    const client = createIndexerMarketsApiClient({
+    const client = createMarketsApiClient({
       baseUrl: "http://localhost:3001",
       fetcher,
     });
@@ -89,29 +89,29 @@ describe("createIndexerMarketsApiClient", () => {
   });
 
   it("fetches market events", async () => {
-    const fetcher: MockedFunction<IndexerFetch> = vi.fn(async () =>
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
       jsonResponse([
         {
           blockNumber: "123",
           blockTimestamp: "2026-06-13T12:00:00.000Z",
           chainId: 84532,
-          collateral: indexedMarket.collateral,
-          creator: indexedMarket.creator,
-          graduationThreshold: indexedMarket.graduationThreshold,
-          graduationTime: indexedMarket.graduationTime,
+          collateral: apiMarket.collateral,
+          creator: apiMarket.creator,
+          graduationThreshold: apiMarket.graduationThreshold,
+          graduationTime: apiMarket.graduationTime,
           graduationTimeUnix: "1781956800",
-          liquidityParameter: indexedMarket.liquidityParameter,
+          liquidityParameter: apiMarket.liquidityParameter,
           logIndex: 4,
           marketId: "7",
-          metadataHash: indexedMarket.metadataHash,
-          openingProbabilityWad: indexedMarket.openingProbabilityWad,
-          resolutionTime: indexedMarket.resolutionTime,
+          metadataHash: apiMarket.metadataHash,
+          openingProbabilityWad: apiMarket.openingProbabilityWad,
+          resolutionTime: apiMarket.resolutionTime,
           resolutionTimeUnix: "1782916800",
-          transactionHash: indexedMarket.createdTransactionHash,
+          transactionHash: apiMarket.createdTransactionHash,
         },
       ])
     );
-    const client = createIndexerMarketsApiClient({
+    const client = createMarketsApiClient({
       baseUrl: "http://localhost:3001",
       fetcher,
     });
@@ -125,7 +125,7 @@ describe("createIndexerMarketsApiClient", () => {
   });
 });
 
-function firstFetchCall(fetcher: MockedFunction<IndexerFetch>) {
+function firstFetchCall(fetcher: MockedFunction<MarketsApiFetch>) {
   const call = fetcher.mock.calls[0];
 
   if (!call) {

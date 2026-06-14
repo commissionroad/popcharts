@@ -1,14 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  IndexedMarket,
-  IndexerMarketsApiClient,
-} from "@/integrations/indexer/markets-api";
+import type { ApiMarket, MarketsApiClient } from "@/integrations/indexer/markets-api";
 
 import { markets as fixtureMarkets } from "./fixtures";
 import { getMarketById, getMarkets } from "./queries";
 
-const indexedMarket: IndexedMarket = {
+const apiMarket: ApiMarket = {
   chainId: 84532,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",
@@ -42,7 +39,7 @@ describe("market queries", () => {
   });
 
   it("maps GET /markets responses into app markets", async () => {
-    const client = createClient({ markets: [indexedMarket] });
+    const client = createClient({ markets: [apiMarket] });
 
     const markets = await getMarkets({
       chainId: 84532,
@@ -50,7 +47,7 @@ describe("market queries", () => {
       source: "api",
     });
 
-    expect(client.getMarkets).toHaveBeenCalledWith({ chainId: 84532 });
+    expect(client.getMarkets).toHaveBeenCalledWith({ chainId: "84532" });
     expect(markets[0]).toMatchObject({
       b: 5_000,
       closesAt: "2026-07-01T12:00:00.000Z",
@@ -68,7 +65,7 @@ describe("market queries", () => {
   });
 
   it("reads individual API markets by chain-prefixed app id", async () => {
-    const client = createClient({ market: indexedMarket });
+    const client = createClient({ market: apiMarket });
 
     const market = await getMarketById("84532:7", {
       client,
@@ -83,7 +80,7 @@ describe("market queries", () => {
   });
 
   it("reads individual API markets with a configured chain id", async () => {
-    const client = createClient({ market: indexedMarket });
+    const client = createClient({ market: apiMarket });
 
     await getMarketById("7", {
       chainId: 84532,
@@ -102,9 +99,9 @@ function createClient({
   market = null,
   markets = [],
 }: {
-  market?: IndexedMarket | null;
-  markets?: IndexedMarket[];
-} = {}): IndexerMarketsApiClient {
+  market?: ApiMarket | null;
+  markets?: ApiMarket[];
+} = {}): MarketsApiClient {
   return {
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),

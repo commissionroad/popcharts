@@ -1,21 +1,21 @@
 import {
-  createIndexerMarketsApiClient,
-  type IndexedMarketLookup,
-  type IndexerFetch,
-  type IndexerMarketsApiClient,
-  type ListIndexedMarketsParams,
+  createMarketsApiClient,
+  type ListMarketsParams,
+  type MarketApiLookup,
+  type MarketsApiClient,
+  type MarketsApiFetch,
 } from "@/integrations/indexer/markets-api";
 
+import { apiMarketToMarket, parseApiMarketAppId } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
-import { indexedMarketToMarket, parseIndexedMarketAppId } from "./indexed-market";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
 
 export type MarketQueryOptions = {
   apiBaseUrl?: string;
   chainId?: number;
-  client?: IndexerMarketsApiClient;
-  fetcher?: IndexerFetch;
+  client?: MarketsApiClient;
+  fetcher?: MarketsApiFetch;
   since?: string;
   source?: MarketDataSource;
 };
@@ -27,10 +27,10 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
     const lookup = resolveMarketLookup(id, config.chainId);
 
     if (lookup) {
-      const indexedMarket = await config.client.getMarket(lookup);
+      const apiMarket = await config.client.getMarket(lookup);
 
-      if (indexedMarket) {
-        return indexedMarketToMarket(indexedMarket);
+      if (apiMarket) {
+        return apiMarketToMarket(apiMarket);
       }
 
       if (config.source === "api") {
@@ -51,26 +51,26 @@ export async function getMarkets(options: MarketQueryOptions = {}) {
     return fixtureMarkets;
   }
 
-  const params: ListIndexedMarketsParams = {};
+  const params: ListMarketsParams = {};
 
   if (config.chainId !== undefined) {
-    params.chainId = config.chainId;
+    params.chainId = config.chainId.toString();
   }
 
   if (options.since) {
     params.since = options.since;
   }
 
-  const indexedMarkets = await config.client.getMarkets(params);
+  const apiMarkets = await config.client.getMarkets(params);
 
-  return indexedMarkets.map(indexedMarketToMarket);
+  return apiMarkets.map(apiMarketToMarket);
 }
 
 function resolveMarketLookup(
   id: string,
   chainId: number | undefined
-): IndexedMarketLookup | null {
-  const parsed = parseIndexedMarketAppId(id);
+): MarketApiLookup | null {
+  const parsed = parseApiMarketAppId(id);
 
   if (parsed) {
     return parsed;
@@ -99,7 +99,7 @@ function resolveMarketQueryConfig(options: MarketQueryOptions) {
       : { chainId, client: options.client, source, useApi: true as const };
   }
 
-  const apiBaseUrl = options.apiBaseUrl ?? readIndexerApiBaseUrl();
+  const apiBaseUrl = options.apiBaseUrl ?? readMarketApiBaseUrl();
 
   if (!apiBaseUrl) {
     if (source === "api") {
@@ -114,18 +114,18 @@ function resolveMarketQueryConfig(options: MarketQueryOptions) {
   }
 
   const client = options.fetcher
-    ? createIndexerMarketsApiClient({
+    ? createMarketsApiClient({
         baseUrl: apiBaseUrl,
         fetcher: options.fetcher,
       })
-    : createIndexerMarketsApiClient({ baseUrl: apiBaseUrl });
+    : createMarketsApiClient({ baseUrl: apiBaseUrl });
 
   return chainId === undefined
     ? { client, source, useApi: true as const }
     : { chainId, client, source, useApi: true as const };
 }
 
-function readIndexerApiBaseUrl() {
+function readMarketApiBaseUrl() {
   return (
     process.env.POPCHARTS_INDEXER_API_URL ??
     process.env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL

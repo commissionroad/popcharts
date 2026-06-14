@@ -1,4 +1,4 @@
-import type { IndexedMarket } from "@/integrations/indexer/markets-api";
+import type { ApiMarket } from "@/integrations/indexer/markets-api";
 
 import type { Market, MarketCategory, MarketStatus } from "./types";
 
@@ -13,38 +13,38 @@ const generatedCategories: MarketCategory[] = [
   "Econ",
 ];
 
-export function indexedMarketToMarket(indexed: IndexedMarket): Market {
-  const yesPriceCents = wadToCents(indexed.openingProbabilityWad);
+export function apiMarketToMarket(apiMarket: ApiMarket): Market {
+  const yesPriceCents = wadToCents(apiMarket.openingProbabilityWad);
   const noPriceCents = 100 - yesPriceCents;
-  const totalEscrowed = wadToNumber(indexed.totalEscrowed);
+  const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
 
   return {
-    b: wadToNumber(indexed.liquidityParameter),
-    category: categoryForIndexedMarket(indexed),
-    closesAt: indexed.resolutionTime,
-    description: marketDescription(indexed),
-    graduationTargetUsd: wadToNumber(indexed.graduationThreshold),
-    id: indexedMarketAppId(indexed),
+    b: wadToNumber(apiMarket.liquidityParameter),
+    category: categoryForApiMarket(apiMarket),
+    closesAt: apiMarket.resolutionTime,
+    description: marketDescription(apiMarket),
+    graduationTargetUsd: wadToNumber(apiMarket.graduationThreshold),
+    id: apiMarketAppId(apiMarket),
     matchedUsd: totalEscrowed,
     noPriceCents,
     openingProbability: yesPriceCents,
     pricePath: buildPricePath(yesPriceCents),
-    question: `Market #${indexed.marketId}`,
-    receiptCount: bigintStringToNumber(indexed.receiptCount),
-    status: indexed.status satisfies MarketStatus,
+    question: `Market #${apiMarket.marketId}`,
+    receiptCount: bigintStringToNumber(apiMarket.receiptCount),
+    status: apiMarket.status satisfies MarketStatus,
     volumeUsd: totalEscrowed,
     yesPriceCents,
   };
 }
 
-export function indexedMarketAppId({
+export function apiMarketAppId({
   chainId,
   marketId,
-}: Pick<IndexedMarket, "chainId" | "marketId">) {
+}: Pick<ApiMarket, "chainId" | "marketId">) {
   return `${chainId}:${marketId}`;
 }
 
-export function parseIndexedMarketAppId(id: string) {
+export function parseApiMarketAppId(id: string) {
   const [chainIdValue, marketId, ...rest] = id.split(":");
   const chainId = Number.parseInt(chainIdValue ?? "", 10);
 
@@ -55,18 +55,18 @@ export function parseIndexedMarketAppId(id: string) {
   return { chainId, marketId };
 }
 
-function marketDescription(indexed: IndexedMarket) {
+function marketDescription(apiMarket: ApiMarket) {
   return [
-    `Indexed market created by ${shortAddress(indexed.creator)}.`,
-    `Metadata hash ${shortHash(indexed.metadataHash)}.`,
+    `Market created by ${shortAddress(apiMarket.creator)}.`,
+    `Metadata hash ${shortHash(apiMarket.metadataHash)}.`,
   ].join(" ");
 }
 
-function categoryForIndexedMarket(indexed: IndexedMarket): MarketCategory {
-  const numericMarketId = Number.parseInt(indexed.marketId, 10);
+function categoryForApiMarket(apiMarket: ApiMarket): MarketCategory {
+  const numericMarketId = Number.parseInt(apiMarket.marketId, 10);
   const index = Number.isNaN(numericMarketId)
-    ? indexed.chainId
-    : numericMarketId + indexed.chainId;
+    ? apiMarket.chainId
+    : numericMarketId + apiMarket.chainId;
 
   return generatedCategories[index % generatedCategories.length] ?? "Econ";
 }
