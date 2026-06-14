@@ -14,7 +14,9 @@ const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const APP_ENV_START = "# BEGIN POPCHARTS LOCAL DEV";
 const APP_ENV_END = "# END POPCHARTS LOCAL DEV";
+const COMPOSE_PROJECT_NAME = "popcharts";
 const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
+const POSTGRES_VOLUME_NAME = `${COMPOSE_PROJECT_NAME}_postgres_data`;
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const helpRequested = args.includes("--help") || args.includes("-h");
@@ -225,42 +227,116 @@ function ensureDependenciesInstalled() {
 
 async function ensurePostgres() {
   if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
-    console.log(
-      `[local-dev] using existing Docker container ${POSTGRES_CONTAINER_NAME}`,
-    );
-    await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
-      cwd: repoRoot,
-    });
-    await waitFor("Postgres readiness", () =>
-      commandSucceeds("docker", [
+    const volumeNames = await dockerContainerVolumeNames(POSTGRES_CONTAINER_NAME);
+
+    if (!volumeNames.includes(POSTGRES_VOLUME_NAME)) {
+      console.log(
+        `[local-dev] existing ${POSTGRES_CONTAINER_NAME} uses ${formatVolumeNames(
+          volumeNames,
+        )}; expected ${POSTGRES_VOLUME_NAME}`,
+      );
+      await removeDockerContainerAndVolumes(POSTGRES_CONTAINER_NAME);
+    } else {
+      console.log(
+        `[local-dev] using existing Docker container ${POSTGRES_CONTAINER_NAME}`,
+      );
+      await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
+        cwd: repoRoot,
+      });
+      await waitFor("Postgres readiness", () =>
+        commandSucceeds("docker", [
+          "exec",
+          POSTGRES_CONTAINER_NAME,
+          "pg_isready",
+          "-U",
+          "postgres",
+          "-d",
+          "popcharts",
+        ]),
+      );
+      return;
+    }
+  }
+
+  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
+    cwd: repoRoot,
+    env: dockerComposeEnv(),
+  });
+  await waitFor("Postgres readiness", () =>
+    commandSucceeds(
+      "docker",
+      [
+        "compose",
         "exec",
-        POSTGRES_CONTAINER_NAME,
+        "-T",
+        "postgres",
         "pg_isready",
         "-U",
         "postgres",
         "-d",
         "popcharts",
-      ]),
-    );
-    return;
-  }
+      ],
+      dockerComposeEnv(),
+    ),
+  );
+}
 
-  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
+async function removeDockerContainerAndVolumes(name) {
+  const volumeNames = await dockerContainerVolumeNames(name);
+
+  console.log(`[local-dev] removing stale Docker container ${name}`);
+  await run("postgres", "docker", ["rm", "-f", name], {
     cwd: repoRoot,
   });
-  await waitFor("Postgres readiness", () =>
-    commandSucceeds("docker", [
-      "compose",
-      "exec",
-      "-T",
-      "postgres",
-      "pg_isready",
-      "-U",
-      "postgres",
-      "-d",
-      "popcharts",
-    ]),
+
+  for (const volumeName of volumeNames) {
+    console.log(`[local-dev] removing stale Docker volume ${volumeName}`);
+    await run("postgres", "docker", ["volume", "rm", "-f", volumeName], {
+      cwd: repoRoot,
+    });
+  }
+}
+
+async function dockerContainerVolumeNames(name) {
+  const result = await collect(
+    "docker",
+    ["container", "inspect", name, "--format", "{{json .Mounts}}"],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      print: false,
+      rejectOnFailure: false,
+    },
   );
+
+  if (result.code !== 0) {
+    return [];
+  }
+
+  try {
+    const mounts = JSON.parse(result.stdout);
+
+    if (!Array.isArray(mounts)) {
+      return [];
+    }
+
+    return mounts
+      .filter((mount) => mount?.Type === "volume" && mount?.Name)
+      .map((mount) => mount.Name);
+  } catch {
+    return [];
+  }
+}
+
+function formatVolumeNames(volumeNames) {
+  return volumeNames.length > 0 ? volumeNames.join(", ") : "no Docker volume";
+}
+
+function dockerComposeEnv(env = process.env) {
+  return {
+    ...env,
+    COMPOSE_PROJECT_NAME,
+  };
 }
 
 async function dockerContainerExists(name) {
@@ -396,10 +472,10 @@ async function run(name, command, args, options = {}) {
   });
 }
 
-async function commandSucceeds(command, args) {
+async function commandSucceeds(command, args, env = process.env) {
   const result = await collect(command, args, {
     cwd: repoRoot,
-    env: process.env,
+    env,
     print: false,
     rejectOnFailure: false,
   });

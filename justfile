@@ -60,6 +60,9 @@ server-check:
 local-dev:
     pnpm run local:dev
 
+local-reset:
+    pnpm run local:reset
+
 local-smoke *args:
     pnpm run local:smoke -- {{args}}
 
