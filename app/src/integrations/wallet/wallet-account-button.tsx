@@ -83,8 +83,8 @@ export function WalletAccountButton() {
             <div className="flex gap-2 text-[11px] leading-5 text-[var(--status-graduating)]">
               <AlertTriangle className="mt-1 shrink-0" size={14} />
               <span>
-                Sign-in is not configured for this deployment. Add the Privy public app
-                ID in Vercel to enable email, Google, and wallet login.
+                Wallet login is not configured. Add a Privy public app ID or enable the
+                local wallet fallback for development.
               </span>
             </div>
           </div>
@@ -114,7 +114,7 @@ export function WalletAccountButton() {
         type="button"
       >
         <Wallet color="var(--pc-cyan)" size={15} />
-        Sign in
+        {wallet.loginLabel}
       </button>
     );
   }

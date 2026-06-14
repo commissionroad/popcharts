@@ -148,6 +148,7 @@ async function writeAppEnv(path, deployment) {
     APP_ENV_START,
     "NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=local",
     "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain",
+    "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=server",
     `NEXT_PUBLIC_POPCHARTS_CHAIN_ID=${deployment.chainId}`,
     `NEXT_PUBLIC_POPCHARTS_RPC_URL=${deployment.rpcUrl}`,
     `NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=${deployment.contracts.pregradManager.address}`,

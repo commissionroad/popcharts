@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { usePublicClient, useWalletClient } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -34,13 +35,27 @@ import type {
   CreateMarketValidationErrors,
 } from "@/domain/market-creation/types";
 import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
+import {
+  getPopChartsContractConfig,
+  marketCreationMode,
+  marketCreationSigner,
+} from "@/integrations/contracts/config";
+import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { cn } from "@/lib/cn";
 import { formatB, formatCents, formatUsdWhole } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
-import { createMarket } from "./create-market-service";
+import { createMarket, type CreateMarketWallet } from "./create-market-service";
 
 type CreateMarketStage = "edit" | "review" | "success";
+
+type WalletCreateAction = {
+  disabled: boolean;
+  kind: "connect" | "ready" | "switch-chain" | "waiting";
+  label: string;
+  message: string | null;
+  run: () => void;
+};
 
 const REVIEW_ERROR_FIELD_ORDER: ReadonlyArray<CreateMarketDraftField> = [
   "question",
@@ -64,6 +79,14 @@ const REVIEW_ERROR_TARGET_IDS: Partial<Record<CreateMarketDraftField, string>> =
 };
 
 export function CreateMarketForm({ initialNow }: { initialNow: string }) {
+  const wallet = useWalletAccount();
+  const contractConfig = getPopChartsContractConfig();
+  const publicClient = usePublicClient({
+    chainId: contractConfig?.chainId,
+  });
+  const { data: walletClient } = useWalletClient({
+    chainId: contractConfig?.chainId,
+  });
   const [advanced, setAdvanced] = useState(false);
   const [draft, setDraft] = useState<CreateMarketDraft>(() =>
     createInitialMarketDraft(new Date(initialNow))
@@ -83,6 +106,16 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const reviewErrorCount =
     hasTriedReview && stage === "edit" ? countErrors(validationErrors) : 0;
   const preview = buildCreateMarketPreview(draft);
+  const walletCreationRequired =
+    marketCreationMode === "devchain" && marketCreationSigner === "wallet";
+  const createAction = walletCreationRequired
+    ? getWalletCreateAction({
+        contractChainId: contractConfig?.chainId ?? null,
+        publicClientReady: Boolean(publicClient),
+        wallet,
+        walletClientReady: Boolean(walletClient),
+      })
+    : null;
 
   function updateDraft<K extends keyof CreateMarketDraft>(
     field: K,
@@ -150,11 +183,29 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
       return;
     }
 
-    setIsCreating(true);
     setSubmitError(null);
 
+    if (createAction && createAction.kind !== "ready") {
+      createAction.run();
+      return;
+    }
+
+    setIsCreating(true);
+
     try {
-      const result = await createMarket(draft);
+      const walletContext =
+        walletCreationRequired && wallet.address && publicClient && walletClient
+          ? ({
+              accountAddress: wallet.address as `0x${string}`,
+              activeChainId: wallet.activeChainId,
+              publicClient,
+              walletClient,
+            } satisfies CreateMarketWallet)
+          : undefined;
+      const result = await createMarket(
+        draft,
+        walletContext ? { wallet: walletContext } : {}
+      );
       setCreatedMarket(result);
       setStage("success");
     } catch (error) {
@@ -360,6 +411,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
           <SuccessPanel result={createdMarket} onReset={resetForm} />
         ) : stage === "review" ? (
           <ReviewPanel
+            createAction={createAction}
             hasErrors={hasErrors}
             isCreating={isCreating}
             onCreate={handleCreate}
@@ -417,11 +469,113 @@ function getLiveDeadlineErrors(
   return liveErrors;
 }
 
+function getWalletCreateAction({
+  contractChainId,
+  publicClientReady,
+  wallet,
+  walletClientReady,
+}: {
+  contractChainId: number | null;
+  publicClientReady: boolean;
+  wallet: ReturnType<typeof useWalletAccount>;
+  walletClientReady: boolean;
+}): WalletCreateAction {
+  if (!wallet.enabled) {
+    return {
+      disabled: true,
+      kind: "waiting",
+      label: "Configure wallet",
+      message: "Wallet signing is required for devchain market creation.",
+      run: noop,
+    };
+  }
+
+  if (!wallet.ready) {
+    return {
+      disabled: true,
+      kind: "waiting",
+      label: "Preparing wallet",
+      message: "Wallet state is still loading.",
+      run: noop,
+    };
+  }
+
+  if (wallet.pendingAction) {
+    return {
+      disabled: true,
+      kind: "waiting",
+      label: "Wallet pending...",
+      message: "Finish the pending wallet action before creating this market.",
+      run: noop,
+    };
+  }
+
+  if (!wallet.authenticated) {
+    return {
+      disabled: false,
+      kind: "connect",
+      label: "Connect wallet",
+      message: "Connect a wallet to sign the market creation transaction.",
+      run: wallet.login,
+    };
+  }
+
+  if (!wallet.address) {
+    return {
+      disabled: false,
+      kind: "connect",
+      label: "Add wallet",
+      message: "Create or link an EVM wallet before creating this market.",
+      run: wallet.connectOrCreateWallet,
+    };
+  }
+
+  if (!contractChainId) {
+    return {
+      disabled: true,
+      kind: "waiting",
+      label: "Configure devchain",
+      message: "Devchain contract configuration is incomplete.",
+      run: noop,
+    };
+  }
+
+  if (!wallet.isSupportedChain || wallet.activeChainId !== contractChainId) {
+    return {
+      disabled: false,
+      kind: "switch-chain",
+      label: `Switch to ${wallet.defaultChain.name}`,
+      message: `Switch your wallet to ${wallet.defaultChain.name} before creating this market.`,
+      run: () => void wallet.switchChain(contractChainId),
+    };
+  }
+
+  if (!publicClientReady || !walletClientReady) {
+    return {
+      disabled: true,
+      kind: "waiting",
+      label: "Preparing wallet",
+      message: "Waiting for the connected wallet client.",
+      run: noop,
+    };
+  }
+
+  return {
+    disabled: false,
+    kind: "ready",
+    label: "Create market",
+    message: "Your connected wallet will sign this devchain transaction.",
+    run: noop,
+  };
+}
+
 function getCreateMarketErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "The creation service could not create this market.";
 }
+
+function noop() {}
 
 function CategoryPicker({
   category,
@@ -607,6 +761,7 @@ function LivePreviewPanel({
 }
 
 function ReviewPanel({
+  createAction,
   hasErrors,
   isCreating,
   onCreate,
@@ -614,6 +769,7 @@ function ReviewPanel({
   preview,
   submitError,
 }: {
+  createAction: WalletCreateAction | null;
   hasErrors: boolean;
   isCreating: boolean;
   onCreate: () => void;
@@ -670,16 +826,21 @@ function ReviewPanel({
           {submitError}
         </p>
       ) : null}
+      {createAction && createAction.message ? (
+        <p className="rounded-[var(--radius-sm)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3 py-2 text-sm text-[var(--status-graduating)]">
+          {createAction.message}
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           className="flex-1"
-          disabled={hasErrors || isCreating}
+          disabled={hasErrors || isCreating || createAction?.disabled}
           leftIcon={<Rocket size={18} />}
           onClick={onCreate}
           size="lg"
         >
-          {isCreating ? "Creating..." : "Create market"}
+          {isCreating ? "Creating..." : (createAction?.label ?? "Create market")}
         </Button>
         <Button className="sm:w-32" onClick={onEdit} size="lg" variant="secondary">
           Edit
@@ -697,6 +858,7 @@ function SuccessPanel({
   result: CreatedMarket;
 }) {
   const onChain = result.creationMode === "devchain";
+  const walletSigned = result.creationSigner === "wallet";
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-6">
@@ -706,7 +868,11 @@ function SuccessPanel({
         </span>
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-            {onChain ? "On-chain created" : "Mock created"}
+            {onChain
+              ? walletSigned
+                ? "Wallet-signed"
+                : "Devchain relay"
+              : "Mock created"}
           </div>
           <h2 className="font-display text-xl font-black">
             {onChain ? "Market live on devchain" : "Market draft ready"}
@@ -718,6 +884,9 @@ function SuccessPanel({
         <ReviewRow label="Market ID" mono value={result.marketId} />
         {result.transactionHash ? (
           <ReviewRow label="Transaction" mono value={result.transactionHash} />
+        ) : null}
+        {result.creator ? (
+          <ReviewRow label="Creator" mono value={result.creator} />
         ) : null}
         <ReviewRow label="Metadata hash" mono value={result.metadataHash} />
         <ReviewRow

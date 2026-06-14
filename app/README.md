@@ -23,6 +23,7 @@ login. Set these public environment variables in local/dev deployments:
 NEXT_PUBLIC_PRIVY_APP_ID=...
 NEXT_PUBLIC_PRIVY_CLIENT_ID=... # optional, for Privy app clients
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=... # optional
+NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET=true # optional, injected wallet fallback
 NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS=true # optional, adds Base Sepolia
 ```
 
