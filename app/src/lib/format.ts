@@ -38,6 +38,15 @@ export function formatUsdCompact(value: number) {
   return `$${formatted}${unit.suffix}`;
 }
 
+export function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+    minimumFractionDigits: value >= 100 ? 0 : 2,
+    style: "currency",
+  }).format(Math.max(0, value));
+}
+
 export function formatUsdWhole(value: number) {
   return `$${Math.max(0, Math.round(value)).toLocaleString("en-US")}`;
 }

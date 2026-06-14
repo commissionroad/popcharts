@@ -51,3 +51,39 @@ export const marketCreatedEvents = pgTable(
     ),
   ],
 );
+
+export const receiptPlacedEvents = pgTable(
+  "receipt_placed_events",
+  {
+    id: serial("id").primaryKey(),
+    chainId: integer("chain_id").notNull(),
+    contractId: integer("contract_id")
+      .notNull()
+      .references(() => contracts.id),
+    blockNumber: bigint("block_number", { mode: "bigint" }).notNull(),
+    blockTimestamp: timestamp("block_timestamp").notNull(),
+    transactionHash: text("transaction_hash").notNull(),
+    logIndex: integer("log_index").notNull(),
+    receiptId: bigint("receipt_id", { mode: "bigint" }).notNull(),
+    marketId: bigint("market_id", { mode: "bigint" }).notNull(),
+    owner: text("owner").notNull(),
+    side: integer("side").notNull(),
+    shares: uint256("shares").notNull(),
+    cost: uint256("cost").notNull(),
+    rLow: text("r_low").notNull(),
+    rHigh: text("r_high").notNull(),
+    sequence: bigint("sequence", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("receipt_placed_events_chain_tx_log_idx").on(
+      table.chainId,
+      table.transactionHash,
+      table.logIndex,
+    ),
+    uniqueIndex("receipt_placed_events_chain_receipt_idx").on(
+      table.chainId,
+      table.receiptId,
+    ),
+  ],
+);
