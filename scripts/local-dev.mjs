@@ -14,6 +14,7 @@ const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const APP_ENV_START = "# BEGIN POPCHARTS LOCAL DEV";
 const APP_ENV_END = "# END POPCHARTS LOCAL DEV";
+const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const helpRequested = args.includes("--help") || args.includes("-h");
@@ -59,22 +60,7 @@ async function main() {
 
   rmSync(healthFile, { force: true });
 
-  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
-    cwd: repoRoot,
-  });
-  await waitFor("Postgres readiness", () =>
-    commandSucceeds("docker", [
-      "compose",
-      "exec",
-      "-T",
-      "postgres",
-      "pg_isready",
-      "-U",
-      "postgres",
-      "-d",
-      "popcharts",
-    ]),
-  );
+  await ensurePostgres();
 
   const initialServerEnv = buildServerEnv();
   await run("db", "bun", ["run", "--cwd", "server", "db:push"], {
@@ -235,6 +221,57 @@ function ensureDependenciesInstalled() {
       ", ",
     )}. Run 'just setup' before 'just local-dev'.`,
   );
+}
+
+async function ensurePostgres() {
+  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
+    console.log(
+      `[local-dev] using existing Docker container ${POSTGRES_CONTAINER_NAME}`,
+    );
+    await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
+      cwd: repoRoot,
+    });
+    await waitFor("Postgres readiness", () =>
+      commandSucceeds("docker", [
+        "exec",
+        POSTGRES_CONTAINER_NAME,
+        "pg_isready",
+        "-U",
+        "postgres",
+        "-d",
+        "popcharts",
+      ]),
+    );
+    return;
+  }
+
+  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
+    cwd: repoRoot,
+  });
+  await waitFor("Postgres readiness", () =>
+    commandSucceeds("docker", [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "pg_isready",
+      "-U",
+      "postgres",
+      "-d",
+      "popcharts",
+    ]),
+  );
+}
+
+async function dockerContainerExists(name) {
+  const result = await collect("docker", ["container", "inspect", name], {
+    cwd: repoRoot,
+    env: process.env,
+    print: false,
+    rejectOnFailure: false,
+  });
+
+  return result.code === 0;
 }
 
 function buildServerEnv(overrides = {}) {
