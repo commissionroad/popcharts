@@ -1,0 +1,119 @@
+import type { Log } from "viem";
+
+import type { NetworkConfig } from "src/config";
+import { schema } from "src/db/client";
+
+export type MarketCreatedLog = Log & {
+  args: {
+    collateral?: `0x${string}`;
+    creator?: `0x${string}`;
+    graduationThreshold?: bigint;
+    graduationTime?: bigint;
+    liquidityParameter?: bigint;
+    marketId?: bigint;
+    metadataHash?: `0x${string}`;
+    openingProbabilityWad?: bigint;
+    resolutionTime?: bigint;
+  };
+};
+
+export type MarketCreatedRecords = {
+  event: typeof schema.marketCreatedEvents.$inferInsert;
+  market: typeof schema.markets.$inferInsert;
+};
+
+export function buildMarketCreatedRecords({
+  blockTimestamp,
+  config,
+  contractId,
+  log,
+}: {
+  blockTimestamp: Date;
+  config: Pick<NetworkConfig, "chainId">;
+  contractId: number;
+  log: MarketCreatedLog;
+}): MarketCreatedRecords {
+  const blockNumber = requireValue(log.blockNumber, "blockNumber");
+  const transactionHash = requireValue(log.transactionHash, "transactionHash");
+  const logIndex = requireValue(log.logIndex, "logIndex");
+  const marketId = requireValue(log.args.marketId, "marketId");
+  const creator = requireValue(log.args.creator, "creator").toLowerCase();
+  const metadataHash = requireValue(log.args.metadataHash, "metadataHash");
+  const collateral = requireValue(
+    log.args.collateral,
+    "collateral",
+  ).toLowerCase();
+  const openingProbabilityWad = requireValue(
+    log.args.openingProbabilityWad,
+    "openingProbabilityWad",
+  );
+  const liquidityParameter = requireValue(
+    log.args.liquidityParameter,
+    "liquidityParameter",
+  );
+  const graduationThreshold = requireValue(
+    log.args.graduationThreshold,
+    "graduationThreshold",
+  );
+  const graduationTimeUnix = requireValue(
+    log.args.graduationTime,
+    "graduationTime",
+  );
+  const resolutionTimeUnix = requireValue(
+    log.args.resolutionTime,
+    "resolutionTime",
+  );
+  const graduationTime = unixSecondsToDate(graduationTimeUnix);
+  const resolutionTime = unixSecondsToDate(resolutionTimeUnix);
+
+  return {
+    event: {
+      blockNumber,
+      blockTimestamp,
+      chainId: config.chainId,
+      collateral,
+      contractId,
+      creator,
+      graduationThreshold,
+      graduationTime,
+      graduationTimeUnix,
+      liquidityParameter,
+      logIndex,
+      marketId,
+      metadataHash,
+      openingProbabilityWad,
+      resolutionTime,
+      resolutionTimeUnix,
+      transactionHash,
+    },
+    market: {
+      chainId: config.chainId,
+      collateral,
+      contractId,
+      createdBlockNumber: blockNumber,
+      createdBlockTimestamp: blockTimestamp,
+      createdLogIndex: logIndex,
+      createdTransactionHash: transactionHash,
+      creator,
+      graduationThreshold,
+      graduationTime,
+      liquidityParameter,
+      marketId,
+      metadataHash,
+      openingProbabilityWad,
+      resolutionTime,
+    },
+  };
+}
+
+function requireValue<T>(value: T | null | undefined, name: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`MarketCreated log is missing ${name}.`);
+  }
+
+  return value;
+}
+
+function unixSecondsToDate(value: bigint) {
+  return new Date(Number(value) * 1000);
+}
