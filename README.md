@@ -21,11 +21,29 @@ pnpm run dev
 The default dev server is the Next.js app in `app/`. Run `just --list` to see
 the full command menu.
 
+## Full Local App Stack
+
+For manual market creation against a local chain and indexer:
+
+```bash
+just setup
+just local-dev
+```
+
+`local-dev` starts docker-compose Postgres, pushes the Drizzle schema, starts a
+Hardhat local chain, deploys `MockCollateral` and `PregradManager`, writes
+matching ignored env blocks for `server/` and `app/`, starts the Bun API,
+starts the indexer, and starts the Next.js app. Open
+`http://127.0.0.1:3000/create`, create a market, then refresh
+`http://127.0.0.1:3000/` to see it from the indexed markets API. Press Ctrl-C
+in the `just local-dev` terminal to stop the API, indexer, app, and local chain.
+
 ## Common Commands
 
 ```bash
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
+just local-dev      # run frontend, API, indexer, Postgres, and local chain
 just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests

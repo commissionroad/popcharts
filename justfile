@@ -57,6 +57,9 @@ server-indexer:
 server-check:
     pnpm run server:check
 
+local-dev:
+    pnpm run local:dev
+
 local-smoke *args:
     pnpm run local:smoke -- {{args}}
 
