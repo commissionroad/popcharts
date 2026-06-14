@@ -3,22 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.10"
   },
   "scripts": {
-    "build": "hardhat build",
+    "build": "hardhat build && node scripts/export-contract-metadata.mjs",
     "clean": "hardhat clean",
     "devchain:deploy": "hardhat build && node scripts/deploy-devchain.mjs",
     "devchain:node": "hardhat node",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",
+    "metadata:check": "hardhat build && node scripts/export-contract-metadata.mjs --check",
     "test": "hardhat test",
     "test:nodejs": "hardhat test nodejs",
     "test:solidity": "hardhat test solidity",
-    "typecheck": "hardhat build && tsc --noEmit"
+    "typecheck": "pnpm metadata:check && tsc --noEmit"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1",

@@ -29,15 +29,32 @@ just dev            # run the app locally
 just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
-just check          # app-check and protocol-check
-just test           # app unit tests and protocol tests
+just server-check   # server typecheck and Bun unit tests
+just check          # app-check, protocol-check, and server-check
+just test           # app, protocol, and server tests
 just format         # format app and protocol files
 just land 12        # merge a PR with scripts/land
 ```
 
-Root commands delegate into the existing package-local workflows. The app keeps
-its `app/pnpm-lock.yaml` for the Vercel project rooted at `app/`, and the
-protocol keeps its own `protocol/pnpm-lock.yaml`.
+Root commands delegate into package-local workflows. The app keeps its
+`app/pnpm-lock.yaml` for the Vercel project rooted at `app/`, the protocol
+keeps its own `protocol/pnpm-lock.yaml`, and the backend server uses Bun from
+`server/`.
+
+## Server
+
+`server/` contains the Bun/Elysia API server and viem event indexer. It uses
+Drizzle with PostgreSQL and starts with a `PregradManager.MarketCreated`
+indexing slice.
+
+```bash
+docker compose up -d postgres
+cp server/sample.env server/.env
+just server-install
+cd server && bun run db:push
+just server-api
+just server-indexer
+```
 
 ## Devchain Integration
 
