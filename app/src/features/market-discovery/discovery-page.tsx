@@ -1,7 +1,9 @@
 import { getMarkets } from "@/domain/markets/queries";
 import { DiscoveryBoard } from "@/features/market-discovery/discovery-board";
 
-export function DiscoveryPage() {
+export async function DiscoveryPage() {
+  const markets = await getMarkets();
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -14,7 +16,7 @@ export function DiscoveryPage() {
           </h1>
         </div>
       </div>
-      <DiscoveryBoard markets={getMarkets()} />
+      <DiscoveryBoard markets={markets} />
     </div>
   );
 }

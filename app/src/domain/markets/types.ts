@@ -3,7 +3,8 @@ export type MarketStatus =
   | "graduating"
   | "graduated"
   | "resolved"
-  | "refunded";
+  | "refunded"
+  | "cancelled";
 
 export type MarketCategory =
   | "Crypto"

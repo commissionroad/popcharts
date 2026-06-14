@@ -31,6 +31,20 @@ Ethereum embedded wallet for users without an existing wallet and keeps wallet
 SDK usage inside `src/integrations/wallet/` so Solana support can be added there
 later without changing domain modules.
 
+## Market API Configuration
+
+Market discovery reads from the read-only server/indexer API when configured:
+
+```bash
+POPCHARTS_INDEXER_API_URL=http://localhost:3001
+POPCHARTS_MARKETS_CHAIN_ID=31337 # optional, filters GET /markets and bare ids
+POPCHARTS_MARKET_DATA_SOURCE=auto # optional: auto, api, or fixtures
+```
+
+`auto` uses the API when `POPCHARTS_INDEXER_API_URL` is present and falls back
+to local fixtures otherwise. Use `api` to require the server API or `fixtures`
+to force fixture-backed reads in local tests and demos.
+
 ## Product Shape
 
 Pop Charts starts where a Polymarket-style venue cannot: before a market has
