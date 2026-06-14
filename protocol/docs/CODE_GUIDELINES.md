@@ -49,7 +49,7 @@ Events and view methods should serve the product surface:
 - market creation
 - receipt placement
 - path interval and cost basis
-- freeze and clearing start
+- graduation start and clearing root
 - matched market cap
 - retained shares and retained cost
 - refunds

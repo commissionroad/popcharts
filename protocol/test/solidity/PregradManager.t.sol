@@ -21,7 +21,7 @@ contract PregradManagerTest is Test {
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
     uint256 graduationThreshold,
-    uint64 graduationTime,
+    uint64 graduationDeadline,
     uint64 resolutionTime
   );
 
@@ -36,6 +36,33 @@ contract PregradManagerTest is Test {
     int256 rHigh,
     uint64 sequence
   );
+
+  event GraduationStarted(
+    uint256 indexed marketId,
+    address indexed manager,
+    uint256 receiptCount,
+    uint256 totalEscrowed,
+    int256 path,
+    uint256 yesShares,
+    uint256 noShares,
+    uint64 graduationStartedAt,
+    bytes32 snapshotHash
+  );
+
+  event ClearingRootSubmitted(
+    uint256 indexed marketId,
+    address indexed submitter,
+    bytes32 indexed merkleRoot,
+    bytes32 snapshotHash,
+    uint256 matchedMarketCap,
+    uint256 retainedCostTotal,
+    uint256 refundTotal,
+    uint256 completeSetCount,
+    uint64 submittedAt,
+    uint64 challengeDeadline
+  );
+
+  event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
 
   MockCollateral private collateral;
   PregradManager private manager;
@@ -58,7 +85,7 @@ contract PregradManagerTest is Test {
       params.openingProbabilityWad,
       params.liquidityParameter,
       params.graduationThreshold,
-      params.graduationTime,
+      params.graduationDeadline,
       params.resolutionTime
     );
 
@@ -77,7 +104,7 @@ contract PregradManagerTest is Test {
     assertEq(config.openingProbabilityWad, (50 * WAD) / 100);
     assertEq(config.liquidityParameter, 5_000 * WAD);
     assertEq(config.graduationThreshold, 40_000 * WAD);
-    assertEq(config.graduationTime, params.graduationTime);
+    assertEq(config.graduationDeadline, params.graduationDeadline);
     assertEq(config.resolutionTime, params.resolutionTime);
     assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertEq(state.receiptCount, 0);
@@ -85,7 +112,7 @@ contract PregradManagerTest is Test {
     assertEq(state.path, int256(0));
     assertEq(state.yesShares, 0);
     assertEq(state.noShares, 0);
-    assertEq(state.frozenAt, 0);
+    assertEq(state.graduationStartedAt, 0);
   }
 
   function test_CreateMarketIdsIncrementAndMarketsAreIsolated() public {
@@ -102,7 +129,7 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
         graduationThreshold: 25_000 * WAD,
-        graduationTime: uint64(block.timestamp + 3 days),
+        graduationDeadline: uint64(block.timestamp + 3 days),
         resolutionTime: uint64(block.timestamp + 30 days)
       })
     );
@@ -115,7 +142,7 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
         graduationThreshold: 100_000 * WAD,
-        graduationTime: uint64(block.timestamp + 14 days),
+        graduationDeadline: uint64(block.timestamp + 14 days),
         resolutionTime: uint64(block.timestamp + 60 days)
       })
     );
@@ -276,7 +303,7 @@ contract PregradManagerTest is Test {
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
       graduationThreshold: 40_000 * WAD,
-      graduationTime: uint64(block.timestamp + 7 days),
+      graduationDeadline: uint64(block.timestamp + 7 days),
       resolutionTime: uint64(block.timestamp + 14 days)
     });
 
@@ -308,12 +335,12 @@ contract PregradManagerTest is Test {
     manager.createMarket(params);
 
     params.graduationThreshold = 40_000 * WAD;
-    params.graduationTime = uint64(block.timestamp);
-    vm.expectRevert(PregradManager.InvalidGraduationTime.selector);
+    params.graduationDeadline = uint64(block.timestamp);
+    vm.expectRevert(PregradManager.InvalidGraduationDeadline.selector);
     manager.createMarket(params);
 
-    params.graduationTime = uint64(block.timestamp + 7 days);
-    params.resolutionTime = params.graduationTime;
+    params.graduationDeadline = uint64(block.timestamp + 7 days);
+    params.resolutionTime = params.graduationDeadline;
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
     manager.createMarket(params);
 
@@ -361,14 +388,14 @@ contract PregradManagerTest is Test {
     collateral.approve(address(manager), type(uint256).max);
 
     MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
-    vm.warp(config.graduationTime);
+    vm.warp(config.graduationDeadline);
     params.maxCost = quote.cost;
     vm.prank(buyer);
     vm.expectRevert(
       abi.encodeWithSelector(
-        PregradManager.MarketPastGraduationTime.selector,
+        PregradManager.MarketPastGraduationDeadline.selector,
         marketId,
-        config.graduationTime
+        config.graduationDeadline
       )
     );
     manager.placeReceipt(params);
@@ -384,7 +411,7 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 40_000 * WAD,
-        graduationTime: uint64(block.timestamp + 7 days),
+        graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days)
       })
     );
@@ -419,12 +446,361 @@ contract PregradManagerTest is Test {
     );
   }
 
+  function test_StartGraduationLocksReceiptBookForOffchainClearing() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = _createGraduatableMarket();
+    uint256 shares = 100 * WAD;
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+
+    uint64 startedAt = uint64(block.timestamp + 1 days);
+    vm.warp(startedAt);
+
+    bytes32 expectedSnapshotHash = _expectedSnapshotHash(
+      marketId,
+      1,
+      quote.cost,
+      quote.rHigh,
+      shares,
+      0,
+      startedAt
+    );
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit GraduationStarted(
+      marketId,
+      address(this),
+      1,
+      quote.cost,
+      quote.rHigh,
+      shares,
+      0,
+      startedAt,
+      expectedSnapshotHash
+    );
+
+    bytes32 snapshotHash = manager.startGraduation(marketId);
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+
+    assertEq(snapshotHash, expectedSnapshotHash);
+    assertEq(manager.graduationSnapshotHash(marketId), expectedSnapshotHash);
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Graduating));
+    assertEq(state.receiptCount, 1);
+    assertEq(state.totalEscrowed, quote.cost);
+    assertEq(state.path, quote.rHigh);
+    assertEq(state.yesShares, shares);
+    assertEq(state.noShares, 0);
+    assertEq(state.graduationStartedAt, startedAt);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Graduating,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
+  }
+
+  function test_StartGraduationRequiresOwnerAndActiveMarketBeforeDeadline() public {
+    address notManager = makeAddr("not-manager");
+    uint256 marketId = _createDefaultMarket();
+
+    vm.prank(notManager);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.UnauthorizedGraduationManager.selector, notManager)
+    );
+    manager.startGraduation(marketId);
+
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    vm.warp(config.graduationDeadline);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MarketPastGraduationDeadline.selector,
+        marketId,
+        config.graduationDeadline
+      )
+    );
+    manager.startGraduation(marketId);
+  }
+
+  function test_MarkRefundableAfterDeadline() public {
+    uint256 marketId = _createDefaultMarket();
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MarketBeforeGraduationDeadline.selector,
+        marketId,
+        config.graduationDeadline
+      )
+    );
+    manager.markRefundable(marketId);
+
+    vm.warp(config.graduationDeadline);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketRefundsAvailable(marketId, 0);
+
+    manager.markRefundable(marketId);
+
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Refunded));
+  }
+
+  function test_SubmitClearingRootStoresOptimisticCommitment() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = _createGraduatableMarket();
+    uint256 shares = 100 * WAD;
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      shares
+    );
+
+    uint64 startedAt = uint64(block.timestamp + 1 days);
+    vm.warp(startedAt);
+    bytes32 snapshotHash = manager.startGraduation(marketId);
+
+    bytes32 merkleRoot = keccak256("clearing-root");
+    uint256 matchedMarketCap = 50 * WAD;
+    uint256 refundTotal = quote.cost - matchedMarketCap;
+    uint64 submittedAt = uint64(block.timestamp + 1 hours);
+    uint64 challengeDeadline = submittedAt + manager.CLEARING_CHALLENGE_PERIOD();
+    vm.warp(submittedAt);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit ClearingRootSubmitted(
+      marketId,
+      address(this),
+      merkleRoot,
+      snapshotHash,
+      matchedMarketCap,
+      matchedMarketCap,
+      refundTotal,
+      matchedMarketCap,
+      submittedAt,
+      challengeDeadline
+    );
+
+    bytes32 submittedSnapshotHash = manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: refundTotal,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    MarketTypes.ClearingRoot memory clearingRoot = manager.getClearingRoot(marketId);
+
+    assertEq(submittedSnapshotHash, snapshotHash);
+    assertTrue(manager.hasClearingRoot(marketId));
+    assertEq(clearingRoot.merkleRoot, merkleRoot);
+    assertEq(clearingRoot.submitter, address(this));
+    assertEq(clearingRoot.snapshotHash, snapshotHash);
+    assertEq(clearingRoot.submittedAt, submittedAt);
+    assertEq(clearingRoot.challengeDeadline, challengeDeadline);
+    assertEq(clearingRoot.matchedMarketCap, matchedMarketCap);
+    assertEq(clearingRoot.retainedCostTotal, matchedMarketCap);
+    assertEq(clearingRoot.refundTotal, refundTotal);
+    assertEq(clearingRoot.completeSetCount, matchedMarketCap);
+  }
+
+  function test_SubmitClearingRootRejectsInvalidCommitments() public {
+    uint256 marketId = _createGraduatingMarketWithReceipt();
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+    bytes32 merkleRoot = keccak256("clearing-root");
+    uint256 matchedMarketCap = 50 * WAD;
+
+    vm.expectRevert(PregradManager.InvalidClearingRoot.selector);
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: bytes32(0),
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: state.totalEscrowed - matchedMarketCap,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MatchedMarketCapBelowThreshold.selector,
+        49 * WAD,
+        50 * WAD
+      )
+    );
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: 49 * WAD,
+        retainedCostTotal: 49 * WAD,
+        refundTotal: state.totalEscrowed - 49 * WAD,
+        completeSetCount: 49 * WAD
+      })
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidClearingTotals.selector,
+        matchedMarketCap,
+        1,
+        state.totalEscrowed
+      )
+    );
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: 1,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidCompleteSetCount.selector,
+        matchedMarketCap,
+        matchedMarketCap - 1,
+        matchedMarketCap
+      )
+    );
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap - 1,
+        refundTotal: state.totalEscrowed - matchedMarketCap + 1,
+        completeSetCount: matchedMarketCap
+      })
+    );
+  }
+
+  function test_SubmitClearingRootRejectsDuplicateAndWrongStatus() public {
+    uint256 activeMarketId = _createGraduatableMarket();
+    uint256 graduatingMarketId = _createGraduatingMarketWithReceipt();
+    MarketTypes.MarketState memory state = manager.getMarketState(graduatingMarketId);
+    bytes32 merkleRoot = keccak256("clearing-root");
+    uint256 matchedMarketCap = 50 * WAD;
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        activeMarketId,
+        MarketTypes.MarketStatus.Active,
+        MarketTypes.MarketStatus.Graduating
+      )
+    );
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: activeMarketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: 0,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: graduatingMarketId,
+        merkleRoot: merkleRoot,
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: state.totalEscrowed - matchedMarketCap,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.ClearingRootAlreadySubmitted.selector,
+        graduatingMarketId
+      )
+    );
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: graduatingMarketId,
+        merkleRoot: keccak256("second-root"),
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: state.totalEscrowed - matchedMarketCap,
+        completeSetCount: matchedMarketCap
+      })
+    );
+  }
+
+  function test_HashReceiptClaimIsDeterministic() public view {
+    MarketTypes.ReceiptClaim memory claim = MarketTypes.ReceiptClaim({
+      marketId: 1,
+      receiptId: 2,
+      owner: address(0xBEEF),
+      side: MarketTypes.Side.Yes,
+      retainedShares: 30 * WAD,
+      retainedCost: 15 * WAD,
+      refund: 5 * WAD
+    });
+
+    bytes32 expectedHash = keccak256(
+      abi.encode(
+        manager.RECEIPT_CLAIM_TYPEHASH(),
+        claim.marketId,
+        claim.receiptId,
+        claim.owner,
+        uint8(claim.side),
+        claim.retainedShares,
+        claim.retainedCost,
+        claim.refund
+      )
+    );
+
+    assertEq(manager.hashReceiptClaim(claim), expectedHash);
+  }
+
   function _createDefaultMarket() private returns (uint256) {
     return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/example")));
   }
 
   function _createSecondDefaultMarket() private returns (uint256) {
     return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/second")));
+  }
+
+  function _createGraduatableMarket() private returns (uint256) {
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/graduatable")
+    );
+    params.graduationThreshold = 50 * WAD;
+    return manager.createMarket(params);
+  }
+
+  function _createGraduatingMarketWithReceipt() private returns (uint256 marketId) {
+    address buyer = makeAddr("graduating-buyer");
+    marketId = _createGraduatableMarket();
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    _placeReceiptAs(buyer, marketId, MarketTypes.Side.Yes, 100 * WAD);
+
+    manager.startGraduation(marketId);
   }
 
   function _defaultMarketParams(
@@ -437,7 +813,7 @@ contract PregradManagerTest is Test {
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 40_000 * WAD,
-        graduationTime: uint64(block.timestamp + 7 days),
+        graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days)
       });
   }
@@ -465,5 +841,31 @@ contract PregradManagerTest is Test {
         maxCost: quote.cost
       })
     );
+  }
+
+  function _expectedSnapshotHash(
+    uint256 marketId,
+    uint256 receiptCount,
+    uint256 totalEscrowed,
+    int256 path,
+    uint256 yesShares,
+    uint256 noShares,
+    uint64 graduationStartedAt
+  ) private view returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          manager.GRADUATION_SNAPSHOT_TYPEHASH(),
+          block.chainid,
+          address(manager),
+          marketId,
+          receiptCount,
+          totalEscrowed,
+          path,
+          yesShares,
+          noShares,
+          graduationStartedAt
+        )
+      );
   }
 }

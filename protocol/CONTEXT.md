@@ -64,6 +64,8 @@ sets are the post-graduation fixed-payout market object.
 
 ## Status Ladder
 
-The contract lifecycle vocabulary is `Active`, `Frozen`, `Graduated`,
-`Refunded`, `Resolved`, and `Cancelled`. Product reads may group or rename these
-states for UI, but protocol code should use this ladder.
+The contract lifecycle vocabulary is `Active`, `Graduating`, `Graduated`,
+`Refunded`, `Resolved`, and `Cancelled`. `Frozen` is reserved for future
+suspicious-market pause behavior and is not part of the normal happy path.
+Product reads may group or rename these states for UI, but protocol code should
+use this ladder.

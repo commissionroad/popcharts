@@ -36,8 +36,9 @@ pnpm typecheck
 
 `contracts/PregradManager.sol` is the singleton manager for all pre-graduation
 markets. It currently supports market creation, receipt placement, virtual LMSR
-quotes, and collateral escrow. Freeze, clearing roots, graduation, and claims
-will land in later vertical slices.
+quotes, collateral escrow, manager-started graduation, and optimistic clearing
+root submission. Claims, challenges, refunds, and postgrad token handoff will
+land in later vertical slices.
 
 ## Public Contract Metadata
 
