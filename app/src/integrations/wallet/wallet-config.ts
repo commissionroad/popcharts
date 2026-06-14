@@ -1,6 +1,7 @@
 import type { PrivyClientConfig } from "@privy-io/react-auth";
-import { createConfig } from "@privy-io/wagmi";
-import { http } from "wagmi";
+import { createConfig as createPrivyWagmiConfig } from "@privy-io/wagmi";
+import { createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 
 import {
   defaultPrivyChain,
@@ -18,17 +19,30 @@ const walletConnectCloudProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJEC
 
 export const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 export const privyClientId = process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
-export const walletIntegrationEnabled = Boolean(privyAppId);
+export const localWalletIntegrationEnabled =
+  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET === "true" ||
+  (!privyAppId && process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN === "true");
+export const walletIntegrationEnabled =
+  Boolean(privyAppId) || localWalletIntegrationEnabled;
 
-export const wagmiConfig = createConfig({
+const wagmiTransports = Object.fromEntries(
+  supportedWagmiChains.map((chain) => [
+    chain.id,
+    http(getWalletRpcUrlForChain(chain.id)),
+  ])
+);
+
+export const privyWagmiConfig = createPrivyWagmiConfig({
   chains: supportedWagmiChains,
   ssr: true,
-  transports: Object.fromEntries(
-    supportedWagmiChains.map((chain) => [
-      chain.id,
-      http(getWalletRpcUrlForChain(chain.id)),
-    ])
-  ),
+  transports: wagmiTransports,
+});
+
+export const localWalletWagmiConfig = createConfig({
+  chains: supportedWagmiChains,
+  connectors: [injected()],
+  ssr: true,
+  transports: wagmiTransports,
 });
 
 export const privyConfig = {

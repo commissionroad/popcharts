@@ -3,6 +3,7 @@ import { getAddress, isAddress } from "viem";
 export type PopChartsChainEnv = "local" | "mock" | "preview" | "production" | "testnet";
 
 export type MarketCreationMode = "devchain" | "mock";
+export type MarketCreationSigner = "server" | "wallet";
 
 export type PopChartsContractConfig = {
   chainEnv: PopChartsChainEnv;
@@ -26,6 +27,10 @@ export const popChartsChainEnv = parseChainEnv(
 
 export const marketCreationMode = parseMarketCreationMode(
   process.env.NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE
+);
+
+export const marketCreationSigner = parseMarketCreationSigner(
+  process.env.NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER
 );
 
 export const configuredPopChartsChainId = parsePositiveInteger(
@@ -71,6 +76,10 @@ function parseChainEnv(value: string | undefined): PopChartsChainEnv {
 
 function parseMarketCreationMode(value: string | undefined): MarketCreationMode {
   return value === "devchain" ? "devchain" : "mock";
+}
+
+function parseMarketCreationSigner(value: string | undefined): MarketCreationSigner {
+  return value === "server" ? "server" : "wallet";
 }
 
 function parsePositiveInteger(value: string | undefined) {

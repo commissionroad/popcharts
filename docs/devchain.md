@@ -41,7 +41,8 @@ POPCHARTS_WRITE_APP_ENV=true
 
 `app/.env.development.local` is gitignored. It includes the deterministic local
 Hardhat private key so the development-only API route can create markets during
-automated tests. Do not copy that key into any real network.
+automated tests. Manual `just local-dev` runs use wallet-signed creation instead.
+Do not copy that key into any real network.
 
 ## Vercel Preview With Tenderly
 
@@ -64,6 +65,7 @@ Preview, or to a specific preview branch if you want isolated preview chains:
 ```bash
 NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=preview
 NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain
+NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=server
 NEXT_PUBLIC_POPCHARTS_CHAIN_ID=<tenderly-chain-id>
 NEXT_PUBLIC_POPCHARTS_RPC_URL=<tenderly-public-rpc-url>
 NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=<deployed-manager>

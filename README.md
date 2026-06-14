@@ -33,10 +33,11 @@ just local-dev
 `local-dev` starts docker-compose Postgres, pushes the Drizzle schema, starts a
 Hardhat local chain, deploys `MockCollateral` and `PregradManager`, writes
 matching ignored env blocks for `server/` and `app/`, starts the Bun API,
-starts the indexer, and starts the Next.js app. Open
-`http://127.0.0.1:3000/create`, create a market, then refresh
-`http://127.0.0.1:3000/` to see it from the indexed markets API. Press Ctrl-C
-in the `just local-dev` terminal to stop the API, indexer, app, and local chain.
+starts the indexer, and starts the Next.js app. It uses wallet-signed market
+creation, so connect an injected browser wallet on the Hardhat local chain.
+Open `http://127.0.0.1:3000/create`, create a market, then refresh
+`http://127.0.0.1:3000/` to see it from the indexed markets API. Press Ctrl-C in
+the `just local-dev` terminal to stop the API, indexer, app, and local chain.
 
 ## Common Commands
 
