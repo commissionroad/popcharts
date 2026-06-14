@@ -24,6 +24,15 @@ app-test:
 app-smoke:
     pnpm run app:e2e:smoke
 
+app-chain:
+    pnpm run app:e2e:chain
+
+devchain-deploy:
+    pnpm run devchain:deploy
+
+devchain-e2e:
+    pnpm run devchain:e2e
+
 protocol-build:
     pnpm run protocol:build
 

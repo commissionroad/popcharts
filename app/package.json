@@ -13,6 +13,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:chain": "POPCHARTS_E2E_CHAIN=true playwright test --project=chromium --grep @chain",
     "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

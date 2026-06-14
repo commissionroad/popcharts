@@ -27,6 +27,7 @@ the full command menu.
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
 just app-check      # app format, lint, typecheck, and unit tests
+just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
 just server-check   # server typecheck and Bun unit tests
 just check          # app-check, protocol-check, and server-check
@@ -54,6 +55,18 @@ cd server && bun run db:push
 just server-api
 just server-indexer
 ```
+
+## Devchain Integration
+
+Run a full local app/protocol smoke test with:
+
+```bash
+pnpm run devchain:e2e
+```
+
+That command starts a local Hardhat chain, deploys the protocol, writes local
+app env values, and runs the Playwright `@chain` smoke. See
+[`docs/devchain.md`](docs/devchain.md) for Tenderly and Vercel Preview setup.
 
 ## Engineering Skills
 

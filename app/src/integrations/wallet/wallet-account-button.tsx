@@ -70,7 +70,7 @@ export function WalletAccountButton() {
       <div className="relative" ref={menuRef}>
         <button
           aria-expanded={showConfigWarning}
-          className="focus-ring inline-flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3.5 py-2 font-mono text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[rgb(255_176_32/18%)] max-[420px]:px-3 max-[420px]:text-[12px]"
+          className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3.5 py-2 font-mono text-[13px] whitespace-nowrap text-[var(--text-primary)] transition-colors hover:bg-[rgb(255_176_32/18%)] max-[420px]:px-3 max-[420px]:text-[12px]"
           onClick={() => setShowConfigWarning((current) => !current)}
           title="Wallet login is not configured for this deployment."
           type="button"
@@ -83,8 +83,8 @@ export function WalletAccountButton() {
             <div className="flex gap-2 text-[11px] leading-5 text-[var(--status-graduating)]">
               <AlertTriangle className="mt-1 shrink-0" size={14} />
               <span>
-                Sign-in is not configured for this deployment. Add the Privy
-                public app ID in Vercel to enable email, Google, and wallet login.
+                Sign-in is not configured for this deployment. Add the Privy public app
+                ID in Vercel to enable email, Google, and wallet login.
               </span>
             </div>
           </div>
@@ -96,7 +96,7 @@ export function WalletAccountButton() {
   if (!wallet.ready) {
     return (
       <button
-        className="focus-ring inline-flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-transparent px-3.5 py-2 font-mono text-[13px] text-[var(--text-secondary)] max-[420px]:px-3 max-[420px]:text-[12px]"
+        className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-transparent px-3.5 py-2 font-mono text-[13px] whitespace-nowrap text-[var(--text-secondary)] max-[420px]:px-3 max-[420px]:text-[12px]"
         disabled
         type="button"
       >
@@ -109,7 +109,7 @@ export function WalletAccountButton() {
   if (!wallet.authenticated) {
     return (
       <button
-        className="focus-ring inline-flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--pc-cyan)] bg-[var(--pc-cyan-wash)] px-3.5 py-2 font-mono text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[rgb(31_224_255/18%)] max-[420px]:px-3 max-[420px]:text-[12px]"
+        className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--pc-cyan)] bg-[var(--pc-cyan-wash)] px-3.5 py-2 font-mono text-[13px] whitespace-nowrap text-[var(--text-primary)] transition-colors hover:bg-[rgb(31_224_255/18%)] max-[420px]:px-3 max-[420px]:text-[12px]"
         onClick={wallet.login}
         type="button"
       >
@@ -120,7 +120,7 @@ export function WalletAccountButton() {
   }
 
   const chainLabel = wallet.isSupportedChain
-    ? wallet.activeChainName ?? wallet.defaultChain.name
+    ? (wallet.activeChainName ?? wallet.defaultChain.name)
     : "Wrong network";
 
   return (
@@ -129,7 +129,7 @@ export function WalletAccountButton() {
         aria-expanded={open}
         aria-haspopup="menu"
         className={cn(
-          "focus-ring inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] border bg-transparent px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] transition-colors max-[420px]:gap-1.5 max-[420px]:px-2.5 max-[420px]:text-[12px]",
+          "focus-ring inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-md)] border bg-transparent px-3 py-2 font-mono text-[13px] whitespace-nowrap text-[var(--text-primary)] transition-colors max-[420px]:gap-1.5 max-[420px]:px-2.5 max-[420px]:text-[12px]",
           wallet.isSupportedChain
             ? "border-[var(--border-strong)] hover:border-[var(--pc-cyan)]"
             : "border-[var(--status-graduating)] text-[var(--status-graduating)]"
@@ -154,9 +154,7 @@ export function WalletAccountButton() {
       </button>
 
       {open ? (
-        <div
-          className="absolute right-0 z-50 mt-3 w-[min(92vw,360px)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-card)] shadow-[var(--shadow-tile)]"
-        >
+        <div className="absolute right-0 z-50 mt-3 w-[min(92vw,360px)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-card)] shadow-[var(--shadow-tile)]">
           <div className="border-b border-[var(--border-soft)] p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -252,8 +250,8 @@ export function WalletAccountButton() {
                 })
               ) : (
                 <p className="text-[12px] leading-5 text-[var(--text-muted)]">
-                  Your account is signed in. Create or link an EVM wallet before
-                  placing receipts.
+                  Your account is signed in. Create or link an EVM wallet before placing
+                  receipts.
                 </p>
               )}
             </div>

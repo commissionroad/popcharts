@@ -7,15 +7,33 @@ import {
   optimism as privyOptimism,
   polygon as privyPolygon,
 } from "@privy-io/chains";
-import type { Chain } from "viem";
+import { type Chain, defineChain } from "viem";
+import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from "viem/chains";
+
 import {
-  arbitrum,
-  base,
-  baseSepolia,
-  mainnet,
-  optimism,
-  polygon,
-} from "viem/chains";
+  configuredPopChartsChainId,
+  configuredPopChartsRpcUrl,
+} from "@/integrations/contracts/config";
+
+const localChainId = configuredPopChartsChainId ?? 31337;
+const localRpcUrl = configuredPopChartsRpcUrl ?? "http://127.0.0.1:8545";
+const localHardhatChain = defineChain({
+  id: localChainId,
+  name: localChainId === 31337 ? "Hardhat Local" : `Local Devchain ${localChainId}`,
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [localRpcUrl],
+    },
+  },
+});
+const localHardhatPrivyChain = localHardhatChain as PrivyChain;
+const localChainEnabled =
+  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN === "true";
 
 const productionWagmiChains = [base, mainnet, arbitrum, optimism, polygon] as const;
 const testnetWagmiChains = [
@@ -42,18 +60,21 @@ const testnetPrivyChains = [
   privyPolygon,
 ] as const;
 
-export const defaultEvmChain = base;
-export const defaultPrivyChain = privyBase;
+export const defaultEvmChain = localChainEnabled ? localHardhatChain : base;
+export const defaultPrivyChain = localChainEnabled ? localHardhatPrivyChain : privyBase;
 
-export const supportedWagmiChains: readonly [Chain, ...Chain[]] =
-  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
+export const supportedWagmiChains: readonly [Chain, ...Chain[]] = localChainEnabled
+  ? [localHardhatChain, ...testnetWagmiChains]
+  : process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
     ? testnetWagmiChains
     : productionWagmiChains;
 
 export const supportedPrivyChains: readonly [PrivyChain, ...PrivyChain[]] =
-  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
-    ? testnetPrivyChains
-    : productionPrivyChains;
+  localChainEnabled
+    ? [localHardhatPrivyChain, ...testnetPrivyChains]
+    : process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
+      ? testnetPrivyChains
+      : productionPrivyChains;
 
 export type WalletChainSummary = {
   id: number;
@@ -65,6 +86,12 @@ export const supportedWalletChains: readonly WalletChainSummary[] =
     id: chain.id,
     name: chain.name,
   }));
+
+export function getWalletRpcUrlForChain(chainId: number) {
+  return chainId === configuredPopChartsChainId
+    ? (configuredPopChartsRpcUrl ?? undefined)
+    : undefined;
+}
 
 export function findSupportedEvmChain(chainId: number | null | undefined) {
   if (!chainId) {

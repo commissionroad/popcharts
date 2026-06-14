@@ -158,9 +158,7 @@ function PrivyWalletAccountProvider({ children }: { children: ReactNode }) {
   const { ready: walletsReady, wallets } = useWallets();
   const account = useAccount();
   const { setActiveWallet } = useSetActiveWallet();
-  const [pendingAction, setPendingAction] = useState<WalletPendingAction | null>(
-    null
-  );
+  const [pendingAction, setPendingAction] = useState<WalletPendingAction | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const ready = privyReady && walletsReady;
