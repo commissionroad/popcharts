@@ -7,7 +7,7 @@
     "node": ">=22.10"
   },
   "scripts": {
-    "setup": "pnpm --dir app install --frozen-lockfile && pnpm --dir protocol install --frozen-lockfile --ignore-workspace && bun --cwd server install --frozen-lockfile",
+    "setup": "pnpm --dir app install --frozen-lockfile && pnpm --dir protocol install --frozen-lockfile --ignore-workspace && cd server && bun install --frozen-lockfile",
     "dev": "pnpm --dir app dev",
     "app:dev": "pnpm --dir app dev",
     "app:build": "pnpm --dir app build",
@@ -21,12 +21,12 @@
     "protocol:build": "pnpm --dir protocol build",
     "protocol:check": "pnpm --dir protocol format:check && pnpm --dir protocol lint:sol && pnpm --dir protocol typecheck && pnpm --dir protocol test",
     "protocol:test": "pnpm --dir protocol test",
-    "server:install": "bun --cwd server install",
-    "server:dev": "bun --cwd server run dev",
-    "server:api": "bun --cwd server run dev:api",
-    "server:indexer": "bun --cwd server run dev:indexer",
-    "server:check": "bun --cwd server run typecheck && bun --cwd server test",
-    "test": "pnpm run app:test && pnpm run protocol:test && bun --cwd server test",
+    "server:install": "cd server && bun install",
+    "server:dev": "cd server && bun run dev",
+    "server:api": "cd server && bun run dev:api",
+    "server:indexer": "cd server && bun run dev:indexer",
+    "server:check": "cd server && bun run typecheck && bun test",
+    "test": "pnpm run app:test && pnpm run protocol:test && cd server && bun test",
     "check": "pnpm run app:check && pnpm run protocol:check && pnpm run server:check",
     "format": "pnpm --dir app format && pnpm --dir protocol format",
     "format:check": "pnpm --dir app format:check && pnpm --dir protocol format:check"
