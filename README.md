@@ -38,6 +38,8 @@ creation, so connect an injected browser wallet on the Hardhat local chain.
 Open `http://127.0.0.1:3000/create`, create a market, then refresh
 `http://127.0.0.1:3000/` to see it from the indexed markets API. Press Ctrl-C in
 the `just local-dev` terminal to stop the API, indexer, app, and local chain.
+Run `just local-reset` to remove the local Postgres container and data volumes
+before starting again from an empty database.
 
 ## Common Commands
 
@@ -45,6 +47,7 @@ the `just local-dev` terminal to stop the API, indexer, app, and local chain.
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, and local chain
+just local-reset    # clear the local Postgres container and data volumes
 just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
