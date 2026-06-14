@@ -20,6 +20,10 @@ const RECEIPT_PLACED_EVENT = parseAbiItem(
   "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
 );
 
+type RecoveryOptions = {
+  quiet?: boolean;
+};
+
 export async function processReceiptPlacedEvent(
   client: BlockchainClient,
   log: ReceiptPlacedLog,
@@ -50,6 +54,7 @@ export async function processReceiptPlacedEvent(
 export async function recoverReceiptPlacedEvents(
   client: BlockchainClient,
   currentBlock: bigint,
+  options: RecoveryOptions = {},
 ) {
   const fromBlock = await getRecoveryStartBlock(
     config.contracts.pregradManager,
@@ -58,13 +63,17 @@ export async function recoverReceiptPlacedEvents(
   );
 
   if (fromBlock >= currentBlock) {
-    console.log("[ReceiptPlaced] No blocks to recover");
+    if (!options.quiet) {
+      console.log("[ReceiptPlaced] No blocks to recover");
+    }
     return;
   }
 
-  console.log(
-    `[ReceiptPlaced] Recovering events from block ${fromBlock} to ${currentBlock}`,
-  );
+  if (!options.quiet) {
+    console.log(
+      `[ReceiptPlaced] Recovering events from block ${fromBlock} to ${currentBlock}`,
+    );
+  }
 
   const logs = await client.getLogs({
     address: config.contracts.pregradManager,
@@ -72,6 +81,18 @@ export async function recoverReceiptPlacedEvents(
     fromBlock,
     toBlock: currentBlock,
   });
+
+  if (logs.length === 0) {
+    if (!options.quiet) {
+      console.log("[ReceiptPlaced] Found 0 historical events");
+    }
+    await updateLastProcessedBlock(
+      config.contracts.pregradManager,
+      CURSOR_NAME,
+      currentBlock,
+    );
+    return;
+  }
 
   console.log(`[ReceiptPlaced] Found ${logs.length} historical events`);
 

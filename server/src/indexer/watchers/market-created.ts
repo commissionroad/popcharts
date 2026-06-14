@@ -20,6 +20,10 @@ const MARKET_CREATED_EVENT = parseAbiItem(
   "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationTime, uint64 resolutionTime)",
 );
 
+type RecoveryOptions = {
+  quiet?: boolean;
+};
+
 export async function processMarketCreatedEvent(
   client: BlockchainClient,
   log: MarketCreatedLog,
@@ -79,6 +83,7 @@ export async function processMarketCreatedEvent(
 export async function recoverMarketCreatedEvents(
   client: BlockchainClient,
   currentBlock: bigint,
+  options: RecoveryOptions = {},
 ) {
   const fromBlock = await getRecoveryStartBlock(
     config.contracts.pregradManager,
@@ -87,13 +92,17 @@ export async function recoverMarketCreatedEvents(
   );
 
   if (fromBlock >= currentBlock) {
-    console.log("[MarketCreated] No blocks to recover");
+    if (!options.quiet) {
+      console.log("[MarketCreated] No blocks to recover");
+    }
     return;
   }
 
-  console.log(
-    `[MarketCreated] Recovering events from block ${fromBlock} to ${currentBlock}`,
-  );
+  if (!options.quiet) {
+    console.log(
+      `[MarketCreated] Recovering events from block ${fromBlock} to ${currentBlock}`,
+    );
+  }
 
   const logs = await client.getLogs({
     address: config.contracts.pregradManager,
@@ -101,6 +110,18 @@ export async function recoverMarketCreatedEvents(
     fromBlock,
     toBlock: currentBlock,
   });
+
+  if (logs.length === 0) {
+    if (!options.quiet) {
+      console.log("[MarketCreated] Found 0 historical events");
+    }
+    await updateLastProcessedBlock(
+      config.contracts.pregradManager,
+      CURSOR_NAME,
+      currentBlock,
+    );
+    return;
+  }
 
   console.log(`[MarketCreated] Found ${logs.length} historical events`);
 

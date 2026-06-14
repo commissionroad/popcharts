@@ -20,6 +20,7 @@ const apiMarket: ApiMarket = {
   graduationTime: "2026-06-20T12:00:00.000Z",
   liquidityParameter: "5000000000000000000000",
   marketId: "7",
+  matchedMarketCap: "0",
   metadataHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   noShares: "0",
   openingProbabilityWad: "500000000000000000",

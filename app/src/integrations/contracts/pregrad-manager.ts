@@ -1,6 +1,41 @@
 export const pregradManagerAbi = [
   {
     inputs: [
+      { name: "cost", type: "uint256" },
+      { name: "maxCost", type: "uint256" },
+    ],
+    name: "CostExceedsLimit",
+    type: "error",
+  },
+  {
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "actual", type: "uint8" },
+      { name: "expected", type: "uint8" },
+    ],
+    name: "InvalidMarketStatus",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidShares",
+    type: "error",
+  },
+  {
+    inputs: [{ name: "marketId", type: "uint256" }],
+    name: "MarketDoesNotExist",
+    type: "error",
+  },
+  {
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "graduationDeadline", type: "uint64" },
+    ],
+    name: "MarketPastGraduationDeadline",
+    type: "error",
+  },
+  {
+    inputs: [
       {
         components: [
           { name: "collateral", type: "address" },
@@ -36,6 +71,13 @@ export const pregradManagerAbi = [
     name: "placeReceipt",
     outputs: [{ name: "receiptId", type: "uint256" }],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "marketId", type: "uint256" }],
+    name: "marketExists",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
     type: "function",
   },
   {
