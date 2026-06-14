@@ -17,10 +17,12 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
   const yesPriceCents = wadToCents(apiMarket.openingProbabilityWad);
   const noPriceCents = 100 - yesPriceCents;
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
+  const metadata = apiMarket.metadata;
 
   return {
     b: wadToNumber(apiMarket.liquidityParameter),
     category: categoryForApiMarket(apiMarket),
+    chainId: apiMarket.chainId,
     closesAt: apiMarket.resolutionTime,
     description: marketDescription(apiMarket),
     graduationTargetUsd: wadToNumber(apiMarket.graduationThreshold),
@@ -29,7 +31,7 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     noPriceCents,
     openingProbability: yesPriceCents,
     pricePath: buildPricePath(yesPriceCents),
-    question: `Market #${apiMarket.marketId}`,
+    question: metadata?.question?.trim() || `Market #${apiMarket.marketId}`,
     receiptCount: bigintStringToNumber(apiMarket.receiptCount),
     status: apiMarket.status satisfies MarketStatus,
     volumeUsd: totalEscrowed,
@@ -45,7 +47,8 @@ export function apiMarketAppId({
 }
 
 export function parseApiMarketAppId(id: string) {
-  const [chainIdValue, marketId, ...rest] = id.split(":");
+  const decodedId = decodePathSegment(id);
+  const [chainIdValue, marketId, ...rest] = decodedId.split(":");
   const chainId = Number.parseInt(chainIdValue ?? "", 10);
 
   if (!chainIdValue || !marketId || rest.length > 0 || Number.isNaN(chainId)) {
@@ -56,6 +59,12 @@ export function parseApiMarketAppId(id: string) {
 }
 
 function marketDescription(apiMarket: ApiMarket) {
+  const metadataDescription = apiMarket.metadata?.description?.trim();
+
+  if (metadataDescription) {
+    return metadataDescription;
+  }
+
   return [
     `Market created by ${shortAddress(apiMarket.creator)}.`,
     `Metadata hash ${shortHash(apiMarket.metadataHash)}.`,
@@ -63,12 +72,30 @@ function marketDescription(apiMarket: ApiMarket) {
 }
 
 function categoryForApiMarket(apiMarket: ApiMarket): MarketCategory {
+  const metadataCategory = apiMarket.metadata?.category;
+
+  if (isMarketCategory(metadataCategory)) {
+    return metadataCategory;
+  }
+
   const numericMarketId = Number.parseInt(apiMarket.marketId, 10);
   const index = Number.isNaN(numericMarketId)
     ? apiMarket.chainId
     : numericMarketId + apiMarket.chainId;
 
   return generatedCategories[index % generatedCategories.length] ?? "Econ";
+}
+
+function decodePathSegment(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function isMarketCategory(value: string | undefined): value is MarketCategory {
+  return Boolean(value && generatedCategories.includes(value as MarketCategory));
 }
 
 function buildPricePath(priceCents: number) {

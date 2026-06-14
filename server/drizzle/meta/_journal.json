@@ -15,6 +15,13 @@
       "when": 1781397642374,
       "tag": "0001_cooing_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781404403014,
+      "tag": "0002_free_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

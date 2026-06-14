@@ -5,7 +5,22 @@ import {
 } from "./generated/markets/markets";
 import type { GetMarketsParams, Market, MarketCreatedEvent } from "./generated/models";
 
-export type ApiMarket = Market;
+export type ApiMarketMetadata = {
+  category: string;
+  chainId: number;
+  createdAt: string;
+  description: string;
+  metadataCreatedAt: string;
+  metadataHash: string;
+  question: string;
+  resolutionCriteria: string;
+  resolutionUrl?: string;
+  updatedAt: string;
+};
+
+export type ApiMarket = Market & {
+  metadata?: ApiMarketMetadata;
+};
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ListMarketsParams = GetMarketsParams;
 
