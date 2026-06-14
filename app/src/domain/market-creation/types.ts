@@ -53,9 +53,11 @@ export type CreateMarketPreview = {
 };
 
 export type CreatedMarket = CreateMarketPreview & {
+  chainId?: number;
   creationMode: "devchain" | "mock";
   creationSigner?: "server" | "wallet";
   creator?: `0x${string}`;
   marketId: string;
+  metadataSyncError?: string;
   transactionHash?: `0x${string}`;
 };

@@ -859,6 +859,10 @@ function SuccessPanel({
 }) {
   const onChain = result.creationMode === "devchain";
   const walletSigned = result.creationSigner === "wallet";
+  const marketHref =
+    onChain && result.chainId
+      ? `/markets/${encodeURIComponent(`${result.chainId}:${result.marketId}`)}`
+      : undefined;
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-6">
@@ -903,6 +907,13 @@ function SuccessPanel({
         />
       </div>
 
+      {result.metadataSyncError ? (
+        <p className="rounded-[var(--radius-sm)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3 py-2 text-sm text-[var(--status-graduating)]">
+          Market was created, but its question did not sync to the API:{" "}
+          {result.metadataSyncError}
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           className="flex-1"
@@ -913,9 +924,15 @@ function SuccessPanel({
         >
           Create another
         </Button>
-        <Button className="flex-1" disabled size="lg" variant="ghost">
-          View mock market
-        </Button>
+        {marketHref ? (
+          <Button className="flex-1" href={marketHref} size="lg" variant="ghost">
+            View market
+          </Button>
+        ) : (
+          <Button className="flex-1" disabled size="lg" variant="ghost">
+            View market
+          </Button>
+        )}
       </div>
     </div>
   );

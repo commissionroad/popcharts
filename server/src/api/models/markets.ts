@@ -18,6 +18,31 @@ export const MarketStatusSchema = t.Union([
   t.Literal("cancelled"),
 ]);
 
+export const MarketMetadataSchema = t.Object({
+  category: t.String(),
+  chainId: t.Number(),
+  createdAt: t.String(),
+  description: t.String(),
+  metadataCreatedAt: t.String(),
+  metadataHash: t.String(),
+  question: t.String(),
+  resolutionCriteria: t.String(),
+  resolutionUrl: t.Optional(t.String()),
+  updatedAt: t.String(),
+});
+
+export const MarketMetadataWriteSchema = t.Object({
+  category: t.String({ minLength: 1 }),
+  createdAt: t.String({ minLength: 1 }),
+  description: t.String(),
+  metadataHash: t.String({
+    pattern: "^0x[0-9a-fA-F]{64}$",
+  }),
+  question: t.String({ minLength: 1 }),
+  resolutionCriteria: t.String({ minLength: 1 }),
+  resolutionUrl: t.Optional(t.String()),
+});
+
 export const MarketSchema = t.Object({
   chainId: t.Number(),
   collateral: t.String(),
@@ -31,6 +56,7 @@ export const MarketSchema = t.Object({
   graduationTime: t.String(),
   liquidityParameter: t.String(),
   marketId: t.String(),
+  metadata: t.Optional(MarketMetadataSchema),
   metadataHash: t.String(),
   noShares: t.String(),
   openingProbabilityWad: t.String(),
@@ -67,6 +93,8 @@ export const GraduationRequestStubSchema = t.Object({
 });
 
 export type MarketResponse = Static<typeof MarketSchema>;
+export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
+export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
   typeof MarketCreatedEventSchema
 >;

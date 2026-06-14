@@ -75,14 +75,15 @@ export async function createMarket(
   };
 
   if (marketCreationSigner === "wallet") {
-    return createWalletSignedMarket(chainPreview, options.wallet);
+    return createWalletSignedMarket(chainPreview, config.chainId, options.wallet);
   }
 
-  return createServerSignedMarket(chainPreview);
+  return createServerSignedMarket(chainPreview, config.chainId);
 }
 
 async function createServerSignedMarket(
-  preview: ReturnType<typeof buildCreateMarketPreview>
+  preview: ReturnType<typeof buildCreateMarketPreview>,
+  chainId: number
 ): Promise<CreatedMarket> {
   const response = await fetch("/api/devchain/markets", {
     body: JSON.stringify({
@@ -104,17 +105,26 @@ async function createServerSignedMarket(
     throw new Error(body.error ?? "The devchain creation service failed.");
   }
 
+  const metadataSyncError = await persistMarketMetadata({
+    chainId,
+    metadata: preview.metadata,
+    metadataHash: preview.metadataHash,
+  });
+
   return {
     ...preview,
+    chainId,
     creationMode: "devchain",
     creationSigner: "server",
     marketId: body.marketId,
+    ...(metadataSyncError ? { metadataSyncError } : {}),
     transactionHash: body.transactionHash,
   };
 }
 
 async function createWalletSignedMarket(
   preview: ReturnType<typeof buildCreateMarketPreview>,
+  chainId: number,
   wallet: CreateMarketWallet | undefined
 ): Promise<CreatedMarket> {
   const config = getPopChartsContractConfig();
@@ -151,12 +161,58 @@ async function createWalletSignedMarket(
     throw new Error("Transaction succeeded but MarketCreated was not emitted.");
   }
 
+  const metadataSyncError = await persistMarketMetadata({
+    chainId,
+    metadata: preview.metadata,
+    metadataHash: preview.metadataHash,
+  });
+
   return {
     ...preview,
+    chainId,
     creationMode: "devchain",
     creationSigner: "wallet",
     creator: marketCreated.args.creator,
     marketId: marketCreated.args.marketId.toString(),
+    ...(metadataSyncError ? { metadataSyncError } : {}),
     transactionHash: hash,
   };
+}
+
+async function persistMarketMetadata({
+  chainId,
+  metadata,
+  metadataHash,
+}: {
+  chainId: number;
+  metadata: ReturnType<typeof buildCreateMarketPreview>["metadata"];
+  metadataHash: `0x${string}`;
+}) {
+  try {
+    const response = await fetch("/api/indexer/market-metadata", {
+      body: JSON.stringify({
+        chainId,
+        metadata,
+        metadataHash,
+      }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+
+    if (response.ok) {
+      return undefined;
+    }
+
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    return body?.error ?? "Market metadata could not be saved to the API.";
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : "Market metadata could not be saved to the API.";
+  }
 }

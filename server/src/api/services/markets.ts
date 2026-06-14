@@ -1,5 +1,7 @@
 import type {
   MarketCreatedEventResponse,
+  MarketMetadataResponse,
+  MarketMetadataWrite,
   MarketResponse,
 } from "src/api/models/markets";
 import { db } from "src/db/client";
@@ -27,18 +29,28 @@ export async function getMarkets({
   const rows =
     conditions.length === 0
       ? await db
-          .select()
+          .select({
+            market: schema.markets,
+            metadata: schema.marketMetadata,
+          })
           .from(schema.markets)
+          .leftJoin(schema.marketMetadata, marketMetadataJoinCondition())
           .orderBy(desc(schema.markets.createdBlockTimestamp))
           .limit(MARKET_LIST_LIMIT)
       : await db
-          .select()
+          .select({
+            market: schema.markets,
+            metadata: schema.marketMetadata,
+          })
           .from(schema.markets)
+          .leftJoin(schema.marketMetadata, marketMetadataJoinCondition())
           .where(and(...conditions))
           .orderBy(desc(schema.markets.createdBlockTimestamp))
           .limit(MARKET_LIST_LIMIT);
 
-  return rows.map(serializeMarketRow);
+  return rows.map(({ market, metadata }) =>
+    serializeMarketRow(market, metadata),
+  );
 }
 
 export async function getMarketById(
@@ -54,8 +66,12 @@ export async function getMarketById(
   }
 
   const rows = await db
-    .select()
+    .select({
+      market: schema.markets,
+      metadata: schema.marketMetadata,
+    })
     .from(schema.markets)
+    .leftJoin(schema.marketMetadata, marketMetadataJoinCondition())
     .where(
       and(
         eq(schema.markets.chainId, chainId),
@@ -64,7 +80,41 @@ export async function getMarketById(
     )
     .limit(1);
 
-  return rows[0] ? serializeMarketRow(rows[0]) : null;
+  return rows[0] ? serializeMarketRow(rows[0].market, rows[0].metadata) : null;
+}
+
+export async function upsertMarketMetadata(
+  chainId: number,
+  metadata: MarketMetadataWrite,
+): Promise<MarketMetadataResponse | null> {
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    return null;
+  }
+
+  const values = {
+    category: metadata.category,
+    chainId,
+    description: metadata.description,
+    metadataCreatedAt: metadata.createdAt,
+    metadataHash: metadata.metadataHash,
+    question: metadata.question,
+    resolutionCriteria: metadata.resolutionCriteria,
+    resolutionUrl: metadata.resolutionUrl ?? null,
+    updatedAt: new Date(),
+  };
+  const rows = await db
+    .insert(schema.marketMetadata)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [
+        schema.marketMetadata.chainId,
+        schema.marketMetadata.metadataHash,
+      ],
+      set: values,
+    })
+    .returning();
+
+  return rows[0] ? serializeMarketMetadataRow(rows[0]) : null;
 }
 
 export async function getMarketCreatedEvents(
@@ -112,6 +162,7 @@ export async function getMarketCreatedEvents(
 
 function serializeMarketRow(
   market: typeof schema.markets.$inferSelect,
+  metadata?: typeof schema.marketMetadata.$inferSelect | null,
 ): MarketResponse {
   return {
     chainId: market.chainId,
@@ -126,6 +177,7 @@ function serializeMarketRow(
     graduationTime: market.graduationTime.toISOString(),
     liquidityParameter: market.liquidityParameter.toString(),
     marketId: market.marketId.toString(),
+    ...(metadata ? { metadata: serializeMarketMetadataRow(metadata) } : {}),
     metadataHash: market.metadataHash,
     noShares: market.noShares.toString(),
     openingProbabilityWad: market.openingProbabilityWad.toString(),
@@ -136,6 +188,32 @@ function serializeMarketRow(
     updatedAt: market.updatedAt.toISOString(),
     yesShares: market.yesShares.toString(),
   };
+}
+
+function serializeMarketMetadataRow(
+  metadata: typeof schema.marketMetadata.$inferSelect,
+): MarketMetadataResponse {
+  return {
+    category: metadata.category,
+    chainId: metadata.chainId,
+    createdAt: metadata.createdAt.toISOString(),
+    description: metadata.description,
+    metadataCreatedAt: metadata.metadataCreatedAt,
+    metadataHash: metadata.metadataHash,
+    question: metadata.question,
+    resolutionCriteria: metadata.resolutionCriteria,
+    ...(metadata.resolutionUrl
+      ? { resolutionUrl: metadata.resolutionUrl }
+      : {}),
+    updatedAt: metadata.updatedAt.toISOString(),
+  };
+}
+
+function marketMetadataJoinCondition() {
+  return and(
+    eq(schema.marketMetadata.chainId, schema.markets.chainId),
+    eq(schema.marketMetadata.metadataHash, schema.markets.metadataHash),
+  );
 }
 
 export function parseSinceTimestamp(value?: string) {

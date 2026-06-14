@@ -19,6 +19,7 @@ export type MarketSide = "yes" | "no";
 export type Market = {
   b: number;
   category: MarketCategory;
+  chainId?: number;
   closesAt: string;
   description: string;
   graduationTargetUsd: number;

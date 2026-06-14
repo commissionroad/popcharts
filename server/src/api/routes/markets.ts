@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia";
 
 import {
   GraduationRequestStubSchema,
+  MarketMetadataSchema,
+  MarketMetadataWriteSchema,
   MarketCreatedEventSchema,
   MarketSchema,
 } from "src/api/models/markets";
@@ -9,6 +11,7 @@ import {
   getMarketById,
   getMarketCreatedEvents,
   getMarkets,
+  upsertMarketMetadata,
 } from "src/api/services/markets";
 
 export const marketRoutes = new Elysia({ prefix: "" })
@@ -16,6 +19,8 @@ export const marketRoutes = new Elysia({ prefix: "" })
     GraduationRequestStub: GraduationRequestStubSchema,
     Market: MarketSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
+    MarketMetadata: MarketMetadataSchema,
+    MarketMetadataWrite: MarketMetadataWriteSchema,
   })
   .get(
     "/markets",
@@ -45,6 +50,38 @@ export const marketRoutes = new Elysia({ prefix: "" })
         summary: "List indexed markets",
         description:
           "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .post(
+    "/markets/:chainId/metadata",
+    async ({ body, params, set }) => {
+      const metadata = await upsertMarketMetadata(
+        Number.parseInt(params.chainId, 10),
+        body,
+      );
+
+      if (!metadata) {
+        set.status = 400;
+        return "Invalid chain id";
+      }
+
+      return metadata;
+    },
+    {
+      body: MarketMetadataWriteSchema,
+      params: t.Object({
+        chainId: t.String(),
+      }),
+      response: {
+        200: MarketMetadataSchema,
+        400: t.String(),
+      },
+      detail: {
+        summary: "Save off-chain market metadata",
+        description:
+          "Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.",
         tags: ["Markets"],
       },
     },

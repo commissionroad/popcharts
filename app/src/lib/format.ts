@@ -1,16 +1,3 @@
-const usdCompact = new Intl.NumberFormat("en-US", {
-  currency: "USD",
-  maximumFractionDigits: 1,
-  notation: "compact",
-  style: "currency",
-});
-
-const usdWhole = new Intl.NumberFormat("en-US", {
-  currency: "USD",
-  maximumFractionDigits: 0,
-  style: "currency",
-});
-
 export function formatAddress(address: string) {
   if (address.length <= 10) {
     return address;
@@ -32,9 +19,25 @@ export function formatPercent(value: number) {
 }
 
 export function formatUsdCompact(value: number) {
-  return usdCompact.format(value);
+  const amount = Math.max(0, value);
+  const units = [
+    { suffix: "B", value: 1_000_000_000 },
+    { suffix: "M", value: 1_000_000 },
+    { suffix: "K", value: 1_000 },
+  ] as const;
+  const unit = units.find((entry) => amount >= entry.value);
+
+  if (!unit) {
+    return `$${Math.round(amount).toLocaleString("en-US")}`;
+  }
+
+  const compact = amount / unit.value;
+  const digits = compact >= 10 ? 0 : 1;
+  const formatted = compact.toFixed(digits).replace(/\.0$/, "");
+
+  return `$${formatted}${unit.suffix}`;
 }
 
 export function formatUsdWhole(value: number) {
-  return usdWhole.format(value);
+  return `$${Math.max(0, Math.round(value)).toLocaleString("en-US")}`;
 }

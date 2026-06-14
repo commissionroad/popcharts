@@ -17,6 +17,7 @@ const categoryColor: Record<MarketCategory, string> = {
 
 export function MarketCard({ market }: { market: Market }) {
   const live = market.status === "bootstrap" || market.status === "graduating";
+  const marketHref = `/markets/${encodeURIComponent(market.id)}`;
 
   return (
     <article className="group flex min-h-[360px] flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6 transition-[border-color,transform] duration-[var(--duration-fast)] hover:-translate-y-1 hover:border-[var(--border-strong)]">
@@ -34,20 +35,20 @@ export function MarketCard({ market }: { market: Market }) {
       </div>
 
       <Link
-        className="font-display min-h-[76px] text-[21px] leading-tight font-bold text-[var(--text-primary)] transition-opacity hover:opacity-75"
-        href={`/markets/${market.id}`}
+        className="font-display [display:-webkit-box] min-h-[76px] overflow-hidden text-[21px] leading-tight font-bold text-[var(--text-primary)] transition-opacity [-webkit-box-orient:vertical] [-webkit-line-clamp:2] hover:opacity-75"
+        href={marketHref}
       >
         {market.question}
       </Link>
 
       <div className="flex gap-2.5">
         <OutcomeButton
-          href={`/markets/${market.id}?side=yes`}
+          href={`${marketHref}?side=yes`}
           priceCents={market.yesPriceCents}
           side="yes"
         />
         <OutcomeButton
-          href={`/markets/${market.id}?side=no`}
+          href={`${marketHref}?side=no`}
           priceCents={market.noPriceCents}
           side="no"
         />
