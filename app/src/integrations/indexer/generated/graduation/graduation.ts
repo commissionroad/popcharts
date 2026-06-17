@@ -5,23 +5,50 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { PostMarketsByChainIdByMarketIdGraduate501 } from ".././models";
+import type {
+  PostMarketsByChainIdByMarketIdGraduate200,
+  PostMarketsByChainIdByMarketIdGraduate409,
+} from ".././models";
 
 /**
- * Stubbed endpoint for the future server-mediated graduation flow.
+ * Marks an eligible market graduated once matched liquidity reaches its threshold. This first pass records the state change and clearing summary off-chain.
  * @summary Request market graduation
  */
-export type postMarketsByChainIdByMarketIdGraduateResponse501 = {
-  data: PostMarketsByChainIdByMarketIdGraduate501;
-  status: 501;
+export type postMarketsByChainIdByMarketIdGraduateResponse200 = {
+  data: PostMarketsByChainIdByMarketIdGraduate200;
+  status: 200;
 };
-export type postMarketsByChainIdByMarketIdGraduateResponseError =
-  postMarketsByChainIdByMarketIdGraduateResponse501 & {
+
+export type postMarketsByChainIdByMarketIdGraduateResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type postMarketsByChainIdByMarketIdGraduateResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type postMarketsByChainIdByMarketIdGraduateResponse409 = {
+  data: PostMarketsByChainIdByMarketIdGraduate409;
+  status: 409;
+};
+
+export type postMarketsByChainIdByMarketIdGraduateResponseSuccess =
+  postMarketsByChainIdByMarketIdGraduateResponse200 & {
     headers: Headers;
   };
+export type postMarketsByChainIdByMarketIdGraduateResponseError = (
+  | postMarketsByChainIdByMarketIdGraduateResponse400
+  | postMarketsByChainIdByMarketIdGraduateResponse404
+  | postMarketsByChainIdByMarketIdGraduateResponse409
+) & {
+  headers: Headers;
+};
 
 export type postMarketsByChainIdByMarketIdGraduateResponse =
-  postMarketsByChainIdByMarketIdGraduateResponseError;
+  | postMarketsByChainIdByMarketIdGraduateResponseSuccess
+  | postMarketsByChainIdByMarketIdGraduateResponseError;
 
 export const getPostMarketsByChainIdByMarketIdGraduateUrl = (
   chainId: string,

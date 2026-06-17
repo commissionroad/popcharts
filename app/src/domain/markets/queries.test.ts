@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ApiMarket, MarketsApiClient } from "@/integrations/indexer/markets-api";
 
 import { markets as fixtureMarkets } from "./fixtures";
-import { getMarketById, getMarkets } from "./queries";
+import { getMarketById, getMarkets, requestMarketGraduation } from "./queries";
 
 const apiMarket: ApiMarket = {
   chainId: 84532,
@@ -148,16 +148,56 @@ describe("market queries", () => {
       marketId: "7",
     });
   });
+
+  it("requests graduation by chain-prefixed app id", async () => {
+    const client = createClient({
+      graduation: {
+        market: { ...apiMarket, matchedMarketCap: apiMarket.graduationThreshold },
+        status: "graduated",
+        summary: {
+          completeSetCount: apiMarket.graduationThreshold,
+          graduatedAt: "2026-06-14T12:00:00.000Z",
+          graduationThreshold: apiMarket.graduationThreshold,
+          matchedMarketCap: apiMarket.graduationThreshold,
+          noTokens: apiMarket.graduationThreshold,
+          receiptCount: "10",
+          refundedCollateral: "0",
+          totalEscrowed: apiMarket.graduationThreshold,
+          yesTokens: apiMarket.graduationThreshold,
+        },
+      },
+    });
+
+    const result = await requestMarketGraduation("84532:7", {
+      client,
+      source: "api",
+    });
+
+    expect(client.graduateMarket).toHaveBeenCalledWith({
+      chainId: 84532,
+      marketId: "7",
+    });
+    expect(result.status).toBe("graduated");
+  });
 });
 
 function createClient({
+  graduation,
   market = null,
   markets = [],
 }: {
+  graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
 } = {}): MarketsApiClient {
   return {
+    graduateMarket: vi.fn(async () => {
+      if (!graduation) {
+        throw new Error("Missing graduation fixture.");
+      }
+
+      return graduation;
+    }),
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
     getMarkets: vi.fn(async () => markets),

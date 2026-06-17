@@ -1,12 +1,14 @@
 import { Elysia, t } from "elysia";
 
 import {
-  GraduationRequestStubSchema,
+  GraduationIneligibleSchema,
+  GraduationResponseSchema,
   MarketMetadataSchema,
   MarketMetadataWriteSchema,
   MarketCreatedEventSchema,
   MarketSchema,
 } from "src/api/models/markets";
+import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
   getMarketCreatedEvents,
@@ -16,7 +18,8 @@ import {
 
 export const marketRoutes = new Elysia({ prefix: "" })
   .model({
-    GraduationRequestStub: GraduationRequestStubSchema,
+    GraduationIneligible: GraduationIneligibleSchema,
+    GraduationResponse: GraduationResponseSchema,
     Market: MarketSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
     MarketMetadata: MarketMetadataSchema,
@@ -139,13 +142,33 @@ export const marketRoutes = new Elysia({ prefix: "" })
   )
   .post(
     "/markets/:chainId/:marketId/graduate",
-    ({ set }) => {
-      set.status = 501;
-      return {
-        message:
-          "Graduation requests are not implemented yet. A future server flow will check eligibility and submit graduation.",
-        status: "not_implemented" as const,
-      };
+    async ({ params, set }) => {
+      const result = await requestMarketGraduation({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (result.kind === "graduated") {
+        return {
+          market: result.market,
+          status: "graduated" as const,
+          summary: result.summary,
+        };
+      }
+
+      if (result.kind === "ineligible") {
+        set.status = 409;
+        return {
+          market: result.market,
+          message: result.message,
+          reason: result.reason,
+          status: "ineligible" as const,
+          summary: result.summary,
+        };
+      }
+
+      set.status = result.kind === "invalid_market_id" ? 400 : 404;
+      return result.message;
     },
     {
       params: t.Object({
@@ -153,12 +176,15 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        501: GraduationRequestStubSchema,
+        200: GraduationResponseSchema,
+        400: t.String(),
+        404: t.String(),
+        409: GraduationIneligibleSchema,
       },
       detail: {
         summary: "Request market graduation",
         description:
-          "Stubbed endpoint for the future server-mediated graduation flow.",
+          "Marks an eligible market graduated once matched liquidity reaches its threshold. This first pass records the state change and clearing summary off-chain.",
         tags: ["Graduation"],
       },
     },

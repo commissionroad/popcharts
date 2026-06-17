@@ -10,6 +10,10 @@ import type {
   GetMarketsByChainIdByMarketId200,
   GetMarketsByChainIdByMarketIdEvents200Item,
   GetMarketsParams,
+  PostMarketsByChainIdMetadata200,
+  PostMarketsByChainIdMetadataBodyOne,
+  PostMarketsByChainIdMetadataBodyThree,
+  PostMarketsByChainIdMetadataBodyTwo,
 } from ".././models";
 
 /**
@@ -62,6 +66,63 @@ export const getMarkets = async (
 
   const data: getMarketsResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as getMarketsResponse;
+};
+
+/**
+ * Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.
+ * @summary Save off-chain market metadata
+ */
+export type postMarketsByChainIdMetadataResponse200 = {
+  data: PostMarketsByChainIdMetadata200;
+  status: 200;
+};
+
+export type postMarketsByChainIdMetadataResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type postMarketsByChainIdMetadataResponseSuccess =
+  postMarketsByChainIdMetadataResponse200 & {
+    headers: Headers;
+  };
+export type postMarketsByChainIdMetadataResponseError =
+  postMarketsByChainIdMetadataResponse400 & {
+    headers: Headers;
+  };
+
+export type postMarketsByChainIdMetadataResponse =
+  | postMarketsByChainIdMetadataResponseSuccess
+  | postMarketsByChainIdMetadataResponseError;
+
+export const getPostMarketsByChainIdMetadataUrl = (chainId: string) => {
+  return `/markets/${chainId}/metadata`;
+};
+
+export const postMarketsByChainIdMetadata = async (
+  chainId: string,
+  postMarketsByChainIdMetadataBody:
+    | PostMarketsByChainIdMetadataBodyOne
+    | PostMarketsByChainIdMetadataBodyTwo
+    | PostMarketsByChainIdMetadataBodyThree,
+  options?: RequestInit
+): Promise<postMarketsByChainIdMetadataResponse> => {
+  const res = await fetch(getPostMarketsByChainIdMetadataUrl(chainId), {
+    ...options,
+    method: "POST",
+    body: JSON.stringify(postMarketsByChainIdMetadataBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: postMarketsByChainIdMetadataResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as postMarketsByChainIdMetadataResponse;
 };
 
 /**

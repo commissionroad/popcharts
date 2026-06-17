@@ -16,8 +16,8 @@ const LOCAL_MARKET_EXISTS_ABI = parseAbi([
   "function marketExists(uint256 marketId) view returns (bool)",
 ]);
 
-type MarketRow = typeof schema.markets.$inferSelect;
-type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
+export type MarketRow = typeof schema.markets.$inferSelect;
+export type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
 type MarketQueryRow = {
   market: MarketRow;
   metadata: MarketMetadataRow | null;
@@ -58,11 +58,7 @@ export async function getMarkets({
   const liveRows = await filterLiveLocalMarketRows(rows);
 
   return liveRows.map(({ market, metadata }) =>
-    serializeMarketRow(
-      market,
-      metadata,
-      calculateMatchedMarketCap(market),
-    ),
+    serializeMarketRow(market, metadata, calculateMatchedMarketCap(market)),
   );
 }
 
@@ -192,7 +188,7 @@ export async function getMarketCreatedEvents(
   }));
 }
 
-function serializeMarketRow(
+export function serializeMarketRow(
   market: MarketRow,
   metadata: MarketMetadataRow | null,
   matchedMarketCap: bigint,

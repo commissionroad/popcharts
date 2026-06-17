@@ -5,10 +5,10 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { GetMarketsByChainIdByMarketId200Metadata } from "./getMarketsByChainIdByMarketId200Metadata";
-import type { GetMarketsByChainIdByMarketId200Status } from "./getMarketsByChainIdByMarketId200Status";
+import type { PostMarketsByChainIdByMarketIdGraduate409MarketMetadata } from "./postMarketsByChainIdByMarketIdGraduate409MarketMetadata";
+import type { PostMarketsByChainIdByMarketIdGraduate409MarketStatus } from "./postMarketsByChainIdByMarketIdGraduate409MarketStatus";
 
-export type GetMarketsByChainIdByMarketId200 = {
+export type PostMarketsByChainIdByMarketIdGraduate409Market = {
   chainId: number;
   collateral: string;
   createdAt: string;
@@ -22,13 +22,13 @@ export type GetMarketsByChainIdByMarketId200 = {
   liquidityParameter: string;
   marketId: string;
   matchedMarketCap: string;
-  metadata?: GetMarketsByChainIdByMarketId200Metadata;
+  metadata?: PostMarketsByChainIdByMarketIdGraduate409MarketMetadata;
   metadataHash: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;
   resolutionTime: string;
-  status: GetMarketsByChainIdByMarketId200Status;
+  status: PostMarketsByChainIdByMarketIdGraduate409MarketStatus;
   totalEscrowed: string;
   updatedAt: string;
   yesShares: string;

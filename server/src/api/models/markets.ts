@@ -18,6 +18,8 @@ export const MarketStatusSchema = t.Union([
   t.Literal("cancelled"),
 ]);
 
+export type GraduationIneligibleReason = "below_threshold" | "wrong_status";
+
 export const MarketMetadataSchema = t.Object({
   category: t.String(),
   chainId: t.Number(),
@@ -88,9 +90,30 @@ export const MarketCreatedEventSchema = t.Object({
   transactionHash: t.String(),
 });
 
-export const GraduationRequestStubSchema = t.Object({
+export const GraduationSummarySchema = t.Object({
+  completeSetCount: t.String(),
+  graduatedAt: t.String(),
+  graduationThreshold: t.String(),
+  matchedMarketCap: t.String(),
+  noTokens: t.String(),
+  receiptCount: t.String(),
+  refundedCollateral: t.String(),
+  totalEscrowed: t.String(),
+  yesTokens: t.String(),
+});
+
+export const GraduationResponseSchema = t.Object({
+  market: MarketSchema,
+  status: t.Literal("graduated"),
+  summary: GraduationSummarySchema,
+});
+
+export const GraduationIneligibleSchema = t.Object({
   message: t.String(),
-  status: t.Literal("not_implemented"),
+  market: MarketSchema,
+  reason: t.Union([t.Literal("below_threshold"), t.Literal("wrong_status")]),
+  status: t.Literal("ineligible"),
+  summary: GraduationSummarySchema,
 });
 
 export type MarketResponse = Static<typeof MarketSchema>;
@@ -99,6 +122,8 @@ export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
   typeof MarketCreatedEventSchema
 >;
-export type GraduationRequestStubResponse = Static<
-  typeof GraduationRequestStubSchema
+export type GraduationSummaryResponse = Static<typeof GraduationSummarySchema>;
+export type GraduationResponse = Static<typeof GraduationResponseSchema>;
+export type GraduationIneligibleResponse = Static<
+  typeof GraduationIneligibleSchema
 >;

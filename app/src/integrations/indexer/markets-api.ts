@@ -23,6 +23,22 @@ export type ApiMarket = Market & {
 };
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ListMarketsParams = GetMarketsParams;
+export type ApiGraduationSummary = {
+  completeSetCount: string;
+  graduatedAt: string;
+  graduationThreshold: string;
+  matchedMarketCap: string;
+  noTokens: string;
+  receiptCount: string;
+  refundedCollateral: string;
+  totalEscrowed: string;
+  yesTokens: string;
+};
+export type ApiGraduationResponse = {
+  market: ApiMarket;
+  status: "graduated";
+  summary: ApiGraduationSummary;
+};
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -35,6 +51,7 @@ export type MarketsApiFetch = (
 ) => Promise<Response>;
 
 export type MarketsApiClient = {
+  graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
@@ -60,6 +77,24 @@ export function createMarketsApiClient({
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
 
   return {
+    async graduateMarket({ chainId, marketId }) {
+      const response = await requestJson<ApiGraduationResponse>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          `/markets/${encodeURIComponent(String(chainId))}/${encodeURIComponent(
+            marketId
+          )}/graduate`
+        ),
+        { method: "POST" }
+      );
+
+      if (!response) {
+        throw new MarketsApiError("Market not found.", 404);
+      }
+
+      return response;
+    },
     getMarket({ chainId, marketId }) {
       return requestJson<ApiMarket>(
         fetcher,
@@ -97,8 +132,13 @@ export function createMarketsApiClient({
   };
 }
 
-async function requestJson<T>(fetcher: MarketsApiFetch, url: URL): Promise<T | null> {
+async function requestJson<T>(
+  fetcher: MarketsApiFetch,
+  url: URL,
+  init: RequestInit = {}
+): Promise<T | null> {
   const response = await fetcher(url, {
+    ...init,
     cache: "no-store",
     headers: { accept: "application/json" },
   });
@@ -110,7 +150,10 @@ async function requestJson<T>(fetcher: MarketsApiFetch, url: URL): Promise<T | n
   if (!response.ok) {
     const body = await response.text();
     throw new MarketsApiError(
-      `Markets API request failed (${response.status}): ${body || response.statusText}`,
+      `Markets API request failed (${response.status}): ${errorMessage(
+        body,
+        response.statusText
+      )}`,
       response.status
     );
   }
@@ -124,4 +167,22 @@ function normalizeBaseUrl(baseUrl: string) {
 
 function buildUrl(baseUrl: URL, path: string) {
   return new URL(path, baseUrl);
+}
+
+function errorMessage(body: string, statusText: string) {
+  if (!body) {
+    return statusText;
+  }
+
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+
+    if (typeof parsed.message === "string" && parsed.message.length > 0) {
+      return parsed.message;
+    }
+  } catch {
+    return body;
+  }
+
+  return body;
 }

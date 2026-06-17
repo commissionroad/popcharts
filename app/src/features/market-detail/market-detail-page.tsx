@@ -1,4 +1,4 @@
-import { ArrowLeft, Coins, ReceiptText, TrendingUp } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Coins, ReceiptText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 import { PriceCurve } from "@/components/charts/price-curve";
@@ -9,7 +9,15 @@ import type { Market } from "@/domain/markets/types";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
+import { GraduateMarketButton } from "./graduate-market-button";
+
 export function MarketDetailPage({ market }: { market: Market }) {
+  const canRequestGraduation =
+    market.status === "bootstrap" &&
+    market.graduationTargetUsd > 0 &&
+    market.matchedUsd >= market.graduationTargetUsd &&
+    isApiBackedMarket(market);
+
   return (
     <div>
       <Link
@@ -80,6 +88,12 @@ export function MarketDetailPage({ market }: { market: Market }) {
                 <TrendingUp size={16} />
               </Link>
             ) : null}
+            {market.status === "graduated" ? (
+              <GraduatedMarketSummary market={market} />
+            ) : null}
+            {canRequestGraduation ? (
+              <GraduateMarketButton marketId={market.id} />
+            ) : null}
           </div>
         </section>
 
@@ -103,6 +117,30 @@ export function MarketDetailPage({ market }: { market: Market }) {
   );
 }
 
+function GraduatedMarketSummary({ market }: { market: Market }) {
+  const tokensCreated = Math.round(market.matchedUsd).toLocaleString("en-US");
+  const refundedUsd = Math.max(market.volumeUsd - market.matchedUsd, 0);
+
+  return (
+    <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-4">
+      <div className="mb-4 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--status-graduated)] uppercase">
+        <BadgeCheck size={16} />
+        Trading closed
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SmallMetric label="YES tokens" value={tokensCreated} />
+        <SmallMetric label="NO tokens" value={tokensCreated} />
+        <SmallMetric label="Unmatched refunds" value={formatUsdCompact(refundedUsd)} />
+      </div>
+      <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
+        Matched liquidity created equal YES and NO claim tokens. The remaining
+        pre-graduation collateral is marked for refund while post-graduation handoff is
+        prepared.
+      </p>
+    </div>
+  );
+}
+
 function SmallMetric({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -112,4 +150,8 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
       <div className="font-display tabular mt-1 text-xl font-black">{value}</div>
     </div>
   );
+}
+
+function isApiBackedMarket(market: Market) {
+  return market.chainId !== undefined && market.id.includes(":");
 }
