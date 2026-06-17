@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI PR Verification"
+  short_description: "Local UI checks and PR screenshots"
+  default_prompt: "Use $ui-pr-verification to verify this UI change locally and add a screenshot to the PR."
