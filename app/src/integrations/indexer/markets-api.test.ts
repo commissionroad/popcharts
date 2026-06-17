@@ -75,6 +75,66 @@ describe("createMarketsApiClient", () => {
     );
   });
 
+  it("requests graduation for an API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        market: { ...apiMarket, matchedMarketCap: apiMarket.graduationThreshold },
+        status: "graduated",
+        summary: {
+          completeSetCount: apiMarket.graduationThreshold,
+          graduatedAt: "2026-06-14T12:00:00.000Z",
+          graduationThreshold: apiMarket.graduationThreshold,
+          matchedMarketCap: apiMarket.graduationThreshold,
+          noTokens: apiMarket.graduationThreshold,
+          receiptCount: "10",
+          refundedCollateral: "0",
+          totalEscrowed: apiMarket.graduationThreshold,
+          yesTokens: apiMarket.graduationThreshold,
+        },
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001/",
+      fetcher,
+    });
+
+    const result = await client.graduateMarket({
+      chainId: 84532,
+      marketId: "7",
+    });
+
+    const [input, init] = firstFetchCall(fetcher);
+
+    expect(result.status).toBe("graduated");
+    expect(init?.method).toBe("POST");
+    expect(String(input)).toBe("http://localhost:3001/markets/84532/7/graduate");
+  });
+
+  it("surfaces graduation ineligibility messages", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            message: "Matched liquidity is below this market's graduation threshold.",
+            status: "ineligible",
+          }),
+          { headers: { "content-type": "application/json" }, status: 409 }
+        )
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.graduateMarket({ chainId: 84532, marketId: "7" })
+    ).rejects.toMatchObject({
+      message:
+        "Markets API request failed (409): Matched liquidity is below this market's graduation threshold.",
+      status: 409,
+    });
+  });
+
   it("returns null for a missing API market", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () => new Response("Market not found", { status: 404 })

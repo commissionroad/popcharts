@@ -5,6 +5,7 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
+import type { MarketMetadataProperty } from "./marketMetadataProperty";
 import type { MarketStatus } from "./marketStatus";
 
 export interface Market {
@@ -21,6 +22,7 @@ export interface Market {
   liquidityParameter: string;
   marketId: string;
   matchedMarketCap: string;
+  metadata?: MarketMetadataProperty;
   metadataHash: string;
   noShares: string;
   openingProbabilityWad: string;

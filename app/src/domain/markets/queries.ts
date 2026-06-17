@@ -66,6 +66,25 @@ export async function getMarkets(options: MarketQueryOptions = {}) {
   return apiMarkets.map(apiMarketToMarket);
 }
 
+export async function requestMarketGraduation(
+  id: string,
+  options: MarketQueryOptions = {}
+) {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    throw new Error("Market graduation requires API-backed market data.");
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    throw new Error("Market graduation requires a chain-prefixed market id.");
+  }
+
+  return config.client.graduateMarket(lookup);
+}
+
 function resolveMarketLookup(
   id: string,
   chainId: number | undefined
