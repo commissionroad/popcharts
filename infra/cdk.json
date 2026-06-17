@@ -1,0 +1,8 @@
+{
+  "app": "pnpm exec tsx bin/popcharts-infra.ts",
+  "context": {
+    "stage": "staging",
+    "network": "baseSepolia",
+    "enableServices": "false"
+  }
+}
