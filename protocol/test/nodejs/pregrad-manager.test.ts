@@ -56,6 +56,13 @@ type ClearingRoot = {
   completeSetCount: bigint;
 };
 
+type PreparedMarket = {
+  collateral: `0x${string}`;
+  metadataHash: `0x${string}`;
+  completeSetCount: bigint;
+  prepared: boolean;
+};
+
 describe("PregradManager", async function () {
   const { viem, networkHelpers } = await network.create();
 
@@ -271,16 +278,16 @@ describe("PregradManager", async function () {
     );
   });
 
-  it("starts graduation and accepts a manager-submitted clearing root", async function () {
+  it("finalizes graduation and settles a receipt claim", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [, buyer] = await viem.getWalletClients();
+    const postgradAdapter = await viem.deployContract("MockPostgradAdapter");
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/graduation"));
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
     const shares = 100n * WAD;
     const matchedMarketCap = 50n * WAD;
-    const merkleRoot = keccak256(stringToBytes("clearing-root"));
 
     await manager.write.createMarket([
       {
@@ -311,6 +318,17 @@ describe("PregradManager", async function () {
       ],
       { account: buyer.account },
     );
+
+    const claim = {
+      marketId: 1n,
+      receiptId: 1n,
+      owner: buyer.account.address,
+      side: 0,
+      retainedShares: matchedMarketCap,
+      retainedCost: matchedMarketCap,
+      refund: quote.cost - matchedMarketCap,
+    };
+    const merkleRoot = (await manager.read.hashReceiptClaim([claim])) as `0x${string}`;
 
     await viem.assertions.emit(manager.write.startGraduation([1n]), manager, "GraduationStarted");
 
@@ -360,5 +378,57 @@ describe("PregradManager", async function () {
     assert.equal(clearingRoot.refundTotal, quote.cost - matchedMarketCap);
     assert.equal(clearingRoot.completeSetCount, matchedMarketCap);
     assert.equal(clearingRoot.challengeDeadline, clearingRoot.submittedAt + challengePeriod);
+
+    await networkHelpers.time.increaseTo(clearingRoot.challengeDeadline);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.finalizeGraduation([1n, postgradAdapter.address]),
+      manager,
+      "GraduationFinalized",
+      [1n, getAddress(postgradAdapter.address), matchedMarketCap, matchedMarketCap, claim.refund],
+    );
+
+    const finalizedState = (await manager.read.getMarketState([1n])) as MarketState;
+    const preparedMarket = (await postgradAdapter.read.getPreparedMarket([1n])) as PreparedMarket;
+
+    assert.equal(Number(finalizedState.status), 3);
+    assert.equal(finalizedState.totalEscrowed, claim.refund);
+    assert.equal(await manager.read.getPostgradAdapter([1n]), getAddress(postgradAdapter.address));
+    assert.equal(getAddress(preparedMarket.collateral), getAddress(collateral.address));
+    assert.equal(preparedMarket.metadataHash, metadataHash);
+    assert.equal(preparedMarket.completeSetCount, matchedMarketCap);
+    assert.equal(preparedMarket.prepared, true);
+    assert.equal(await collateral.read.balanceOf([postgradAdapter.address]), matchedMarketCap);
+    assert.equal(await collateral.read.balanceOf([manager.address]), claim.refund);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.claimGraduatedReceipt([claim, []]),
+      manager,
+      "GraduatedReceiptClaimed",
+      [
+        1n,
+        1n,
+        getAddress(buyer.account.address),
+        0,
+        claim.retainedShares,
+        claim.retainedCost,
+        claim.refund,
+      ],
+    );
+
+    const settledReceipt = (await manager.read.getReceipt([1n])) as Receipt;
+    const settledState = (await manager.read.getMarketState([1n])) as MarketState;
+
+    assert.equal(settledReceipt.active, false);
+    assert.equal(settledState.totalEscrowed, 0n);
+    assert.equal(
+      await postgradAdapter.read.outcomeBalanceOf([1n, buyer.account.address, 0]),
+      claim.retainedShares,
+    );
+    assert.equal(
+      await collateral.read.balanceOf([buyer.account.address]),
+      1_000n * WAD - claim.retainedCost,
+    );
+    assert.equal(await collateral.read.balanceOf([manager.address]), 0n);
   });
 });

@@ -4,7 +4,9 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IPostgradAdapter} from "./interfaces/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
@@ -101,6 +103,24 @@ contract PregradManager is Ownable, ReentrancyGuard {
     uint256 retainedCostTotal,
     uint256 completeSetCount
   );
+  /// @notice Reverts when a market has no clearing root to finalize or claim against.
+  /// @param marketId Market missing a clearing root.
+  error ClearingRootMissing(uint256 marketId);
+  /// @notice Reverts when finalization is attempted before the challenge window closes.
+  /// @param marketId Market whose clearing root is still challengeable.
+  /// @param challengeDeadline Timestamp when finalization becomes available.
+  error ClearingChallengeActive(uint256 marketId, uint64 challengeDeadline);
+  /// @notice Reverts when finalization receives the zero postgrad adapter address.
+  error InvalidPostgradAdapter();
+  /// @notice Reverts when a receipt has already been settled.
+  /// @param receiptId Receipt that is no longer active.
+  error ReceiptAlreadyClaimed(uint256 receiptId);
+  /// @notice Reverts when a receipt claim does not match the stored receipt.
+  /// @param receiptId Receipt whose claim payload is invalid.
+  error InvalidReceiptClaim(uint256 receiptId);
+  /// @notice Reverts when a receipt claim is not included in the clearing root.
+  /// @param receiptId Receipt whose Merkle proof failed verification.
+  error InvalidClaimProof(uint256 receiptId);
 
   /// @notice Emitted when a new active market is created.
   /// @param marketId Canonical pregrad market ID.
@@ -197,11 +217,56 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @param totalEscrowed Escrow available for future refund claims.
   event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
 
+  /// @notice Emitted when an accepted clearing root becomes the final graduation settlement.
+  /// @param marketId Market whose clearing root was finalized.
+  /// @param postgradAdapter Adapter that receives retained collateral and distributes outcomes.
+  /// @param completeSetCount Number of complete YES/NO sets backed by retained collateral.
+  /// @param retainedCostTotal Collateral retained for postgrad complete sets.
+  /// @param refundTotal Collateral left in the manager for receipt refunds.
+  event GraduationFinalized(
+    uint256 indexed marketId,
+    address indexed postgradAdapter,
+    uint256 completeSetCount,
+    uint256 retainedCostTotal,
+    uint256 refundTotal
+  );
+
+  /// @notice Emitted when a finalized receipt claim is settled.
+  /// @param receiptId Receipt that was settled.
+  /// @param marketId Market that owns the receipt.
+  /// @param owner Account receiving retained outcomes and refund.
+  /// @param side YES or NO outcome side.
+  /// @param retainedShares Outcome token quantity assigned through the postgrad adapter.
+  /// @param retainedCost Receipt cost retained for graduated complete sets.
+  /// @param refund Collateral refund paid to the receipt owner.
+  event GraduatedReceiptClaimed(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    MarketTypes.Side side,
+    uint256 retainedShares,
+    uint256 retainedCost,
+    uint256 refund
+  );
+
+  /// @notice Emitted when a receipt from a non-graduated market is refunded.
+  /// @param receiptId Receipt that was refunded.
+  /// @param marketId Market that owns the receipt.
+  /// @param owner Account receiving the refund.
+  /// @param refund Full receipt cost returned to the owner.
+  event RefundedReceiptClaimed(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    uint256 refund
+  );
+
   uint256 private _nextMarketId = 1;
   uint256 private _nextReceiptId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
+  mapping(uint256 marketId => address) private _postgradAdapters;
 
   /// @notice Initializes the contract owner as the first graduation manager.
   constructor() Ownable(msg.sender) {}
@@ -340,6 +405,14 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function hasClearingRoot(uint256 marketId) public view returns (bool) {
     _requireMarketExists(marketId);
     return _clearingRoots[marketId].merkleRoot != bytes32(0);
+  }
+
+  /// @notice Returns the postgrad adapter chosen when a market finalized graduation.
+  /// @param marketId Market ID to read.
+  /// @return Adapter address, or zero if graduation has not finalized.
+  function getPostgradAdapter(uint256 marketId) external view returns (address) {
+    _requireMarketExists(marketId);
+    return _postgradAdapters[marketId];
   }
 
   /// @notice Computes the current graduation snapshot hash for a market.
@@ -488,6 +561,87 @@ contract PregradManager is Ownable, ReentrancyGuard {
     );
   }
 
+  /// @notice Finalizes an accepted offchain clearing root after the challenge window.
+  /// @param marketId Market whose clearing root is becoming final.
+  /// @param postgradAdapter Adapter that will prepare and distribute postgrad outcomes.
+  function finalizeGraduation(
+    uint256 marketId,
+    address postgradAdapter
+  ) external onlyGraduationManager nonReentrant {
+    _requireMarketExists(marketId);
+    if (postgradAdapter == address(0)) {
+      revert InvalidPostgradAdapter();
+    }
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireGraduatingMarket(marketId, market);
+    MarketTypes.ClearingRoot storage clearingRoot = _requireClearingRoot(marketId);
+    _requireChallengeComplete(marketId, clearingRoot.challengeDeadline);
+
+    market.state.status = MarketTypes.MarketStatus.Graduated;
+    market.state.totalEscrowed = clearingRoot.refundTotal;
+    _postgradAdapters[marketId] = postgradAdapter;
+
+    IERC20(market.config.collateral).safeTransfer(postgradAdapter, clearingRoot.retainedCostTotal);
+    IPostgradAdapter(postgradAdapter).prepareMarket(
+      marketId,
+      market.config.collateral,
+      market.config.metadataHash,
+      clearingRoot.completeSetCount
+    );
+
+    emit GraduationFinalized(
+      marketId,
+      postgradAdapter,
+      clearingRoot.completeSetCount,
+      clearingRoot.retainedCostTotal,
+      clearingRoot.refundTotal
+    );
+  }
+
+  /// @notice Settles a finalized receipt using its offchain clearing Merkle proof.
+  /// @param claim Per-receipt clearing outcome committed by the submitted root.
+  /// @param proof Merkle proof showing the claim is included in the clearing root.
+  function claimGraduatedReceipt(
+    MarketTypes.ReceiptClaim calldata claim,
+    bytes32[] calldata proof
+  ) external nonReentrant {
+    _requireMarketExists(claim.marketId);
+    _requireReceiptExists(claim.receiptId);
+
+    MarketTypes.MarketRecord storage market = _markets[claim.marketId];
+    _requireGraduatedMarket(claim.marketId, market);
+    MarketTypes.Receipt storage receipt = _receipts[claim.receiptId];
+    _validateReceiptClaim(claim, receipt);
+    _verifyReceiptClaim(claim, proof, _requireClearingRoot(claim.marketId));
+
+    receipt.active = false;
+    market.state.totalEscrowed -= claim.refund;
+
+    address postgradAdapter = _postgradAdapters[claim.marketId];
+    if (claim.retainedShares != 0) {
+      IPostgradAdapter(postgradAdapter).distributeOutcome(
+        claim.marketId,
+        claim.owner,
+        claim.side,
+        claim.retainedShares
+      );
+    }
+    if (claim.refund != 0) {
+      IERC20(market.config.collateral).safeTransfer(claim.owner, claim.refund);
+    }
+
+    emit GraduatedReceiptClaimed(
+      claim.receiptId,
+      claim.marketId,
+      claim.owner,
+      claim.side,
+      claim.retainedShares,
+      claim.retainedCost,
+      claim.refund
+    );
+  }
+
   /// @notice Marks an active market refundable after its graduation deadline passes.
   /// @param marketId Market that did not enter graduation before its deadline.
   function markRefundable(uint256 marketId) external {
@@ -500,6 +654,24 @@ contract PregradManager is Ownable, ReentrancyGuard {
     market.state.status = MarketTypes.MarketStatus.Refunded;
 
     emit MarketRefundsAvailable(marketId, market.state.totalEscrowed);
+  }
+
+  /// @notice Refunds a receipt from a market that missed graduation.
+  /// @param receiptId Receipt whose full escrowed cost should be returned.
+  function claimRefundedReceipt(uint256 receiptId) external nonReentrant {
+    _requireReceiptExists(receiptId);
+
+    MarketTypes.Receipt storage receipt = _receipts[receiptId];
+    MarketTypes.MarketRecord storage market = _markets[receipt.marketId];
+    _requireRefundedMarket(receipt.marketId, market);
+    _requireActiveReceipt(receiptId, receipt);
+
+    receipt.active = false;
+    market.state.totalEscrowed -= receipt.cost;
+
+    IERC20(market.config.collateral).safeTransfer(receipt.owner, receipt.cost);
+
+    emit RefundedReceiptClaimed(receiptId, receipt.marketId, receipt.owner, receipt.cost);
   }
 
   /// @notice Stores receipt data and updates per-market accounting before collateral transfer.
@@ -642,6 +814,40 @@ contract PregradManager is Ownable, ReentrancyGuard {
     }
   }
 
+  /// @notice Validates a receipt claim against the stored receipt.
+  /// @param claim Offchain clearing outcome being claimed.
+  /// @param receipt Stored receipt being settled.
+  function _validateReceiptClaim(
+    MarketTypes.ReceiptClaim calldata claim,
+    MarketTypes.Receipt storage receipt
+  ) private view {
+    _requireActiveReceipt(claim.receiptId, receipt);
+
+    if (
+      receipt.marketId != claim.marketId ||
+      receipt.owner != claim.owner ||
+      receipt.side != claim.side ||
+      claim.retainedShares > receipt.shares ||
+      claim.retainedCost + claim.refund != receipt.cost
+    ) {
+      revert InvalidReceiptClaim(claim.receiptId);
+    }
+  }
+
+  /// @notice Verifies a receipt claim against a stored clearing root.
+  /// @param claim Offchain clearing outcome being claimed.
+  /// @param proof Merkle proof for the claim leaf.
+  /// @param clearingRoot Stored clearing commitment.
+  function _verifyReceiptClaim(
+    MarketTypes.ReceiptClaim calldata claim,
+    bytes32[] calldata proof,
+    MarketTypes.ClearingRoot storage clearingRoot
+  ) private view {
+    if (!MerkleProof.verifyCalldata(proof, clearingRoot.merkleRoot, _hashReceiptClaim(claim))) {
+      revert InvalidClaimProof(claim.receiptId);
+    }
+  }
+
   /// @notice Requires a market to be in Active status.
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
@@ -670,6 +876,30 @@ contract PregradManager is Ownable, ReentrancyGuard {
     }
   }
 
+  /// @notice Requires a market to be in Graduated status.
+  /// @param marketId Market ID being guarded.
+  /// @param market Market storage record being guarded.
+  function _requireGraduatedMarket(
+    uint256 marketId,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (market.state.status != MarketTypes.MarketStatus.Graduated) {
+      revert InvalidMarketStatus(marketId, market.state.status, MarketTypes.MarketStatus.Graduated);
+    }
+  }
+
+  /// @notice Requires a market to be in Refunded status.
+  /// @param marketId Market ID being guarded.
+  /// @param market Market storage record being guarded.
+  function _requireRefundedMarket(
+    uint256 marketId,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (market.state.status != MarketTypes.MarketStatus.Refunded) {
+      revert InvalidMarketStatus(marketId, market.state.status, MarketTypes.MarketStatus.Refunded);
+    }
+  }
+
   /// @notice Requires the current block timestamp to be before the market graduation deadline.
   /// @param marketId Market ID being guarded.
   /// @param graduationDeadline Market graduation deadline.
@@ -694,6 +924,15 @@ contract PregradManager is Ownable, ReentrancyGuard {
     }
   }
 
+  /// @notice Requires the clearing root challenge window to have elapsed.
+  /// @param marketId Market ID being finalized.
+  /// @param challengeDeadline Timestamp when the challenge window closes.
+  function _requireChallengeComplete(uint256 marketId, uint64 challengeDeadline) private view {
+    if (block.timestamp < challengeDeadline) {
+      revert ClearingChallengeActive(marketId, challengeDeadline);
+    }
+  }
+
   /// @notice Requires an account to be authorized for graduation management.
   /// @param account Account to check.
   function _requireGraduationManager(address account) private view {
@@ -715,6 +954,30 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function _requireReceiptExists(uint256 receiptId) private view {
     if (!receiptExists(receiptId)) {
       revert ReceiptDoesNotExist(receiptId);
+    }
+  }
+
+  /// @notice Requires a clearing root to be present for a market.
+  /// @param marketId Market ID to check.
+  /// @return clearingRoot Stored clearing root.
+  function _requireClearingRoot(
+    uint256 marketId
+  ) private view returns (MarketTypes.ClearingRoot storage clearingRoot) {
+    clearingRoot = _clearingRoots[marketId];
+    if (clearingRoot.merkleRoot == bytes32(0)) {
+      revert ClearingRootMissing(marketId);
+    }
+  }
+
+  /// @notice Requires a receipt to still be unsettled.
+  /// @param receiptId Receipt ID to check.
+  /// @param receipt Receipt storage record being guarded.
+  function _requireActiveReceipt(
+    uint256 receiptId,
+    MarketTypes.Receipt storage receipt
+  ) private view {
+    if (!receipt.active) {
+      revert ReceiptAlreadyClaimed(receiptId);
     }
   }
 

@@ -41,8 +41,35 @@ export const pregradManagerAbi = [
         name: "marketId",
         type: "uint256",
       },
+      {
+        internalType: "uint64",
+        name: "challengeDeadline",
+        type: "uint64",
+      },
+    ],
+    name: "ClearingChallengeActive",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
     ],
     name: "ClearingRootAlreadySubmitted",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "ClearingRootMissing",
     type: "error",
   },
   {
@@ -59,6 +86,17 @@ export const pregradManagerAbi = [
       },
     ],
     name: "CostExceedsLimit",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidClaimProof",
     type: "error",
   },
   {
@@ -171,6 +209,11 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "InvalidPostgradAdapter",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -179,6 +222,17 @@ export const pregradManagerAbi = [
       },
     ],
     name: "InvalidProbability",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidReceiptClaim",
     type: "error",
   },
   {
@@ -393,6 +447,17 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "ReceiptAlreadyClaimed",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "receiptCount",
         type: "uint256",
       },
@@ -514,6 +579,92 @@ export const pregradManagerAbi = [
       },
     ],
     name: "ClearingRootSubmitted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "enum MarketTypes.Side",
+        name: "side",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "retainedShares",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "retainedCost",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "refund",
+        type: "uint256",
+      },
+    ],
+    name: "GraduatedReceiptClaimed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "postgradAdapter",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "completeSetCount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "retainedCostTotal",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "refundTotal",
+        type: "uint256",
+      },
+    ],
+    name: "GraduationFinalized",
     type: "event",
   },
   {
@@ -738,6 +889,37 @@ export const pregradManagerAbi = [
     type: "event",
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "refund",
+        type: "uint256",
+      },
+    ],
+    name: "RefundedReceiptClaimed",
+    type: "event",
+  },
+  {
     inputs: [],
     name: "CLEARING_CHALLENGE_PERIOD",
     outputs: [
@@ -774,6 +956,74 @@ export const pregradManagerAbi = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "marketId",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "receiptId",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "enum MarketTypes.Side",
+            name: "side",
+            type: "uint8",
+          },
+          {
+            internalType: "uint256",
+            name: "retainedShares",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "retainedCost",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "refund",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct MarketTypes.ReceiptClaim",
+        name: "claim",
+        type: "tuple",
+      },
+      {
+        internalType: "bytes32[]",
+        name: "proof",
+        type: "bytes32[]",
+      },
+    ],
+    name: "claimGraduatedReceipt",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "claimRefundedReceipt",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -829,6 +1079,24 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "postgradAdapter",
+        type: "address",
+      },
+    ],
+    name: "finalizeGraduation",
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -1010,6 +1278,25 @@ export const pregradManagerAbi = [
         internalType: "struct MarketTypes.MarketState",
         name: "",
         type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "getPostgradAdapter",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",

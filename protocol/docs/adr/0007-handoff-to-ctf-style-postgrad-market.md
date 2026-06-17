@@ -29,9 +29,16 @@ a focused postgrad adapter. That adapter's job is to initialize or reference the
 postgrad condition, split matched collateral into complete sets, and distribute
 retained YES/NO balances according to finalized receipt claims.
 
-The pregrad manager remains responsible for receipt escrow, graduation start, clearing
-root acceptance, refunds, and claim accounting. The postgrad layer remains
-responsible for transferable fixed-payout outcome tokens and later redemption.
+The pregrad manager remains responsible for receipt escrow, graduation start,
+clearing root acceptance, finalization, refunds, and claim accounting. The
+postgrad layer remains responsible for transferable fixed-payout outcome tokens
+and later redemption.
+
+The current contract captures this boundary as an `IPostgradAdapter` interface:
+`finalizeGraduation` funds the adapter with retained collateral, and
+per-receipt claims ask the adapter to distribute retained YES/NO balances. A
+production CTF-compatible adapter is intentionally separate from the pregrad
+manager.
 
 ## Consequences
 

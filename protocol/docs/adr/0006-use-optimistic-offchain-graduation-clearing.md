@@ -49,16 +49,16 @@ The target flow is:
    - Merkle root of per-receipt outcomes
 
 4. challenge window
-   - bonded submitter
-   - invalid roots can be challenged before finalization
+   - timeout-gated finalization in the current contract
+   - bonded challenges / fraud proofs are deferred
 
 5. finalizeGraduation(...)
    - marks the clearing root final
-   - prepares/splits collateral into postgrad complete sets
+   - funds a postgrad adapter with retained collateral
 
 6. users claim by Merkle proof
-   - retained YES/NO outcome tokens
-   - refund amount
+   - retained YES/NO outcome balances through the postgrad adapter
+   - refund amount from manager-held collateral
 ```
 
 The clearing root must commit to enough data to verify each receipt's outcome:
@@ -77,8 +77,9 @@ one giant settlement transaction.
 
 The protocol introduces an optimistic assumption: at least one honest watcher
 or participant must be able to challenge an invalid root during the challenge
-window. The challenge design needs its own focused implementation plan and
-tests.
+window. The current implementation enforces a challenge timeout before
+finalization, but active challenge submission, bonds, and fraud-proof logic need
+their own focused implementation plan and tests.
 
 The onchain contract must make invalid or stale roots hard to submit:
 
