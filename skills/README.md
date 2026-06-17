@@ -36,5 +36,5 @@ whitepapers:
 - Use the whitepaper vocabulary for domain names: `Virtual LMSR`, `Receipt`,
   `Price band`, `Band-pass clearing`, `Graduation`, `Matched`, and `Refunded`.
 - Use design-kit tokens and components as the visual source of truth.
-- Record hard-to-reverse frontend decisions as ADRs under `docs/adr/`.
+- Record hard-to-reverse frontend decisions as ADRs under `app/docs/adr/`.
 - Prefer behavior tests at public interfaces over implementation-detail tests.
