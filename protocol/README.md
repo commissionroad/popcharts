@@ -11,6 +11,10 @@ Start here:
 4. `docs/TESTING.md`
 5. `docs/adr/`
 
+Research plans:
+
+- `docs/trueo-style-postgrad-plan.md`
+
 ## Commands
 
 ```bash
