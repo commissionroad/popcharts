@@ -21,6 +21,8 @@ Upstream license: MIT. See
   regression-test.
 - `engineering/improve-codebase-architecture` helps keep modules deep and
   testable as the frontend grows beyond the initial launch surface.
+- `engineering/protocol-deployment-scripts` captures the local conventions for
+  protocol deploy entrypoints, shared EVM helpers, and Blockscout verification.
 - `engineering/prototype` gives a sanctioned way to explore UI or state-machine
   ideas without letting throwaway code become production code by accident.
 - `misc/setup-pre-commit` captures the planned local quality gate pattern for
