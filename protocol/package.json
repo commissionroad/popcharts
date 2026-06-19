@@ -14,6 +14,7 @@
   "scripts": {
     "build": "hardhat build && node scripts/export-contract-metadata.mjs",
     "clean": "hardhat clean",
+    "arc:testnet:deploy-mock": "hardhat build && node --env-file-if-exists=.env scripts/deploy-arc-mock.mjs",
     "devchain:deploy": "hardhat build && node scripts/deploy-devchain.mjs",
     "devchain:node": "hardhat node",
     "format": "prettier --write .",
