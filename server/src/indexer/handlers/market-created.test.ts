@@ -30,7 +30,7 @@ describe("buildMarketCreatedRecords", () => {
 
     const records = buildMarketCreatedRecords({
       blockTimestamp,
-      config: { chainId: 84532 },
+      config: { chainId: 5042002 },
       contractId: 42,
       log,
     });
@@ -39,7 +39,7 @@ describe("buildMarketCreatedRecords", () => {
       blockNumber: 123n,
       blockTimestamp,
       bypassAiResolution: true,
-      chainId: 84532,
+      chainId: 5042002,
       collateral: "0x0000000000000000000000000000000000000002",
       contractId: 42,
       creator: "0x00000000000000000000000000000000000000aa",
@@ -49,7 +49,7 @@ describe("buildMarketCreatedRecords", () => {
         "0x2222222222222222222222222222222222222222222222222222222222222222",
     });
     expect(records.market).toMatchObject({
-      chainId: 84532,
+      chainId: 5042002,
       contractId: 42,
       createdBlockNumber: 123n,
       createdBlockTimestamp: blockTimestamp,
@@ -79,7 +79,7 @@ describe("buildMarketCreatedRecords", () => {
     expect(() =>
       buildMarketCreatedRecords({
         blockTimestamp: new Date("2026-06-13T12:00:00.000Z"),
-        config: { chainId: 84532 },
+        config: { chainId: 5042002 },
         contractId: 42,
         log,
       }),

@@ -1,91 +1,75 @@
 import type { Chain as PrivyChain } from "@privy-io/chains";
-import {
-  arbitrum as privyArbitrum,
-  base as privyBase,
-  baseSepolia as privyBaseSepolia,
-  mainnet as privyMainnet,
-  optimism as privyOptimism,
-  polygon as privyPolygon,
-} from "@privy-io/chains";
 import { type Chain, defineChain } from "viem";
-import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from "viem/chains";
 
 import {
-  ARC_NATIVE_CURRENCY,
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_EXPLORER_URL,
+  ARC_TESTNET_NAME,
+  ARC_TESTNET_NATIVE_CURRENCY,
+  ARC_TESTNET_RPC_URL,
+  ARC_TESTNET_RPC_WS_URL,
+} from "@/integrations/contracts/arc-testnet";
+import {
   configuredPopChartsChainId,
   configuredPopChartsRpcUrl,
-  LOCAL_NATIVE_CURRENCY,
-  popChartsChainEnv,
+  localChainEnabled,
 } from "@/integrations/contracts/config";
 
-const configuredChainId = configuredPopChartsChainId ?? 31337;
-const configuredRpcUrl = configuredPopChartsRpcUrl ?? "http://127.0.0.1:8545";
-const configuredNativeCurrency =
-  popChartsChainEnv === "local" || popChartsChainEnv === "mock"
-    ? LOCAL_NATIVE_CURRENCY
-    : ARC_NATIVE_CURRENCY;
-const configuredPopChartsChain = defineChain({
-  id: configuredChainId,
-  name:
-    popChartsChainEnv === "arc-testnet"
-      ? "Arc Testnet"
-      : configuredChainId === 31337
-        ? "Hardhat Local"
-        : `Local Devchain ${configuredChainId}`,
-  nativeCurrency: configuredNativeCurrency,
+const localChainId = configuredPopChartsChainId ?? 31337;
+const localRpcUrl = configuredPopChartsRpcUrl ?? "http://127.0.0.1:8545";
+const localHardhatChain = defineChain({
+  id: localChainId,
+  name: localChainId === 31337 ? "Hardhat Local" : `Local Devchain ${localChainId}`,
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
   rpcUrls: {
     default: {
-      http: [configuredRpcUrl],
+      http: [localRpcUrl],
     },
   },
 });
-const configuredPopChartsPrivyChain = configuredPopChartsChain as PrivyChain;
-const configuredChainEnabled =
-  popChartsChainEnv === "arc-testnet" ||
-  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN === "true";
+const localHardhatPrivyChain = localHardhatChain as PrivyChain;
 
-const productionWagmiChains = [base, mainnet, arbitrum, optimism, polygon] as const;
-const testnetWagmiChains = [
-  base,
-  baseSepolia,
-  mainnet,
-  arbitrum,
-  optimism,
-  polygon,
-] as const;
-const productionPrivyChains = [
-  privyBase,
-  privyMainnet,
-  privyArbitrum,
-  privyOptimism,
-  privyPolygon,
-] as const;
-const testnetPrivyChains = [
-  privyBase,
-  privyBaseSepolia,
-  privyMainnet,
-  privyArbitrum,
-  privyOptimism,
-  privyPolygon,
-] as const;
+export const arcTestnet = defineChain({
+  id: ARC_TESTNET_CHAIN_ID,
+  name: ARC_TESTNET_NAME,
+  nativeCurrency: ARC_TESTNET_NATIVE_CURRENCY,
+  rpcUrls: {
+    default: {
+      http: [ARC_TESTNET_RPC_URL],
+      webSocket: [ARC_TESTNET_RPC_WS_URL],
+    },
+    public: {
+      http: [ARC_TESTNET_RPC_URL],
+      webSocket: [ARC_TESTNET_RPC_WS_URL],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "ArcScan",
+      url: ARC_TESTNET_EXPLORER_URL,
+    },
+  },
+  testnet: true,
+});
+const arcTestnetPrivyChain = arcTestnet as PrivyChain;
 
-export const defaultEvmChain = configuredChainEnabled ? configuredPopChartsChain : base;
-export const defaultPrivyChain = configuredChainEnabled
-  ? configuredPopChartsPrivyChain
-  : privyBase;
+export const defaultEvmChain = localChainEnabled ? localHardhatChain : arcTestnet;
+export const defaultPrivyChain = localChainEnabled
+  ? localHardhatPrivyChain
+  : arcTestnetPrivyChain;
 
-export const supportedWagmiChains: readonly [Chain, ...Chain[]] = configuredChainEnabled
-  ? [configuredPopChartsChain, ...testnetWagmiChains]
-  : process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
-    ? testnetWagmiChains
-    : productionWagmiChains;
+export const supportedWagmiChains: readonly [Chain, ...Chain[]] = localChainEnabled
+  ? [localHardhatChain, arcTestnet]
+  : [arcTestnet];
 
 export const supportedPrivyChains: readonly [PrivyChain, ...PrivyChain[]] =
-  configuredChainEnabled
-    ? [configuredPopChartsPrivyChain, ...testnetPrivyChains]
-    : process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS === "true"
-      ? testnetPrivyChains
-      : productionPrivyChains;
+  localChainEnabled
+    ? [localHardhatPrivyChain, arcTestnetPrivyChain]
+    : [arcTestnetPrivyChain];
 
 export type WalletChainSummary = {
   id: number;

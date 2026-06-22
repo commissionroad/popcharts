@@ -8,9 +8,7 @@ import { fileURLToPath } from "node:url";
 const CONTRACT_NAME = "PregradManager";
 const NETWORK_CHAIN_IDS = {
   local: 31337,
-  baseSepolia: 84532,
-  tenderly: 88445533,
-  base: 8453,
+  arcTestnet: 5_042_002,
 };
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));

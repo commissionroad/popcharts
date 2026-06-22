@@ -11,4 +11,5 @@ export const ARC_TESTNET = {
     symbol: "USDC",
   },
   rpcUrl: "https://rpc.testnet.arc.network",
+  rpcWsUrl: "wss://rpc.testnet.arc.network",
 };

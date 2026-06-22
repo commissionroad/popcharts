@@ -8,4 +8,5 @@ export declare const ARC_TESTNET: {
     readonly symbol: "USDC";
   };
   readonly rpcUrl: "https://rpc.testnet.arc.network";
+  readonly rpcWsUrl: "wss://rpc.testnet.arc.network";
 };

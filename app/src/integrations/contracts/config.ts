@@ -1,5 +1,12 @@
 import { getAddress, isAddress } from "viem";
 
+import {
+  ARC_TESTNET_CHAIN_ENV,
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_NATIVE_CURRENCY,
+  ARC_TESTNET_RPC_URL,
+} from "./arc-testnet";
+
 export type PopChartsChainEnv =
   | "arc-testnet"
   | "local"
@@ -34,20 +41,18 @@ const chainEnvs = new Set<PopChartsChainEnv>([
   "testnet",
 ]);
 
-export const ARC_NATIVE_CURRENCY = {
-  decimals: 18,
-  name: "USDC",
-  symbol: "USDC",
-} as const satisfies PopChartsNativeCurrency;
+export const localChainEnabled =
+  process.env.NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN === "true";
 
-export const LOCAL_NATIVE_CURRENCY = {
+const LOCAL_NATIVE_CURRENCY = {
   decimals: 18,
   name: "Ether",
   symbol: "ETH",
 } as const satisfies PopChartsNativeCurrency;
 
 export const popChartsChainEnv = parseChainEnv(
-  process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ENV
+  process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ENV,
+  localChainEnabled ? "local" : ARC_TESTNET_CHAIN_ENV
 );
 
 export const marketCreationMode = parseMarketCreationMode(
@@ -58,12 +63,13 @@ export const marketCreationSigner = parseMarketCreationSigner(
   process.env.NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER
 );
 
-export const configuredPopChartsChainId = parsePositiveInteger(
-  process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ID
-);
+export const configuredPopChartsChainId = localChainEnabled
+  ? (parsePositiveInteger(process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ID) ?? 31337)
+  : ARC_TESTNET_CHAIN_ID;
 
-export const configuredPopChartsRpcUrl =
-  process.env.NEXT_PUBLIC_POPCHARTS_RPC_URL?.trim() || null;
+export const configuredPopChartsRpcUrl = localChainEnabled
+  ? process.env.NEXT_PUBLIC_POPCHARTS_RPC_URL?.trim() || "http://127.0.0.1:8545"
+  : ARC_TESTNET_RPC_URL;
 
 export function getPopChartsContractConfig(): PopChartsContractConfig | null {
   const pregradManagerAddress = parseAddress(
@@ -73,12 +79,7 @@ export function getPopChartsContractConfig(): PopChartsContractConfig | null {
     process.env.NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS
   );
 
-  if (
-    !configuredPopChartsChainId ||
-    !configuredPopChartsRpcUrl ||
-    !pregradManagerAddress ||
-    !collateralAddress
-  ) {
+  if (!pregradManagerAddress || !collateralAddress) {
     return null;
   }
 
@@ -92,12 +93,15 @@ export function getPopChartsContractConfig(): PopChartsContractConfig | null {
   };
 }
 
-function parseChainEnv(value: string | undefined): PopChartsChainEnv {
+function parseChainEnv(
+  value: string | undefined,
+  fallback: PopChartsChainEnv
+): PopChartsChainEnv {
   if (value && chainEnvs.has(value as PopChartsChainEnv)) {
     return value as PopChartsChainEnv;
   }
 
-  return "mock";
+  return fallback;
 }
 
 function parseMarketCreationMode(value: string | undefined): MarketCreationMode {
@@ -131,5 +135,5 @@ function parseAddress(value: string | undefined): `0x${string}` | null {
 function getNativeCurrency(chainEnv: PopChartsChainEnv): PopChartsNativeCurrency {
   return chainEnv === "local" || chainEnv === "mock"
     ? LOCAL_NATIVE_CURRENCY
-    : ARC_NATIVE_CURRENCY;
+    : ARC_TESTNET_NATIVE_CURRENCY;
 }
