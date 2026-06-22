@@ -43,6 +43,7 @@ const SUSPICIOUS_HOSTS = [
   "pastebin.com",
   "t.co",
   "telegram.me",
+  "theonion.com",
   "tinyurl.com",
 ];
 
