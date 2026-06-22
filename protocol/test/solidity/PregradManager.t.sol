@@ -25,6 +25,10 @@ contract PregradManagerTest is Test {
     uint64 resolutionTime
   );
 
+  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
+
+  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
+
   event ReceiptPlaced(
     uint256 indexed receiptId,
     uint256 indexed marketId,
@@ -72,7 +76,7 @@ contract PregradManagerTest is Test {
     manager = new PregradManager();
   }
 
-  function test_CreateMarketStoresActiveConfigAndEmitsEvent() public {
+  function test_CreateMarketStoresUnderReviewConfigAndEmitsEvent() public {
     bytes32 metadataHash = keccak256("ipfs://popcharts/example");
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
@@ -106,13 +110,143 @@ contract PregradManagerTest is Test {
     assertEq(config.graduationThreshold, 40_000 * WAD);
     assertEq(config.graduationDeadline, params.graduationDeadline);
     assertEq(config.resolutionTime, params.resolutionTime);
-    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.UnderReview));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
     assertEq(state.path, int256(0));
     assertEq(state.yesShares, 0);
     assertEq(state.noShares, 0);
     assertEq(state.graduationStartedAt, 0);
+  }
+
+  function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
+    address notManager = makeAddr("not-reviewer");
+    uint256 approvedMarketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/approved"))
+    );
+
+    assertTrue(manager.isReviewManager(address(this)));
+    assertFalse(manager.isReviewManager(notManager));
+
+    vm.prank(notManager);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.UnauthorizedReviewManager.selector, notManager)
+    );
+    manager.approveMarket(approvedMarketId);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketReviewApproved(approvedMarketId, address(this));
+    manager.approveMarket(approvedMarketId);
+
+    MarketTypes.MarketState memory approvedState = manager.getMarketState(approvedMarketId);
+    assertEq(uint256(approvedState.status), uint256(MarketTypes.MarketStatus.Active));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        approvedMarketId,
+        MarketTypes.MarketStatus.Active,
+        MarketTypes.MarketStatus.UnderReview
+      )
+    );
+    manager.rejectMarket(approvedMarketId);
+
+    uint256 rejectedMarketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/rejected"))
+    );
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketReviewRejected(rejectedMarketId, address(this));
+    manager.rejectMarket(rejectedMarketId);
+
+    MarketTypes.MarketState memory rejectedState = manager.getMarketState(rejectedMarketId);
+    assertEq(uint256(rejectedState.status), uint256(MarketTypes.MarketStatus.Rejected));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        rejectedMarketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.UnderReview
+      )
+    );
+    manager.approveMarket(rejectedMarketId);
+  }
+
+  function test_ApproveMarketRequiresDeadline() public {
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/expired-review"))
+    );
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+
+    vm.warp(config.graduationDeadline);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MarketPastGraduationDeadline.selector,
+        marketId,
+        config.graduationDeadline
+      )
+    );
+    manager.approveMarket(marketId);
+  }
+
+  function test_UnderReviewAndRejectedMarketsDoNotAcceptReceipts() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/review-gate"))
+    );
+    uint256 shares = 100 * WAD;
+    MarketTypes.PlaceReceiptParams memory params = MarketTypes.PlaceReceiptParams({
+      marketId: marketId,
+      side: MarketTypes.Side.Yes,
+      shares: shares,
+      maxCost: type(uint256).max
+    });
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.UnderReview,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
+
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.UnderReview,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.placeReceipt(params);
+
+    manager.rejectMarket(marketId);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
+
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.placeReceipt(params);
   }
 
   function test_CreateMarketIdsIncrementAndMarketsAreIsolated() public {
@@ -415,6 +549,7 @@ contract PregradManagerTest is Test {
         resolutionTime: uint64(block.timestamp + 14 days)
       })
     );
+    manager.approveMarket(marketId);
 
     uint256 shares = 100 * WAD;
     MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
@@ -778,11 +913,19 @@ contract PregradManagerTest is Test {
   }
 
   function _createDefaultMarket() private returns (uint256) {
-    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/example")));
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/example"))
+    );
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createSecondDefaultMarket() private returns (uint256) {
-    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/second")));
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/second"))
+    );
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createGraduatableMarket() private returns (uint256) {
@@ -790,7 +933,9 @@ contract PregradManagerTest is Test {
       keccak256("ipfs://popcharts/graduatable")
     );
     params.graduationThreshold = 50 * WAD;
-    return manager.createMarket(params);
+    uint256 marketId = manager.createMarket(params);
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createGraduatingMarketWithReceipt() private returns (uint256 marketId) {

@@ -769,7 +769,7 @@ function LivePreviewPanel({
           <span className="rounded-[var(--radius-pill)] border border-[var(--pc-cyan)] px-2.5 py-1 font-mono text-[10px] tracking-[0.12em] text-[var(--pc-cyan)] uppercase">
             {draft.category}
           </span>
-          <StatusPill size="sm" status="bootstrap" />
+          <StatusPill size="sm" status="under_review" />
         </div>
         <div className="font-display min-h-12 text-xl leading-tight font-bold">
           {draft.question || "Your question appears here"}
@@ -1007,12 +1007,19 @@ function SuccessPanel({
     onChain && result.chainId
       ? `/markets/${encodeURIComponent(`${result.chainId}:${result.marketId}`)}`
       : undefined;
+  const statusTone = onChain ? "var(--status-under-review)" : "var(--status-graduated)";
 
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-6">
+    <div
+      className="flex flex-col gap-4 rounded-[var(--radius-lg)] border bg-[var(--surface-card)] p-6"
+      style={{ borderColor: statusTone }}
+    >
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--status-graduated)] text-[var(--pc-ink)]">
-          <CheckCircle2 size={20} />
+        <span
+          className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] text-[var(--pc-ink)]"
+          style={{ backgroundColor: statusTone }}
+        >
+          {onChain ? <Clock size={20} /> : <CheckCircle2 size={20} />}
         </span>
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
@@ -1023,7 +1030,7 @@ function SuccessPanel({
               : "Mock created"}
           </div>
           <h2 className="font-display text-xl font-black">
-            {onChain ? "Market live on devchain" : "Market draft ready"}
+            {onChain ? "Market under review" : "Market draft ready"}
           </h2>
         </div>
       </div>

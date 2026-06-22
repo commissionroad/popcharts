@@ -102,6 +102,7 @@ export function buildMarketCreatedRecords({
       metadataHash,
       openingProbabilityWad,
       resolutionTime,
+      status: "under_review",
     },
   };
 }

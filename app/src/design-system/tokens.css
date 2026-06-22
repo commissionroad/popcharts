@@ -48,11 +48,13 @@
   --no-border: #5b2b3f;
   --no-wash: var(--pc-magenta-wash);
 
+  --status-under-review: var(--pc-amber);
   --status-bootstrap: var(--pc-cyan);
   --status-graduating: var(--pc-amber);
   --status-graduated: var(--pc-lime);
   --status-resolved: var(--pc-violet);
   --status-refunded: var(--pc-fog);
+  --status-rejected: var(--danger);
 
   --positive: var(--pc-lime);
   --negative: var(--pc-magenta);

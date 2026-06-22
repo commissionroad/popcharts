@@ -74,6 +74,9 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @notice Reverts when an account is not allowed to manage graduation.
   /// @param account Unauthorized account.
   error UnauthorizedGraduationManager(address account);
+  /// @notice Reverts when an account is not allowed to review markets.
+  /// @param account Unauthorized account.
+  error UnauthorizedReviewManager(address account);
   /// @notice Reverts when a clearing root is zero.
   error InvalidClearingRoot();
   /// @notice Reverts when a clearing root already exists for a market.
@@ -102,7 +105,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
     uint256 completeSetCount
   );
 
-  /// @notice Emitted when a new active market is created.
+  /// @notice Emitted when a new under-review market is created.
   /// @param marketId Canonical pregrad market ID.
   /// @param creator Account that created the market.
   /// @param metadataHash Hash of market metadata and resolution rules.
@@ -123,6 +126,16 @@ contract PregradManager is Ownable, ReentrancyGuard {
     uint64 graduationDeadline,
     uint64 resolutionTime
   );
+
+  /// @notice Emitted when review approves a market for receipt placement.
+  /// @param marketId Market that entered Active status.
+  /// @param reviewer Account that approved the market.
+  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
+
+  /// @notice Emitted when review rejects a market before receipt placement opens.
+  /// @param marketId Market that entered Rejected status.
+  /// @param reviewer Account that rejected the market.
+  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
 
   /// @notice Emitted when a locked pre-graduation receipt is placed.
   /// @param receiptId Canonical receipt ID.
@@ -203,7 +216,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
 
-  /// @notice Initializes the contract owner as the first graduation manager.
+  /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) {}
 
   /// @notice Restricts a function to the contract's current graduation manager set.
@@ -212,7 +225,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
     _;
   }
 
-  /// @notice Creates a new market in Active status.
+  /// @notice Restricts a function to the contract's current review manager set.
+  modifier onlyReviewManager() {
+    _requireReviewManager(msg.sender);
+    _;
+  }
+
+  /// @notice Creates a new market in UnderReview status.
   /// @param params Market creation parameters, excluding creator.
   /// @return marketId Canonical pregrad market ID.
   function createMarket(
@@ -234,7 +253,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
       graduationDeadline: params.graduationDeadline,
       resolutionTime: params.resolutionTime
     });
-    market.state.status = MarketTypes.MarketStatus.Active;
+    market.state.status = MarketTypes.MarketStatus.UnderReview;
     market.state.path = LmsrMath.openingPath(
       params.openingProbabilityWad,
       params.liquidityParameter
@@ -251,6 +270,33 @@ contract PregradManager is Ownable, ReentrancyGuard {
       params.graduationDeadline,
       params.resolutionTime
     );
+  }
+
+  /// @notice Approves an under-review market so it can accept pre-graduation receipts.
+  /// @param marketId Market that passed review.
+  function approveMarket(uint256 marketId) external onlyReviewManager {
+    _requireMarketExists(marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireUnderReviewMarket(marketId, market);
+    _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
+
+    market.state.status = MarketTypes.MarketStatus.Active;
+
+    emit MarketReviewApproved(marketId, msg.sender);
+  }
+
+  /// @notice Rejects an under-review market and keeps it closed to receipt placement.
+  /// @param marketId Market that failed review.
+  function rejectMarket(uint256 marketId) external onlyReviewManager {
+    _requireMarketExists(marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireUnderReviewMarket(marketId, market);
+
+    market.state.status = MarketTypes.MarketStatus.Rejected;
+
+    emit MarketReviewRejected(marketId, msg.sender);
   }
 
   /// @notice Returns the next market ID that will be assigned.
@@ -315,6 +361,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function getReceipt(uint256 receiptId) external view returns (MarketTypes.Receipt memory) {
     _requireReceiptExists(receiptId);
     return _receipts[receiptId];
+  }
+
+  /// @notice Returns whether `account` can review markets.
+  /// @param account Account to check.
+  /// @return True if the account can approve or reject markets.
+  function isReviewManager(address account) public view returns (bool) {
+    return account == owner();
   }
 
   /// @notice Returns whether `account` can manage graduation.
@@ -642,6 +695,22 @@ contract PregradManager is Ownable, ReentrancyGuard {
     }
   }
 
+  /// @notice Requires a market to be in UnderReview status.
+  /// @param marketId Market ID being guarded.
+  /// @param market Market storage record being guarded.
+  function _requireUnderReviewMarket(
+    uint256 marketId,
+    MarketTypes.MarketRecord storage market
+  ) private view {
+    if (market.state.status != MarketTypes.MarketStatus.UnderReview) {
+      revert InvalidMarketStatus(
+        marketId,
+        market.state.status,
+        MarketTypes.MarketStatus.UnderReview
+      );
+    }
+  }
+
   /// @notice Requires a market to be in Active status.
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
@@ -699,6 +768,14 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function _requireGraduationManager(address account) private view {
     if (!isGraduationManager(account)) {
       revert UnauthorizedGraduationManager(account);
+    }
+  }
+
+  /// @notice Requires an account to be authorized for market review.
+  /// @param account Account to check.
+  function _requireReviewManager(address account) private view {
+    if (!isReviewManager(account)) {
+      revert UnauthorizedReviewManager(account);
     }
   }
 

@@ -15,12 +15,14 @@ import { contracts } from "./contracts";
 import { uint256 } from "./uint256";
 
 export const marketStatus = pgEnum("market_status", [
+  "under_review",
   "bootstrap",
   "graduating",
   "graduated",
   "resolved",
   "refunded",
   "cancelled",
+  "rejected",
 ]);
 
 export const markets = pgTable(
@@ -32,7 +34,7 @@ export const markets = pgTable(
       .notNull()
       .references(() => contracts.id),
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
-    status: marketStatus("status").default("bootstrap").notNull(),
+    status: marketStatus("status").default("under_review").notNull(),
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
     collateral: text("collateral").notNull(),

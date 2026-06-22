@@ -1,10 +1,12 @@
 export type MarketStatus =
+  | "under_review"
   | "bootstrap"
   | "graduating"
   | "graduated"
   | "resolved"
   | "refunded"
-  | "cancelled";
+  | "cancelled"
+  | "rejected";
 
 export type MarketCategory =
   | "Crypto"

@@ -54,6 +54,7 @@ describe("buildMarketCreatedRecords", () => {
       marketId: 7n,
       metadataHash:
         "0x1111111111111111111111111111111111111111111111111111111111111111",
+      status: "under_review",
     });
     expect(records.event.graduationTime.toISOString()).toBe(
       "2026-05-28T20:26:40.000Z",

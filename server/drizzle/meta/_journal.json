@@ -29,6 +29,13 @@
       "when": 1781410399801,
       "tag": "0003_special_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782139949314,
+      "tag": "0004_sweet_white_tiger",
+      "breakpoints": true
     }
   ]
 }

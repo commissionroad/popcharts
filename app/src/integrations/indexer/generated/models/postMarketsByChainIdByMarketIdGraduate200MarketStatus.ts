@@ -11,10 +11,12 @@ export type PostMarketsByChainIdByMarketIdGraduate200MarketStatus =
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PostMarketsByChainIdByMarketIdGraduate200MarketStatus = {
+  under_review: "under_review",
   bootstrap: "bootstrap",
   graduating: "graduating",
   graduated: "graduated",
   resolved: "resolved",
   refunded: "refunded",
   cancelled: "cancelled",
+  rejected: "rejected",
 } as const;

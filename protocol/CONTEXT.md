@@ -64,8 +64,13 @@ sets are the post-graduation fixed-payout market object.
 
 ## Status Ladder
 
-The contract lifecycle vocabulary is `Active`, `Graduating`, `Graduated`,
-`Refunded`, `Resolved`, and `Cancelled`. `Frozen` is reserved for future
-suspicious-market pause behavior and is not part of the normal happy path.
-Product reads may group or rename these states for UI, but protocol code should
-use this ladder.
+The contract lifecycle vocabulary is `UnderReview`, `Active`, `Rejected`,
+`Graduating`, `Graduated`, `Refunded`, `Resolved`, and `Cancelled`. `Frozen` is
+reserved for future suspicious-market pause behavior and is not part of the
+normal happy path. Product reads may group or rename these states for UI, but
+protocol code should use this ladder.
+
+New markets enter `UnderReview`. Receipt quoting, receipt placement, and
+graduation all require `Active`, so no collateral can be escrowed until review
+approval moves the market out of the pre-review state. Review failure moves the
+market to `Rejected`, where it stays closed.
