@@ -266,6 +266,11 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "MarketCreationPaused",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -804,6 +809,19 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MarketCreationFeePaid",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "paused",
+        type: "bool",
+      },
+    ],
+    name: "MarketCreationPausedUpdated",
     type: "event",
   },
   {
@@ -1604,6 +1622,19 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "marketCreationPaused",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -1783,6 +1814,19 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "renounceOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "paused",
+        type: "bool",
+      },
+    ],
+    name: "setMarketCreationPaused",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
