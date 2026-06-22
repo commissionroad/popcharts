@@ -15,9 +15,15 @@ importers:
         specifier: 4.1.2
         version: 4.1.2
     devDependencies:
+      '@nomicfoundation/hardhat-ignition':
+        specifier: 3.1.7
+        version: 3.1.7(@nomicfoundation/hardhat-verify@3.0.20(hardhat@3.9.0))(hardhat@3.9.0)
       '@nomicfoundation/hardhat-toolbox-viem':
         specifier: 5.0.7
         version: 5.0.7(b5b39192b43198edbb35f44ac088d502)
+      '@nomicfoundation/ignition-core':
+        specifier: 3.1.7
+        version: 3.1.7
       '@types/node':
         specifier: 22.19.21
         version: 22.19.21

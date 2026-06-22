@@ -10,31 +10,16 @@ import { assertNativeBalance } from "./shared/account/assertNativeBalance.mjs";
 import { normalizePrivateKey } from "./shared/account/normalizePrivateKey.mjs";
 import { loadHardhatDeployableArtifact } from "./shared/artifact/loadHardhatDeployableArtifact.mjs";
 import { assertExpectedChain } from "./shared/chain/assertExpectedChain.mjs";
+import { ARC_TESTNET } from "./shared/chain/arcTestnet.mjs";
 import { defineEvmChain } from "./shared/chain/defineEvmChain.mjs";
 import { runScript } from "./shared/cli/runScript.mjs";
 import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract.mjs";
+import { ARCSCAN } from "./shared/explorer/arcscan.mjs";
 import { contractExplorerUrl } from "./shared/explorer/contractExplorerUrl.mjs";
 import { verifyBlockscoutStandardJson } from "./shared/explorer/verifyBlockscoutStandardJson.mjs";
 import { writeJson } from "./shared/json/writeJson.mjs";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.mjs";
 import { createViemClients } from "./shared/viem/createViemClients.mjs";
-
-const ARC_TESTNET = {
-  chainEnv: "arc-testnet",
-  chainId: 5_042_002,
-  name: "Arc Testnet",
-  nativeCurrency: {
-    decimals: 18,
-    name: "USDC",
-    symbol: "USDC",
-  },
-};
-
-const ARCSCAN = {
-  apiUrl: "https://testnet.arcscan.app/api",
-  browserUrl: "https://testnet.arcscan.app",
-  name: "ArcScan",
-};
 
 const MOCK_COLLATERAL = {
   artifactPath: "artifacts/contracts/mocks/MockCollateral.sol/MockCollateral.json",
@@ -42,7 +27,6 @@ const MOCK_COLLATERAL = {
   name: "MockCollateral",
 };
 
-const DEFAULT_RPC_URL = "https://rpc.testnet.arc.network";
 const DEFAULT_DEPLOYMENT_FILE = "deployments/arc-testnet.mock.local.json";
 const DEFAULT_VERIFY_POLL_INTERVAL_MS = 4_000;
 const DEFAULT_VERIFY_POLL_ATTEMPTS = 30;
@@ -145,7 +129,7 @@ await runScript(main);
  * Reads Arc deploy settings from the environment and resolves repo-local paths.
  */
 function loadConfig(env) {
-  const rpcUrl = env.POPCHARTS_RPC_URL || DEFAULT_RPC_URL;
+  const rpcUrl = env.POPCHARTS_RPC_URL || ARC_TESTNET.rpcUrl;
   const browserUrl = env.POPCHARTS_ARCSCAN_BROWSER_URL || ARCSCAN.browserUrl;
 
   return {
