@@ -68,6 +68,9 @@ describe("PregradManager", async function () {
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
     const manager = await viem.deployContract("PregradManager");
+    const [owner] = await viem.getWalletClients();
+
+    await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
 
     return { collateral, manager };
   }
@@ -160,7 +163,7 @@ describe("PregradManager", async function () {
           bypassAiResolution: false,
         },
       ],
-      { account: alice.account },
+      { account: alice.account, value: WAD },
     );
 
     await manager.write.createMarket(
@@ -176,7 +179,7 @@ describe("PregradManager", async function () {
           bypassAiResolution: false,
         },
       ],
-      { account: bob.account },
+      { account: bob.account, value: WAD },
     );
 
     const firstConfig = (await manager.read.getMarketConfig([1n])) as MarketConfig;
@@ -193,6 +196,81 @@ describe("PregradManager", async function () {
     assert.equal(secondConfig.graduationDeadline, secondGraduationDeadline);
     assert.equal(firstConfig.resolutionTime, firstResolutionTime);
     assert.equal(secondConfig.resolutionTime, secondResolutionTime);
+  });
+
+  it("charges public creators a fee and waives it for trusted creators", async function () {
+    const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
+    const [owner, publicCreator, feeRecipient] = await viem.getWalletClients();
+    const publicClient = await viem.getPublicClient();
+
+    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/public-fee"));
+    const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
+
+    assert.equal(await manager.read.MARKET_CREATION_FEE(), WAD);
+    assert.equal(await manager.read.marketCreationFee([publicCreator.account.address]), WAD);
+    assert.equal(await manager.read.marketCreationFee([owner.account.address]), 0n);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.createMarket(
+        [
+          {
+            collateral: collateral.address,
+            metadataHash,
+            openingProbabilityWad: (50n * WAD) / 100n,
+            liquidityParameter: 5_000n * WAD,
+            graduationThreshold: 2_500n * WAD,
+            graduationDeadline,
+            resolutionTime,
+            bypassAiResolution: false,
+          },
+        ],
+        { account: publicCreator.account, value: WAD },
+      ),
+      manager,
+      "MarketCreationFeePaid",
+      [1n, getAddress(publicCreator.account.address), WAD],
+    );
+
+    assert.equal(await manager.read.collectedCreationFees(), WAD);
+    assert.equal(await publicClient.getBalance({ address: manager.address }), WAD);
+
+    await viem.assertions.revertWithCustomErrorWithArgs(
+      manager.write.createMarket(
+        [
+          {
+            collateral: collateral.address,
+            metadataHash: keccak256(stringToBytes("ipfs://popcharts/no-fee")),
+            openingProbabilityWad: (50n * WAD) / 100n,
+            liquidityParameter: 5_000n * WAD,
+            graduationThreshold: 2_500n * WAD,
+            graduationDeadline,
+            resolutionTime,
+            bypassAiResolution: false,
+          },
+        ],
+        { account: publicCreator.account },
+      ),
+      manager,
+      "InvalidMarketCreationFee",
+      [WAD, 0n],
+    );
+
+    const feeRecipientBalanceBefore = await publicClient.getBalance({
+      address: feeRecipient.account.address,
+    });
+    await viem.assertions.emitWithArgs(
+      manager.write.withdrawCreationFees([feeRecipient.account.address, WAD]),
+      manager,
+      "CreationFeesWithdrawn",
+      [getAddress(feeRecipient.account.address), WAD],
+    );
+
+    assert.equal(await manager.read.collectedCreationFees(), 0n);
+    assert.equal(
+      await publicClient.getBalance({ address: feeRecipient.account.address }),
+      feeRecipientBalanceBefore + WAD,
+    );
   });
 
   it("places a locked receipt and escrows collateral", async function () {

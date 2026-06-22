@@ -62,6 +62,38 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "available",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "requested",
+        type: "uint256",
+      },
+    ],
+    name: "CreationFeeWithdrawalExceedsBalance",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "CreationFeeWithdrawalFailed",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "InvalidClearingRoot",
     type: "error",
@@ -131,6 +163,11 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "InvalidCreationFeeRecipient",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidGraduationDeadline",
     type: "error",
   },
@@ -142,6 +179,22 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "InvalidLiquidityParameter",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "expected",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "received",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidMarketCreationFee",
     type: "error",
   },
   {
@@ -586,6 +639,25 @@ export const pregradManagerAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "CreationFeesWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
         internalType: "uint256",
         name: "marketId",
         type: "uint256",
@@ -707,6 +779,31 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MarketCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "creator",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "MarketCreationFeePaid",
     type: "event",
   },
   {
@@ -893,6 +990,19 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "MARKET_CREATION_FEE",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MAX_PUBLIC_LIQUIDITY_PARAMETER",
     outputs: [
       {
@@ -970,6 +1080,19 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "collectedCreationFees",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         components: [
@@ -1027,7 +1150,7 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
     type: "function",
   },
   {
@@ -1464,6 +1587,25 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "creator",
+        type: "address",
+      },
+    ],
+    name: "marketCreationFee",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "marketId",
         type: "uint256",
@@ -1755,6 +1897,24 @@ export const pregradManagerAbi = [
       },
     ],
     name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address payable",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawCreationFees",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

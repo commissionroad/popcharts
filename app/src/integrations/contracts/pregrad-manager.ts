@@ -53,7 +53,7 @@ export const pregradManagerAbi = [
     ],
     name: "createMarket",
     outputs: [{ name: "marketId", type: "uint256" }],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
     type: "function",
   },
   {
@@ -78,6 +78,13 @@ export const pregradManagerAbi = [
     inputs: [{ name: "account", type: "address" }],
     name: "isTrustedCreator",
     outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "creator", type: "address" }],
+    name: "marketCreationFee",
+    outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
@@ -124,6 +131,16 @@ export const pregradManagerAbi = [
       { indexed: false, name: "bypassAiResolution", type: "bool" },
     ],
     name: "MarketCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "marketId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+    ],
+    name: "MarketCreationFeePaid",
     type: "event",
   },
   {

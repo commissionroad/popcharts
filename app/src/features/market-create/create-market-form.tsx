@@ -139,6 +139,12 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const reviewErrorCount =
     hasTriedReview && stage === "edit" ? countErrors(validationErrors) : 0;
   const preview = buildCreateMarketPreview(effectiveDraft);
+  const creationFeeLabel =
+    marketCreationMode === "devchain"
+      ? trustedCreatorCanBypassAiResolution
+        ? "Waived"
+        : "1 native USDC"
+      : null;
   const createAction = walletCreationRequired
     ? getWalletCreateAction({
         contractChainId: contractConfig?.chainId ?? null,
@@ -501,6 +507,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
         ) : stage === "review" ? (
           <ReviewPanel
             createAction={createAction}
+            creationFeeLabel={creationFeeLabel}
             hasErrors={hasErrors}
             isCreating={isCreating}
             isSubmittingForReview={isSubmittingForReview}
@@ -859,6 +866,7 @@ function LivePreviewPanel({
 
 function ReviewPanel({
   createAction,
+  creationFeeLabel,
   hasErrors,
   isCreating,
   isSubmittingForReview,
@@ -869,6 +877,7 @@ function ReviewPanel({
   submitError,
 }: {
   createAction: WalletCreateAction | null;
+  creationFeeLabel: string | null;
   hasErrors: boolean;
   isCreating: boolean;
   isSubmittingForReview: boolean;
@@ -923,6 +932,9 @@ function ReviewPanel({
           label="AI resolution"
           value={preview.protocolParams.bypassAiResolution ? "Bypassed" : "Assisted"}
         />
+        {creationFeeLabel ? (
+          <ReviewRow label="Creation fee" value={creationFeeLabel} />
+        ) : null}
         <ReviewRow label="Metadata hash" mono value={preview.metadataHash} />
       </div>
 
