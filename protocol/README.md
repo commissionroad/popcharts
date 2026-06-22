@@ -11,6 +11,11 @@ Start here:
 4. `docs/TESTING.md`
 5. `docs/adr/`
 
+Research plans:
+
+- `docs/trueo-style-postgrad-plan.md`
+- `docs/trueo-style-v4-hook-order-manager-plan.md`
+
 ## Commands
 
 ```bash
@@ -39,6 +44,14 @@ markets. It currently supports market creation, receipt placement, virtual LMSR
 quotes, collateral escrow, manager-started graduation, and optimistic clearing
 root submission. Claims, challenges, refunds, and postgrad token handoff will
 land in later vertical slices.
+
+## Postgrad Testnet Slice
+
+`contracts/postgrad/OutcomeToken.sol` and
+`contracts/postgrad/TrueoStyleBinaryMarket.sol` implement the first Arc Testnet
+postgrad building block: ERC20 YES/NO complete sets with market-level
+collateral backing. ADR 0008 records why this testnet slice uses ERC20 outcome
+tokens while ADR 0007 keeps the mainnet CTF-compatible decision open.
 
 ## Public Contract Metadata
 
