@@ -219,15 +219,15 @@ function ensureDependenciesInstalled() {
   }
 
   throw new Error(
-    `Missing ${missing.join(
-      ", ",
-    )}. Run 'just setup' before 'just local-dev'.`,
+    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
   );
 }
 
 async function ensurePostgres() {
   if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
-    const volumeNames = await dockerContainerVolumeNames(POSTGRES_CONTAINER_NAME);
+    const volumeNames = await dockerContainerVolumeNames(
+      POSTGRES_CONTAINER_NAME,
+    );
 
     if (!volumeNames.includes(POSTGRES_VOLUME_NAME)) {
       console.log(
@@ -359,6 +359,9 @@ function buildServerEnv(overrides = {}) {
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     NETWORK: "local",
     PORT: apiPort,
+    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
+      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
+    POPCHARTS_DEV_TOOLS_ENABLED: "true",
     PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     RPC_HTTP_URL: rpcHttpUrl,
@@ -373,15 +376,14 @@ function buildAppEnv(deploy) {
     NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER: "wallet",
     NEXT_PUBLIC_POPCHARTS_CHAIN_ID: String(deploy.chainId),
     NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
-    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS:
-      deploy.pregradManagerAddress,
+    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
     NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
     NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
     NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
+    NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
     POPCHARTS_DEVCHAIN_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_HARDHAT_PRIVATE_KEY,
+      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
@@ -395,6 +397,7 @@ function writeServerEnv(env, deploy) {
     `DATABASE_URL=${env.DATABASE_URL}`,
     `PORT=${env.PORT}`,
     "NETWORK=local",
+    `POPCHARTS_DEV_TOOLS_ENABLED=${env.POPCHARTS_DEV_TOOLS_ENABLED}`,
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
     `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
