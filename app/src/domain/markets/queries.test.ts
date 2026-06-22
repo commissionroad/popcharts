@@ -6,7 +6,8 @@ import { markets as fixtureMarkets } from "./fixtures";
 import { getMarketById, getMarkets, requestMarketGraduation } from "./queries";
 
 const apiMarket: ApiMarket = {
-  chainId: 84532,
+  bypassAiResolution: false,
+  chainId: 5042002,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",
   createdBlockNumber: "123",
@@ -54,19 +55,19 @@ describe("market queries", () => {
     const client = createClient({ markets: [{ ...apiMarket, metadata }] });
 
     const markets = await getMarkets({
-      chainId: 84532,
+      chainId: 5042002,
       client,
       source: "api",
     });
 
-    expect(client.getMarkets).toHaveBeenCalledWith({ chainId: "84532" });
+    expect(client.getMarkets).toHaveBeenCalledWith({ chainId: "5042002" });
     expect(markets[0]).toMatchObject({
       b: 5_000,
       category: "Politics",
       closesAt: "2026-07-01T12:00:00.000Z",
       description: "Resolves using the official source.",
       graduationTargetUsd: 40_000,
-      id: "84532:7",
+      id: "5042002:7",
       matchedUsd: 0,
       noPriceCents: 50,
       openingProbability: 50,
@@ -92,7 +93,7 @@ describe("market queries", () => {
     });
 
     const [market] = await getMarkets({
-      chainId: 84532,
+      chainId: 5042002,
       client,
       source: "api",
     });
@@ -107,44 +108,44 @@ describe("market queries", () => {
   it("reads individual API markets by chain-prefixed app id", async () => {
     const client = createClient({ market: apiMarket });
 
-    const market = await getMarketById("84532:7", {
+    const market = await getMarketById("5042002:7", {
       client,
       source: "api",
     });
 
     expect(client.getMarket).toHaveBeenCalledWith({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: "7",
     });
-    expect(market?.id).toBe("84532:7");
+    expect(market?.id).toBe("5042002:7");
   });
 
   it("reads individual API markets by URL-encoded chain-prefixed app id", async () => {
     const client = createClient({ market: apiMarket });
 
-    const market = await getMarketById("84532%3A7", {
+    const market = await getMarketById("5042002%3A7", {
       client,
       source: "api",
     });
 
     expect(client.getMarket).toHaveBeenCalledWith({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: "7",
     });
-    expect(market?.id).toBe("84532:7");
+    expect(market?.id).toBe("5042002:7");
   });
 
   it("reads individual API markets with a configured chain id", async () => {
     const client = createClient({ market: apiMarket });
 
     await getMarketById("7", {
-      chainId: 84532,
+      chainId: 5042002,
       client,
       source: "api",
     });
 
     expect(client.getMarket).toHaveBeenCalledWith({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: "7",
     });
   });
@@ -168,13 +169,13 @@ describe("market queries", () => {
       },
     });
 
-    const result = await requestMarketGraduation("84532:7", {
+    const result = await requestMarketGraduation("5042002:7", {
       client,
       source: "api",
     });
 
     expect(client.graduateMarket).toHaveBeenCalledWith({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: "7",
     });
     expect(result.status).toBe("graduated");

@@ -171,6 +171,7 @@ export async function getMarketCreatedEvents(
   return rows.map(({ event }) => ({
     blockNumber: event.blockNumber.toString(),
     blockTimestamp: event.blockTimestamp.toISOString(),
+    bypassAiResolution: event.bypassAiResolution,
     chainId: event.chainId,
     collateral: event.collateral,
     creator: event.creator,
@@ -194,6 +195,7 @@ export function serializeMarketRow(
   matchedMarketCap: bigint,
 ): MarketResponse {
   return {
+    bypassAiResolution: market.bypassAiResolution,
     chainId: market.chainId,
     collateral: market.collateral,
     createdAt: market.createdAt.toISOString(),

@@ -9,6 +9,7 @@ import type { MarketMetadataProperty } from "./marketMetadataProperty";
 import type { MarketStatus } from "./marketStatus";
 
 export interface Market {
+  bypassAiResolution: boolean;
   chainId: number;
   collateral: string;
   createdAt: string;

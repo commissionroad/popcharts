@@ -28,7 +28,11 @@ library MarketTypes {
     /// @notice The postgrad outcome has been resolved.
     Resolved,
     /// @notice The market was cancelled before normal graduation or resolution.
-    Cancelled
+    Cancelled,
+    /// @notice The market is awaiting review and does not accept receipts.
+    UnderReview,
+    /// @notice The market failed review and remains closed to receipt placement.
+    Rejected
   }
 
   /// @notice Immutable creation-time configuration for a pregrad market.
@@ -49,6 +53,8 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice True when a trusted creator opts out of AI-assisted resolution.
+    bool bypassAiResolution;
   }
 
   /// @notice Inputs required to create a market.
@@ -68,6 +74,8 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice True when a trusted creator opts out of AI-assisted resolution.
+    bool bypassAiResolution;
   }
 
   /// @notice Mutable lifecycle and accounting state for a market.

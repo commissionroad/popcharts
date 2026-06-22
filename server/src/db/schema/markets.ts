@@ -1,4 +1,5 @@
 import {
+  boolean,
   bigint,
   integer,
   pgEnum,
@@ -15,12 +16,14 @@ import { contracts } from "./contracts";
 import { uint256 } from "./uint256";
 
 export const marketStatus = pgEnum("market_status", [
+  "under_review",
   "bootstrap",
   "graduating",
   "graduated",
   "resolved",
   "refunded",
   "cancelled",
+  "rejected",
 ]);
 
 export const markets = pgTable(
@@ -32,7 +35,7 @@ export const markets = pgTable(
       .notNull()
       .references(() => contracts.id),
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
-    status: marketStatus("status").default("bootstrap").notNull(),
+    status: marketStatus("status").default("under_review").notNull(),
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
     collateral: text("collateral").notNull(),
@@ -43,6 +46,9 @@ export const markets = pgTable(
     graduationThreshold: uint256("graduation_threshold").notNull(),
     graduationTime: timestamp("graduation_time").notNull(),
     resolutionTime: timestamp("resolution_time").notNull(),
+    bypassAiResolution: boolean("bypass_ai_resolution")
+      .default(false)
+      .notNull(),
     // Mutable protocol counters and share totals also use uint256 storage for
     // the same reason, even though early smoke values are small.
     receiptCount: uint256("receipt_count")

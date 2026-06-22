@@ -4,6 +4,11 @@ import type { MarketStatus } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 
 const STATUS: Record<MarketStatus, { color: string; label: string; pulse: boolean }> = {
+  under_review: {
+    color: "var(--status-under-review)",
+    label: "Under review",
+    pulse: true,
+  },
   bootstrap: {
     color: "var(--status-bootstrap)",
     label: "Bootstrap",
@@ -32,6 +37,11 @@ const STATUS: Record<MarketStatus, { color: string; label: string; pulse: boolea
   resolved: {
     color: "var(--status-resolved)",
     label: "Resolved",
+    pulse: false,
+  },
+  rejected: {
+    color: "var(--status-rejected)",
+    label: "Rejected",
     pulse: false,
   },
 };

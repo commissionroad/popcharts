@@ -45,6 +45,7 @@ export const pregradManagerAbi = [
           { name: "graduationThreshold", type: "uint256" },
           { name: "graduationTime", type: "uint64" },
           { name: "resolutionTime", type: "uint64" },
+          { name: "bypassAiResolution", type: "bool" },
         ],
         name: "params",
         type: "tuple",
@@ -52,7 +53,7 @@ export const pregradManagerAbi = [
     ],
     name: "createMarket",
     outputs: [{ name: "marketId", type: "uint256" }],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
     type: "function",
   },
   {
@@ -71,6 +72,20 @@ export const pregradManagerAbi = [
     name: "placeReceipt",
     outputs: [{ name: "receiptId", type: "uint256" }],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "account", type: "address" }],
+    name: "isTrustedCreator",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "creator", type: "address" }],
+    name: "marketCreationFee",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -113,8 +128,19 @@ export const pregradManagerAbi = [
       { indexed: false, name: "graduationThreshold", type: "uint256" },
       { indexed: false, name: "graduationTime", type: "uint64" },
       { indexed: false, name: "resolutionTime", type: "uint64" },
+      { indexed: false, name: "bypassAiResolution", type: "bool" },
     ],
     name: "MarketCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "marketId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+    ],
+    name: "MarketCreationFeePaid",
     type: "event",
   },
   {

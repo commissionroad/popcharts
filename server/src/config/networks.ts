@@ -1,11 +1,17 @@
 import type { Chain } from "viem";
-import { base, baseSepolia, hardhat } from "viem/chains";
+import { hardhat } from "viem/chains";
 
+import {
+  arcTestnet,
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_RPC_HTTP_URL,
+  ARC_TESTNET_RPC_WSS_URL,
+} from "./arc-testnet";
 import { getDatabaseConnectionString } from "./database";
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-export type NetworkId = "local" | "baseSepolia" | "base";
+export type NetworkId = "local" | "arcTestnet";
 
 export type ContractAddresses = {
   pregradManager: `0x${string}`;
@@ -24,8 +30,7 @@ export type NetworkConfig = {
 
 export const chainIdToNetwork: Record<number, NetworkId> = {
   31337: "local",
-  84532: "baseSepolia",
-  8453: "base",
+  [ARC_TESTNET_CHAIN_ID]: "arcTestnet",
 };
 
 export function getNetworkId(): NetworkId {
@@ -43,15 +48,13 @@ export function getNetworkId(): NetworkId {
     }
   }
 
-  return "local";
+  return "arcTestnet";
 }
 
 export function getNetworkConfig(networkId = getNetworkId()): NetworkConfig {
   switch (networkId) {
-    case "base":
-      return createBaseConfig();
-    case "baseSepolia":
-      return createBaseSepoliaConfig();
+    case "arcTestnet":
+      return createArcTestnetConfig();
     case "local":
       return createLocalConfig();
   }
@@ -84,47 +87,25 @@ function createLocalConfig(): NetworkConfig {
   };
 }
 
-function createBaseSepoliaConfig(): NetworkConfig {
+function createArcTestnetConfig(): NetworkConfig {
   return {
-    chainId: baseSepolia.id,
-    chain: baseSepolia,
+    chainId: arcTestnet.id,
+    chain: arcTestnet,
     contracts: {
       pregradManager: readAddress([
-        "BASE_SEPOLIA_PREGRAD_MANAGER_ADDRESS",
+        "ARC_TESTNET_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
       ]),
     },
     databaseUrl: readDatabaseUrl(),
     deployBlock: readBigInt([
-      "BASE_SEPOLIA_PREGRAD_MANAGER_DEPLOY_BLOCK",
+      "ARC_TESTNET_PREGRAD_MANAGER_DEPLOY_BLOCK",
       "PREGRAD_MANAGER_DEPLOY_BLOCK",
     ]),
-    name: "baseSepolia",
+    name: "arcTestnet",
     rpcHttpUrl:
-      process.env.BASE_SEPOLIA_RPC_HTTP_URL ?? process.env.RPC_HTTP_URL ?? "",
-    rpcWssUrl:
-      process.env.BASE_SEPOLIA_RPC_WSS_URL ?? process.env.RPC_WSS_URL ?? "",
-  };
-}
-
-function createBaseConfig(): NetworkConfig {
-  return {
-    chainId: base.id,
-    chain: base,
-    contracts: {
-      pregradManager: readAddress([
-        "BASE_PREGRAD_MANAGER_ADDRESS",
-        "PREGRAD_MANAGER_ADDRESS",
-      ]),
-    },
-    databaseUrl: readDatabaseUrl(),
-    deployBlock: readBigInt([
-      "BASE_PREGRAD_MANAGER_DEPLOY_BLOCK",
-      "PREGRAD_MANAGER_DEPLOY_BLOCK",
-    ]),
-    name: "base",
-    rpcHttpUrl: process.env.BASE_RPC_HTTP_URL ?? process.env.RPC_HTTP_URL ?? "",
-    rpcWssUrl: process.env.BASE_RPC_WSS_URL ?? process.env.RPC_WSS_URL ?? "",
+      process.env.ARC_TESTNET_RPC_HTTP_URL ?? ARC_TESTNET_RPC_HTTP_URL,
+    rpcWssUrl: process.env.ARC_TESTNET_RPC_WSS_URL ?? ARC_TESTNET_RPC_WSS_URL,
   };
 }
 
@@ -155,5 +136,5 @@ function readDatabaseUrl() {
 }
 
 function isNetworkId(value: string): value is NetworkId {
-  return value === "local" || value === "baseSepolia" || value === "base";
+  return value === "local" || value === "arcTestnet";
 }

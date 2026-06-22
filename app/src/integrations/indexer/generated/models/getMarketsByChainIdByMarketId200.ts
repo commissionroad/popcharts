@@ -9,6 +9,7 @@ import type { GetMarketsByChainIdByMarketId200Metadata } from "./getMarketsByCha
 import type { GetMarketsByChainIdByMarketId200Status } from "./getMarketsByChainIdByMarketId200Status";
 
 export type GetMarketsByChainIdByMarketId200 = {
+  bypassAiResolution: boolean;
   chainId: number;
   collateral: string;
   createdAt: string;

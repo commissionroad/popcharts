@@ -1,4 +1,5 @@
 import {
+  boolean,
   bigint,
   integer,
   pgTable,
@@ -41,6 +42,9 @@ export const marketCreatedEvents = pgTable(
     }).notNull(),
     graduationTime: timestamp("graduation_time").notNull(),
     resolutionTime: timestamp("resolution_time").notNull(),
+    bypassAiResolution: boolean("bypass_ai_resolution")
+      .default(false)
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

@@ -7,8 +7,10 @@ import {
 } from "src/indexer/blockchain/client";
 import {
   recoverMarketCreatedEvents,
+  recoverMarketReviewEvents,
   recoverReceiptPlacedEvents,
   watchMarketCreatedEvents,
+  watchMarketReviewEvents,
   watchReceiptPlacedEvents,
 } from "src/indexer/watchers";
 
@@ -52,6 +54,7 @@ async function main() {
 
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
+  const unwatchMarketReview = watchMarketReviewEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
 
   markHealthy();
@@ -75,6 +78,7 @@ async function main() {
     }
     markUnhealthy();
     unwatchMarketCreated();
+    unwatchMarketReview();
     unwatchReceiptPlaced();
     console.log("Shutdown complete");
     process.exit(0);
@@ -93,6 +97,7 @@ async function recoverMissedEvents(
   const currentBlock = await client.getBlockNumber();
 
   await recoverMarketCreatedEvents(client, currentBlock, { quiet });
+  await recoverMarketReviewEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
 }
 

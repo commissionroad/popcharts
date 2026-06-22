@@ -3,6 +3,7 @@ import { getAddress, isAddress } from "viem";
 import type { ProtocolCreateMarketParams } from "@/domain/market-creation/types";
 
 export type SerializedProtocolCreateMarketParams = {
+  bypassAiResolution: boolean;
   collateral: `0x${string}`;
   graduationThreshold: string;
   graduationTime: string;
@@ -16,6 +17,7 @@ export function serializeProtocolCreateMarketParams(
   params: ProtocolCreateMarketParams
 ): SerializedProtocolCreateMarketParams {
   return {
+    bypassAiResolution: params.bypassAiResolution,
     collateral: params.collateral,
     graduationThreshold: params.graduationThreshold.toString(),
     graduationTime: params.graduationTime.toString(),
@@ -34,6 +36,7 @@ export function parseSerializedProtocolCreateMarketParams(
   }
 
   return {
+    bypassAiResolution: parseBoolean(value.bypassAiResolution, "bypassAiResolution"),
     collateral: parseAddress(value.collateral, "collateral"),
     graduationThreshold: parseBigInt(value.graduationThreshold, "graduationThreshold"),
     graduationTime: parseBigInt(value.graduationTime, "graduationTime"),
@@ -69,6 +72,14 @@ function parseBigInt(value: unknown, field: string) {
   }
 
   return BigInt(value);
+}
+
+function parseBoolean(value: unknown, field: string) {
+  if (typeof value !== "boolean") {
+    throw new Error(`Invalid ${field}.`);
+  }
+
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

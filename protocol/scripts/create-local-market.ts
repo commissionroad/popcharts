@@ -39,20 +39,25 @@ const nextMarketId = (await manager.read.nextMarketId()) as bigint;
 const latestBlock = await publicClient.getBlock();
 const graduationDeadline = latestBlock.timestamp + 7n * DAY_SECONDS;
 const resolutionTime = graduationDeadline + 7n * DAY_SECONDS;
+const creationFee = (await manager.read.marketCreationFee([creator.account.address])) as bigint;
 
 // Use realistic WAD-scaled values here. The smoke should catch schema/indexer
 // bugs around uint256 storage, not avoid them with tiny test numbers.
-const transactionHash = await manager.write.createMarket([
-  {
-    collateral: collateralAddress,
-    metadataHash,
-    openingProbabilityWad: (50n * WAD) / 100n,
-    liquidityParameter: 5_000n * WAD,
-    graduationThreshold: 40_000n * WAD,
-    graduationDeadline,
-    resolutionTime,
-  },
-]);
+const transactionHash = await manager.write.createMarket(
+  [
+    {
+      collateral: collateralAddress,
+      metadataHash,
+      openingProbabilityWad: (50n * WAD) / 100n,
+      liquidityParameter: 5_000n * WAD,
+      graduationThreshold: 2_500n * WAD,
+      graduationDeadline,
+      resolutionTime,
+      bypassAiResolution: false,
+    },
+  ],
+  { value: creationFee },
+);
 const receipt = await publicClient.waitForTransactionReceipt({
   hash: transactionHash,
 });

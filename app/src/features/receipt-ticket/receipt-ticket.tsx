@@ -51,6 +51,16 @@ const sideOptions = [
 const presetAmounts = ["50", "250", "1000", "Max"] as const;
 const TOKEN_DECIMALS = 18;
 const TEST_MINT_AMOUNT_USD = 10_000;
+const marketStatusLabels: Record<Market["status"], string> = {
+  under_review: "under review",
+  bootstrap: "bootstrap",
+  cancelled: "cancelled",
+  graduated: "graduated",
+  graduating: "graduating",
+  refunded: "refunded",
+  rejected: "rejected",
+  resolved: "resolved",
+};
 
 type ContractTicketStatus = {
   balance: bigint | null;
@@ -441,7 +451,8 @@ export function ReceiptTicket({ market }: { market: Market }) {
 
       {market.status !== "bootstrap" ? (
         <div className="rounded-[var(--radius-sm)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] p-3 text-[12px] leading-5 text-[var(--status-graduating)]">
-          This receipt book is locked because the market is {market.status}.
+          This receipt book is locked because the market is{" "}
+          {marketStatusLabels[market.status]}.
         </div>
       ) : null}
 

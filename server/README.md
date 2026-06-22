@@ -22,7 +22,8 @@ bun run dev:api
 The API listens on `http://localhost:3001` by default. OpenAPI docs are served
 at `/openapi`.
 
-Run the indexer in a second terminal after setting `PREGRAD_MANAGER_ADDRESS`:
+Run the indexer in a second terminal after setting
+`ARC_TESTNET_PREGRAD_MANAGER_ADDRESS`:
 
 ```bash
 bun run dev:indexer

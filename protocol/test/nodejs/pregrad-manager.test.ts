@@ -4,6 +4,11 @@ import { network } from "hardhat";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
 const WAD = 10n ** 18n;
+const MarketStatus = {
+  Active: 0,
+  Graduating: 2,
+  UnderReview: 7,
+} as const;
 
 type MarketConfig = {
   collateral: `0x${string}`;
@@ -14,6 +19,7 @@ type MarketConfig = {
   graduationThreshold: bigint;
   graduationDeadline: bigint;
   resolutionTime: bigint;
+  bypassAiResolution: boolean;
 };
 
 type MarketState = {
@@ -62,11 +68,14 @@ describe("PregradManager", async function () {
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
     const manager = await viem.deployContract("PregradManager");
+    const [owner] = await viem.getWalletClients();
+
+    await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
 
     return { collateral, manager };
   }
 
-  it("creates an active market with a stable market ID", async function () {
+  it("creates an under-review market with a stable market ID", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
@@ -81,9 +90,10 @@ describe("PregradManager", async function () {
           metadataHash,
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
-          graduationThreshold: 40_000n * WAD,
+          graduationThreshold: 2_500n * WAD,
           graduationDeadline,
           resolutionTime,
+          bypassAiResolution: false,
         },
       ]),
       manager,
@@ -95,9 +105,10 @@ describe("PregradManager", async function () {
         getAddress(collateral.address),
         (50n * WAD) / 100n,
         5_000n * WAD,
-        40_000n * WAD,
+        2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        false,
       ],
     );
 
@@ -114,10 +125,11 @@ describe("PregradManager", async function () {
     assert.equal(config.metadataHash, metadataHash);
     assert.equal(config.openingProbabilityWad, (50n * WAD) / 100n);
     assert.equal(config.liquidityParameter, 5_000n * WAD);
-    assert.equal(config.graduationThreshold, 40_000n * WAD);
+    assert.equal(config.graduationThreshold, 2_500n * WAD);
     assert.equal(config.graduationDeadline, graduationDeadline);
     assert.equal(config.resolutionTime, resolutionTime);
-    assert.equal(Number(state.status), 0);
+    assert.equal(config.bypassAiResolution, false);
+    assert.equal(Number(state.status), MarketStatus.UnderReview);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
     assert.equal(state.path, 0n);
@@ -145,12 +157,13 @@ describe("PregradManager", async function () {
           metadataHash: firstMetadataHash,
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
-          graduationThreshold: 25_000n * WAD,
+          graduationThreshold: 1_250n * WAD,
           graduationDeadline: firstGraduationDeadline,
           resolutionTime: firstResolutionTime,
+          bypassAiResolution: false,
         },
       ],
-      { account: alice.account },
+      { account: alice.account, value: WAD },
     );
 
     await manager.write.createMarket(
@@ -160,12 +173,13 @@ describe("PregradManager", async function () {
           metadataHash: secondMetadataHash,
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
-          graduationThreshold: 100_000n * WAD,
+          graduationThreshold: 4_000n * WAD,
           graduationDeadline: secondGraduationDeadline,
           resolutionTime: secondResolutionTime,
+          bypassAiResolution: false,
         },
       ],
-      { account: bob.account },
+      { account: bob.account, value: WAD },
     );
 
     const firstConfig = (await manager.read.getMarketConfig([1n])) as MarketConfig;
@@ -184,6 +198,81 @@ describe("PregradManager", async function () {
     assert.equal(secondConfig.resolutionTime, secondResolutionTime);
   });
 
+  it("charges public creators a fee and waives it for trusted creators", async function () {
+    const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
+    const [owner, publicCreator, feeRecipient] = await viem.getWalletClients();
+    const publicClient = await viem.getPublicClient();
+
+    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/public-fee"));
+    const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
+    const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
+
+    assert.equal(await manager.read.MARKET_CREATION_FEE(), WAD);
+    assert.equal(await manager.read.marketCreationFee([publicCreator.account.address]), WAD);
+    assert.equal(await manager.read.marketCreationFee([owner.account.address]), 0n);
+
+    await viem.assertions.emitWithArgs(
+      manager.write.createMarket(
+        [
+          {
+            collateral: collateral.address,
+            metadataHash,
+            openingProbabilityWad: (50n * WAD) / 100n,
+            liquidityParameter: 5_000n * WAD,
+            graduationThreshold: 2_500n * WAD,
+            graduationDeadline,
+            resolutionTime,
+            bypassAiResolution: false,
+          },
+        ],
+        { account: publicCreator.account, value: WAD },
+      ),
+      manager,
+      "MarketCreationFeePaid",
+      [1n, getAddress(publicCreator.account.address), WAD],
+    );
+
+    assert.equal(await manager.read.collectedCreationFees(), WAD);
+    assert.equal(await publicClient.getBalance({ address: manager.address }), WAD);
+
+    await viem.assertions.revertWithCustomErrorWithArgs(
+      manager.write.createMarket(
+        [
+          {
+            collateral: collateral.address,
+            metadataHash: keccak256(stringToBytes("ipfs://popcharts/no-fee")),
+            openingProbabilityWad: (50n * WAD) / 100n,
+            liquidityParameter: 5_000n * WAD,
+            graduationThreshold: 2_500n * WAD,
+            graduationDeadline,
+            resolutionTime,
+            bypassAiResolution: false,
+          },
+        ],
+        { account: publicCreator.account },
+      ),
+      manager,
+      "InvalidMarketCreationFee",
+      [WAD, 0n],
+    );
+
+    const feeRecipientBalanceBefore = await publicClient.getBalance({
+      address: feeRecipient.account.address,
+    });
+    await viem.assertions.emitWithArgs(
+      manager.write.withdrawCreationFees([feeRecipient.account.address, WAD]),
+      manager,
+      "CreationFeesWithdrawn",
+      [getAddress(feeRecipient.account.address), WAD],
+    );
+
+    assert.equal(await manager.read.collectedCreationFees(), 0n);
+    assert.equal(
+      await publicClient.getBalance({ address: feeRecipient.account.address }),
+      feeRecipientBalanceBefore + WAD,
+    );
+  });
+
   it("places a locked receipt and escrows collateral", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [, buyer] = await viem.getWalletClients();
@@ -199,11 +288,13 @@ describe("PregradManager", async function () {
         metadataHash,
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
-        graduationThreshold: 40_000n * WAD,
+        graduationThreshold: 2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        bypassAiResolution: false,
       },
     ]);
+    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {
@@ -273,7 +364,7 @@ describe("PregradManager", async function () {
 
   it("starts graduation and accepts a manager-submitted clearing root", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
-    const [, buyer] = await viem.getWalletClients();
+    const [owner, buyer] = await viem.getWalletClients();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/graduation"));
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
@@ -282,6 +373,7 @@ describe("PregradManager", async function () {
     const matchedMarketCap = 50n * WAD;
     const merkleRoot = keccak256(stringToBytes("clearing-root"));
 
+    await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
     await manager.write.createMarket([
       {
         collateral: collateral.address,
@@ -291,8 +383,10 @@ describe("PregradManager", async function () {
         graduationThreshold: matchedMarketCap,
         graduationDeadline,
         resolutionTime,
+        bypassAiResolution: false,
       },
     ]);
+    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {
@@ -317,7 +411,7 @@ describe("PregradManager", async function () {
     const graduatingState = (await manager.read.getMarketState([1n])) as MarketState;
     const snapshotHash = (await manager.read.graduationSnapshotHash([1n])) as `0x${string}`;
 
-    assert.equal(Number(graduatingState.status), 2);
+    assert.equal(Number(graduatingState.status), MarketStatus.Graduating);
     assert.equal(graduatingState.receiptCount, 1n);
     assert.equal(graduatingState.totalEscrowed, quote.cost);
     assert.equal(graduatingState.graduationStartedAt > 0n, true);
