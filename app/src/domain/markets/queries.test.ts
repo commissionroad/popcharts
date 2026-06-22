@@ -6,6 +6,7 @@ import { markets as fixtureMarkets } from "./fixtures";
 import { getMarketById, getMarkets, requestMarketGraduation } from "./queries";
 
 const apiMarket: ApiMarket = {
+  bypassAiResolution: false,
   chainId: 84532,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",

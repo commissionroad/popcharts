@@ -5,6 +5,7 @@ import { schema } from "src/db/client";
 
 export type MarketCreatedLog = Log & {
   args: {
+    bypassAiResolution?: boolean;
     collateral?: `0x${string}`;
     creator?: `0x${string}`;
     graduationThreshold?: bigint;
@@ -63,6 +64,10 @@ export function buildMarketCreatedRecords({
     log.args.resolutionTime,
     "resolutionTime",
   );
+  const bypassAiResolution = requireValue(
+    log.args.bypassAiResolution,
+    "bypassAiResolution",
+  );
   const graduationTime = unixSecondsToDate(graduationTimeUnix);
   const resolutionTime = unixSecondsToDate(resolutionTimeUnix);
 
@@ -70,6 +75,7 @@ export function buildMarketCreatedRecords({
     event: {
       blockNumber,
       blockTimestamp,
+      bypassAiResolution,
       chainId: config.chainId,
       collateral,
       contractId,
@@ -94,6 +100,7 @@ export function buildMarketCreatedRecords({
       createdBlockTimestamp: blockTimestamp,
       createdLogIndex: logIndex,
       createdTransactionHash: transactionHash,
+      bypassAiResolution,
       creator,
       graduationThreshold,
       graduationTime,

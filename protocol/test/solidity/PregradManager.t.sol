@@ -22,8 +22,11 @@ contract PregradManagerTest is Test {
     uint256 liquidityParameter,
     uint256 graduationThreshold,
     uint64 graduationDeadline,
-    uint64 resolutionTime
+    uint64 resolutionTime,
+    bool bypassAiResolution
   );
+
+  event TrustedCreatorUpdated(address indexed account, bool trusted);
 
   event ReceiptPlaced(
     uint256 indexed receiptId,
@@ -86,7 +89,8 @@ contract PregradManagerTest is Test {
       params.liquidityParameter,
       params.graduationThreshold,
       params.graduationDeadline,
-      params.resolutionTime
+      params.resolutionTime,
+      params.bypassAiResolution
     );
 
     uint256 marketId = manager.createMarket(params);
@@ -103,9 +107,10 @@ contract PregradManagerTest is Test {
     assertEq(config.metadataHash, metadataHash);
     assertEq(config.openingProbabilityWad, (50 * WAD) / 100);
     assertEq(config.liquidityParameter, 5_000 * WAD);
-    assertEq(config.graduationThreshold, 40_000 * WAD);
+    assertEq(config.graduationThreshold, 2_500 * WAD);
     assertEq(config.graduationDeadline, params.graduationDeadline);
     assertEq(config.resolutionTime, params.resolutionTime);
+    assertFalse(config.bypassAiResolution);
     assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
@@ -128,9 +133,10 @@ contract PregradManagerTest is Test {
         metadataHash: aliceMetadataHash,
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
-        graduationThreshold: 25_000 * WAD,
+        graduationThreshold: 1_250 * WAD,
         graduationDeadline: uint64(block.timestamp + 3 days),
-        resolutionTime: uint64(block.timestamp + 30 days)
+        resolutionTime: uint64(block.timestamp + 30 days),
+        bypassAiResolution: false
       })
     );
 
@@ -141,9 +147,10 @@ contract PregradManagerTest is Test {
         metadataHash: bobMetadataHash,
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
-        graduationThreshold: 100_000 * WAD,
+        graduationThreshold: 4_000 * WAD,
         graduationDeadline: uint64(block.timestamp + 14 days),
-        resolutionTime: uint64(block.timestamp + 60 days)
+        resolutionTime: uint64(block.timestamp + 60 days),
+        bypassAiResolution: false
       })
     );
 
@@ -302,9 +309,10 @@ contract PregradManagerTest is Test {
       metadataHash: keccak256("ipfs://popcharts/example"),
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
-      graduationThreshold: 40_000 * WAD,
+      graduationThreshold: 2_500 * WAD,
       graduationDeadline: uint64(block.timestamp + 7 days),
-      resolutionTime: uint64(block.timestamp + 14 days)
+      resolutionTime: uint64(block.timestamp + 14 days),
+      bypassAiResolution: false
     });
 
     vm.expectRevert(PregradManager.InvalidCollateral.selector);
@@ -334,7 +342,7 @@ contract PregradManagerTest is Test {
     vm.expectRevert(PregradManager.InvalidGraduationThreshold.selector);
     manager.createMarket(params);
 
-    params.graduationThreshold = 40_000 * WAD;
+    params.graduationThreshold = 2_500 * WAD;
     params.graduationDeadline = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidGraduationDeadline.selector);
     manager.createMarket(params);
@@ -347,6 +355,109 @@ contract PregradManagerTest is Test {
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
     manager.createMarket(params);
+  }
+
+  function test_RevertsWhenPublicMarketLeavesCreationEnvelope() public {
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/public-envelope")
+    );
+
+    params.openingProbabilityWad = (1 * WAD) / 100;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicOpeningProbabilityOutOfBounds.selector,
+        params.openingProbabilityWad
+      )
+    );
+    manager.createMarket(params);
+
+    params.openingProbabilityWad = (99 * WAD) / 100;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicOpeningProbabilityOutOfBounds.selector,
+        params.openingProbabilityWad
+      )
+    );
+    manager.createMarket(params);
+
+    params.openingProbabilityWad = (50 * WAD) / 100;
+    params.liquidityParameter = 499 * WAD;
+    params.graduationThreshold = params.liquidityParameter / 2;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicLiquidityParameterOutOfBounds.selector,
+        params.liquidityParameter
+      )
+    );
+    manager.createMarket(params);
+
+    params.liquidityParameter = 10_001 * WAD;
+    params.graduationThreshold = params.liquidityParameter / 2;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicLiquidityParameterOutOfBounds.selector,
+        params.liquidityParameter
+      )
+    );
+    manager.createMarket(params);
+
+    params.liquidityParameter = 5_000 * WAD;
+    params.graduationThreshold = 2_501 * WAD;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicGraduationThresholdMismatch.selector,
+        params.graduationThreshold,
+        2_500 * WAD
+      )
+    );
+    manager.createMarket(params);
+  }
+
+  function test_TrustedCreatorsCanBypassPublicEnvelopeAndAiResolution() public {
+    address partner = makeAddr("partner");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/trusted")
+    );
+    params.openingProbabilityWad = (1 * WAD) / 100;
+    params.liquidityParameter = 50 * WAD;
+    params.graduationThreshold = 1 * WAD;
+    params.bypassAiResolution = true;
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit TrustedCreatorUpdated(partner, true);
+    manager.setTrustedCreator(partner, true);
+
+    assertTrue(manager.isTrustedCreator(partner));
+
+    vm.prank(partner);
+    uint256 marketId = manager.createMarket(params);
+
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    assertEq(config.creator, partner);
+    assertEq(config.openingProbabilityWad, (1 * WAD) / 100);
+    assertEq(config.liquidityParameter, 50 * WAD);
+    assertEq(config.graduationThreshold, 1 * WAD);
+    assertTrue(config.bypassAiResolution);
+
+    manager.setTrustedCreator(partner, false);
+    assertFalse(manager.isTrustedCreator(partner));
+  }
+
+  function test_RevertsWhenPublicCreatorBypassesAiResolution() public {
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/ai-bypass")
+    );
+    params.bypassAiResolution = true;
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.UnauthorizedAiResolutionBypass.selector, address(this))
+    );
+    manager.createMarket(params);
+  }
+
+  function test_RevertsWhenTrustedCreatorIsZeroAddress() public {
+    vm.expectRevert(PregradManager.InvalidTrustedCreator.selector);
+    manager.setTrustedCreator(address(0), true);
   }
 
   function test_RevertsForInvalidReceiptPlacement() public {
@@ -410,9 +521,10 @@ contract PregradManagerTest is Test {
         metadataHash: keccak256("ipfs://popcharts/fee-collateral"),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
-        graduationThreshold: 40_000 * WAD,
+        graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
-        resolutionTime: uint64(block.timestamp + 14 days)
+        resolutionTime: uint64(block.timestamp + 14 days),
+        bypassAiResolution: false
       })
     );
 
@@ -790,6 +902,7 @@ contract PregradManagerTest is Test {
       keccak256("ipfs://popcharts/graduatable")
     );
     params.graduationThreshold = 50 * WAD;
+    manager.setTrustedCreator(address(this), true);
     return manager.createMarket(params);
   }
 
@@ -812,9 +925,10 @@ contract PregradManagerTest is Test {
         metadataHash: metadataHash,
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
-        graduationThreshold: 40_000 * WAD,
+        graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
-        resolutionTime: uint64(block.timestamp + 14 days)
+        resolutionTime: uint64(block.timestamp + 14 days),
+        bypassAiResolution: false
       });
   }
 
