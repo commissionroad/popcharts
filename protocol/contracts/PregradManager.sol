@@ -61,6 +61,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @notice Reverts when a non-trusted creator tries to bypass AI-assisted resolution.
   /// @param account Account attempting to create the market.
   error UnauthorizedAiResolutionBypass(address account);
+  /// @notice Reverts when new market creation is paused by the owner.
+  error MarketCreationPaused();
   /// @notice Reverts when owner configuration targets the zero account.
   error InvalidTrustedCreator();
   /// @notice Reverts when owner fee withdrawal targets the zero account.
@@ -186,6 +188,10 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @param trusted True when the account may bypass public market creation guardrails.
   event TrustedCreatorUpdated(address indexed account, bool trusted);
 
+  /// @notice Emitted when the owner pauses or resumes new market creation.
+  /// @param paused True when new market creation is paused.
+  event MarketCreationPausedUpdated(bool paused);
+
   /// @notice Emitted when a public creator pays the market creation fee.
   /// @param marketId Market whose creation paid the fee.
   /// @param creator Account that paid the fee.
@@ -278,6 +284,9 @@ contract PregradManager is Ownable, ReentrancyGuard {
   mapping(address account => bool trusted) private _trustedCreators;
   uint256 private _collectedCreationFees;
 
+  /// @notice Returns true when new market creation is paused.
+  bool public marketCreationPaused;
+
   /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) {}
 
@@ -299,6 +308,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function createMarket(
     MarketTypes.CreateMarketParams calldata params
   ) external payable nonReentrant returns (uint256 marketId) {
+    _requireMarketCreationOpen();
     _validateCreateMarketParams(params);
 
     marketId = _nextMarketId;
@@ -380,6 +390,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
 
     _trustedCreators[account] = trusted;
     emit TrustedCreatorUpdated(account, trusted);
+  }
+
+  /// @notice Pauses or resumes new market creation.
+  /// @param paused True to block `createMarket`; false to resume it.
+  function setMarketCreationPaused(bool paused) external onlyOwner {
+    marketCreationPaused = paused;
+    emit MarketCreationPausedUpdated(paused);
   }
 
   /// @notice Withdraws collected market creation fees without touching receipt escrow.
@@ -788,6 +805,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
         params.graduationThreshold,
         expectedGraduationThreshold
       );
+    }
+  }
+
+  /// @notice Requires new market creation to be open.
+  function _requireMarketCreationOpen() private view {
+    if (marketCreationPaused) {
+      revert MarketCreationPaused();
     }
   }
 

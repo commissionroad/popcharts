@@ -32,6 +32,8 @@ contract PregradManagerTest is Test {
 
   event TrustedCreatorUpdated(address indexed account, bool trusted);
 
+  event MarketCreationPausedUpdated(bool paused);
+
   event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
 
   event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
@@ -128,6 +130,32 @@ contract PregradManagerTest is Test {
     assertEq(state.yesShares, 0);
     assertEq(state.noShares, 0);
     assertEq(state.graduationStartedAt, 0);
+  }
+
+  function test_OwnerCanPauseAndResumeMarketCreation() public {
+    bytes32 metadataHash = keccak256("ipfs://popcharts/paused");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreationPausedUpdated(true);
+    manager.setMarketCreationPaused(true);
+
+    assertTrue(manager.marketCreationPaused());
+
+    vm.expectRevert(PregradManager.MarketCreationPaused.selector);
+    manager.createMarket(params);
+
+    assertEq(manager.nextMarketId(), 1);
+    assertEq(manager.marketCount(), 0);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreationPausedUpdated(false);
+    manager.setMarketCreationPaused(false);
+
+    assertFalse(manager.marketCreationPaused());
+    assertEq(manager.createMarket(params), 1);
+    assertEq(manager.nextMarketId(), 2);
+    assertEq(manager.marketCount(), 1);
   }
 
   function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
