@@ -30,11 +30,19 @@ pnpm --dir protocol arc:testnet:deploy-mock
 
 The deploy command may intentionally stop at a funded-wallet guard. That is a
 valid pre-broadcast check when the deployer has no native gas token.
+Use `pnpm --dir protocol arc:testnet:deploy` when the task is to broadcast and
+verify the full Arc Testnet protocol surface. Full protocol deploys should use
+Hardhat Ignition modules for deployment state and resume/reconcile behavior; keep
+chain-specific preflight checks and local manifest writing in a thin Hardhat
+script wrapper.
 
 ## Shared Helper Shape
 
 Use one-word category folders under `protocol/scripts/shared/`, and put exactly
-one function implementation in each `.mjs` file.
+one function implementation in each helper file. Use `.mjs` for helpers that
+plain Node scripts import directly, and `.ts` for typed Hardhat/Ignition helpers
+used by TypeScript scripts. Add `.d.mts` declarations when a TypeScript file
+imports an existing `.mjs` helper.
 
 Examples:
 
