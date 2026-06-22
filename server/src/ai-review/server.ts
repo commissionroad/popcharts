@@ -189,6 +189,7 @@ export const aiReviewApp = new Elysia()
   .use(cors())
   .use(
     openapi({
+      provider: "swagger-ui",
       documentation: {
         info: {
           description:
