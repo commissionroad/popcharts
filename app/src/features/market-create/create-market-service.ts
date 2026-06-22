@@ -1,5 +1,5 @@
 import type { PublicClient, WalletClient } from "viem";
-import { parseEventLogs } from "viem";
+import { formatUnits, parseEventLogs } from "viem";
 
 import {
   buildCreateMarketPreview,
@@ -11,8 +11,11 @@ import {
   marketCreationMode,
   marketCreationSigner,
 } from "@/integrations/contracts/config";
+import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
+
+const TOKEN_DECIMALS = 18;
 
 export type CreateMarketWallet = {
   accountAddress: `0x${string}`;
@@ -196,6 +199,11 @@ async function createWalletSignedMarket(
     throw new Error(`Switch your wallet to chain ${config.chainId} before creating.`);
   }
 
+  await ensureMarketCreationFeeReady({
+    config,
+    wallet,
+  });
+
   const hash = await wallet.walletClient.writeContract({
     abi: pregradManagerAbi,
     account: wallet.accountAddress,
@@ -232,6 +240,62 @@ async function createWalletSignedMarket(
     ...(metadataSyncError ? { metadataSyncError } : {}),
     transactionHash: hash,
   };
+}
+
+async function ensureMarketCreationFeeReady({
+  config,
+  wallet,
+}: {
+  config: NonNullable<ReturnType<typeof getPopChartsContractConfig>>;
+  wallet: CreateMarketWallet;
+}) {
+  const fee = await wallet.publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: config.pregradManagerAddress,
+    functionName: "marketCreationFee",
+    args: [wallet.accountAddress],
+  });
+
+  if (fee === 0n) {
+    return;
+  }
+
+  const balance = await wallet.publicClient.readContract({
+    abi: erc20Abi,
+    address: config.collateralAddress,
+    functionName: "balanceOf",
+    args: [wallet.accountAddress],
+  });
+
+  if (balance < fee) {
+    throw new Error(
+      `Public market creation costs ${formatTokenAmount(
+        fee
+      )} pUSD. Your wallet has ${formatTokenAmount(balance)} pUSD.`
+    );
+  }
+
+  const allowance = await wallet.publicClient.readContract({
+    abi: erc20Abi,
+    address: config.collateralAddress,
+    functionName: "allowance",
+    args: [wallet.accountAddress, config.pregradManagerAddress],
+  });
+
+  if (allowance >= fee) {
+    return;
+  }
+
+  const approvalHash = await wallet.walletClient.writeContract({
+    abi: erc20Abi,
+    account: wallet.accountAddress,
+    address: config.collateralAddress,
+    chain: wallet.walletClient.chain,
+    functionName: "approve",
+    args: [config.pregradManagerAddress, fee],
+  });
+
+  await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });
 }
 
 async function persistMarketMetadata({
@@ -298,4 +362,13 @@ function isSubmitMarketReviewResponse(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function formatTokenAmount(value: bigint) {
+  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
+
+  return amount.toLocaleString("en-US", {
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
+  });
 }

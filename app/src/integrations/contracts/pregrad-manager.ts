@@ -82,6 +82,13 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
+    inputs: [{ name: "creator", type: "address" }],
+    name: "marketCreationFee",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ name: "marketId", type: "uint256" }],
     name: "marketExists",
     outputs: [{ name: "", type: "bool" }],
@@ -124,6 +131,17 @@ export const pregradManagerAbi = [
       { indexed: false, name: "bypassAiResolution", type: "bool" },
     ],
     name: "MarketCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "marketId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: true, name: "collateral", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+    ],
+    name: "MarketCreationFeePaid",
     type: "event",
   },
   {
