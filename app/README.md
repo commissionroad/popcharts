@@ -24,8 +24,11 @@ NEXT_PUBLIC_PRIVY_APP_ID=...
 NEXT_PUBLIC_PRIVY_CLIENT_ID=... # optional, for Privy app clients
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=... # optional
 NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET=true # optional, injected wallet fallback
-NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS=true # optional, adds Base Sepolia
 ```
+
+The wallet network list is Arc Testnet-only unless
+`NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN=true` enables the local Hardhat chain
+for development.
 
 Enable email, Google, and wallet login in the Privy dashboard. The app creates an
 Ethereum embedded wallet for users without an existing wallet and keeps wallet
@@ -38,7 +41,7 @@ Market discovery reads from the read-only server/indexer API when configured:
 
 ```bash
 POPCHARTS_INDEXER_API_URL=http://localhost:3001
-POPCHARTS_MARKETS_CHAIN_ID=31337 # optional, filters GET /markets and bare ids
+POPCHARTS_MARKETS_CHAIN_ID=5042002 # optional, filters GET /markets and bare ids
 POPCHARTS_MARKET_DATA_SOURCE=auto # optional: auto, api, or fixtures
 ```
 

@@ -44,42 +44,41 @@ Hardhat private key so the development-only API route can create markets during
 automated tests. Manual `just local-dev` runs use wallet-signed creation instead.
 Do not copy that key into any real network.
 
-## Vercel Preview With Tenderly
+## Arc Testnet
 
-Create a Tenderly Virtual Environment for the preview app. Use a Base Sepolia
-fork or another EVM network that matches the app chain you want to test. Copy
-the Virtual Environment RPC URL.
-
-Deploy the preview contracts into that RPC:
+The non-local app and server defaults point at Arc Testnet:
 
 ```bash
-POPCHARTS_RPC_URL="https://virtual.base.rpc.tenderly.co/..." \
-POPCHARTS_DEPLOYER_PRIVATE_KEY="0x..." \
-POPCHARTS_WRITE_APP_ENV=false \
-pnpm run devchain:deploy
+NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=arc-testnet
+NEXT_PUBLIC_POPCHARTS_CHAIN_ID=5042002
+NEXT_PUBLIC_POPCHARTS_RPC_URL=https://rpc.testnet.arc.network
 ```
 
-The deploy command prints the Vercel values to set. In Vercel, scope these to
-Preview, or to a specific preview branch if you want isolated preview chains:
+Deploy the full protocol surface to Arc Testnet from `protocol/`:
 
 ```bash
-NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=preview
+POPCHARTS_DEPLOYER_PRIVATE_KEY="0x..." \
+pnpm run arc:testnet:deploy
+```
+
+Use the generated Arc deployment manifest to set the public app addresses:
+
+```bash
+NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=arc-testnet
 NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain
-NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=server
-NEXT_PUBLIC_POPCHARTS_CHAIN_ID=<tenderly-chain-id>
-NEXT_PUBLIC_POPCHARTS_RPC_URL=<tenderly-public-rpc-url>
+NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=wallet
+NEXT_PUBLIC_POPCHARTS_CHAIN_ID=5042002
+NEXT_PUBLIC_POPCHARTS_RPC_URL=https://rpc.testnet.arc.network
 NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=<deployed-manager>
 NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=<deployed-collateral>
-NEXT_PUBLIC_POPCHARTS_ENABLE_TESTNETS=true
-POPCHARTS_DEVCHAIN_ENABLED=true
-POPCHARTS_DEVCHAIN_PRIVATE_KEY=<preview-devchain-signer>
+POPCHARTS_MARKETS_CHAIN_ID=5042002
 ```
 
 Only `NEXT_PUBLIC_*` values are exposed to the browser bundle. Keep
 `POPCHARTS_DEVCHAIN_PRIVATE_KEY` server-side and scoped to Preview. Never set
 `POPCHARTS_DEVCHAIN_ENABLED=true` for Production.
 
-For a simple shared preview environment, keep one long-lived Tenderly Virtual
-Environment and reset it when needed. For stricter PR isolation, create a
-branch-specific Virtual Environment and use Vercel Preview branch overrides for
-the RPC URL and addresses.
+The server/indexer also defaults to Arc Testnet unless `NETWORK=local` is set
+explicitly. Set `ARC_TESTNET_PREGRAD_MANAGER_ADDRESS` and
+`ARC_TESTNET_PREGRAD_MANAGER_DEPLOY_BLOCK` from the deployment manifest before
+starting the indexer.

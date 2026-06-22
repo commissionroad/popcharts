@@ -28,7 +28,7 @@ describe("buildReceiptPlacedRecord", () => {
 
     const record = buildReceiptPlacedRecord({
       blockTimestamp,
-      config: { chainId: 84532 },
+      config: { chainId: 5042002 },
       contractId: 42,
       log,
     });
@@ -36,7 +36,7 @@ describe("buildReceiptPlacedRecord", () => {
     expect(record).toMatchObject({
       blockNumber: 321n,
       blockTimestamp,
-      chainId: 84532,
+      chainId: 5042002,
       contractId: 42,
       cost: 50_400_000_000_000_000_000n,
       logIndex: 9,
@@ -65,7 +65,7 @@ describe("buildReceiptPlacedRecord", () => {
     expect(() =>
       buildReceiptPlacedRecord({
         blockTimestamp: new Date("2026-06-14T12:00:00.000Z"),
-        config: { chainId: 84532 },
+        config: { chainId: 5042002 },
         contractId: 42,
         log,
       }),

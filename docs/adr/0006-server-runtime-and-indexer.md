@@ -25,7 +25,7 @@ The initial server package owns:
 
 - An Elysia API with generated OpenAPI documentation.
 - Drizzle schema and migrations for PostgreSQL.
-- Network and contract configuration for local, Base Sepolia, and Base.
+- Network and contract configuration for local development and Arc Testnet.
 - A viem indexer that watches `PregradManager.MarketCreated`.
 - Raw event tables plus API projection tables.
 - Read-only market APIs that serve indexed chain data to the frontend.

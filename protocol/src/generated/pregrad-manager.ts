@@ -6,7 +6,7 @@ import type { Abi } from "viem";
 export const protocolContractNames = ["PregradManager"] as const;
 export type ProtocolContractName = (typeof protocolContractNames)[number];
 
-export const protocolNetworkIds = ["local", "baseSepolia", "tenderly", "base"] as const;
+export const protocolNetworkIds = ["local", "arcTestnet"] as const;
 export type ProtocolNetworkId = (typeof protocolNetworkIds)[number];
 
 export type ProtocolAddress = `0x${string}`;
@@ -1766,25 +1766,15 @@ export const protocolDeployments = {
     chainId: 31337,
     contracts: {},
   },
-  baseSepolia: {
-    chainId: 84532,
-    contracts: {},
-  },
-  tenderly: {
-    chainId: 88445533,
-    contracts: {},
-  },
-  base: {
-    chainId: 8453,
+  arcTestnet: {
+    chainId: 5042002,
     contracts: {},
   },
 } as const satisfies ProtocolDeployments;
 
 export const pregradManagerDeployments = {
   local: undefined,
-  baseSepolia: undefined,
-  tenderly: undefined,
-  base: undefined,
+  arcTestnet: undefined,
 } as const satisfies PregradManagerDeploymentMap;
 
 export const pregradManagerContract = {

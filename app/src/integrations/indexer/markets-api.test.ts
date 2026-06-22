@@ -8,7 +8,7 @@ import {
 
 const apiMarket: ApiMarket = {
   bypassAiResolution: false,
-  chainId: 84532,
+  chainId: 5042002,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",
   createdBlockNumber: "123",
@@ -44,7 +44,7 @@ describe("createMarketsApiClient", () => {
     });
 
     await client.getMarkets({
-      chainId: "84532",
+      chainId: "5042002",
       since: "2026-06-13T12:00:00.000Z",
     });
 
@@ -53,7 +53,7 @@ describe("createMarketsApiClient", () => {
 
     expect(url.origin).toBe("http://localhost:3001");
     expect(url.pathname).toBe("/markets");
-    expect(url.searchParams.get("chainId")).toBe("84532");
+    expect(url.searchParams.get("chainId")).toBe("5042002");
     expect(url.searchParams.get("since")).toBe("2026-06-13T12:00:00.000Z");
     expect(init?.cache).toBe("no-store");
     expect(init?.headers).toEqual({ accept: "application/json" });
@@ -68,11 +68,11 @@ describe("createMarketsApiClient", () => {
       fetcher,
     });
 
-    const market = await client.getMarket({ chainId: 84532, marketId: "7" });
+    const market = await client.getMarket({ chainId: 5042002, marketId: "7" });
 
     expect(market?.marketId).toBe("7");
     expect(String(firstFetchCall(fetcher)[0])).toBe(
-      "http://localhost:3001/markets/84532/7"
+      "http://localhost:3001/markets/5042002/7"
     );
   });
 
@@ -100,7 +100,7 @@ describe("createMarketsApiClient", () => {
     });
 
     const result = await client.graduateMarket({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: "7",
     });
 
@@ -108,7 +108,7 @@ describe("createMarketsApiClient", () => {
 
     expect(result.status).toBe("graduated");
     expect(init?.method).toBe("POST");
-    expect(String(input)).toBe("http://localhost:3001/markets/84532/7/graduate");
+    expect(String(input)).toBe("http://localhost:3001/markets/5042002/7/graduate");
   });
 
   it("surfaces graduation ineligibility messages", async () => {
@@ -128,7 +128,7 @@ describe("createMarketsApiClient", () => {
     });
 
     await expect(
-      client.graduateMarket({ chainId: 84532, marketId: "7" })
+      client.graduateMarket({ chainId: 5042002, marketId: "7" })
     ).rejects.toMatchObject({
       message:
         "Markets API request failed (409): Matched liquidity is below this market's graduation threshold.",
@@ -145,7 +145,7 @@ describe("createMarketsApiClient", () => {
       fetcher,
     });
 
-    await expect(client.getMarket({ chainId: 84532, marketId: "404" })).resolves.toBe(
+    await expect(client.getMarket({ chainId: 5042002, marketId: "404" })).resolves.toBe(
       null
     );
   });
@@ -157,7 +157,7 @@ describe("createMarketsApiClient", () => {
           blockNumber: "123",
           blockTimestamp: "2026-06-13T12:00:00.000Z",
           bypassAiResolution: false,
-          chainId: 84532,
+          chainId: 5042002,
           collateral: apiMarket.collateral,
           creator: apiMarket.creator,
           graduationThreshold: apiMarket.graduationThreshold,
@@ -179,11 +179,11 @@ describe("createMarketsApiClient", () => {
       fetcher,
     });
 
-    const events = await client.getMarketEvents({ chainId: 84532, marketId: "7" });
+    const events = await client.getMarketEvents({ chainId: 5042002, marketId: "7" });
 
     expect(events).toHaveLength(1);
     expect(String(firstFetchCall(fetcher)[0])).toBe(
-      "http://localhost:3001/markets/84532/7/events"
+      "http://localhost:3001/markets/5042002/7/events"
     );
   });
 });
