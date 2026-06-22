@@ -18,12 +18,12 @@ describe("buildMarketReviewStatusUpdate", () => {
     expect(
       buildMarketReviewStatusUpdate({
         blockTimestamp,
-        config: { chainId: 84532 },
+        config: { chainId: 5042002 },
         log,
         status: "bootstrap",
       }),
     ).toEqual({
-      chainId: 84532,
+      chainId: 5042002,
       marketId: 7n,
       status: "bootstrap",
       updatedAt: blockTimestamp,
@@ -36,7 +36,7 @@ describe("buildMarketReviewStatusUpdate", () => {
     expect(() =>
       buildMarketReviewStatusUpdate({
         blockTimestamp: new Date("2026-06-13T12:00:00.000Z"),
-        config: { chainId: 84532 },
+        config: { chainId: 5042002 },
         log,
         status: "rejected",
       }),

@@ -57,7 +57,6 @@ export const privyConfig = {
       "detected_ethereum_wallets",
       "metamask",
       "coinbase_wallet",
-      "base_account",
       "wallet_connect",
       "rainbow",
       "uniswap",
