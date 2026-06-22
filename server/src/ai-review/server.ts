@@ -1,6 +1,7 @@
 import { cors } from "@elysiajs/cors";
 import { openapi } from "@elysiajs/openapi";
 import { Elysia, t } from "elysia";
+import type { OpenAPIV3 } from "openapi-types";
 
 import { aiReviewConfig } from "./config";
 import { reviewMarket } from "./reviewer";
@@ -58,6 +59,21 @@ const LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE = {
   options: {
     internetAccess: "off",
     provider: "heuristic",
+  },
+} as const;
+
+const MARKET_REVIEW_REQUEST_EXAMPLES = {
+  publicKnowable: {
+    summary: "Publicly knowable market",
+    value: PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
+  },
+  violentReject: {
+    summary: "Reject: violent death market",
+    value: VIOLENT_REJECT_REVIEW_EXAMPLE,
+  },
+  localKnowledgeReject: {
+    summary: "Reject: private local knowledge",
+    value: LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE,
   },
 } as const;
 
@@ -159,6 +175,16 @@ const MarketReviewRequestSchema = t.Object({
   ],
 });
 
+const MarketReviewRequestOpenApiSchema =
+  MarketReviewRequestSchema as unknown as OpenAPIV3.SchemaObject;
+const ReviewResultOpenApiSchema =
+  ReviewResultSchema as unknown as OpenAPIV3.SchemaObject;
+const MarketReviewRequestOpenApiExamples =
+  MARKET_REVIEW_REQUEST_EXAMPLES as unknown as Record<
+    string,
+    OpenAPIV3.ExampleObject | OpenAPIV3.ReferenceObject
+  >;
+
 export const aiReviewApp = new Elysia()
   .use(cors())
   .use(
@@ -169,6 +195,35 @@ export const aiReviewApp = new Elysia()
             "Local Pop Charts market AI review service backed by Ollama and safe web evidence collection.",
           title: "Pop Charts AI Review API",
           version: "0.1.0",
+        },
+        paths: {
+          "/reviews/market": {
+            post: {
+              description:
+                "Reviews market metadata for severe content-policy risk, prompt injection, and public resolvability.",
+              requestBody: {
+                content: {
+                  "application/json": {
+                    examples: MarketReviewRequestOpenApiExamples,
+                    schema: MarketReviewRequestOpenApiSchema,
+                  },
+                },
+                required: true,
+              },
+              responses: {
+                200: {
+                  content: {
+                    "application/json": {
+                      schema: ReviewResultOpenApiSchema,
+                    },
+                  },
+                  description: "Market review result",
+                },
+              },
+              summary: "Review market metadata",
+              tags: ["Reviews"],
+            },
+          },
         },
       },
     }),
