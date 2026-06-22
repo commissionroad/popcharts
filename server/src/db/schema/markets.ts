@@ -1,4 +1,5 @@
 import {
+  boolean,
   bigint,
   integer,
   pgEnum,
@@ -43,6 +44,9 @@ export const markets = pgTable(
     graduationThreshold: uint256("graduation_threshold").notNull(),
     graduationTime: timestamp("graduation_time").notNull(),
     resolutionTime: timestamp("resolution_time").notNull(),
+    bypassAiResolution: boolean("bypass_ai_resolution")
+      .default(false)
+      .notNull(),
     // Mutable protocol counters and share totals also use uint256 storage for
     // the same reason, even though early smoke values are small.
     receiptCount: uint256("receipt_count")

@@ -1,0 +1,2 @@
+ALTER TABLE "market_created_events" ADD COLUMN "bypass_ai_resolution" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "markets" ADD COLUMN "bypass_ai_resolution" boolean DEFAULT false NOT NULL;

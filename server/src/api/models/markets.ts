@@ -46,6 +46,7 @@ export const MarketMetadataWriteSchema = t.Object({
 });
 
 export const MarketSchema = t.Object({
+  bypassAiResolution: t.Boolean(),
   chainId: t.Number(),
   collateral: t.String(),
   createdAt: t.String(),
@@ -72,6 +73,7 @@ export const MarketSchema = t.Object({
 });
 
 export const MarketCreatedEventSchema = t.Object({
+  bypassAiResolution: t.Boolean(),
   blockNumber: t.String(),
   blockTimestamp: t.String(),
   chainId: t.Number(),

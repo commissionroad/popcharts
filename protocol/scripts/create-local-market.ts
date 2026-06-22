@@ -48,9 +48,10 @@ const transactionHash = await manager.write.createMarket([
     metadataHash,
     openingProbabilityWad: (50n * WAD) / 100n,
     liquidityParameter: 5_000n * WAD,
-    graduationThreshold: 40_000n * WAD,
+    graduationThreshold: 2_500n * WAD,
     graduationDeadline,
     resolutionTime,
+    bypassAiResolution: false,
   },
 ]);
 const receipt = await publicClient.waitForTransactionReceipt({

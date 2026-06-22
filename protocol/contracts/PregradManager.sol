@@ -16,6 +16,14 @@ contract PregradManager is Ownable, ReentrancyGuard {
 
   /// @notice Challenge period used after an optimistic clearing root is submitted.
   uint64 public constant CLEARING_CHALLENGE_PERIOD = 1 days;
+  /// @notice Lowest opening YES probability allowed for public market creation.
+  uint256 public constant MIN_PUBLIC_OPENING_PROBABILITY_WAD = 2e16;
+  /// @notice Highest opening YES probability allowed for public market creation.
+  uint256 public constant MAX_PUBLIC_OPENING_PROBABILITY_WAD = 98e16;
+  /// @notice Lowest virtual LMSR `b` allowed for public market creation.
+  uint256 public constant MIN_PUBLIC_LIQUIDITY_PARAMETER = 500 * 1e18;
+  /// @notice Highest virtual LMSR `b` allowed for public market creation.
+  uint256 public constant MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000 * 1e18;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
   bytes32 public constant GRADUATION_SNAPSHOT_TYPEHASH = keccak256(
     "GraduationSnapshot(uint256 chainId,address manager,uint256 marketId,uint256 receiptCount,uint256 totalEscrowed,int256 path,uint256 yesShares,uint256 noShares,uint64 graduationStartedAt)"
@@ -35,6 +43,24 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error InvalidResolutionTime();
   /// @notice Reverts when a market is created without a graduation threshold.
   error InvalidGraduationThreshold();
+  /// @notice Reverts when a non-trusted creator uses an opening probability outside the public envelope.
+  /// @param openingProbabilityWad Opening YES probability supplied by the creator.
+  error PublicOpeningProbabilityOutOfBounds(uint256 openingProbabilityWad);
+  /// @notice Reverts when a non-trusted creator uses a `b` value outside the public envelope.
+  /// @param liquidityParameter Virtual LMSR smoothness parameter supplied by the creator.
+  error PublicLiquidityParameterOutOfBounds(uint256 liquidityParameter);
+  /// @notice Reverts when a non-trusted creator decouples graduation threshold from `b`.
+  /// @param graduationThreshold Graduation threshold supplied by the creator.
+  /// @param expectedGraduationThreshold Required threshold for public market creation.
+  error PublicGraduationThresholdMismatch(
+    uint256 graduationThreshold,
+    uint256 expectedGraduationThreshold
+  );
+  /// @notice Reverts when a non-trusted creator tries to bypass AI-assisted resolution.
+  /// @param account Account attempting to create the market.
+  error UnauthorizedAiResolutionBypass(address account);
+  /// @notice Reverts when owner configuration targets the zero account.
+  error InvalidTrustedCreator();
   /// @notice Reverts when a receipt is placed or quoted with zero shares.
   error InvalidShares();
   /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
@@ -112,6 +138,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @param graduationThreshold Minimum matched market cap required to graduate.
   /// @param graduationDeadline Timestamp by which the market must graduate or become refundable.
   /// @param resolutionTime Timestamp by which the postgrad market should resolve.
+  /// @param bypassAiResolution True when a trusted creator opted out of AI-assisted resolution.
   event MarketCreated(
     uint256 indexed marketId,
     address indexed creator,
@@ -121,8 +148,14 @@ contract PregradManager is Ownable, ReentrancyGuard {
     uint256 liquidityParameter,
     uint256 graduationThreshold,
     uint64 graduationDeadline,
-    uint64 resolutionTime
+    uint64 resolutionTime,
+    bool bypassAiResolution
   );
+
+  /// @notice Emitted when the owner grants or revokes trusted creator privileges.
+  /// @param account Account whose trusted creator status changed.
+  /// @param trusted True when the account may bypass public market creation guardrails.
+  event TrustedCreatorUpdated(address indexed account, bool trusted);
 
   /// @notice Emitted when a locked pre-graduation receipt is placed.
   /// @param receiptId Canonical receipt ID.
@@ -202,6 +235,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
+  mapping(address account => bool trusted) private _trustedCreators;
 
   /// @notice Initializes the contract owner as the first graduation manager.
   constructor() Ownable(msg.sender) {}
@@ -232,7 +266,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
       liquidityParameter: params.liquidityParameter,
       graduationThreshold: params.graduationThreshold,
       graduationDeadline: params.graduationDeadline,
-      resolutionTime: params.resolutionTime
+      resolutionTime: params.resolutionTime,
+      bypassAiResolution: params.bypassAiResolution
     });
     market.state.status = MarketTypes.MarketStatus.Active;
     market.state.path = LmsrMath.openingPath(
@@ -249,8 +284,21 @@ contract PregradManager is Ownable, ReentrancyGuard {
       params.liquidityParameter,
       params.graduationThreshold,
       params.graduationDeadline,
-      params.resolutionTime
+      params.resolutionTime,
+      params.bypassAiResolution
     );
+  }
+
+  /// @notice Grants or revokes public creation guardrail bypass privileges.
+  /// @param account Account whose trusted creator status will change.
+  /// @param trusted True to grant trusted creator privileges; false to revoke them.
+  function setTrustedCreator(address account, bool trusted) external onlyOwner {
+    if (account == address(0)) {
+      revert InvalidTrustedCreator();
+    }
+
+    _trustedCreators[account] = trusted;
+    emit TrustedCreatorUpdated(account, trusted);
   }
 
   /// @notice Returns the next market ID that will be assigned.
@@ -322,6 +370,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @return True if the account can start graduation or submit clearing roots.
   function isGraduationManager(address account) public view returns (bool) {
     return account == owner();
+  }
+
+  /// @notice Returns whether `account` may bypass public market creation guardrails.
+  /// @param account Account to check.
+  /// @return True if the account can create custom markets and opt out of AI-assisted resolution.
+  function isTrustedCreator(address account) public view returns (bool) {
+    return _trustedCreators[account];
   }
 
   /// @notice Returns the optimistic clearing root stored for a market.
@@ -542,6 +597,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
   function _validateCreateMarketParams(
     MarketTypes.CreateMarketParams calldata params
   ) private view {
+    bool trustedCreator = isTrustedCreator(msg.sender);
+
     if (params.collateral == address(0)) {
       revert InvalidCollateral();
     }
@@ -560,6 +617,42 @@ contract PregradManager is Ownable, ReentrancyGuard {
 
     LmsrMath.validateOpeningProbability(params.openingProbabilityWad);
     LmsrMath.validateLiquidityParameter(params.liquidityParameter);
+
+    if (params.bypassAiResolution && !trustedCreator) {
+      revert UnauthorizedAiResolutionBypass(msg.sender);
+    }
+
+    if (!trustedCreator) {
+      _validatePublicCreateMarketParams(params);
+    }
+  }
+
+  /// @notice Enforces the public market creation envelope for non-trusted creators.
+  /// @param params Market creation parameters.
+  function _validatePublicCreateMarketParams(
+    MarketTypes.CreateMarketParams calldata params
+  ) private pure {
+    if (
+      params.openingProbabilityWad < MIN_PUBLIC_OPENING_PROBABILITY_WAD ||
+      params.openingProbabilityWad > MAX_PUBLIC_OPENING_PROBABILITY_WAD
+    ) {
+      revert PublicOpeningProbabilityOutOfBounds(params.openingProbabilityWad);
+    }
+
+    if (
+      params.liquidityParameter < MIN_PUBLIC_LIQUIDITY_PARAMETER ||
+      params.liquidityParameter > MAX_PUBLIC_LIQUIDITY_PARAMETER
+    ) {
+      revert PublicLiquidityParameterOutOfBounds(params.liquidityParameter);
+    }
+
+    uint256 expectedGraduationThreshold = params.liquidityParameter / 2;
+    if (params.graduationThreshold != expectedGraduationThreshold) {
+      revert PublicGraduationThresholdMismatch(
+        params.graduationThreshold,
+        expectedGraduationThreshold
+      );
+    }
   }
 
   /// @notice Transfers receipt collateral and rejects tokens whose received amount differs from cost.

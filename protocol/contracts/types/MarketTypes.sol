@@ -49,6 +49,8 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice True when a trusted creator opts out of AI-assisted resolution.
+    bool bypassAiResolution;
   }
 
   /// @notice Inputs required to create a market.
@@ -68,6 +70,8 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice True when a trusted creator opts out of AI-assisted resolution.
+    bool bypassAiResolution;
   }
 
   /// @notice Mutable lifecycle and accounting state for a market.

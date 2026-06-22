@@ -6,12 +6,13 @@ import {
   Info,
   Rocket,
   RotateCcw,
+  ShieldCheck,
   SlidersHorizontal,
   Wand2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { usePublicClient, useReadContract, useWalletClient } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -40,6 +41,7 @@ import {
   marketCreationMode,
   marketCreationSigner,
 } from "@/integrations/contracts/config";
+import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { cn } from "@/lib/cn";
 import { formatB, formatCents, formatUsdWhole } from "@/lib/format";
@@ -87,6 +89,19 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const { data: walletClient } = useWalletClient({
     chainId: contractConfig?.chainId,
   });
+  const trustedCreatorRead = useReadContract({
+    abi: pregradManagerAbi,
+    address: contractConfig?.pregradManagerAddress,
+    args: wallet.address ? [wallet.address as `0x${string}`] : undefined,
+    chainId: contractConfig?.chainId,
+    functionName: "isTrustedCreator",
+    query: {
+      enabled:
+        marketCreationMode === "devchain" &&
+        marketCreationSigner === "wallet" &&
+        Boolean(contractConfig?.pregradManagerAddress && wallet.address),
+    },
+  });
   const [advanced, setAdvanced] = useState(false);
   const [draft, setDraft] = useState<CreateMarketDraft>(() =>
     createInitialMarketDraft(new Date(initialNow))
@@ -97,7 +112,14 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdMarket, setCreatedMarket] = useState<CreatedMarket | null>(null);
 
-  const validationErrors = validateCreateMarketDraft(draft);
+  const walletCreationRequired =
+    marketCreationMode === "devchain" && marketCreationSigner === "wallet";
+  const trustedCreatorCanBypassAiResolution =
+    walletCreationRequired && trustedCreatorRead.data === true;
+  const effectiveDraft = trustedCreatorCanBypassAiResolution
+    ? draft
+    : { ...draft, bypassAiResolution: false };
+  const validationErrors = validateCreateMarketDraft(effectiveDraft);
   const visibleErrors: CreateMarketValidationErrors =
     hasTriedReview || stage === "review"
       ? validationErrors
@@ -105,9 +127,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const hasErrors = Object.keys(validationErrors).length > 0;
   const reviewErrorCount =
     hasTriedReview && stage === "edit" ? countErrors(validationErrors) : 0;
-  const preview = buildCreateMarketPreview(draft);
-  const walletCreationRequired =
-    marketCreationMode === "devchain" && marketCreationSigner === "wallet";
+  const preview = buildCreateMarketPreview(effectiveDraft);
   const createAction = walletCreationRequired
     ? getWalletCreateAction({
         contractChainId: contractConfig?.chainId ?? null,
@@ -162,7 +182,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   }
 
   function handleReview() {
-    const nextErrors = validateCreateMarketDraft(draft);
+    const nextErrors = validateCreateMarketDraft(effectiveDraft);
     setHasTriedReview(true);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -175,7 +195,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   }
 
   async function handleCreate() {
-    const nextErrors = validateCreateMarketDraft(draft);
+    const nextErrors = validateCreateMarketDraft(effectiveDraft);
     setHasTriedReview(true);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -203,7 +223,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
             } satisfies CreateMarketWallet)
           : undefined;
       const result = await createMarket(
-        draft,
+        effectiveDraft,
         walletContext ? { wallet: walletContext } : {}
       );
       setCreatedMarket(result);
@@ -383,6 +403,28 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
                 b={draft.liquidityParameter}
                 openingProbability={draft.openingProbability}
               />
+
+              {trustedCreatorCanBypassAiResolution ? (
+                <label className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
+                  <input
+                    checked={draft.bypassAiResolution}
+                    className="mt-1 size-4 accent-[var(--pc-cyan)]"
+                    onChange={(event) =>
+                      updateDraft("bypassAiResolution", event.target.checked)
+                    }
+                    type="checkbox"
+                  />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="flex items-center gap-2 font-mono text-[11px] font-bold tracking-[0.12em] text-[var(--text-secondary)] uppercase">
+                      <ShieldCheck size={14} color="var(--pc-cyan)" />
+                      AI resolution bypass
+                    </span>
+                    <span className="text-xs leading-5 text-[var(--text-muted)]">
+                      Trusted creator market resolves outside the AI-assisted flow.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
@@ -818,6 +860,10 @@ function ReviewPanel({
           label="Resolution"
           value={formatDeadlineFromSeconds(preview.protocolParams.resolutionTime)}
         />
+        <ReviewRow
+          label="AI resolution"
+          value={preview.protocolParams.bypassAiResolution ? "Bypassed" : "Assisted"}
+        />
         <ReviewRow label="Metadata hash" mono value={preview.metadataHash} />
       </div>
 
@@ -904,6 +950,10 @@ function SuccessPanel({
         <ReviewRow
           label="Resolution"
           value={formatDeadlineFromSeconds(result.protocolParams.resolutionTime)}
+        />
+        <ReviewRow
+          label="AI resolution"
+          value={result.protocolParams.bypassAiResolution ? "Bypassed" : "Assisted"}
         />
       </div>
 

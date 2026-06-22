@@ -10,6 +10,7 @@ describe("buildMarketCreatedRecords", () => {
     const blockTimestamp = new Date("2026-06-13T12:00:00.000Z");
     const log = {
       args: {
+        bypassAiResolution: true,
         collateral: "0x0000000000000000000000000000000000000002",
         creator: "0x00000000000000000000000000000000000000AA",
         graduationThreshold: 2_500n * 10n ** 18n,
@@ -37,6 +38,7 @@ describe("buildMarketCreatedRecords", () => {
     expect(records.event).toMatchObject({
       blockNumber: 123n,
       blockTimestamp,
+      bypassAiResolution: true,
       chainId: 84532,
       collateral: "0x0000000000000000000000000000000000000002",
       contractId: 42,
@@ -51,6 +53,7 @@ describe("buildMarketCreatedRecords", () => {
       contractId: 42,
       createdBlockNumber: 123n,
       createdBlockTimestamp: blockTimestamp,
+      bypassAiResolution: true,
       marketId: 7n,
       metadataHash:
         "0x1111111111111111111111111111111111111111111111111111111111111111",
