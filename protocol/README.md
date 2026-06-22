@@ -14,6 +14,7 @@ Start here:
 Research plans:
 
 - `docs/trueo-style-postgrad-plan.md`
+- `docs/trueo-style-v4-hook-order-manager-plan.md`
 
 ## Commands
 
