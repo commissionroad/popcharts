@@ -11,7 +11,6 @@ import {
   marketCreationMode,
   marketCreationSigner,
 } from "@/integrations/contracts/config";
-import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
 
@@ -199,7 +198,7 @@ async function createWalletSignedMarket(
     throw new Error(`Switch your wallet to chain ${config.chainId} before creating.`);
   }
 
-  await ensureMarketCreationFeeReady({
+  const creationFee = await getMarketCreationFee({
     config,
     wallet,
   });
@@ -211,6 +210,7 @@ async function createWalletSignedMarket(
     chain: wallet.walletClient.chain,
     functionName: "createMarket",
     args: [preview.protocolParams],
+    value: creationFee,
   });
   const receipt = await wallet.publicClient.waitForTransactionReceipt({ hash });
   const logs = parseEventLogs({
@@ -242,7 +242,7 @@ async function createWalletSignedMarket(
   };
 }
 
-async function ensureMarketCreationFeeReady({
+async function getMarketCreationFee({
   config,
   wallet,
 }: {
@@ -257,45 +257,22 @@ async function ensureMarketCreationFeeReady({
   });
 
   if (fee === 0n) {
-    return;
+    return 0n;
   }
 
-  const balance = await wallet.publicClient.readContract({
-    abi: erc20Abi,
-    address: config.collateralAddress,
-    functionName: "balanceOf",
-    args: [wallet.accountAddress],
+  const balance = await wallet.publicClient.getBalance({
+    address: wallet.accountAddress,
   });
 
   if (balance < fee) {
     throw new Error(
       `Public market creation costs ${formatTokenAmount(
         fee
-      )} pUSD. Your wallet has ${formatTokenAmount(balance)} pUSD.`
+      )} native USDC. Your wallet has ${formatTokenAmount(balance)} available.`
     );
   }
 
-  const allowance = await wallet.publicClient.readContract({
-    abi: erc20Abi,
-    address: config.collateralAddress,
-    functionName: "allowance",
-    args: [wallet.accountAddress, config.pregradManagerAddress],
-  });
-
-  if (allowance >= fee) {
-    return;
-  }
-
-  const approvalHash = await wallet.walletClient.writeContract({
-    abi: erc20Abi,
-    account: wallet.accountAddress,
-    address: config.collateralAddress,
-    chain: wallet.walletClient.chain,
-    functionName: "approve",
-    args: [config.pregradManagerAddress, fee],
-  });
-
-  await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });
+  return fee;
 }
 
 async function persistMarketMetadata({

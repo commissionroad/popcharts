@@ -32,18 +32,9 @@ contract PregradManagerTest is Test {
 
   event TrustedCreatorUpdated(address indexed account, bool trusted);
 
-  event MarketCreationFeePaid(
-    uint256 indexed marketId,
-    address indexed creator,
-    address indexed collateral,
-    uint256 amount
-  );
+  event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
 
-  event CreationFeesWithdrawn(
-    address indexed collateral,
-    address indexed recipient,
-    uint256 amount
-  );
+  event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
 
   event ReceiptPlaced(
     uint256 indexed receiptId,
@@ -275,11 +266,11 @@ contract PregradManagerTest is Test {
     bytes32 aliceMetadataHash = keccak256("ipfs://popcharts/alice");
     bytes32 bobMetadataHash = keccak256("ipfs://popcharts/bob");
 
-    _fundAndApprove(alice, 10 * WAD);
-    _fundAndApprove(bob, 10 * WAD);
+    vm.deal(alice, 10 * WAD);
+    vm.deal(bob, 10 * WAD);
 
     vm.prank(alice);
-    uint256 aliceMarketId = manager.createMarket(
+    uint256 aliceMarketId = manager.createMarket{value: WAD}(
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: aliceMetadataHash,
@@ -293,7 +284,7 @@ contract PregradManagerTest is Test {
     );
 
     vm.prank(bob);
-    uint256 bobMarketId = manager.createMarket(
+    uint256 bobMarketId = manager.createMarket{value: WAD}(
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: bobMetadataHash,
@@ -326,11 +317,11 @@ contract PregradManagerTest is Test {
     bytes32 metadataHash = keccak256("ipfs://popcharts/public-fee");
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
-    _fundAndApprove(publicCreator, 10 * WAD);
+    vm.deal(publicCreator, 10 * WAD);
 
     assertEq(manager.MARKET_CREATION_FEE(), WAD);
     assertEq(manager.marketCreationFee(publicCreator), WAD);
-    assertEq(manager.collectedCreationFees(address(collateral)), 0);
+    assertEq(manager.collectedCreationFees(), 0);
 
     vm.expectEmit(true, true, true, true, address(manager));
     emit MarketCreated(
@@ -346,36 +337,49 @@ contract PregradManagerTest is Test {
       params.bypassAiResolution
     );
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreationFeePaid(1, publicCreator, address(collateral), WAD);
+    emit MarketCreationFeePaid(1, publicCreator, WAD);
 
     vm.prank(publicCreator);
-    uint256 marketId = manager.createMarket(params);
+    uint256 marketId = manager.createMarket{value: WAD}(params);
 
     assertEq(marketId, 1);
-    assertEq(manager.collectedCreationFees(address(collateral)), WAD);
-    assertEq(collateral.balanceOf(address(manager)), WAD);
-    assertEq(collateral.balanceOf(publicCreator), 9 * WAD);
+    assertEq(manager.collectedCreationFees(), WAD);
+    assertEq(address(manager).balance, WAD);
+    assertEq(publicCreator.balance, 9 * WAD);
+
+    vm.prank(publicCreator);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, 0)
+    );
+    manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/no-fee")));
+
+    vm.prank(publicCreator);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, WAD + 1)
+    );
+    manager.createMarket{value: WAD + 1}(
+      _defaultMarketParams(keccak256("ipfs://popcharts/overpaid-fee"))
+    );
 
     vm.expectRevert(
       abi.encodeWithSelector(
         PregradManager.CreationFeeWithdrawalExceedsBalance.selector,
-        address(collateral),
         WAD,
         WAD + 1
       )
     );
-    manager.withdrawCreationFees(address(collateral), feeRecipient, WAD + 1);
+    manager.withdrawCreationFees(payable(feeRecipient), WAD + 1);
 
     vm.expectRevert(PregradManager.InvalidCreationFeeRecipient.selector);
-    manager.withdrawCreationFees(address(collateral), address(0), WAD);
+    manager.withdrawCreationFees(payable(address(0)), WAD);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit CreationFeesWithdrawn(address(collateral), feeRecipient, WAD);
-    manager.withdrawCreationFees(address(collateral), feeRecipient, WAD);
+    emit CreationFeesWithdrawn(feeRecipient, WAD);
+    manager.withdrawCreationFees(payable(feeRecipient), WAD);
 
-    assertEq(manager.collectedCreationFees(address(collateral)), 0);
-    assertEq(collateral.balanceOf(address(manager)), 0);
-    assertEq(collateral.balanceOf(feeRecipient), WAD);
+    assertEq(manager.collectedCreationFees(), 0);
+    assertEq(address(manager).balance, 0);
+    assertEq(feeRecipient.balance, WAD);
   }
 
   function test_PlaceReceiptEmitsEventAndEscrowsCollateral() public {
@@ -660,6 +664,16 @@ contract PregradManagerTest is Test {
     manager.setTrustedCreator(partner, false);
     assertFalse(manager.isTrustedCreator(partner));
     assertEq(manager.marketCreationFee(partner), WAD);
+
+    vm.deal(partner, WAD);
+    manager.setTrustedCreator(partner, true);
+    vm.prank(partner);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, 0, WAD)
+    );
+    manager.createMarket{value: WAD}(
+      _defaultMarketParams(keccak256("ipfs://popcharts/trusted-overpay"))
+    );
   }
 
   function test_RevertsWhenPublicCreatorBypassesAiResolution() public {

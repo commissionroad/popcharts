@@ -35,32 +35,29 @@ const { viem } = await network.create();
 const publicClient = await viem.getPublicClient();
 const [creator] = await viem.getWalletClients();
 const manager = await viem.getContractAt("PregradManager", managerAddress);
-const collateral = await viem.getContractAt("MockCollateral", collateralAddress);
 const nextMarketId = (await manager.read.nextMarketId()) as bigint;
 const latestBlock = await publicClient.getBlock();
 const graduationDeadline = latestBlock.timestamp + 7n * DAY_SECONDS;
 const resolutionTime = graduationDeadline + 7n * DAY_SECONDS;
 const creationFee = (await manager.read.marketCreationFee([creator.account.address])) as bigint;
 
-if (creationFee > 0n) {
-  await collateral.write.mint([creator.account.address, creationFee]);
-  await collateral.write.approve([managerAddress, creationFee]);
-}
-
 // Use realistic WAD-scaled values here. The smoke should catch schema/indexer
 // bugs around uint256 storage, not avoid them with tiny test numbers.
-const transactionHash = await manager.write.createMarket([
-  {
-    collateral: collateralAddress,
-    metadataHash,
-    openingProbabilityWad: (50n * WAD) / 100n,
-    liquidityParameter: 5_000n * WAD,
-    graduationThreshold: 2_500n * WAD,
-    graduationDeadline,
-    resolutionTime,
-    bypassAiResolution: false,
-  },
-]);
+const transactionHash = await manager.write.createMarket(
+  [
+    {
+      collateral: collateralAddress,
+      metadataHash,
+      openingProbabilityWad: (50n * WAD) / 100n,
+      liquidityParameter: 5_000n * WAD,
+      graduationThreshold: 2_500n * WAD,
+      graduationDeadline,
+      resolutionTime,
+      bypassAiResolution: false,
+    },
+  ],
+  { value: creationFee },
+);
 const receipt = await publicClient.waitForTransactionReceipt({
   hash: transactionHash,
 });

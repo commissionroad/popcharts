@@ -150,15 +150,6 @@ describe("PregradManager", async function () {
     const firstMetadataHash = keccak256(stringToBytes("ipfs://popcharts/first"));
     const secondMetadataHash = keccak256(stringToBytes("ipfs://popcharts/second"));
 
-    await collateral.write.mint([alice.account.address, 10n * WAD]);
-    await collateral.write.approve([manager.address, 10n * WAD], {
-      account: alice.account,
-    });
-    await collateral.write.mint([bob.account.address, 10n * WAD]);
-    await collateral.write.approve([manager.address, 10n * WAD], {
-      account: bob.account,
-    });
-
     await manager.write.createMarket(
       [
         {
@@ -172,7 +163,7 @@ describe("PregradManager", async function () {
           bypassAiResolution: false,
         },
       ],
-      { account: alice.account },
+      { account: alice.account, value: WAD },
     );
 
     await manager.write.createMarket(
@@ -188,7 +179,7 @@ describe("PregradManager", async function () {
           bypassAiResolution: false,
         },
       ],
-      { account: bob.account },
+      { account: bob.account, value: WAD },
     );
 
     const firstConfig = (await manager.read.getMarketConfig([1n])) as MarketConfig;
@@ -210,6 +201,7 @@ describe("PregradManager", async function () {
   it("charges public creators a fee and waives it for trusted creators", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [owner, publicCreator, feeRecipient] = await viem.getWalletClients();
+    const publicClient = await viem.getPublicClient();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/public-fee"));
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
@@ -218,11 +210,6 @@ describe("PregradManager", async function () {
     assert.equal(await manager.read.MARKET_CREATION_FEE(), WAD);
     assert.equal(await manager.read.marketCreationFee([publicCreator.account.address]), WAD);
     assert.equal(await manager.read.marketCreationFee([owner.account.address]), 0n);
-
-    await collateral.write.mint([publicCreator.account.address, 10n * WAD]);
-    await collateral.write.approve([manager.address, 10n * WAD], {
-      account: publicCreator.account,
-    });
 
     await viem.assertions.emitWithArgs(
       manager.write.createMarket(
@@ -238,26 +225,52 @@ describe("PregradManager", async function () {
             bypassAiResolution: false,
           },
         ],
-        { account: publicCreator.account },
+        { account: publicCreator.account, value: WAD },
       ),
       manager,
       "MarketCreationFeePaid",
-      [1n, getAddress(publicCreator.account.address), getAddress(collateral.address), WAD],
+      [1n, getAddress(publicCreator.account.address), WAD],
     );
 
-    assert.equal(await manager.read.collectedCreationFees([collateral.address]), WAD);
-    assert.equal(await collateral.read.balanceOf([manager.address]), WAD);
-    assert.equal(await collateral.read.balanceOf([publicCreator.account.address]), 9n * WAD);
+    assert.equal(await manager.read.collectedCreationFees(), WAD);
+    assert.equal(await publicClient.getBalance({ address: manager.address }), WAD);
 
+    await viem.assertions.revertWithCustomErrorWithArgs(
+      manager.write.createMarket(
+        [
+          {
+            collateral: collateral.address,
+            metadataHash: keccak256(stringToBytes("ipfs://popcharts/no-fee")),
+            openingProbabilityWad: (50n * WAD) / 100n,
+            liquidityParameter: 5_000n * WAD,
+            graduationThreshold: 2_500n * WAD,
+            graduationDeadline,
+            resolutionTime,
+            bypassAiResolution: false,
+          },
+        ],
+        { account: publicCreator.account },
+      ),
+      manager,
+      "InvalidMarketCreationFee",
+      [WAD, 0n],
+    );
+
+    const feeRecipientBalanceBefore = await publicClient.getBalance({
+      address: feeRecipient.account.address,
+    });
     await viem.assertions.emitWithArgs(
-      manager.write.withdrawCreationFees([collateral.address, feeRecipient.account.address, WAD]),
+      manager.write.withdrawCreationFees([feeRecipient.account.address, WAD]),
       manager,
       "CreationFeesWithdrawn",
-      [getAddress(collateral.address), getAddress(feeRecipient.account.address), WAD],
+      [getAddress(feeRecipient.account.address), WAD],
     );
 
-    assert.equal(await manager.read.collectedCreationFees([collateral.address]), 0n);
-    assert.equal(await collateral.read.balanceOf([feeRecipient.account.address]), WAD);
+    assert.equal(await manager.read.collectedCreationFees(), 0n);
+    assert.equal(
+      await publicClient.getBalance({ address: feeRecipient.account.address }),
+      feeRecipientBalanceBefore + WAD,
+    );
   });
 
   it("places a locked receipt and escrows collateral", async function () {

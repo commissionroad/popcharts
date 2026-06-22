@@ -10,7 +10,6 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
-import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseSerializedProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
 
@@ -45,12 +44,13 @@ export async function POST(request: Request) {
     };
     const chain = defineChain({
       id: config.chainId,
-      name: config.chainEnv === "local" ? "Hardhat Local" : "Pop Charts Devchain",
-      nativeCurrency: {
-        decimals: 18,
-        name: "Ether",
-        symbol: "ETH",
-      },
+      name:
+        config.chainEnv === "arc-testnet"
+          ? "Arc Testnet"
+          : config.chainEnv === "local"
+            ? "Hardhat Local"
+            : "Pop Charts Devchain",
+      nativeCurrency: config.nativeCurrency,
       rpcUrls: {
         default: {
           http: [config.rpcUrl],
@@ -67,19 +67,8 @@ export async function POST(request: Request) {
       chain,
       transport: http(config.rpcUrl),
     });
-    await ensureMarketCreationFeeReady({
+    const creationFee = await getMarketCreationFee({
       accountAddress: account.address,
-      approve: async (fee) => {
-        const approvalHash = await walletClient.writeContract({
-          abi: erc20Abi,
-          address: config.collateralAddress,
-          functionName: "approve",
-          args: [config.pregradManagerAddress, fee],
-        });
-
-        await publicClient.waitForTransactionReceipt({ hash: approvalHash });
-      },
-      collateralAddress: config.collateralAddress,
       managerAddress: config.pregradManagerAddress,
       publicClient,
     });
@@ -88,6 +77,7 @@ export async function POST(request: Request) {
       address: config.pregradManagerAddress,
       functionName: "createMarket",
       args: [params],
+      value: creationFee,
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     const logs = parseEventLogs({
@@ -136,16 +126,12 @@ function normalizePrivateKey(value: string): `0x${string}` {
   return key as `0x${string}`;
 }
 
-async function ensureMarketCreationFeeReady({
+async function getMarketCreationFee({
   accountAddress,
-  approve,
-  collateralAddress,
   managerAddress,
   publicClient,
 }: {
   accountAddress: `0x${string}`;
-  approve: (fee: bigint) => Promise<void>;
-  collateralAddress: `0x${string}`;
   managerAddress: `0x${string}`;
   publicClient: ReturnType<typeof createPublicClient>;
 }) {
@@ -157,36 +143,24 @@ async function ensureMarketCreationFeeReady({
   });
 
   if (fee === 0n) {
-    return;
+    return 0n;
   }
 
-  const balance = await publicClient.readContract({
-    abi: erc20Abi,
-    address: collateralAddress,
-    functionName: "balanceOf",
-    args: [accountAddress],
+  const balance = await publicClient.getBalance({
+    address: accountAddress,
   });
 
   if (balance < fee) {
     throw new Error(
       `The devchain relay signer needs ${formatTokenAmount(
         fee
-      )} pUSD to create this market. It has ${formatTokenAmount(balance)} pUSD.`
+      )} native USDC to create this market. It has ${formatTokenAmount(
+        balance
+      )} available.`
     );
   }
 
-  const allowance = await publicClient.readContract({
-    abi: erc20Abi,
-    address: collateralAddress,
-    functionName: "allowance",
-    args: [accountAddress, managerAddress],
-  });
-
-  if (allowance >= fee) {
-    return;
-  }
-
-  await approve(fee);
+  return fee;
 }
 
 function getErrorMessage(error: unknown) {

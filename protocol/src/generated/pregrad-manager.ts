@@ -64,11 +64,6 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "collateral",
-        type: "address",
-      },
-      {
         internalType: "uint256",
         name: "available",
         type: "uint256",
@@ -80,6 +75,22 @@ export const pregradManagerAbi = [
       },
     ],
     name: "CreationFeeWithdrawalExceedsBalance",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "CreationFeeWithdrawalFailed",
     type: "error",
   },
   {
@@ -168,6 +179,22 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "InvalidLiquidityParameter",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "expected",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "received",
+        type: "uint256",
+      },
+    ],
+    name: "InvalidMarketCreationFee",
     type: "error",
   },
   {
@@ -613,12 +640,6 @@ export const pregradManagerAbi = [
       {
         indexed: true,
         internalType: "address",
-        name: "collateral",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
         name: "recipient",
         type: "address",
       },
@@ -773,12 +794,6 @@ export const pregradManagerAbi = [
         indexed: true,
         internalType: "address",
         name: "creator",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "collateral",
         type: "address",
       },
       {
@@ -1065,13 +1080,7 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "collateral",
-        type: "address",
-      },
-    ],
+    inputs: [],
     name: "collectedCreationFees",
     outputs: [
       {
@@ -1141,7 +1150,7 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
     type: "function",
   },
   {
@@ -1895,12 +1904,7 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "collateral",
-        type: "address",
-      },
-      {
-        internalType: "address",
+        internalType: "address payable",
         name: "recipient",
         type: "address",
       },

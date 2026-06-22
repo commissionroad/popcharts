@@ -12,7 +12,6 @@ const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const APP_ENV_START = "# BEGIN POPCHARTS DEVCHAIN";
 const APP_ENV_END = "# END POPCHARTS DEVCHAIN";
-const DEPLOYER_COLLATERAL_MINT = 1_000_000n * 10n ** 18n;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const protocolRoot = resolve(scriptDir, "..");
@@ -62,19 +61,6 @@ console.log(`Deployer: ${getAddress(account.address)}`);
 
 const collateral = await deployContract("MockCollateral", mockCollateralArtifact);
 const pregradManager = await deployContract("PregradManager", pregradManagerArtifact);
-
-await writeContract("Mint deployer pUSD", {
-  abi: mockCollateralArtifact.abi,
-  address: collateral.address,
-  args: [account.address, DEPLOYER_COLLATERAL_MINT],
-  functionName: "mint",
-});
-await writeContract("Approve market creation fees", {
-  abi: mockCollateralArtifact.abi,
-  address: collateral.address,
-  args: [pregradManager.address, DEPLOYER_COLLATERAL_MINT],
-  functionName: "approve",
-});
 
 const manifest = {
   chainEnv: process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ENV ?? "local",
@@ -138,12 +124,6 @@ async function deployContract(name, artifact) {
     address,
     transactionHash: hash,
   };
-}
-
-async function writeContract(label, parameters) {
-  const hash = await walletClient.writeContract(parameters);
-  await publicClient.waitForTransactionReceipt({ hash });
-  console.log(`${label}: ${hash}`);
 }
 
 async function readArtifact(relativePath) {

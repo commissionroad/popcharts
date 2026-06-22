@@ -143,7 +143,7 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
     marketCreationMode === "devchain"
       ? trustedCreatorCanBypassAiResolution
         ? "Waived"
-        : "1 pUSD"
+        : "1 native USDC"
       : null;
   const createAction = walletCreationRequired
     ? getWalletCreateAction({

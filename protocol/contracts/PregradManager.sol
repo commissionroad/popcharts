@@ -24,7 +24,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   uint256 public constant MIN_PUBLIC_LIQUIDITY_PARAMETER = 500 * 1e18;
   /// @notice Highest virtual LMSR `b` allowed for public market creation.
   uint256 public constant MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000 * 1e18;
-  /// @notice Collateral fee paid by public creators when a market is created.
+  /// @notice Native USDC fee paid by public creators when a market is created.
   uint256 public constant MARKET_CREATION_FEE = 1e18;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
   bytes32 public constant GRADUATION_SNAPSHOT_TYPEHASH = keccak256(
@@ -65,15 +65,18 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error InvalidTrustedCreator();
   /// @notice Reverts when owner fee withdrawal targets the zero account.
   error InvalidCreationFeeRecipient();
+  /// @notice Reverts when a market creation transaction sends the wrong native fee.
+  /// @param expected Native fee required for the creator.
+  /// @param received Native value sent with the transaction.
+  error InvalidMarketCreationFee(uint256 expected, uint256 received);
   /// @notice Reverts when owner fee withdrawal exceeds collected fees.
-  /// @param collateral ERC20 collateral token whose fees were requested.
   /// @param available Collected fees available for withdrawal.
   /// @param requested Fee amount requested by the owner.
-  error CreationFeeWithdrawalExceedsBalance(
-    address collateral,
-    uint256 available,
-    uint256 requested
-  );
+  error CreationFeeWithdrawalExceedsBalance(uint256 available, uint256 requested);
+  /// @notice Reverts when native fee withdrawal fails.
+  /// @param recipient Account that should have received the fees.
+  /// @param amount Fee amount attempted.
+  error CreationFeeWithdrawalFailed(address recipient, uint256 amount);
   /// @notice Reverts when a receipt is placed or quoted with zero shares.
   error InvalidShares();
   /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
@@ -186,24 +189,13 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @notice Emitted when a public creator pays the market creation fee.
   /// @param marketId Market whose creation paid the fee.
   /// @param creator Account that paid the fee.
-  /// @param collateral Collateral token used for the fee.
-  /// @param amount Exact collateral amount collected as the fee.
-  event MarketCreationFeePaid(
-    uint256 indexed marketId,
-    address indexed creator,
-    address indexed collateral,
-    uint256 amount
-  );
+  /// @param amount Exact native amount collected as the fee.
+  event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
 
   /// @notice Emitted when the owner withdraws collected market creation fees.
-  /// @param collateral Collateral token withdrawn.
   /// @param recipient Account receiving the fees.
   /// @param amount Fee amount withdrawn.
-  event CreationFeesWithdrawn(
-    address indexed collateral,
-    address indexed recipient,
-    uint256 amount
-  );
+  event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
 
   /// @notice Emitted when a locked pre-graduation receipt is placed.
   /// @param receiptId Canonical receipt ID.
@@ -284,7 +276,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
   mapping(address account => bool trusted) private _trustedCreators;
-  mapping(address collateral => uint256 amount) private _collectedCreationFees;
+  uint256 private _collectedCreationFees;
 
   /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) {}
@@ -306,15 +298,12 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @return marketId Canonical pregrad market ID.
   function createMarket(
     MarketTypes.CreateMarketParams calldata params
-  ) external nonReentrant returns (uint256 marketId) {
+  ) external payable nonReentrant returns (uint256 marketId) {
     _validateCreateMarketParams(params);
 
     marketId = _nextMarketId;
     uint256 creationFee = marketCreationFee(msg.sender);
-
-    if (creationFee != 0) {
-      _collectCreationFee(IERC20(params.collateral), msg.sender, creationFee);
-    }
+    _collectCreationFee(creationFee);
 
     ++_nextMarketId;
 
@@ -350,7 +339,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
     );
 
     if (creationFee != 0) {
-      emit MarketCreationFeePaid(marketId, msg.sender, params.collateral, creationFee);
+      emit MarketCreationFeePaid(marketId, msg.sender, creationFee);
     }
   }
 
@@ -394,30 +383,28 @@ contract PregradManager is Ownable, ReentrancyGuard {
   }
 
   /// @notice Withdraws collected market creation fees without touching receipt escrow.
-  /// @param collateral ERC20 collateral token to withdraw.
   /// @param recipient Account receiving the fees.
   /// @param amount Fee amount to withdraw.
   function withdrawCreationFees(
-    address collateral,
-    address recipient,
+    address payable recipient,
     uint256 amount
   ) external onlyOwner nonReentrant {
-    if (collateral == address(0)) {
-      revert InvalidCollateral();
-    }
     if (recipient == address(0)) {
       revert InvalidCreationFeeRecipient();
     }
 
-    uint256 available = _collectedCreationFees[collateral];
+    uint256 available = _collectedCreationFees;
     if (amount > available) {
-      revert CreationFeeWithdrawalExceedsBalance(collateral, available, amount);
+      revert CreationFeeWithdrawalExceedsBalance(available, amount);
     }
 
-    _collectedCreationFees[collateral] = available - amount;
-    IERC20(collateral).safeTransfer(recipient, amount);
+    _collectedCreationFees = available - amount;
+    (bool success, ) = recipient.call{value: amount}("");
+    if (!success) {
+      revert CreationFeeWithdrawalFailed(recipient, amount);
+    }
 
-    emit CreationFeesWithdrawn(collateral, recipient, amount);
+    emit CreationFeesWithdrawn(recipient, amount);
   }
 
   /// @notice Returns the next market ID that will be assigned.
@@ -507,16 +494,15 @@ contract PregradManager is Ownable, ReentrancyGuard {
 
   /// @notice Returns the market creation fee for `creator`.
   /// @param creator Account that would create a market.
-  /// @return Collateral fee amount; zero for trusted creators.
+  /// @return Native fee amount; zero for trusted creators.
   function marketCreationFee(address creator) public view returns (uint256) {
     return isTrustedCreator(creator) ? 0 : MARKET_CREATION_FEE;
   }
 
-  /// @notice Returns collected market creation fees for a collateral token.
-  /// @param collateral ERC20 collateral token to read.
+  /// @notice Returns collected native market creation fees not yet withdrawn.
   /// @return Fee amount collected and not yet withdrawn.
-  function collectedCreationFees(address collateral) external view returns (uint256) {
-    return _collectedCreationFees[collateral];
+  function collectedCreationFees() external view returns (uint256) {
+    return _collectedCreationFees;
   }
 
   /// @notice Returns the optimistic clearing root stored for a market.
@@ -612,13 +598,14 @@ contract PregradManager is Ownable, ReentrancyGuard {
     );
   }
 
-  /// @notice Collects a public creator's market creation fee.
-  /// @param collateral ERC20 collateral token.
-  /// @param creator Account paying the fee.
-  /// @param amount Exact fee amount to collect.
-  function _collectCreationFee(IERC20 collateral, address creator, uint256 amount) private {
-    _transferExactCollateral(collateral, creator, address(this), amount);
-    _collectedCreationFees[address(collateral)] += amount;
+  /// @notice Validates and accounts for the native market creation fee.
+  /// @param amount Exact native fee amount required.
+  function _collectCreationFee(uint256 amount) private {
+    if (msg.value != amount) {
+      revert InvalidMarketCreationFee(amount, msg.value);
+    }
+
+    _collectedCreationFees += amount;
   }
 
   /// @notice Locks an active market's receipt book while the offchain service computes clearing.
