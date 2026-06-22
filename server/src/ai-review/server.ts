@@ -97,6 +97,23 @@ const SUSPICIOUS_SOURCE_REVIEW_EXAMPLE = {
   },
 } as const;
 
+const ANTHROPIC_SEARCH_REVIEW_EXAMPLE = {
+  metadata: {
+    category: "Politics",
+    createdAt: "2026-06-22T00:00:00.000Z",
+    description:
+      "Use Claude web search to find public transcripts, videos, or major news coverage.",
+    question:
+      'Will Donald Trump say the word "Iran" in his next public speech?',
+    resolutionCriteria: "YES if transcript or video says Iran. NO otherwise.",
+  },
+  options: {
+    internetAccess: "search",
+    model: "claude-sonnet-4-6",
+    provider: "anthropic",
+  },
+} as const;
+
 const MARKET_REVIEW_REQUEST_EXAMPLES = {
   publicKnowable: {
     summary: "Publicly knowable market",
@@ -117,6 +134,10 @@ const MARKET_REVIEW_REQUEST_EXAMPLES = {
   suspiciousSource: {
     summary: "Low-trust: suspicious source",
     value: SUSPICIOUS_SOURCE_REVIEW_EXAMPLE,
+  },
+  anthropicSearch: {
+    summary: "Claude web search review",
+    value: ANTHROPIC_SEARCH_REVIEW_EXAMPLE,
   },
 } as const;
 
@@ -165,7 +186,11 @@ const ReviewResultSchema = t.Object({
   evidence: t.Array(EvidenceSchema),
   hardFlags: t.Array(t.String()),
   modelId: t.Optional(t.String()),
-  provider: t.Union([t.Literal("heuristic"), t.Literal("ollama")]),
+  provider: t.Union([
+    t.Literal("anthropic"),
+    t.Literal("heuristic"),
+    t.Literal("ollama"),
+  ]),
   promptVersion: t.String(),
   reasons: t.Array(t.String()),
   scores: ScoresSchema,
@@ -206,7 +231,13 @@ const MarketReviewRequestSchema = t.Object({
       ),
       maxSearchResults: t.Optional(t.Number()),
       model: t.Optional(t.String()),
-      provider: t.Optional(t.Union([t.Literal("heuristic"), t.Literal("ollama")])),
+      provider: t.Optional(
+        t.Union([
+          t.Literal("anthropic"),
+          t.Literal("heuristic"),
+          t.Literal("ollama"),
+        ]),
+      ),
     }),
   ),
 }, {
@@ -217,6 +248,7 @@ const MarketReviewRequestSchema = t.Object({
     LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE,
     PROMPT_INJECTION_REJECT_REVIEW_EXAMPLE,
     SUSPICIOUS_SOURCE_REVIEW_EXAMPLE,
+    ANTHROPIC_SEARCH_REVIEW_EXAMPLE,
   ],
 });
 
@@ -238,7 +270,7 @@ export const aiReviewApp = new Elysia()
       documentation: {
         info: {
           description:
-            "Local Pop Charts market AI review service backed by Ollama and safe web evidence collection.",
+            "Local Pop Charts market AI review service backed by Ollama, Claude web search, and safe web evidence collection.",
           title: "Pop Charts AI Review API",
           version: "0.1.0",
         },
@@ -277,8 +309,14 @@ export const aiReviewApp = new Elysia()
   .get(
     "/health",
     () => ({
+      anthropicModel: aiReviewConfig.anthropicModel,
+      anthropicWebSearchMaxUses: aiReviewConfig.anthropicMaxWebSearches,
       internetAccess: aiReviewConfig.internetAccess,
-      model: aiReviewConfig.ollamaModel,
+      model:
+        aiReviewConfig.provider === "anthropic"
+          ? aiReviewConfig.anthropicModel
+          : aiReviewConfig.ollamaModel,
+      ollamaModel: aiReviewConfig.ollamaModel,
       provider: aiReviewConfig.provider,
       status: "ok" as const,
     }),

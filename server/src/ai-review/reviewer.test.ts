@@ -4,6 +4,12 @@ import type { AiReviewConfig } from "./config";
 import { reviewMarket } from "./reviewer";
 
 const baseConfig: AiReviewConfig = {
+  anthropicBaseUrl: "https://api.anthropic.test",
+  anthropicMaxOutputTokens: 512,
+  anthropicMaxWebFetches: 1,
+  anthropicMaxWebSearches: 1,
+  anthropicModel: "claude-sonnet-4-6",
+  anthropicWebFetchMaxContentTokens: 1_000,
   fetchSearchResults: false,
   internetAccess: "off",
   maxFetchBytes: 10_000,
@@ -49,5 +55,24 @@ describe("reviewMarket", () => {
     expect(result.provider).toBe("heuristic");
     expect(result.verdict).toBe("manual_review");
     expect(result.reasons.join("\n")).toContain("Ollama review unavailable");
+  });
+
+  it("falls back to manual review when Anthropic is unavailable", async () => {
+    const result = await reviewMarket({
+      config: {
+        ...baseConfig,
+        provider: "anthropic",
+      },
+      request: {
+        metadata: {
+          question: "Will NASA announce a new Artemis launch date in 2026?",
+          resolutionCriteria: "Resolve from a public NASA announcement.",
+        },
+      },
+    });
+
+    expect(result.provider).toBe("heuristic");
+    expect(result.verdict).toBe("manual_review");
+    expect(result.reasons.join("\n")).toContain("Anthropic review unavailable");
   });
 });

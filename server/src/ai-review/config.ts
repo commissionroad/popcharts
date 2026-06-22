@@ -3,6 +3,13 @@ import type { InternetAccessMode, ReviewProviderName } from "./types";
 export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v1";
 
 export type AiReviewConfig = {
+  anthropicApiKey?: string;
+  anthropicBaseUrl: string;
+  anthropicMaxOutputTokens: number;
+  anthropicMaxWebFetches: number;
+  anthropicMaxWebSearches: number;
+  anthropicModel: string;
+  anthropicWebFetchMaxContentTokens: number;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
   maxFetchBytes: number;
@@ -16,6 +23,26 @@ export type AiReviewConfig = {
 };
 
 export const aiReviewConfig: AiReviewConfig = {
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  anthropicBaseUrl:
+    process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com",
+  anthropicMaxOutputTokens: readPositiveInteger(
+    "AI_REVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS",
+    2_048,
+  ),
+  anthropicMaxWebFetches: readPositiveInteger(
+    "AI_REVIEW_ANTHROPIC_MAX_WEB_FETCHES",
+    2,
+  ),
+  anthropicMaxWebSearches: readPositiveInteger(
+    "AI_REVIEW_ANTHROPIC_MAX_WEB_SEARCHES",
+    3,
+  ),
+  anthropicModel: process.env.AI_REVIEW_ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+  anthropicWebFetchMaxContentTokens: readPositiveInteger(
+    "AI_REVIEW_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS",
+    12_000,
+  ),
   fetchSearchResults: readBoolean("AI_REVIEW_FETCH_SEARCH_RESULTS", false),
   internetAccess: readInternetAccessMode(
     process.env.AI_REVIEW_INTERNET_ACCESS ?? "search",
@@ -60,5 +87,9 @@ function readInternetAccessMode(value: string): InternetAccessMode {
 }
 
 function readProvider(value: string): ReviewProviderName {
-  return value === "heuristic" ? "heuristic" : "ollama";
+  if (value === "anthropic" || value === "heuristic" || value === "ollama") {
+    return value;
+  }
+
+  return "ollama";
 }

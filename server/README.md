@@ -31,13 +31,18 @@ bun run dev:indexer
 ## Local AI Review
 
 The AI review service is a separate local HTTP server for market moderation and
-knowability checks. It uses Ollama for the model call and a restricted web
-evidence collector for URL/search access.
+knowability checks. It can use Ollama for local model calls or Anthropic's
+Claude API for cited web-search review.
 
 Ollama models do not browse the internet by themselves. The service fetches
 safe public evidence first, then passes that evidence to the local model as
 untrusted context. Localhost, private IPs, non-HTTP URLs, oversized fetches, and
 unsafe redirects are blocked.
+
+With `AI_REVIEW_PROVIDER=anthropic`, the service calls Anthropic's Messages API
+and enables Claude's native `web_search` and `web_fetch` tools. Hard-block
+heuristics still run before the model call, and Claude search/fetch usage is
+capped by the `AI_REVIEW_ANTHROPIC_MAX_WEB_*` settings.
 
 ```bash
 cd server
@@ -63,6 +68,15 @@ curl -s http://localhost:3002/reviews/market \
 For a no-model smoke test, set `AI_REVIEW_PROVIDER=heuristic`. To disable web
 evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only the
 provided resolution URL, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
+
+For Claude web-search review:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export AI_REVIEW_PROVIDER=anthropic
+export AI_REVIEW_ANTHROPIC_MODEL=claude-sonnet-4-6
+bun run dev:ai-review
+```
 
 ## Local Chain Smoke
 

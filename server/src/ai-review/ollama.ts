@@ -6,6 +6,7 @@ import type {
   MarketReviewRequest,
   PolicyFinding,
   ReviewResult,
+  ReviewProviderName,
   SourceCheck,
 } from "./types";
 
@@ -91,12 +92,14 @@ export function mergeReviewFindings({
   heuristic,
   model,
   modelId,
+  modelProvider = "ollama",
   promptVersion,
 }: {
   evidence: EvidenceItem[];
   heuristic: PolicyFinding;
   model?: PolicyFinding;
   modelId?: string;
+  modelProvider?: ReviewProviderName;
   promptVersion: string;
 }): ReviewResult {
   if (!model || heuristic.verdict === "reject") {
@@ -113,7 +116,7 @@ export function mergeReviewFindings({
       hardFlags: heuristic.hardFlags,
       modelId,
       promptVersion,
-      provider: model ? "ollama" : "heuristic",
+      provider: model ? modelProvider : "heuristic",
       reasons: heuristic.reasons,
       scores,
       sourceChecks,
@@ -135,7 +138,7 @@ export function mergeReviewFindings({
     hardFlags,
     modelId,
     promptVersion,
-    provider: "ollama",
+    provider: modelProvider,
     reasons: unique([...heuristic.reasons, ...model.reasons]),
     scores: model.scores,
     sourceChecks,

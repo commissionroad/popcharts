@@ -1,6 +1,6 @@
 export type InternetAccessMode = "off" | "provided_urls" | "search";
 
-export type ReviewProviderName = "heuristic" | "ollama";
+export type ReviewProviderName = "anthropic" | "heuristic" | "ollama";
 
 export type MarketReviewMetadata = {
   category?: string;

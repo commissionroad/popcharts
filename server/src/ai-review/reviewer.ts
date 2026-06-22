@@ -1,3 +1,4 @@
+import { reviewWithAnthropic } from "./anthropic";
 import { AI_REVIEW_PROMPT_VERSION, type AiReviewConfig } from "./config";
 import { collectEvidence } from "./evidence";
 import { runHeuristicPolicy } from "./heuristics";
@@ -21,8 +22,34 @@ export async function reviewMarket({
     });
   }
 
-  const evidence = await collectEvidence({ config, request });
   const provider = request.options?.provider ?? config.provider;
+
+  if (provider === "anthropic") {
+    try {
+      const model = await reviewWithAnthropic({
+        config,
+        model: request.options?.model,
+        request,
+      });
+
+      return mergeReviewFindings({
+        evidence: model.evidence,
+        heuristic,
+        model,
+        modelId: model.modelId,
+        modelProvider: "anthropic",
+        promptVersion: AI_REVIEW_PROMPT_VERSION,
+      });
+    } catch (error) {
+      return modelUnavailableReview({
+        error,
+        heuristic,
+        providerName: "Anthropic",
+      });
+    }
+  }
+
+  const evidence = await collectEvidence({ config, request });
 
   if (provider === "heuristic") {
     return mergeReviewFindings({
@@ -45,27 +72,47 @@ export async function reviewMarket({
       heuristic,
       model,
       modelId: model.modelId,
+      modelProvider: "ollama",
       promptVersion: AI_REVIEW_PROMPT_VERSION,
     });
   } catch (error) {
-    return {
+    return modelUnavailableReview({
+      error,
       evidence,
-      hardFlags: heuristic.hardFlags,
-      promptVersion: AI_REVIEW_PROMPT_VERSION,
-      provider: "heuristic",
-      reasons: [
-        ...heuristic.reasons,
-        error instanceof Error
-          ? `Ollama review unavailable: ${error.message}`
-          : "Ollama review unavailable.",
-      ],
-      scores: {
-        ...heuristic.scores,
-        disputeRisk: Math.max(heuristic.scores.disputeRisk, 4),
-      },
-      sourceChecks: heuristic.sourceChecks,
-      verdict:
-        heuristic.verdict === "approve" ? "manual_review" : heuristic.verdict,
-    };
+      heuristic,
+      providerName: "Ollama",
+    });
   }
+}
+
+function modelUnavailableReview({
+  error,
+  evidence = [],
+  heuristic,
+  providerName,
+}: {
+  error: unknown;
+  evidence?: ReviewResult["evidence"];
+  heuristic: ReturnType<typeof runHeuristicPolicy>;
+  providerName: string;
+}): ReviewResult {
+  return {
+    evidence,
+    hardFlags: heuristic.hardFlags,
+    promptVersion: AI_REVIEW_PROMPT_VERSION,
+    provider: "heuristic",
+    reasons: [
+      ...heuristic.reasons,
+      error instanceof Error
+        ? `${providerName} review unavailable: ${error.message}`
+        : `${providerName} review unavailable.`,
+    ],
+    scores: {
+      ...heuristic.scores,
+      disputeRisk: Math.max(heuristic.scores.disputeRisk, 4),
+    },
+    sourceChecks: heuristic.sourceChecks,
+    verdict:
+      heuristic.verdict === "approve" ? "manual_review" : heuristic.verdict,
+  };
 }
