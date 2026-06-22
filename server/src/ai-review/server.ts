@@ -5,6 +5,62 @@ import { Elysia, t } from "elysia";
 import { aiReviewConfig } from "./config";
 import { reviewMarket } from "./reviewer";
 
+const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
+  context: {
+    chainId: 31337,
+    creator: "0x0000000000000000000000000000000000000001",
+    marketId: "1",
+  },
+  metadata: {
+    category: "Science",
+    createdAt: "2026-06-22T00:00:00.000Z",
+    description:
+      "Resolve using public NASA announcements or major wire coverage.",
+    metadataHash:
+      "0x1111111111111111111111111111111111111111111111111111111111111111",
+    question: "Will NASA announce a new Artemis launch date in 2026?",
+    resolutionCriteria:
+      "YES if NASA publishes an official new Artemis launch date before the end of 2026. NO otherwise.",
+    resolutionUrl: "https://www.nasa.gov/",
+  },
+  options: {
+    fetchSearchResults: false,
+    internetAccess: "search",
+    maxSearchResults: 2,
+    provider: "heuristic",
+  },
+} as const;
+
+const VIOLENT_REJECT_REVIEW_EXAMPLE = {
+  metadata: {
+    category: "Politics",
+    createdAt: "2026-06-22T00:00:00.000Z",
+    description: "This should be rejected as a violent death market.",
+    question:
+      "Will a named public figure be assassinated before the end of 2026?",
+    resolutionCriteria: "Resolve from news reports.",
+  },
+  options: {
+    internetAccess: "off",
+    provider: "heuristic",
+  },
+} as const;
+
+const LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE = {
+  metadata: {
+    category: "Culture",
+    createdAt: "2026-06-22T00:00:00.000Z",
+    description: "Only people in my friend group would know the answer.",
+    question: "Will my two friends Alex and Sam get married this year?",
+    resolutionCriteria:
+      "Resolve based on whether they tell me they got married.",
+  },
+  options: {
+    internetAccess: "off",
+    provider: "heuristic",
+  },
+} as const;
+
 const ScoresSchema = t.Object({
   contentSafety: t.Number(),
   corroboration: t.Number(),
@@ -94,6 +150,13 @@ const MarketReviewRequestSchema = t.Object({
       provider: t.Optional(t.Union([t.Literal("heuristic"), t.Literal("ollama")])),
     }),
   ),
+}, {
+  example: PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
+  examples: [
+    PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
+    VIOLENT_REJECT_REVIEW_EXAMPLE,
+    LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE,
+  ],
 });
 
 export const aiReviewApp = new Elysia()
