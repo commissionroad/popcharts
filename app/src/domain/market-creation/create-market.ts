@@ -17,6 +17,8 @@ export const COLLATERAL_SYMBOL = "pUSD";
 export const MOCK_COLLATERAL_ADDRESS = "0x0000000000000000000000000000000000000001";
 
 export const DEFAULT_LIQUIDITY_PARAMETER = 5_000;
+export const MIN_PUBLIC_LIQUIDITY_PARAMETER = 500;
+export const MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000;
 export const GRADUATION_THRESHOLD_MULTIPLE = 0.5;
 export const GRADUATION_PRESETS = [
   { label: "1h", milliseconds: 60 * 60 * 1000 },
@@ -31,6 +33,7 @@ export const RESOLUTION_PRESETS = [
 
 export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
   return {
+    bypassAiResolution: false,
     category: "Crypto",
     createdAt: now.toISOString(),
     description: "",
@@ -91,6 +94,7 @@ export function buildProtocolCreateMarketParams(
   metadataHash: `0x${string}`
 ): ProtocolCreateMarketParams {
   return {
+    bypassAiResolution: draft.bypassAiResolution,
     collateral: MOCK_COLLATERAL_ADDRESS,
     graduationThreshold: amountToWad(
       deriveGraduationThreshold(draft.liquidityParameter)
@@ -135,8 +139,12 @@ export function validateCreateMarketDraft(
     errors.openingProbability = "Choose an opening YES probability from 2% to 98%.";
   }
 
-  if (!Number.isFinite(draft.liquidityParameter) || draft.liquidityParameter <= 0) {
-    errors.liquidityParameter = "b must be greater than zero.";
+  if (
+    !Number.isFinite(draft.liquidityParameter) ||
+    draft.liquidityParameter < MIN_PUBLIC_LIQUIDITY_PARAMETER ||
+    draft.liquidityParameter > MAX_PUBLIC_LIQUIDITY_PARAMETER
+  ) {
+    errors.liquidityParameter = "Choose b from 500 to 10,000.";
   }
 
   if (deriveGraduationThreshold(draft.liquidityParameter) <= 0) {

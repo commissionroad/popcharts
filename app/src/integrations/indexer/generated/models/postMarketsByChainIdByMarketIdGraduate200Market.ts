@@ -9,6 +9,7 @@ import type { PostMarketsByChainIdByMarketIdGraduate200MarketMetadata } from "./
 import type { PostMarketsByChainIdByMarketIdGraduate200MarketStatus } from "./postMarketsByChainIdByMarketIdGraduate200MarketStatus";
 
 export type PostMarketsByChainIdByMarketIdGraduate200Market = {
+  bypassAiResolution: boolean;
   chainId: number;
   collateral: string;
   createdAt: string;

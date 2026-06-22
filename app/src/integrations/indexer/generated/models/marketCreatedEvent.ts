@@ -7,6 +7,7 @@
  */
 
 export interface MarketCreatedEvent {
+  bypassAiResolution: boolean;
   blockNumber: string;
   blockTimestamp: string;
   chainId: number;

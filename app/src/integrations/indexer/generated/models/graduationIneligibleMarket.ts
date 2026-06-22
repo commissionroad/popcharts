@@ -9,6 +9,7 @@ import type { GraduationIneligibleMarketMetadata } from "./graduationIneligibleM
 import type { GraduationIneligibleMarketStatus } from "./graduationIneligibleMarketStatus";
 
 export type GraduationIneligibleMarket = {
+  bypassAiResolution: boolean;
   chainId: number;
   collateral: string;
   createdAt: string;

@@ -19,6 +19,7 @@ type MarketConfig = {
   graduationThreshold: bigint;
   graduationDeadline: bigint;
   resolutionTime: bigint;
+  bypassAiResolution: boolean;
 };
 
 type MarketState = {
@@ -86,9 +87,10 @@ describe("PregradManager", async function () {
           metadataHash,
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
-          graduationThreshold: 40_000n * WAD,
+          graduationThreshold: 2_500n * WAD,
           graduationDeadline,
           resolutionTime,
+          bypassAiResolution: false,
         },
       ]),
       manager,
@@ -100,9 +102,10 @@ describe("PregradManager", async function () {
         getAddress(collateral.address),
         (50n * WAD) / 100n,
         5_000n * WAD,
-        40_000n * WAD,
+        2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        false,
       ],
     );
 
@@ -119,9 +122,10 @@ describe("PregradManager", async function () {
     assert.equal(config.metadataHash, metadataHash);
     assert.equal(config.openingProbabilityWad, (50n * WAD) / 100n);
     assert.equal(config.liquidityParameter, 5_000n * WAD);
-    assert.equal(config.graduationThreshold, 40_000n * WAD);
+    assert.equal(config.graduationThreshold, 2_500n * WAD);
     assert.equal(config.graduationDeadline, graduationDeadline);
     assert.equal(config.resolutionTime, resolutionTime);
+    assert.equal(config.bypassAiResolution, false);
     assert.equal(Number(state.status), MarketStatus.UnderReview);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
@@ -150,9 +154,10 @@ describe("PregradManager", async function () {
           metadataHash: firstMetadataHash,
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
-          graduationThreshold: 25_000n * WAD,
+          graduationThreshold: 1_250n * WAD,
           graduationDeadline: firstGraduationDeadline,
           resolutionTime: firstResolutionTime,
+          bypassAiResolution: false,
         },
       ],
       { account: alice.account },
@@ -165,9 +170,10 @@ describe("PregradManager", async function () {
           metadataHash: secondMetadataHash,
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
-          graduationThreshold: 100_000n * WAD,
+          graduationThreshold: 4_000n * WAD,
           graduationDeadline: secondGraduationDeadline,
           resolutionTime: secondResolutionTime,
+          bypassAiResolution: false,
         },
       ],
       { account: bob.account },
@@ -204,9 +210,10 @@ describe("PregradManager", async function () {
         metadataHash,
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
-        graduationThreshold: 40_000n * WAD,
+        graduationThreshold: 2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        bypassAiResolution: false,
       },
     ]);
     await manager.write.approveMarket([1n]);
@@ -279,7 +286,7 @@ describe("PregradManager", async function () {
 
   it("starts graduation and accepts a manager-submitted clearing root", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
-    const [, buyer] = await viem.getWalletClients();
+    const [owner, buyer] = await viem.getWalletClients();
 
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/graduation"));
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
@@ -288,6 +295,7 @@ describe("PregradManager", async function () {
     const matchedMarketCap = 50n * WAD;
     const merkleRoot = keccak256(stringToBytes("clearing-root"));
 
+    await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
     await manager.write.createMarket([
       {
         collateral: collateral.address,
@@ -297,6 +305,7 @@ describe("PregradManager", async function () {
         graduationThreshold: matchedMarketCap,
         graduationDeadline,
         resolutionTime,
+        bypassAiResolution: false,
       },
     ]);
     await manager.write.approveMarket([1n]);

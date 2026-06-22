@@ -7,6 +7,7 @@
  */
 
 export type GetMarketsByChainIdByMarketIdEvents200Item = {
+  bypassAiResolution: boolean;
   blockNumber: string;
   blockTimestamp: string;
   chainId: number;

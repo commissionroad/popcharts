@@ -17,7 +17,7 @@ import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 const CURSOR_NAME = "MarketCreated";
 
 const MARKET_CREATED_EVENT = parseAbiItem(
-  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationTime, uint64 resolutionTime)",
+  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationTime, uint64 resolutionTime, bool bypassAiResolution)",
 );
 
 type RecoveryOptions = {

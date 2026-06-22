@@ -7,6 +7,7 @@ import {
 } from "./markets-api";
 
 const apiMarket: ApiMarket = {
+  bypassAiResolution: false,
   chainId: 84532,
   collateral: "0x0000000000000000000000000000000000000001",
   createdAt: "2026-06-13T12:00:00.000Z",
@@ -155,6 +156,7 @@ describe("createMarketsApiClient", () => {
         {
           blockNumber: "123",
           blockTimestamp: "2026-06-13T12:00:00.000Z",
+          bypassAiResolution: false,
           chainId: 84532,
           collateral: apiMarket.collateral,
           creator: apiMarket.creator,

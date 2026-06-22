@@ -1,6 +1,6 @@
 {
-  "id": "0ea8ab62-3596-430d-a29a-6c36bead4743",
-  "prevId": "9ebb62a1-d617-43db-9110-b2f3bc994889",
+  "id": "253c635b-1c81-46ef-bff8-3882b2d53949",
+  "prevId": "0ea8ab62-3596-430d-a29a-6c36bead4743",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -309,8 +309,12 @@
           "name": "market_created_events_contract_id_contracts_id_fk",
           "tableFrom": "market_created_events",
           "tableTo": "contracts",
-          "columnsFrom": ["contract_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -484,8 +488,12 @@
           "name": "receipt_placed_events_contract_id_contracts_id_fk",
           "tableFrom": "receipt_placed_events",
           "tableTo": "contracts",
-          "columnsFrom": ["contract_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -633,7 +641,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'bootstrap'"
+          "default": "'under_review'"
         },
         "creator": {
           "name": "creator",
@@ -806,8 +814,12 @@
           "name": "markets_contract_id_contracts_id_fk",
           "tableFrom": "markets",
           "tableTo": "contracts",
-          "columnsFrom": ["contract_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -824,12 +836,14 @@
       "name": "market_status",
       "schema": "public",
       "values": [
+        "under_review",
         "bootstrap",
         "graduating",
         "graduated",
         "resolved",
         "refunded",
-        "cancelled"
+        "cancelled",
+        "rejected"
       ]
     }
   },

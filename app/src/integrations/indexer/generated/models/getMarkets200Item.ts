@@ -9,6 +9,7 @@ import type { GetMarkets200ItemMetadata } from "./getMarkets200ItemMetadata";
 import type { GetMarkets200ItemStatus } from "./getMarkets200ItemStatus";
 
 export type GetMarkets200Item = {
+  bypassAiResolution: boolean;
   chainId: number;
   collateral: string;
   createdAt: string;
