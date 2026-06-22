@@ -116,6 +116,12 @@ importers:
       '@prb/math':
         specifier: 4.1.2
         version: 4.1.2
+      '@uniswap/v4-core':
+        specifier: 1.0.2
+        version: 1.0.2
+      '@uniswap/v4-periphery':
+        specifier: 1.0.3
+        version: 1.0.3
     devDependencies:
       '@nomicfoundation/hardhat-toolbox-viem':
         specifier: 5.0.7
@@ -2604,6 +2610,12 @@ packages:
   '@typescript-eslint/visitor-keys@8.61.1':
     resolution: {integrity: sha512-6fJ9MHWtK14C1DSkiMlHUSOmrVebL7150xZJBlJiL62jjhIA4JmOq6flwBgDxIdBKKdoiZRel+dfPD5MLfny3w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@uniswap/v4-core@1.0.2':
+    resolution: {integrity: sha512-X15Tm2wWd+USAzEExMbo+g9naA6QN6mPgWm0MzDwRNlOfaNlepfUpSyt9RSrUfEODspwbyWbcLg6t5nwc/e7lg==}
+
+  '@uniswap/v4-periphery@1.0.3':
+    resolution: {integrity: sha512-JxLL0Djv9XcMvI2PatEnWrCrxuEaYNVhHxstndBOP+aJfh1XLg5ec8SDZ0xyoVfg2ElJTvuKpBgnu90bNValsg==}
 
   '@unrs/resolver-binding-android-arm-eabi@1.12.2':
     resolution: {integrity: sha512-g5T90pqg1bo/7mytQx6F4iBNC0Wsh9cu+z9veDbFjc7HjpesJFWD7QMS0NGStXM075+7dJPPVvBbpZlnrdpi/w==}
@@ -10020,6 +10032,10 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.61.1
       eslint-visitor-keys: 5.0.1
+
+  '@uniswap/v4-core@1.0.2': {}
+
+  '@uniswap/v4-periphery@1.0.3': {}
 
   '@unrs/resolver-binding-android-arm-eabi@1.12.2':
     optional: true

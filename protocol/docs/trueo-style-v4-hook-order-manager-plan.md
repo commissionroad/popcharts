@@ -1,6 +1,7 @@
 # Trueo-Style V4 Hook And Order Manager Plan
 
-Status: planning, research refreshed on 2026-06-22.
+Status: implementation in progress; Phase 1 dependency spike completed on
+2026-06-22.
 
 This is the implementation plan for a full Trueo-style post-graduation trading
 venue on Arc Testnet: per-market ERC20 YES/NO tokens, two Uniswap v4 pools per
@@ -744,14 +745,22 @@ Implementation options:
    - riskier if it drifts from deployed v4 bytecode
 
 Recommendation: use multi-compiler config for the implementation branch, with
-pinned dependency commits or exact package versions. If Permit2 Solidity imports
-are not available through npm, use a pinned GitHub dependency or a local
-remapping strategy compatible with pnpm and Hardhat.
+pinned exact v4 package versions. The Phase 1 branch uses
+`@uniswap/v4-core@1.0.2` and `@uniswap/v4-periphery@1.0.3`.
 
-Known dependency unknown: the Solidity import path `permit2/src/...` is from
-Uniswap's Permit2 repository. The npm package name for Solidity sources is not
-obvious from the package research. The implementation spike must prove the
-Permit2 import path under pnpm before larger contract work begins.
+Phase 1 dependency result: the Solidity import path `permit2/src/...` is not
+usable as a direct GitHub dependency under Hardhat because the root Permit2 repo
+tarball does not expose package metadata in the shape Hardhat's npm resolver
+expects. `@uniswap/v4-periphery@1.0.3` already vendors Permit2 under
+`lib/permit2` with package metadata, so the reproducible local path is:
+
+```txt
+permit2/=node_modules/@uniswap/v4-periphery/lib/permit2/
+```
+
+This lets local code and v4 periphery imports continue to use the canonical
+`permit2/src/...` source name without adding a brittle direct Permit2 Git
+dependency.
 
 ### Hook Address Mining
 
@@ -984,10 +993,14 @@ Exit criteria:
 
 Deliverables:
 
-- Hardhat multi-compiler config
-- pinned Uniswap v4 dependencies
-- Permit2 import path proven
-- local build passes with minimal v4 import contract
+- Hardhat multi-compiler config with Solidity `0.8.28` and `0.8.26`
+- pinned Uniswap v4 dependencies:
+  - `@uniswap/v4-core@1.0.2`
+  - `@uniswap/v4-periphery@1.0.3`
+- `permit2/` remapped through v4 periphery's vendored Permit2 package
+- Permit2 import path proven for `IAllowanceTransfer` and
+  `ISignatureTransfer`
+- local build passes with minimal v4 import contract and Solidity test
 - no Pop Charts mechanism changes yet
 
 Exit criteria:
@@ -996,6 +1009,8 @@ Exit criteria:
 - `pnpm lint:sol`
 - one minimal Solidity test can import `PoolKey`, `PoolId`, `Hooks`, and
   `IPoolManager`
+- the same test can import v4 periphery `HookMiner` plus Permit2
+  `IAllowanceTransfer` and `ISignatureTransfer`
 
 ### Phase 2: Local V4 Stack Smoke
 
@@ -1272,14 +1287,17 @@ Recommendation:
 
 ### Permit2 Dependency Packaging
 
-Unknown: exact pnpm/Hardhat dependency setup for Solidity imports from
-`permit2/src/...`.
+Resolved in Phase 1: exact pnpm/Hardhat dependency setup for Solidity imports
+from `permit2/src/...`.
 
-Recommendation:
+Result:
 
-- prove in Phase 1
-- pin dependency to Uniswap Permit2 commit or use a local remapping strategy
-- do not start order-manager implementation until this compiles
+- do not add a direct `permit2` GitHub tarball dependency; Hardhat does not
+  recognize it as an installed npm package
+- pin `@uniswap/v4-periphery@1.0.3`
+- add `protocol/remappings.txt` with
+  `permit2/=node_modules/@uniswap/v4-periphery/lib/permit2/`
+- keep order-manager imports on the canonical `permit2/src/...` source path
 
 ### Arc Support For V4 Runtime Behavior
 
