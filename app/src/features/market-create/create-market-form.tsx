@@ -6,8 +6,10 @@ import {
   Info,
   Rocket,
   RotateCcw,
+  Send,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   Wand2,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -47,9 +49,14 @@ import { cn } from "@/lib/cn";
 import { formatB, formatCents, formatUsdWhole } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
-import { createMarket, type CreateMarketWallet } from "./create-market-service";
+import {
+  createMarket,
+  type CreateMarketWallet,
+  submitMarketForReview,
+  type SubmittedMarketReview,
+} from "./create-market-service";
 
-type CreateMarketStage = "edit" | "review" | "success";
+type CreateMarketStage = "edit" | "review" | "submitted" | "success";
 
 type WalletCreateAction = {
   disabled: boolean;
@@ -109,8 +116,12 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const [stage, setStage] = useState<CreateMarketStage>("edit");
   const [hasTriedReview, setHasTriedReview] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSubmittingForReview, setIsSubmittingForReview] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdMarket, setCreatedMarket] = useState<CreatedMarket | null>(null);
+  const [submittedReview, setSubmittedReview] = useState<SubmittedMarketReview | null>(
+    null
+  );
 
   const walletCreationRequired =
     marketCreationMode === "devchain" && marketCreationSigner === "wallet";
@@ -146,8 +157,9 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
       [field]: value,
     }));
     setSubmitError(null);
+    setSubmittedReview(null);
 
-    if (stage === "review") {
+    if (stage === "review" || stage === "submitted") {
       setStage("edit");
     }
   }
@@ -155,8 +167,9 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   function updateDraftWith(updater: (current: CreateMarketDraft) => CreateMarketDraft) {
     setDraft(updater);
     setSubmitError(null);
+    setSubmittedReview(null);
 
-    if (stage === "review") {
+    if (stage === "review" || stage === "submitted") {
       setStage("edit");
     }
   }
@@ -192,6 +205,29 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
     }
 
     setStage("review");
+  }
+
+  async function handleSubmitForReview() {
+    const nextErrors = validateCreateMarketDraft(draft);
+    setHasTriedReview(true);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setStage("edit");
+      return;
+    }
+
+    setSubmitError(null);
+    setIsSubmittingForReview(true);
+
+    try {
+      const result = await submitMarketForReview(draft);
+      setSubmittedReview(result);
+      setStage("submitted");
+    } catch (error) {
+      setSubmitError(getReviewSubmissionErrorMessage(error));
+    } finally {
+      setIsSubmittingForReview(false);
+    }
   }
 
   async function handleCreate() {
@@ -240,8 +276,10 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
     setCreatedMarket(null);
     setDraft(createInitialMarketDraft());
     setHasTriedReview(false);
+    setIsSubmittingForReview(false);
     setStage("edit");
     setSubmitError(null);
+    setSubmittedReview(null);
   }
 
   return (
@@ -451,13 +489,24 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
         {stage === "success" && createdMarket ? (
           <SuccessPanel result={createdMarket} onReset={resetForm} />
+        ) : stage === "submitted" && submittedReview ? (
+          <SubmittedPanel
+            createAction={createAction}
+            isCreating={isCreating}
+            onCreate={handleCreate}
+            onEdit={() => setStage("edit")}
+            result={submittedReview}
+            submitError={submitError}
+          />
         ) : stage === "review" ? (
           <ReviewPanel
             createAction={createAction}
             hasErrors={hasErrors}
             isCreating={isCreating}
+            isSubmittingForReview={isSubmittingForReview}
             onCreate={handleCreate}
             onEdit={() => setStage("edit")}
+            onSubmitForReview={handleSubmitForReview}
             preview={preview}
             submitError={submitError}
           />
@@ -617,6 +666,12 @@ function getCreateMarketErrorMessage(error: unknown) {
     : "The creation service could not create this market.";
 }
 
+function getReviewSubmissionErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "The review service could not submit this market.";
+}
+
 function noop() {}
 
 function CategoryPicker({
@@ -756,7 +811,7 @@ function LivePreviewPanel({
           <span className="rounded-[var(--radius-pill)] border border-[var(--pc-cyan)] px-2.5 py-1 font-mono text-[10px] tracking-[0.12em] text-[var(--pc-cyan)] uppercase">
             {draft.category}
           </span>
-          <StatusPill size="sm" status="bootstrap" />
+          <StatusPill size="sm" status="under_review" />
         </div>
         <div className="font-display min-h-12 text-xl leading-tight font-bold">
           {draft.question || "Your question appears here"}
@@ -806,16 +861,20 @@ function ReviewPanel({
   createAction,
   hasErrors,
   isCreating,
+  isSubmittingForReview,
   onCreate,
   onEdit,
+  onSubmitForReview,
   preview,
   submitError,
 }: {
   createAction: WalletCreateAction | null;
   hasErrors: boolean;
   isCreating: boolean;
+  isSubmittingForReview: boolean;
   onCreate: () => void;
   onEdit: () => void;
+  onSubmitForReview: () => void;
   preview: CreateMarketPreview;
   submitError: string | null;
 }) {
@@ -878,10 +937,95 @@ function ReviewPanel({
         </p>
       ) : null}
 
+      <Button
+        disabled={hasErrors || isCreating || isSubmittingForReview}
+        leftIcon={<Send size={18} />}
+        onClick={onSubmitForReview}
+        size="lg"
+      >
+        {isSubmittingForReview ? "Submitting..." : "Submit for AI review"}
+      </Button>
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           className="flex-1"
-          disabled={hasErrors || isCreating || createAction?.disabled}
+          disabled={
+            hasErrors || isCreating || isSubmittingForReview || createAction?.disabled
+          }
+          leftIcon={<Rocket size={18} />}
+          onClick={onCreate}
+          size="lg"
+          variant="secondary"
+        >
+          {isCreating ? "Creating..." : (createAction?.label ?? "Create market")}
+        </Button>
+        <Button className="sm:w-32" onClick={onEdit} size="lg" variant="secondary">
+          Edit
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SubmittedPanel({
+  createAction,
+  isCreating,
+  onCreate,
+  onEdit,
+  result,
+  submitError,
+}: {
+  createAction: WalletCreateAction | null;
+  isCreating: boolean;
+  onCreate: () => void;
+  onEdit: () => void;
+  result: SubmittedMarketReview;
+  submitError: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--pc-cyan)] bg-[var(--surface-card)] p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--pc-cyan)] bg-[var(--accent-wash)] text-[var(--pc-cyan)]">
+          <Sparkles size={19} />
+        </span>
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
+            Review queued
+          </div>
+          <h2 className="font-display text-xl font-black">Submitted for AI review</h2>
+        </div>
+      </div>
+
+      <div className="flex flex-col divide-y divide-[var(--border-soft)] rounded-[var(--radius-md)] border border-[var(--border-soft)]">
+        <ReviewRow label="Review ticket" mono value={result.reviewId} />
+        <ReviewRow
+          label="AI review"
+          value={
+            result.aiReview.status === "forwarded"
+              ? "Forwarded to reviewer"
+              : "Eligible"
+          }
+        />
+        <ReviewRow label="Submitted" value={formatSubmittedAt(result.submittedAt)} />
+        <ReviewRow label="Question" value={result.metadata.question} />
+        <ReviewRow label="Metadata hash" mono value={result.metadataHash} />
+      </div>
+
+      {submitError ? (
+        <p className="rounded-[var(--radius-sm)] border border-[var(--no-border)] bg-[var(--accent-wash)] px-3 py-2 text-sm text-[var(--no)]">
+          {submitError}
+        </p>
+      ) : null}
+      {createAction && createAction.message ? (
+        <p className="rounded-[var(--radius-sm)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] px-3 py-2 text-sm text-[var(--status-graduating)]">
+          {createAction.message}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button
+          className="flex-1"
+          disabled={isCreating || createAction?.disabled}
           leftIcon={<Rocket size={18} />}
           onClick={onCreate}
           size="lg"
@@ -909,12 +1053,19 @@ function SuccessPanel({
     onChain && result.chainId
       ? `/markets/${encodeURIComponent(`${result.chainId}:${result.marketId}`)}`
       : undefined;
+  const statusTone = onChain ? "var(--status-under-review)" : "var(--status-graduated)";
 
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-6">
+    <div
+      className="flex flex-col gap-4 rounded-[var(--radius-lg)] border bg-[var(--surface-card)] p-6"
+      style={{ borderColor: statusTone }}
+    >
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--status-graduated)] text-[var(--pc-ink)]">
-          <CheckCircle2 size={20} />
+        <span
+          className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] text-[var(--pc-ink)]"
+          style={{ backgroundColor: statusTone }}
+        >
+          {onChain ? <Clock size={20} /> : <CheckCircle2 size={20} />}
         </span>
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
@@ -925,7 +1076,7 @@ function SuccessPanel({
               : "Mock created"}
           </div>
           <h2 className="font-display text-xl font-black">
-            {onChain ? "Market live on devchain" : "Market draft ready"}
+            {onChain ? "Market under review" : "Market draft ready"}
           </h2>
         </div>
       </div>
@@ -1060,6 +1211,13 @@ function formatDeadlineFromSeconds(value: bigint) {
       {formatDeadline(toDateTimeLocalValue(date))}
     </span>
   );
+}
+
+function formatSubmittedAt(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function formatWadPercent(value: bigint) {

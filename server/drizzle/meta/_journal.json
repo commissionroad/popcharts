@@ -36,6 +36,13 @@
       "when": 1782137639328,
       "tag": "0004_stale_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782140996474,
+      "tag": "0005_steep_xorn",
+      "breakpoints": true
     }
   ]
 }

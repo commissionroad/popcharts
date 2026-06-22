@@ -28,7 +28,11 @@ library MarketTypes {
     /// @notice The postgrad outcome has been resolved.
     Resolved,
     /// @notice The market was cancelled before normal graduation or resolution.
-    Cancelled
+    Cancelled,
+    /// @notice The market is awaiting review and does not accept receipts.
+    UnderReview,
+    /// @notice The market failed review and remains closed to receipt placement.
+    Rejected
   }
 
   /// @notice Immutable creation-time configuration for a pregrad market.

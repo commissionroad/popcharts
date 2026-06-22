@@ -4,6 +4,11 @@ import { network } from "hardhat";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
 const WAD = 10n ** 18n;
+const MarketStatus = {
+  Active: 0,
+  Graduating: 2,
+  UnderReview: 7,
+} as const;
 
 type MarketConfig = {
   collateral: `0x${string}`;
@@ -67,7 +72,7 @@ describe("PregradManager", async function () {
     return { collateral, manager };
   }
 
-  it("creates an active market with a stable market ID", async function () {
+  it("creates an under-review market with a stable market ID", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
@@ -121,7 +126,7 @@ describe("PregradManager", async function () {
     assert.equal(config.graduationDeadline, graduationDeadline);
     assert.equal(config.resolutionTime, resolutionTime);
     assert.equal(config.bypassAiResolution, false);
-    assert.equal(Number(state.status), 0);
+    assert.equal(Number(state.status), MarketStatus.UnderReview);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
     assert.equal(state.path, 0n);
@@ -211,6 +216,7 @@ describe("PregradManager", async function () {
         bypassAiResolution: false,
       },
     ]);
+    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {
@@ -302,6 +308,7 @@ describe("PregradManager", async function () {
         bypassAiResolution: false,
       },
     ]);
+    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {
@@ -326,7 +333,7 @@ describe("PregradManager", async function () {
     const graduatingState = (await manager.read.getMarketState([1n])) as MarketState;
     const snapshotHash = (await manager.read.graduationSnapshotHash([1n])) as `0x${string}`;
 
-    assert.equal(Number(graduatingState.status), 2);
+    assert.equal(Number(graduatingState.status), MarketStatus.Graduating);
     assert.equal(graduatingState.receiptCount, 1n);
     assert.equal(graduatingState.totalEscrowed, quote.cost);
     assert.equal(graduatingState.graduationStartedAt > 0n, true);
