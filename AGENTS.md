@@ -4,6 +4,10 @@
   without explicit user approval. If a tool installer may change shell profiles,
   global config, home-directory caches, keychains, or other user files, ask first
   or use a non-mutating/local alternative.
+- For UI-impacting work, use `skills/engineering/ui-pr-verification/SKILL.md`
+  before publishing or updating a PR. Verify the real local user path when
+  feasible, capture a screenshot of the changed state, and include the local
+  verification notes plus screenshot in the PR description.
 
 # Personal Commands
 

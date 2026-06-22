@@ -2,23 +2,31 @@ import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
 
 export type MarketStatus =
+  | "under_review"
   | "bootstrap"
   | "graduating"
   | "graduated"
   | "resolved"
   | "refunded"
-  | "cancelled";
+  | "cancelled"
+  | "rejected";
 
 export const MarketStatusSchema = t.Union([
+  t.Literal("under_review"),
   t.Literal("bootstrap"),
   t.Literal("graduating"),
   t.Literal("graduated"),
   t.Literal("resolved"),
   t.Literal("refunded"),
   t.Literal("cancelled"),
+  t.Literal("rejected"),
 ]);
 
-export type GraduationIneligibleReason = "below_threshold" | "wrong_status";
+export type GraduationIneligibleReason =
+  | "below_threshold"
+  | "clearing_pending"
+  | "onchain_settlement_required"
+  | "wrong_status";
 
 export const MarketMetadataSchema = t.Object({
   category: t.String(),
@@ -46,6 +54,7 @@ export const MarketMetadataWriteSchema = t.Object({
 });
 
 export const MarketSchema = t.Object({
+  bypassAiResolution: t.Boolean(),
   chainId: t.Number(),
   collateral: t.String(),
   createdAt: t.String(),
@@ -72,6 +81,7 @@ export const MarketSchema = t.Object({
 });
 
 export const MarketCreatedEventSchema = t.Object({
+  bypassAiResolution: t.Boolean(),
   blockNumber: t.String(),
   blockTimestamp: t.String(),
   chainId: t.Number(),
@@ -111,7 +121,12 @@ export const GraduationResponseSchema = t.Object({
 export const GraduationIneligibleSchema = t.Object({
   message: t.String(),
   market: MarketSchema,
-  reason: t.Union([t.Literal("below_threshold"), t.Literal("wrong_status")]),
+  reason: t.Union([
+    t.Literal("below_threshold"),
+    t.Literal("clearing_pending"),
+    t.Literal("onchain_settlement_required"),
+    t.Literal("wrong_status"),
+  ]),
   status: t.Literal("ineligible"),
   summary: GraduationSummarySchema,
 });

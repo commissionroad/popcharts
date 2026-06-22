@@ -3,6 +3,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  formatUnits,
   http,
   parseEventLogs,
 } from "viem";
@@ -11,6 +12,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseSerializedProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
+
+const TOKEN_DECIMALS = 18;
 
 export async function POST(request: Request) {
   if (!devchainWritesEnabled()) {
@@ -41,12 +44,13 @@ export async function POST(request: Request) {
     };
     const chain = defineChain({
       id: config.chainId,
-      name: config.chainEnv === "local" ? "Hardhat Local" : "Pop Charts Devchain",
-      nativeCurrency: {
-        decimals: 18,
-        name: "Ether",
-        symbol: "ETH",
-      },
+      name:
+        config.chainEnv === "arc-testnet"
+          ? "Arc Testnet"
+          : config.chainEnv === "local"
+            ? "Hardhat Local"
+            : "Pop Charts Devchain",
+      nativeCurrency: config.nativeCurrency,
       rpcUrls: {
         default: {
           http: [config.rpcUrl],
@@ -63,11 +67,17 @@ export async function POST(request: Request) {
       chain,
       transport: http(config.rpcUrl),
     });
+    const creationFee = await getMarketCreationFee({
+      accountAddress: account.address,
+      managerAddress: config.pregradManagerAddress,
+      publicClient,
+    });
     const hash = await walletClient.writeContract({
       abi: pregradManagerAbi,
       address: config.pregradManagerAddress,
       functionName: "createMarket",
       args: [params],
+      value: creationFee,
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     const logs = parseEventLogs({
@@ -116,10 +126,56 @@ function normalizePrivateKey(value: string): `0x${string}` {
   return key as `0x${string}`;
 }
 
+async function getMarketCreationFee({
+  accountAddress,
+  managerAddress,
+  publicClient,
+}: {
+  accountAddress: `0x${string}`;
+  managerAddress: `0x${string}`;
+  publicClient: ReturnType<typeof createPublicClient>;
+}) {
+  const fee = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: managerAddress,
+    functionName: "marketCreationFee",
+    args: [accountAddress],
+  });
+
+  if (fee === 0n) {
+    return 0n;
+  }
+
+  const balance = await publicClient.getBalance({
+    address: accountAddress,
+  });
+
+  if (balance < fee) {
+    throw new Error(
+      `The devchain relay signer needs ${formatTokenAmount(
+        fee
+      )} native USDC to create this market. It has ${formatTokenAmount(
+        balance
+      )} available.`
+    );
+  }
+
+  return fee;
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Could not create market.";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function formatTokenAmount(value: bigint) {
+  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
+
+  return amount.toLocaleString("en-US", {
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
+  });
 }

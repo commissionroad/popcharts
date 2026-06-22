@@ -32,7 +32,7 @@ test("@chain user can create a market on the configured devchain", async ({ page
   await page.getByRole("button", { name: "Create market" }).click();
 
   await expect(page.getByText("On-chain created")).toBeVisible();
-  await expect(page.getByText("Market live on devchain")).toBeVisible();
+  await expect(page.getByText("Market under review")).toBeVisible();
   await expect(page.getByText("Market ID")).toBeVisible();
   await expect(page.getByText("Transaction", { exact: true })).toBeVisible();
   await expect(page.getByText(/^0x[0-9a-fA-F]{64}$/).first()).toBeVisible();

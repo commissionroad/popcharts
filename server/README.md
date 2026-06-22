@@ -22,7 +22,8 @@ bun run dev:api
 The API listens on `http://localhost:3001` by default. OpenAPI docs are served
 at `/openapi`.
 
-Run the indexer in a second terminal after setting `PREGRAD_MANAGER_ADDRESS`:
+Run the indexer in a second terminal after setting
+`ARC_TESTNET_PREGRAD_MANAGER_ADDRESS`:
 
 ```bash
 bun run dev:indexer
@@ -43,14 +44,19 @@ creates a market, and verifies that `GET /markets?chainId=31337` returns the
 indexed market. Use `just local-smoke --keep-running` when you want to inspect
 the running API/indexer after the smoke passes.
 
-## First Indexed Event
+## Indexed Events
 
-The first indexing slice watches `PregradManager.MarketCreated`, writes a raw
-event row, and upserts a market projection for API reads.
+The indexer watches `PregradManager` market creation, review, receipt, and
+settlement events. It writes raw event rows and updates the market projection
+from chain events, including `GraduationStarted`, `ClearingRootSubmitted`,
+`GraduationFinalized`, `MarketRefundsAvailable`, and receipt claim/refund
+events.
 
 `GET /markets` returns at most 200 markets sorted by latest creation time. Pass
 an ISO `since` timestamp to fetch markets created after the previous cursor
 time.
 
-`POST /markets/:chainId/:marketId/graduate` is a non-mutating stub for the
-future server-mediated graduation flow.
+`POST /markets/:chainId/:marketId/graduate` is a non-mutating eligibility and
+status check. A successful `graduated` response means the indexer has already
+seen `GraduationFinalized` onchain; eligible bootstrap markets still need the
+graduation manager to run start/root/finalize transactions.

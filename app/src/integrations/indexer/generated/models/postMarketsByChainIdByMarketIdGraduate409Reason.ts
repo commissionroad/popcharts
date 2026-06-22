@@ -12,5 +12,7 @@ export type PostMarketsByChainIdByMarketIdGraduate409Reason =
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PostMarketsByChainIdByMarketIdGraduate409Reason = {
   below_threshold: "below_threshold",
+  clearing_pending: "clearing_pending",
+  onchain_settlement_required: "onchain_settlement_required",
   wrong_status: "wrong_status",
 } as const;

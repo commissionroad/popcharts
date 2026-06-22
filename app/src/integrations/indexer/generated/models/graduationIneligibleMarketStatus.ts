@@ -11,10 +11,12 @@ export type GraduationIneligibleMarketStatus =
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GraduationIneligibleMarketStatus = {
+  under_review: "under_review",
   bootstrap: "bootstrap",
   graduating: "graduating",
   graduated: "graduated",
   resolved: "resolved",
   refunded: "refunded",
   cancelled: "cancelled",
+  rejected: "rejected",
 } as const;

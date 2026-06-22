@@ -3,16 +3,8 @@
     "chainId": 31337,
     "contracts": {}
   },
-  "baseSepolia": {
-    "chainId": 84532,
-    "contracts": {}
-  },
-  "tenderly": {
-    "chainId": 88445533,
-    "contracts": {}
-  },
-  "base": {
-    "chainId": 8453,
+  "arcTestnet": {
+    "chainId": 5042002,
     "contracts": {}
   }
 }

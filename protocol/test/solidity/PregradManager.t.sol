@@ -23,8 +23,21 @@ contract PregradManagerTest is Test {
     uint256 liquidityParameter,
     uint256 graduationThreshold,
     uint64 graduationDeadline,
-    uint64 resolutionTime
+    uint64 resolutionTime,
+    bool bypassAiResolution
   );
+
+  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
+
+  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
+
+  event TrustedCreatorUpdated(address indexed account, bool trusted);
+
+  event MarketCreationPausedUpdated(bool paused);
+
+  event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
+
+  event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
 
   event ReceiptPlaced(
     uint256 indexed receiptId,
@@ -107,9 +120,10 @@ contract PregradManagerTest is Test {
   function setUp() public {
     collateral = new MockCollateral();
     manager = new PregradManager();
+    manager.setTrustedCreator(address(this), true);
   }
 
-  function test_CreateMarketStoresActiveConfigAndEmitsEvent() public {
+  function test_CreateMarketStoresUnderReviewConfigAndEmitsEvent() public {
     bytes32 metadataHash = keccak256("ipfs://popcharts/example");
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
@@ -123,7 +137,8 @@ contract PregradManagerTest is Test {
       params.liquidityParameter,
       params.graduationThreshold,
       params.graduationDeadline,
-      params.resolutionTime
+      params.resolutionTime,
+      params.bypassAiResolution
     );
 
     uint256 marketId = manager.createMarket(params);
@@ -140,10 +155,12 @@ contract PregradManagerTest is Test {
     assertEq(config.metadataHash, metadataHash);
     assertEq(config.openingProbabilityWad, (50 * WAD) / 100);
     assertEq(config.liquidityParameter, 5_000 * WAD);
-    assertEq(config.graduationThreshold, 40_000 * WAD);
+    assertEq(config.graduationThreshold, 2_500 * WAD);
     assertEq(config.graduationDeadline, params.graduationDeadline);
     assertEq(config.resolutionTime, params.resolutionTime);
-    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.UnderReview));
+    assertFalse(config.bypassAiResolution);
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.UnderReview));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
     assertEq(state.path, int256(0));
@@ -152,35 +169,196 @@ contract PregradManagerTest is Test {
     assertEq(state.graduationStartedAt, 0);
   }
 
+  function test_OwnerCanPauseAndResumeMarketCreation() public {
+    bytes32 metadataHash = keccak256("ipfs://popcharts/paused");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreationPausedUpdated(true);
+    manager.setMarketCreationPaused(true);
+
+    assertTrue(manager.marketCreationPaused());
+
+    vm.expectRevert(PregradManager.MarketCreationPaused.selector);
+    manager.createMarket(params);
+
+    assertEq(manager.nextMarketId(), 1);
+    assertEq(manager.marketCount(), 0);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreationPausedUpdated(false);
+    manager.setMarketCreationPaused(false);
+
+    assertFalse(manager.marketCreationPaused());
+    assertEq(manager.createMarket(params), 1);
+    assertEq(manager.nextMarketId(), 2);
+    assertEq(manager.marketCount(), 1);
+  }
+
+  function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
+    address notManager = makeAddr("not-reviewer");
+    uint256 approvedMarketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/approved"))
+    );
+
+    assertTrue(manager.isReviewManager(address(this)));
+    assertFalse(manager.isReviewManager(notManager));
+
+    vm.prank(notManager);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.UnauthorizedReviewManager.selector, notManager)
+    );
+    manager.approveMarket(approvedMarketId);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketReviewApproved(approvedMarketId, address(this));
+    manager.approveMarket(approvedMarketId);
+
+    MarketTypes.MarketState memory approvedState = manager.getMarketState(approvedMarketId);
+    assertEq(uint256(approvedState.status), uint256(MarketTypes.MarketStatus.Active));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        approvedMarketId,
+        MarketTypes.MarketStatus.Active,
+        MarketTypes.MarketStatus.UnderReview
+      )
+    );
+    manager.rejectMarket(approvedMarketId);
+
+    uint256 rejectedMarketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/rejected"))
+    );
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketReviewRejected(rejectedMarketId, address(this));
+    manager.rejectMarket(rejectedMarketId);
+
+    MarketTypes.MarketState memory rejectedState = manager.getMarketState(rejectedMarketId);
+    assertEq(uint256(rejectedState.status), uint256(MarketTypes.MarketStatus.Rejected));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        rejectedMarketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.UnderReview
+      )
+    );
+    manager.approveMarket(rejectedMarketId);
+  }
+
+  function test_ApproveMarketRequiresDeadline() public {
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/expired-review"))
+    );
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+
+    vm.warp(config.graduationDeadline);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.MarketPastGraduationDeadline.selector,
+        marketId,
+        config.graduationDeadline
+      )
+    );
+    manager.approveMarket(marketId);
+  }
+
+  function test_UnderReviewAndRejectedMarketsDoNotAcceptReceipts() public {
+    address buyer = makeAddr("buyer");
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/review-gate"))
+    );
+    uint256 shares = 100 * WAD;
+    MarketTypes.PlaceReceiptParams memory params = MarketTypes.PlaceReceiptParams({
+      marketId: marketId,
+      side: MarketTypes.Side.Yes,
+      shares: shares,
+      maxCost: type(uint256).max
+    });
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.UnderReview,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
+
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.UnderReview,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.placeReceipt(params);
+
+    manager.rejectMarket(marketId);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
+
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Rejected,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.placeReceipt(params);
+  }
+
   function test_CreateMarketIdsIncrementAndMarketsAreIsolated() public {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
     bytes32 aliceMetadataHash = keccak256("ipfs://popcharts/alice");
     bytes32 bobMetadataHash = keccak256("ipfs://popcharts/bob");
 
+    vm.deal(alice, 10 * WAD);
+    vm.deal(bob, 10 * WAD);
+
     vm.prank(alice);
-    uint256 aliceMarketId = manager.createMarket(
+    uint256 aliceMarketId = manager.createMarket{value: WAD}(
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: aliceMetadataHash,
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
-        graduationThreshold: 25_000 * WAD,
+        graduationThreshold: 1_250 * WAD,
         graduationDeadline: uint64(block.timestamp + 3 days),
-        resolutionTime: uint64(block.timestamp + 30 days)
+        resolutionTime: uint64(block.timestamp + 30 days),
+        bypassAiResolution: false
       })
     );
 
     vm.prank(bob);
-    uint256 bobMarketId = manager.createMarket(
+    uint256 bobMarketId = manager.createMarket{value: WAD}(
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: bobMetadataHash,
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
-        graduationThreshold: 100_000 * WAD,
+        graduationThreshold: 4_000 * WAD,
         graduationDeadline: uint64(block.timestamp + 14 days),
-        resolutionTime: uint64(block.timestamp + 60 days)
+        resolutionTime: uint64(block.timestamp + 60 days),
+        bypassAiResolution: false
       })
     );
 
@@ -196,6 +374,77 @@ contract PregradManagerTest is Test {
     assertEq(bobConfig.metadataHash, bobMetadataHash);
     assertEq(aliceConfig.openingProbabilityWad, (20 * WAD) / 100);
     assertEq(bobConfig.openingProbabilityWad, (80 * WAD) / 100);
+  }
+
+  function test_PublicCreatorsPayCreationFeeAndOwnerCanWithdrawIt() public {
+    address publicCreator = makeAddr("public-creator");
+    address feeRecipient = makeAddr("fee-recipient");
+    bytes32 metadataHash = keccak256("ipfs://popcharts/public-fee");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
+
+    vm.deal(publicCreator, 10 * WAD);
+
+    assertEq(manager.MARKET_CREATION_FEE(), WAD);
+    assertEq(manager.marketCreationFee(publicCreator), WAD);
+    assertEq(manager.collectedCreationFees(), 0);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreated(
+      1,
+      publicCreator,
+      metadataHash,
+      address(collateral),
+      params.openingProbabilityWad,
+      params.liquidityParameter,
+      params.graduationThreshold,
+      params.graduationDeadline,
+      params.resolutionTime,
+      params.bypassAiResolution
+    );
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit MarketCreationFeePaid(1, publicCreator, WAD);
+
+    vm.prank(publicCreator);
+    uint256 marketId = manager.createMarket{value: WAD}(params);
+
+    assertEq(marketId, 1);
+    assertEq(manager.collectedCreationFees(), WAD);
+    assertEq(address(manager).balance, WAD);
+    assertEq(publicCreator.balance, 9 * WAD);
+
+    vm.prank(publicCreator);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, 0)
+    );
+    manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/no-fee")));
+
+    vm.prank(publicCreator);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, WAD + 1)
+    );
+    manager.createMarket{value: WAD + 1}(
+      _defaultMarketParams(keccak256("ipfs://popcharts/overpaid-fee"))
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.CreationFeeWithdrawalExceedsBalance.selector,
+        WAD,
+        WAD + 1
+      )
+    );
+    manager.withdrawCreationFees(payable(feeRecipient), WAD + 1);
+
+    vm.expectRevert(PregradManager.InvalidCreationFeeRecipient.selector);
+    manager.withdrawCreationFees(payable(address(0)), WAD);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit CreationFeesWithdrawn(feeRecipient, WAD);
+    manager.withdrawCreationFees(payable(feeRecipient), WAD);
+
+    assertEq(manager.collectedCreationFees(), 0);
+    assertEq(address(manager).balance, 0);
+    assertEq(feeRecipient.balance, WAD);
   }
 
   function test_PlaceReceiptEmitsEventAndEscrowsCollateral() public {
@@ -339,9 +588,10 @@ contract PregradManagerTest is Test {
       metadataHash: keccak256("ipfs://popcharts/example"),
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
-      graduationThreshold: 40_000 * WAD,
+      graduationThreshold: 2_500 * WAD,
       graduationDeadline: uint64(block.timestamp + 7 days),
-      resolutionTime: uint64(block.timestamp + 14 days)
+      resolutionTime: uint64(block.timestamp + 14 days),
+      bypassAiResolution: false
     });
 
     vm.expectRevert(PregradManager.InvalidCollateral.selector);
@@ -371,7 +621,7 @@ contract PregradManagerTest is Test {
     vm.expectRevert(PregradManager.InvalidGraduationThreshold.selector);
     manager.createMarket(params);
 
-    params.graduationThreshold = 40_000 * WAD;
+    params.graduationThreshold = 2_500 * WAD;
     params.graduationDeadline = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidGraduationDeadline.selector);
     manager.createMarket(params);
@@ -384,6 +634,130 @@ contract PregradManagerTest is Test {
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
     manager.createMarket(params);
+  }
+
+  function test_RevertsWhenPublicMarketLeavesCreationEnvelope() public {
+    address publicCreator = makeAddr("public-envelope-creator");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/public-envelope")
+    );
+    _fundAndApprove(publicCreator, 10 * WAD);
+
+    params.openingProbabilityWad = (1 * WAD) / 100;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicOpeningProbabilityOutOfBounds.selector,
+        params.openingProbabilityWad
+      )
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+
+    params.openingProbabilityWad = (99 * WAD) / 100;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicOpeningProbabilityOutOfBounds.selector,
+        params.openingProbabilityWad
+      )
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+
+    params.openingProbabilityWad = (50 * WAD) / 100;
+    params.liquidityParameter = 499 * WAD;
+    params.graduationThreshold = params.liquidityParameter / 2;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicLiquidityParameterOutOfBounds.selector,
+        params.liquidityParameter
+      )
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+
+    params.liquidityParameter = 10_001 * WAD;
+    params.graduationThreshold = params.liquidityParameter / 2;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicLiquidityParameterOutOfBounds.selector,
+        params.liquidityParameter
+      )
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+
+    params.liquidityParameter = 5_000 * WAD;
+    params.graduationThreshold = 2_501 * WAD;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PublicGraduationThresholdMismatch.selector,
+        params.graduationThreshold,
+        2_500 * WAD
+      )
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+  }
+
+  function test_TrustedCreatorsCanBypassPublicEnvelopeAndAiResolution() public {
+    address partner = makeAddr("partner");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/trusted")
+    );
+    params.openingProbabilityWad = (1 * WAD) / 100;
+    params.liquidityParameter = 50 * WAD;
+    params.graduationThreshold = 1 * WAD;
+    params.bypassAiResolution = true;
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit TrustedCreatorUpdated(partner, true);
+    manager.setTrustedCreator(partner, true);
+
+    assertTrue(manager.isTrustedCreator(partner));
+    assertEq(manager.marketCreationFee(partner), 0);
+
+    vm.prank(partner);
+    uint256 marketId = manager.createMarket(params);
+
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    assertEq(config.creator, partner);
+    assertEq(config.openingProbabilityWad, (1 * WAD) / 100);
+    assertEq(config.liquidityParameter, 50 * WAD);
+    assertEq(config.graduationThreshold, 1 * WAD);
+    assertTrue(config.bypassAiResolution);
+
+    manager.setTrustedCreator(partner, false);
+    assertFalse(manager.isTrustedCreator(partner));
+    assertEq(manager.marketCreationFee(partner), WAD);
+
+    vm.deal(partner, WAD);
+    manager.setTrustedCreator(partner, true);
+    vm.prank(partner);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, 0, WAD)
+    );
+    manager.createMarket{value: WAD}(
+      _defaultMarketParams(keccak256("ipfs://popcharts/trusted-overpay"))
+    );
+  }
+
+  function test_RevertsWhenPublicCreatorBypassesAiResolution() public {
+    address publicCreator = makeAddr("public-ai-bypass");
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
+      keccak256("ipfs://popcharts/ai-bypass")
+    );
+    params.bypassAiResolution = true;
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.UnauthorizedAiResolutionBypass.selector, publicCreator)
+    );
+    vm.prank(publicCreator);
+    manager.createMarket(params);
+  }
+
+  function test_RevertsWhenTrustedCreatorIsZeroAddress() public {
+    vm.expectRevert(PregradManager.InvalidTrustedCreator.selector);
+    manager.setTrustedCreator(address(0), true);
   }
 
   function test_RevertsForInvalidReceiptPlacement() public {
@@ -447,11 +821,13 @@ contract PregradManagerTest is Test {
         metadataHash: keccak256("ipfs://popcharts/fee-collateral"),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
-        graduationThreshold: 40_000 * WAD,
+        graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
-        resolutionTime: uint64(block.timestamp + 14 days)
+        resolutionTime: uint64(block.timestamp + 14 days),
+        bypassAiResolution: false
       })
     );
+    manager.approveMarket(marketId);
 
     uint256 shares = 100 * WAD;
     MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
@@ -1043,11 +1419,19 @@ contract PregradManagerTest is Test {
   }
 
   function _createDefaultMarket() private returns (uint256) {
-    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/example")));
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/example"))
+    );
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createSecondDefaultMarket() private returns (uint256) {
-    return manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/second")));
+    uint256 marketId = manager.createMarket(
+      _defaultMarketParams(keccak256("ipfs://popcharts/second"))
+    );
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createGraduatableMarket() private returns (uint256) {
@@ -1055,7 +1439,10 @@ contract PregradManagerTest is Test {
       keccak256("ipfs://popcharts/graduatable")
     );
     params.graduationThreshold = 50 * WAD;
-    return manager.createMarket(params);
+    manager.setTrustedCreator(address(this), true);
+    uint256 marketId = manager.createMarket(params);
+    manager.approveMarket(marketId);
+    return marketId;
   }
 
   function _createGraduatingMarketWithReceipt() private returns (uint256 marketId) {
@@ -1077,9 +1464,10 @@ contract PregradManagerTest is Test {
         metadataHash: metadataHash,
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
-        graduationThreshold: 40_000 * WAD,
+        graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
-        resolutionTime: uint64(block.timestamp + 14 days)
+        resolutionTime: uint64(block.timestamp + 14 days),
+        bypassAiResolution: false
       });
   }
 

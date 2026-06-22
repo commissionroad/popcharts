@@ -78,6 +78,14 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await page.getByRole("button", { name: "Review market" }).click();
   await expect(page.getByText("Metadata hash")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create market" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Submit for AI review" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Submit for AI review" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Submitted for AI review" })
+  ).toBeVisible();
+  await expect(page.getByText("Review ticket")).toBeVisible();
 
   await page.getByRole("link", { name: "Portfolio" }).click();
   await expect(

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   buildGraduationSummary,
+  evaluateGraduationReadiness,
   serializeGraduationSummary,
 } from "./graduation";
 
@@ -55,6 +56,44 @@ describe("graduation summaries", () => {
       refundedCollateral: wad(17_500).toString(),
       yesTokens: wad(50_000).toString(),
     });
+  });
+});
+
+describe("evaluateGraduationReadiness", () => {
+  it("requires onchain settlement even when bootstrap liquidity reaches threshold", () => {
+    expect(
+      evaluateGraduationReadiness({
+        graduationThreshold: wad(40_000),
+        matchedMarketCap: wad(40_000),
+        status: "bootstrap",
+      }),
+    ).toMatchObject({
+      kind: "ineligible",
+      reason: "onchain_settlement_required",
+    });
+  });
+
+  it("reports pending clearing while the indexed market is graduating", () => {
+    expect(
+      evaluateGraduationReadiness({
+        graduationThreshold: wad(40_000),
+        matchedMarketCap: wad(45_000),
+        status: "graduating",
+      }),
+    ).toMatchObject({
+      kind: "ineligible",
+      reason: "clearing_pending",
+    });
+  });
+
+  it("returns already graduated only after indexed finalization", () => {
+    expect(
+      evaluateGraduationReadiness({
+        graduationThreshold: wad(40_000),
+        matchedMarketCap: wad(45_000),
+        status: "graduated",
+      }),
+    ).toEqual({ kind: "already_graduated" });
   });
 });
 

@@ -5,6 +5,7 @@ export type ResolutionPresetLabel = "1d" | "1w" | "1m";
 
 export type CreateMarketDraft = {
   category: MarketCategory;
+  bypassAiResolution: boolean;
   createdAt: string;
   description: string;
   graduationPreset: GraduationPresetLabel | "custom";
@@ -36,6 +37,7 @@ export type MarketMetadata = {
 
 export type ProtocolCreateMarketParams = {
   collateral: `0x${string}`;
+  bypassAiResolution: boolean;
   graduationThreshold: bigint;
   graduationTime: bigint;
   liquidityParameter: bigint;

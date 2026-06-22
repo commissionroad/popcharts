@@ -10,6 +10,7 @@ describe("buildMarketCreatedRecords", () => {
     const blockTimestamp = new Date("2026-06-13T12:00:00.000Z");
     const log = {
       args: {
+        bypassAiResolution: true,
         collateral: "0x0000000000000000000000000000000000000002",
         creator: "0x00000000000000000000000000000000000000AA",
         graduationThreshold: 2_500n * 10n ** 18n,
@@ -29,7 +30,7 @@ describe("buildMarketCreatedRecords", () => {
 
     const records = buildMarketCreatedRecords({
       blockTimestamp,
-      config: { chainId: 84532 },
+      config: { chainId: 5042002 },
       contractId: 42,
       log,
     });
@@ -37,7 +38,8 @@ describe("buildMarketCreatedRecords", () => {
     expect(records.event).toMatchObject({
       blockNumber: 123n,
       blockTimestamp,
-      chainId: 84532,
+      bypassAiResolution: true,
+      chainId: 5042002,
       collateral: "0x0000000000000000000000000000000000000002",
       contractId: 42,
       creator: "0x00000000000000000000000000000000000000aa",
@@ -47,13 +49,15 @@ describe("buildMarketCreatedRecords", () => {
         "0x2222222222222222222222222222222222222222222222222222222222222222",
     });
     expect(records.market).toMatchObject({
-      chainId: 84532,
+      chainId: 5042002,
       contractId: 42,
       createdBlockNumber: 123n,
       createdBlockTimestamp: blockTimestamp,
+      bypassAiResolution: true,
       marketId: 7n,
       metadataHash:
         "0x1111111111111111111111111111111111111111111111111111111111111111",
+      status: "under_review",
     });
     expect(records.event.graduationTime.toISOString()).toBe(
       "2026-05-28T20:26:40.000Z",
@@ -75,7 +79,7 @@ describe("buildMarketCreatedRecords", () => {
     expect(() =>
       buildMarketCreatedRecords({
         blockTimestamp: new Date("2026-06-13T12:00:00.000Z"),
-        config: { chainId: 84532 },
+        config: { chainId: 5042002 },
         contractId: 42,
         log,
       }),

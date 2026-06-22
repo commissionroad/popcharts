@@ -23,6 +23,8 @@ Upstream license: MIT. See
   testable as the frontend grows beyond the initial launch surface.
 - `engineering/prototype` gives a sanctioned way to explore UI or state-machine
   ideas without letting throwaway code become production code by accident.
+- `engineering/ui-pr-verification` makes UI-impacting PRs carry local
+  verification notes and a screenshot of the changed state.
 - `misc/setup-pre-commit` captures the planned local quality gate pattern for
   formatting, typechecking, and tests once `app/` has a package manager and
   scripts.
