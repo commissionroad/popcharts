@@ -25,6 +25,23 @@ export type CreateMarketOptions = {
   wallet?: CreateMarketWallet;
 };
 
+export type SubmittedMarketReview = ReturnType<typeof buildCreateMarketPreview> & {
+  aiReview: {
+    source: "local" | "webhook";
+    status: "eligible" | "forwarded";
+  };
+  reviewId: string;
+  reviewStatus: "queued";
+  submittedAt: string;
+};
+
+type SubmitMarketReviewResponse = {
+  aiReview: SubmittedMarketReview["aiReview"];
+  reviewId: string;
+  status: SubmittedMarketReview["reviewStatus"];
+  submittedAt: string;
+};
+
 export async function createMockMarket(
   draft: CreateMarketDraft
 ): Promise<CreatedMarket> {
@@ -79,6 +96,44 @@ export async function createMarket(
   }
 
   return createServerSignedMarket(chainPreview, config.chainId);
+}
+
+export async function submitMarketForReview(
+  draft: CreateMarketDraft
+): Promise<SubmittedMarketReview> {
+  const errors = validateCreateMarketDraft(draft);
+
+  if (Object.keys(errors).length > 0) {
+    throw new Error("Cannot submit an invalid market draft.");
+  }
+
+  const preview = buildCreateMarketPreview(draft);
+  const response = await fetch("/api/market-review/submissions", {
+    body: JSON.stringify({
+      collateralSymbol: preview.collateralSymbol,
+      graduationThreshold: preview.graduationThreshold,
+      metadata: preview.metadata,
+      metadataHash: preview.metadataHash,
+      protocolParams: serializeProtocolCreateMarketParams(preview.protocolParams),
+    }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+  const body = (await response.json().catch(() => null)) as unknown;
+
+  if (!response.ok || !isSubmitMarketReviewResponse(body)) {
+    throw new Error(getReviewSubmissionError(body));
+  }
+
+  return {
+    ...preview,
+    aiReview: body.aiReview,
+    reviewId: body.reviewId,
+    reviewStatus: body.status,
+    submittedAt: body.submittedAt,
+  };
 }
 
 async function createServerSignedMarket(
@@ -215,4 +270,32 @@ async function persistMarketMetadata({
       ? error.message
       : "Market metadata could not be saved to the API.";
   }
+}
+
+function getReviewSubmissionError(body: unknown) {
+  if (isRecord(body) && typeof body.error === "string") {
+    return body.error;
+  }
+
+  return "The review submission service could not submit this market.";
+}
+
+function isSubmitMarketReviewResponse(
+  value: unknown
+): value is SubmitMarketReviewResponse {
+  if (!isRecord(value) || !isRecord(value.aiReview)) {
+    return false;
+  }
+
+  return (
+    value.status === "queued" &&
+    typeof value.reviewId === "string" &&
+    typeof value.submittedAt === "string" &&
+    (value.aiReview.source === "local" || value.aiReview.source === "webhook") &&
+    (value.aiReview.status === "eligible" || value.aiReview.status === "forwarded")
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
