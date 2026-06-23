@@ -30,6 +30,54 @@ Keep one `ai-review` service with pluggable review providers.
 This keeps policy, route schemas, OpenAPI examples, review result shape, and
 future indexer integration in one place.
 
+## Intended Runtime Architecture
+
+Keep the indexer, review service, and review runner as separate concerns.
+
+```text
+Indexer
+  Watches chain.
+  Writes MarketCreated projections.
+  Does not call models or review policy.
+
+AI Review service
+  Stateless HTTP service.
+  Input: market metadata/context.
+  Output: review verdict/evidence.
+  Does not own DB polling.
+
+Review runner
+  Polls DB for eligible under_review markets.
+  Calls AI Review service.
+  Persists review result.
+  Updates or recommends market status through narrow rules.
+```
+
+The indexer should remain pure chain ingestion. It records submitted markets as
+`under_review` and moves on. It should not synchronously call model providers,
+perform web research, or decide moderation policy inside `MarketCreated`
+handling.
+
+The AI Review service should remain pure review computation. It should not own
+database polling, market leasing, retry state, or projection writes. Given a
+single review request, it returns a review result using the configured provider.
+
+The review runner is the bridge. It can be a separate process in the same
+package that claims review work from the database, calls the AI Review service,
+persists immutable attempts/results, and applies the approved market-status
+transition. This gives the system a clean failure model: chain indexing
+continues while the review service or model provider is down, and missed or
+stuck reviews can be recovered from durable DB state.
+
+Add an internal operator path for stuck or lost work, such as:
+
+```text
+POST /admin/markets/:chainId/:marketId/review
+```
+
+That endpoint should enqueue or execute the same runner path used by polling. It
+should not introduce a second review implementation.
+
 ## Why Not Two Services Yet
 
 Two services would create duplicated API contracts, policy prompts, examples,
@@ -202,12 +250,18 @@ flow.
 Suggested flow:
 
 1. Indexer observes `MarketCreated`.
-2. Indexer builds review input from onchain event context plus market metadata.
-3. Server calls the AI review service.
-4. Review result is persisted with:
+2. Indexer writes the raw event and market projection as `under_review`.
+3. Review runner finds eligible `under_review` markets whose metadata is
+   available and whose latest review is missing, stale, failed, or manually
+   requested.
+4. Review runner builds review input from onchain event context plus market
+   metadata.
+5. Review runner calls the AI Review service.
+6. Review result is persisted with:
    - chain ID;
    - market ID;
    - metadata hash;
+   - attempt/job ID;
    - provider;
    - model ID;
    - prompt version;
@@ -218,21 +272,24 @@ Suggested flow:
    - source checks;
    - evidence summaries;
    - timestamps.
-5. API exposes the latest review status on market reads.
-6. Admin or moderation tools can override or request manual review.
+7. API exposes the latest review status on market reads.
+8. Admin or moderation tools can override or request manual review.
 
-Do not block the indexer permanently on model latency. Prefer an async queue or
-retryable job once this moves beyond local development.
+Do not block the indexer on model latency. Prefer a retryable DB-backed job or a
+derived queue driven by `under_review` markets once this moves beyond local
+development.
 
 ## Phase Two Checklist
 
+- Record the intended indexer/service/runner architecture.
 - Refactor providers behind a typed provider registry.
 - Add provider capability metadata.
 - Add provider-aware startup validation.
 - Split `/health` and `/ready` semantics.
 - Add explicit AWS/API-key deployment docs.
 - Add review result persistence schema.
-- Add indexer job creation on `MarketCreated`.
+- Add review runner polling for eligible `under_review` markets.
+- Add a manual/internal trigger for stuck market review.
 - Add retry/backoff behavior for provider failures.
 - Add API read model for review status.
 - Add budget/rate-limit controls for Anthropic web search/fetch.

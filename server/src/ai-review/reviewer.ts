@@ -1,9 +1,14 @@
-import { reviewWithAnthropic } from "./anthropic";
 import { AI_REVIEW_PROMPT_VERSION, type AiReviewConfig } from "./config";
 import { collectEvidence } from "./evidence";
 import { runHeuristicPolicy } from "./heuristics";
-import { mergeReviewFindings, reviewWithOllama } from "./ollama";
-import type { MarketReviewRequest, ReviewResult } from "./types";
+import { mergeReviewFindings } from "./ollama";
+import { getReviewProvider } from "./providers/registry";
+import type {
+  MarketReviewRequest,
+  PolicyFindingWithEvidence,
+  ReviewProviderName,
+  ReviewResult,
+} from "./types";
 
 export async function reviewMarket({
   config,
@@ -22,67 +27,61 @@ export async function reviewMarket({
     });
   }
 
-  const provider = request.options?.provider ?? config.provider;
+  const providerName = request.options?.provider ?? config.provider;
+  const provider = getReviewProvider(providerName);
 
-  if (provider === "anthropic") {
-    try {
-      const model = await reviewWithAnthropic({
-        config,
-        model: request.options?.model,
-        request,
-      });
+  let evidence: ReviewResult["evidence"] = [];
 
-      return mergeReviewFindings({
-        evidence: model.evidence,
-        heuristic,
-        model,
-        modelId: model.modelId,
-        modelProvider: "anthropic",
-        promptVersion: AI_REVIEW_PROMPT_VERSION,
-      });
-    } catch (error) {
-      return modelUnavailableReview({
-        error,
-        heuristic,
-        providerName: "Anthropic",
-      });
-    }
-  }
-
-  const evidence = await collectEvidence({ config, request });
-
-  if (provider === "heuristic") {
-    return mergeReviewFindings({
-      evidence,
-      heuristic,
-      promptVersion: AI_REVIEW_PROMPT_VERSION,
-    });
+  if (provider.capabilities.requiresPreCollectedEvidence) {
+    evidence = await collectEvidence({ config, request });
   }
 
   try {
-    const model = await reviewWithOllama({
+    const validation = provider.validateConfig(config);
+    if (validation.errors.length > 0) {
+      throw new Error(validation.errors.join(" "));
+    }
+
+    const providerReview = await provider.review({
       config,
       evidence,
       model: request.options?.model,
+      heuristic,
       request,
     });
 
-    return mergeReviewFindings({
-      evidence,
+    return buildReviewResult({
       heuristic,
-      model,
-      modelId: model.modelId,
-      modelProvider: "ollama",
-      promptVersion: AI_REVIEW_PROMPT_VERSION,
+      providerName,
+      providerReview,
     });
   } catch (error) {
     return modelUnavailableReview({
       error,
       evidence,
       heuristic,
-      providerName: "Ollama",
+      providerName,
     });
   }
+}
+
+function buildReviewResult({
+  heuristic,
+  providerName,
+  providerReview,
+}: {
+  heuristic: ReturnType<typeof runHeuristicPolicy>;
+  providerName: ReviewProviderName;
+  providerReview: PolicyFindingWithEvidence;
+}) {
+  return mergeReviewFindings({
+    evidence: providerReview.evidence,
+    heuristic,
+    model: providerName === "heuristic" ? undefined : providerReview,
+    modelId: providerReview.modelId,
+    modelProvider: providerName,
+    promptVersion: AI_REVIEW_PROMPT_VERSION,
+  });
 }
 
 function modelUnavailableReview({
@@ -94,7 +93,7 @@ function modelUnavailableReview({
   error: unknown;
   evidence?: ReviewResult["evidence"];
   heuristic: ReturnType<typeof runHeuristicPolicy>;
-  providerName: string;
+  providerName: ReviewProviderName;
 }): ReviewResult {
   return {
     evidence,
@@ -104,8 +103,8 @@ function modelUnavailableReview({
     reasons: [
       ...heuristic.reasons,
       error instanceof Error
-        ? `${providerName} review unavailable: ${error.message}`
-        : `${providerName} review unavailable.`,
+        ? `${displayProviderName(providerName)} review unavailable: ${error.message}`
+        : `${displayProviderName(providerName)} review unavailable.`,
     ],
     scores: {
       ...heuristic.scores,
@@ -115,4 +114,16 @@ function modelUnavailableReview({
     verdict:
       heuristic.verdict === "approve" ? "manual_review" : heuristic.verdict,
   };
+}
+
+function displayProviderName(providerName: ReviewProviderName) {
+  if (providerName === "anthropic") {
+    return "Anthropic";
+  }
+
+  if (providerName === "ollama") {
+    return "Ollama";
+  }
+
+  return "Heuristic";
 }
