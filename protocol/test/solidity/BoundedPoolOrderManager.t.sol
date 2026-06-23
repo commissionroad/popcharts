@@ -5,6 +5,7 @@ pragma solidity ^0.8.26;
 // solhint-disable use-natspec
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {PoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol";
 import {IHooks} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
@@ -33,9 +34,11 @@ import {V4TestERC20} from "./mocks/V4TestERC20.sol";
 
 contract BoundedPoolOrderManagerTest is Test {
   error UnableToDeploySortedPoolPair();
+  error DeferredExecutionStoredLogMissing();
 
   address private constant MAKER = address(0xA11CE);
   address private constant TAKER = address(0xB0B);
+  address private constant RESOLVER = address(0xC0DE);
   uint24 private constant FEE = 3000;
   int24 private constant TICK_SPACING = 60;
   int24 private constant BASE_TICK_LOWER = -600;
@@ -45,6 +48,9 @@ contract BoundedPoolOrderManagerTest is Test {
   uint128 private constant BASE_LIQUIDITY = 100_000e18;
   uint256 private constant ORDER_AMOUNT = 100e18;
   uint256 private constant STARTING_BALANCE = 1_000_000e18;
+  bytes32 private constant DEFERRED_EXECUTION_STORED_TOPIC = keccak256(
+    "DeferredExecutionStored(bytes32,bytes32,int24,int24,uint256)"
+  );
 
   PoolManager private poolManager;
   StateView private stateView;
@@ -204,6 +210,92 @@ contract BoundedPoolOrderManagerTest is Test {
     assertEq(order.owner, address(0));
   }
 
+  function test_LargeCrossedRangeSplitsImmediateAndDeferredBatches() public {
+    orderManager.setMaximumExecutionCount(1);
+    uint32[] memory orderIds = _createMakerOrders(3);
+
+    vm.recordLogs();
+    _movePriceUp();
+    bytes32 executionId = _lastDeferredExecutionId();
+
+    assertEq(_activeOrderCount(orderIds), 2);
+    (
+      bool pending,
+      PoolId deferredPoolId,
+      int24 fromTick,
+      int24 toTick,
+      ,
+      uint256 nextOrderIndex,
+      uint256 orderCount,
+      uint256 remainingOrderCount
+    ) = orderManager.getDeferredExecution(executionId);
+    assertTrue(pending);
+    assertEq(PoolId.unwrap(deferredPoolId), PoolId.unwrap(poolId));
+    assertEq(fromTick, 0);
+    assertGt(toTick, ORDER_TICK_UPPER);
+    assertEq(nextOrderIndex, 0);
+    assertEq(orderCount, 2);
+    assertEq(remainingOrderCount, 2);
+
+    (uint256 processedCount, bool complete) = orderManager.resolveDeferredExecution(executionId, 0);
+    assertEq(processedCount, 1);
+    assertFalse(complete);
+    assertEq(_activeOrderCount(orderIds), 1);
+
+    (processedCount, complete) = orderManager.resolveDeferredExecution(executionId, 0);
+    assertEq(processedCount, 1);
+    assertTrue(complete);
+    assertEq(_activeOrderCount(orderIds), 0);
+
+    (pending, , , , , , orderCount, remainingOrderCount) = orderManager.getDeferredExecution(
+      executionId
+    );
+    assertFalse(pending);
+    assertEq(orderCount, 0);
+    assertEq(remainingOrderCount, 0);
+  }
+
+  function test_DeferredResolutionRequiresResolverRole() public {
+    orderManager.setMaximumExecutionCount(1);
+    _createMakerOrders(2);
+
+    vm.recordLogs();
+    _movePriceUp();
+    bytes32 executionId = _lastDeferredExecutionId();
+
+    vm.expectRevert(
+      abi.encodeWithSelector(BoundedPoolOrderManager.UnauthorizedResolver.selector, TAKER)
+    );
+    vm.prank(TAKER);
+    orderManager.resolveDeferredExecution(executionId, 1);
+
+    orderManager.setResolverRole(RESOLVER, true);
+    vm.prank(RESOLVER);
+    (uint256 processedCount, bool complete) = orderManager.resolveDeferredExecution(executionId, 1);
+    assertEq(processedCount, 1);
+    assertTrue(complete);
+  }
+
+  function test_DeferredResolutionAfterPriceReversalRequeuesOrder() public {
+    orderManager.setMaximumExecutionCount(1);
+    uint32[] memory orderIds = _createMakerOrders(2);
+
+    vm.recordLogs();
+    _movePriceUp();
+    bytes32 executionId = _lastDeferredExecutionId();
+    assertEq(_activeOrderCount(orderIds), 1);
+
+    _movePriceDown();
+
+    (uint256 processedCount, bool complete) = orderManager.resolveDeferredExecution(executionId, 0);
+    assertEq(processedCount, 1);
+    assertTrue(complete);
+    assertEq(_activeOrderCount(orderIds), 1);
+
+    _movePriceUp();
+    assertEq(_activeOrderCount(orderIds), 0);
+  }
+
   function test_RejectsUnauthorizedPoolsHooksAndCancels() public {
     PoolKey memory unlistedKey = poolKey;
     unlistedKey.fee = 500;
@@ -258,6 +350,62 @@ contract BoundedPoolOrderManagerTest is Test {
           hookData: ""
         })
       );
+  }
+
+  function _createMakerOrders(uint256 orderCount) private returns (uint32[] memory orderIds) {
+    orderIds = new uint32[](orderCount);
+    for (uint256 i = 0; i < orderCount; ++i) {
+      (orderIds[i], , ) = _createMakerOrder();
+    }
+  }
+
+  function _activeOrderCount(uint32[] memory orderIds) private view returns (uint256 count) {
+    for (uint256 i = 0; i < orderIds.length; ++i) {
+      BoundedPoolOrderManager.Order memory order = orderManager.getOrder(poolId, orderIds[i]);
+      if (order.owner != address(0)) {
+        ++count;
+      }
+    }
+  }
+
+  function _lastDeferredExecutionId() private returns (bytes32 executionId) {
+    Vm.Log[] memory entries = vm.getRecordedLogs();
+    for (uint256 i = entries.length; i > 0; --i) {
+      Vm.Log memory entry = entries[i - 1];
+      if (entry.topics.length > 1 && entry.topics[0] == DEFERRED_EXECUTION_STORED_TOPIC) {
+        return entry.topics[1];
+      }
+    }
+
+    revert DeferredExecutionStoredLogMissing();
+  }
+
+  function _movePriceUp() private {
+    vm.prank(TAKER);
+    router.swap(
+      poolKey,
+      SwapParams({
+        zeroForOne: false,
+        amountSpecified: -int256(10_000e18),
+        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(240)
+      }),
+      TAKER,
+      ""
+    );
+  }
+
+  function _movePriceDown() private {
+    vm.prank(TAKER);
+    router.swap(
+      poolKey,
+      SwapParams({
+        zeroForOne: true,
+        amountSpecified: -int256(10_000e18),
+        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(-240)
+      }),
+      TAKER,
+      ""
+    );
   }
 
   function _deployHookAtPermissionedAddress() private returns (BoundedPredictionHook deployedHook) {

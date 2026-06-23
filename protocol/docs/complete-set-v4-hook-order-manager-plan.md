@@ -1159,6 +1159,22 @@ Exit criteria:
 - orders outside adjusted range requeue
 - partial fills preserve owner inventory
 
+Phase 6 first slice result: `BoundedPoolOrderManager` now supports
+owner-configured `maximumExecutionCount`, resolver roles, `bytes32` deferred
+execution IDs, deferred batch metadata reads, and resolver execution through the
+pool manager unlock path. Immediate hook execution processes only the configured
+batch size and stores any remaining crossed orders by hash ID. Resolver
+execution adjusts the original movement against the pool's current tick, so
+orders whose thresholds are no longer crossed are requeued instead of being paid
+as stale fills. The Solidity tests cover immediate/deferred splitting,
+resolver-role authorization, resolver completion, and reversal requeue followed
+by a later fill.
+
+Remaining Phase 6 scope: partial-fill tick indexing, partial-fill liquidity
+remove/re-add, and deferred payment remain unimplemented. Deferred payment is
+still optional and should be added only if Arc ERC20 USDC transfer behavior
+requires it.
+
 ### Phase 7: Pregrad Adapter
 
 Deliverables:
