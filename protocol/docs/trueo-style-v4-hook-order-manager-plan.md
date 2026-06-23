@@ -1,6 +1,6 @@
 # Trueo-Style V4 Hook And Order Manager Plan
 
-Status: implementation in progress; Phase 1 dependency spike completed on
+Status: implementation in progress; Phase 2 local v4 stack smoke completed on
 2026-06-22.
 
 This is the implementation plan for a full Trueo-style post-graduation trading
@@ -1019,9 +1019,10 @@ Deliverables:
 - deploy local `PoolManager`
 - deploy local `StateView`
 - deploy local `V4Quoter`
-- deploy minimal v4 swap router
+- deploy `MinimalV4SwapRouter`
 - create a dummy ERC20/ERC20 pool without hooks
 - add liquidity
+- quote exact input
 - perform a swap
 
 Exit criteria:
@@ -1029,6 +1030,27 @@ Exit criteria:
 - local swap changes balances as expected
 - all PoolManager deltas settle
 - quote path works
+
+Phase 2 result: `LocalV4StackSmoke.t.sol` deploys a local `PoolManager`,
+`StateView`, `V4Quoter`, and `MinimalV4SwapRouter`, initializes a no-hook
+ERC20/ERC20 pool with a six-decimal Arc-USDC-style input token, adds liquidity,
+quotes exact input, swaps through the router, and verifies balance changes plus
+price movement.
+
+Arc USDC gotcha: Arc exposes USDC as both the native gas asset and a standard
+ERC20 interface at `0x3600000000000000000000000000000000000000`. The native
+gas-balance view uses 18 decimals, while the ERC20 interface uses 6 decimals.
+For PoolManager currencies, collateral balances, approvals, transfers, pool
+math, and app display, use the ERC20 interface and 6-decimal raw units. Do not
+configure Arc USDC as v4 native currency / zero address, and do not mix native
+gas units into pool amount math.
+
+Important source-graph note: Solidity treats identically named user-defined
+types from different source paths as distinct. `StateView` and `V4Quoter` from
+`@uniswap/v4-periphery@1.0.3` resolve against the package's vendored
+`lib/v4-core` source graph, so the Phase 2 smoke imports PoolManager/types from
+that same graph. Keep future Solidity integration tests on one v4-core source
+graph per compilation unit.
 
 ### Phase 3: Complete-Set Market
 
@@ -1274,6 +1296,14 @@ without meaningful WETH9/v2/v3/Across dependencies.
 
 Recommendation: build a minimal v4 swap router first. Add Universal Router only
 after the core venue works.
+
+Phase 2 result: `MinimalV4SwapRouter` is ERC20-only and intentionally does not
+attempt path routing, Permit2, native currency support, or Universal Router
+compatibility. It unlocks the PoolManager, executes one `modifyLiquidity` or
+`swap`, settles negative deltas from the caller, and takes positive deltas to
+the caller/recipient. On Arc, this still works for USDC by using Arc's ERC20
+USDC interface and 6-decimal units; it intentionally rejects the native
+gas-balance representation.
 
 ### PositionManager
 
