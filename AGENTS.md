@@ -8,6 +8,11 @@
   before publishing or updating a PR. Verify the real local user path when
   feasible, capture a screenshot of the changed state, and include the local
   verification notes plus screenshot in the PR description.
+- Do not use third-party company, protocol, or product names in Pop Charts
+  implementation identifiers, filenames, contract names, function names, script
+  names, branch names, or deployment artifacts. Use descriptive mechanism names
+  instead. Third-party names are allowed only when needed for source attribution,
+  citations, or historical research context.
 
 # Personal Commands
 

@@ -11,10 +11,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {OutcomeToken} from "./OutcomeToken.sol";
 import {MarketTypes} from "../types/MarketTypes.sol";
 
-/// @title TrueoStyleBinaryMarket
+/// @title CompleteSetBinaryMarket
 /// @author Pop Charts
 /// @notice Fully collateralized ERC20 YES/NO complete-set market for post-graduation trading.
-contract TrueoStyleBinaryMarket is Ownable, ReentrancyGuard {
+contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   uint8 private constant MAX_SUPPORTED_DECIMALS = 77;

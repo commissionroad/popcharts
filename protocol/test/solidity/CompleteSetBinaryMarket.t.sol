@@ -7,11 +7,11 @@ import {Test} from "forge-std/Test.sol";
 import {MockCollateral} from "../../contracts/mocks/MockCollateral.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
-import {TrueoStyleBinaryMarket} from "../../contracts/postgrad/TrueoStyleBinaryMarket.sol";
+import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
 import {SixDecimalCollateral} from "./mocks/SixDecimalCollateral.sol";
 
-contract TrueoStyleBinaryMarketTest is Test {
+contract CompleteSetBinaryMarketTest is Test {
   uint256 private constant WAD = 1e18;
   uint256 private constant SIX_DECIMAL_UNIT = 1e6;
 
@@ -22,7 +22,7 @@ contract TrueoStyleBinaryMarketTest is Test {
   address private resolver = makeAddr("resolver");
 
   MockCollateral private collateral;
-  TrueoStyleBinaryMarket private market;
+  CompleteSetBinaryMarket private market;
   OutcomeToken private yesToken;
   OutcomeToken private noToken;
 
@@ -39,7 +39,7 @@ contract TrueoStyleBinaryMarketTest is Test {
     assertEq(market.outcomeDecimals(), 18);
     assertEq(market.retainedMinter(), retainedMinter);
     assertEq(market.resolver(), resolver);
-    assertEq(uint256(market.status()), uint256(TrueoStyleBinaryMarket.Status.Trading));
+    assertEq(uint256(market.status()), uint256(CompleteSetBinaryMarket.Status.Trading));
     assertEq(yesToken.market(), address(market));
     assertEq(noToken.market(), address(market));
     assertEq(yesToken.name(), "Pop Charts Test YES");
@@ -105,7 +105,7 @@ contract TrueoStyleBinaryMarketTest is Test {
 
     vm.expectRevert(
       abi.encodeWithSelector(
-        TrueoStyleBinaryMarket.InsolventOutcomeBacking.selector,
+        CompleteSetBinaryMarket.InsolventOutcomeBacking.selector,
         100 * WAD,
         101 * WAD
       )
@@ -121,13 +121,13 @@ contract TrueoStyleBinaryMarketTest is Test {
 
     vm.prank(trader);
     vm.expectRevert(
-      abi.encodeWithSelector(TrueoStyleBinaryMarket.UnauthorizedRetainedMinter.selector, trader)
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnauthorizedRetainedMinter.selector, trader)
     );
     market.fundRetainedCollateral(100 * WAD);
 
     vm.prank(trader);
     vm.expectRevert(
-      abi.encodeWithSelector(TrueoStyleBinaryMarket.UnauthorizedRetainedMinter.selector, trader)
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnauthorizedRetainedMinter.selector, trader)
     );
     market.mintRetainedSide(trader, MarketTypes.Side.Yes, 1 * WAD);
   }
@@ -158,7 +158,7 @@ contract TrueoStyleBinaryMarketTest is Test {
     vm.prank(trader);
     vm.expectRevert(
       abi.encodeWithSelector(
-        TrueoStyleBinaryMarket.LosingSideCannotRedeem.selector,
+        CompleteSetBinaryMarket.LosingSideCannotRedeem.selector,
         MarketTypes.Side.No,
         MarketTypes.Side.Yes
       )
@@ -169,13 +169,13 @@ contract TrueoStyleBinaryMarketTest is Test {
   function test_OnlyResolverCanResolveOrCancel() public {
     vm.prank(trader);
     vm.expectRevert(
-      abi.encodeWithSelector(TrueoStyleBinaryMarket.UnauthorizedResolver.selector, trader)
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnauthorizedResolver.selector, trader)
     );
     market.resolve(MarketTypes.Side.Yes);
 
     vm.prank(trader);
     vm.expectRevert(
-      abi.encodeWithSelector(TrueoStyleBinaryMarket.UnauthorizedResolver.selector, trader)
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnauthorizedResolver.selector, trader)
     );
     market.cancel();
   }
@@ -189,9 +189,9 @@ contract TrueoStyleBinaryMarketTest is Test {
     vm.prank(trader);
     vm.expectRevert(
       abi.encodeWithSelector(
-        TrueoStyleBinaryMarket.InvalidStatus.selector,
-        TrueoStyleBinaryMarket.Status.Resolved,
-        TrueoStyleBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Trading
       )
     );
     market.mergeCompleteSets(1 * WAD);
@@ -219,7 +219,7 @@ contract TrueoStyleBinaryMarketTest is Test {
 
   function test_SixDecimalCollateralConvertsToEighteenDecimalOutcomes() public {
     SixDecimalCollateral sixDecimalCollateral = new SixDecimalCollateral();
-    TrueoStyleBinaryMarket sixDecimalMarket = _deployMarket(address(sixDecimalCollateral), 18);
+    CompleteSetBinaryMarket sixDecimalMarket = _deployMarket(address(sixDecimalCollateral), 18);
     OutcomeToken sixDecimalYes = sixDecimalMarket.yesToken();
     OutcomeToken sixDecimalNo = sixDecimalMarket.noToken();
 
@@ -244,15 +244,17 @@ contract TrueoStyleBinaryMarketTest is Test {
 
   function test_SixDecimalCollateralRejectsOutcomeDust() public {
     SixDecimalCollateral sixDecimalCollateral = new SixDecimalCollateral();
-    TrueoStyleBinaryMarket sixDecimalMarket = _deployMarket(address(sixDecimalCollateral), 18);
+    CompleteSetBinaryMarket sixDecimalMarket = _deployMarket(address(sixDecimalCollateral), 18);
 
-    vm.expectRevert(abi.encodeWithSelector(TrueoStyleBinaryMarket.AmountHasDust.selector, 1, 1e12));
+    vm.expectRevert(
+      abi.encodeWithSelector(CompleteSetBinaryMarket.AmountHasDust.selector, 1, 1e12)
+    );
     sixDecimalMarket.collateralAmountForOutcome(1);
   }
 
   function test_FeeOnTransferCollateralIsRejected() public {
     MockFeeCollateral feeCollateral = new MockFeeCollateral();
-    TrueoStyleBinaryMarket feeMarket = _deployMarket(address(feeCollateral), 18);
+    CompleteSetBinaryMarket feeMarket = _deployMarket(address(feeCollateral), 18);
     feeCollateral.mint(trader, 100 * WAD);
 
     vm.prank(trader);
@@ -261,7 +263,7 @@ contract TrueoStyleBinaryMarketTest is Test {
     vm.prank(trader);
     vm.expectRevert(
       abi.encodeWithSelector(
-        TrueoStyleBinaryMarket.InvalidCollateralTransfer.selector,
+        CompleteSetBinaryMarket.InvalidCollateralTransfer.selector,
         100 * WAD,
         99 * WAD
       )
@@ -272,9 +274,9 @@ contract TrueoStyleBinaryMarketTest is Test {
   function _deployMarket(
     address collateralToken,
     uint8 outcomeDecimals
-  ) private returns (TrueoStyleBinaryMarket) {
+  ) private returns (CompleteSetBinaryMarket) {
     return
-      new TrueoStyleBinaryMarket({
+      new CompleteSetBinaryMarket({
         collateralToken_: collateralToken,
         owner_: address(this),
         retainedMinter_: retainedMinter,

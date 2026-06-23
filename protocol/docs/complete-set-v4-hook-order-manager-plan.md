@@ -1,27 +1,27 @@
-# Trueo-Style V4 Hook And Order Manager Plan
+# Complete-Set V4 Hook And Order Manager Plan
 
 Status: implementation in progress; Phase 2 local v4 stack smoke completed on
 2026-06-22.
 
-This is the implementation plan for a full Trueo-style post-graduation trading
+This is the implementation plan for a full complete-set post-graduation trading
 venue on Arc Testnet: per-market ERC20 YES/NO tokens, two Uniswap v4 pools per
 market, a prediction-market hook, and an order manager that turns maker orders
 into v4 concentrated-liquidity positions.
 
-The older `trueo-style-postgrad-plan.md` answers the first-pass questions:
-whether Trueo uses Gnosis CTF, whether Arc appears to have v4 deployed, and how
-an ERC20 complete-set market fits Pop Charts. This document assumes that
-direction and expands it into an implementation blueprint.
+The older `complete-set-postgrad-plan.md` answers the first-pass questions:
+whether the external reference protocol uses Gnosis CTF, whether Arc appears to
+have v4 deployed, and how an ERC20 complete-set market fits Pop Charts. This
+document assumes that direction and expands it into an implementation blueprint.
 
 ## Executive Recommendation
 
-Build a slim Pop Charts version of Trueo's v4 venue, but do not rewrite
+Build a slim Pop Charts complete-set v4 venue, but do not rewrite
 Uniswap v4 core.
 
 "Slim" should mean:
 
 - deploy only the v4 stack pieces we need on Arc Testnet
-- build a smaller Pop Charts hook and order manager than Trueo's production
+- build a smaller Pop Charts hook and order manager than the production reference
   contracts
 - keep oracle/council/bond/tokenomics code out of scope
 - keep the protocol handoff boundary receipt-centric and Pop Charts-specific
@@ -95,7 +95,7 @@ uncomfortable before we ship the full venue:
 Default implementation assumptions for this branch:
 
 - add ADR 0008 before code moves beyond documentation
-- implement `OutcomeToken` and `TrueoStyleBinaryMarket` first
+- implement `OutcomeToken` and `CompleteSetBinaryMarket` first
 - use 18-decimal outcome tokens with explicit collateral/outcome conversion
 - reject conversion dust rather than silently rounding user balances
 - include retained-collateral funding and controlled retained-side minting, but
@@ -106,7 +106,7 @@ Default implementation assumptions for this branch:
 ## Mental Model: AMM, Book, Hook, And Order Manager
 
 The AMM pools are not just fallback liquidity after the book is empty. In the
-Trueo-style design, the v4 pool is the execution engine for all trades.
+complete-set design, the v4 pool is the execution engine for all trades.
 
 The "book" is a controller around v4 liquidity:
 
@@ -214,7 +214,7 @@ Relevant v4 facts:
 - The periphery `PositionManager` manages v4 LP positions as ERC721 NFTs, but a
   custom order manager can use `PoolManager.modifyLiquidity(...)` directly.
 
-The flags relevant to a Trueo-style hook are:
+The flags relevant to a Complete-set hook are:
 
 ```txt
 BEFORE_SWAP_FLAG = 1 << 7
@@ -222,16 +222,16 @@ AFTER_SWAP_FLAG = 1 << 6
 AFTER_SWAP_RETURNS_DELTA_FLAG = 1 << 2
 ```
 
-Trueo uses these because the hook needs to record the pre-swap tick, process the
+The reference hook uses these because the hook needs to record the pre-swap tick, process the
 post-swap tick, and optionally return a hook delta for fee collection.
 
-### Trueo
+### External Reference Protocol
 
-Trueo docs describe a binary prediction-market venue where traders buy YES or
-NO tokens, all trades execute onchain through a custom Uniswap v4 hook, and
-Trueo contracts do not take custody of users' YES/NO tokens during trading.
+Reference docs describe a binary prediction-market venue where traders buy YES
+or NO tokens, all trades execute onchain through a custom Uniswap v4 hook, and
+reference contracts do not take custody of users' YES/NO tokens during trading.
 
-Trueo complete-set mechanics:
+Reference complete-set mechanics:
 
 - anyone can mint YES and NO after market initialization
 - depositing 1 TYD mints exactly 1 YES and 1 NO
@@ -239,9 +239,10 @@ Trueo complete-set mechanics:
 - after resolution, each winning token redeems for 1 TYD and the losing token
   expires worthless
 - each market has two dedicated pools, `YES/TYD` and `NO/TYD`
-- Trueo constrains pool liquidity between zero and one TYD per outcome token
+- The reference implementation constrains pool liquidity between zero and one
+  TYD per outcome token
 
-Trueo source observations from commit
+Reference source observations from commit
 `7088757b581ab2d1a446dbb5cf8c79de900d77e7`:
 
 - `YesNoToken.sol` is an ERC20 with owner-only minting.
@@ -276,7 +277,7 @@ Trueo source observations from commit
 - `OrderBook.sol` uses tick bitmaps and packed order IDs to find orders in a
   crossed tick range efficiently.
 
-Takeaway: Trueo's order manager is not a traditional offchain CLOB. It is an
+Takeaway: the reference order manager is not a traditional offchain CLOB. It is an
 onchain v4 liquidity order manager. The AMM liquidity and the book are coupled.
 
 ## Fit With Pop Charts
@@ -293,11 +294,11 @@ Must preserve:
 - maximum winner payout is no larger than locked collateral
 - users receive postgrad balances through claims, not by transferring receipts
 
-ADR 0007 currently prefers CTF-compatible postgrad infrastructure. A Trueo-style
+ADR 0007 currently prefers CTF-compatible postgrad infrastructure. A complete-set
 v4 venue is CTF-style in economics but not Gnosis CTF in tokenization, because
-Trueo's public contracts use per-market ERC20 YES/NO tokens. We should create a
-new ADR that records this as an Arc Testnet decision and explicitly keeps a
-mainnet CTF-wrapper revisit open.
+the reference implementation's public contracts use per-market ERC20 YES/NO
+tokens. We should create a new ADR that records this as an Arc Testnet decision
+and explicitly keeps a mainnet CTF-wrapper revisit open.
 
 The current protocol branch for this document has `PregradManager` support for
 market creation, receipt placement, graduation start, optimistic clearing-root
@@ -311,7 +312,7 @@ target implementation branch.
 flowchart LR
   A["PregradManager"] --> B["Clearing Root Accepted"]
   B --> C["Finalize Graduation"]
-  C --> D["TrueoStylePostgradAdapter"]
+  C --> D["CompleteSetPostgradAdapter"]
   D --> E["BinaryMarket"]
   E --> Y["YES ERC20"]
   E --> N["NO ERC20"]
@@ -334,7 +335,7 @@ Arc Testnet deployment manifests:
 
 - `protocol/deployments/arc-testnet.uniswap-v4.json`
 - `protocol/deployments/arc-testnet.postgrad.json`
-- `protocol/deployments/arc-testnet.trueo-style-markets.json`
+- `protocol/deployments/arc-testnet.complete-set-markets.json`
 
 Contract groups:
 
@@ -349,9 +350,9 @@ Contract groups:
     is too heavy
 - Pop Charts postgrad:
   - `OutcomeToken`
-  - `TrueoStyleBinaryMarket`
-  - `TrueoStyleMarketFactory`
-  - `TrueoStylePostgradAdapter`
+  - `CompleteSetBinaryMarket`
+  - `CompleteSetMarketFactory`
+  - `CompleteSetPostgradAdapter`
 - Pop Charts v4 venue:
   - `PredictionMarketHook`
   - `PredictionMarketSwapValidator`
@@ -383,12 +384,13 @@ Recommended shape:
   choose to match USDC at 6 decimals for testnet simplicity
 
 Open question: if collateral is Arc ERC20 USDC with 6 decimals, we must decide
-whether 1 YES is `1e18` or `1e6`. Trueo converts between payment-token decimals
-and outcome-token decimals. That is more flexible but adds rounding tests. For
-first implementation, 18-decimal outcome tokens with explicit conversion is
-closest to Trueo and typical ERC20 behavior.
+whether 1 YES is `1e18` or `1e6`. The reference implementation converts between
+payment-token decimals and outcome-token decimals. That is more flexible but
+adds rounding tests. For first implementation, 18-decimal outcome tokens with
+explicit conversion is closest to the reference implementation and typical
+ERC20 behavior.
 
-### TrueoStyleBinaryMarket
+### CompleteSetBinaryMarket
 
 Purpose: fully collateralized complete-set market for one graduated Pop Charts
 market.
@@ -443,13 +445,13 @@ For Pop Charts retained claims, single-sided minting is allowed only because the
 retained collateral for the matching complete set was transferred into the
 market through graduation.
 
-### TrueoStylePostgradAdapter
+### CompleteSetPostgradAdapter
 
 Purpose: bridge `PregradManager` finalization/claims into the ERC20 market.
 
 Responsibilities:
 
-- deploy or reference a `TrueoStyleBinaryMarket`
+- deploy or reference a `CompleteSetBinaryMarket`
 - receive retained collateral from `PregradManager`
 - mint retained YES/NO balances to claimants after Merkle proof verification
 - emit addresses needed by indexer and frontend
@@ -477,7 +479,7 @@ afterSwapReturnDelta = true if hook fees are enabled
 ```
 
 If we do not collect hook fees in the first implementation, we can avoid
-`afterSwapReturnDelta` and simplify settlement. But to stay closest to Trueo and
+`afterSwapReturnDelta` and simplify settlement. But to stay closest to the reference implementation and
 leave fee collection available, plan for the flag and return zero until fees
 are configured.
 
@@ -556,8 +558,8 @@ The deployment script should calculate and print both:
 
 Purpose: place, cancel, and settle onchain limit-order-like liquidity positions.
 
-This should be a Pop Charts implementation inspired by Trueo, not a blind fork.
-The Trueo design is the reference for core mechanics, but our implementation
+This should be a Pop Charts implementation inspired by the external reference protocol, not a blind fork.
+The reference design is the reference for core mechanics, but our implementation
 should remove production-only features until needed.
 
 State:
@@ -638,7 +640,7 @@ Deferred execution:
 
 Deferred payment:
 
-- Trueo includes deferred payment handling for temporary transfer failures.
+- The reference implementation includes deferred payment handling for temporary transfer failures.
 - For Arc Testnet, we can initially reduce scope by reverting on payment
   failure unless Arc USDC blocklist/compliance behavior makes deferral necessary.
 - If using Arc ERC20 USDC, consider deferred payment or admin-safe behavior
@@ -728,7 +730,7 @@ Uniswap source state:
 - v4 core tag `v4.0.0` uses Solidity `0.8.26`
 - v4 periphery main uses Solidity `0.8.26`
 - Universal Router uses Solidity `^0.8.24`
-- Trueo's hook/order-manager source uses Solidity `^0.8.24`
+- The reference implementation's hook/order-manager source uses Solidity `^0.8.24`
 
 Implementation options:
 
@@ -900,7 +902,7 @@ Manifest shape:
 }
 ```
 
-### `scripts/deploy-trueo-style-postgrad.ts`
+### `scripts/deploy-complete-set-postgrad.ts`
 
 Purpose: deploy Pop Charts postgrad venue contracts.
 
@@ -908,7 +910,7 @@ Steps:
 
 1. Read v4 manifest.
 2. Deploy `OutcomeToken` implementation or use factory deployment.
-3. Deploy `TrueoStyleMarketFactory`.
+3. Deploy `CompleteSetMarketFactory`.
 4. Deploy `OrderManager(poolManager, permit2, feeRecipient)`.
 5. Deploy `PredictionMarketSwapValidator(poolManager, admin)`.
 6. Mine hook salt for permissions.
@@ -917,7 +919,7 @@ Steps:
 9. Grant whitelist manager/operator roles.
 10. Write postgrad manifest.
 
-### `scripts/create-trueo-style-market.ts`
+### `scripts/create-complete-set-market.ts`
 
 Purpose: create one market's YES/NO tokens and pools.
 
@@ -932,7 +934,7 @@ Steps:
 7. Whitelist both pool IDs in order manager.
 8. Emit/write market manifest.
 
-### `scripts/seed-trueo-style-pools.ts`
+### `scripts/seed-complete-set-pools.ts`
 
 Purpose: provide fake testnet depth.
 
@@ -949,7 +951,7 @@ Recommendation:
 - Add one broad dev LP position only as a convenience backstop for testnet UX,
   clearly marked as dev liquidity.
 
-### `scripts/keeper-trueo-style-arb.ts`
+### `scripts/keeper-complete-set-arb.ts`
 
 Purpose: keep testnet prices sane and process deferred work.
 
@@ -970,7 +972,7 @@ This keeper must be testnet-only unless it is audited and product-approved.
 
 Deliverables:
 
-- new ADR: `Use Trueo-Style ERC20 V4 Markets On Arc Testnet`
+- new ADR: `Use Complete-Set ERC20 V4 Markets On Arc Testnet`
 - explicit amendment to ADR 0007:
   - testnet uses ERC20 outcome tokens
   - CTF-style means complete-set economics for this slice
@@ -1057,7 +1059,7 @@ graph per compilation unit.
 Deliverables:
 
 - `OutcomeToken`
-- `TrueoStyleBinaryMarket`
+- `CompleteSetBinaryMarket`
 - tests for:
   - complete-set mint
   - complete-set merge
@@ -1135,7 +1137,7 @@ Exit criteria:
 
 Deliverables:
 
-- `TrueoStylePostgradAdapter`
+- `CompleteSetPostgradAdapter`
 - integration with finalized retained claims
 - retained collateral funding
 - claim-to-YES/NO mint
@@ -1155,9 +1157,9 @@ Deliverables:
 
 - `check-arc-v4`
 - `deploy-arc-v4-stack`
-- `deploy-trueo-style-postgrad`
-- `create-trueo-style-market`
-- `seed-trueo-style-pools`
+- `deploy-complete-set-postgrad`
+- `create-complete-set-market`
+- `seed-complete-set-pools`
 - deployment manifests
 - Arcscan verification notes
 
@@ -1411,7 +1413,7 @@ These are the questions I would resolve before implementation starts:
 
 A successful "one-shot" implementation should end with:
 
-- ADR accepted for Arc Testnet Trueo-style v4 venue
+- ADR accepted for Arc Testnet Complete-set v4 venue
 - v4 dependency/import spike complete
 - local v4 stack smoke passing
 - complete-set market tests passing
@@ -1453,17 +1455,8 @@ Uniswap:
 - v4 periphery `V4Quoter.sol` at commit `363226d9e1e2180b67bf6857023dbaad751010c5`: https://github.com/Uniswap/v4-periphery/blob/363226d9e1e2180b67bf6857023dbaad751010c5/src/lens/V4Quoter.sol
 - Universal Router parameters at commit `020e1b786ad9a6bad924874752167934734ad1e1`: https://github.com/Uniswap/universal-router/blob/020e1b786ad9a6bad924874752167934734ad1e1/contracts/types/RouterParameters.sol
 
-Trueo:
-
-- Trueo trading docs: https://docs.trueo.com/trading
-- Trueo YES/NO minting docs: https://docs.trueo.com/liquidity-provision
-- Trueo resolving markets docs: https://docs.trueo.com/resolving-markets
-- Trueo contracts repo: https://github.com/trueo-protocol/trueo-contracts
-- `YesNoToken.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/YesNoToken.sol
-- `TruthMarketV2.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/TruthMarketV2.sol
-- `TruthMarketHook.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/TruthMarketHook.sol
-- `OrderManager.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/OrderManager.sol
-- `IOrderManager.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/interfaces/IOrderManager.sol
-- `Order.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/libraries/Order.sol
-- `OrderBook.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/libraries/OrderBook.sol
-- `TruthMarketSwapValidator.sol` at commit `7088757b581ab2d1a446dbb5cf8c79de900d77e7`: https://github.com/trueo-protocol/trueo-contracts/blob/7088757b581ab2d1a446dbb5cf8c79de900d77e7/src/validators/TruthMarketSwapValidator.sol
+External reference protocol docs and contracts were reviewed during 2026-06-19
+research, including the YES/NO token, market, hook, order manager, order book,
+and swap-validator sources at commit
+`7088757b581ab2d1a446dbb5cf8c79de900d77e7`. Keep external names out of
+implementation identifiers.

@@ -1,4 +1,4 @@
-# ADR 0008: Use Trueo-Style ERC20 V4 Markets On Arc Testnet
+# ADR 0008: Use Complete-Set ERC20 V4 Markets On Arc Testnet
 
 ## Status
 
@@ -10,12 +10,12 @@ ADR 0007 prefers CTF-style postgrad infrastructure and specifically points
 toward ERC1155-compatible outcome positions where possible. That remains the
 mainnet-oriented interoperability target.
 
-For the immediate Arc Testnet venue, we want a Trueo-style market that can
-trade through Uniswap v4 pools and a hook/order-manager layer. Trueo's public
-contracts use per-market ERC20 YES and NO tokens, two outcome/collateral pools,
-and complete-set mint/merge/redemption economics. Uniswap v4 pools also expect
-ERC20-like currencies, so the ERC20 route is the shortest path to testing the
-venue mechanics on Arc.
+For the immediate Arc Testnet venue, we want a complete-set market that can
+trade through Uniswap v4 pools and a hook/order-manager layer. The external
+reference protocol's public contracts use per-market ERC20 YES and NO tokens,
+two outcome/collateral pools, and complete-set mint/merge/redemption economics.
+Uniswap v4 pools also expect ERC20-like currencies, so the ERC20 route is the
+shortest path to testing the venue mechanics on Arc.
 
 The current protocol branch has market creation, receipt placement, graduation
 start, optimistic clearing-root submission, and refund marking. It does not yet
@@ -25,7 +25,7 @@ to pregrad claims.
 
 ## Decision
 
-Use Trueo-style ERC20 complete-set markets for the Arc Testnet postgrad venue.
+Use ERC20 complete-set markets for the Arc Testnet postgrad venue.
 
 For this slice, "CTF-style" means complete-set economics and fixed-payout
 solvency, not Gnosis CTF ERC1155 tokenization. Each graduated market receives

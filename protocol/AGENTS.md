@@ -19,3 +19,9 @@ contract-unit behavior and TypeScript tests for deployment and integration flows
 
 Receipts are provisional priced intents until graduation. Never name or model
 pre-graduation receipts as final fills, positions, or outcome tokens.
+
+Do not name protocol contracts, functions, tests, scripts, deployment artifacts,
+or implementation docs after third-party companies, protocols, or products. Use
+descriptive mechanism names such as complete-set market, postgrad adapter, or
+bounded v4 venue. Mention third-party names only for citations or historical
+research context.
