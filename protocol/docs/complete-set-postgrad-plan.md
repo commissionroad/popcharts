@@ -1,14 +1,15 @@
-# Trueo-Style Postgrad Market Plan
+# Complete-Set Postgrad Market Plan
 
 Status: planning, researched on 2026-06-19.
 
 ## Executive Summary
 
-We should treat "Trueo-style" as a testnet post-graduation venue pattern:
+We should treat a complete-set ERC20 venue as a testnet post-graduation pattern:
 dedicated ERC20 YES and NO tokens, two Uniswap v4 pools per market
 (`YES/collateral` and `NO/collateral`), complete-set mint/merge/redemption
-semantics, and seeded testnet liquidity. Trueo does not use Gnosis CTF for its
-current YES/NO storage. It deploys per-market ERC20 `YesNoToken` contracts.
+semantics, and seeded testnet liquidity. The external reference protocol does
+not use Gnosis CTF for its current YES/NO storage. It deploys per-market ERC20
+`YesNoToken` contracts.
 
 Arc Testnet does not currently appear to have official Uniswap v4 core/periphery
 contracts deployed. Arc's docs list Permit2, CREATE2, and Multicall3, but not
@@ -23,7 +24,7 @@ That means the practical testnet path is:
    official v4 testnet such as Base Sepolia/Unichain Sepolia until Arc has
    official v4 deployments.
 2. Add a Pop Charts postgrad adapter and ERC20 complete-set market contracts,
-   not Gnosis CTF contracts, for the immediate Trueo-style testnet plan.
+   not Gnosis CTF contracts, for the immediate complete-set testnet plan.
 3. Capture the ERC20 testnet deviation in a new ADR, because ADR 0007 currently
    points to CTF-compatible ERC1155 outcome infrastructure as the preferred
    postgrad direction.
@@ -70,10 +71,11 @@ Planning implication: do not assume Arc Testnet has a usable Uniswap v4
 `PoolManager`. Make v4 contract addresses explicit deployment inputs and fail
 fast if they have no bytecode.
 
-### How does Trueo interact with Uniswap v4?
+### How does the reference venue interact with Uniswap v4?
 
-Trueo's docs say all YES/NO trading executes onchain through a custom Uniswap v4
-hook, and each market has two dedicated pools: `YES/TYD` and `NO/TYD`.
+The reference docs say all YES/NO trading executes onchain through a custom
+Uniswap v4 hook, and each market has two dedicated pools: `YES/TYD` and
+`NO/TYD`.
 
 The source code shows this shape:
 
@@ -94,19 +96,20 @@ The source code shows this shape:
   executes crossed orders as the pool tick moves.
 
 Planning implication: for Pop Charts testnet, we can adopt the core market
-object and pool layout without importing Trueo's full oracle, order manager, or
-upgradeable contract stack. The smallest useful slice is ERC20 outcome tokens,
-complete-set mint/merge/redeem, v4 pool initialization, a price-bound hook, and
-seed-liquidity scripts.
+object and pool layout without importing the reference protocol's full oracle,
+order manager, or upgradeable contract stack. The smallest useful slice is
+ERC20 outcome tokens, complete-set mint/merge/redeem, v4 pool initialization, a
+price-bound hook, and seed-liquidity scripts.
 
-### Does Trueo use CTF to store YES/NO tokens?
+### Does The Reference Protocol Use CTF To Store YES/NO Tokens?
 
-No. Trueo's current public contracts use per-market ERC20 `YesNoToken`
-contracts. This differs from Polymarket/Gnosis CTF, where outcome positions are
-ERC1155 token IDs minted by a shared Conditional Tokens contract.
+No. The reference implementation's current public contracts use per-market ERC20
+`YesNoToken` contracts. This differs from Polymarket/Gnosis CTF, where outcome
+positions are ERC1155 token IDs minted by a shared Conditional Tokens contract.
 
-Planning implication: do not add Gnosis CTF solely because of Trueo. If we want
-to preserve ADR 0007's CTF compatibility, use one of these explicit choices:
+Planning implication: do not add Gnosis CTF solely because of the reference
+protocol. If we want to preserve ADR 0007's CTF compatibility, use one of these
+explicit choices:
 
 - Testnet-fast path: ERC20 complete-set market, documented as "CTF-style
   economics, not Gnosis CTF tokenization."
@@ -126,7 +129,7 @@ Pop Charts' whitepaper and protocol constitution require these invariants:
 - `retainedCost + refund = receipt.cost`
 - locked collateral equals maximum winner payout
 
-The Trueo-style testnet layer should begin only after Pop Charts graduation
+The complete-set testnet layer should begin only after Pop Charts graduation
 clearing. It must not reinterpret pre-graduation receipts as fills. The postgrad
 adapter receives only finalized retained collateral and retained YES/NO claim
 amounts.
@@ -151,7 +154,7 @@ Add these under `protocol/contracts/postgrad/`:
   - Minimal ERC20 for one market outcome.
   - Mint/burn restricted to the owning postgrad market contract.
 
-- `TrueoStyleBinaryMarket.sol`
+- `CompleteSetBinaryMarket.sol`
   - Owns collateral escrow for one graduated market.
   - Deploys or references one YES token and one NO token.
   - `mintCompleteSets(address to, uint256 amount)` deposits collateral and
@@ -163,7 +166,7 @@ Add these under `protocol/contracts/postgrad/`:
   - Optional cancel/draw path can redeem YES and NO at half value, but only if
     product requirements need it for testnet.
 
-- `TrueoStylePostgradAdapter.sol`
+- `CompleteSetPostgradAdapter.sol`
   - Bridges `PregradManager` finalization/claims into the postgrad market.
   - Initializes the binary market when graduation finalizes.
   - Receives retained collateral from `PregradManager`.
@@ -176,10 +179,10 @@ Add these under `protocol/contracts/postgrad/`:
   - May start with `afterSwap` validation only.
   - Must be deployed with an address whose low-order bits encode the selected
     hook permissions.
-  - Avoids Trueo's full order-manager machinery until we need onchain limit
+  - Avoids the reference protocol's full order-manager machinery until we need onchain limit
     order execution.
 
-Avoid importing Trueo contracts directly:
+Avoid importing external reference contracts directly:
 
 - Their contracts are designed around Base, TYD, upgradeable mastercopies, and a
   custom oracle system.
@@ -214,7 +217,7 @@ Add scripts:
   - Writes deployment manifest.
 
 - `scripts/deploy-postgrad-market.ts`
-  - Deploys `TrueoStyleBinaryMarket`, outcome tokens, and hook.
+  - Deploys `CompleteSetBinaryMarket`, outcome tokens, and hook.
   - Mines or otherwise derives the hook deployment salt needed for Uniswap v4
     hook permission bits.
   - Initializes two pools and records pool IDs.
@@ -237,7 +240,7 @@ Collateral choice:
 
 Create a new ADR before code:
 
-- Title: `Use Trueo-Style ERC20 Postgrad Markets On Testnet`
+- Title: `Use Complete-Set ERC20 Postgrad Markets On Testnet`
 - Decision: testnet postgrad markets use ERC20 YES/NO complete-set markets plus
   seeded Uniswap v4 pools.
 - Explicit deviation from ADR 0007: "CTF-style economics" for now, not Gnosis
@@ -292,7 +295,7 @@ Run the Arc path:
 2. For testnet pool liquidity, do we want repo `MockCollateral` or Arc USDC?
 3. Should the first hook only enforce 0-to-1 price bounds, or should it also
    enforce cross-pool constraints such as `YES price + NO price <= 1`?
-4. Do we need Trueo-style cancel/draw redemption at 0.5 each, or only binary
+4. Do we need Complete-set cancel/draw redemption at 0.5 each, or only binary
    YES/NO resolution?
 5. Is the testnet resolver a manager-only call, or should it integrate with the
    existing optimistic-resolution plan?
@@ -309,7 +312,7 @@ Run the Arc path:
   itself encodes which callbacks PoolManager may call.
 - Arc's native USDC model has 18-decimal gas accounting but a 6-decimal ERC20
   interface; contracts should use the ERC20 interface for token accounting.
-- Copying Trueo's hook/order-manager system would import a large amount of
+- Copying the external reference protocol's hook/order-manager system would import a large amount of
   scope and audit surface.
 - Adding old Gnosis CTF directly would introduce an incompatible Solidity and
   ERC1155 integration burden before we have the postgrad adapter working.
@@ -322,10 +325,7 @@ Run the Arc path:
 - Uniswap v4 deployments: https://developers.uniswap.org/docs/protocols/v4/deployments
 - Uniswap v4 PoolManager: https://developers.uniswap.org/docs/protocols/v4/concepts/poolmanager
 - Uniswap v4 hooks: https://developers.uniswap.org/docs/protocols/v4/concepts/hooks
-- Trueo docs: https://docs.trueo.com/
-- Trueo trading: https://docs.trueo.com/trading
-- Trueo minting YES/NO tokens: https://docs.trueo.com/liquidity-provision
-- Trueo deployments: https://docs.trueo.com/deployments
-- Trueo contracts: https://github.com/trueo-protocol/trueo-contracts
+- External reference protocol docs and contracts reviewed during 2026-06-19
+  research. Keep external names out of implementation identifiers.
 - Polymarket CTF overview: https://docs.polymarket.com/trading/ctf/overview
 - Gnosis Conditional Tokens: https://github.com/gnosis/conditional-tokens-contracts

@@ -13,8 +13,8 @@ Start here:
 
 Research plans:
 
-- `docs/trueo-style-postgrad-plan.md`
-- `docs/trueo-style-v4-hook-order-manager-plan.md`
+- `docs/complete-set-postgrad-plan.md`
+- `docs/complete-set-v4-hook-order-manager-plan.md`
 
 ## Commands
 
@@ -48,7 +48,7 @@ land in later vertical slices.
 ## Postgrad Testnet Slice
 
 `contracts/postgrad/OutcomeToken.sol` and
-`contracts/postgrad/TrueoStyleBinaryMarket.sol` implement the first Arc Testnet
+`contracts/postgrad/CompleteSetBinaryMarket.sol` implement the first Arc Testnet
 postgrad building block: ERC20 YES/NO complete sets with market-level
 collateral backing. ADR 0008 records why this testnet slice uses ERC20 outcome
 tokens while ADR 0007 keeps the mainnet CTF-compatible decision open.
