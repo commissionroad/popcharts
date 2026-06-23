@@ -43,6 +43,13 @@
       "when": 1782140996474,
       "tag": "0005_steep_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782241394426,
+      "tag": "0006_right_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

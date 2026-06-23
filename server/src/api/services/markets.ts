@@ -1,6 +1,7 @@
 import { createPublicClient, http, parseAbi } from "viem";
 
 import type {
+  MarketAiReviewResponse,
   MarketCreatedEventResponse,
   MarketMetadataResponse,
   MarketMetadataWrite,
@@ -8,7 +9,7 @@ import type {
 } from "src/api/models/markets";
 import { config } from "src/config";
 import { db } from "src/db/client";
-import { and, desc, eq, gt, schema } from "src/db/client";
+import { and, desc, eq, gt, inArray, schema } from "src/db/client";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 
 const MARKET_LIST_LIMIT = 200;
@@ -17,6 +18,7 @@ const LOCAL_MARKET_EXISTS_ABI = parseAbi([
 ]);
 
 export type MarketRow = typeof schema.markets.$inferSelect;
+export type MarketAiReviewRow = typeof schema.marketAiReviews.$inferSelect;
 export type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
 type MarketQueryRow = {
   market: MarketRow;
@@ -56,9 +58,17 @@ export async function getMarkets({
     .orderBy(desc(schema.markets.createdBlockTimestamp))
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
+  const reviews = await getLatestAiReviews(
+    liveRows.map(({ market }) => market),
+  );
 
   return liveRows.map(({ market, metadata }) =>
-    serializeMarketRow(market, metadata, calculateMatchedMarketCap(market)),
+    serializeMarketRow(
+      market,
+      metadata,
+      calculateMatchedMarketCap(market),
+      reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
+    ),
   );
 }
 
@@ -97,10 +107,14 @@ export async function getMarketById(
     return null;
   }
 
+  const reviews = await getLatestAiReviews([row.market]);
+
   return serializeMarketRow(
     row.market,
     row.metadata,
     calculateMatchedMarketCap(row.market),
+    reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
+      null,
   );
 }
 
@@ -193,8 +207,10 @@ export function serializeMarketRow(
   market: MarketRow,
   metadata: MarketMetadataRow | null,
   matchedMarketCap: bigint,
+  aiReview: MarketAiReviewRow | null = null,
 ): MarketResponse {
   return {
+    ...(aiReview ? { aiReview: serializeMarketAiReviewRow(aiReview) } : {}),
     bypassAiResolution: market.bypassAiResolution,
     chainId: market.chainId,
     collateral: market.collateral,
@@ -219,6 +235,26 @@ export function serializeMarketRow(
     totalEscrowed: market.totalEscrowed.toString(),
     updatedAt: market.updatedAt.toISOString(),
     yesShares: market.yesShares.toString(),
+  };
+}
+
+export function serializeMarketAiReviewRow(
+  review: MarketAiReviewRow,
+): MarketAiReviewResponse {
+  return {
+    createdAt: review.createdAt.toISOString(),
+    evidence: review.evidence,
+    hardFlags: review.hardFlags,
+    id: review.id,
+    metadataHash: review.metadataHash,
+    ...(review.modelId ? { modelId: review.modelId } : {}),
+    promptVersion: review.promptVersion,
+    provider: review.provider,
+    reasons: review.reasons,
+    reviewedAt: review.reviewedAt.toISOString(),
+    scores: review.scores,
+    sourceChecks: review.sourceChecks,
+    verdict: review.verdict,
   };
 }
 
@@ -264,6 +300,42 @@ function marketCreatedEventContractJoinCondition() {
 
 function currentPregradManagerAddress() {
   return config.contracts.pregradManager.toLowerCase();
+}
+
+async function getLatestAiReviews(markets: MarketRow[]) {
+  const reviews = new Map<string, MarketAiReviewRow>();
+  if (markets.length === 0) {
+    return reviews;
+  }
+
+  const chainIds = unique(markets.map((market) => market.chainId));
+  const marketIds = unique(markets.map((market) => market.marketId));
+  const rows = await db
+    .select({ review: schema.marketAiReviews })
+    .from(schema.marketAiReviews)
+    .where(
+      and(
+        inArray(schema.marketAiReviews.chainId, chainIds),
+        inArray(schema.marketAiReviews.marketId, marketIds),
+      ),
+    )
+    .orderBy(
+      desc(schema.marketAiReviews.reviewedAt),
+      desc(schema.marketAiReviews.id),
+    );
+
+  for (const { review } of rows) {
+    const key = marketReviewKey(review.chainId, review.marketId);
+    if (!reviews.has(key)) {
+      reviews.set(key, review);
+    }
+  }
+
+  return reviews;
+}
+
+function marketReviewKey(chainId: number, marketId: bigint) {
+  return `${chainId}:${marketId.toString()}`;
 }
 
 async function filterLiveLocalMarketRows(rows: MarketQueryRow[]) {
@@ -320,4 +392,8 @@ export function parseSinceTimestamp(value?: string) {
 
 function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;
+}
+
+function unique<T>(values: T[]) {
+  return Array.from(new Set(values));
 }
