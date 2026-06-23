@@ -74,6 +74,11 @@ export const markets = pgTable(
   },
   (table) => [
     uniqueIndex("markets_chain_market_idx").on(table.chainId, table.marketId),
+    uniqueIndex("markets_chain_market_hash_idx").on(
+      table.chainId,
+      table.marketId,
+      table.metadataHash,
+    ),
     uniqueIndex("markets_created_tx_log_idx").on(
       table.createdTransactionHash,
       table.createdLogIndex,

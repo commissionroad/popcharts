@@ -1,5 +1,6 @@
 CREATE TYPE "public"."ai_review_provider" AS ENUM('anthropic', 'heuristic', 'ollama');--> statement-breakpoint
 CREATE TYPE "public"."ai_review_verdict" AS ENUM('approve', 'reject', 'manual_review');--> statement-breakpoint
+CREATE UNIQUE INDEX "markets_chain_market_hash_idx" ON "markets" USING btree ("chain_id","market_id","metadata_hash");--> statement-breakpoint
 CREATE TABLE "market_ai_reviews" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"chain_id" integer NOT NULL,
@@ -18,5 +19,7 @@ CREATE TABLE "market_ai_reviews" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "market_ai_reviews" ADD CONSTRAINT "market_ai_reviews_market_fk" FOREIGN KEY ("chain_id","market_id","metadata_hash") REFERENCES "public"."markets"("chain_id","market_id","metadata_hash") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "market_ai_reviews" ADD CONSTRAINT "market_ai_reviews_metadata_fk" FOREIGN KEY ("chain_id","metadata_hash") REFERENCES "public"."market_metadata"("chain_id","metadata_hash") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX "market_ai_reviews_market_latest_idx" ON "market_ai_reviews" USING btree ("chain_id","market_id","reviewed_at");--> statement-breakpoint
 CREATE INDEX "market_ai_reviews_metadata_hash_idx" ON "market_ai_reviews" USING btree ("chain_id","metadata_hash");

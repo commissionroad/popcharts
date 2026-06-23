@@ -297,7 +297,40 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "market_ai_reviews_market_fk": {
+          "name": "market_ai_reviews_market_fk",
+          "tableFrom": "market_ai_reviews",
+          "tableTo": "markets",
+          "columnsFrom": [
+            "chain_id",
+            "market_id",
+            "metadata_hash"
+          ],
+          "columnsTo": [
+            "chain_id",
+            "market_id",
+            "metadata_hash"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "market_ai_reviews_metadata_fk": {
+          "name": "market_ai_reviews_metadata_fk",
+          "tableFrom": "market_ai_reviews",
+          "tableTo": "market_metadata",
+          "columnsFrom": [
+            "chain_id",
+            "metadata_hash"
+          ],
+          "columnsTo": [
+            "chain_id",
+            "metadata_hash"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -933,6 +966,33 @@
             },
             {
               "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "markets_chain_market_hash_idx": {
+          "name": "markets_chain_market_hash_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "metadata_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

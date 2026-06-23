@@ -1,5 +1,6 @@
 import {
   bigint,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -16,6 +17,8 @@ import type {
   ReviewScores,
   SourceCheck,
 } from "src/ai-review/types";
+import { marketMetadata } from "./market-metadata";
+import { markets } from "./markets";
 
 export const aiReviewProvider = pgEnum("ai_review_provider", [
   "anthropic",
@@ -49,6 +52,20 @@ export const marketAiReviews = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.chainId, table.marketId, table.metadataHash],
+      foreignColumns: [markets.chainId, markets.marketId, markets.metadataHash],
+      name: "market_ai_reviews_market_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("cascade"),
+    foreignKey({
+      columns: [table.chainId, table.metadataHash],
+      foreignColumns: [marketMetadata.chainId, marketMetadata.metadataHash],
+      name: "market_ai_reviews_metadata_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("cascade"),
     index("market_ai_reviews_market_latest_idx").on(
       table.chainId,
       table.marketId,
