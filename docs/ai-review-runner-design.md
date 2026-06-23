@@ -1,6 +1,6 @@
 # AI Review Runner Design
 
-Status: Proposed
+Status: Initial runner foundation implemented
 
 Date: 2026-06-23
 
@@ -425,13 +425,13 @@ Smoke tests:
 
 ## Implementation Slices
 
-Recommended next PR:
+Initial implementation:
 
 - Add `market_ai_review_jobs` schema and migration.
 - Add job enqueue and claim helpers with tests.
 - Add AI Review service client.
 - Add runner process loop behind package scripts.
-- Add result persistence and guarded status transition tests.
+- Add result persistence and guarded status transitions.
 
 Follow-up PR:
 
