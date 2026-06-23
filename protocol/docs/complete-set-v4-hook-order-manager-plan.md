@@ -1114,12 +1114,12 @@ Deliverables:
 
 - `Order`, `OrderBook`, `PackedOrderId`
 - `OrderValidation`
-- `OrderManager.createOrder`
-- `OrderManager.cancelOrder`
-- `OrderManager.movePoolTick`
+- `BoundedPoolOrderManager.createOrder`
+- `BoundedPoolOrderManager.cancelOrder`
+- `BoundedPoolOrderManager.movePoolTick`
 - full-fill execution
 - pool whitelist and hook role
-- Permit2 token pull
+- external allowance-transfer token pull
 
 Exit criteria:
 
@@ -1129,6 +1129,16 @@ Exit criteria:
 - filled order is deleted
 - unfilled/reversed orders requeue correctly
 - cancel returns remaining inventory
+
+Phase 5 first slice result: `BoundedPoolOrderManager` can create one-sided
+full-fill maker orders, index them by threshold tick, cancel them back to maker
+inventory, and execute crossed orders when `BoundedPredictionHook` calls
+`movePoolTick` after a swap. The Solidity smoke proves a maker creates an
+order, a taker swap crosses the threshold, the maker receives output, the filled
+order and v4 liquidity position are deleted, reversed movement leaves the order
+available for a later fill, and cancellation returns remaining inventory. This
+slice intentionally keeps partial fills, tick-bitmaps, deferred execution,
+resolver flows, and deferred payment in Phase 6.
 
 ### Phase 6: Partial Fill And Deferred Execution
 

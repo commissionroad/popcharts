@@ -1,0 +1,678 @@
+// SPDX-License-Identifier: MIT
+// solhint-disable compiler-version
+pragma solidity ^0.8.26;
+
+// solhint-disable immutable-vars-naming
+
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IUnlockCallback} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/callback/IUnlockCallback.sol";
+import {IPoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
+import {BalanceDelta} from "@uniswap/v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-periphery/lib/v4-core/src/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import {ModifyLiquidityParams} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolOperation.sol";
+import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
+import {IBoundedPoolOrderManager} from "./interfaces/IBoundedPoolOrderManager.sol";
+import {OrderBook} from "./libraries/OrderBook.sol";
+import {OrderValidation} from "./libraries/OrderValidation.sol";
+import {PackedOrderId, PackedOrderIdLibrary} from "./libraries/PackedOrderId.sol";
+
+/// @title ITokenPuller
+/// @author Pop Charts
+/// @notice Minimal interface for external ERC20 allowance-transfer helpers.
+interface ITokenPuller {
+  /// @notice Transfers approved ERC20 tokens from an owner to a recipient.
+  /// @param from Token owner.
+  /// @param to Token recipient.
+  /// @param amount Token amount.
+  /// @param token ERC20 token address.
+  function transferFrom(address from, address to, uint160 amount, address token) external;
+}
+
+/// @title BoundedPoolOrderManager
+/// @author Pop Charts
+/// @notice Full-fill order manager for bounded ERC20 prediction pools.
+contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderManager {
+  using CurrencyLibrary for Currency;
+  using OrderBook for OrderBook.Book;
+  using PackedOrderIdLibrary for PackedOrderId;
+  using StateLibrary for IPoolManager;
+
+  /// @notice Maker order represented as one-sided v4 pool liquidity.
+  /// @param owner Account that owns the order.
+  /// @param zeroForOne Whether the maker is selling currency0 for currency1.
+  /// @param tickLower Lower tick of the liquidity range.
+  /// @param tickUpper Upper tick of the liquidity range.
+  /// @param liquidity Pool liquidity added by the order.
+  /// @param enablePartialFill Reserved for Phase 6 partial-fill behavior.
+  struct Order {
+    address owner;
+    bool zeroForOne;
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    bool enablePartialFill;
+  }
+
+  /// @notice Parameters for creating one maker order.
+  /// @param key Pool where liquidity should be placed.
+  /// @param zeroForOne Whether the maker is selling currency0 for currency1.
+  /// @param tickLower Lower tick of the liquidity range.
+  /// @param tickUpper Upper tick of the liquidity range.
+  /// @param amountInMaximum Maximum input token amount the maker is willing to deposit.
+  /// @param enablePartialFill Reserved for Phase 6 partial-fill behavior.
+  /// @param hookData Hook data forwarded to the pool manager.
+  struct CreateOrderParams {
+    PoolKey key;
+    bool zeroForOne;
+    int24 tickLower;
+    int24 tickUpper;
+    uint256 amountInMaximum;
+    bool enablePartialFill;
+    bytes hookData;
+  }
+
+  enum UnlockAction {
+    CreateOrder,
+    CancelOrder
+  }
+
+  struct CreateOrderCallbackData {
+    address owner;
+    PoolKey key;
+    bool zeroForOne;
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    uint256 amountInMaximum;
+    bytes32 salt;
+    bytes hookData;
+  }
+
+  struct CancelOrderCallbackData {
+    address owner;
+    PoolKey key;
+    Order order;
+    bytes32 salt;
+    bytes hookData;
+  }
+
+  /// @notice Reverts when the pool manager address is zero.
+  error InvalidPoolManager();
+  /// @notice Reverts when the token-puller address is zero.
+  error InvalidTokenPuller();
+  /// @notice Reverts when an amount is zero.
+  error InvalidAmount();
+  /// @notice Reverts when computed liquidity is zero.
+  error InvalidLiquidity();
+  /// @notice Reverts when a pool has not been whitelisted.
+  /// @param poolId Pool that is not whitelisted.
+  error PoolNotWhitelisted(PoolId poolId);
+  /// @notice Reverts when a pool's hook has not been authorized.
+  /// @param hook Unauthorized hook address.
+  error PoolHookUnauthorized(address hook);
+  /// @notice Reverts when a hook-only function is called by an unauthorized account.
+  /// @param caller Unauthorized caller.
+  error UnauthorizedHook(address caller);
+  /// @notice Reverts when an order is absent.
+  /// @param poolId Pool that should contain the order.
+  /// @param orderId Missing per-pool order ID.
+  error OrderNotFound(PoolId poolId, uint32 orderId);
+  /// @notice Reverts when an account other than the maker attempts to cancel.
+  /// @param caller Account attempting cancellation.
+  /// @param owner Order owner.
+  error UnauthorizedOrderOwner(address caller, address owner);
+  /// @notice Reverts when a native currency pool is passed to this ERC20-only manager.
+  error NativeCurrencyUnsupported();
+  /// @notice Reverts when a pool manager callback comes from the wrong caller.
+  error UnauthorizedUnlockCallback();
+  /// @notice Reverts when an unknown unlock action is decoded.
+  /// @param action Unknown action discriminator.
+  error UnsupportedUnlockAction(uint8 action);
+  /// @notice Reverts when the pool consumes more input than the maker allowed.
+  /// @param actual Actual consumed amount.
+  /// @param maximum Maximum allowed amount.
+  error AmountExceedsMaximum(uint256 actual, uint256 maximum);
+  /// @notice Reverts when an amount is too large for the token-puller interface.
+  /// @param amount Amount that cannot fit the token-puller call.
+  error PullAmountTooLarge(uint256 amount);
+  /// @notice Reverts when a liquidity operation returns an unexpected negative settlement delta.
+  /// @param amount0 Currency0 delta.
+  /// @param amount1 Currency1 delta.
+  error UnexpectedNegativeDelta(int128 amount0, int128 amount1);
+
+  /// @notice Emitted when a pool whitelist flag changes.
+  /// @param poolId Pool whose flag changed.
+  /// @param whitelisted Whether the pool is whitelisted.
+  event PoolWhitelistSet(PoolId indexed poolId, bool whitelisted);
+  /// @notice Emitted when a hook role changes.
+  /// @param hook Hook address.
+  /// @param allowed Whether the hook may execute crossed orders.
+  event HookRoleSet(address indexed hook, bool allowed);
+  /// @notice Emitted when a token minimum changes.
+  /// @param token ERC20 token address.
+  /// @param minimumAmount Minimum maker input amount.
+  event MinimumOrderAmountSet(address indexed token, uint256 minimumAmount);
+  /// @notice Emitted when a maker order is created.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @param owner Maker that owns the order.
+  /// @param zeroForOne Whether the maker is selling currency0 for currency1.
+  /// @param tickLower Lower tick of the liquidity range.
+  /// @param tickUpper Upper tick of the liquidity range.
+  /// @param liquidity Pool liquidity added by the order.
+  /// @param amountIn Input token amount consumed by the order.
+  event OrderCreated(
+    PoolId indexed poolId,
+    uint32 indexed orderId,
+    address indexed owner,
+    bool zeroForOne,
+    int24 tickLower,
+    int24 tickUpper,
+    uint128 liquidity,
+    uint256 amountIn
+  );
+  /// @notice Emitted when an order is cancelled and remaining inventory is returned.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @param owner Maker that owned the order.
+  /// @param amount0 Currency0 amount returned.
+  /// @param amount1 Currency1 amount returned.
+  event OrderCancelled(
+    PoolId indexed poolId,
+    uint32 indexed orderId,
+    address indexed owner,
+    uint256 amount0,
+    uint256 amount1
+  );
+  /// @notice Emitted when an order fully fills after its threshold is crossed.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @param owner Maker that owned the order.
+  /// @param amount0 Currency0 amount paid to the maker.
+  /// @param amount1 Currency1 amount paid to the maker.
+  event OrderFilled(
+    PoolId indexed poolId,
+    uint32 indexed orderId,
+    address indexed owner,
+    uint256 amount0,
+    uint256 amount1
+  );
+  /// @notice Emitted when a popped order is kept because movement did not fully cross it.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @param thresholdTick Tick where the order remains indexed.
+  event OrderRequeued(PoolId indexed poolId, uint32 indexed orderId, int24 thresholdTick);
+
+  /// @notice Pool manager used for all liquidity operations.
+  IPoolManager public immutable poolManager;
+  /// @notice External allowance-transfer contract used to pull maker input tokens.
+  ITokenPuller public immutable tokenPuller;
+
+  /// @notice Whether a pool may receive maker orders.
+  mapping(PoolId => bool) public poolWhitelisted;
+  /// @notice Whether an address may execute crossed orders.
+  mapping(address => bool) public hookRole;
+  /// @notice Minimum maker input amount by ERC20 token.
+  mapping(address => uint256) public minimumOrderAmount;
+
+  mapping(PoolId => OrderBook.Book) private _orderBooks;
+  mapping(PoolId => mapping(uint32 => Order)) private _orders;
+
+  /// @notice Records the pool manager, token-puller, and owner.
+  /// @param poolManager_ v4 pool manager.
+  /// @param tokenPuller_ Allowance-transfer contract for maker token pulls.
+  /// @param owner_ Administrative owner for whitelist and hook-role management.
+  constructor(
+    IPoolManager poolManager_,
+    ITokenPuller tokenPuller_,
+    address owner_
+  ) Ownable(owner_) {
+    if (address(poolManager_) == address(0)) {
+      revert InvalidPoolManager();
+    }
+    if (address(tokenPuller_) == address(0)) {
+      revert InvalidTokenPuller();
+    }
+
+    poolManager = poolManager_;
+    tokenPuller = tokenPuller_;
+  }
+
+  /// @notice Sets whether a pool can receive maker orders.
+  /// @param key Pool key.
+  /// @param whitelisted Whether the pool is allowed.
+  function setPoolWhitelisted(PoolKey calldata key, bool whitelisted) external onlyOwner {
+    PoolId poolId = key.toId();
+    poolWhitelisted[poolId] = whitelisted;
+    emit PoolWhitelistSet(poolId, whitelisted);
+  }
+
+  /// @notice Sets whether a hook may execute crossed orders.
+  /// @param hook Hook address.
+  /// @param allowed Whether the hook may execute crossed orders.
+  function setHookRole(address hook, bool allowed) external onlyOwner {
+    hookRole[hook] = allowed;
+    emit HookRoleSet(hook, allowed);
+  }
+
+  /// @notice Sets the minimum maker input amount for a token.
+  /// @param token ERC20 token address.
+  /// @param amount Minimum order amount.
+  function setMinimumOrderAmount(address token, uint256 amount) external onlyOwner {
+    minimumOrderAmount[token] = amount;
+    emit MinimumOrderAmountSet(token, amount);
+  }
+
+  /// @notice Creates a one-sided pool-liquidity maker order.
+  /// @param params Order creation parameters.
+  /// @return orderId Per-pool order ID.
+  /// @return liquidity Pool liquidity added by the order.
+  /// @return amountIn Input token amount consumed by the order.
+  function createOrder(
+    CreateOrderParams calldata params
+  ) external returns (uint32 orderId, uint128 liquidity, uint256 amountIn) {
+    PoolId poolId = params.key.toId();
+    _validateCreateOrder(params, poolId);
+
+    liquidity = _liquidityForAmount(
+      params.zeroForOne,
+      params.tickLower,
+      params.tickUpper,
+      params.amountInMaximum
+    );
+    if (liquidity == 0) {
+      revert InvalidLiquidity();
+    }
+
+    orderId = _orderBooks[poolId].allocateOrderId();
+    amountIn = _addOrderLiquidity(params, orderId, liquidity);
+    _storeCreatedOrder(params, poolId, orderId, liquidity, amountIn);
+  }
+
+  function _validateCreateOrder(CreateOrderParams calldata params, PoolId poolId) private view {
+    _validatePoolForOrders(poolId, params.key);
+    if (params.amountInMaximum == 0) {
+      revert InvalidAmount();
+    }
+
+    Currency inputCurrency = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+    uint256 minimumAmount = minimumOrderAmount[Currency.unwrap(inputCurrency)];
+    if (params.amountInMaximum < minimumAmount) {
+      revert InvalidAmount();
+    }
+
+    (, int24 currentTick, , ) = poolManager.getSlot0(poolId);
+    OrderValidation.validateTickRange(params.tickLower, params.tickUpper, params.key.tickSpacing);
+    OrderValidation.validateOneSidedOrder(
+      params.zeroForOne,
+      currentTick,
+      params.tickLower,
+      params.tickUpper
+    );
+  }
+
+  function _addOrderLiquidity(
+    CreateOrderParams calldata params,
+    uint32 orderId,
+    uint128 liquidity
+  ) private returns (uint256 amountIn) {
+    bytes memory result = poolManager.unlock(
+      abi.encode(
+        UnlockAction.CreateOrder,
+        abi.encode(
+          CreateOrderCallbackData({
+            owner: msg.sender,
+            key: params.key,
+            zeroForOne: params.zeroForOne,
+            tickLower: params.tickLower,
+            tickUpper: params.tickUpper,
+            liquidity: liquidity,
+            amountInMaximum: params.amountInMaximum,
+            salt: _positionSalt(orderId),
+            hookData: params.hookData
+          })
+        )
+      )
+    );
+
+    return abi.decode(result, (uint256));
+  }
+
+  function _storeCreatedOrder(
+    CreateOrderParams calldata params,
+    PoolId poolId,
+    uint32 orderId,
+    uint128 liquidity,
+    uint256 amountIn
+  ) private {
+    _orders[poolId][orderId] = Order({
+      owner: msg.sender,
+      zeroForOne: params.zeroForOne,
+      tickLower: params.tickLower,
+      tickUpper: params.tickUpper,
+      liquidity: liquidity,
+      enablePartialFill: params.enablePartialFill
+    });
+
+    int24 thresholdTick = OrderValidation.thresholdTick(
+      params.zeroForOne,
+      params.tickLower,
+      params.tickUpper
+    );
+    _orderBooks[poolId].insert(thresholdTick, PackedOrderIdLibrary.pack(orderId));
+
+    emit OrderCreated(
+      poolId,
+      orderId,
+      msg.sender,
+      params.zeroForOne,
+      params.tickLower,
+      params.tickUpper,
+      liquidity,
+      amountIn
+    );
+  }
+
+  /// @notice Cancels an active order and returns its remaining inventory to the maker.
+  /// @param key Pool key.
+  /// @param orderId Per-pool order ID.
+  /// @param hookData Hook data forwarded to the pool manager.
+  /// @return amount0 Currency0 amount returned.
+  /// @return amount1 Currency1 amount returned.
+  function cancelOrder(
+    PoolKey calldata key,
+    uint32 orderId,
+    bytes calldata hookData
+  ) external returns (uint256 amount0, uint256 amount1) {
+    PoolId poolId = key.toId();
+    Order memory order = _requireOrder(poolId, orderId);
+    if (msg.sender != order.owner) {
+      revert UnauthorizedOrderOwner(msg.sender, order.owner);
+    }
+
+    int24 thresholdTick = OrderValidation.thresholdTick(
+      order.zeroForOne,
+      order.tickLower,
+      order.tickUpper
+    );
+    _orderBooks[poolId].remove(thresholdTick, PackedOrderIdLibrary.pack(orderId));
+
+    bytes memory result = poolManager.unlock(
+      abi.encode(
+        UnlockAction.CancelOrder,
+        abi.encode(
+          CancelOrderCallbackData({
+            owner: order.owner,
+            key: key,
+            order: order,
+            salt: _positionSalt(orderId),
+            hookData: hookData
+          })
+        )
+      )
+    );
+
+    (amount0, amount1) = abi.decode(result, (uint256, uint256));
+    delete _orders[poolId][orderId];
+
+    emit OrderCancelled(poolId, orderId, order.owner, amount0, amount1);
+  }
+
+  /// @inheritdoc IBoundedPoolOrderManager
+  function movePoolTick(PoolKey calldata key, int24 fromTick, int24 toTick, uint160) external {
+    if (!hookRole[msg.sender]) {
+      revert UnauthorizedHook(msg.sender);
+    }
+
+    PoolId poolId = key.toId();
+    if (!poolWhitelisted[poolId]) {
+      return;
+    }
+
+    PackedOrderId[] memory crossedOrderIds = _orderBooks[poolId].popCrossedOrderIds(
+      fromTick,
+      toTick,
+      key.tickSpacing
+    );
+
+    for (uint256 i = 0; i < crossedOrderIds.length; ++i) {
+      uint32 orderId = crossedOrderIds[i].unpack();
+      Order memory order = _orders[poolId][orderId];
+      if (order.owner == address(0)) {
+        continue;
+      }
+
+      if (
+        OrderValidation.isThresholdCrossed(
+          order.zeroForOne,
+          fromTick,
+          toTick,
+          order.tickLower,
+          order.tickUpper
+        )
+      ) {
+        _executeOrder(key, poolId, orderId, order);
+      } else {
+        int24 thresholdTick = OrderValidation.thresholdTick(
+          order.zeroForOne,
+          order.tickLower,
+          order.tickUpper
+        );
+        _orderBooks[poolId].insert(thresholdTick, crossedOrderIds[i]);
+        emit OrderRequeued(poolId, orderId, thresholdTick);
+      }
+    }
+  }
+
+  /// @notice Returns an order by pool and per-pool order ID.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @return order Stored order.
+  function getOrder(PoolId poolId, uint32 orderId) external view returns (Order memory order) {
+    return _orders[poolId][orderId];
+  }
+
+  /// @inheritdoc IUnlockCallback
+  function unlockCallback(bytes calldata rawData) external returns (bytes memory) {
+    if (msg.sender != address(poolManager)) {
+      revert UnauthorizedUnlockCallback();
+    }
+
+    (UnlockAction action, bytes memory data) = abi.decode(rawData, (UnlockAction, bytes));
+    if (action == UnlockAction.CreateOrder) {
+      return _createOrderCallback(data);
+    }
+    if (action == UnlockAction.CancelOrder) {
+      return _cancelOrderCallback(data);
+    }
+
+    revert UnsupportedUnlockAction(uint8(action));
+  }
+
+  function _createOrderCallback(bytes memory data) private returns (bytes memory) {
+    CreateOrderCallbackData memory callbackData = abi.decode(data, (CreateOrderCallbackData));
+    BalanceDelta delta = _modifyLiquidity(
+      callbackData.key,
+      callbackData.tickLower,
+      callbackData.tickUpper,
+      int256(uint256(callbackData.liquidity)),
+      callbackData.salt,
+      callbackData.hookData
+    );
+
+    uint256 amountIn = _settleOrderInput(
+      callbackData.key,
+      callbackData.owner,
+      callbackData.zeroForOne,
+      callbackData.amountInMaximum,
+      delta
+    );
+
+    return abi.encode(amountIn);
+  }
+
+  function _cancelOrderCallback(bytes memory data) private returns (bytes memory) {
+    CancelOrderCallbackData memory callbackData = abi.decode(data, (CancelOrderCallbackData));
+    BalanceDelta delta = _modifyLiquidity(
+      callbackData.key,
+      callbackData.order.tickLower,
+      callbackData.order.tickUpper,
+      -int256(uint256(callbackData.order.liquidity)),
+      callbackData.salt,
+      callbackData.hookData
+    );
+
+    (uint256 amount0, uint256 amount1) = _takePositiveDeltas(
+      callbackData.key,
+      callbackData.owner,
+      delta
+    );
+    return abi.encode(amount0, amount1);
+  }
+
+  function _executeOrder(
+    PoolKey calldata key,
+    PoolId poolId,
+    uint32 orderId,
+    Order memory order
+  ) private {
+    BalanceDelta delta = _modifyLiquidity(
+      key,
+      order.tickLower,
+      order.tickUpper,
+      -int256(uint256(order.liquidity)),
+      _positionSalt(orderId),
+      ""
+    );
+    (uint256 amount0, uint256 amount1) = _takePositiveDeltas(key, order.owner, delta);
+
+    delete _orders[poolId][orderId];
+    emit OrderFilled(poolId, orderId, order.owner, amount0, amount1);
+  }
+
+  function _modifyLiquidity(
+    PoolKey memory key,
+    int24 tickLower,
+    int24 tickUpper,
+    int256 liquidityDelta,
+    bytes32 salt,
+    bytes memory hookData
+  ) private returns (BalanceDelta delta) {
+    (delta, ) = poolManager.modifyLiquidity(
+      key,
+      ModifyLiquidityParams({
+        tickLower: tickLower,
+        tickUpper: tickUpper,
+        liquidityDelta: liquidityDelta,
+        salt: salt
+      }),
+      hookData
+    );
+  }
+
+  function _settleOrderInput(
+    PoolKey memory key,
+    address owner,
+    bool zeroForOne,
+    uint256 amountInMaximum,
+    BalanceDelta delta
+  ) private returns (uint256 amountIn) {
+    int128 amount0 = delta.amount0();
+    int128 amount1 = delta.amount1();
+    if (zeroForOne) {
+      if (amount0 >= 0 || amount1 != 0) {
+        revert UnexpectedNegativeDelta(amount0, amount1);
+      }
+      amountIn = uint256(uint128(-amount0));
+      _settle(key.currency0, owner, amountIn);
+    } else {
+      if (amount1 >= 0 || amount0 != 0) {
+        revert UnexpectedNegativeDelta(amount0, amount1);
+      }
+      amountIn = uint256(uint128(-amount1));
+      _settle(key.currency1, owner, amountIn);
+    }
+
+    if (amountIn > amountInMaximum) {
+      revert AmountExceedsMaximum(amountIn, amountInMaximum);
+    }
+  }
+
+  function _takePositiveDeltas(
+    PoolKey memory key,
+    address recipient,
+    BalanceDelta delta
+  ) private returns (uint256 amount0, uint256 amount1) {
+    int128 delta0 = delta.amount0();
+    int128 delta1 = delta.amount1();
+    if (delta0 < 0 || delta1 < 0) {
+      revert UnexpectedNegativeDelta(delta0, delta1);
+    }
+
+    if (delta0 > 0) {
+      amount0 = uint256(uint128(delta0));
+      poolManager.take(key.currency0, recipient, amount0);
+    }
+    if (delta1 > 0) {
+      amount1 = uint256(uint128(delta1));
+      poolManager.take(key.currency1, recipient, amount1);
+    }
+  }
+
+  function _settle(Currency currency, address owner, uint256 amount) private {
+    if (currency.isAddressZero()) {
+      revert NativeCurrencyUnsupported();
+    }
+    if (amount > type(uint160).max) {
+      revert PullAmountTooLarge(amount);
+    }
+
+    poolManager.sync(currency);
+    tokenPuller.transferFrom(
+      owner,
+      address(poolManager),
+      uint160(amount),
+      Currency.unwrap(currency)
+    );
+    poolManager.settle();
+  }
+
+  function _validatePoolForOrders(PoolId poolId, PoolKey calldata key) private view {
+    if (!poolWhitelisted[poolId]) {
+      revert PoolNotWhitelisted(poolId);
+    }
+    if (!hookRole[address(key.hooks)]) {
+      revert PoolHookUnauthorized(address(key.hooks));
+    }
+  }
+
+  function _requireOrder(PoolId poolId, uint32 orderId) private view returns (Order memory order) {
+    order = _orders[poolId][orderId];
+    if (order.owner == address(0)) {
+      revert OrderNotFound(poolId, orderId);
+    }
+  }
+
+  function _liquidityForAmount(
+    bool zeroForOne,
+    int24 tickLower,
+    int24 tickUpper,
+    uint256 amount
+  ) private pure returns (uint128 liquidity) {
+    uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
+    uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
+    if (zeroForOne) {
+      return LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
+    }
+
+    return LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceUpper, amount);
+  }
+
+  function _positionSalt(uint32 orderId) private pure returns (bytes32) {
+    return bytes32(uint256(orderId));
+  }
+}
