@@ -24,13 +24,18 @@ import {MinimalV4SwapRouter} from "../../contracts/v4/MinimalV4SwapRouter.sol";
 import {V4TestERC20} from "./mocks/V4TestERC20.sol";
 
 contract LocalV4StackSmokeTest is Test {
+  error UnableToDeploySortedArcUsdcPair();
+
   uint24 private constant FEE = 3000;
   int24 private constant TICK_SPACING = 60;
   int24 private constant TICK_LOWER = -600;
   int24 private constant TICK_UPPER = 600;
-  uint128 private constant LIQUIDITY = 100_000 ether;
-  uint128 private constant EXACT_INPUT = 1 ether;
-  uint256 private constant STARTING_BALANCE = 1_000_000 ether;
+  uint8 private constant ARC_USDC_DECIMALS = 6;
+  uint8 private constant OUTCOME_DECIMALS = 18;
+  uint128 private constant ARC_USDC_UNIT = 1e6;
+  uint128 private constant LIQUIDITY = 100_000 * ARC_USDC_UNIT;
+  uint128 private constant EXACT_INPUT = ARC_USDC_UNIT;
+  uint256 private constant STARTING_RAW_BALANCE = 1_000_000_000 * uint256(ARC_USDC_UNIT);
 
   PoolManager private poolManager;
   StateView private stateView;
@@ -47,9 +52,9 @@ contract LocalV4StackSmokeTest is Test {
     quoter = new V4Quoter(IPoolManager(address(poolManager)));
     router = new MinimalV4SwapRouter(IPoolManager(address(poolManager)));
 
-    (token0, token1) = _deploySortedTokens();
-    token0.mint(address(this), STARTING_BALANCE);
-    token1.mint(address(this), STARTING_BALANCE);
+    (token0, token1) = _deployArcUsdcStylePoolTokens();
+    token0.mint(address(this), STARTING_RAW_BALANCE);
+    token1.mint(address(this), STARTING_RAW_BALANCE);
     token0.approve(address(router), type(uint256).max);
     token1.approve(address(router), type(uint256).max);
 
@@ -69,6 +74,8 @@ contract LocalV4StackSmokeTest is Test {
   function test_DeploysLocalV4StackAndInitializesPool() public view {
     (uint160 sqrtPriceX96, int24 tick, , uint24 lpFee) = stateView.getSlot0(poolId);
 
+    assertEq(token0.decimals(), ARC_USDC_DECIMALS);
+    assertEq(token1.decimals(), OUTCOME_DECIMALS);
     assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(0));
     assertEq(tick, 0);
     assertEq(lpFee, FEE);
@@ -138,13 +145,21 @@ contract LocalV4StackSmokeTest is Test {
     assertLt(tickAfter, 0);
   }
 
-  function _deploySortedTokens()
+  function _deployArcUsdcStylePoolTokens()
     private
     returns (V4TestERC20 sortedToken0, V4TestERC20 sortedToken1)
   {
-    V4TestERC20 first = new V4TestERC20("V4 Smoke Token A", "V4A");
-    V4TestERC20 second = new V4TestERC20("V4 Smoke Token B", "V4B");
+    // Arc USDC is native for gas, but v4 settlement should use the 6-decimal
+    // ERC20 interface. Keep it as token0 so the exact-input swap spends USDC.
+    for (uint256 i = 0; i < 32; ++i) {
+      V4TestERC20 arcUsdc = new V4TestERC20("Arc USDC ERC20 Interface", "USDC", ARC_USDC_DECIMALS);
+      V4TestERC20 outcome = new V4TestERC20("V4 Outcome Token", "OUT", OUTCOME_DECIMALS);
 
-    return address(first) < address(second) ? (first, second) : (second, first);
+      if (address(arcUsdc) < address(outcome)) {
+        return (arcUsdc, outcome);
+      }
+    }
+
+    revert UnableToDeploySortedArcUsdcPair();
   }
 }

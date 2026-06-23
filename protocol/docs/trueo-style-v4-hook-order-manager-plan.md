@@ -1033,8 +1033,17 @@ Exit criteria:
 
 Phase 2 result: `LocalV4StackSmoke.t.sol` deploys a local `PoolManager`,
 `StateView`, `V4Quoter`, and `MinimalV4SwapRouter`, initializes a no-hook
-ERC20/ERC20 pool, adds liquidity, quotes exact input, swaps through the router,
-and verifies balance changes plus price movement.
+ERC20/ERC20 pool with a six-decimal Arc-USDC-style input token, adds liquidity,
+quotes exact input, swaps through the router, and verifies balance changes plus
+price movement.
+
+Arc USDC gotcha: Arc exposes USDC as both the native gas asset and a standard
+ERC20 interface at `0x3600000000000000000000000000000000000000`. The native
+gas-balance view uses 18 decimals, while the ERC20 interface uses 6 decimals.
+For PoolManager currencies, collateral balances, approvals, transfers, pool
+math, and app display, use the ERC20 interface and 6-decimal raw units. Do not
+configure Arc USDC as v4 native currency / zero address, and do not mix native
+gas units into pool amount math.
 
 Important source-graph note: Solidity treats identically named user-defined
 types from different source paths as distinct. `StateView` and `V4Quoter` from
@@ -1292,7 +1301,9 @@ Phase 2 result: `MinimalV4SwapRouter` is ERC20-only and intentionally does not
 attempt path routing, Permit2, native currency support, or Universal Router
 compatibility. It unlocks the PoolManager, executes one `modifyLiquidity` or
 `swap`, settles negative deltas from the caller, and takes positive deltas to
-the caller/recipient.
+the caller/recipient. On Arc, this still works for USDC by using Arc's ERC20
+USDC interface and 6-decimal units; it intentionally rejects the native
+gas-balance representation.
 
 ### PositionManager
 

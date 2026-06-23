@@ -16,10 +16,13 @@ import {
 /// @title MinimalV4SwapRouter
 /// @author Pop Charts
 /// @notice ERC20-only local smoke router for Uniswap v4 PoolManager interactions.
+/// @dev Arc USDC must be passed through its 6-decimal ERC20 interface, not the
+/// native gas-balance view or v4 native currency sentinel.
 contract MinimalV4SwapRouter is IUnlockCallback {
   using CurrencyLibrary for Currency;
 
   /// @notice Emitted when the router is asked to settle native currency.
+  /// @dev On Arc, use the USDC ERC20 interface instead of native currency.
   error NativeCurrencyUnsupported();
 
   /// @notice Emitted when an ERC20 transfer used for settlement returns false.
