@@ -111,6 +111,33 @@ describe("createMarketsApiClient", () => {
     expect(String(input)).toBe("http://localhost:3001/markets/5042002/7/graduate");
   });
 
+  it("requests a dev-only pregrad close for an API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        market: { ...apiMarket, status: "refunded" },
+        refundAvailable: apiMarket.totalEscrowed,
+        status: "refunded",
+        transactionHash:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001/",
+      fetcher,
+    });
+
+    const result = await client.closePregradMarket({
+      chainId: 5042002,
+      marketId: "7",
+    });
+
+    const [input, init] = firstFetchCall(fetcher);
+
+    expect(result.status).toBe("refunded");
+    expect(init?.method).toBe("POST");
+    expect(String(input)).toBe("http://localhost:3001/dev/markets/5042002/7/close");
+  });
+
   it("surfaces graduation ineligibility messages", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () =>

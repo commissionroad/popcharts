@@ -55,3 +55,8 @@ time.
 
 `POST /markets/:chainId/:marketId/graduate` is a non-mutating stub for the
 future server-mediated graduation flow.
+
+`POST /dev/markets/:chainId/:marketId/close` is local-development only. It is
+enabled only with `POPCHARTS_DEV_TOOLS_ENABLED=true` and `NETWORK=local`, then
+fast-forwards the local chain to the market graduation deadline and calls
+`PregradManager.markRefundable`.

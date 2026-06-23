@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { ApiMarket, MarketsApiClient } from "@/integrations/indexer/markets-api";
 
 import { markets as fixtureMarkets } from "./fixtures";
-import { getMarketById, getMarkets, requestMarketGraduation } from "./queries";
+import {
+  getMarketById,
+  getMarkets,
+  requestMarketGraduation,
+  requestPregradMarketCloseForRefund,
+} from "./queries";
 
 const apiMarket: ApiMarket = {
   bypassAiResolution: false,
@@ -180,18 +185,50 @@ describe("market queries", () => {
     });
     expect(result.status).toBe("graduated");
   });
+
+  it("requests a dev close by chain-prefixed app id", async () => {
+    const client = createClient({
+      close: {
+        market: { ...apiMarket, status: "refunded" },
+        refundAvailable: apiMarket.totalEscrowed,
+        status: "refunded",
+        transactionHash:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+    });
+
+    const result = await requestPregradMarketCloseForRefund("5042002:7", {
+      client,
+      source: "api",
+    });
+
+    expect(client.closePregradMarket).toHaveBeenCalledWith({
+      chainId: 5042002,
+      marketId: "7",
+    });
+    expect(result.status).toBe("refunded");
+  });
 });
 
 function createClient({
+  close,
   graduation,
   market = null,
   markets = [],
 }: {
+  close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
 } = {}): MarketsApiClient {
   return {
+    closePregradMarket: vi.fn(async () => {
+      if (!close) {
+        throw new Error("Missing dev close fixture.");
+      }
+
+      return close;
+    }),
     graduateMarket: vi.fn(async () => {
       if (!graduation) {
         throw new Error("Missing graduation fixture.");

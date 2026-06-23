@@ -1,3 +1,4 @@
+import { getPostDevMarketsByChainIdByMarketIdCloseUrl } from "./generated/development/development";
 import {
   getGetMarketsByChainIdByMarketIdEventsUrl,
   getGetMarketsByChainIdByMarketIdUrl,
@@ -39,6 +40,12 @@ export type ApiGraduationResponse = {
   status: "graduated";
   summary: ApiGraduationSummary;
 };
+export type ApiDevMarketCloseResponse = {
+  market: ApiMarket;
+  refundAvailable: string;
+  status: "refunded";
+  transactionHash?: string;
+};
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -51,6 +58,7 @@ export type MarketsApiFetch = (
 ) => Promise<Response>;
 
 export type MarketsApiClient = {
+  closePregradMarket: (lookup: MarketApiLookup) => Promise<ApiDevMarketCloseResponse>;
   graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
@@ -77,6 +85,25 @@ export function createMarketsApiClient({
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
 
   return {
+    async closePregradMarket({ chainId, marketId }) {
+      const response = await requestJson<ApiDevMarketCloseResponse>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getPostDevMarketsByChainIdByMarketIdCloseUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId)
+          )
+        ),
+        { method: "POST" }
+      );
+
+      if (!response) {
+        throw new MarketsApiError("Dev market close is disabled or unavailable.", 404);
+      }
+
+      return response;
+    },
     async graduateMarket({ chainId, marketId }) {
       const response = await requestJson<ApiGraduationResponse>(
         fetcher,
