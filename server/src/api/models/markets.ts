@@ -50,7 +50,77 @@ export const MarketMetadataWriteSchema = t.Object({
   resolutionUrl: t.Optional(t.String()),
 });
 
+export const AiReviewProviderSchema = t.Union([
+  t.Literal("anthropic"),
+  t.Literal("heuristic"),
+  t.Literal("ollama"),
+]);
+
+export const AiReviewVerdictSchema = t.Union([
+  t.Literal("approve"),
+  t.Literal("reject"),
+  t.Literal("manual_review"),
+]);
+
+export const AiReviewScoresSchema = t.Object({
+  contentSafety: t.Number(),
+  corroboration: t.Number(),
+  disputeRisk: t.Number(),
+  objectivity: t.Number(),
+  promptInjectionRisk: t.Number(),
+  publicKnowability: t.Number(),
+  sourceQuality: t.Number(),
+});
+
+export const AiReviewSourceTierSchema = t.Union([
+  t.Literal("primary"),
+  t.Literal("major_news"),
+  t.Literal("specialist"),
+  t.Literal("ugc"),
+  t.Literal("suspicious"),
+  t.Literal("unreachable"),
+  t.Literal("unknown"),
+]);
+
+export const AiReviewSourceCheckSchema = t.Object({
+  domain: t.String(),
+  notes: t.String(),
+  relevant: t.Boolean(),
+  sourceTier: AiReviewSourceTierSchema,
+  url: t.String(),
+});
+
+export const AiReviewEvidenceSchema = t.Object({
+  domain: t.String(),
+  kind: t.Union([
+    t.Literal("provided_url"),
+    t.Literal("search_result"),
+    t.Literal("fetched_page"),
+  ]),
+  sourceTier: AiReviewSourceTierSchema,
+  summary: t.String(),
+  title: t.Optional(t.String()),
+  url: t.String(),
+});
+
+export const MarketAiReviewSchema = t.Object({
+  createdAt: t.String(),
+  evidence: t.Array(AiReviewEvidenceSchema),
+  hardFlags: t.Array(t.String()),
+  id: t.Number(),
+  metadataHash: t.String(),
+  modelId: t.Optional(t.String()),
+  promptVersion: t.String(),
+  provider: AiReviewProviderSchema,
+  reasons: t.Array(t.String()),
+  reviewedAt: t.String(),
+  scores: AiReviewScoresSchema,
+  sourceChecks: t.Array(AiReviewSourceCheckSchema),
+  verdict: AiReviewVerdictSchema,
+});
+
 export const MarketSchema = t.Object({
+  aiReview: t.Optional(MarketAiReviewSchema),
   bypassAiResolution: t.Boolean(),
   chainId: t.Number(),
   collateral: t.String(),
@@ -138,6 +208,7 @@ export const DevMarketCloseIneligibleSchema = t.Object({
 });
 
 export type MarketResponse = Static<typeof MarketSchema>;
+export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<

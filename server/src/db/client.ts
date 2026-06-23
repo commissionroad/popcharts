@@ -27,4 +27,4 @@ export function createDb(url: string) {
 }
 
 export { schema };
-export { and, asc, desc, eq, gt, or, sql } from "drizzle-orm";
+export { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
