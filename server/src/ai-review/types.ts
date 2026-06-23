@@ -2,6 +2,19 @@ export type InternetAccessMode = "off" | "provided_urls" | "search";
 
 export type ReviewProviderName = "anthropic" | "heuristic" | "ollama";
 
+export type ReviewProviderCapabilities = {
+  canRunOffline: boolean;
+  requiresApiKey: boolean;
+  requiresLocalRuntime: boolean;
+  requiresPreCollectedEvidence: boolean;
+  supportsNativeWebSearch: boolean;
+};
+
+export type ConfigValidationResult = {
+  errors: string[];
+  warnings: string[];
+};
+
 export type MarketReviewMetadata = {
   category?: string;
   createdAt?: string;
@@ -90,4 +103,9 @@ export type PolicyFinding = {
   scores: ReviewScores;
   sourceChecks: SourceCheck[];
   verdict: ReviewVerdict;
+};
+
+export type PolicyFindingWithEvidence = PolicyFinding & {
+  evidence: EvidenceItem[];
+  modelId?: string;
 };

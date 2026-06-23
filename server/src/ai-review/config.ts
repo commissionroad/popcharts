@@ -30,11 +30,11 @@ export const aiReviewConfig: AiReviewConfig = {
     "AI_REVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS",
     2_048,
   ),
-  anthropicMaxWebFetches: readPositiveInteger(
+  anthropicMaxWebFetches: readNonNegativeInteger(
     "AI_REVIEW_ANTHROPIC_MAX_WEB_FETCHES",
     2,
   ),
-  anthropicMaxWebSearches: readPositiveInteger(
+  anthropicMaxWebSearches: readNonNegativeInteger(
     "AI_REVIEW_ANTHROPIC_MAX_WEB_SEARCHES",
     3,
   ),
@@ -76,6 +76,16 @@ function readBoolean(name: string, fallback: boolean) {
   }
 
   return value === "true" || value === "1";
+}
+
+function readNonNegativeInteger(name: string, fallback: number) {
+  const value = process.env[name];
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function readInternetAccessMode(value: string): InternetAccessMode {

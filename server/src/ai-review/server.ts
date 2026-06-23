@@ -3,7 +3,15 @@ import { openapi } from "@elysiajs/openapi";
 import { Elysia, t } from "elysia";
 import type { OpenAPIV3 } from "openapi-types";
 
-import { aiReviewConfig } from "./config";
+import {
+  AI_REVIEW_PROMPT_VERSION,
+  aiReviewConfig,
+  type AiReviewConfig,
+} from "./config";
+import {
+  getAllReviewProviderStatuses,
+  getReviewProviderStatus,
+} from "./providers/registry";
 import { reviewMarket } from "./reviewer";
 
 const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
@@ -308,21 +316,27 @@ export const aiReviewApp = new Elysia()
   )
   .get(
     "/health",
-    () => ({
-      anthropicModel: aiReviewConfig.anthropicModel,
-      anthropicWebSearchMaxUses: aiReviewConfig.anthropicMaxWebSearches,
-      internetAccess: aiReviewConfig.internetAccess,
-      model:
-        aiReviewConfig.provider === "anthropic"
-          ? aiReviewConfig.anthropicModel
-          : aiReviewConfig.ollamaModel,
-      ollamaModel: aiReviewConfig.ollamaModel,
-      provider: aiReviewConfig.provider,
-      status: "ok" as const,
-    }),
+    () => buildAiReviewRuntimeStatus(),
     {
       detail: {
         summary: "AI review service health",
+        tags: ["System"],
+      },
+    },
+  )
+  .get(
+    "/ready",
+    ({ set }) => {
+      const status = buildAiReviewRuntimeStatus();
+      if (!status.ready) {
+        set.status = 503;
+      }
+
+      return status;
+    },
+    {
+      detail: {
+        summary: "AI review service readiness",
         tags: ["System"],
       },
     },
@@ -344,7 +358,62 @@ export const aiReviewApp = new Elysia()
     },
   );
 
+export function buildAiReviewRuntimeStatus(
+  config: AiReviewConfig = aiReviewConfig,
+) {
+  const activeProvider = getReviewProviderStatus({ config });
+
+  return {
+    activeProvider: activeProvider.name,
+    anthropic: {
+      apiKeyPresent: Boolean(config.anthropicApiKey),
+      baseUrl: config.anthropicBaseUrl,
+      maxOutputTokens: config.anthropicMaxOutputTokens,
+      maxWebFetches: config.anthropicMaxWebFetches,
+      maxWebSearches: config.anthropicMaxWebSearches,
+      model: config.anthropicModel,
+      webFetchMaxContentTokens: config.anthropicWebFetchMaxContentTokens,
+    },
+    build: {
+      promptVersion: AI_REVIEW_PROMPT_VERSION,
+      version: "0.1.0",
+    },
+    internetAccess: config.internetAccess,
+    model: activeProvider.model,
+    nativeWebSearchEnabled:
+      activeProvider.name === "anthropic" &&
+      config.internetAccess === "search" &&
+      config.anthropicMaxWebSearches > 0,
+    ollama: {
+      baseUrl: config.ollamaBaseUrl,
+      model: config.ollamaModel,
+    },
+    preCollectedEvidenceEnabled:
+      activeProvider.capabilities.requiresPreCollectedEvidence,
+    provider: activeProvider.name,
+    providers: getAllReviewProviderStatuses(config),
+    ready: activeProvider.configured,
+    status: "ok" as const,
+  };
+}
+
 if (import.meta.main) {
+  const runtimeStatus = buildAiReviewRuntimeStatus(aiReviewConfig);
+  if (!runtimeStatus.ready) {
+    const activeProvider = runtimeStatus.providers.find(
+      (provider) => provider.name === runtimeStatus.activeProvider,
+    );
+    console.error(
+      [
+        "Pop Charts AI Review API is not ready for the active provider.",
+        ...(activeProvider?.validation.errors ?? []).map(
+          (error) => `- ${error}`,
+        ),
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
   aiReviewApp.listen(aiReviewConfig.port);
 
   console.log(
