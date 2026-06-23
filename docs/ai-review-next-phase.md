@@ -247,6 +247,8 @@ collector capability:
 The next production-facing phase should wire review into the submitted-market
 flow.
 
+Detailed design: [AI Review Runner Design](ai-review-runner-design.md).
+
 Suggested flow:
 
 1. Indexer observes `MarketCreated`.
