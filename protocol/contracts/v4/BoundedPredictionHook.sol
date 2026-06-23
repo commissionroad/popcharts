@@ -16,6 +16,7 @@ import {
 import {PoolId} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolOperation.sol";
+import {IBoundedPoolOrderManager} from "./interfaces/IBoundedPoolOrderManager.sol";
 import {PoolTickBounds} from "./PoolTickBounds.sol";
 
 /// @title BoundedPredictionHook
@@ -55,13 +56,20 @@ contract BoundedPredictionHook {
   IPoolManager public immutable poolManager;
   /// @notice Configured inclusive tick bounds for pools served by this hook.
   PoolTickBounds public immutable poolTickBounds;
+  /// @notice Optional order manager notified after successful swaps.
+  IBoundedPoolOrderManager public immutable poolOrderManager;
 
   mapping(PoolId => SwapTickObservation) private _lastSwapTickObservation;
 
   /// @notice Records hook dependencies and validates that the deployment address carries the expected flags.
   /// @param poolManager_ Pool manager that will call the hook.
   /// @param poolTickBounds_ Tick-bound validator called before and after swaps.
-  constructor(IPoolManager poolManager_, PoolTickBounds poolTickBounds_) {
+  /// @param poolOrderManager_ Optional order manager notified after swaps.
+  constructor(
+    IPoolManager poolManager_,
+    PoolTickBounds poolTickBounds_,
+    IBoundedPoolOrderManager poolOrderManager_
+  ) {
     if (address(poolManager_) == address(0)) {
       revert InvalidPoolManager();
     }
@@ -71,6 +79,7 @@ contract BoundedPredictionHook {
 
     poolManager = poolManager_;
     poolTickBounds = poolTickBounds_;
+    poolOrderManager = poolOrderManager_;
 
     Hooks.validateHookPermissions(IHooks(address(this)), getHookPermissions());
   }
@@ -154,7 +163,7 @@ contract BoundedPredictionHook {
     bytes calldata
   ) external onlyPoolManager returns (bytes4 selector, int128 hookDelta) {
     PoolId poolId = key.toId();
-    int24 tick = _currentTick(poolId);
+    (uint160 sqrtPriceX96, int24 tick) = _currentSlot(poolId);
 
     SwapTickObservation storage observation = _lastSwapTickObservation[poolId];
     observation.observed = true;
@@ -162,6 +171,9 @@ contract BoundedPredictionHook {
 
     emit AfterSwapTickObserved(poolId, tick);
     poolTickBounds.validatePoolTick(poolId, tick);
+    if (address(poolOrderManager) != address(0)) {
+      poolOrderManager.movePoolTick(key, observation.beforeTick, tick, sqrtPriceX96);
+    }
 
     return (BoundedPredictionHook.afterSwap.selector, 0);
   }
@@ -176,5 +188,9 @@ contract BoundedPredictionHook {
 
   function _currentTick(PoolId poolId) private view returns (int24 tick) {
     (, tick, , ) = poolManager.getSlot0(poolId);
+  }
+
+  function _currentSlot(PoolId poolId) private view returns (uint160 sqrtPriceX96, int24 tick) {
+    (sqrtPriceX96, tick, , ) = poolManager.getSlot0(poolId);
   }
 }

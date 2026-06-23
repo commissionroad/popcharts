@@ -22,6 +22,7 @@ import {
 import {StateView} from "@uniswap/v4-periphery/src/lens/StateView.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {BoundedPredictionHook} from "../../contracts/v4/BoundedPredictionHook.sol";
+import {IBoundedPoolOrderManager} from "../../contracts/v4/interfaces/IBoundedPoolOrderManager.sol";
 import {MinimalV4SwapRouter} from "../../contracts/v4/MinimalV4SwapRouter.sol";
 import {PoolTickBounds} from "../../contracts/v4/PoolTickBounds.sol";
 import {V4TestERC20} from "./mocks/V4TestERC20.sol";
@@ -163,7 +164,11 @@ contract HookSkeletonAndPriceBoundsTest is Test {
   }
 
   function _deployHookAtPermissionedAddress() private returns (BoundedPredictionHook deployedHook) {
-    bytes memory constructorArgs = abi.encode(IPoolManager(address(poolManager)), poolTickBounds);
+    bytes memory constructorArgs = abi.encode(
+      IPoolManager(address(poolManager)),
+      poolTickBounds,
+      IBoundedPoolOrderManager(address(0))
+    );
     (address hookAddress, bytes32 salt) = HookMiner.find(
       address(this),
       Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG,
@@ -173,7 +178,8 @@ contract HookSkeletonAndPriceBoundsTest is Test {
 
     deployedHook = new BoundedPredictionHook{salt: salt}(
       IPoolManager(address(poolManager)),
-      poolTickBounds
+      poolTickBounds,
+      IBoundedPoolOrderManager(address(0))
     );
     assertEq(address(deployedHook), hookAddress);
   }
