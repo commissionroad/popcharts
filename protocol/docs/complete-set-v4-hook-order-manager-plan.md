@@ -1,7 +1,7 @@
 # Complete-Set V4 Hook And Order Manager Plan
 
-Status: implementation in progress; Phase 2 local v4 stack smoke completed on
-2026-06-22.
+Status: implementation in progress; Phase 3 complete-set hardening completed on
+2026-06-23.
 
 This is the implementation plan for a full complete-set post-graduation trading
 venue on Arc Testnet: per-market ERC20 YES/NO tokens, two Uniswap v4 pools per
@@ -438,7 +438,7 @@ collateral escrow >= redeemable winning supply
 For unresolved markets, complete-set mint/merge should maintain:
 
 ```txt
-collateral escrow >= min(yesSupply, noSupply) complete sets
+collateral capacity >= max(yesSupply, noSupply)
 ```
 
 For Pop Charts retained claims, single-sided minting is allowed only because the
@@ -1073,6 +1073,13 @@ Exit criteria:
 
 - all complete-set invariants pass in Solidity tests
 - no pregrad receipt code is touched except interface planning
+
+Phase 3 hardening result: `CompleteSetBinaryMarket.t.sol` covers constructor
+guards, outcome-token mint/burn authorization, zero amount and recipient
+rejections, complete-set mint/merge, retained-collateral funding, controlled
+single-side retained mints, resolution, cancellation, six-decimal conversion and
+half-unit dust behavior, status gates, and asymmetric retained-supply redemption.
+No `PregradManager` receipt or claim code is touched in this phase.
 
 ### Phase 4: Hook Skeleton And Price Bounds
 

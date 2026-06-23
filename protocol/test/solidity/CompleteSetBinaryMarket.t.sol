@@ -9,6 +9,7 @@ import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
 import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
+import {ExcessDecimalCollateral} from "./mocks/ExcessDecimalCollateral.sol";
 import {SixDecimalCollateral} from "./mocks/SixDecimalCollateral.sol";
 
 contract CompleteSetBinaryMarketTest is Test {
@@ -48,6 +49,54 @@ contract CompleteSetBinaryMarketTest is Test {
     assertEq(noToken.symbol(), "PCTNO");
   }
 
+  function test_ConstructorRejectsInvalidConfiguration() public {
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidCollateral.selector);
+    _deployMarket(address(0), 18);
+
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidRetainedMinter.selector);
+    _deployMarketWithConfig(address(collateral), address(this), address(0), resolver, 18);
+
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidResolver.selector);
+    _deployMarketWithConfig(address(collateral), address(this), retainedMinter, address(0), 18);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnsupportedDecimals.selector, 78)
+    );
+    _deployMarket(address(collateral), 78);
+
+    ExcessDecimalCollateral excessDecimalCollateral = new ExcessDecimalCollateral();
+    vm.expectRevert(
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnsupportedDecimals.selector, 78)
+    );
+    _deployMarket(address(excessDecimalCollateral), 18);
+  }
+
+  function test_OutcomeTokensCanOnlyMintAndBurnThroughMarket() public {
+    vm.prank(trader);
+    vm.expectRevert(abi.encodeWithSelector(OutcomeToken.UnauthorizedMarket.selector, trader));
+    yesToken.mint(trader, 1 * WAD);
+
+    vm.prank(trader);
+    vm.expectRevert(abi.encodeWithSelector(OutcomeToken.UnauthorizedMarket.selector, trader));
+    yesToken.burnFrom(trader, 1 * WAD);
+  }
+
+  function test_WinningSideRequiresResolution() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Trading,
+        CompleteSetBinaryMarket.Status.Resolved
+      )
+    );
+    market.winningSide();
+
+    vm.prank(resolver);
+    market.resolve(MarketTypes.Side.No);
+
+    assertEq(uint256(market.winningSide()), uint256(MarketTypes.Side.No));
+  }
+
   function test_MintCompleteSetsDepositsCollateralAndMintsBothSides() public {
     _fundAndApprove(trader, 100 * WAD);
 
@@ -77,6 +126,42 @@ contract CompleteSetBinaryMarketTest is Test {
     assertEq(noToken.balanceOf(trader), 60 * WAD);
     assertEq(yesToken.totalSupply(), 60 * WAD);
     assertEq(noToken.totalSupply(), 60 * WAD);
+  }
+
+  function test_RejectsZeroAmountsAndRecipients() public {
+    _fundAndApprove(trader, 100 * WAD);
+
+    vm.prank(trader);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidRecipient.selector);
+    market.mintCompleteSets(address(0), 1 * WAD);
+
+    vm.prank(trader);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    market.mintCompleteSets(trader, 0);
+
+    vm.prank(trader);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    market.mergeCompleteSets(0);
+
+    vm.prank(retainedMinter);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    market.fundRetainedCollateral(0);
+
+    vm.prank(retainedMinter);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidRecipient.selector);
+    market.mintRetainedSide(address(0), MarketTypes.Side.Yes, 1 * WAD);
+
+    vm.prank(retainedMinter);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    market.mintRetainedSide(alice, MarketTypes.Side.Yes, 0);
+
+    _mintCompleteSets(trader, 10 * WAD);
+    vm.prank(resolver);
+    market.resolve(MarketTypes.Side.Yes);
+
+    vm.prank(trader);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    market.redeem(MarketTypes.Side.Yes, 0);
   }
 
   function test_FundRetainedCollateralAndMintRetainedSides() public {
@@ -114,6 +199,65 @@ contract CompleteSetBinaryMarketTest is Test {
     vm.stopPrank();
 
     assertEq(yesToken.totalSupply(), 100 * WAD);
+  }
+
+  function test_RetainedResolutionPaysOnlyWinningSupply() public {
+    _fundRetainedMinter(100 * WAD);
+
+    vm.startPrank(retainedMinter);
+    market.fundRetainedCollateral(100 * WAD);
+    market.mintRetainedSide(alice, MarketTypes.Side.Yes, 60 * WAD);
+    market.mintRetainedSide(bob, MarketTypes.Side.No, 40 * WAD);
+    vm.stopPrank();
+
+    vm.prank(resolver);
+    market.resolve(MarketTypes.Side.Yes);
+
+    vm.prank(alice);
+    uint256 collateralAmount = market.redeem(MarketTypes.Side.Yes, 60 * WAD);
+
+    assertEq(collateralAmount, 60 * WAD);
+    assertEq(collateral.balanceOf(alice), 60 * WAD);
+    assertEq(collateral.balanceOf(address(market)), 40 * WAD);
+    assertEq(yesToken.totalSupply(), 0);
+    assertEq(noToken.totalSupply(), 40 * WAD);
+
+    vm.prank(bob);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.LosingSideCannotRedeem.selector,
+        MarketTypes.Side.No,
+        MarketTypes.Side.Yes
+      )
+    );
+    market.redeem(MarketTypes.Side.No, 40 * WAD);
+  }
+
+  function test_CancelledAsymmetricRetainedSupplyPaysHalfOutstandingTokens() public {
+    _fundRetainedMinter(100 * WAD);
+
+    vm.startPrank(retainedMinter);
+    market.fundRetainedCollateral(100 * WAD);
+    market.mintRetainedSide(alice, MarketTypes.Side.Yes, 60 * WAD);
+    market.mintRetainedSide(bob, MarketTypes.Side.No, 40 * WAD);
+    vm.stopPrank();
+
+    vm.prank(resolver);
+    market.cancel();
+
+    vm.prank(alice);
+    uint256 yesCollateral = market.redeemCancelled(60 * WAD, 0);
+
+    vm.prank(bob);
+    uint256 noCollateral = market.redeemCancelled(0, 40 * WAD);
+
+    assertEq(yesCollateral, 30 * WAD);
+    assertEq(noCollateral, 20 * WAD);
+    assertEq(collateral.balanceOf(alice), 30 * WAD);
+    assertEq(collateral.balanceOf(bob), 20 * WAD);
+    assertEq(collateral.balanceOf(address(market)), 50 * WAD);
+    assertEq(yesToken.totalSupply(), 0);
+    assertEq(noToken.totalSupply(), 0);
   }
 
   function test_OnlyRetainedMinterCanFundAndMintRetainedClaims() public {
@@ -197,6 +341,63 @@ contract CompleteSetBinaryMarketTest is Test {
     market.mergeCompleteSets(1 * WAD);
   }
 
+  function test_TradingActionsAndCancellationAreUnavailableAfterResolution() public {
+    _mintCompleteSets(trader, 100 * WAD);
+
+    vm.prank(resolver);
+    market.resolve(MarketTypes.Side.Yes);
+
+    vm.prank(trader);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Trading
+      )
+    );
+    market.mintCompleteSets(trader, 1 * WAD);
+
+    vm.prank(retainedMinter);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Trading
+      )
+    );
+    market.fundRetainedCollateral(1 * WAD);
+
+    vm.prank(retainedMinter);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Trading
+      )
+    );
+    market.mintRetainedSide(alice, MarketTypes.Side.Yes, 1 * WAD);
+
+    vm.prank(resolver);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Trading
+      )
+    );
+    market.cancel();
+
+    vm.prank(trader);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetBinaryMarket.InvalidStatus.selector,
+        CompleteSetBinaryMarket.Status.Resolved,
+        CompleteSetBinaryMarket.Status.Cancelled
+      )
+    );
+    market.redeemCancelled(1 * WAD, 0);
+  }
+
   function test_CancelledMarketRedeemsAtHalfValue() public {
     _mintCompleteSets(trader, 100 * WAD);
 
@@ -252,6 +453,37 @@ contract CompleteSetBinaryMarketTest is Test {
     sixDecimalMarket.collateralAmountForOutcome(1);
   }
 
+  function test_SixDecimalCancellationRejectsSingleSideHalfUnitDust() public {
+    SixDecimalCollateral sixDecimalCollateral = new SixDecimalCollateral();
+    CompleteSetBinaryMarket sixDecimalMarket = _deployMarket(address(sixDecimalCollateral), 18);
+    OutcomeToken sixDecimalYes = sixDecimalMarket.yesToken();
+    OutcomeToken sixDecimalNo = sixDecimalMarket.noToken();
+
+    sixDecimalCollateral.mint(trader, 1);
+    vm.prank(trader);
+    sixDecimalCollateral.approve(address(sixDecimalMarket), 1);
+
+    vm.prank(trader);
+    uint256 outcomeAmount = sixDecimalMarket.mintCompleteSets(trader, 1);
+
+    vm.prank(resolver);
+    sixDecimalMarket.cancel();
+
+    vm.prank(trader);
+    vm.expectRevert(CompleteSetBinaryMarket.InvalidAmount.selector);
+    sixDecimalMarket.redeemCancelled(outcomeAmount, 0);
+
+    vm.prank(trader);
+    uint256 collateralAmount = sixDecimalMarket.redeemCancelled(outcomeAmount, outcomeAmount);
+
+    assertEq(outcomeAmount, 1e12);
+    assertEq(collateralAmount, 1);
+    assertEq(sixDecimalCollateral.balanceOf(trader), 1);
+    assertEq(sixDecimalCollateral.balanceOf(address(sixDecimalMarket)), 0);
+    assertEq(sixDecimalYes.totalSupply(), 0);
+    assertEq(sixDecimalNo.totalSupply(), 0);
+  }
+
   function test_FeeOnTransferCollateralIsRejected() public {
     MockFeeCollateral feeCollateral = new MockFeeCollateral();
     CompleteSetBinaryMarket feeMarket = _deployMarket(address(feeCollateral), 18);
@@ -276,11 +508,28 @@ contract CompleteSetBinaryMarketTest is Test {
     uint8 outcomeDecimals
   ) private returns (CompleteSetBinaryMarket) {
     return
+      _deployMarketWithConfig(
+        collateralToken,
+        address(this),
+        retainedMinter,
+        resolver,
+        outcomeDecimals
+      );
+  }
+
+  function _deployMarketWithConfig(
+    address collateralToken,
+    address owner,
+    address retainedMinter_,
+    address resolver_,
+    uint8 outcomeDecimals
+  ) private returns (CompleteSetBinaryMarket) {
+    return
       new CompleteSetBinaryMarket({
         collateralToken_: collateralToken,
-        owner_: address(this),
-        retainedMinter_: retainedMinter,
-        resolver_: resolver,
+        owner_: owner,
+        retainedMinter_: retainedMinter_,
+        resolver_: resolver_,
         marketName_: "Pop Charts Test",
         marketSymbol_: "PCT",
         outcomeDecimals_: outcomeDecimals
