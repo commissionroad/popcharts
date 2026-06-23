@@ -1085,11 +1085,11 @@ No `PregradManager` receipt or claim code is touched in this phase.
 
 Deliverables:
 
-- `PredictionMarketHook`
-- `PredictionMarketSwapValidator`
-- hook address miner
+- `BoundedPredictionHook`
+- `PoolTickBounds`
+- hook address miner in Solidity tests
 - local hooked pool deployment
-- boundary math helper
+- inclusive tick-bound validation
 
 Exit criteria:
 
@@ -1098,6 +1098,15 @@ Exit criteria:
 - swap inside bounds succeeds
 - swap beyond bounds reverts
 - before/after swap tick tracking is proven with events or test reads
+
+Phase 4 result: `BoundedPredictionHook` records before/after swap ticks, returns
+zero hook delta, and calls `PoolTickBounds` before and after swaps. The
+`HookSkeletonAndPriceBounds.t.sol` smoke mines the before/after swap hook
+address, initializes a local hooked ERC20/ERC20 pool, proves an in-bounds swap,
+and asserts an out-of-bounds after-swap tick reverts through v4's wrapped hook
+error. The first slice intentionally does not add order manager execution,
+cross-pool constraints, hook fees, Permit2 token pulls, or Arc deployment
+scripts.
 
 ### Phase 5: Order Manager V1
 
