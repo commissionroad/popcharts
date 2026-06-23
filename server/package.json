@@ -5,14 +5,16 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "build": "bun build src/api/index.ts --outdir dist/api --target bun && bun build src/indexer/index.ts --outdir dist/indexer --target bun",
+    "build": "bun build src/api/index.ts --outdir dist/api --target bun && bun build src/indexer/index.ts --outdir dist/indexer --target bun && bun build src/ai-review/server.ts --outdir dist/ai-review --target bun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "dev": "bun run dev:api",
     "dev:api": "bun run --watch src/api/index.ts",
+    "dev:ai-review": "bun run --watch src/ai-review/server.ts",
     "dev:indexer": "bun run --watch src/indexer/index.ts",
     "start:api": "bun run src/api/index.ts",
+    "start:ai-review": "bun run src/ai-review/server.ts",
     "start:indexer": "bun run src/indexer/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
