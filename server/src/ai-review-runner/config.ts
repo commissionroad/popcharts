@@ -17,6 +17,8 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_POLL_MS = 5_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
+// Defaults make the runner useful in local development with the review service
+// on port 3002, while every timing/lease knob can be tuned per environment.
 export function getAiReviewRunnerConfig(
   env: Record<string, string | undefined> = Bun.env,
 ): AiReviewRunnerConfig {

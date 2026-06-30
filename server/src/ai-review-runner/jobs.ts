@@ -48,6 +48,10 @@ export type ReviewJobOutcome =
       status: "retryable_failed" | "terminal_failed";
     };
 
+/**
+ * Finds under-review markets that have metadata, no active job, and no review
+ * for the exact current metadata hash, then turns them into queue rows.
+ */
 export async function enqueueEligibleMarketReviewJobs({
   limit,
   maxAttempts,
@@ -97,10 +101,17 @@ export async function enqueueEligibleMarketReviewJobs({
   return await db
     .insert(schema.marketAiReviewJobs)
     .values(values)
+    // The partial unique active-job index is the final race guard if two runner
+    // processes discover the same market at the same time.
     .onConflictDoNothing()
     .returning();
 }
 
+/**
+ * Leases due jobs using row locks. A claimed job is marked running, stamped
+ * with locked_by/lease_until, and has its attempt count incremented in the same
+ * transaction that selected it.
+ */
 export async function claimReviewJobs({
   config,
   now = new Date(),
@@ -124,6 +135,8 @@ export async function claimReviewJobs({
         asc(schema.marketAiReviewJobs.id),
       )
       .limit(config.batchSize)
+      // SKIP LOCKED lets other runner transactions keep moving instead of
+      // waiting behind rows already selected by a different runner.
       .for("update", { skipLocked: true });
 
     const jobIds = claimableJobs.map(({ id }) => id);
@@ -177,6 +190,8 @@ export async function claimReviewJobs({
       .where(inArray(schema.marketAiReviewJobs.id, jobIds));
 
     const order = new Map(jobIds.map((id, index) => [id, index]));
+    // Postgres does not promise returned join rows will match the selected ID
+    // order, so restore the claim order before handing work to the runner loop.
     return claimed.sort(
       (left, right) =>
         (order.get(left.job.id) ?? 0) - (order.get(right.job.id) ?? 0),
@@ -193,6 +208,8 @@ export async function processReviewJob({
   config: AiReviewRunnerConfig;
   now?: Date;
 }): Promise<ReviewJobOutcome> {
+  // Jobs can sit in the queue while another authority moves the market. In that
+  // case there is nothing left for AI review to decide, so close the job cleanly.
   if (claimed.market.status !== "under_review") {
     const job = await cancelReviewJob({
       job: claimed.job,
@@ -236,6 +253,11 @@ export async function processReviewJob({
   }
 }
 
+/**
+ * Builds the stateless AI Review service request from persisted rows. Job-level
+ * provider/model overrides are allowed, but market text is never allowed to
+ * choose provider, model, web mode, retry policy, or transition behavior.
+ */
 export function buildMarketReviewRequest({
   job,
   market,
@@ -284,6 +306,10 @@ export function marketStatusForReviewVerdict(
   return null;
 }
 
+/**
+ * Exponential retry delay, capped so an unhealthy service does not create
+ * unbounded retry gaps.
+ */
 export function calculateRetryDelayMs({
   attemptCount,
   baseMs,
@@ -311,6 +337,8 @@ async function persistReviewJobResult({
   reviewedAt: Date;
 }) {
   return await db.transaction(async (tx) => {
+    // The review row is append-only audit evidence. The job row is mutable queue
+    // state and simply points at the review that completed it.
     const [review] = await tx
       .insert(schema.marketAiReviews)
       .values({
@@ -356,6 +384,8 @@ async function persistReviewJobResult({
     let transitionedMarket = false;
 
     if (targetMarketStatus) {
+      // Guard on status and metadata hash so stale AI output cannot override a
+      // market that the chain watcher or another runner has already moved.
       const rows = await tx
         .update(schema.markets)
         .set({
@@ -464,6 +494,8 @@ function claimableReviewJobCondition(now: Date) {
       eq(schema.marketAiReviewJobs.status, "running"),
     ),
     lte(schema.marketAiReviewJobs.runAfter, now),
+    // Running jobs become claimable only after their lease expires, which is how
+    // another runner recovers work from a crashed process.
     or(
       isNull(schema.marketAiReviewJobs.leaseUntil),
       lte(schema.marketAiReviewJobs.leaseUntil, now),

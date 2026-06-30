@@ -140,27 +140,27 @@ ai_review_job_trigger:
 
 Suggested columns:
 
-| Column | Purpose |
-| --- | --- |
-| `id` | Primary key. |
-| `chain_id` | Market chain ID. |
-| `market_id` | Market ID. |
-| `metadata_hash` | Metadata version to review. |
-| `status` | Queue lifecycle state. |
-| `trigger` | Why this job exists. |
-| `requested_provider` | Optional provider override. |
-| `requested_model` | Optional model override. |
-| `priority` | Manual jobs can outrank automatic jobs. |
-| `attempt_count` | Number of claimed attempts. |
-| `max_attempts` | Retry ceiling. |
-| `run_after` | Backoff scheduling timestamp. |
-| `lease_until` | Lock expiration for crashed runners. |
-| `locked_by` | Runner instance ID that currently owns the job. |
-| `last_error` | Compact error for operations. |
-| `review_id` | Nullable FK to the final `market_ai_reviews` row. |
-| `created_at` | Insert timestamp. |
-| `updated_at` | Last job mutation timestamp. |
-| `completed_at` | Terminal timestamp. |
+| Column | What | Why |
+| --- | --- | --- |
+| `id` | Unique job row ID. | Gives logs, leases, retries, and operators one simple handle for this unit of work. |
+| `chain_id` | Which chain the market belongs to. | Market IDs are only meaningful within a chain, and this also supports the FK back to `markets`. |
+| `market_id` | The on-chain market ID. | Identifies the exact market being reviewed. |
+| `metadata_hash` | The metadata version being reviewed. | Prevents stale reviews. If a market's metadata changes, an old review should not silently apply to the new text. |
+| `status` | Queue lifecycle: queued, running, succeeded, failed, or cancelled. | Lets runners safely find work, skip completed work, retry failures, and expose stuck jobs. |
+| `trigger` | Why the job exists: automatic, manual, or retry. | Useful for audit and behavior; a manual re-review is different from normal polling. |
+| `requested_provider` | Optional AI provider override. | Usually null, meaning use the AI Review service default; manual jobs can request a specific provider. |
+| `requested_model` | Optional model override. | Usually null, meaning use the service default; explicit values support operator-requested re-runs. |
+| `priority` | Claim ordering weight. | Lets manual or urgent jobs run before automatic backlog. |
+| `attempt_count` | Number of times a runner has claimed this job. | Drives retry behavior and shows whether something is repeatedly failing. |
+| `max_attempts` | Retry ceiling. | Prevents infinite retry loops when the service or data is permanently broken. |
+| `run_after` | Earliest timestamp the job can be claimed. | Enables backoff: after a failure, schedule the job later instead of hammering the service. |
+| `lease_until` | Temporary lock expiration. | Lets multiple runners exist safely; if one dies mid-job, the lease eventually expires and another runner can reclaim it. |
+| `locked_by` | Runner instance currently holding the lease. | Helps debug stuck jobs by showing which runner owns the current attempt. |
+| `last_error` | Short latest failure message. | Lets operators understand delayed or failed jobs without digging through logs. It should not contain full model output. |
+| `review_id` | Nullable FK to the final `market_ai_reviews` row. | Links a successful queue job to the immutable review result. It stays null while pending, failed, or cancelled. |
+| `created_at` | When the job was inserted. | Supports audit, backlog age, and latency measurements. |
+| `updated_at` | Last mutation time. | Helps identify stale or recently active jobs. |
+| `completed_at` | When the job reached a terminal state. | Distinguishes finished jobs from active jobs and supports end-to-end timing. |
 
 Constraints:
 
@@ -383,6 +383,13 @@ Suggested runner env vars:
 
 The runner should have its own health marker or log heartbeat if deployed as a
 separate container.
+
+The first implementation uses a simple polling loop. That is intentional: the
+runner can recover missed work by looking at durable database state instead of
+depending on an in-memory event. A future optimization can add PostgreSQL
+`LISTEN`/`NOTIFY`, an API enqueue endpoint, or another wake-up signal so the
+runner reacts faster, but the runner should still keep the polling fallback.
+That fallback is what makes stuck, lost, or crashed work recoverable.
 
 ## Observability
 

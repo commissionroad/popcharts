@@ -32,6 +32,9 @@ export const aiReviewJobTrigger = pgEnum("ai_review_job_trigger", [
   "retry",
 ]);
 
+// Mutable queue state for AI review work. The durable review output itself
+// lives in market_ai_reviews; this table tracks scheduling, leases, retries,
+// and the optional pointer to the review row that completed the job.
 export const marketAiReviewJobs = pgTable(
   "market_ai_review_jobs",
   {
@@ -82,6 +85,8 @@ export const marketAiReviewJobs = pgTable(
       table.marketId,
       table.metadataHash,
     ),
+    // Prevent duplicate active jobs for the same market metadata version while
+    // still allowing historical succeeded/failed/cancelled jobs to remain.
     uniqueIndex("market_ai_review_jobs_active_unique_idx")
       .on(table.chainId, table.marketId, table.metadataHash)
       .where(sql`${table.status} in ('queued', 'running', 'retryable_failed')`),

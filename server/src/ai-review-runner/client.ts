@@ -16,6 +16,11 @@ export type FetchFn = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+/**
+ * Thin HTTP client for the pure AI Review service. The runner owns queue state
+ * and persistence; the service only receives one review request and returns one
+ * review result.
+ */
 export async function reviewMarketWithService({
   config,
   fetchImpl = fetch,
