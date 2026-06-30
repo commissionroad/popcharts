@@ -872,13 +872,39 @@ manifest, confirms the connected chain ID, prints the current block, checks each
 configured contract address for bytecode, and fails if required entries are
 missing bytecode.
 
-### `scripts/deploy-arc-v4-stack.ts`
+### `scripts/write-venue-manifest.mjs`
 
-Purpose: deploy the v4 stack if no official Arc deployment is available.
+Purpose: create the deployment manifest consumed by the bytecode checker and
+later operator scripts.
+
+Inputs:
+
+- chain ID
+- RPC URL
+- manifest path
+- required contract entries as `name=address`
+- optional contract entries as `name=address`
+- optional deployer, block number, and per-contract deployment block metadata
+
+Output:
+
+- `deployments/venue-stack.json` by default
+- a `contracts` map where each entry has `address`, `required`, and optional
+  deployment metadata
+
+Phase 8 manifest slice result: `scripts/write-venue-manifest.mjs` provides the
+repeatable manifest writer behind `pnpm deployment:write-venue-manifest`. It
+does not broadcast transactions; it records addresses produced by manual
+deployment, future deployment scripts, or explorer-confirmed deployments in the
+same shape checked by `pnpm deployment:check-venue`.
+
+### `scripts/deploy-venue-stack.ts`
+
+Purpose: deploy the v4 stack if no official deployment is available.
 
 Steps:
 
-1. Confirm chain ID is 5042002.
+1. Confirm the expected chain ID.
 2. Confirm CREATE2 and Permit2 bytecode.
 3. Deploy `PoolManager(initialOwner)`.
 4. Deploy `StateView(poolManager)`.
@@ -886,8 +912,8 @@ Steps:
 6. Deploy minimal v4 swap router.
 7. Optionally deploy `PositionDescriptor` and `PositionManager`.
 8. Optionally deploy Universal Router if constructor dependencies are resolved.
-9. Write `arc-testnet.uniswap-v4.json`.
-10. Verify contracts on Arcscan where supported.
+9. Write `deployments/venue-stack.json`.
+10. Verify contracts on the configured explorer where supported.
 
 Manifest shape:
 
@@ -897,14 +923,36 @@ Manifest shape:
   "rpcUrl": "https://rpc.testnet.arc.network",
   "blockNumber": "48172538",
   "deployer": "0x...",
-  "poolManager": "0x...",
-  "stateView": "0x...",
-  "v4Quoter": "0x...",
-  "swapRouter": "0x...",
-  "positionManager": null,
-  "universalRouter": null,
-  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "create2Factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+  "contracts": {
+    "poolManager": {
+      "address": "0x...",
+      "required": true
+    },
+    "stateView": {
+      "address": "0x...",
+      "required": true
+    },
+    "quoter": {
+      "address": "0x...",
+      "required": true
+    },
+    "swapRouter": {
+      "address": "0x...",
+      "required": true
+    },
+    "positionManager": {
+      "address": "0x...",
+      "required": false
+    },
+    "transferApproval": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "required": true
+    },
+    "deterministicFactory": {
+      "address": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+      "required": true
+    }
+  }
 }
 ```
 
@@ -1215,12 +1263,13 @@ settle from `PregradManager` without touching the postgrad adapter.
 Deliverables:
 
 - `check-venue-deployment`
-- `deploy-arc-v4-stack`
+- `write-venue-manifest`
+- `deploy-venue-stack`
 - `deploy-complete-set-postgrad`
 - `create-complete-set-market`
 - `seed-complete-set-pools`
 - deployment manifests
-- Arcscan verification notes
+- explorer verification notes
 
 Exit criteria:
 
@@ -1259,6 +1308,42 @@ Exit criteria:
 - frontend/server can discover a postgrad market from events/manifests without
   hidden local state
 - no orderbook liquidity is implied when quote path says none exists
+
+## Protocol MVP Tracker
+
+This is the current protocol-only checklist for a complete pregrad and postgrad
+MVP. Each item should land as one or more small PRs with its own verification
+notes.
+
+1. Deployment scripts and manifests
+   - Status: in progress.
+   - Done: bytecode preflight via `pnpm deployment:check-venue`.
+   - Done: manifest writer via `pnpm deployment:write-venue-manifest`.
+   - Next: broadcast-capable venue deployment, postgrad deployment, market
+     creation, pool seeding, and explorer verification notes.
+2. Market creation and pool setup script
+   - Status: not started.
+   - Needed: create a complete-set market, initialize YES/collateral and
+     NO/collateral pools, persist pool keys/IDs, and fail cleanly when any
+     dependency is missing.
+3. Protocol smoke scripts
+   - Status: not started.
+   - Needed: one maker order, one taker swap that crosses liquidity, one
+     complete-set mint/merge arbitrage path, and one resolution/redeem path.
+4. Keeper and operator scripts
+   - Status: not started.
+   - Needed: resolver execution, deferred execution draining, stuck-order
+     inspection, market health checks, and safe owner/admin workflows.
+5. Public postgrad contract metadata
+   - Status: not started.
+   - Needed: exported ABIs, event documentation, read helpers, and manifest
+     fields that let server/indexer/UI discover postgrad state without hidden
+     local assumptions.
+6. Final policy decisions
+   - Status: not started.
+   - Needed: collateral choice, price/tick display policy, liquidity caps,
+     settlement/admin permissions, public testnet limits, and audit-before-mainnet
+     gates.
 
 ## Testing Matrix
 
