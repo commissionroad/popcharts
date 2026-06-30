@@ -79,6 +79,30 @@ export AI_REVIEW_ANTHROPIC_MODEL=claude-sonnet-4-6
 bun run dev:ai-review
 ```
 
+## AI Review Runner
+
+The AI Review runner is a separate process from both the indexer and the AI
+Review service. It polls Postgres for eligible `under_review` markets, leases
+review jobs, calls the AI Review service, persists `market_ai_reviews`, and
+applies guarded market status transitions.
+
+```bash
+cd server
+bun run dev:ai-review-runner
+```
+
+Operators can manually enqueue a review job through the API server when
+`POPCHARTS_ADMIN_REVIEW_ENABLED=true`:
+
+```bash
+curl -s http://localhost:3001/admin/markets/5042002/123/review \
+  -H 'content-type: application/json' \
+  -d '{"force": true, "provider": "heuristic"}'
+```
+
+The endpoint only enqueues work for the runner. It does not call the AI Review
+service directly, and it remains disabled by default.
+
 ## Local Chain Smoke
 
 From the repository root, run the full local smoke workflow:

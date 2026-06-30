@@ -2,6 +2,7 @@ import { getNetworkConfig, ZERO_ADDRESS } from "./networks";
 
 export const config = {
   ...getNetworkConfig(),
+  adminReviewEnabled: process.env.POPCHARTS_ADMIN_REVIEW_ENABLED === "true",
   apiPort: Number.parseInt(process.env.PORT ?? "3001", 10),
   devToolsEnabled: process.env.POPCHARTS_DEV_TOOLS_ENABLED === "true",
   healthCheckFile:
