@@ -23,6 +23,7 @@ const helpRequested = args.includes("--help") || args.includes("-h");
 const aiReviewOnly = args.includes("--ai-review-only");
 const noAiReview = args.includes("--no-ai-review");
 const aiReviewEnabled = aiReviewOnly || !noAiReview;
+const keepDb = args.includes("--keep-db");
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -42,6 +43,7 @@ const serverEnvFile = resolve(serverDir, ".env.local-chain");
 const appEnvFile = resolve(appDir, ".env.development.local");
 const healthFile = resolve(serverDir, ".env.local-dev.indexer-health");
 const children = new Set();
+let shuttingDown = false;
 
 if (helpRequested) {
   printUsage();
@@ -71,6 +73,16 @@ async function main() {
   ensureDependenciesInstalled();
 
   rmSync(healthFile, { force: true });
+
+  const reuseExistingHardhatRpc = !aiReviewOnly && (await rpcReady());
+  if (!aiReviewOnly && !reuseExistingHardhatRpc && !keepDb) {
+    await resetLocalPostgresForFreshChain();
+  } else if (!aiReviewOnly && !reuseExistingHardhatRpc && keepDb) {
+    console.warn(
+      "[local-dev] --keep-db was passed while starting a fresh Hardhat chain. " +
+        "Old local market rows may not match the new chain.",
+    );
+  }
 
   await ensurePostgres();
 
@@ -106,7 +118,7 @@ async function main() {
   }
 
   let hardhatNode = null;
-  if (await rpcReady()) {
+  if (reuseExistingHardhatRpc) {
     console.log(`[local-dev] using existing Hardhat RPC at ${rpcHttpUrl}`);
   } else {
     hardhatNode = start("hardhat", "pnpm", [
@@ -234,6 +246,7 @@ async function main() {
 function printUsage() {
   console.log(`Usage: pnpm run local:dev
        pnpm run local:dev -- --no-ai-review
+       pnpm run local:dev -- --keep-db
        pnpm run local:ai-review
 
 Start the full local Pop Charts stack:
@@ -258,6 +271,7 @@ function rejectUnknownArgs() {
   const knownArgs = new Set([
     "--ai-review-only",
     "--help",
+    "--keep-db",
     "--no-ai-review",
     "-h",
   ]);
@@ -273,6 +287,24 @@ function rejectUnknownArgs() {
 function rejectConflictingArgs() {
   if (aiReviewOnly && noAiReview) {
     throw new Error("--ai-review-only cannot be combined with --no-ai-review.");
+  }
+}
+
+async function resetLocalPostgresForFreshChain() {
+  console.log(
+    "[local-dev] no existing Hardhat RPC; clearing local Postgres so the projection matches the fresh chain",
+  );
+
+  const mountedVolumes = await dockerContainerVolumeNames(
+    POSTGRES_CONTAINER_NAME,
+  );
+
+  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
+    await removeDockerContainerAndVolumes(POSTGRES_CONTAINER_NAME);
+  }
+
+  for (const volumeName of new Set([...mountedVolumes, POSTGRES_VOLUME_NAME])) {
+    await removeDockerVolumeIfExists(volumeName);
   }
 }
 
@@ -320,17 +352,7 @@ async function ensurePostgres() {
       await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
         cwd: repoRoot,
       });
-      await waitFor("Postgres readiness", () =>
-        commandSucceeds("docker", [
-          "exec",
-          POSTGRES_CONTAINER_NAME,
-          "pg_isready",
-          "-U",
-          "postgres",
-          "-d",
-          "popcharts",
-        ]),
-      );
+      await waitFor("Postgres readiness", () => postgresReady());
       return;
     }
   }
@@ -340,22 +362,33 @@ async function ensurePostgres() {
     env: dockerComposeEnv(),
   });
   await waitFor("Postgres readiness", () =>
-    commandSucceeds(
-      "docker",
-      [
-        "compose",
-        "exec",
-        "-T",
-        "postgres",
-        "pg_isready",
-        "-U",
-        "postgres",
-        "-d",
-        "popcharts",
-      ],
-      dockerComposeEnv(),
-    ),
+    postgresReady(),
   );
+}
+
+async function postgresReady() {
+  return commandSucceeds("docker", [
+    "exec",
+    POSTGRES_CONTAINER_NAME,
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    "popcharts",
+    "-c",
+    "select 1",
+  ]);
+}
+
+async function removeDockerVolumeIfExists(volumeName) {
+  if (!(await dockerVolumeExists(volumeName))) {
+    return;
+  }
+
+  console.log(`[local-dev] removing stale Docker volume ${volumeName}`);
+  await run("postgres", "docker", ["volume", "rm", "-f", volumeName], {
+    cwd: repoRoot,
+  });
 }
 
 async function removeDockerContainerAndVolumes(name) {
@@ -418,6 +451,17 @@ function dockerComposeEnv(env = process.env) {
 
 async function dockerContainerExists(name) {
   const result = await collect("docker", ["container", "inspect", name], {
+    cwd: repoRoot,
+    env: process.env,
+    print: false,
+    rejectOnFailure: false,
+  });
+
+  return result.code === 0;
+}
+
+async function dockerVolumeExists(name) {
+  const result = await collect("docker", ["volume", "inspect", name], {
     cwd: repoRoot,
     env: process.env,
     print: false,
@@ -708,6 +752,10 @@ async function waitFor(label, predicate, options = {}) {
 }
 
 function assertProcessesRunning(processes) {
+  if (shuttingDown) {
+    return;
+  }
+
   for (const processInfo of processes) {
     if (processInfo.code !== null) {
       throw new Error(
@@ -785,6 +833,12 @@ function sleep(ms) {
 }
 
 async function shutdown(code) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+
   for (const processInfo of [...children].reverse()) {
     await stop(processInfo);
   }
