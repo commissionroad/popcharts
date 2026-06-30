@@ -18,6 +18,7 @@
     "arc:testnet:deploy-mock": "hardhat build && node --env-file-if-exists=.env scripts/deploy-arc-mock.mjs",
     "devchain:deploy": "hardhat build && node scripts/deploy-devchain.mjs",
     "devchain:node": "hardhat node",
+    "deployment:check-venue": "node scripts/check-venue-deployment.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",

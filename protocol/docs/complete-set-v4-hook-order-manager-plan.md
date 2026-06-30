@@ -848,7 +848,7 @@ Drift handling:
 
 ## Deployment Script Plan
 
-### `scripts/check-arc-v4.mjs`
+### `scripts/check-venue-deployment.mjs`
 
 Purpose: fail fast if expected v4 addresses are absent or stale.
 
@@ -865,6 +865,12 @@ Output:
 - bytecode length for CREATE2, Multicall3, Permit2
 - bytecode length for configured v4 contracts
 - failure if required address has no bytecode
+
+Phase 8 first slice result: `scripts/check-venue-deployment.mjs` provides the
+read-only bytecode preflight behind `pnpm deployment:check-venue`. It reads a
+manifest, confirms the connected chain ID, prints the current block, checks each
+configured contract address for bytecode, and fails if required entries are
+missing bytecode.
 
 ### `scripts/deploy-arc-v4-stack.ts`
 
@@ -1208,7 +1214,7 @@ settle from `PregradManager` without touching the postgrad adapter.
 
 Deliverables:
 
-- `check-arc-v4`
+- `check-venue-deployment`
 - `deploy-arc-v4-stack`
 - `deploy-complete-set-postgrad`
 - `create-complete-set-market`
@@ -1320,7 +1326,7 @@ pnpm test
 For Arc deployment PRs, also run:
 
 ```bash
-node scripts/check-arc-v4.mjs
+pnpm deployment:check-venue -- --manifest deployments/venue-stack.json
 ```
 
 ## Unknowns And Decisions Needed
