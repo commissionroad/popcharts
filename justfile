@@ -54,6 +54,9 @@ server-api:
 server-indexer:
     pnpm run server:indexer
 
+server-ai-review-smoke:
+    pnpm run server:ai-review-smoke
+
 server-check:
     pnpm run server:check
 

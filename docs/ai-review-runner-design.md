@@ -1,6 +1,6 @@
 # AI Review Runner Design
 
-Status: Initial runner foundation implemented
+Status: Runner foundation, manual enqueue, and local smoke implemented
 
 Date: 2026-06-23
 
@@ -442,11 +442,16 @@ Initial implementation:
 - Add runner process loop behind package scripts.
 - Add result persistence and guarded status transitions.
 
-Follow-up PR:
+Follow-up implementation:
 
-- Add manual admin enqueue endpoint.
-- Add operator docs.
-- Add local smoke command or runbook.
+- Manual admin enqueue endpoint is implemented on the API server and remains
+  disabled unless `POPCHARTS_ADMIN_REVIEW_ENABLED=true`.
+- Operator docs now describe both the long-running runner and the manual
+  enqueue path.
+- Local smoke command is available as `bun run smoke:ai-review-runner` from
+  `server/` or `just server-ai-review-smoke` from the repository root. It seeds
+  an `under_review` market, runs one queue cycle, persists a review, and checks
+  the resulting market status transition using the heuristic provider.
 
 AWS/deployment PR:
 

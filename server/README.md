@@ -103,6 +103,21 @@ curl -s http://localhost:3001/admin/markets/5042002/123/review \
 The endpoint only enqueues work for the runner. It does not call the AI Review
 service directly, and it remains disabled by default.
 
+Run the local smoke command to exercise the full DB-to-service-to-DB path
+without a model dependency:
+
+```bash
+cd server
+bun run smoke:ai-review-runner
+```
+
+The smoke command expects local Postgres to be running on the configured
+`DATABASE_URL` with the current server schema already applied. It starts an
+in-process AI Review service with the heuristic provider, seeds one
+`under_review` market plus metadata, enqueues and claims one job, persists the
+review, and verifies the market status transition. It defaults to port `3012`;
+set `AI_REVIEW_SMOKE_PORT` if that port is already occupied.
+
 ## Local Chain Smoke
 
 From the repository root, run the full local smoke workflow:

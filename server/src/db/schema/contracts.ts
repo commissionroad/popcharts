@@ -3,7 +3,7 @@ import {
   pgTable,
   serial,
   timestamp,
-  uniqueIndex,
+  unique,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -17,6 +17,6 @@ export const contracts = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("contracts_address_chain_idx").on(table.address, table.chainId),
+    unique("contracts_address_chain_idx").on(table.address, table.chainId),
   ],
 );

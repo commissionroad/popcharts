@@ -4,7 +4,7 @@ import {
   serial,
   text,
   timestamp,
-  uniqueIndex,
+  unique,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -24,7 +24,7 @@ export const marketMetadata = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("market_metadata_chain_hash_idx").on(
+    unique("market_metadata_chain_hash_idx").on(
       table.chainId,
       table.metadataHash,
     ),
