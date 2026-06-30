@@ -338,8 +338,10 @@ Behavior:
 - If `force` is false and an active job exists, return that job.
 - If `force` is false and a review already exists for the current metadata hash,
   return a conflict with the latest review summary.
-- If `force` is true, enqueue a new job unless another active manual job already
-  exists.
+- If `force` is true, enqueue a new job even when a completed review already
+  exists, unless an active job already exists. The active-job uniqueness
+  constraint intentionally prevents duplicate running work for the same market
+  metadata hash.
 
 Security:
 
