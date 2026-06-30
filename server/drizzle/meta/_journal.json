@@ -50,6 +50,13 @@
       "when": 1782241394426,
       "tag": "0006_right_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782249930838,
+      "tag": "0007_wide_madame_web",
+      "breakpoints": true
     }
   ]
 }
