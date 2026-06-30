@@ -63,6 +63,19 @@ library OrderValidation {
     }
   }
 
+  /// @notice Returns the tick that first enters an order's range for partial-fill execution.
+  /// @param zeroForOne Whether the maker is selling currency0 for currency1.
+  /// @param tickLower Lower tick.
+  /// @param tickUpper Upper tick.
+  /// @return tick Partial-fill threshold tick.
+  function partialThresholdTick(
+    bool zeroForOne,
+    int24 tickLower,
+    int24 tickUpper
+  ) internal pure returns (int24 tick) {
+    return zeroForOne ? tickLower : tickUpper;
+  }
+
   /// @notice Returns the tick that must be crossed for full-fill execution.
   /// @param zeroForOne Whether the maker is selling currency0 for currency1.
   /// @param tickLower Lower tick.
@@ -94,5 +107,23 @@ library OrderValidation {
       zeroForOne
         ? fromTick < tickUpper && toTick >= tickUpper
         : fromTick > tickLower && toTick <= tickLower;
+  }
+
+  /// @notice Returns whether a tick movement crossed an indexed execution tick.
+  /// @param zeroForOne Whether the maker is selling currency0 for currency1.
+  /// @param fromTick Pool tick before movement.
+  /// @param toTick Pool tick after movement.
+  /// @param indexedTick Tick where the order is currently indexed.
+  /// @return crossed Whether the movement crossed the indexed tick.
+  function isIndexedTickCrossed(
+    bool zeroForOne,
+    int24 fromTick,
+    int24 toTick,
+    int24 indexedTick
+  ) internal pure returns (bool crossed) {
+    return
+      zeroForOne
+        ? fromTick < indexedTick && toTick >= indexedTick
+        : fromTick > indexedTick && toTick <= indexedTick;
   }
 }

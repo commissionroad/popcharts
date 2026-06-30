@@ -46,13 +46,15 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   /// @param zeroForOne Whether the maker is selling currency0 for currency1.
   /// @param tickLower Lower tick of the liquidity range.
   /// @param tickUpper Upper tick of the liquidity range.
+  /// @param indexedTick Tick where the order is currently indexed for execution.
   /// @param liquidity Pool liquidity added by the order.
-  /// @param enablePartialFill Reserved for Phase 6 partial-fill behavior.
+  /// @param enablePartialFill Whether crossed movement may partially fill the order.
   struct Order {
     address owner;
     bool zeroForOne;
     int24 tickLower;
     int24 tickUpper;
+    int24 indexedTick;
     uint128 liquidity;
     bool enablePartialFill;
   }
@@ -81,7 +83,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   /// @param tickLower Lower tick of the liquidity range.
   /// @param tickUpper Upper tick of the liquidity range.
   /// @param amountInMaximum Maximum input token amount the maker is willing to deposit.
-  /// @param enablePartialFill Reserved for Phase 6 partial-fill behavior.
+  /// @param enablePartialFill Whether crossed movement may partially fill the order.
   /// @param hookData Hook data forwarded to the pool manager.
   struct CreateOrderParams {
     PoolKey key;
@@ -122,6 +124,15 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   struct ResolveDeferredExecutionCallbackData {
     bytes32 executionId;
     uint256 requestedExecutionCount;
+  }
+
+  struct PartialExecutionResult {
+    int24 tickLower;
+    int24 tickUpper;
+    int24 indexedTick;
+    uint128 remainingLiquidity;
+    uint256 amount0;
+    uint256 amount1;
   }
 
   /// @notice Reverts when the pool manager address is zero.
@@ -239,6 +250,27 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     address indexed owner,
     uint256 amount0,
     uint256 amount1
+  );
+  /// @notice Emitted when an order partially fills and remaining liquidity is reindexed.
+  /// @param poolId Pool containing the order.
+  /// @param orderId Per-pool order ID.
+  /// @param owner Maker that owns the order.
+  /// @param amount0 Currency0 amount paid to the maker.
+  /// @param amount1 Currency1 amount paid to the maker.
+  /// @param tickLower Updated lower tick for the remaining order.
+  /// @param tickUpper Updated upper tick for the remaining order.
+  /// @param indexedTick Updated execution index tick for the remaining order.
+  /// @param remainingLiquidity Remaining pool liquidity after the partial fill.
+  event OrderPartiallyFilled(
+    PoolId indexed poolId,
+    uint32 indexed orderId,
+    address indexed owner,
+    uint256 amount0,
+    uint256 amount1,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 indexedTick,
+    uint128 remainingLiquidity
   );
   /// @notice Emitted when a popped order is kept because movement did not fully cross it.
   /// @param poolId Pool containing the order.
@@ -439,21 +471,23 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     uint128 liquidity,
     uint256 amountIn
   ) private {
+    int24 indexedTick = _initialIndexedTick(
+      params.zeroForOne,
+      params.tickLower,
+      params.tickUpper,
+      params.enablePartialFill
+    );
     _orders[poolId][orderId] = Order({
       owner: msg.sender,
       zeroForOne: params.zeroForOne,
       tickLower: params.tickLower,
       tickUpper: params.tickUpper,
+      indexedTick: indexedTick,
       liquidity: liquidity,
       enablePartialFill: params.enablePartialFill
     });
 
-    int24 thresholdTick = OrderValidation.thresholdTick(
-      params.zeroForOne,
-      params.tickLower,
-      params.tickUpper
-    );
-    _orderBooks[poolId].insert(thresholdTick, PackedOrderIdLibrary.pack(orderId));
+    _orderBooks[poolId].insert(indexedTick, PackedOrderIdLibrary.pack(orderId));
 
     emit OrderCreated(
       poolId,
@@ -484,12 +518,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       revert UnauthorizedOrderOwner(msg.sender, order.owner);
     }
 
-    int24 thresholdTick = OrderValidation.thresholdTick(
-      order.zeroForOne,
-      order.tickLower,
-      order.tickUpper
-    );
-    _orderBooks[poolId].remove(thresholdTick, PackedOrderIdLibrary.pack(orderId));
+    _orderBooks[poolId].remove(order.indexedTick, PackedOrderIdLibrary.pack(orderId));
 
     bytes memory result = poolManager.unlock(
       abi.encode(
@@ -773,13 +802,16 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       return;
     }
 
-    int24 thresholdTick = OrderValidation.thresholdTick(
-      order.zeroForOne,
-      order.tickLower,
-      order.tickUpper
-    );
-    _orderBooks[poolId].insert(thresholdTick, packedOrderId);
-    emit OrderRequeued(poolId, orderId, thresholdTick);
+    if (
+      order.enablePartialFill &&
+      OrderValidation.isIndexedTickCrossed(order.zeroForOne, fromTick, toTick, order.indexedTick)
+    ) {
+      _executePartialOrder(key, poolId, orderId, packedOrderId, order, toTick);
+      return;
+    }
+
+    _orderBooks[poolId].insert(order.indexedTick, packedOrderId);
+    emit OrderRequeued(poolId, orderId, order.indexedTick);
   }
 
   function _storeDeferredExecution(
@@ -862,6 +894,215 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     emit OrderFilled(poolId, orderId, order.owner, amount0, amount1);
   }
 
+  function _initialIndexedTick(
+    bool zeroForOne,
+    int24 tickLower,
+    int24 tickUpper,
+    bool enablePartialFill
+  ) private pure returns (int24 indexedTick) {
+    if (enablePartialFill) {
+      return OrderValidation.partialThresholdTick(zeroForOne, tickLower, tickUpper);
+    }
+
+    return OrderValidation.thresholdTick(zeroForOne, tickLower, tickUpper);
+  }
+
+  function _executePartialOrder(
+    PoolKey memory key,
+    PoolId poolId,
+    uint32 orderId,
+    PackedOrderId packedOrderId,
+    Order memory order,
+    int24 toTick
+  ) private {
+    PartialExecutionResult memory result = _executePartialLiquidity(key, orderId, order, toTick);
+    if (result.remainingLiquidity == 0) {
+      delete _orders[poolId][orderId];
+      emit OrderPartiallyFilled(
+        poolId,
+        orderId,
+        order.owner,
+        result.amount0,
+        result.amount1,
+        result.tickLower,
+        result.tickUpper,
+        result.indexedTick,
+        0
+      );
+      return;
+    }
+
+    _storePartialOrder(poolId, orderId, packedOrderId, result);
+
+    emit OrderPartiallyFilled(
+      poolId,
+      orderId,
+      order.owner,
+      result.amount0,
+      result.amount1,
+      result.tickLower,
+      result.tickUpper,
+      result.indexedTick,
+      result.remainingLiquidity
+    );
+  }
+
+  function _executePartialLiquidity(
+    PoolKey memory key,
+    uint32 orderId,
+    Order memory order,
+    int24 toTick
+  ) private returns (PartialExecutionResult memory result) {
+    BalanceDelta removedDelta = _modifyLiquidity(
+      key,
+      order.tickLower,
+      order.tickUpper,
+      -int256(uint256(order.liquidity)),
+      _positionSalt(orderId),
+      ""
+    );
+    (result.tickLower, result.tickUpper, result.indexedTick) = _remainingPartialRange(
+      key.tickSpacing,
+      order,
+      toTick
+    );
+
+    result.remainingLiquidity = _remainingPartialLiquidity(
+      order.zeroForOne,
+      result.tickLower,
+      result.tickUpper,
+      removedDelta
+    );
+    if (result.remainingLiquidity == 0) {
+      (result.amount0, result.amount1) = _takePositiveDeltas(key, order.owner, removedDelta);
+      return result;
+    }
+
+    BalanceDelta addedDelta = _modifyLiquidity(
+      key,
+      result.tickLower,
+      result.tickUpper,
+      int256(uint256(result.remainingLiquidity)),
+      _positionSalt(orderId),
+      ""
+    );
+    _validatePartialAddDelta(order.zeroForOne, addedDelta);
+    (result.amount0, result.amount1) = _takePositiveNetDeltas(
+      key,
+      order.owner,
+      removedDelta,
+      addedDelta
+    );
+  }
+
+  function _storePartialOrder(
+    PoolId poolId,
+    uint32 orderId,
+    PackedOrderId packedOrderId,
+    PartialExecutionResult memory result
+  ) private {
+    Order storage storedOrder = _orders[poolId][orderId];
+    storedOrder.tickLower = result.tickLower;
+    storedOrder.tickUpper = result.tickUpper;
+    storedOrder.indexedTick = result.indexedTick;
+    storedOrder.liquidity = result.remainingLiquidity;
+    _orderBooks[poolId].insert(result.indexedTick, packedOrderId);
+  }
+
+  function _remainingPartialRange(
+    int24 tickSpacing,
+    Order memory order,
+    int24 toTick
+  ) private pure returns (int24 tickLower, int24 tickUpper, int24 indexedTick) {
+    if (order.zeroForOne) {
+      tickLower = _ceilToSpacing(toTick, tickSpacing);
+      if (tickLower < order.tickLower) {
+        tickLower = order.tickLower;
+      }
+      tickUpper = order.tickUpper;
+      if (tickLower >= tickUpper) {
+        return (tickUpper, tickUpper, tickUpper);
+      }
+
+      indexedTick = tickLower;
+      if (toTick == tickLower) {
+        indexedTick = tickLower + tickSpacing;
+      }
+      if (indexedTick > tickUpper) {
+        indexedTick = tickUpper;
+      }
+      return (tickLower, tickUpper, indexedTick);
+    }
+
+    tickLower = order.tickLower;
+    tickUpper = _floorToSpacing(toTick, tickSpacing);
+    if (tickUpper > order.tickUpper) {
+      tickUpper = order.tickUpper;
+    }
+    if (tickUpper <= tickLower) {
+      return (tickLower, tickLower, tickLower);
+    }
+
+    indexedTick = tickUpper;
+    if (toTick == tickUpper) {
+      indexedTick = tickUpper - tickSpacing;
+    }
+    if (indexedTick < tickLower) {
+      indexedTick = tickLower;
+    }
+  }
+
+  function _remainingPartialLiquidity(
+    bool zeroForOne,
+    int24 tickLower,
+    int24 tickUpper,
+    BalanceDelta removedDelta
+  ) private pure returns (uint128 remainingLiquidity) {
+    if (tickLower >= tickUpper) {
+      return 0;
+    }
+
+    uint256 remainingInputAmount =
+      zeroForOne ? _positiveDeltaAmount0(removedDelta) : _positiveDeltaAmount1(removedDelta);
+    if (remainingInputAmount == 0) {
+      return 0;
+    }
+
+    return _liquidityForAmount(zeroForOne, tickLower, tickUpper, remainingInputAmount);
+  }
+
+  function _positiveDeltaAmount0(BalanceDelta delta) private pure returns (uint256 amount) {
+    int128 amount0 = delta.amount0();
+    int128 amount1 = delta.amount1();
+    if (amount0 < 0 || amount1 < 0) {
+      revert UnexpectedNegativeDelta(amount0, amount1);
+    }
+
+    return uint256(uint128(amount0));
+  }
+
+  function _positiveDeltaAmount1(BalanceDelta delta) private pure returns (uint256 amount) {
+    int128 amount0 = delta.amount0();
+    int128 amount1 = delta.amount1();
+    if (amount0 < 0 || amount1 < 0) {
+      revert UnexpectedNegativeDelta(amount0, amount1);
+    }
+
+    return uint256(uint128(amount1));
+  }
+
+  function _validatePartialAddDelta(bool zeroForOne, BalanceDelta delta) private pure {
+    int128 amount0 = delta.amount0();
+    int128 amount1 = delta.amount1();
+    if (zeroForOne) {
+      if (amount0 > 0 || amount1 != 0) {
+        revert UnexpectedNegativeDelta(amount0, amount1);
+      }
+    } else if (amount1 > 0 || amount0 != 0) {
+      revert UnexpectedNegativeDelta(amount0, amount1);
+    }
+  }
+
   function _modifyLiquidity(
     PoolKey memory key,
     int24 tickLower,
@@ -931,6 +1172,28 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     }
   }
 
+  function _takePositiveNetDeltas(
+    PoolKey memory key,
+    address recipient,
+    BalanceDelta removedDelta,
+    BalanceDelta addedDelta
+  ) private returns (uint256 amount0, uint256 amount1) {
+    int128 delta0 = removedDelta.amount0() + addedDelta.amount0();
+    int128 delta1 = removedDelta.amount1() + addedDelta.amount1();
+    if (delta0 < 0 || delta1 < 0) {
+      revert UnexpectedNegativeDelta(delta0, delta1);
+    }
+
+    if (delta0 > 0) {
+      amount0 = uint256(uint128(delta0));
+      poolManager.take(key.currency0, recipient, amount0);
+    }
+    if (delta1 > 0) {
+      amount1 = uint256(uint128(delta1));
+      poolManager.take(key.currency1, recipient, amount1);
+    }
+  }
+
   function _settle(Currency currency, address owner, uint256 amount) private {
     if (currency.isAddressZero()) {
       revert NativeCurrencyUnsupported();
@@ -982,5 +1245,29 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
 
   function _positionSalt(uint32 orderId) private pure returns (bytes32) {
     return bytes32(uint256(orderId));
+  }
+
+  function _ceilToSpacing(int24 tick, int24 tickSpacing) private pure returns (int24) {
+    int24 floorTick = _floorToSpacing(tick, tickSpacing);
+    if (floorTick == tick) {
+      return floorTick;
+    }
+
+    return floorTick + tickSpacing;
+  }
+
+  function _floorToSpacing(int24 tick, int24 tickSpacing) private pure returns (int24) {
+    if (tickSpacing <= 0) {
+      revert OrderValidation.InvalidTickSpacing(tickSpacing);
+    }
+
+    int256 tickValue = int256(tick);
+    int256 spacingValue = int256(tickSpacing);
+    int256 quotient = tickValue / spacingValue;
+    if (tickValue < 0 && tickValue % spacingValue != 0) {
+      --quotient;
+    }
+
+    return int24(quotient * spacingValue);
   }
 }

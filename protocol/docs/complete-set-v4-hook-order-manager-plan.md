@@ -1170,10 +1170,15 @@ as stale fills. The Solidity tests cover immediate/deferred splitting,
 resolver-role authorization, resolver completion, and reversal requeue followed
 by a later fill.
 
-Remaining Phase 6 scope: partial-fill tick indexing, partial-fill liquidity
-remove/re-add, and deferred payment remain unimplemented. Deferred payment is
-still optional and should be added only if Arc ERC20 USDC transfer behavior
-requires it.
+Phase 6 second slice result: partial-enabled maker orders now index at the first
+fillable range tick, track their active index separately from their liquidity
+range, remove and re-add remaining one-sided liquidity after partial execution,
+pay net proceeds to the maker, and keep working through cancellation, later full
+fill, and deferred resolver batches.
+
+Remaining Phase 6 scope: deferred payment remains unimplemented. Deferred
+payment is still optional and should be added only if Arc ERC20 USDC transfer
+behavior requires it.
 
 ### Phase 7: Pregrad Adapter
 
