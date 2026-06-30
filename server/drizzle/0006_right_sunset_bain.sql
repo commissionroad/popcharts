@@ -1,3 +1,4 @@
+ALTER TABLE "markets" ALTER COLUMN "status" SET DEFAULT 'under_review';--> statement-breakpoint
 CREATE TYPE "public"."ai_review_provider" AS ENUM('anthropic', 'heuristic', 'ollama');--> statement-breakpoint
 CREATE TYPE "public"."ai_review_verdict" AS ENUM('approve', 'reject', 'manual_review');--> statement-breakpoint
 CREATE UNIQUE INDEX "markets_chain_market_hash_idx" ON "markets" USING btree ("chain_id","market_id","metadata_hash");--> statement-breakpoint

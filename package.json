@@ -25,6 +25,7 @@
     "server:dev": "cd server && bun run dev",
     "server:api": "cd server && bun run dev:api",
     "server:indexer": "cd server && bun run dev:indexer",
+    "server:ai-review-smoke": "cd server && bun run smoke:ai-review-runner",
     "server:check": "cd server && bun run typecheck && bun test",
     "local:dev": "node scripts/local-dev.mjs",
     "local:reset": "node scripts/local-reset.mjs",

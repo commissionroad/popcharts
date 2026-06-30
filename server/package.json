@@ -14,6 +14,7 @@
     "dev:ai-review": "bun run --watch src/ai-review/server.ts",
     "dev:ai-review-runner": "bun run --watch src/ai-review-runner/index.ts",
     "dev:indexer": "bun run --watch src/indexer/index.ts",
+    "smoke:ai-review-runner": "bun run src/ai-review-runner/smoke.ts",
     "start:api": "bun run src/api/index.ts",
     "start:ai-review": "bun run src/ai-review/server.ts",
     "start:ai-review-runner": "bun run src/ai-review-runner/index.ts",
