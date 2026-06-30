@@ -20,6 +20,10 @@ const POSTGRES_VOLUME_NAME = `${COMPOSE_PROJECT_NAME}_postgres_data`;
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const helpRequested = args.includes("--help") || args.includes("-h");
+const aiReviewOnly = args.includes("--ai-review-only");
+const noAiReview = args.includes("--no-ai-review");
+const aiReviewEnabled = aiReviewOnly || !noAiReview;
+const keepDb = args.includes("--keep-db");
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -30,13 +34,16 @@ const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
 const rpcWssUrl = `ws://${rpcHost}:${rpcPort}`;
 const apiPort = process.env.LOCAL_API_PORT ?? "3001";
 const appPort = process.env.LOCAL_APP_PORT ?? "3000";
+const aiReviewPort = process.env.LOCAL_AI_REVIEW_PORT ?? "3002";
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const appBaseUrl = `http://127.0.0.1:${appPort}`;
+const aiReviewBaseUrl = `http://127.0.0.1:${aiReviewPort}`;
 
 const serverEnvFile = resolve(serverDir, ".env.local-chain");
 const appEnvFile = resolve(appDir, ".env.development.local");
 const healthFile = resolve(serverDir, ".env.local-dev.indexer-health");
 const children = new Set();
+let shuttingDown = false;
 
 if (helpRequested) {
   printUsage();
@@ -56,22 +63,62 @@ main().catch(async (error) => {
 });
 
 async function main() {
-  console.log("=== Pop Charts local dev stack ===\n");
+  console.log(
+    aiReviewOnly
+      ? "=== Pop Charts local AI review stack ===\n"
+      : "=== Pop Charts local dev stack ===\n",
+  );
   rejectUnknownArgs();
+  rejectConflictingArgs();
   ensureDependenciesInstalled();
 
   rmSync(healthFile, { force: true });
 
+  const reuseExistingHardhatRpc = !aiReviewOnly && (await rpcReady());
+  if (!aiReviewOnly && !reuseExistingHardhatRpc && !keepDb) {
+    await resetLocalPostgresForFreshChain();
+  } else if (!aiReviewOnly && !reuseExistingHardhatRpc && keepDb) {
+    console.warn(
+      "[local-dev] --keep-db was passed while starting a fresh Hardhat chain. " +
+        "Old local market rows may not match the new chain.",
+    );
+  }
+
   await ensurePostgres();
 
   const initialServerEnv = buildServerEnv();
+  await run(
+    "db constraints",
+    "bun",
+    ["run", "--cwd", "server", "db:ensure-local-constraints"],
+    {
+      cwd: repoRoot,
+      env: initialServerEnv,
+    },
+  );
   await run("db", "bun", ["run", "--cwd", "server", "db:push"], {
     cwd: repoRoot,
     env: initialServerEnv,
   });
 
+  if (aiReviewOnly) {
+    const aiReviewProcesses = await startAiReviewStack({
+      serverEnv: initialServerEnv,
+    });
+
+    console.log("\nLocal AI review stack is ready:");
+    console.log(`- AI Review service: ${aiReviewBaseUrl}`);
+    console.log(`- AI Review readiness: ${aiReviewBaseUrl}/ready`);
+    console.log(`- Runner: polling Postgres every ${localAiReviewRunnerPollMs()}ms`);
+    console.log(`- Database: ${databaseUrl}`);
+    console.log("\nPress Ctrl-C to stop the AI review service and runner.");
+
+    await waitForever(aiReviewProcesses);
+    return;
+  }
+
   let hardhatNode = null;
-  if (await rpcReady()) {
+  if (reuseExistingHardhatRpc) {
     console.log(`[local-dev] using existing Hardhat RPC at ${rpcHttpUrl}`);
   } else {
     hardhatNode = start("hardhat", "pnpm", [
@@ -113,6 +160,10 @@ async function main() {
   writeServerEnv(serverEnv, deploy);
   writeAppEnv(appEnv);
 
+  const aiReviewProcesses = aiReviewEnabled
+    ? await startAiReviewStack({ serverEnv })
+    : [];
+
   const api = start("api", "bun", ["run", "--cwd", "server", "start:api"], {
     env: serverEnv,
   });
@@ -153,7 +204,13 @@ async function main() {
     },
   );
   await waitFor("Next.js app", () => urlOk(`${appBaseUrl}/create`), {
-    processes: [api, indexer, app, ...(hardhatNode ? [hardhatNode] : [])],
+    processes: [
+      api,
+      indexer,
+      app,
+      ...aiReviewProcesses,
+      ...(hardhatNode ? [hardhatNode] : []),
+    ],
     timeoutMs: 120_000,
   });
 
@@ -162,18 +219,35 @@ async function main() {
   console.log(`- Create market: ${appBaseUrl}/create`);
   console.log(`- Markets list: ${appBaseUrl}/`);
   console.log(`- API: ${apiBaseUrl}/markets?chainId=${deploy.chainId}`);
+  if (aiReviewEnabled) {
+    console.log(`- AI Review service: ${aiReviewBaseUrl}`);
+    console.log(`- AI Review runner: enabled`);
+  } else {
+    console.log(`- AI Review runner: disabled`);
+  }
   console.log(`- Hardhat RPC: ${rpcHttpUrl}`);
   console.log(`- PregradManager: ${deploy.pregradManagerAddress}`);
   console.log(`- Collateral: ${deploy.collateralAddress}`);
   console.log(`- App env: ${appEnvFile}`);
   console.log(`- Server env: ${serverEnvFile}`);
-  console.log("\nPress Ctrl-C to stop API, indexer, app, and local chain.");
+  console.log(
+    "\nPress Ctrl-C to stop API, indexer, app, AI review, and local chain.",
+  );
 
-  await new Promise(() => {});
+  await waitForever([
+    api,
+    indexer,
+    app,
+    ...aiReviewProcesses,
+    ...(hardhatNode ? [hardhatNode] : []),
+  ]);
 }
 
 function printUsage() {
   console.log(`Usage: pnpm run local:dev
+       pnpm run local:dev -- --no-ai-review
+       pnpm run local:dev -- --keep-db
+       pnpm run local:ai-review
 
 Start the full local Pop Charts stack:
   - docker-compose Postgres
@@ -181,21 +255,56 @@ Start the full local Pop Charts stack:
   - local PregradManager and MockCollateral deployment
   - Bun API server
   - Bun indexer
+  - local AI Review service and runner in heuristic mode
   - Next.js app configured for devchain market creation
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
+  LOCAL_AI_REVIEW_PORT=3002
+  LOCAL_AI_REVIEW_PROVIDER=heuristic
+  LOCAL_AI_REVIEW_INTERNET_ACCESS=off
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
 }
 
 function rejectUnknownArgs() {
-  const unknownArgs = args.filter((arg) => arg !== "--help" && arg !== "-h");
+  const knownArgs = new Set([
+    "--ai-review-only",
+    "--help",
+    "--keep-db",
+    "--no-ai-review",
+    "-h",
+  ]);
+  const unknownArgs = args.filter((arg) => !knownArgs.has(arg));
 
   if (unknownArgs.length > 0) {
     throw new Error(
       `Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`,
     );
+  }
+}
+
+function rejectConflictingArgs() {
+  if (aiReviewOnly && noAiReview) {
+    throw new Error("--ai-review-only cannot be combined with --no-ai-review.");
+  }
+}
+
+async function resetLocalPostgresForFreshChain() {
+  console.log(
+    "[local-dev] no existing Hardhat RPC; clearing local Postgres so the projection matches the fresh chain",
+  );
+
+  const mountedVolumes = await dockerContainerVolumeNames(
+    POSTGRES_CONTAINER_NAME,
+  );
+
+  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
+    await removeDockerContainerAndVolumes(POSTGRES_CONTAINER_NAME);
+  }
+
+  for (const volumeName of new Set([...mountedVolumes, POSTGRES_VOLUME_NAME])) {
+    await removeDockerVolumeIfExists(volumeName);
   }
 }
 
@@ -243,17 +352,7 @@ async function ensurePostgres() {
       await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
         cwd: repoRoot,
       });
-      await waitFor("Postgres readiness", () =>
-        commandSucceeds("docker", [
-          "exec",
-          POSTGRES_CONTAINER_NAME,
-          "pg_isready",
-          "-U",
-          "postgres",
-          "-d",
-          "popcharts",
-        ]),
-      );
+      await waitFor("Postgres readiness", () => postgresReady());
       return;
     }
   }
@@ -263,22 +362,33 @@ async function ensurePostgres() {
     env: dockerComposeEnv(),
   });
   await waitFor("Postgres readiness", () =>
-    commandSucceeds(
-      "docker",
-      [
-        "compose",
-        "exec",
-        "-T",
-        "postgres",
-        "pg_isready",
-        "-U",
-        "postgres",
-        "-d",
-        "popcharts",
-      ],
-      dockerComposeEnv(),
-    ),
+    postgresReady(),
   );
+}
+
+async function postgresReady() {
+  return commandSucceeds("docker", [
+    "exec",
+    POSTGRES_CONTAINER_NAME,
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    "popcharts",
+    "-c",
+    "select 1",
+  ]);
+}
+
+async function removeDockerVolumeIfExists(volumeName) {
+  if (!(await dockerVolumeExists(volumeName))) {
+    return;
+  }
+
+  console.log(`[local-dev] removing stale Docker volume ${volumeName}`);
+  await run("postgres", "docker", ["volume", "rm", "-f", volumeName], {
+    cwd: repoRoot,
+  });
 }
 
 async function removeDockerContainerAndVolumes(name) {
@@ -350,8 +460,21 @@ async function dockerContainerExists(name) {
   return result.code === 0;
 }
 
+async function dockerVolumeExists(name) {
+  const result = await collect("docker", ["volume", "inspect", name], {
+    cwd: repoRoot,
+    env: process.env,
+    print: false,
+    rejectOnFailure: false,
+  });
+
+  return result.code === 0;
+}
+
 function buildServerEnv(overrides = {}) {
   return {
+    AI_REVIEW_SERVICE_URL: aiReviewBaseUrl,
+    AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
     DATABASE_URL: databaseUrl,
     HEALTH_CHECK_FILE: healthFile,
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
@@ -359,6 +482,7 @@ function buildServerEnv(overrides = {}) {
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     NETWORK: "local",
     PORT: apiPort,
+    POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
       process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
@@ -367,6 +491,71 @@ function buildServerEnv(overrides = {}) {
     RPC_HTTP_URL: rpcHttpUrl,
     RPC_WSS_URL: rpcWssUrl,
   };
+}
+
+async function startAiReviewStack({ serverEnv }) {
+  const aiReviewEnv = buildAiReviewEnv(serverEnv);
+  const aiReview = start(
+    "ai-review",
+    "bun",
+    ["run", "--cwd", "server", "start:ai-review"],
+    {
+      env: aiReviewEnv,
+    },
+  );
+
+  await waitFor(
+    "AI Review service readiness",
+    () => urlOk(`${aiReviewBaseUrl}/ready`),
+    {
+      processes: [aiReview],
+      timeoutMs: 30_000,
+    },
+  );
+
+  const runner = start(
+    "ai-review-runner",
+    "bun",
+    ["run", "--cwd", "server", "start:ai-review-runner"],
+    {
+      env: buildAiReviewRunnerEnv(serverEnv),
+    },
+  );
+
+  return [aiReview, runner];
+}
+
+function buildAiReviewEnv(serverEnv) {
+  return {
+    ...serverEnv,
+    AI_REVIEW_FETCH_SEARCH_RESULTS:
+      process.env.LOCAL_AI_REVIEW_FETCH_SEARCH_RESULTS ?? "false",
+    AI_REVIEW_INTERNET_ACCESS: localAiReviewInternetAccess(),
+    AI_REVIEW_PORT: aiReviewPort,
+    AI_REVIEW_PROVIDER: localAiReviewProvider(),
+  };
+}
+
+function buildAiReviewRunnerEnv(serverEnv) {
+  return {
+    ...serverEnv,
+    AI_REVIEW_RUNNER_ID:
+      process.env.LOCAL_AI_REVIEW_RUNNER_ID ?? "local-ai-review-runner",
+    AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
+    AI_REVIEW_SERVICE_URL: aiReviewBaseUrl,
+  };
+}
+
+function localAiReviewProvider() {
+  return process.env.LOCAL_AI_REVIEW_PROVIDER ?? "heuristic";
+}
+
+function localAiReviewInternetAccess() {
+  return process.env.LOCAL_AI_REVIEW_INTERNET_ACCESS ?? "off";
+}
+
+function localAiReviewRunnerPollMs() {
+  return process.env.LOCAL_AI_REVIEW_RUNNER_POLL_MS ?? "1000";
 }
 
 function buildAppEnv(deploy) {
@@ -397,7 +586,10 @@ function writeServerEnv(env, deploy) {
     `DATABASE_URL=${env.DATABASE_URL}`,
     `PORT=${env.PORT}`,
     "NETWORK=local",
+    `POPCHARTS_ADMIN_REVIEW_ENABLED=${env.POPCHARTS_ADMIN_REVIEW_ENABLED}`,
     `POPCHARTS_DEV_TOOLS_ENABLED=${env.POPCHARTS_DEV_TOOLS_ENABLED}`,
+    `AI_REVIEW_SERVICE_URL=${env.AI_REVIEW_SERVICE_URL}`,
+    `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
     `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
@@ -486,6 +678,13 @@ async function commandSucceeds(command, args, env = process.env) {
   return result.code === 0;
 }
 
+async function waitForever(processes) {
+  while (true) {
+    assertProcessesRunning(processes);
+    await sleep(1_000);
+  }
+}
+
 async function collect(command, args, options) {
   const child = spawn(command, args, {
     cwd: options.cwd,
@@ -553,6 +752,10 @@ async function waitFor(label, predicate, options = {}) {
 }
 
 function assertProcessesRunning(processes) {
+  if (shuttingDown) {
+    return;
+  }
+
   for (const processInfo of processes) {
     if (processInfo.code !== null) {
       throw new Error(
@@ -630,6 +833,12 @@ function sleep(ms) {
 }
 
 async function shutdown(code) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+
   for (const processInfo of [...children].reverse()) {
     await stop(processInfo);
   }

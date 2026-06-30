@@ -60,8 +60,14 @@ server-ai-review-smoke:
 server-check:
     pnpm run server:check
 
-local-dev:
-    pnpm run local:dev
+local-dev *args:
+    pnpm run local:dev -- {{args}}
+
+local-ai-review *args:
+    pnpm run local:ai-review -- {{args}}
+
+local-dev-ai-review *args:
+    pnpm run local:dev:ai-review -- {{args}}
 
 local-reset:
     pnpm run local:reset

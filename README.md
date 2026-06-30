@@ -33,11 +33,15 @@ just local-dev
 `local-dev` starts docker-compose Postgres, pushes the Drizzle schema, starts a
 Hardhat local chain, deploys `MockCollateral` and `PregradManager`, writes
 matching ignored env blocks for `server/` and `app/`, starts the Bun API,
-starts the indexer, and starts the Next.js app. It uses wallet-signed market
-creation, so connect an injected browser wallet on the Hardhat local chain.
-Open `http://127.0.0.1:3000/create`, create a market, then refresh
-`http://127.0.0.1:3000/` to see it from the indexed markets API. Press Ctrl-C in
-the `just local-dev` terminal to stop the API, indexer, app, and local chain.
+starts the indexer, starts the local AI Review service and runner, and starts
+the Next.js app. It uses wallet-signed market creation, so connect an injected
+browser wallet on the Hardhat local chain. Open `http://127.0.0.1:3000/create`,
+create a market, then refresh `http://127.0.0.1:3000/` to see it from the
+indexed markets API. The local review service defaults to the heuristic
+provider on `http://127.0.0.1:3002`, and the runner polls Postgres for
+`under_review` markets. Press Ctrl-C in the `just local-dev` terminal to stop
+the API, indexer, app, AI review processes, and local chain. Run
+`just local-dev --no-ai-review` if you need the older stack shape temporarily.
 Run `just local-reset` to remove the local Postgres container and data volumes
 before starting again from an empty database.
 
@@ -46,7 +50,9 @@ before starting again from an empty database.
 ```bash
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
-just local-dev      # run frontend, API, indexer, Postgres, and local chain
+just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
+just local-ai-review # run only Postgres, AI Review service, and runner
+just local-dev-ai-review # explicit alias for the full AI-review local stack
 just local-reset    # clear the local Postgres container and data volumes
 just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
