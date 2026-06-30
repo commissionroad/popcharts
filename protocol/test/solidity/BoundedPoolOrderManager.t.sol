@@ -45,6 +45,7 @@ contract BoundedPoolOrderManagerTest is Test {
   int24 private constant BASE_TICK_UPPER = 600;
   int24 private constant ORDER_TICK_LOWER = 60;
   int24 private constant ORDER_TICK_UPPER = 120;
+  int24 private constant PARTIAL_ORDER_TICK_UPPER = 240;
   uint128 private constant BASE_LIQUIDITY = 100_000e18;
   uint256 private constant ORDER_AMOUNT = 100e18;
   uint256 private constant STARTING_BALANCE = 1_000_000e18;
@@ -296,6 +297,83 @@ contract BoundedPoolOrderManagerTest is Test {
     assertEq(_activeOrderCount(orderIds), 0);
   }
 
+  function test_PartialFillPaysMakerAndReaddsRemainingLiquidity() public {
+    (uint32 orderId, uint128 initialLiquidity, ) = _createPartialMakerOrder();
+    uint256 makerToken1Before = token1.balanceOf(MAKER);
+
+    _movePriceUpTo(120);
+
+    BoundedPoolOrderManager.Order memory order = orderManager.getOrder(poolId, orderId);
+    assertEq(order.owner, MAKER);
+    assertTrue(order.enablePartialFill);
+    assertGt(order.tickLower, ORDER_TICK_LOWER);
+    assertEq(order.tickUpper, PARTIAL_ORDER_TICK_UPPER);
+    assertGe(order.indexedTick, order.tickLower);
+    assertLe(order.indexedTick, order.tickUpper);
+    assertGt(initialLiquidity, order.liquidity);
+    assertGt(order.liquidity, 0);
+    assertGt(token1.balanceOf(MAKER), makerToken1Before);
+    assertEq(_positionLiquidity(orderId, ORDER_TICK_LOWER, PARTIAL_ORDER_TICK_UPPER), 0);
+    assertEq(_positionLiquidity(orderId, order.tickLower, order.tickUpper), order.liquidity);
+  }
+
+  function test_CancelAfterPartialFillReturnsRemainingInventory() public {
+    (uint32 orderId, , ) = _createPartialMakerOrder();
+    _movePriceUpTo(120);
+
+    BoundedPoolOrderManager.Order memory order = orderManager.getOrder(poolId, orderId);
+    uint256 makerToken0BeforeCancel = token0.balanceOf(MAKER);
+
+    vm.prank(MAKER);
+    (uint256 amount0, uint256 amount1) = orderManager.cancelOrder(poolKey, orderId, "");
+
+    assertGt(amount0, 0);
+    assertEq(amount1, 0);
+    assertEq(token0.balanceOf(MAKER), makerToken0BeforeCancel + amount0);
+    assertEq(_positionLiquidity(orderId, order.tickLower, order.tickUpper), 0);
+
+    order = orderManager.getOrder(poolId, orderId);
+    assertEq(order.owner, address(0));
+  }
+
+  function test_PartialFillCanLaterFullyFill() public {
+    (uint32 orderId, , ) = _createPartialMakerOrder();
+    _movePriceUpTo(120);
+    BoundedPoolOrderManager.Order memory order = orderManager.getOrder(poolId, orderId);
+    uint256 makerToken1AfterPartial = token1.balanceOf(MAKER);
+    int24 remainingTickLower = order.tickLower;
+    int24 remainingTickUpper = order.tickUpper;
+
+    _movePriceUpTo(360);
+
+    order = orderManager.getOrder(poolId, orderId);
+    assertEq(order.owner, address(0));
+    assertGt(token1.balanceOf(MAKER), makerToken1AfterPartial);
+    assertEq(_positionLiquidity(orderId, remainingTickLower, remainingTickUpper), 0);
+  }
+
+  function test_DeferredExecutionCanPartiallyFillRemainingBatch() public {
+    orderManager.setMaximumExecutionCount(1);
+    uint32[] memory orderIds = _createPartialMakerOrders(2);
+    uint256 makerToken1Before = token1.balanceOf(MAKER);
+
+    vm.recordLogs();
+    _movePriceUpTo(120);
+    bytes32 executionId = _lastDeferredExecutionId();
+
+    assertEq(_activeOrderCount(orderIds), 2);
+
+    (uint256 processedCount, bool complete) = orderManager.resolveDeferredExecution(executionId, 0);
+    assertEq(processedCount, 1);
+    assertTrue(complete);
+    assertEq(_activeOrderCount(orderIds), 2);
+    assertGt(token1.balanceOf(MAKER), makerToken1Before);
+
+    orderManager.setMaximumExecutionCount(type(uint256).max);
+    _movePriceUpTo(360);
+    assertEq(_activeOrderCount(orderIds), 0);
+  }
+
   function test_RejectsUnauthorizedPoolsHooksAndCancels() public {
     PoolKey memory unlistedKey = poolKey;
     unlistedKey.fee = 500;
@@ -337,16 +415,31 @@ contract BoundedPoolOrderManagerTest is Test {
     private
     returns (uint32 orderId, uint128 liquidity, uint256 amountIn)
   {
+    return _createMakerOrderWithConfig(false, ORDER_TICK_LOWER, ORDER_TICK_UPPER);
+  }
+
+  function _createPartialMakerOrder()
+    private
+    returns (uint32 orderId, uint128 liquidity, uint256 amountIn)
+  {
+    return _createMakerOrderWithConfig(true, ORDER_TICK_LOWER, PARTIAL_ORDER_TICK_UPPER);
+  }
+
+  function _createMakerOrderWithConfig(
+    bool enablePartialFill,
+    int24 tickLower,
+    int24 tickUpper
+  ) private returns (uint32 orderId, uint128 liquidity, uint256 amountIn) {
     vm.prank(MAKER);
     return
       orderManager.createOrder(
         BoundedPoolOrderManager.CreateOrderParams({
           key: poolKey,
           zeroForOne: true,
-          tickLower: ORDER_TICK_LOWER,
-          tickUpper: ORDER_TICK_UPPER,
+          tickLower: tickLower,
+          tickUpper: tickUpper,
           amountInMaximum: ORDER_AMOUNT,
-          enablePartialFill: false,
+          enablePartialFill: enablePartialFill,
           hookData: ""
         })
       );
@@ -356,6 +449,15 @@ contract BoundedPoolOrderManagerTest is Test {
     orderIds = new uint32[](orderCount);
     for (uint256 i = 0; i < orderCount; ++i) {
       (orderIds[i], , ) = _createMakerOrder();
+    }
+  }
+
+  function _createPartialMakerOrders(
+    uint256 orderCount
+  ) private returns (uint32[] memory orderIds) {
+    orderIds = new uint32[](orderCount);
+    for (uint256 i = 0; i < orderCount; ++i) {
+      (orderIds[i], , ) = _createPartialMakerOrder();
     }
   }
 
@@ -381,13 +483,17 @@ contract BoundedPoolOrderManagerTest is Test {
   }
 
   function _movePriceUp() private {
+    _movePriceUpTo(240);
+  }
+
+  function _movePriceUpTo(int24 tick) private {
     vm.prank(TAKER);
     router.swap(
       poolKey,
       SwapParams({
         zeroForOne: false,
         amountSpecified: -int256(10_000e18),
-        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(240)
+        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tick)
       }),
       TAKER,
       ""
@@ -405,6 +511,20 @@ contract BoundedPoolOrderManagerTest is Test {
       }),
       TAKER,
       ""
+    );
+  }
+
+  function _positionLiquidity(
+    uint32 orderId,
+    int24 tickLower,
+    int24 tickUpper
+  ) private view returns (uint128 liquidity) {
+    (liquidity, , ) = stateView.getPositionInfo(
+      poolId,
+      address(orderManager),
+      tickLower,
+      tickUpper,
+      bytes32(uint256(orderId))
     );
   }
 
