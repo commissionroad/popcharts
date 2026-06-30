@@ -8,6 +8,9 @@ import {MockCollateral} from "../../contracts/mocks/MockCollateral.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
+import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
+import {CompleteSetPostgradAdapter} from "../../contracts/postgrad/CompleteSetPostgradAdapter.sol";
+import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
 
 contract PregradManagerTest is Test {
@@ -76,6 +79,43 @@ contract PregradManagerTest is Test {
   );
 
   event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
+
+  event GraduationFinalized(
+    uint256 indexed marketId,
+    address indexed postgradAdapter,
+    address indexed postgradMarket,
+    uint256 completeSetCount,
+    uint256 retainedCostTotal,
+    uint256 refundTotal
+  );
+
+  event GraduatedReceiptClaimed(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    MarketTypes.Side side,
+    uint256 retainedShares,
+    uint256 retainedCost,
+    uint256 refund
+  );
+
+  event RefundedReceiptClaimed(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed owner,
+    uint256 refund
+  );
+
+  struct SubmittedClearingFixture {
+    uint256 marketId;
+    uint256 receiptId;
+    address buyer;
+    MarketTypes.ReceiptQuote quote;
+    MarketTypes.ReceiptClaim claim;
+    uint256 matchedMarketCap;
+    uint256 refundTotal;
+    uint64 challengeDeadline;
+  }
 
   MockCollateral private collateral;
   PregradManager private manager;
@@ -1126,6 +1166,222 @@ contract PregradManagerTest is Test {
     );
   }
 
+  function test_FinalizeGraduationFundsCompleteSetAdapterAfterChallenge() public {
+    SubmittedClearingFixture memory fixture = _submitSingleReceiptClearingRoot();
+    CompleteSetPostgradAdapter adapter = _deployPostgradAdapter();
+    bytes32[] memory proof = new bytes32[](0);
+
+    assertEq(adapter.postgradMarket(fixture.marketId), address(0));
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        fixture.marketId,
+        MarketTypes.MarketStatus.Graduating,
+        MarketTypes.MarketStatus.Graduated
+      )
+    );
+    manager.claimGraduatedReceipt(fixture.claim, proof);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.ClearingChallengeActive.selector,
+        fixture.marketId,
+        fixture.challengeDeadline
+      )
+    );
+    manager.finalizeGraduation(fixture.marketId, address(adapter));
+
+    vm.warp(fixture.challengeDeadline);
+
+    vm.expectRevert(PregradManager.InvalidPostgradAdapter.selector);
+    manager.finalizeGraduation(fixture.marketId, address(0));
+
+    manager.finalizeGraduation(fixture.marketId, address(adapter));
+
+    address postgradMarketAddress = adapter.postgradMarket(fixture.marketId);
+    CompleteSetPostgradAdapter.PreparedMarket memory prepared = adapter.getPreparedMarket(
+      fixture.marketId
+    );
+    CompleteSetBinaryMarket postgradMarket = CompleteSetBinaryMarket(postgradMarketAddress);
+    MarketTypes.MarketState memory state = manager.getMarketState(fixture.marketId);
+
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Graduated));
+    assertEq(state.totalEscrowed, fixture.refundTotal);
+    assertEq(manager.getPostgradAdapter(fixture.marketId), address(adapter));
+    assertTrue(prepared.prepared);
+    assertEq(prepared.market, postgradMarketAddress);
+    assertEq(prepared.collateral, address(collateral));
+    assertEq(prepared.metadataHash, manager.getMarketConfig(fixture.marketId).metadataHash);
+    assertEq(prepared.retainedCollateral, fixture.matchedMarketCap);
+    assertEq(prepared.completeSetCount, fixture.matchedMarketCap);
+    assertEq(postgradMarket.retainedMinter(), address(adapter));
+    assertEq(postgradMarket.resolver(), address(this));
+    assertEq(collateral.balanceOf(address(postgradMarket)), fixture.matchedMarketCap);
+    assertEq(collateral.balanceOf(address(adapter)), 0);
+    assertEq(collateral.balanceOf(address(manager)), fixture.refundTotal);
+    assertEq(postgradMarket.yesToken().totalSupply(), 0);
+    assertEq(postgradMarket.noToken().totalSupply(), 0);
+  }
+
+  function test_FinalizeGraduationRejectsMissingRootAndWrongStatus() public {
+    CompleteSetPostgradAdapter adapter = _deployPostgradAdapter();
+    uint256 activeMarketId = _createGraduatableMarket();
+    uint256 graduatingMarketId = _createGraduatingMarketWithReceipt();
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        activeMarketId,
+        MarketTypes.MarketStatus.Active,
+        MarketTypes.MarketStatus.Graduating
+      )
+    );
+    manager.finalizeGraduation(activeMarketId, address(adapter));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.ClearingRootMissing.selector, graduatingMarketId)
+    );
+    manager.finalizeGraduation(graduatingMarketId, address(adapter));
+  }
+
+  function test_ClaimGraduatedReceiptMintsCorrectSideAndRefunds() public {
+    (
+      SubmittedClearingFixture memory fixture,
+      CompleteSetPostgradAdapter adapter,
+      CompleteSetBinaryMarket postgradMarket
+    ) = _finalizeSingleReceiptMarket();
+    bytes32[] memory proof = new bytes32[](0);
+    OutcomeToken yesToken = postgradMarket.yesToken();
+    OutcomeToken noToken = postgradMarket.noToken();
+    uint256 buyerBalanceBefore = collateral.balanceOf(fixture.buyer);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit GraduatedReceiptClaimed(
+      fixture.receiptId,
+      fixture.marketId,
+      fixture.buyer,
+      fixture.claim.side,
+      fixture.claim.retainedShares,
+      fixture.claim.retainedCost,
+      fixture.claim.refund
+    );
+
+    manager.claimGraduatedReceipt(fixture.claim, proof);
+
+    MarketTypes.Receipt memory receipt = manager.getReceipt(fixture.receiptId);
+    MarketTypes.MarketState memory state = manager.getMarketState(fixture.marketId);
+
+    assertFalse(receipt.active);
+    assertEq(state.totalEscrowed, 0);
+    assertEq(adapter.postgradMarket(fixture.marketId), address(postgradMarket));
+    assertEq(yesToken.balanceOf(fixture.buyer), fixture.claim.retainedShares);
+    assertEq(noToken.balanceOf(fixture.buyer), 0);
+    assertEq(yesToken.totalSupply(), fixture.claim.retainedShares);
+    assertEq(noToken.totalSupply(), 0);
+    assertEq(collateral.balanceOf(fixture.buyer), buyerBalanceBefore + fixture.claim.refund);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+    assertEq(collateral.balanceOf(address(postgradMarket)), fixture.claim.retainedCost);
+  }
+
+  function test_ClaimGraduatedReceiptRejectsInvalidProofAndDoubleClaim() public {
+    (SubmittedClearingFixture memory fixture, , ) = _finalizeSingleReceiptMarket();
+    bytes32[] memory proof = new bytes32[](0);
+    MarketTypes.ReceiptClaim memory wrongLeaf = MarketTypes.ReceiptClaim({
+      marketId: fixture.claim.marketId,
+      receiptId: fixture.claim.receiptId,
+      owner: fixture.claim.owner,
+      side: fixture.claim.side,
+      retainedShares: fixture.claim.retainedShares - 1,
+      retainedCost: fixture.claim.retainedCost,
+      refund: fixture.claim.refund
+    });
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidClaimProof.selector, fixture.receiptId)
+    );
+    manager.claimGraduatedReceipt(wrongLeaf, proof);
+
+    manager.claimGraduatedReceipt(fixture.claim, proof);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, fixture.receiptId)
+    );
+    manager.claimGraduatedReceipt(fixture.claim, proof);
+  }
+
+  function test_ClaimGraduatedReceiptRejectsReceiptMismatch() public {
+    (SubmittedClearingFixture memory fixture, , ) = _finalizeSingleReceiptMarket();
+    bytes32[] memory proof = new bytes32[](0);
+    MarketTypes.ReceiptClaim memory wrongCost = fixture.claim;
+    ++wrongCost.refund;
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.InvalidReceiptClaim.selector, fixture.receiptId)
+    );
+    manager.claimGraduatedReceipt(wrongCost, proof);
+  }
+
+  function test_AdapterCannotMintWithoutManagerApprovedClaim() public {
+    (
+      SubmittedClearingFixture memory fixture,
+      CompleteSetPostgradAdapter adapter,
+      CompleteSetBinaryMarket postgradMarket
+    ) = _finalizeSingleReceiptMarket();
+    address attacker = makeAddr("attacker");
+
+    vm.prank(attacker);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CompleteSetPostgradAdapter.UnauthorizedPregradManager.selector,
+        attacker
+      )
+    );
+    adapter.distributeOutcome(fixture.marketId, attacker, MarketTypes.Side.Yes, 1 * WAD);
+
+    vm.prank(attacker);
+    vm.expectRevert(
+      abi.encodeWithSelector(CompleteSetBinaryMarket.UnauthorizedRetainedMinter.selector, attacker)
+    );
+    postgradMarket.mintRetainedSide(attacker, MarketTypes.Side.Yes, 1 * WAD);
+
+    assertEq(postgradMarket.yesToken().balanceOf(attacker), 0);
+  }
+
+  function test_ClaimRefundedReceiptReturnsFullEscrowOnce() public {
+    address buyer = makeAddr("refund-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.No,
+      100 * WAD
+    );
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    vm.warp(config.graduationDeadline);
+    manager.markRefundable(marketId);
+
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
+
+    manager.claimRefundedReceipt(receiptId);
+
+    MarketTypes.Receipt memory receipt = manager.getReceipt(receiptId);
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+
+    assertFalse(receipt.active);
+    assertEq(state.totalEscrowed, 0);
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, receiptId)
+    );
+    manager.claimRefundedReceipt(receiptId);
+  }
+
   function test_HashReceiptClaimIsDeterministic() public view {
     MarketTypes.ReceiptClaim memory claim = MarketTypes.ReceiptClaim({
       marketId: 1,
@@ -1151,6 +1407,83 @@ contract PregradManagerTest is Test {
     );
 
     assertEq(manager.hashReceiptClaim(claim), expectedHash);
+  }
+
+  function _submitSingleReceiptClearingRoot()
+    private
+    returns (SubmittedClearingFixture memory fixture)
+  {
+    address buyer = makeAddr("graduated-buyer");
+    uint256 marketId = _createGraduatableMarket();
+
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      100 * WAD
+    );
+    uint256 matchedMarketCap = 50 * WAD;
+    assertGe(quote.cost, matchedMarketCap);
+
+    MarketTypes.ReceiptClaim memory claim = MarketTypes.ReceiptClaim({
+      marketId: marketId,
+      receiptId: receiptId,
+      owner: buyer,
+      side: MarketTypes.Side.Yes,
+      retainedShares: matchedMarketCap,
+      retainedCost: matchedMarketCap,
+      refund: quote.cost - matchedMarketCap
+    });
+
+    manager.startGraduation(marketId);
+    manager.submitClearingRoot(
+      MarketTypes.SubmitClearingRootParams({
+        marketId: marketId,
+        merkleRoot: manager.hashReceiptClaim(claim),
+        matchedMarketCap: matchedMarketCap,
+        retainedCostTotal: matchedMarketCap,
+        refundTotal: claim.refund,
+        completeSetCount: matchedMarketCap
+      })
+    );
+
+    MarketTypes.ClearingRoot memory clearingRoot = manager.getClearingRoot(marketId);
+    fixture = SubmittedClearingFixture({
+      marketId: marketId,
+      receiptId: receiptId,
+      buyer: buyer,
+      quote: quote,
+      claim: claim,
+      matchedMarketCap: matchedMarketCap,
+      refundTotal: claim.refund,
+      challengeDeadline: clearingRoot.challengeDeadline
+    });
+  }
+
+  function _finalizeSingleReceiptMarket()
+    private
+    returns (
+      SubmittedClearingFixture memory fixture,
+      CompleteSetPostgradAdapter adapter,
+      CompleteSetBinaryMarket postgradMarket
+    )
+  {
+    fixture = _submitSingleReceiptClearingRoot();
+    adapter = _deployPostgradAdapter();
+    vm.warp(fixture.challengeDeadline);
+    manager.finalizeGraduation(fixture.marketId, address(adapter));
+    postgradMarket = CompleteSetBinaryMarket(adapter.postgradMarket(fixture.marketId));
+  }
+
+  function _deployPostgradAdapter() private returns (CompleteSetPostgradAdapter) {
+    return
+      new CompleteSetPostgradAdapter({
+        pregradManager_: address(manager),
+        owner_: address(this),
+        resolver_: address(this),
+        outcomeDecimals_: 18
+      });
   }
 
   function _createDefaultMarket() private returns (uint256) {
