@@ -137,12 +137,13 @@ amounts.
 Current `main` state:
 
 - `PregradManager` supports market creation, receipt placement, graduation
-  start, optimistic clearing-root submission, and refund marking.
-- `MarketTypes.ReceiptClaim` already has `retainedShares`, `retainedCost`, and
-  `refund` fields.
-- The current mainline does not yet expose finalization, Merkle proof claims, or
-  a real `IPostgradAdapter` contract. Those need to land before users can claim
-  postgrad tokens.
+  start, optimistic clearing-root submission, refund marking, finalization, and
+  receipt claims.
+- `MarketTypes.ReceiptClaim` has `retainedShares`, `retainedCost`, and `refund`
+  fields, and finalized claims verify `retainedCost + refund == receipt.cost`.
+- `CompleteSetPostgradAdapter` prepares a complete-set market from retained
+  collateral and only mints retained YES/NO claims after `PregradManager`
+  verifies the submitted claim leaf.
 
 ## Recommended Architecture
 
@@ -259,7 +260,8 @@ Implement and test the ERC20 complete-set market:
 
 ### Phase 2: Pregrad Adapter
 
-Finish the `PregradManager` settlement/claim surface and adapter boundary:
+Phase 2 result: the `PregradManager` settlement/claim surface and adapter
+boundary are wired:
 
 - finalization waits until challenge deadline
 - claim leaves prove `retainedCost + refund == receipt.cost`

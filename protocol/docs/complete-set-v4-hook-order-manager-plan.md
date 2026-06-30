@@ -302,9 +302,9 @@ and explicitly keeps a mainnet CTF-wrapper revisit open.
 
 The current protocol branch for this document has `PregradManager` support for
 market creation, receipt placement, graduation start, optimistic clearing-root
-submission, and refund marking. Full finalization, Merkle proof claims, and a
-real postgrad adapter are a dependency if they are not already landed in the
-target implementation branch.
+submission, refund marking, finalization, and Merkle proof claims. The Phase 7
+adapter slice wires finalized retained collateral into complete-set postgrad
+markets and keeps unmatched refund escrow in `PregradManager`.
 
 ## Architecture
 
@@ -1197,6 +1197,12 @@ Exit criteria:
 - retained claimant gets correct side token
 - double claim reverts
 - adapter cannot mint without manager-approved claim
+
+Phase 7 result: `CompleteSetPostgradAdapter` now deploys a complete-set market
+for finalized pregrad settlements, pulls exactly the retained collateral amount
+approved by `PregradManager`, funds retained outcome capacity, and mints retained
+YES/NO balances only through manager-verified receipt claims. Refunded markets
+settle from `PregradManager` without touching the postgrad adapter.
 
 ### Phase 8: Arc Testnet Deployment
 

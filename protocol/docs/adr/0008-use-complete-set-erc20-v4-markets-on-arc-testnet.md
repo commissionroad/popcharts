@@ -18,10 +18,10 @@ Uniswap v4 pools also expect ERC20-like currencies, so the ERC20 route is the
 shortest path to testing the venue mechanics on Arc.
 
 The current protocol branch has market creation, receipt placement, graduation
-start, optimistic clearing-root submission, and refund marking. It does not yet
-have finalization, Merkle proof claims, or a real postgrad adapter. The postgrad
-market can therefore be implemented and tested independently before it is wired
-to pregrad claims.
+start, optimistic clearing-root submission, refund marking, finalization, Merkle
+proof claims, and a real postgrad adapter. The postgrad market remains
+separately testable, but finalized pregrad claims can now fund and mint through
+the adapter boundary.
 
 ## Decision
 
@@ -41,8 +41,8 @@ The first implementation will:
   cancellation/draw redemption
 - support retained-collateral funding plus controlled single-side retained
   claim mints
-- leave the actual `PregradManager` adapter for the branch that adds
-  finalization and Merkle claims
+- connect retained funding and single-side retained claim mints through the
+  `PregradManager` adapter once finalization is accepted
 
 Uniswap v4 dependencies, hook mining, the order manager, Arc deployment
 manifests, and keeper scripts are later phases. They should build on the tested
