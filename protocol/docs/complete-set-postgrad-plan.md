@@ -207,7 +207,7 @@ Add explicit Arc Testnet deployment manifests:
 
 Add scripts:
 
-- `scripts/check-arc-v4.mjs`
+- `scripts/check-venue-deployment.mjs`
   - Checks configured `PoolManager`, `PositionManager`, `StateView`, `Quoter`,
     `UniversalRouter`, and `Permit2` addresses for bytecode.
   - Prints chain ID and block number.
