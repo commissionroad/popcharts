@@ -21,6 +21,8 @@ Upstream license: MIT. See
   regression-test.
 - `engineering/improve-codebase-architecture` helps keep modules deep and
   testable as the frontend grows beyond the initial launch surface.
+- `engineering/protocol-code-quality` adapts TypeScript clean-code rules to
+  protocol contracts, scripts, tests, comments, naming, and strict type edges.
 - `engineering/protocol-deployment-scripts` captures the local conventions for
   protocol deploy entrypoints, shared EVM helpers, and Blockscout verification.
 - `engineering/prototype` gives a sanctioned way to explore UI or state-machine
@@ -40,3 +42,5 @@ These are reference workflows, not product code. Use them alongside
 - Prefer behavior tests at public interfaces over implementation-detail tests.
 - Use TDD tracer bullets for LMSR math, receipt accounting, and clearing.
 - Use diagnose for any failing invariant, flaky test, or confusing revert.
+- Keep Prettier, Solhint, TypeScript strict mode, and any future TypeScript
+  ESLint rules aligned with `engineering/protocol-code-quality`.

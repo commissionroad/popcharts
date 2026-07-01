@@ -1,6 +1,6 @@
 ---
 name: protocol-deployment-scripts
-description: Use when creating, reviewing, or refactoring Pop Charts protocol deployment scripts under protocol/scripts, especially EVM testnet deploy scripts, shared deployment helpers, Hardhat artifacts, viem clients, Blockscout verification, or scripts/shared organization.
+description: Use when creating, reviewing, or refactoring Pop Charts protocol deployment scripts under protocol/scripts, especially EVM testnet deploy scripts, shared deployment helpers, Hardhat artifacts, viem clients, Blockscout verification, deployment manifests, or scripts/shared organization.
 ---
 
 # Protocol Deployment Scripts
@@ -14,22 +14,27 @@ verification, local manifests, and deployment preflight checks.
 
 ## Workflow
 
-1. Read `protocol/AGENTS.md` first and follow its required protocol docs.
+1. Read `protocol/AGENTS.md` and `protocol/skills/engineering/protocol-code-quality/SKILL.md` first.
 2. Keep chain-specific scripts thin. The entrypoint owns network defaults,
    env parsing, contract selection, and manifest shape.
 3. Move reusable behavior into `protocol/scripts/shared/`.
 4. Run Hardhat-backed commands sequentially. Do not run `pnpm typecheck`,
    `pnpm build`, or deploy scripts in parallel over the same artifact/cache tree.
-5. Verify with:
+5. For non-broadcast helper or CLI changes, verify the targeted script with
+   `node --check`, its `--help` path, at least one happy path into ignored
+   `protocol/cache/`, and one expected error path.
+6. Verify protocol health with:
 
 ```bash
 pnpm --dir protocol format:check
 pnpm --dir protocol typecheck
-pnpm --dir protocol arc:testnet:deploy-mock
+pnpm --dir protocol test
 ```
 
-The deploy command may intentionally stop at a funded-wallet guard. That is a
-valid pre-broadcast check when the deployer has no native gas token.
+For broadcast-capable deployment scripts, add the relevant dry-run or preflight
+command. `pnpm --dir protocol arc:testnet:deploy-mock` may intentionally stop
+at a funded-wallet guard; that is a valid pre-broadcast check when the deployer
+has no native gas token.
 Use `pnpm --dir protocol arc:testnet:deploy` when the task is to broadcast and
 verify the full Arc Testnet protocol surface. Full protocol deploys should use
 Hardhat Ignition modules for deployment state and resume/reconcile behavior; keep
@@ -55,8 +60,10 @@ Prefer these categories when they fit: `account`, `artifact`, `chain`, `cli`,
 `contract`, `explorer`, `json`, `log`, `time`, and `viem`. If a helper does not
 fit, create a new one-word folder.
 
-Add a short comment immediately above every function. The comment should explain
-why the helper exists or what guardrail it provides.
+Add a short comment immediately above every exported shared helper function.
+The comment should explain why the helper exists or what guardrail it provides.
+For entrypoint-local helpers, comment only non-obvious invariants, security
+constraints, or protocol-specific guardrails.
 
 ## Abstraction Rules
 

@@ -884,13 +884,13 @@ Inputs:
 - manifest path
 - required contract entries as `name=address`
 - optional contract entries as `name=address`
-- optional deployer, block number, and per-contract deployment block metadata
+- optional deployer, manifest block number, and per-contract block metadata
 
 Output:
 
 - `deployments/venue-stack.json` by default
 - a `contracts` map where each entry has `address`, `required`, and optional
-  deployment metadata
+  block metadata
 
 Phase 8 manifest slice result: `scripts/write-venue-manifest.mjs` provides the
 repeatable manifest writer behind `pnpm deployment:write-venue-manifest`. It
