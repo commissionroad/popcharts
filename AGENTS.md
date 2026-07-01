@@ -16,6 +16,13 @@
 
 # Personal Commands
 
+- When the user writes `/grill`, `/grill-with-docs`, or asks for an interactive
+  "grill me" session, use `skills/engineering/grill-with-docs/SKILL.md`. The
+  session is interactive: inspect docs/code when the answer is discoverable,
+  ask one hard question at a time, include a recommended answer, and wait for
+  the user's response before continuing. Update glossary/ADR docs inline only
+  as decisions crystallize. Do not proceed to implementation until the user
+  explicitly says to implement, continue, or take it from here after the grill.
 - When the user writes `/land` or asks to land a PR, run `land` from the
   relevant repository. Pass a PR number, PR URL, or branch if the user provides
   one; otherwise run it from the feature branch worktree. The command merges the
