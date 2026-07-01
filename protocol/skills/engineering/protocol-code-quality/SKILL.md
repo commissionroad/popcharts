@@ -52,9 +52,16 @@ language.
 ## Types
 
 - Keep `strict` TypeScript on. Do not weaken `tsconfig` for convenience.
+- New protocol scripts, script helpers, task actions, tests, and shared
+  TypeScript surfaces should be plain `.ts`. The package already uses ESM with
+  `type: module` and `moduleResolution: NodeNext`, so `.mts` is unnecessary
+  unless a tool explicitly requires it.
+- Prefer Hardhat tasks or `hardhat run` for protocol TypeScript entrypoints.
+  Do not add Bun as a protocol runner unless the PR demonstrates that Hardhat
+  cannot execute the task safely.
 - Public TypeScript boundaries need explicit parameter and return types:
   exported functions, exported classes, exported types, test fixtures shared
-  across files, and `.mjs` helpers imported from `.ts`.
+  across files, and task action inputs.
 - Tiny local callbacks and obvious local helpers may use inference when it keeps
   code clearer and the boundary is still typed.
 - Avoid `any` at boundaries. Use `unknown` plus narrowing, `Address`,
@@ -62,8 +69,9 @@ language.
   explicit manifest types.
 - Prefer `satisfies` for object literals that define manifests, config, or
   generated metadata.
-- When TypeScript imports an `.mjs` helper, add a focused `.d.mts` declaration
-  instead of letting the import become `any`.
+- For legacy `.mjs` helpers, prefer converting the touched helper and its
+  consumers to `.ts` inside the same slice. Add a focused `.d.mts` declaration
+  only when an unchanged legacy direct-Node helper must stay `.mjs` for that PR.
 
 ## Modules
 
@@ -72,6 +80,9 @@ language.
   create pass-through helpers that only rename one line.
 - Put reusable script helpers under one-word `protocol/scripts/shared/*`
   categories. Keep entrypoints thin: config, preflight, action, manifest, logs.
+- Use Hardhat custom tasks for operator-facing protocol CLIs when the command
+  needs typed options, environment defaults, or shared task help. Keep task
+  actions thin and delegate behavior to typed modules.
 - Make temporal coupling explicit: build before artifact reads, assert chain
   before broadcast, verify bytecode before trusting manifests.
 

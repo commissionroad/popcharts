@@ -4,6 +4,7 @@ import { parseGwei } from "viem";
 
 import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.mjs";
 import { ARCSCAN } from "./scripts/shared/explorer/arcscan.mjs";
+import venueDeploymentTasks from "./scripts/tasks/venueDeployment.js";
 
 const ARC_TESTNET_RPC_URL = process.env.POPCHARTS_RPC_URL ?? ARC_TESTNET.rpcUrl;
 const ARCSCAN_BROWSER_URL = process.env.POPCHARTS_ARCSCAN_BROWSER_URL ?? ARCSCAN.browserUrl;
@@ -18,6 +19,7 @@ const soliditySettings = {
 
 export default defineConfig({
   plugins: [hardhatToolboxViem],
+  tasks: [...venueDeploymentTasks],
   chainDescriptors: {
     [ARC_TESTNET.chainId]: {
       blockExplorers: {

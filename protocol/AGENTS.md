@@ -17,6 +17,10 @@ v4.
 
 Use Hardhat 3, TypeScript, pnpm, and the viem toolbox. Prefer Solidity tests for
 contract-unit behavior and TypeScript tests for deployment and integration flows.
+New protocol scripts, script helpers, deployment tasks, and tests should be
+plain `.ts` by default. Use `.mjs` only when direct Node execution is genuinely
+required and the PR explains why; do not introduce `.mts` or `.d.mts` bridges for
+new TypeScript work when Hardhat can run the `.ts` entrypoint.
 
 Receipts are provisional priced intents until graduation. Never name or model
 pre-graduation receipts as final fills, positions, or outcome tokens.

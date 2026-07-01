@@ -1,20 +1,9 @@
-import { getAddress, isAddress } from "viem";
-
-/**
- * Reads the required value that follows a CLI flag.
- */
-export function readRequiredArg(args, index, flag) {
-  const value = args[index];
-  if (!value || value.startsWith("--")) {
-    throw new Error(`Expected a value after ${flag}.`);
-  }
-  return value;
-}
+import { getAddress, isAddress, type Address } from "viem";
 
 /**
  * Normalizes an EVM address from CLI, environment, or manifest input.
  */
-export function requireAddress(value, label) {
+export function requireAddress(value: unknown, label: string): Address {
   if (typeof value !== "string" || !isAddress(value)) {
     throw new Error(`Expected ${label} to be an Ethereum address.`);
   }
@@ -24,7 +13,7 @@ export function requireAddress(value, label) {
 /**
  * Parses a positive safe integer from CLI, environment, or manifest input.
  */
-export function requirePositiveInteger(value, label) {
+export function requirePositiveInteger(value: unknown, label: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(`Expected ${label} to be a positive integer.`);
@@ -35,7 +24,7 @@ export function requirePositiveInteger(value, label) {
 /**
  * Parses a non-negative safe integer from CLI, environment, or manifest input.
  */
-export function requireNonNegativeInteger(value, label) {
+export function requireNonNegativeInteger(value: unknown, label: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`Expected ${label} to be a non-negative integer.`);
@@ -46,7 +35,7 @@ export function requireNonNegativeInteger(value, label) {
 /**
  * Requires a non-empty string from CLI, environment, or manifest input.
  */
-export function requireString(value, label) {
+export function requireString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`Expected ${label} to be set.`);
   }

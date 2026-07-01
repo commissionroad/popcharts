@@ -1,6 +1,6 @@
-import { getAddress, isAddress } from "viem";
+import { getAddress, isAddress, type Address } from "viem";
 
-import { requireAddress, requireNonNegativeInteger } from "../cli/requireCliValue.mjs";
+import { requireAddress, requireNonNegativeInteger } from "../cli/requireCliValue.js";
 
 export const DEFAULT_VENUE_DEPLOYMENT_FILE = "deployments/venue-stack.json";
 
@@ -14,11 +14,40 @@ const NON_CONTRACT_ADDRESS_FIELDS = new Set([
   "resolver",
 ]);
 
+export type VenueContractSpec = {
+  readonly required: boolean;
+  readonly spec: string;
+};
+
+export type VenueContract = {
+  readonly address: Address;
+  readonly blockNumber?: string;
+  readonly name: string;
+  readonly required: boolean;
+};
+
+export type VenueManifestContractEntry = {
+  readonly address: Address;
+  readonly blockNumber?: string;
+  readonly required: boolean;
+};
+
+export type VenueAddressEntry = {
+  readonly address: Address;
+  readonly name: string;
+  readonly required: boolean;
+};
+
+type AddressEntryMap = Map<string, VenueAddressEntry>;
+type UnknownRecord = Record<string, unknown>;
+
 /**
  * Normalizes CLI contract specs into sorted manifest contract entries.
  */
-export function normalizeVenueContractEntries(contractSpecs) {
-  const contracts = new Map();
+export function normalizeVenueContractEntries(
+  contractSpecs: readonly VenueContractSpec[],
+): VenueContract[] {
+  const contracts = new Map<string, VenueContract>();
   for (const contractSpec of contractSpecs) {
     const contract = parseVenueContractSpec(contractSpec);
     if (contracts.has(contract.name)) {
@@ -33,7 +62,7 @@ export function normalizeVenueContractEntries(contractSpecs) {
 /**
  * Parses a manifest contract spec written as name=address or name=address@block.
  */
-export function parseVenueContractSpec({ required, spec }) {
+export function parseVenueContractSpec({ required, spec }: VenueContractSpec): VenueContract {
   const separatorIndex = spec.indexOf("=");
   if (separatorIndex <= 0 || separatorIndex === spec.length - 1) {
     throw new Error(`Expected contract entry to use name=address or name=address@block: ${spec}`);
@@ -65,29 +94,29 @@ export function parseVenueContractSpec({ required, spec }) {
 /**
  * Formats a normalized contract entry for the venue deployment manifest.
  */
-export function formatVenueContractEntry(contract) {
-  const entry = {
+export function formatVenueContractEntry(contract: VenueContract): VenueManifestContractEntry {
+  return {
     address: contract.address,
+    ...(contract.blockNumber === undefined ? {} : { blockNumber: contract.blockNumber }),
     required: contract.required,
   };
-  if (contract.blockNumber !== undefined) {
-    entry.blockNumber = contract.blockNumber;
-  }
-  return entry;
 }
 
 /**
  * Collects checker-readable addresses from supported venue manifest shapes.
  */
-export function collectVenueAddressEntries(manifest, requiredKeys) {
-  const entries = new Map();
+export function collectVenueAddressEntries(
+  manifest: unknown,
+  requiredKeys?: ReadonlySet<string>,
+): VenueAddressEntry[] {
+  const entries: AddressEntryMap = new Map();
   collectTopLevelAddressEntries({ entries, manifest, requiredKeys });
   for (const container of ADDRESS_CONTAINERS) {
     collectContainerAddressEntries({
       entries,
       path: [container],
       requiredKeys,
-      value: manifest?.[container],
+      value: isPlainObject(manifest) ? manifest[container] : undefined,
     });
   }
 
@@ -106,7 +135,15 @@ export function collectVenueAddressEntries(manifest, requiredKeys) {
   return [...entries.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function collectTopLevelAddressEntries({ entries, manifest, requiredKeys }) {
+function collectTopLevelAddressEntries({
+  entries,
+  manifest,
+  requiredKeys,
+}: {
+  entries: AddressEntryMap;
+  manifest: unknown;
+  requiredKeys?: ReadonlySet<string>;
+}): void {
   if (!isPlainObject(manifest)) {
     return;
   }
@@ -128,7 +165,17 @@ function collectTopLevelAddressEntries({ entries, manifest, requiredKeys }) {
   }
 }
 
-function collectContainerAddressEntries({ entries, path, requiredKeys, value }) {
+function collectContainerAddressEntries({
+  entries,
+  path,
+  requiredKeys,
+  value,
+}: {
+  entries: AddressEntryMap;
+  path: readonly string[];
+  requiredKeys?: ReadonlySet<string>;
+  value: unknown;
+}): void {
   if (!isPlainObject(value)) {
     return;
   }
@@ -162,7 +209,17 @@ function collectContainerAddressEntries({ entries, path, requiredKeys, value }) 
   }
 }
 
-function addAddressEntry({ entries, name, required, value }) {
+function addAddressEntry({
+  entries,
+  name,
+  required,
+  value,
+}: {
+  entries: AddressEntryMap;
+  name: string;
+  required: boolean;
+  value: string;
+}): void {
   const address = getAddress(value);
   entries.set(name, {
     address,
@@ -171,10 +228,10 @@ function addAddressEntry({ entries, name, required, value }) {
   });
 }
 
-function isAddressLike(value) {
+function isAddressLike(value: unknown): value is Address {
   return typeof value === "string" && isAddress(value);
 }
 
-function isPlainObject(value) {
+function isPlainObject(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { parseRequiredVenueKeys } from "../../scripts/check-venue-deployment.js";
 import {
   collectVenueAddressEntries,
   formatVenueContractEntry,
   normalizeVenueContractEntries,
   parseVenueContractSpec,
-} from "../../scripts/shared/deployment/venueManifest.mjs";
+} from "../../scripts/shared/deployment/venueManifest.js";
+import { parseVenueContractOptionList } from "../../scripts/write-venue-manifest.js";
 
 describe("venue manifest helpers", function () {
   it("normalizes CLI contract specs into sorted manifest entries", function () {
@@ -113,5 +115,30 @@ describe("venue manifest helpers", function () {
         required: true,
       },
     ]);
+  });
+
+  it("parses Hardhat task option lists", function () {
+    assert.deepEqual(
+      parseVenueContractOptionList(
+        "poolManager=0x0000000000000000000000000000000000000001@0, positionManager=0x0000000000000000000000000000000000000002",
+        true,
+      ),
+      [
+        {
+          required: true,
+          spec: "poolManager=0x0000000000000000000000000000000000000001@0",
+        },
+        {
+          required: true,
+          spec: "positionManager=0x0000000000000000000000000000000000000002",
+        },
+      ],
+    );
+
+    assert.deepEqual(
+      [...(parseRequiredVenueKeys("poolManager, deterministicFactory, ") ?? [])],
+      ["poolManager", "deterministicFactory"],
+    );
+    assert.equal(parseRequiredVenueKeys(" , "), undefined);
   });
 });

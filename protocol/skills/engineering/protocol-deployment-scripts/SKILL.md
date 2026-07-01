@@ -20,9 +20,10 @@ verification, local manifests, and deployment preflight checks.
 3. Move reusable behavior into `protocol/scripts/shared/`.
 4. Run Hardhat-backed commands sequentially. Do not run `pnpm typecheck`,
    `pnpm build`, or deploy scripts in parallel over the same artifact/cache tree.
-5. For non-broadcast helper or CLI changes, verify the targeted script with
-   `node --check`, its `--help` path, at least one happy path into ignored
-   `protocol/cache/`, and one expected error path.
+5. For non-broadcast helper or CLI changes, verify the targeted Hardhat task or
+   TypeScript entrypoint through its `--help` path, at least one happy path into
+   ignored `protocol/cache/`, and one expected error path. Use protocol-local
+   `pnpm typecheck` instead of `node --check` for `.ts` files.
 6. Verify protocol health with:
 
 ```bash
@@ -44,17 +45,25 @@ script wrapper.
 ## Shared Helper Shape
 
 Use one-word category folders under `protocol/scripts/shared/`, and put exactly
-one function implementation in each helper file. Use `.mjs` for helpers that
-plain Node scripts import directly, and `.ts` for typed Hardhat/Ignition helpers
-used by TypeScript scripts. Add `.d.mts` declarations when a TypeScript file
-imports an existing `.mjs` helper.
+one function implementation in each helper file. New protocol deployment
+scripts, helpers, Hardhat task actions, and tests should be plain `.ts`.
+Use `.mjs` only for legacy direct-Node entrypoints that cannot reasonably move
+to Hardhat in the same PR, and explain that exception in the PR. Do not add
+new `.mts` or `.d.mts` bridge files for fresh TypeScript work.
+
+For operator-facing CLIs, prefer custom Hardhat tasks over hand-rolled
+`process.argv` parsing. Task definitions own option names, defaults, and help
+text; typed modules own validation, manifest construction, preflight checks, and
+chain reads. Package-script options for Hardhat tasks are passed directly, for
+example `pnpm --dir protocol deployment:write-venue-manifest --chain-id 31337`;
+do not insert a standalone `--` before task options.
 
 Examples:
 
-- `shared/json/readJson.mjs`
-- `shared/chain/defineEvmChain.mjs`
-- `shared/viem/createViemClients.mjs`
-- `shared/explorer/verifyBlockscoutStandardJson.mjs`
+- `shared/json/jsonFile.ts`
+- `shared/deployment/venueManifest.ts`
+- `shared/hardhat/assertHardhatNetwork.ts`
+- `tasks/venueDeployment.ts`
 
 Prefer these categories when they fit: `account`, `artifact`, `chain`, `cli`,
 `contract`, `explorer`, `json`, `log`, `time`, and `viem`. If a helper does not
