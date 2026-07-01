@@ -11,7 +11,7 @@ import type {
 } from ".././models";
 
 /**
- * Marks an eligible market graduated once matched liquidity reaches its threshold. This first pass records the state change and clearing summary off-chain.
+ * Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.
  * @summary Request market graduation
  */
 export type postMarketsByChainIdByMarketIdGraduateResponse200 = {

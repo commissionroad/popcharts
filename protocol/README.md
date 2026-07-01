@@ -42,8 +42,13 @@ pnpm typecheck
 `contracts/PregradManager.sol` is the singleton manager for all pre-graduation
 markets. It currently supports market creation, receipt placement, virtual LMSR
 quotes, collateral escrow, manager-started graduation, and optimistic clearing
-root submission. Claims, challenges, refunds, and postgrad token handoff will
-land in later vertical slices.
+root submission. It can finalize an unchallenged clearing root, fund a
+postgrad adapter, verify per-receipt Merkle claims, distribute retained
+outcomes through that adapter, and pay onchain refunds.
+
+The protocol still does not compute band-pass clearing onchain. The offchain
+clearing service produces the root and claim leaves. Bonded challenges and a
+production CTF-style postgrad adapter will land in later vertical slices.
 
 ## Postgrad Testnet Slice
 

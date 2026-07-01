@@ -22,7 +22,11 @@ export const MarketStatusSchema = t.Union([
   t.Literal("rejected"),
 ]);
 
-export type GraduationIneligibleReason = "below_threshold" | "wrong_status";
+export type GraduationIneligibleReason =
+  | "below_threshold"
+  | "clearing_pending"
+  | "onchain_settlement_required"
+  | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
 export type ManualAiReviewIneligibleReason =
   | "missing_metadata"
@@ -228,7 +232,12 @@ export const GraduationResponseSchema = t.Object({
 export const GraduationIneligibleSchema = t.Object({
   message: t.String(),
   market: MarketSchema,
-  reason: t.Union([t.Literal("below_threshold"), t.Literal("wrong_status")]),
+  reason: t.Union([
+    t.Literal("below_threshold"),
+    t.Literal("clearing_pending"),
+    t.Literal("onchain_settlement_required"),
+    t.Literal("wrong_status"),
+  ]),
   status: t.Literal("ineligible"),
   summary: GraduationSummarySchema,
 });

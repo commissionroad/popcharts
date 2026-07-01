@@ -60,7 +60,7 @@ describe("submitMarketForReview", () => {
 
 function validDraft() {
   return {
-    ...createInitialMarketDraft(new Date("2026-07-01T12:00:00.000Z")),
+    ...createInitialMarketDraft(new Date("2030-07-01T12:00:00.000Z")),
     question: "Will the review queue accept this market?",
     resolutionCriteria: "Resolves YES if the review submission endpoint accepts it.",
   };

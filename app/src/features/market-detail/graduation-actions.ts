@@ -23,7 +23,7 @@ export async function graduateMarketAction(
     revalidatePath(`/markets/${marketId}/graduation`);
 
     return {
-      message: "Graduated. Trading is closed.",
+      message: "Graduation finalized onchain. Trading is closed.",
       status: "success",
     };
   } catch (error) {

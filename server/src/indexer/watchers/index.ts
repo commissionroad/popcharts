@@ -10,3 +10,4 @@ export {
   recoverReceiptPlacedEvents,
   watchReceiptPlacedEvents,
 } from "./receipt-placed";
+export { recoverSettlementEvents, watchSettlementEvents } from "./settlement";

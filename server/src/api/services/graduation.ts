@@ -29,6 +29,16 @@ type GraduationMarketRow = {
   metadata: MarketMetadataRow | null;
 };
 
+type GraduationReadiness =
+  | {
+      kind: "already_graduated";
+    }
+  | {
+      kind: "ineligible";
+      message: string;
+      reason: GraduationIneligibleReason;
+    };
+
 export type MarketGraduationResult =
   | {
       kind: "graduated";
@@ -104,6 +114,52 @@ export function serializeGraduationSummary({
   };
 }
 
+export function evaluateGraduationReadiness({
+  graduationThreshold,
+  matchedMarketCap,
+  status,
+}: {
+  graduationThreshold: bigint;
+  matchedMarketCap: bigint;
+  status: MarketRow["status"];
+}): GraduationReadiness {
+  if (status === "graduated") {
+    return { kind: "already_graduated" };
+  }
+
+  if (status === "graduating") {
+    return {
+      kind: "ineligible",
+      message:
+        "Onchain graduation is in progress. Wait for the clearing root challenge window to finish and for the graduation manager to finalize the market.",
+      reason: "clearing_pending",
+    };
+  }
+
+  if (status !== "bootstrap") {
+    return {
+      kind: "ineligible",
+      message: `Market is ${status}; only bootstrap markets can enter onchain graduation.`,
+      reason: "wrong_status",
+    };
+  }
+
+  if (matchedMarketCap < graduationThreshold) {
+    return {
+      kind: "ineligible",
+      message: "Matched liquidity is below this market's graduation threshold.",
+      reason: "below_threshold",
+    };
+  }
+
+  return {
+    kind: "ineligible",
+    message:
+      "Market is graduation-eligible, but settlement must happen onchain: start graduation, submit a clearing Merkle root, wait through the challenge window, then finalize with a postgrad adapter.",
+    reason: "onchain_settlement_required",
+  };
+}
+
 export async function requestMarketGraduation({
   chainId,
   marketId,
@@ -150,8 +206,13 @@ export async function requestMarketGraduation({
       totalEscrowed: row.market.totalEscrowed,
     }),
   );
+  const readiness = evaluateGraduationReadiness({
+    graduationThreshold: row.market.graduationThreshold,
+    matchedMarketCap,
+    status: row.market.status,
+  });
 
-  if (row.market.status === "graduated") {
+  if (readiness.kind === "already_graduated") {
     return {
       kind: "graduated",
       market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
@@ -159,52 +220,11 @@ export async function requestMarketGraduation({
     };
   }
 
-  if (row.market.status !== "bootstrap") {
-    return {
-      kind: "ineligible",
-      market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
-      message: `Market is ${row.market.status}; only bootstrap markets can graduate in this first pass.`,
-      reason: "wrong_status",
-      summary,
-    };
-  }
-
-  if (matchedMarketCap < row.market.graduationThreshold) {
-    return {
-      kind: "ineligible",
-      market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
-      message: "Matched liquidity is below this market's graduation threshold.",
-      reason: "below_threshold",
-      summary,
-    };
-  }
-
-  const [updatedMarket] = await db
-    .update(schema.markets)
-    .set({
-      status: "graduated",
-      updatedAt: graduatedAt,
-    })
-    .where(
-      and(
-        eq(schema.markets.chainId, chainId),
-        eq(schema.markets.marketId, parsedMarketId),
-        eq(schema.markets.status, "bootstrap"),
-      ),
-    )
-    .returning();
-
   return {
-    kind: "graduated",
-    market: serializeMarketRow(
-      updatedMarket ?? {
-        ...row.market,
-        status: "graduated",
-        updatedAt: graduatedAt,
-      },
-      row.metadata,
-      matchedMarketCap,
-    ),
+    kind: "ineligible",
+    market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
+    message: readiness.message,
+    reason: readiness.reason,
     summary,
   };
 }
