@@ -114,6 +114,8 @@ function createDependencies({
       status: "refunded",
       updatedAt,
     }),
+    getMatchedMarketCap: async (market) =>
+      market.yesShares < market.noShares ? market.yesShares : market.noShares,
     selectMarket: async ({ chainId, marketId }) =>
       chainId === market.chainId && marketId === market.marketId
         ? { market, metadata: null }
