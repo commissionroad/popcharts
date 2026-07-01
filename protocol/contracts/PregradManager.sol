@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IPostgradAdapter} from "./interfaces/IPostgradAdapter.sol";
+import {IPostgradAdapter} from "./postgrad/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
@@ -298,13 +298,15 @@ contract PregradManager is Ownable, ReentrancyGuard {
 
   /// @notice Emitted when an accepted clearing root becomes the final graduation settlement.
   /// @param marketId Market whose clearing root was finalized.
-  /// @param postgradAdapter Adapter that receives retained collateral and distributes outcomes.
+  /// @param postgradAdapter Adapter that prepared the postgrad market.
+  /// @param postgradMarket Complete-set market prepared for retained claims.
   /// @param completeSetCount Number of complete YES/NO sets backed by retained collateral.
   /// @param retainedCostTotal Collateral retained for postgrad complete sets.
   /// @param refundTotal Collateral left in the manager for receipt refunds.
   event GraduationFinalized(
     uint256 indexed marketId,
     address indexed postgradAdapter,
+    address indexed postgradMarket,
     uint256 completeSetCount,
     uint256 retainedCostTotal,
     uint256 refundTotal
@@ -786,21 +788,31 @@ contract PregradManager is Ownable, ReentrancyGuard {
     MarketTypes.ClearingRoot storage clearingRoot = _requireClearingRoot(marketId);
     _requireChallengeComplete(marketId, clearingRoot.challengeDeadline);
 
+    IERC20 collateralToken = IERC20(market.config.collateral);
+    uint256 balanceBefore = collateralToken.balanceOf(address(this));
+    collateralToken.forceApprove(postgradAdapter, clearingRoot.retainedCostTotal);
+    address postgradMarket = IPostgradAdapter(postgradAdapter).prepareMarket(
+      marketId,
+      market.config.collateral,
+      market.config.metadataHash,
+      clearingRoot.retainedCostTotal,
+      clearingRoot.completeSetCount
+    );
+    collateralToken.forceApprove(postgradAdapter, 0);
+    uint256 balanceAfter = collateralToken.balanceOf(address(this));
+    uint256 transferred = balanceBefore > balanceAfter ? balanceBefore - balanceAfter : 0;
+    if (transferred != clearingRoot.retainedCostTotal) {
+      revert InvalidCollateralTransfer(clearingRoot.retainedCostTotal, transferred);
+    }
+
     market.state.status = MarketTypes.MarketStatus.Graduated;
     market.state.totalEscrowed = clearingRoot.refundTotal;
     _postgradAdapters[marketId] = postgradAdapter;
 
-    IERC20(market.config.collateral).safeTransfer(postgradAdapter, clearingRoot.retainedCostTotal);
-    IPostgradAdapter(postgradAdapter).prepareMarket(
-      marketId,
-      market.config.collateral,
-      market.config.metadataHash,
-      clearingRoot.completeSetCount
-    );
-
     emit GraduationFinalized(
       marketId,
       postgradAdapter,
+      postgradMarket,
       clearingRoot.completeSetCount,
       clearingRoot.retainedCostTotal,
       clearingRoot.refundTotal

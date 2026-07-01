@@ -16,6 +16,10 @@ const client = postgres(connectionString, {
 
 export const db = drizzle(client, { schema });
 
+export async function closeDb() {
+  await client.end({ timeout: 5 });
+}
+
 export function createDb(url: string) {
   const needsSsl = requiresDatabaseSsl(url);
 
@@ -27,4 +31,15 @@ export function createDb(url: string) {
 }
 
 export { schema };
-export { and, asc, desc, eq, gt, or, sql } from "drizzle-orm";
+export {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";

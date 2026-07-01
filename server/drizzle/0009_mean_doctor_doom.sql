@@ -49,6 +49,7 @@ CREATE TABLE "graduation_finalized_events" (
 	"log_index" integer NOT NULL,
 	"market_id" bigint NOT NULL,
 	"postgrad_adapter" text NOT NULL,
+	"postgrad_market" text NOT NULL,
 	"complete_set_count" numeric(78, 0) NOT NULL,
 	"retained_cost_total" numeric(78, 0) NOT NULL,
 	"refund_total" numeric(78, 0) NOT NULL,

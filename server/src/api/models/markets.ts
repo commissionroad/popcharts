@@ -27,6 +27,10 @@ export type GraduationIneligibleReason =
   | "clearing_pending"
   | "onchain_settlement_required"
   | "wrong_status";
+export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
+export type ManualAiReviewIneligibleReason =
+  | "missing_metadata"
+  | "wrong_status";
 
 export const MarketMetadataSchema = t.Object({
   category: t.String(),
@@ -53,7 +57,114 @@ export const MarketMetadataWriteSchema = t.Object({
   resolutionUrl: t.Optional(t.String()),
 });
 
+export const AiReviewProviderSchema = t.Union([
+  t.Literal("anthropic"),
+  t.Literal("heuristic"),
+  t.Literal("ollama"),
+]);
+
+export const AiReviewVerdictSchema = t.Union([
+  t.Literal("approve"),
+  t.Literal("reject"),
+  t.Literal("manual_review"),
+]);
+
+export const AiReviewScoresSchema = t.Object({
+  contentSafety: t.Number(),
+  corroboration: t.Number(),
+  disputeRisk: t.Number(),
+  objectivity: t.Number(),
+  promptInjectionRisk: t.Number(),
+  publicKnowability: t.Number(),
+  sourceQuality: t.Number(),
+});
+
+export const AiReviewSourceTierSchema = t.Union([
+  t.Literal("primary"),
+  t.Literal("major_news"),
+  t.Literal("specialist"),
+  t.Literal("ugc"),
+  t.Literal("suspicious"),
+  t.Literal("unreachable"),
+  t.Literal("unknown"),
+]);
+
+export const AiReviewSourceCheckSchema = t.Object({
+  domain: t.String(),
+  notes: t.String(),
+  relevant: t.Boolean(),
+  sourceTier: AiReviewSourceTierSchema,
+  url: t.String(),
+});
+
+export const AiReviewEvidenceSchema = t.Object({
+  domain: t.String(),
+  kind: t.Union([
+    t.Literal("provided_url"),
+    t.Literal("search_result"),
+    t.Literal("fetched_page"),
+  ]),
+  sourceTier: AiReviewSourceTierSchema,
+  summary: t.String(),
+  title: t.Optional(t.String()),
+  url: t.String(),
+});
+
+export const MarketAiReviewSchema = t.Object({
+  createdAt: t.String(),
+  evidence: t.Array(AiReviewEvidenceSchema),
+  hardFlags: t.Array(t.String()),
+  id: t.Number(),
+  metadataHash: t.String(),
+  modelId: t.Optional(t.String()),
+  promptVersion: t.String(),
+  provider: AiReviewProviderSchema,
+  reasons: t.Array(t.String()),
+  reviewedAt: t.String(),
+  scores: AiReviewScoresSchema,
+  sourceChecks: t.Array(AiReviewSourceCheckSchema),
+  verdict: AiReviewVerdictSchema,
+});
+
+export const AiReviewJobStatusSchema = t.Union([
+  t.Literal("queued"),
+  t.Literal("running"),
+  t.Literal("succeeded"),
+  t.Literal("retryable_failed"),
+  t.Literal("terminal_failed"),
+  t.Literal("cancelled"),
+]);
+
+export const AiReviewJobTriggerSchema = t.Union([
+  t.Literal("automatic"),
+  t.Literal("manual"),
+  t.Literal("retry"),
+]);
+
+export const MarketAiReviewJobSchema = t.Object({
+  attemptCount: t.Number(),
+  chainId: t.Number(),
+  completedAt: t.Optional(t.String()),
+  createdAt: t.String(),
+  id: t.Number(),
+  lastError: t.Optional(t.String()),
+  leaseUntil: t.Optional(t.String()),
+  lockedBy: t.Optional(t.String()),
+  marketId: t.String(),
+  maxAttempts: t.Number(),
+  metadataHash: t.String(),
+  priority: t.Number(),
+  requestedModel: t.Optional(t.String()),
+  requestedProvider: t.Optional(AiReviewProviderSchema),
+  reviewId: t.Optional(t.Number()),
+  runAfter: t.String(),
+  status: AiReviewJobStatusSchema,
+  trigger: AiReviewJobTriggerSchema,
+  updatedAt: t.String(),
+});
+
 export const MarketSchema = t.Object({
+  aiReview: t.Optional(MarketAiReviewSchema),
   bypassAiResolution: t.Boolean(),
   chainId: t.Number(),
   collateral: t.String(),
@@ -131,7 +242,59 @@ export const GraduationIneligibleSchema = t.Object({
   summary: GraduationSummarySchema,
 });
 
+export const DevMarketCloseResponseSchema = t.Object({
+  market: MarketSchema,
+  refundAvailable: t.String(),
+  status: t.Literal("refunded"),
+  transactionHash: t.Optional(t.String()),
+});
+
+export const DevMarketCloseIneligibleSchema = t.Object({
+  message: t.String(),
+  market: MarketSchema,
+  reason: t.Union([t.Literal("chain_status"), t.Literal("wrong_status")]),
+  status: t.Literal("ineligible"),
+});
+
+export const ManualAiReviewRequestSchema = t.Object({
+  force: t.Optional(t.Boolean()),
+  model: t.Optional(t.String({ minLength: 1 })),
+  provider: t.Optional(AiReviewProviderSchema),
+  reason: t.Optional(t.String()),
+});
+
+export const ManualAiReviewEnqueuedSchema = t.Object({
+  job: MarketAiReviewJobSchema,
+  status: t.Literal("enqueued"),
+});
+
+export const ManualAiReviewExistingJobSchema = t.Object({
+  job: MarketAiReviewJobSchema,
+  message: t.String(),
+  status: t.Literal("already_queued"),
+});
+
+export const ManualAiReviewAlreadyReviewedSchema = t.Object({
+  aiReview: MarketAiReviewSchema,
+  message: t.String(),
+  status: t.Literal("already_reviewed"),
+});
+
+export const ManualAiReviewIneligibleSchema = t.Object({
+  marketStatus: t.Optional(MarketStatusSchema),
+  message: t.String(),
+  reason: t.Union([
+    t.Literal("missing_metadata"),
+    t.Literal("wrong_status"),
+  ]),
+  status: t.Literal("ineligible"),
+});
+
 export type MarketResponse = Static<typeof MarketSchema>;
+export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
+export type MarketAiReviewJobResponse = Static<
+  typeof MarketAiReviewJobSchema
+>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
@@ -141,4 +304,23 @@ export type GraduationSummaryResponse = Static<typeof GraduationSummarySchema>;
 export type GraduationResponse = Static<typeof GraduationResponseSchema>;
 export type GraduationIneligibleResponse = Static<
   typeof GraduationIneligibleSchema
+>;
+export type DevMarketCloseResponse = Static<
+  typeof DevMarketCloseResponseSchema
+>;
+export type DevMarketCloseIneligibleResponse = Static<
+  typeof DevMarketCloseIneligibleSchema
+>;
+export type ManualAiReviewRequest = Static<typeof ManualAiReviewRequestSchema>;
+export type ManualAiReviewEnqueuedResponse = Static<
+  typeof ManualAiReviewEnqueuedSchema
+>;
+export type ManualAiReviewExistingJobResponse = Static<
+  typeof ManualAiReviewExistingJobSchema
+>;
+export type ManualAiReviewAlreadyReviewedResponse = Static<
+  typeof ManualAiReviewAlreadyReviewedSchema
+>;
+export type ManualAiReviewIneligibleResponse = Static<
+  typeof ManualAiReviewIneligibleSchema
 >;

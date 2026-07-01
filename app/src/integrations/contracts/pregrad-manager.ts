@@ -309,6 +309,7 @@ export const pregradManagerAbi = [
     inputs: [
       { indexed: true, name: "marketId", type: "uint256" },
       { indexed: true, name: "postgradAdapter", type: "address" },
+      { indexed: true, name: "postgradMarket", type: "address" },
       { indexed: false, name: "completeSetCount", type: "uint256" },
       { indexed: false, name: "retainedCostTotal", type: "uint256" },
       { indexed: false, name: "refundTotal", type: "uint256" },

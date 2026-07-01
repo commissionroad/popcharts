@@ -82,6 +82,7 @@ describe("settlement event record builders", () => {
       completeSetCount: 40n,
       marketId: 7n,
       postgradAdapter: "0x00000000000000000000000000000000000000CC",
+      postgradMarket: "0x00000000000000000000000000000000000000DD",
       refundTotal: 9n,
       retainedCostTotal: 40n,
     }) as GraduationFinalizedLog;
@@ -113,6 +114,7 @@ describe("settlement event record builders", () => {
       completeSetCount: 40n,
       marketId: 7n,
       postgradAdapter: "0x00000000000000000000000000000000000000cc",
+      postgradMarket: "0x00000000000000000000000000000000000000dd",
       refundTotal: 9n,
       retainedCostTotal: 40n,
     });

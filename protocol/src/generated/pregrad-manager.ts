@@ -788,6 +788,12 @@ export const pregradManagerAbi = [
         type: "address",
       },
       {
+        indexed: true,
+        internalType: "address",
+        name: "postgradMarket",
+        type: "address",
+      },
+      {
         indexed: false,
         internalType: "uint256",
         name: "completeSetCount",

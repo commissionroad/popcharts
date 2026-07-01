@@ -1,5 +1,5 @@
 {
-  "id": "86c9507b-26f0-4194-a6e8-96faaf371ab6",
+  "id": "1cdefc70-8375-4d09-848d-1d7c701591aa",
   "prevId": "253c635b-1c81-46ef-bff8-3882b2d53949",
   "version": "7",
   "dialect": "postgresql",
@@ -148,8 +148,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.clearing_root_submitted_events": {
-      "name": "clearing_root_submitted_events",
+    "public.market_ai_reviews": {
+      "name": "market_ai_reviews",
       "schema": "",
       "columns": {
         "id": {
@@ -164,107 +164,80 @@
           "primaryKey": false,
           "notNull": true
         },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "market_id": {
           "name": "market_id",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
-        "submitter": {
-          "name": "submitter",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "merkle_root": {
-          "name": "merkle_root",
+        "metadata_hash": {
+          "name": "metadata_hash",
           "type": "varchar(66)",
           "primaryKey": false,
           "notNull": true
         },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "varchar(66)",
+        "provider": {
+          "name": "provider",
+          "type": "ai_review_provider",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "matched_market_cap": {
-          "name": "matched_market_cap",
-          "type": "numeric(78, 0)",
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_version": {
+          "name": "prompt_version",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "retained_cost_total": {
-          "name": "retained_cost_total",
-          "type": "numeric(78, 0)",
+        "verdict": {
+          "name": "verdict",
+          "type": "ai_review_verdict",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "refund_total": {
-          "name": "refund_total",
-          "type": "numeric(78, 0)",
+        "scores": {
+          "name": "scores",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "complete_set_count": {
-          "name": "complete_set_count",
-          "type": "numeric(78, 0)",
+        "hard_flags": {
+          "name": "hard_flags",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "submitted_at_unix": {
-          "name": "submitted_at_unix",
-          "type": "bigint",
+        "reasons": {
+          "name": "reasons",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "submitted_at": {
-          "name": "submitted_at",
+        "source_checks": {
+          "name": "source_checks",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true
-        },
-        "challenge_deadline_unix": {
-          "name": "challenge_deadline_unix",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "challenge_deadline": {
-          "name": "challenge_deadline",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
         },
         "created_at": {
           "name": "created_at",
@@ -275,8 +248,8 @@
         }
       },
       "indexes": {
-        "clearing_root_submitted_events_chain_tx_log_idx": {
-          "name": "clearing_root_submitted_events_chain_tx_log_idx",
+        "market_ai_reviews_market_latest_idx": {
+          "name": "market_ai_reviews_market_latest_idx",
           "columns": [
             {
               "expression": "chain_id",
@@ -285,502 +258,77 @@
               "nulls": "last"
             },
             {
-              "expression": "transaction_hash",
+              "expression": "market_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "log_index",
+              "expression": "reviewed_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "market_ai_reviews_metadata_hash_idx": {
+          "name": "market_ai_reviews_metadata_hash_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "metadata_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "clearing_root_submitted_events_contract_id_contracts_id_fk": {
-          "name": "clearing_root_submitted_events_contract_id_contracts_id_fk",
-          "tableFrom": "clearing_root_submitted_events",
-          "tableTo": "contracts",
+        "market_ai_reviews_market_fk": {
+          "name": "market_ai_reviews_market_fk",
+          "tableFrom": "market_ai_reviews",
+          "tableTo": "markets",
           "columnsFrom": [
-            "contract_id"
+            "chain_id",
+            "market_id",
+            "metadata_hash"
           ],
           "columnsTo": [
-            "id"
+            "chain_id",
+            "market_id",
+            "metadata_hash"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.graduated_receipt_claimed_events": {
-      "name": "graduated_receipt_claimed_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
         },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receipt_id": {
-          "name": "receipt_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner": {
-          "name": "owner",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "side": {
-          "name": "side",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "retained_shares": {
-          "name": "retained_shares",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "retained_cost": {
-          "name": "retained_cost",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "refund": {
-          "name": "refund",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "graduated_receipt_claimed_events_chain_tx_log_idx": {
-          "name": "graduated_receipt_claimed_events_chain_tx_log_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "transaction_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "log_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "graduated_receipt_claimed_events_chain_receipt_idx": {
-          "name": "graduated_receipt_claimed_events_chain_receipt_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "receipt_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "graduated_receipt_claimed_events_contract_id_contracts_id_fk": {
-          "name": "graduated_receipt_claimed_events_contract_id_contracts_id_fk",
-          "tableFrom": "graduated_receipt_claimed_events",
-          "tableTo": "contracts",
+        "market_ai_reviews_metadata_fk": {
+          "name": "market_ai_reviews_metadata_fk",
+          "tableFrom": "market_ai_reviews",
+          "tableTo": "market_metadata",
           "columnsFrom": [
-            "contract_id"
+            "chain_id",
+            "metadata_hash"
           ],
           "columnsTo": [
-            "id"
+            "chain_id",
+            "metadata_hash"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.graduation_finalized_events": {
-      "name": "graduation_finalized_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "postgrad_adapter": {
-          "name": "postgrad_adapter",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "complete_set_count": {
-          "name": "complete_set_count",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "retained_cost_total": {
-          "name": "retained_cost_total",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "refund_total": {
-          "name": "refund_total",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "graduation_finalized_events_chain_tx_log_idx": {
-          "name": "graduation_finalized_events_chain_tx_log_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "transaction_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "log_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "graduation_finalized_events_contract_id_contracts_id_fk": {
-          "name": "graduation_finalized_events_contract_id_contracts_id_fk",
-          "tableFrom": "graduation_finalized_events",
-          "tableTo": "contracts",
-          "columnsFrom": [
-            "contract_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.graduation_started_events": {
-      "name": "graduation_started_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "manager": {
-          "name": "manager",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receipt_count": {
-          "name": "receipt_count",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_escrowed": {
-          "name": "total_escrowed",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "yes_shares": {
-          "name": "yes_shares",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "no_shares": {
-          "name": "no_shares",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "graduation_started_at_unix": {
-          "name": "graduation_started_at_unix",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "graduation_started_at": {
-          "name": "graduation_started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "varchar(66)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "graduation_started_events_chain_tx_log_idx": {
-          "name": "graduation_started_events_chain_tx_log_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "transaction_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "log_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "graduation_started_events_contract_id_contracts_id_fk": {
-          "name": "graduation_started_events_contract_id_contracts_id_fk",
-          "tableFrom": "graduation_started_events",
-          "tableTo": "contracts",
-          "columnsFrom": [
-            "contract_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -966,122 +514,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.market_refunds_available_events": {
-      "name": "market_refunds_available_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_escrowed": {
-          "name": "total_escrowed",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "market_refunds_available_events_chain_tx_log_idx": {
-          "name": "market_refunds_available_events_chain_tx_log_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "transaction_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "log_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "market_refunds_available_events_contract_id_contracts_id_fk": {
-          "name": "market_refunds_available_events_contract_id_contracts_id_fk",
-          "tableFrom": "market_refunds_available_events",
-          "tableTo": "contracts",
-          "columnsFrom": [
-            "contract_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.receipt_placed_events": {
       "name": "receipt_placed_events",
       "schema": "",
@@ -1244,155 +676,6 @@
         "receipt_placed_events_contract_id_contracts_id_fk": {
           "name": "receipt_placed_events_contract_id_contracts_id_fk",
           "tableFrom": "receipt_placed_events",
-          "tableTo": "contracts",
-          "columnsFrom": [
-            "contract_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.refunded_receipt_claimed_events": {
-      "name": "refunded_receipt_claimed_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract_id": {
-          "name": "contract_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "block_timestamp": {
-          "name": "block_timestamp",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_hash": {
-          "name": "transaction_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receipt_id": {
-          "name": "receipt_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner": {
-          "name": "owner",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "refund": {
-          "name": "refund",
-          "type": "numeric(78, 0)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "refunded_receipt_claimed_events_chain_tx_log_idx": {
-          "name": "refunded_receipt_claimed_events_chain_tx_log_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "transaction_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "log_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "refunded_receipt_claimed_events_chain_receipt_idx": {
-          "name": "refunded_receipt_claimed_events_chain_receipt_idx",
-          "columns": [
-            {
-              "expression": "chain_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "receipt_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "refunded_receipt_claimed_events_contract_id_contracts_id_fk": {
-          "name": "refunded_receipt_claimed_events_contract_id_contracts_id_fk",
-          "tableFrom": "refunded_receipt_claimed_events",
           "tableTo": "contracts",
           "columnsFrom": [
             "contract_id"
@@ -1693,6 +976,33 @@
           "method": "btree",
           "with": {}
         },
+        "markets_chain_market_hash_idx": {
+          "name": "markets_chain_market_hash_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "metadata_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "markets_created_tx_log_idx": {
           "name": "markets_created_tx_log_idx",
           "columns": [
@@ -1738,6 +1048,24 @@
     }
   },
   "enums": {
+    "public.ai_review_provider": {
+      "name": "ai_review_provider",
+      "schema": "public",
+      "values": [
+        "anthropic",
+        "heuristic",
+        "ollama"
+      ]
+    },
+    "public.ai_review_verdict": {
+      "name": "ai_review_verdict",
+      "schema": "public",
+      "values": [
+        "approve",
+        "reject",
+        "manual_review"
+      ]
+    },
     "public.market_status": {
       "name": "market_status",
       "schema": "public",

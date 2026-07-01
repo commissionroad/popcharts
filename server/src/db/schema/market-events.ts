@@ -178,6 +178,7 @@ export const graduationFinalizedEvents = pgTable(
     logIndex: integer("log_index").notNull(),
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
     postgradAdapter: text("postgrad_adapter").notNull(),
+    postgradMarket: text("postgrad_market").notNull(),
     completeSetCount: uint256("complete_set_count").notNull(),
     retainedCostTotal: uint256("retained_cost_total").notNull(),
     refundTotal: uint256("refund_total").notNull(),

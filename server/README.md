@@ -29,6 +29,100 @@ Run the indexer in a second terminal after setting
 bun run dev:indexer
 ```
 
+## Local AI Review
+
+The AI review service is a separate local HTTP server for market moderation and
+knowability checks. It can use Ollama for local model calls or Anthropic's
+Claude API for cited web-search review.
+
+Ollama models do not browse the internet by themselves. The service fetches
+safe public evidence first, then passes that evidence to the local model as
+untrusted context. Localhost, private IPs, non-HTTP URLs, oversized fetches, and
+unsafe redirects are blocked.
+
+With `AI_REVIEW_PROVIDER=anthropic`, the service calls Anthropic's Messages API
+and enables Claude's native `web_search` and `web_fetch` tools. Hard-block
+heuristics still run before the model call, and Claude search/fetch usage is
+capped by the `AI_REVIEW_ANTHROPIC_MAX_WEB_*` settings.
+
+```bash
+cd server
+ollama pull gpt-oss:20b
+bun run dev:ai-review
+```
+
+The review API listens on `http://localhost:3002` by default:
+
+```bash
+curl -s http://localhost:3002/reviews/market \
+  -H 'content-type: application/json' \
+  -d '{
+    "metadata": {
+      "question": "Will NASA announce a new Artemis launch date before July 31, 2026?",
+      "description": "Resolve using a public NASA announcement or major wire coverage.",
+      "resolutionCriteria": "YES if NASA publishes a new official Artemis launch date before the deadline.",
+      "resolutionUrl": "https://www.nasa.gov/"
+    }
+  }'
+```
+
+For a no-model smoke test, set `AI_REVIEW_PROVIDER=heuristic`. To disable web
+evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only the
+provided resolution URL, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
+
+From the repository root, `just local-dev` starts the full local app stack plus
+the AI Review service and runner in heuristic mode. Use `just local-ai-review`
+when you only want local Postgres plus the review service and runner, without
+the app, API, indexer, or local chain.
+
+For Claude web-search review:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export AI_REVIEW_PROVIDER=anthropic
+export AI_REVIEW_ANTHROPIC_MODEL=claude-sonnet-4-6
+bun run dev:ai-review
+```
+
+## AI Review Runner
+
+The AI Review runner is a separate process from both the indexer and the AI
+Review service. It polls Postgres for eligible `under_review` markets, leases
+review jobs, calls the AI Review service, persists `market_ai_reviews`, and
+applies guarded market status transitions.
+
+```bash
+cd server
+bun run dev:ai-review-runner
+```
+
+Operators can manually enqueue a review job through the API server when
+`POPCHARTS_ADMIN_REVIEW_ENABLED=true`:
+
+```bash
+curl -s http://localhost:3001/admin/markets/5042002/123/review \
+  -H 'content-type: application/json' \
+  -d '{"force": true, "provider": "heuristic"}'
+```
+
+The endpoint only enqueues work for the runner. It does not call the AI Review
+service directly, and it remains disabled by default.
+
+Run the local smoke command to exercise the full DB-to-service-to-DB path
+without a model dependency:
+
+```bash
+cd server
+bun run smoke:ai-review-runner
+```
+
+The smoke command expects local Postgres to be running on the configured
+`DATABASE_URL` with the current server schema already applied. It starts an
+in-process AI Review service with the heuristic provider, seeds one
+`under_review` market plus metadata, enqueues and claims one job, persists the
+review, and verifies the market status transition. It defaults to port `3012`;
+set `AI_REVIEW_SMOKE_PORT` if that port is already occupied.
+
 ## Local Chain Smoke
 
 From the repository root, run the full local smoke workflow:
@@ -60,3 +154,8 @@ time.
 status check. A successful `graduated` response means the indexer has already
 seen `GraduationFinalized` onchain; eligible bootstrap markets still need the
 graduation manager to run start/root/finalize transactions.
+
+`POST /dev/markets/:chainId/:marketId/close` is local-development only. It is
+enabled only with `POPCHARTS_DEV_TOOLS_ENABLED=true` and `NETWORK=local`, then
+fast-forwards the local chain to the market graduation deadline and calls
+`PregradManager.markRefundable`.

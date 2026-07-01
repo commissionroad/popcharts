@@ -49,6 +49,15 @@ POPCHARTS_MARKET_DATA_SOURCE=auto # optional: auto, api, or fixtures
 to local fixtures otherwise. Use `api` to require the server API or `fixtures`
 to force fixture-backed reads in local tests and demos.
 
+Local dev stacks can expose market-page dev settings:
+
+```bash
+NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED=true
+```
+
+The matching server close endpoint also requires `POPCHARTS_DEV_TOOLS_ENABLED=true`
+and `NETWORK=local`.
+
 ## Product Shape
 
 Pop Charts starts where a Polymarket-style venue cannot: before a market has

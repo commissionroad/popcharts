@@ -18,6 +18,8 @@
     "arc:testnet:deploy-mock": "hardhat build && node --env-file-if-exists=.env scripts/deploy-arc-mock.mjs",
     "devchain:deploy": "hardhat build && node scripts/deploy-devchain.mjs",
     "devchain:node": "hardhat node",
+    "deployment:check-venue": "hardhat deployment check-venue",
+    "deployment:write-venue-manifest": "hardhat deployment write-venue-manifest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",
@@ -31,7 +33,9 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1",
-    "@prb/math": "4.1.2"
+    "@prb/math": "4.1.2",
+    "@uniswap/v4-core": "1.0.2",
+    "@uniswap/v4-periphery": "1.0.3"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "3.1.7",

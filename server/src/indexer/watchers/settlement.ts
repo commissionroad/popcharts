@@ -36,7 +36,7 @@ const CLEARING_ROOT_SUBMITTED_EVENT = parseAbiItem(
   "event ClearingRootSubmitted(uint256 indexed marketId, address indexed submitter, bytes32 indexed merkleRoot, bytes32 snapshotHash, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount, uint64 submittedAt, uint64 challengeDeadline)",
 );
 const GRADUATION_FINALIZED_EVENT = parseAbiItem(
-  "event GraduationFinalized(uint256 indexed marketId, address indexed postgradAdapter, uint256 completeSetCount, uint256 retainedCostTotal, uint256 refundTotal)",
+  "event GraduationFinalized(uint256 indexed marketId, address indexed postgradAdapter, address indexed postgradMarket, uint256 completeSetCount, uint256 retainedCostTotal, uint256 refundTotal)",
 );
 const MARKET_REFUNDS_AVAILABLE_EVENT = parseAbiItem(
   "event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed)",

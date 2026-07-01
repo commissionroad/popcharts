@@ -11,6 +11,11 @@ Start here:
 4. `docs/TESTING.md`
 5. `docs/adr/`
 
+Research plans:
+
+- `docs/complete-set-postgrad-plan.md`
+- `docs/complete-set-v4-hook-order-manager-plan.md`
+
 ## Commands
 
 ```bash
@@ -44,6 +49,14 @@ outcomes through that adapter, and pay onchain refunds.
 The protocol still does not compute band-pass clearing onchain. The offchain
 clearing service produces the root and claim leaves. Bonded challenges and a
 production CTF-style postgrad adapter will land in later vertical slices.
+
+## Postgrad Testnet Slice
+
+`contracts/postgrad/OutcomeToken.sol` and
+`contracts/postgrad/CompleteSetBinaryMarket.sol` implement the first Arc Testnet
+postgrad building block: ERC20 YES/NO complete sets with market-level
+collateral backing. ADR 0008 records why this testnet slice uses ERC20 outcome
+tokens while ADR 0007 keeps the mainnet CTF-compatible decision open.
 
 ## Public Contract Metadata
 

@@ -11,6 +11,20 @@ Do repository-changing work from a dedicated git worktree, not from the user's c
 
 Skip worktree setup only when the task is read-only, the current directory is not inside a git repository, the user explicitly asks to work in the current checkout, or git worktrees are unavailable. If setup is skipped for anything except read-only work, tell the user why before modifying files.
 
+## Agent Guidelines
+
+Use these defaults for non-trivial repository work:
+
+- Think before coding: state assumptions, surface ambiguity, and ask when a
+  choice cannot be resolved from the repo.
+- Keep it simple: implement the smallest change that solves the stated problem;
+  avoid speculative features, abstractions, and configurability.
+- Make surgical changes: touch only files required by the task, match local
+  style, and clean up only unused code created by your own change.
+- Work from success criteria: define the verification target up front, then
+  loop through implementation and checks until the target is met or the blocker
+  is clear.
+
 ## Setup
 
 Inspect the current repository before writing anything:

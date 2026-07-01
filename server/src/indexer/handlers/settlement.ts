@@ -40,6 +40,7 @@ export type GraduationFinalizedLog = SettlementLog<{
   completeSetCount?: bigint;
   marketId?: bigint;
   postgradAdapter?: `0x${string}`;
+  postgradMarket?: `0x${string}`;
   refundTotal?: bigint;
   retainedCostTotal?: bigint;
 }>;
@@ -171,6 +172,10 @@ export function buildGraduationFinalizedRecord({
     postgradAdapter: requireValue(
       log.args.postgradAdapter,
       "postgradAdapter",
+    ).toLowerCase(),
+    postgradMarket: requireValue(
+      log.args.postgradMarket,
+      "postgradMarket",
     ).toLowerCase(),
     refundTotal: requireValue(log.args.refundTotal, "refundTotal"),
     retainedCostTotal: requireValue(

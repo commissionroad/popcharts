@@ -85,6 +85,25 @@ export async function requestMarketGraduation(
   return config.client.graduateMarket(lookup);
 }
 
+export async function requestPregradMarketCloseForRefund(
+  id: string,
+  options: MarketQueryOptions = {}
+) {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    throw new Error("Dev market close requires API-backed market data.");
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    throw new Error("Dev market close requires a chain-prefixed market id.");
+  }
+
+  return config.client.closePregradMarket(lookup);
+}
+
 function resolveMarketLookup(
   id: string,
   chainId: number | undefined

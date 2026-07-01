@@ -10,6 +10,7 @@ import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
 import { GraduateMarketButton } from "./graduate-market-button";
+import { MarketDevSettings } from "./market-dev-settings";
 
 export function MarketDetailPage({ market }: { market: Market }) {
   const canRequestGraduation =
@@ -17,6 +18,8 @@ export function MarketDetailPage({ market }: { market: Market }) {
     market.graduationTargetUsd > 0 &&
     market.matchedUsd >= market.graduationTargetUsd &&
     isApiBackedMarket(market);
+  const canClosePregradForRefund =
+    market.status === "bootstrap" && isApiBackedMarket(market);
 
   return (
     <div>
@@ -33,7 +36,15 @@ export function MarketDetailPage({ market }: { market: Market }) {
             <span className="rounded-[var(--radius-pill)] border border-[var(--pc-cyan)] px-3 py-1 font-mono text-[11px] tracking-[0.12em] text-[var(--pc-cyan)] uppercase">
               {market.category}
             </span>
-            <StatusPill status={market.status} />
+            <div className="flex items-center gap-2">
+              <StatusPill status={market.status} />
+              {devSettingsAvailable() ? (
+                <MarketDevSettings
+                  canClosePregrad={canClosePregradForRefund}
+                  marketId={market.id}
+                />
+              ) : null}
+            </div>
           </div>
 
           <h1 className="font-display max-w-3xl text-3xl leading-tight font-black sm:text-4xl">
@@ -154,4 +165,8 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
 
 function isApiBackedMarket(market: Market) {
   return market.chainId !== undefined && market.id.includes(":");
+}
+
+function devSettingsAvailable() {
+  return process.env.NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED === "true";
 }
