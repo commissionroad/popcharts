@@ -70,7 +70,7 @@ const REVIEW_ERROR_FIELD_ORDER: ReadonlyArray<CreateMarketDraftField> = [
   "question",
   "category",
   "resolutionCriteria",
-  "resolutionUrl",
+  "resolutionSources",
   "openingProbability",
   "graduationTime",
   "resolutionTime",
@@ -83,8 +83,9 @@ const REVIEW_ERROR_TARGET_IDS: Partial<Record<CreateMarketDraftField, string>> =
   openingProbability: "opening-probability",
   question: "question",
   resolutionCriteria: "resolution-criteria",
+  resolutionSources: "resolution-sources",
   resolutionTime: "resolution-time",
-  resolutionUrl: "resolution-url",
+  resolutionUrl: "resolution-sources",
 };
 
 export function CreateMarketForm({ initialNow }: { initialNow: string }) {
@@ -328,14 +329,14 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
         />
 
         <Field
-          error={visibleErrors.resolutionUrl}
-          hint="Optional source, oracle note, or canonical reference."
-          id="resolution-url"
-          label="Resolution URL"
-          onChange={(event) => updateDraft("resolutionUrl", event.target.value)}
-          placeholder="https://example.com/source"
-          type="url"
-          value={draft.resolutionUrl}
+          error={visibleErrors.resolutionSources}
+          hint="Optional public sources. Use names or URLs, one per line or comma-separated."
+          id="resolution-sources"
+          label="Resolution sources"
+          multiline
+          onChange={(event) => updateDraft("resolutionSources", event.target.value)}
+          placeholder={"CNN\nFox News\nNPR\nNYT\nBBC"}
+          value={draft.resolutionSources}
         />
 
         <div>
@@ -904,6 +905,12 @@ function ReviewPanel({
       <div className="flex flex-col divide-y divide-[var(--border-soft)] rounded-[var(--radius-md)] border border-[var(--border-soft)]">
         <ReviewRow label="Question" value={preview.metadata.question} />
         <ReviewRow label="Resolution" value={preview.metadata.resolutionCriteria} />
+        {preview.metadata.resolutionSources?.length ? (
+          <ReviewRow
+            label="Sources"
+            value={preview.metadata.resolutionSources.join(", ")}
+          />
+        ) : null}
         {preview.metadata.resolutionUrl ? (
           <ReviewRow label="URL" mono value={preview.metadata.resolutionUrl} />
         ) : null}

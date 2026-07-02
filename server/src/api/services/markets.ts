@@ -134,6 +134,7 @@ export async function upsertMarketMetadata(
     metadataHash: metadata.metadataHash,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
+    resolutionSources: metadata.resolutionSources ?? [],
     resolutionUrl: metadata.resolutionUrl ?? null,
     updatedAt: new Date(),
   };
@@ -272,6 +273,9 @@ function serializeMarketMetadataRow(
     metadataHash: metadata.metadataHash,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
+    ...(metadata.resolutionSources.length > 0
+      ? { resolutionSources: metadata.resolutionSources }
+      : {}),
     ...(metadata.resolutionUrl
       ? { resolutionUrl: metadata.resolutionUrl }
       : {}),

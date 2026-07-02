@@ -61,14 +61,15 @@ curl -s http://localhost:3002/reviews/market \
       "question": "Will NASA announce a new Artemis launch date before July 31, 2026?",
       "description": "Resolve using a public NASA announcement or major wire coverage.",
       "resolutionCriteria": "YES if NASA publishes a new official Artemis launch date before the deadline.",
+      "resolutionSources": ["Official NASA announcements", "Major wire coverage"],
       "resolutionUrl": "https://www.nasa.gov/"
     }
   }'
 ```
 
 For a no-model smoke test, set `AI_REVIEW_PROVIDER=heuristic`. To disable web
-evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only the
-provided resolution URL, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
+evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only
+provided resolution source URLs, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
 
 From the repository root, `just local-dev` starts the full local app stack plus
 the AI Review service and runner in heuristic mode. Use `just local-ai-review`

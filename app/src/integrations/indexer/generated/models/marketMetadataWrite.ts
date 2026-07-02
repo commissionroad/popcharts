@@ -18,5 +18,6 @@ export interface MarketMetadataWrite {
   question: string;
   /** @minLength 1 */
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
 }

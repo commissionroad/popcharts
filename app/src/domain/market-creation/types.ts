@@ -14,6 +14,7 @@ export type CreateMarketDraft = {
   openingProbability: number;
   question: string;
   resolutionCriteria: string;
+  resolutionSources: string;
   resolutionPreset: ResolutionPresetLabel | "custom";
   resolutionTime: string;
   resolutionUrl: string;
@@ -31,6 +32,7 @@ export type MarketMetadata = {
   description: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   version: 1;
 };

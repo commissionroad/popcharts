@@ -61,10 +61,13 @@ function toIndexerMetadataBody({ metadata, metadataHash }: MetadataProxyRequest)
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+  const withSources = metadata.resolutionSources?.length
+    ? { ...body, resolutionSources: metadata.resolutionSources }
+    : body;
 
   return metadata.resolutionUrl
-    ? { ...body, resolutionUrl: metadata.resolutionUrl }
-    : body;
+    ? { ...withSources, resolutionUrl: metadata.resolutionUrl }
+    : withSources;
 }
 
 function parseRequestBody(
@@ -118,6 +121,16 @@ function parseRequestBody(
     return { error: "metadata.resolutionUrl must be a string.", ok: false };
   }
 
+  if (
+    metadata.resolutionSources !== undefined &&
+    !isStringArray(metadata.resolutionSources)
+  ) {
+    return {
+      error: "metadata.resolutionSources must be an array of strings.",
+      ok: false,
+    };
+  }
+
   return {
     ok: true,
     value: {
@@ -128,6 +141,9 @@ function parseRequestBody(
         description: metadata.description,
         question: metadata.question,
         resolutionCriteria: metadata.resolutionCriteria,
+        ...(metadata.resolutionSources?.length
+          ? { resolutionSources: metadata.resolutionSources }
+          : {}),
         ...(metadata.resolutionUrl ? { resolutionUrl: metadata.resolutionUrl } : {}),
         version: metadata.version,
       },
@@ -149,6 +165,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isNonEmptyString(value: unknown): value is string {

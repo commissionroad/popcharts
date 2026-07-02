@@ -28,8 +28,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
   uint256 public constant MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000 * 1e18;
   /// @notice Native USDC fee paid by public creators when a market is created.
   uint256 public constant MARKET_CREATION_FEE = 1e18;
-  /// @notice Maximum bytes allowed for the metadata retrieval URI emitted at creation.
-  uint256 public constant MAX_METADATA_URI_BYTES = 4096;
+  /// @notice Maximum bytes allowed for the self-contained metadata URI emitted at creation.
+  uint256 public constant MAX_METADATA_URI_BYTES = 8192;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
   bytes32 public constant GRADUATION_SNAPSHOT_TYPEHASH = keccak256(
     "GraduationSnapshot(uint256 chainId,address manager,uint256 marketId,uint256 receiptCount,uint256 totalEscrowed,int256 path,uint256 yesShares,uint256 noShares,uint64 graduationStartedAt)"
@@ -43,7 +43,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error InvalidCollateral();
   /// @notice Reverts when a market is created without a metadata hash.
   error InvalidMetadataHash();
-  /// @notice Reverts when a market is created without a retrievable metadata URI.
+  /// @notice Reverts when a market is created without a self-contained metadata URI.
   error InvalidMetadataURI();
   /// @notice Reverts when a market metadata URI is too large for the creation event.
   /// @param length Byte length supplied by the creator.
@@ -954,7 +954,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
       revert InvalidMetadataHash();
     }
     uint256 metadataURILength = bytes(params.metadataURI).length;
-    if (metadataURILength == 0) {
+    if (metadataURILength == 0 || !_isDataURI(params.metadataURI)) {
       revert InvalidMetadataURI();
     }
     if (metadataURILength > MAX_METADATA_URI_BYTES) {
@@ -1358,5 +1358,17 @@ contract PregradManager is Ownable, ReentrancyGuard {
           claim.refund
         )
       );
+  }
+
+  function _isDataURI(string memory value) private pure returns (bool) {
+    bytes memory data = bytes(value);
+
+    return
+      data.length >= 5 &&
+      data[0] == "d" &&
+      data[1] == "a" &&
+      data[2] == "t" &&
+      data[3] == "a" &&
+      data[4] == ":";
   }
 }

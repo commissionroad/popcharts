@@ -116,10 +116,7 @@ export async function claimReviewJobs({
   config,
   now = new Date(),
 }: {
-  config: Pick<
-    AiReviewRunnerConfig,
-    "batchSize" | "leaseMs" | "runnerId"
-  >;
+  config: Pick<AiReviewRunnerConfig, "batchSize" | "leaseMs" | "runnerId">;
   now?: Date;
 }): Promise<ClaimedReviewJob[]> {
   return await db.transaction(async (tx) => {
@@ -177,10 +174,7 @@ export async function claimReviewJobs({
       .innerJoin(
         schema.marketMetadata,
         and(
-          eq(
-            schema.marketMetadata.chainId,
-            schema.marketAiReviewJobs.chainId,
-          ),
+          eq(schema.marketMetadata.chainId, schema.marketAiReviewJobs.chainId),
           eq(
             schema.marketMetadata.metadataHash,
             schema.marketAiReviewJobs.metadataHash,
@@ -284,6 +278,9 @@ export function buildMarketReviewRequest({
       metadataHash: metadata.metadataHash,
       question: metadata.question,
       resolutionCriteria: metadata.resolutionCriteria,
+      ...(metadata.resolutionSources.length > 0
+        ? { resolutionSources: metadata.resolutionSources }
+        : {}),
       ...(metadata.resolutionUrl
         ? { resolutionUrl: metadata.resolutionUrl }
         : {}),
@@ -426,9 +423,7 @@ async function markReviewJobFailure({
   retryBaseMs: number;
 }) {
   const attemptsExhausted = job.attemptCount >= job.maxAttempts;
-  const status = attemptsExhausted
-    ? "terminal_failed"
-    : "retryable_failed";
+  const status = attemptsExhausted ? "terminal_failed" : "retryable_failed";
   const retryDelayMs = calculateRetryDelayMs({
     attemptCount: job.attemptCount,
     baseMs: retryBaseMs,

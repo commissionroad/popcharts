@@ -15,6 +15,7 @@ export type GetMarketsByChainIdByMarketId200Metadata = {
   metadataHash: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   updatedAt: string;
 };

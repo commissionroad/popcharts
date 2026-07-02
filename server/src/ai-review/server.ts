@@ -93,7 +93,8 @@ const SUSPICIOUS_SOURCE_REVIEW_EXAMPLE = {
     createdAt: "2026-06-22T00:00:00.000Z",
     description:
       "This should get low source-quality scrutiny because the proposed source is satirical.",
-    question: "Will Congress pass a bill requiring senators to wear clown shoes in 2026?",
+    question:
+      "Will Congress pass a bill requiring senators to wear clown shoes in 2026?",
     resolutionCriteria:
       "Resolve only from the provided Onion article or homepage.",
     resolutionUrl: "https://www.theonion.com/",
@@ -210,55 +211,59 @@ const ReviewResultSchema = t.Object({
   ]),
 });
 
-const MarketReviewRequestSchema = t.Object({
-  context: t.Optional(
-    t.Object({
-      chainId: t.Optional(t.Number()),
-      creator: t.Optional(t.String()),
-      marketId: t.Optional(t.String()),
+const MarketReviewRequestSchema = t.Object(
+  {
+    context: t.Optional(
+      t.Object({
+        chainId: t.Optional(t.Number()),
+        creator: t.Optional(t.String()),
+        marketId: t.Optional(t.String()),
+      }),
+    ),
+    metadata: t.Object({
+      category: t.Optional(t.String()),
+      createdAt: t.Optional(t.String()),
+      description: t.Optional(t.String()),
+      metadataHash: t.Optional(t.String()),
+      question: t.String({ minLength: 1 }),
+      resolutionCriteria: t.String({ minLength: 1 }),
+      resolutionSources: t.Optional(t.Array(t.String())),
+      resolutionUrl: t.Optional(t.String()),
     }),
-  ),
-  metadata: t.Object({
-    category: t.Optional(t.String()),
-    createdAt: t.Optional(t.String()),
-    description: t.Optional(t.String()),
-    metadataHash: t.Optional(t.String()),
-    question: t.String({ minLength: 1 }),
-    resolutionCriteria: t.String({ minLength: 1 }),
-    resolutionUrl: t.Optional(t.String()),
-  }),
-  options: t.Optional(
-    t.Object({
-      fetchSearchResults: t.Optional(t.Boolean()),
-      internetAccess: t.Optional(
-        t.Union([
-          t.Literal("off"),
-          t.Literal("provided_urls"),
-          t.Literal("search"),
-        ]),
-      ),
-      maxSearchResults: t.Optional(t.Number()),
-      model: t.Optional(t.String()),
-      provider: t.Optional(
-        t.Union([
-          t.Literal("anthropic"),
-          t.Literal("heuristic"),
-          t.Literal("ollama"),
-        ]),
-      ),
-    }),
-  ),
-}, {
-  example: PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
-  examples: [
-    PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
-    VIOLENT_REJECT_REVIEW_EXAMPLE,
-    LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE,
-    PROMPT_INJECTION_REJECT_REVIEW_EXAMPLE,
-    SUSPICIOUS_SOURCE_REVIEW_EXAMPLE,
-    ANTHROPIC_SEARCH_REVIEW_EXAMPLE,
-  ],
-});
+    options: t.Optional(
+      t.Object({
+        fetchSearchResults: t.Optional(t.Boolean()),
+        internetAccess: t.Optional(
+          t.Union([
+            t.Literal("off"),
+            t.Literal("provided_urls"),
+            t.Literal("search"),
+          ]),
+        ),
+        maxSearchResults: t.Optional(t.Number()),
+        model: t.Optional(t.String()),
+        provider: t.Optional(
+          t.Union([
+            t.Literal("anthropic"),
+            t.Literal("heuristic"),
+            t.Literal("ollama"),
+          ]),
+        ),
+      }),
+    ),
+  },
+  {
+    example: PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
+    examples: [
+      PUBLICLY_KNOWABLE_REVIEW_EXAMPLE,
+      VIOLENT_REJECT_REVIEW_EXAMPLE,
+      LOCAL_KNOWLEDGE_REJECT_REVIEW_EXAMPLE,
+      PROMPT_INJECTION_REJECT_REVIEW_EXAMPLE,
+      SUSPICIOUS_SOURCE_REVIEW_EXAMPLE,
+      ANTHROPIC_SEARCH_REVIEW_EXAMPLE,
+    ],
+  },
+);
 
 const MarketReviewRequestOpenApiSchema =
   MarketReviewRequestSchema as unknown as OpenAPIV3.SchemaObject;
@@ -314,16 +319,12 @@ export const aiReviewApp = new Elysia()
       },
     }),
   )
-  .get(
-    "/health",
-    () => buildAiReviewRuntimeStatus(),
-    {
-      detail: {
-        summary: "AI review service health",
-        tags: ["System"],
-      },
+  .get("/health", () => buildAiReviewRuntimeStatus(), {
+    detail: {
+      summary: "AI review service health",
+      tags: ["System"],
     },
-  )
+  })
   .get(
     "/ready",
     ({ set }) => {

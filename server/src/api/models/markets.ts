@@ -41,6 +41,7 @@ export const MarketMetadataSchema = t.Object({
   metadataHash: t.String(),
   question: t.String(),
   resolutionCriteria: t.String(),
+  resolutionSources: t.Optional(t.Array(t.String())),
   resolutionUrl: t.Optional(t.String()),
   updatedAt: t.String(),
 });
@@ -54,6 +55,7 @@ export const MarketMetadataWriteSchema = t.Object({
   }),
   question: t.String({ minLength: 1 }),
   resolutionCriteria: t.String({ minLength: 1 }),
+  resolutionSources: t.Optional(t.Array(t.String())),
   resolutionUrl: t.Optional(t.String()),
 });
 

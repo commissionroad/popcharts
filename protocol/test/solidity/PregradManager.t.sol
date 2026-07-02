@@ -344,7 +344,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: aliceMetadataHash,
-        metadataURI: "ipfs://popcharts/alice",
+        metadataURI: _defaultMetadataURI(),
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
         graduationThreshold: 1_250 * WAD,
@@ -359,7 +359,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: bobMetadataHash,
-        metadataURI: "ipfs://popcharts/bob",
+        metadataURI: _defaultMetadataURI(),
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
         graduationThreshold: 4_000 * WAD,
@@ -594,7 +594,7 @@ contract PregradManagerTest is Test {
     MarketTypes.CreateMarketParams memory params = MarketTypes.CreateMarketParams({
       collateral: address(0),
       metadataHash: keccak256("ipfs://popcharts/example"),
-      metadataURI: "ipfs://popcharts/example",
+      metadataURI: _defaultMetadataURI(),
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
       graduationThreshold: 2_500 * WAD,
@@ -616,6 +616,10 @@ contract PregradManagerTest is Test {
     vm.expectRevert(PregradManager.InvalidMetadataURI.selector);
     manager.createMarket(params);
 
+    params.metadataURI = "https://example.com/metadata.json";
+    vm.expectRevert(PregradManager.InvalidMetadataURI.selector);
+    manager.createMarket(params);
+
     params.metadataURI = _longMetadataURI();
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -626,7 +630,7 @@ contract PregradManagerTest is Test {
     );
     manager.createMarket(params);
 
-    params.metadataURI = "ipfs://popcharts/example";
+    params.metadataURI = _defaultMetadataURI();
     params.openingProbabilityWad = 0;
     vm.expectRevert(abi.encodeWithSelector(LmsrMath.InvalidProbability.selector, 0));
     manager.createMarket(params);
@@ -843,7 +847,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(feeCollateral),
         metadataHash: keccak256("ipfs://popcharts/fee-collateral"),
-        metadataURI: "ipfs://popcharts/fee-collateral",
+        metadataURI: _defaultMetadataURI(),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 2_500 * WAD,
@@ -1552,7 +1556,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: metadataHash,
-        metadataURI: "ipfs://popcharts/default",
+        metadataURI: _defaultMetadataURI(),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 2_500 * WAD,
@@ -1563,11 +1567,19 @@ contract PregradManagerTest is Test {
   }
 
   function _longMetadataURI() private view returns (string memory) {
+    bytes memory prefix = bytes(_defaultMetadataURI());
     bytes memory value = new bytes(manager.MAX_METADATA_URI_BYTES() + 1);
-    for (uint256 index = 0; index < value.length; ++index) {
+    for (uint256 index = 0; index < prefix.length; ++index) {
+      value[index] = prefix[index];
+    }
+    for (uint256 index = prefix.length; index < value.length; ++index) {
       value[index] = "x";
     }
     return string(value);
+  }
+
+  function _defaultMetadataURI() private pure returns (string memory) {
+    return "data:application/json,%7B%7D";
   }
 
   function _fundAndApprove(address account, uint256 amount) private {

@@ -1906,6 +1906,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "resolution_sources": {
+          "name": "resolution_sources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "resolution_url": {
           "name": "resolution_url",
           "type": "text",

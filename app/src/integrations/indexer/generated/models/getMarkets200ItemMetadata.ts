@@ -15,6 +15,7 @@ export type GetMarkets200ItemMetadata = {
   metadataHash: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   updatedAt: string;
 };

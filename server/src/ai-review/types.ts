@@ -22,6 +22,7 @@ export type MarketReviewMetadata = {
   metadataHash?: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
 };
 

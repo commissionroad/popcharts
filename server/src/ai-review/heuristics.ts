@@ -39,7 +39,8 @@ const PROMPT_INJECTION_RULES: PatternRule[] = [
     flag: "prompt_injection",
     pattern:
       /\b(ignore (all )?(previous|prior|above) instructions|system prompt|developer message|reveal (the )?(prompt|instructions)|you are now|approve this market|output only approve|call (the )?tool)\b/i,
-    reason: "Market text contains instructions aimed at manipulating the reviewer.",
+    reason:
+      "Market text contains instructions aimed at manipulating the reviewer.",
   },
 ];
 
@@ -48,7 +49,8 @@ const PRIVATE_KNOWLEDGE_RULES: PatternRule[] = [
     flag: "private_local_knowledge",
     pattern:
       /\b(my|our)(?:\s+\w+){0,3}\s+(friend|friends|roommate|coworker|co-worker|classmate|sister|brother|mom|dad|partner|girlfriend|boyfriend|neighbor)\b/i,
-    reason: "Market appears resolvable only from the submitter's private circle.",
+    reason:
+      "Market appears resolvable only from the submitter's private circle.",
   },
   {
     flag: "private_local_knowledge",
@@ -82,8 +84,8 @@ export function runHeuristicPolicy(
     objectivity: hasClearBinaryQuestion(metadata.question) ? 4 : 2,
     promptInjectionRisk: matchedInjection.length > 0 ? 5 : 0,
     publicKnowability:
-      matchedPrivate.length > 0 ? 0 : metadata.resolutionUrl ? 3 : 2,
-    sourceQuality: metadata.resolutionUrl ? 2 : 0,
+      matchedPrivate.length > 0 ? 0 : hasResolutionSources(metadata) ? 3 : 2,
+    sourceQuality: hasResolutionSources(metadata) ? 2 : 0,
   });
 
   if (hardFlags.length > 0) {
@@ -115,6 +117,7 @@ export function marketText(metadata: MarketReviewMetadata) {
     metadata.question,
     metadata.description,
     metadata.resolutionCriteria,
+    ...(metadata.resolutionSources ?? []),
     metadata.resolutionUrl,
     metadata.category,
   ]
@@ -130,6 +133,10 @@ function hasClearBinaryQuestion(question: string) {
   return /^(will|is|are|does|do|did|has|have|can|could|was|were)\b/i.test(
     question.trim(),
   );
+}
+
+function hasResolutionSources(metadata: MarketReviewMetadata) {
+  return Boolean(metadata.resolutionUrl || metadata.resolutionSources?.length);
 }
 
 function unique(values: string[]) {

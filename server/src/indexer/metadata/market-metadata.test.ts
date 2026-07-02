@@ -10,6 +10,7 @@ const metadata = {
   question: "Will direct market creation carry metadata?",
   resolutionCriteria:
     "YES if the indexer can recover metadata from the creation event URI.",
+  resolutionSources: ["CNN", "NPR", "https://www.bbc.com/news"],
   version: 1 as const,
 };
 
@@ -32,6 +33,15 @@ describe("resolveMarketMetadataFromUri", () => {
       }),
     ).rejects.toThrow("Metadata hash mismatch");
   });
+
+  it("rejects non-data metadata URIs", async () => {
+    await expect(
+      resolveMarketMetadataFromUri({
+        metadataHash: hashMetadata(metadata),
+        metadataUri: "https://example.com/metadata.json",
+      }),
+    ).rejects.toThrow("self-contained data URI");
+  });
 });
 
 function metadataToDataUri(value: typeof metadata) {
@@ -51,6 +61,7 @@ function serializeMetadata(value: typeof metadata) {
     description: value.description,
     category: value.category,
     resolutionCriteria: value.resolutionCriteria,
+    resolutionSources: value.resolutionSources,
     createdAt: value.createdAt,
   });
 }

@@ -48,6 +48,7 @@ describe("market creation draft", () => {
       ...baseDraft,
       question: "Will the demo market graduate?",
       resolutionCriteria: "Resolves YES if the demo condition is met.",
+      resolutionSources: "News Desk, ftp://example.com/source",
       resolutionTime: baseDraft.graduationTime,
       resolutionUrl: "ftp://example.com/source",
     };
@@ -57,6 +58,7 @@ describe("market creation draft", () => {
     ).toMatchObject({
       graduationTime: "Graduation deadline must be before resolution.",
       resolutionTime: "Resolution deadline must be after graduation.",
+      resolutionSources: "Use http or https for source URLs.",
       resolutionUrl: "Use a valid http or https URL.",
     });
   });
@@ -115,6 +117,7 @@ describe("market creation draft", () => {
       ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
       question: "Will the demo market graduate?",
       resolutionCriteria: "Resolves YES if the demo condition is met.",
+      resolutionSources: "News Desk/Example Wire\nhttps://example.com/source",
       resolutionUrl: "https://example.com/source",
     };
     const firstPreview = buildCreateMarketPreview(draft);
@@ -122,6 +125,11 @@ describe("market creation draft", () => {
 
     expect(firstPreview.metadataHash).toMatch(/^0x[a-f0-9]{64}$/);
     expect(firstPreview.metadataHash).toBe(secondPreview.metadataHash);
+    expect(firstPreview.metadata.resolutionSources).toEqual([
+      "News Desk",
+      "Example Wire",
+      "https://example.com/source",
+    ]);
     expect(firstPreview.metadataUri).toContain("data:application/json");
     expect(firstPreview.graduationThreshold).toBe(2_500);
     expect(firstPreview.protocolParams.bypassAiResolution).toBe(false);

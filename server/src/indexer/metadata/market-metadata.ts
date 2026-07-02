@@ -1,11 +1,8 @@
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
 import { keccak256, stringToBytes } from "viem";
 
 import { db, schema } from "src/db/client";
 
 const MAX_METADATA_BYTES = 64 * 1024;
-const METADATA_FETCH_TIMEOUT_MS = 5_000;
 
 type MarketMetadataPayload = {
   category: string;
@@ -13,6 +10,7 @@ type MarketMetadataPayload = {
   description: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   version: 1;
 };
@@ -38,6 +36,7 @@ export async function persistMarketMetadataFromUri({
     metadataHash,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
+    resolutionSources: metadata.resolutionSources ?? [],
     resolutionUrl: metadata.resolutionUrl ?? null,
     updatedAt: new Date(),
   };
@@ -81,65 +80,9 @@ async function fetchMetadataText(metadataUri: string): Promise<string> {
     return readDataUriText(metadataUri);
   }
 
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`Unsupported metadata URI protocol: ${url.protocol}`);
-  }
-
-  await assertSafeHttpUrl(url);
-
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    METADATA_FETCH_TIMEOUT_MS,
+  throw new Error(
+    `Metadata URI must be a self-contained data URI; received ${url.protocol}`,
   );
-
-  try {
-    const response = await fetch(url, {
-      redirect: "manual",
-      signal: controller.signal,
-    });
-
-    if (response.status >= 300 && response.status < 400) {
-      throw new Error(
-        "Metadata URI redirects are not followed by the indexer.",
-      );
-    }
-    if (!response.ok) {
-      throw new Error(`Metadata URI returned HTTP ${response.status}.`);
-    }
-
-    return readBoundedResponseText(response);
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function assertSafeHttpUrl(url: URL) {
-  if (url.username || url.password) {
-    throw new Error("Metadata URI credentials are not allowed.");
-  }
-
-  const hostname = url.hostname.toLowerCase();
-  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-    throw new Error("Metadata URI cannot target localhost.");
-  }
-
-  const ipVersion = isIP(hostname);
-  if (ipVersion !== 0) {
-    if (isPrivateIp(hostname)) {
-      throw new Error("Metadata URI cannot target private IP ranges.");
-    }
-    return;
-  }
-
-  const addresses = await lookup(hostname, { all: true });
-  if (addresses.length === 0) {
-    throw new Error("Metadata URI host did not resolve.");
-  }
-
-  if (addresses.some((address) => isPrivateIp(address.address))) {
-    throw new Error("Metadata URI host resolves to a private IP range.");
-  }
 }
 
 function readDataUriText(metadataUri: string) {
@@ -165,39 +108,6 @@ function readDataUriText(metadataUri: string) {
   return text;
 }
 
-async function readBoundedResponseText(response: Response) {
-  const contentLength = response.headers.get("content-length");
-  if (contentLength && Number(contentLength) > MAX_METADATA_BYTES) {
-    throw new Error("Metadata response exceeds the indexer byte limit.");
-  }
-
-  if (!response.body) {
-    return "";
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let totalBytes = 0;
-  let text = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    totalBytes += value.byteLength;
-    if (totalBytes > MAX_METADATA_BYTES) {
-      throw new Error("Metadata response exceeds the indexer byte limit.");
-    }
-
-    text += decoder.decode(value, { stream: true });
-  }
-
-  text += decoder.decode();
-  return text;
-}
-
 function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   if (!isRecord(value)) {
     throw new Error("Metadata URI must resolve to a JSON object.");
@@ -218,6 +128,9 @@ function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   if (value.resolutionUrl !== undefined) {
     metadata.resolutionUrl = readString(value, "resolutionUrl");
   }
+  if (value.resolutionSources !== undefined) {
+    metadata.resolutionSources = readStringArray(value, "resolutionSources");
+  }
 
   return metadata;
 }
@@ -227,13 +140,17 @@ function hashMarketMetadata(metadata: MarketMetadataPayload) {
 }
 
 function serializeMarketMetadata(metadata: MarketMetadataPayload) {
-  const ordered: Record<string, string | number> = {
+  const ordered: Record<string, string | number | string[]> = {
     version: metadata.version,
     question: metadata.question,
     description: metadata.description,
     category: metadata.category,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+
+  if (metadata.resolutionSources?.length) {
+    ordered.resolutionSources = metadata.resolutionSources;
+  }
 
   if (metadata.resolutionUrl) {
     ordered.resolutionUrl = metadata.resolutionUrl;
@@ -267,50 +184,22 @@ function readString(value: Record<string, unknown>, field: string): string {
   return fieldValue;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isPrivateIp(address: string) {
-  const normalized = address.toLowerCase();
-  if (normalized.startsWith("::ffff:")) {
-    return isPrivateIpv4(normalized.slice("::ffff:".length));
-  }
-
-  if (normalized.includes(":")) {
-    return (
-      normalized === "::" ||
-      normalized === "::1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe80:")
-    );
-  }
-
-  return isPrivateIpv4(normalized);
-}
-
-function isPrivateIpv4(address: string) {
-  const octets = address.split(".").map((part) => Number(part));
+function readStringArray(
+  value: Record<string, unknown>,
+  field: string,
+): string[] {
+  const fieldValue = value[field];
 
   if (
-    octets.length !== 4 ||
-    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+    !Array.isArray(fieldValue) ||
+    fieldValue.some((item) => typeof item !== "string")
   ) {
-    return true;
+    throw new Error(`Metadata ${field} must be an array of strings.`);
   }
 
-  const [first, second] = octets;
+  return fieldValue;
+}
 
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    first >= 224
-  );
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

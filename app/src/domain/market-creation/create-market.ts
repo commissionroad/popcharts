@@ -47,6 +47,7 @@ export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
     openingProbability: 50,
     question: "",
     resolutionCriteria: "",
+    resolutionSources: "",
     resolutionPreset: RESOLUTION_PRESETS[1].label,
     resolutionTime: toDateTimeLocalValue(
       addMilliseconds(now, RESOLUTION_PRESETS[1].milliseconds)
@@ -64,14 +65,27 @@ export function buildMarketMetadata(draft: CreateMarketDraft): MarketMetadata {
     resolutionCriteria: draft.resolutionCriteria.trim(),
     version: 1 as const,
   };
+  const resolutionSources = parseResolutionSources(
+    draft.resolutionSources || draft.resolutionUrl
+  );
   const resolutionUrl = draft.resolutionUrl.trim();
+  const sourceMetadata =
+    resolutionSources.length > 0 ? { resolutionSources } : undefined;
 
   if (!resolutionUrl) {
+    if (sourceMetadata) {
+      return {
+        ...baseMetadata,
+        ...sourceMetadata,
+      };
+    }
+
     return baseMetadata;
   }
 
   return {
     ...baseMetadata,
+    ...sourceMetadata,
     resolutionUrl,
   };
 }
@@ -130,6 +144,14 @@ export function validateCreateMarketDraft(
 
   if (!draft.resolutionCriteria.trim()) {
     errors.resolutionCriteria = "Add resolution criteria.";
+  }
+
+  const invalidSource = parseResolutionSources(draft.resolutionSources).find(
+    (source) => looksLikeUrl(source) && !isHttpUrl(source)
+  );
+
+  if (invalidSource) {
+    errors.resolutionSources = "Use http or https for source URLs.";
   }
 
   if (draft.resolutionUrl.trim() && !isHttpUrl(draft.resolutionUrl.trim())) {
@@ -247,13 +269,17 @@ export function createMetadataDataUri(metadata: MarketMetadata) {
 }
 
 export function serializeMarketMetadata(metadata: MarketMetadata) {
-  const ordered: Record<string, string | number> = {
+  const ordered: Record<string, string | number | string[]> = {
     version: metadata.version,
     question: metadata.question,
     description: metadata.description,
     category: metadata.category,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+
+  if (metadata.resolutionSources?.length) {
+    ordered.resolutionSources = metadata.resolutionSources;
+  }
 
   if (metadata.resolutionUrl) {
     ordered.resolutionUrl = metadata.resolutionUrl;
@@ -289,6 +315,14 @@ function percentageToWad(percentage: number) {
   );
 }
 
+function parseResolutionSources(value: string) {
+  return value
+    .split(/[\n,]+/)
+    .flatMap((source) => (source.includes("://") ? [source] : source.split("/")))
+    .map((source) => source.trim())
+    .filter(Boolean);
+}
+
 function isHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -296,4 +330,8 @@ function isHttpUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function looksLikeUrl(value: string) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(value);
 }
