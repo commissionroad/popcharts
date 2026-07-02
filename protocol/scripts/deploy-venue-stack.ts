@@ -5,7 +5,7 @@ import hre, { network, tasks } from "hardhat";
 import type { Address, Hex, PublicClient } from "viem";
 
 import VenueStackModule from "../ignition/modules/VenueStack.js";
-import { assertNativeBalance } from "./shared/account/assertNativeBalance.mjs";
+import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
 import {
   resolveDeploymentChainProfile,
@@ -14,7 +14,7 @@ import {
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
-import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.mjs";
+import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 import { writeVenueManifest } from "./write-venue-manifest.js";
 
 // Runtime bytecode of the keyless CREATE2 factory expected at

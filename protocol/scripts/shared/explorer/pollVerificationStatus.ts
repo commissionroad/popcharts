@@ -1,6 +1,9 @@
-import { sleep } from "../time/sleep.mjs";
-import { getExplorerJson } from "./getExplorerJson.mjs";
-import { normalizeExplorerMessage } from "./normalizeExplorerMessage.mjs";
+import { sleep } from "../time/sleep.js";
+import { getExplorerJson } from "./getExplorerJson.js";
+import { normalizeExplorerMessage } from "./normalizeExplorerMessage.js";
+
+const VERIFICATION_PASSED = "Pass - Verified";
+const VERIFICATION_PENDING = "Pending in queue";
 
 /**
  * Polls Blockscout's verification status endpoint until verification finishes.
@@ -11,7 +14,13 @@ export async function pollVerificationStatus({
   guid,
   pollAttempts,
   pollIntervalMs,
-}) {
+}: {
+  apiUrl: string;
+  explorerName: string;
+  guid: string;
+  pollAttempts: number;
+  pollIntervalMs: number;
+}): Promise<string> {
   const statusUrl = new URL(apiUrl);
   statusUrl.searchParams.set("module", "contract");
   statusUrl.searchParams.set("action", "checkverifystatus");
@@ -24,10 +33,10 @@ export async function pollVerificationStatus({
 
     const status = await getExplorerJson({ explorerName, url: statusUrl });
     const result = normalizeExplorerMessage(status.result);
-    if (result === "Pass - Verified") {
+    if (result === VERIFICATION_PASSED) {
       return result;
     }
-    if (result !== "Pending in queue") {
+    if (result !== VERIFICATION_PENDING) {
       throw new Error(`${explorerName} verification failed: ${result}`);
     }
 

@@ -1,4 +1,8 @@
-import { postExplorerForm } from "./postExplorerForm.mjs";
+import type { Address } from "viem";
+
+import type { SolidityBuildInfo } from "../artifact/loadBuildInfo.js";
+import type { ExplorerApiResponse } from "../json/parseExplorerJson.js";
+import { postExplorerForm } from "./postExplorerForm.js";
 
 /**
  * Submits Solidity standard JSON source verification to Blockscout-compatible APIs.
@@ -10,7 +14,14 @@ export async function submitStandardJsonVerification({
   contractName,
   explorerName,
   licenseType,
-}) {
+}: {
+  address: Address;
+  apiUrl: string;
+  buildInfo: SolidityBuildInfo;
+  contractName: string;
+  explorerName: string;
+  licenseType: string;
+}): Promise<ExplorerApiResponse> {
   // Hardhat stores the exact Solidity standard JSON input in build-info. Sending
   // that to Blockscout avoids brittle flattened-source reconstruction.
   const sourceCode = JSON.stringify(buildInfo.input);

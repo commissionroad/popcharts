@@ -1,4 +1,26 @@
 import { getAddress } from "viem";
+import type {
+  Abi,
+  Account,
+  Address,
+  Chain,
+  Hash,
+  Hex,
+  PublicClient,
+  Transport,
+  WalletClient,
+} from "viem";
+
+/**
+ * Receipt metadata for a broadcast contract deployment, with bigints rendered
+ * as decimal strings so the result can go straight into a JSON manifest.
+ */
+export type DeployedContract = {
+  address: Address;
+  blockNumber: string;
+  gasUsed: string;
+  transactionHash: Hash;
+};
 
 /**
  * Deploys artifact bytecode and returns normalized transaction receipt metadata.
@@ -9,7 +31,13 @@ export async function deployBytecodeContract({
   publicClient,
   txFees,
   walletClient,
-}) {
+}: {
+  artifact: { readonly abi: Abi; readonly bytecode: Hex };
+  contractName: string;
+  publicClient: PublicClient;
+  txFees?: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
+  walletClient: WalletClient<Transport, Chain, Account>;
+}): Promise<DeployedContract> {
   const transactionHash = await walletClient.deployContract({
     abi: artifact.abi,
     bytecode: artifact.bytecode,

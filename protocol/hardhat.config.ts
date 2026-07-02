@@ -2,8 +2,8 @@ import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 import { parseGwei } from "viem";
 
-import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.mjs";
-import { ARCSCAN } from "./scripts/shared/explorer/arcscan.mjs";
+import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.js";
+import { ARCSCAN } from "./scripts/shared/explorer/arcscan.js";
 import postgradAdminTasks from "./scripts/tasks/postgradAdmin.js";
 import venueDeploymentTasks from "./scripts/tasks/venueDeployment.js";
 

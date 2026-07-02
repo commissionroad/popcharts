@@ -10,7 +10,7 @@ import {
   type PublicClient,
 } from "viem";
 
-import { assertNativeBalance } from "./shared/account/assertNativeBalance.mjs";
+import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
 import {
   resolveDeploymentChainProfile,
@@ -18,7 +18,7 @@ import {
 } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { requireAddress, requireNonNegativeInteger } from "./shared/cli/requireCliValue.js";
 import { mineHookSalt } from "./shared/contract/mineHookSalt.js";
-import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.mjs";
+import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import {
   collectVenueAddressEntries,
   formatVenueContractEntry,
@@ -28,7 +28,7 @@ import {
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
-import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.mjs";
+import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 // Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
 // requires its deployment address to encode: beforeSwap (1 << 7) and

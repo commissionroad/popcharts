@@ -1,4 +1,4 @@
-import { ARC_TESTNET } from "./arcTestnet.mjs";
+import { ARC_TESTNET } from "./arcTestnet.js";
 import { LOCAL_DEVCHAIN } from "./localDevchain.js";
 
 export type DeploymentChainProfile = {

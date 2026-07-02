@@ -1,9 +1,15 @@
-import { parseExplorerJson } from "../json/parseExplorerJson.mjs";
+import { parseExplorerJson, type ExplorerApiResponse } from "../json/parseExplorerJson.js";
 
 /**
  * Fetches and parses JSON from a block explorer endpoint.
  */
-export async function getExplorerJson({ explorerName, url }) {
+export async function getExplorerJson({
+  explorerName,
+  url,
+}: {
+  explorerName: string;
+  url: string | URL;
+}): Promise<ExplorerApiResponse> {
   const response = await fetch(url, {
     headers: {
       accept: "application/json",

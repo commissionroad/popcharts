@@ -65,6 +65,6 @@ pnpm hardhat verify --network arcTestnet <boundedHook> <poolManager> <poolTickBo
 ```
 
 If Blockscout's API rejects the automated submission, reuse the standard-JSON
-helpers under `scripts/shared/explorer/` (`verifyBlockscoutStandardJson.mjs`
+helpers under `scripts/shared/explorer/` (`verifyBlockscoutStandardJson.ts`
 submits Hardhat build-info standard JSON with encoded constructor args) instead
 of reconstructing flattened sources.

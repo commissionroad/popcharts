@@ -12,4 +12,4 @@ export const ARC_TESTNET = {
   },
   rpcUrl: "https://rpc.testnet.arc.network",
   rpcWsUrl: "wss://rpc.testnet.arc.network",
-};
+} as const;

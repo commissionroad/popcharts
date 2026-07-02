@@ -4,19 +4,19 @@ import { resolve } from "node:path";
 import type { Address } from "viem";
 
 import ArcProtocolModule from "../ignition/modules/ArcProtocol.js";
-import { assertNativeBalance } from "./shared/account/assertNativeBalance.mjs";
+import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
-import { ARC_TESTNET } from "./shared/chain/arcTestnet.mjs";
-import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.mjs";
-import { ARCSCAN } from "./shared/explorer/arcscan.mjs";
+import { ARC_TESTNET } from "./shared/chain/arcTestnet.js";
+import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
+import { ARCSCAN } from "./shared/explorer/arcscan.js";
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import {
   buildContractDeployments,
   type ContractDeploymentManifest,
 } from "./shared/ignition/buildContractDeployments.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
-import { writeJson } from "./shared/json/writeJson.mjs";
-import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.mjs";
+import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 /**
  * Deploys and verifies the Arc Testnet protocol through Hardhat Ignition.
@@ -99,7 +99,7 @@ async function main() {
         },
   } satisfies ArcProtocolManifest;
 
-  await writeJson(config.deploymentFile, manifest);
+  await writeJsonFile(config.deploymentFile, manifest);
   console.log(`Wrote deployment manifest: ${config.deploymentFile}`);
 
   if (config.shouldVerify) {
@@ -116,7 +116,7 @@ async function main() {
         status: "complete",
       },
     };
-    await writeJson(config.deploymentFile, verifiedManifest);
+    await writeJsonFile(config.deploymentFile, verifiedManifest);
     console.log(`Updated manifest with verification status: ${config.deploymentFile}`);
   }
 }
