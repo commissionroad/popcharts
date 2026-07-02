@@ -1316,34 +1316,49 @@ MVP. Each item should land as one or more small PRs with its own verification
 notes.
 
 1. Deployment scripts and manifests
-   - Status: in progress.
+   - Status: done.
    - Done: bytecode preflight via `pnpm deployment:check-venue`.
    - Done: manifest writer via `pnpm deployment:write-venue-manifest`.
-   - Next: broadcast-capable venue deployment, postgrad deployment, market
-     creation, pool seeding, and explorer verification notes.
+   - Done: broadcast-capable venue deployment via
+     `scripts/deploy-venue-stack.ts` (Ignition module, check-venue manifest
+     shape) and postgrad deployment via
+     `scripts/deploy-complete-set-postgrad.ts` (CREATE2 hook salt mining, hook
+     role wiring), with explorer verification notes in `deployments/README.md`.
 2. Market creation and pool setup script
-   - Status: not started.
-   - Needed: create a complete-set market, initialize YES/collateral and
-     NO/collateral pools, persist pool keys/IDs, and fail cleanly when any
-     dependency is missing.
+   - Status: done.
+   - Done: `scripts/create-complete-set-market.ts` deploys a standalone
+     complete-set market, initializes both bounded pools from the
+     display-price policy, configures inclusive tick bounds, whitelists pools
+     in the order manager, and persists pool keys/IDs in a market manifest;
+     golden tests cover display-price conversion for both token sort orders
+     and collateral decimals.
 3. Protocol smoke scripts
-   - Status: not started.
-   - Needed: one maker order, one taker swap that crosses liquidity, one
-     complete-set mint/merge arbitrage path, and one resolution/redeem path.
+   - Status: done.
+   - Done: `scripts/smoke-maker-order.ts`, `scripts/smoke-taker-swap.ts`,
+     `scripts/smoke-complete-set-arb.ts`, and `scripts/smoke-resolution.ts`
+     exercise maker order placement, an order-crossing taker swap through the
+     bounded hook, a complete-set arbitrage round trip, and resolution with
+     winning-side redemption, losing-side revert, and collateral conservation.
 4. Keeper and operator scripts
-   - Status: not started.
-   - Needed: resolver execution, deferred execution draining, stuck-order
-     inspection, market health checks, and safe owner/admin workflows.
+   - Status: done.
+   - Done: `scripts/keeper-complete-set.ts` (arbitrage plus deferred-execution
+     draining), `scripts/inspect-bounded-orders.ts` (stuck-order inspection),
+     `scripts/check-market-health.ts` (no-shortfall and drift checks), and the
+     dry-run-first `hardhat operator` task scope for owner, resolver, and
+     pregrad admin workflows.
 5. Public postgrad contract metadata
-   - Status: not started.
-   - Needed: exported ABIs, event documentation, read helpers, and manifest
-     fields that let server/indexer/UI discover postgrad state without hidden
-     local assumptions.
+   - Status: done.
+   - Done: `src/generated/postgrad-venue.ts` exports ABIs, event-name
+     constants, manifest address sources, and typed deployment placeholders;
+     `docs/postgrad-contract-metadata.md` documents events, read helpers, and
+     manifest shapes for server/indexer/UI discovery without hidden local
+     assumptions.
 6. Final policy decisions
-   - Status: not started.
-   - Needed: collateral choice, price/tick display policy, liquidity caps,
-     settlement/admin permissions, public testnet limits, and audit-before-mainnet
-     gates.
+   - Status: proposed, pending team sign-off.
+   - Done: ADR 0009 (`docs/adr/0009-complete-set-testnet-policy.md`) proposes
+     defaults for collateral choice, price/tick display policy, liquidity
+     caps, settlement/admin permissions, public testnet limits, and
+     audit-before-mainnet gates, with open questions listed for sign-off.
 
 ## Testing Matrix
 
