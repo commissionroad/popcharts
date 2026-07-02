@@ -6,7 +6,7 @@ import type {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import { calculateMatchedMarketCap } from "./matched-market-cap";
+import { getMatchedMarketCap } from "./matched-market-cap-read";
 import { serializeMarketRow } from "./markets";
 
 type MarketRow = typeof schema.markets.$inferSelect;
@@ -194,7 +194,7 @@ export async function requestMarketGraduation({
     };
   }
 
-  const matchedMarketCap = calculateMatchedMarketCap(row.market);
+  const matchedMarketCap = await getMatchedMarketCap(row.market);
   const graduatedAt =
     row.market.status === "graduated" ? row.market.updatedAt : new Date();
   const summary = serializeGraduationSummary(

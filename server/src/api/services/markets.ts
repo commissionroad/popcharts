@@ -10,7 +10,7 @@ import type {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, desc, eq, gt, inArray, schema } from "src/db/client";
-import { calculateMatchedMarketCap } from "./matched-market-cap";
+import { getMatchedMarketCaps } from "./matched-market-cap-read";
 
 const MARKET_LIST_LIMIT = 200;
 const LOCAL_MARKET_EXISTS_ABI = parseAbi([
@@ -58,15 +58,17 @@ export async function getMarkets({
     .orderBy(desc(schema.markets.createdBlockTimestamp))
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
-  const reviews = await getLatestAiReviews(
-    liveRows.map(({ market }) => market),
-  );
+  const liveMarkets = liveRows.map(({ market }) => market);
+  const [reviews, matchedMarketCaps] = await Promise.all([
+    getLatestAiReviews(liveMarkets),
+    getMatchedMarketCaps(liveMarkets),
+  ]);
 
   return liveRows.map(({ market, metadata }) =>
     serializeMarketRow(
       market,
       metadata,
-      calculateMatchedMarketCap(market),
+      matchedMarketCaps.get(marketKey(market)) ?? 0n,
       reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
     ),
   );
@@ -107,12 +109,15 @@ export async function getMarketById(
     return null;
   }
 
-  const reviews = await getLatestAiReviews([row.market]);
+  const [reviews, matchedMarketCaps] = await Promise.all([
+    getLatestAiReviews([row.market]),
+    getMatchedMarketCaps([row.market]),
+  ]);
 
   return serializeMarketRow(
     row.market,
     row.metadata,
-    calculateMatchedMarketCap(row.market),
+    matchedMarketCaps.get(marketKey(row.market)) ?? 0n,
     reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
   );
@@ -336,6 +341,14 @@ async function getLatestAiReviews(markets: MarketRow[]) {
 
 function marketReviewKey(chainId: number, marketId: bigint) {
   return `${chainId}:${marketId.toString()}`;
+}
+
+function marketKey({
+  chainId,
+  contractId,
+  marketId,
+}: Pick<MarketRow, "chainId" | "contractId" | "marketId">) {
+  return `${chainId}:${contractId}:${marketId.toString()}`;
 }
 
 async function filterLiveLocalMarketRows(rows: MarketQueryRow[]) {

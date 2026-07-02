@@ -14,7 +14,7 @@ import type {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import { calculateMatchedMarketCap } from "./matched-market-cap";
+import { getMatchedMarketCap } from "./matched-market-cap-read";
 import { serializeMarketRow } from "./markets";
 
 const DEFAULT_HARDHAT_PRIVATE_KEY =
@@ -87,6 +87,7 @@ export type DevMarketCloseDependencies = {
     marketId: bigint;
     updatedAt: Date;
   }) => Promise<MarketRow | null>;
+  getMatchedMarketCap: (market: MarketRow) => Promise<bigint>;
   selectMarket: ({
     chainId,
     marketId,
@@ -143,7 +144,8 @@ export async function closePregradMarketForRefund(
     };
   }
 
-  const market = serializeCloseMarketRow(row);
+  const matchedMarketCap = await dependencies.getMatchedMarketCap(row.market);
+  const market = serializeCloseMarketRow(row, matchedMarketCap);
 
   if (row.market.status === "refunded") {
     return {
@@ -178,14 +180,17 @@ export async function closePregradMarketForRefund(
     marketId: parsedMarketId,
     updatedAt: chainResult.blockTimestamp,
   });
-  const serializedMarket = serializeCloseMarketRow({
-    market: updatedMarket ?? {
-      ...row.market,
-      status: "refunded",
-      updatedAt: chainResult.blockTimestamp,
+  const serializedMarket = serializeCloseMarketRow(
+    {
+      market: updatedMarket ?? {
+        ...row.market,
+        status: "refunded",
+        updatedAt: chainResult.blockTimestamp,
+      },
+      metadata: row.metadata,
     },
-    metadata: row.metadata,
-  });
+    matchedMarketCap,
+  );
 
   return {
     kind: "closed",
@@ -197,17 +202,21 @@ export async function closePregradMarketForRefund(
   };
 }
 
-function serializeCloseMarketRow(row: DevMarketCloseRow) {
+function serializeCloseMarketRow(
+  row: DevMarketCloseRow,
+  matchedMarketCap: bigint,
+) {
   return serializeMarketRow(
     row.market,
     row.metadata,
-    calculateMatchedMarketCap(row.market),
+    matchedMarketCap,
   );
 }
 
 const defaultDevMarketCloseDependencies: DevMarketCloseDependencies = {
   closeMarketOnChain: closeLocalMarketOnChain,
   devCloseEnabled: () => config.devToolsEnabled && config.name === "local",
+  getMatchedMarketCap,
   markMarketRefunded,
   selectMarket: selectMarketForDevClose,
 };
