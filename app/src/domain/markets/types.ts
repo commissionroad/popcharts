@@ -12,6 +12,7 @@ export type MarketCategory =
   | "Crypto"
   | "Politics"
   | "Sports"
+  | "Weather"
   | "Culture"
   | "Tech"
   | "Econ";
@@ -41,6 +42,7 @@ export const MARKET_CATEGORIES: MarketCategory[] = [
   "Crypto",
   "Politics",
   "Sports",
+  "Weather",
   "Tech",
   "Culture",
   "Econ",
