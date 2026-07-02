@@ -79,6 +79,7 @@ describe("PregradManager", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
+    const metadataURI = "ipfs://popcharts/example";
     const metadataHash = keccak256(stringToBytes("ipfs://popcharts/example"));
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
@@ -88,6 +89,7 @@ describe("PregradManager", async function () {
         {
           collateral: collateral.address,
           metadataHash,
+          metadataURI,
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
           graduationThreshold: 2_500n * WAD,
@@ -102,6 +104,7 @@ describe("PregradManager", async function () {
         1n,
         getAddress(creator.account.address),
         metadataHash,
+        metadataURI,
         getAddress(collateral.address),
         (50n * WAD) / 100n,
         5_000n * WAD,
@@ -155,6 +158,7 @@ describe("PregradManager", async function () {
         {
           collateral: collateral.address,
           metadataHash: firstMetadataHash,
+          metadataURI: "ipfs://popcharts/first",
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
           graduationThreshold: 1_250n * WAD,
@@ -171,6 +175,7 @@ describe("PregradManager", async function () {
         {
           collateral: collateral.address,
           metadataHash: secondMetadataHash,
+          metadataURI: "ipfs://popcharts/second",
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
           graduationThreshold: 4_000n * WAD,
@@ -217,6 +222,7 @@ describe("PregradManager", async function () {
           {
             collateral: collateral.address,
             metadataHash,
+            metadataURI: "ipfs://popcharts/public-fee",
             openingProbabilityWad: (50n * WAD) / 100n,
             liquidityParameter: 5_000n * WAD,
             graduationThreshold: 2_500n * WAD,
@@ -241,6 +247,7 @@ describe("PregradManager", async function () {
           {
             collateral: collateral.address,
             metadataHash: keccak256(stringToBytes("ipfs://popcharts/no-fee")),
+            metadataURI: "ipfs://popcharts/no-fee",
             openingProbabilityWad: (50n * WAD) / 100n,
             liquidityParameter: 5_000n * WAD,
             graduationThreshold: 2_500n * WAD,
@@ -286,6 +293,7 @@ describe("PregradManager", async function () {
       {
         collateral: collateral.address,
         metadataHash,
+        metadataURI: "ipfs://popcharts/receipt",
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
         graduationThreshold: 2_500n * WAD,
@@ -378,6 +386,7 @@ describe("PregradManager", async function () {
       {
         collateral: collateral.address,
         metadataHash,
+        metadataURI: "ipfs://popcharts/graduation",
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
         graduationThreshold: matchedMarketCap,

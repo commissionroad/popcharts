@@ -36,6 +36,8 @@ describe("submitMarketForReview", () => {
     expect(init?.method).toBe("POST");
     expect(init?.headers).toEqual({ "content-type": "application/json" });
     expect(metadata.question).toBe("Will the review queue accept this market?");
+    expect(protocolParams.metadataURI).toContain("data:application/json");
+    expect(protocolParams.graduationDeadline).toMatch(/^\d+$/);
     expect(protocolParams.openingProbabilityWad).toBe("500000000000000000");
     expect(body.metadataHash).toBe(protocolParams.metadataHash);
     expect(result.reviewId).toBe("review-test-123");

@@ -263,6 +263,11 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "InvalidMetadataURI",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidPostgradAdapter",
     type: "error",
   },
@@ -365,6 +370,22 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MatchedMarketCapBelowThreshold",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "length",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "maximum",
+        type: "uint256",
+      },
+    ],
+    name: "MetadataURITooLong",
     type: "error",
   },
   {
@@ -899,6 +920,12 @@ export const pregradManagerAbi = [
       },
       {
         indexed: false,
+        internalType: "string",
+        name: "metadataURI",
+        type: "string",
+      },
+      {
+        indexed: false,
         internalType: "address",
         name: "collateral",
         type: "address",
@@ -1209,6 +1236,19 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "MAX_METADATA_URI_BYTES",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MAX_PUBLIC_LIQUIDITY_PARAMETER",
     outputs: [
       {
@@ -1379,6 +1419,11 @@ export const pregradManagerAbi = [
             internalType: "bytes32",
             name: "metadataHash",
             type: "bytes32",
+          },
+          {
+            internalType: "string",
+            name: "metadataURI",
+            type: "string",
           },
           {
             internalType: "uint256",

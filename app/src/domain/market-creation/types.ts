@@ -39,9 +39,10 @@ export type ProtocolCreateMarketParams = {
   collateral: `0x${string}`;
   bypassAiResolution: boolean;
   graduationThreshold: bigint;
-  graduationTime: bigint;
+  graduationDeadline: bigint;
   liquidityParameter: bigint;
   metadataHash: `0x${string}`;
+  metadataURI: string;
   openingProbabilityWad: bigint;
   resolutionTime: bigint;
 };
@@ -51,6 +52,7 @@ export type CreateMarketPreview = {
   graduationThreshold: number;
   metadata: MarketMetadata;
   metadataHash: `0x${string}`;
+  metadataUri: string;
   protocolParams: ProtocolCreateMarketParams;
 };
 

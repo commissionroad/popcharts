@@ -122,8 +122,10 @@ describe("market creation draft", () => {
 
     expect(firstPreview.metadataHash).toMatch(/^0x[a-f0-9]{64}$/);
     expect(firstPreview.metadataHash).toBe(secondPreview.metadataHash);
+    expect(firstPreview.metadataUri).toContain("data:application/json");
     expect(firstPreview.graduationThreshold).toBe(2_500);
     expect(firstPreview.protocolParams.bypassAiResolution).toBe(false);
+    expect(firstPreview.protocolParams.metadataURI).toBe(firstPreview.metadataUri);
     expect(firstPreview.protocolParams.openingProbabilityWad).toBe(500000000000000000n);
     expect(firstPreview.protocolParams.liquidityParameter).toBe(
       5000000000000000000000n

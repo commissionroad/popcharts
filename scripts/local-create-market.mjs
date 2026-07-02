@@ -77,10 +77,6 @@ async function main() {
   }
 
   if (options.preview) {
-    if (options.metadataUri) {
-      throw new Error("--preview cannot be combined with --metadata-uri.");
-    }
-
     const generatedMarket = await buildGeneratedMarket(options.kind);
     console.log(
       JSON.stringify(
@@ -105,20 +101,16 @@ async function main() {
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const commandEnv = { ...process.env, ...fileEnv };
 
-  if (options.metadataUri) {
-    commandEnv.LOCAL_MARKET_METADATA = options.metadataUri;
-  }
-
   validateLocalEnv(commandEnv, envFile, envFileExists);
   await validateLocalDeployment(commandEnv, envFile);
   ensureDependenciesInstalled();
 
-  const generatedMarket = options.metadataUri
-    ? null
-    : await buildGeneratedMarket(options.kind);
+  const generatedMarket = await buildGeneratedMarket(options.kind);
 
   if (generatedMarket) {
-    commandEnv.LOCAL_MARKET_METADATA_HASH = generatedMarket.metadataHash;
+    commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
+      generatedMarket.metadata,
+    );
     commandEnv.LOCAL_MARKET_GRADUATION_SECONDS = String(
       generatedMarket.graduationSeconds,
     );
@@ -239,7 +231,6 @@ function parseArgs(args) {
     envFile: undefined,
     help: false,
     kind: "random",
-    metadataUri: undefined,
     preview: false,
   };
 
@@ -277,15 +268,6 @@ function parseArgs(args) {
       index += 1;
     } else if (arg.startsWith("--kind=")) {
       options.kind = parseKind(arg.slice("--kind=".length));
-    } else if (arg === "--metadata-uri") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--metadata-uri requires a value.");
-      }
-      options.metadataUri = value;
-      index += 1;
-    } else if (arg.startsWith("--metadata-uri=")) {
-      options.metadataUri = arg.slice("--metadata-uri=".length);
     } else {
       throw new Error(`Unknown option ${arg}. Use --help.`);
     }
@@ -310,8 +292,6 @@ Options:
                             Defaults to random.
   --local-chain-env <path>  Load a generated local-chain env file.
                             Defaults to server/.env.local-chain.
-  --metadata-uri <uri>      Override the metadata URI hashed into the market event.
-                            Skips live metadata generation and API sync.
   --preview                 Print generated metadata JSON without creating a market.
   -h, --help                Show this help.
 
@@ -502,6 +482,9 @@ function serializeMetadata(metadata) {
     resolutionCriteria: metadata.resolutionCriteria,
   };
 
+  if (metadata.resolutionSources?.length) {
+    ordered.resolutionSources = metadata.resolutionSources;
+  }
   if (metadata.resolutionUrl) {
     ordered.resolutionUrl = metadata.resolutionUrl;
   }
@@ -527,6 +510,9 @@ async function persistMarketMetadata({
         metadataHash,
         question: metadata.question,
         resolutionCriteria: metadata.resolutionCriteria,
+        ...(metadata.resolutionSources?.length
+          ? { resolutionSources: metadata.resolutionSources }
+          : {}),
         ...(metadata.resolutionUrl
           ? { resolutionUrl: metadata.resolutionUrl }
           : {}),

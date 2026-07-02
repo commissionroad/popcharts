@@ -52,6 +52,7 @@ const baseMarket = {
   marketId: 77n,
   metadataHash:
     "0x1111111111111111111111111111111111111111111111111111111111111111",
+  metadataUri: "ipfs://popcharts/ai-review-job-test",
   noShares: 0n,
   openingProbabilityWad: 500_000_000_000_000_000n,
   receiptCount: 0n,

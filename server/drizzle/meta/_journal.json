@@ -71,6 +71,13 @@
       "when": 1782929386575,
       "tag": "0009_mean_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783009564946,
+      "tag": "0010_numerous_revanche",
+      "breakpoints": true
     }
   ]
 }

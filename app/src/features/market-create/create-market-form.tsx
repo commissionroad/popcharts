@@ -922,7 +922,7 @@ function ReviewPanel({
         />
         <ReviewRow
           label="Graduation"
-          value={formatDeadlineFromSeconds(preview.protocolParams.graduationTime)}
+          value={formatDeadlineFromSeconds(preview.protocolParams.graduationDeadline)}
         />
         <ReviewRow
           label="Resolution"
@@ -1108,7 +1108,7 @@ function SuccessPanel({
         />
         <ReviewRow
           label="Graduation"
-          value={formatDeadlineFromSeconds(result.protocolParams.graduationTime)}
+          value={formatDeadlineFromSeconds(result.protocolParams.graduationDeadline)}
         />
         <ReviewRow
           label="Resolution"

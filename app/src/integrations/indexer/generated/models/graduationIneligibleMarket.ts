@@ -25,6 +25,7 @@ export type GraduationIneligibleMarket = {
   matchedMarketCap: string;
   metadata?: GraduationIneligibleMarketMetadata;
   metadataHash: string;
+  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

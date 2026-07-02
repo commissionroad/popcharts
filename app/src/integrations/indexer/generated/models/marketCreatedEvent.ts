@@ -20,6 +20,7 @@ export interface MarketCreatedEvent {
   logIndex: number;
   marketId: string;
   metadataHash: string;
+  metadataUri: string;
   openingProbabilityWad: string;
   resolutionTime: string;
   resolutionTimeUnix: string;

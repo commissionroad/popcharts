@@ -92,8 +92,9 @@ default it randomly generates a near-term market from live public sources:
 The generated market resolves in two hours, with a one-hour graduation deadline.
 Pass `--kind crypto` or `--kind weather` to pick a source family explicitly.
 Pass `--preview` to print the generated metadata without creating a market.
-Pass `--metadata-uri <uri>` to use the older URI-hash smoke behavior and skip
-metadata generation/API sync.
+The helper emits the canonical JSON metadata payload directly in the
+`MarketCreated` event, so the indexer can recover and verify metadata without
+an app metadata POST.
 
 ## Common Commands
 

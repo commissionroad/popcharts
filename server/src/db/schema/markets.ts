@@ -38,6 +38,7 @@ export const markets = pgTable(
     status: marketStatus("status").default("under_review").notNull(),
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
+    metadataUri: text("metadata_uri").default("").notNull(),
     collateral: text("collateral").notNull(),
     // These are EVM uint256 values. Use numeric(78, 0) via uint256 so realistic
     // WAD-sized market parameters survive round-trips through Postgres.

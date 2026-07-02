@@ -64,6 +64,8 @@ library MarketTypes {
     address collateral;
     /// @notice Hash of offchain market metadata, sources, and resolution rules.
     bytes32 metadataHash;
+    /// @notice URI where an indexer can retrieve the canonical metadata payload.
+    string metadataURI;
     /// @notice Initial YES probability, scaled by 1e18 and strictly between 0 and 1e18.
     uint256 openingProbabilityWad;
     /// @notice Virtual LMSR smoothness parameter `b`, scaled in collateral units.

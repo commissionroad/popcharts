@@ -181,6 +181,7 @@ export const MarketSchema = t.Object({
   matchedMarketCap: t.String(),
   metadata: t.Optional(MarketMetadataSchema),
   metadataHash: t.String(),
+  metadataUri: t.String(),
   noShares: t.String(),
   openingProbabilityWad: t.String(),
   receiptCount: t.String(),
@@ -205,6 +206,7 @@ export const MarketCreatedEventSchema = t.Object({
   logIndex: t.Number(),
   marketId: t.String(),
   metadataHash: t.String(),
+  metadataUri: t.String(),
   openingProbabilityWad: t.String(),
   resolutionTime: t.String(),
   resolutionTimeUnix: t.String(),
@@ -283,18 +285,13 @@ export const ManualAiReviewAlreadyReviewedSchema = t.Object({
 export const ManualAiReviewIneligibleSchema = t.Object({
   marketStatus: t.Optional(MarketStatusSchema),
   message: t.String(),
-  reason: t.Union([
-    t.Literal("missing_metadata"),
-    t.Literal("wrong_status"),
-  ]),
+  reason: t.Union([t.Literal("missing_metadata"), t.Literal("wrong_status")]),
   status: t.Literal("ineligible"),
 });
 
 export type MarketResponse = Static<typeof MarketSchema>;
 export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
-export type MarketAiReviewJobResponse = Static<
-  typeof MarketAiReviewJobSchema
->;
+export type MarketAiReviewJobResponse = Static<typeof MarketAiReviewJobSchema>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<

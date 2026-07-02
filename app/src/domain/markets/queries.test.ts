@@ -27,6 +27,7 @@ const apiMarket: ApiMarket = {
   marketId: "7",
   matchedMarketCap: "0",
   metadataHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  metadataUri: "ipfs://popcharts/app-query-test",
   noShares: "0",
   openingProbabilityWad: "500000000000000000",
   receiptCount: "2",

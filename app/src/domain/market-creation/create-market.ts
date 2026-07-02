@@ -1,3 +1,5 @@
+import { keccak256, stringToBytes } from "viem";
+
 import { MARKET_CATEGORIES } from "@/domain/markets/types";
 
 import type {
@@ -78,13 +80,15 @@ export function buildCreateMarketPreview(
   draft: CreateMarketDraft
 ): CreateMarketPreview {
   const metadata = buildMarketMetadata(draft);
-  const metadataHash = createMockMetadataHash(metadata);
+  const metadataHash = createMetadataHash(metadata);
+  const metadataUri = createMetadataDataUri(metadata);
 
   return {
     collateralSymbol: COLLATERAL_SYMBOL,
     graduationThreshold: deriveGraduationThreshold(draft.liquidityParameter),
     metadata,
     metadataHash,
+    metadataUri,
     protocolParams: buildProtocolCreateMarketParams(draft, metadataHash),
   };
 }
@@ -96,12 +100,13 @@ export function buildProtocolCreateMarketParams(
   return {
     bypassAiResolution: draft.bypassAiResolution,
     collateral: MOCK_COLLATERAL_ADDRESS,
+    graduationDeadline: dateTimeLocalToUnixSeconds(draft.graduationTime),
     graduationThreshold: amountToWad(
       deriveGraduationThreshold(draft.liquidityParameter)
     ),
-    graduationTime: dateTimeLocalToUnixSeconds(draft.graduationTime),
     liquidityParameter: amountToWad(draft.liquidityParameter),
     metadataHash,
+    metadataURI: createMetadataDataUri(buildMarketMetadata(draft)),
     openingProbabilityWad: percentageToWad(draft.openingProbability),
     resolutionTime: dateTimeLocalToUnixSeconds(draft.resolutionTime),
   };
@@ -231,13 +236,14 @@ export function formatDeadline(value: string) {
   }).format(date);
 }
 
-export function createMockMetadataHash(metadata: MarketMetadata): `0x${string}` {
-  const serialized = serializeMarketMetadata(metadata);
-  const chunks = Array.from({ length: 8 }, (_, index) =>
-    hashChunk(`${serialized}:${index}`, index).toString(16).padStart(8, "0")
-  );
+export function createMetadataHash(metadata: MarketMetadata): `0x${string}` {
+  return keccak256(stringToBytes(serializeMarketMetadata(metadata)));
+}
 
-  return `0x${chunks.join("")}`;
+export function createMetadataDataUri(metadata: MarketMetadata) {
+  return `data:application/json;charset=utf-8,${encodeURIComponent(
+    serializeMarketMetadata(metadata)
+  )}`;
 }
 
 export function serializeMarketMetadata(metadata: MarketMetadata) {
@@ -290,15 +296,4 @@ function isHttpUrl(value: string) {
   } catch {
     return false;
   }
-}
-
-function hashChunk(value: string, seed: number) {
-  let hash = (0x811c9dc5 ^ seed) >>> 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-
-  return hash;
 }

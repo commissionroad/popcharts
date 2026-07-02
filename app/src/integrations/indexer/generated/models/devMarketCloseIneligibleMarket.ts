@@ -25,6 +25,7 @@ export type DevMarketCloseIneligibleMarket = {
   matchedMarketCap: string;
   metadata?: DevMarketCloseIneligibleMarketMetadata;
   metadataHash: string;
+  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

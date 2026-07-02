@@ -25,6 +25,7 @@ export type DevMarketCloseResponseMarket = {
   matchedMarketCap: string;
   metadata?: DevMarketCloseResponseMarketMetadata;
   metadataHash: string;
+  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

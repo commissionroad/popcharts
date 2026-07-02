@@ -28,6 +28,7 @@ export const marketCreatedEvents = pgTable(
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
+    metadataUri: text("metadata_uri").default("").notNull(),
     collateral: text("collateral").notNull(),
     // WAD-scaled protocol values can exceed Postgres int64, so these use the
     // uint256 numeric mapper rather than pg bigint.
