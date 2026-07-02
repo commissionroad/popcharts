@@ -4,6 +4,7 @@ node_modules/
 .bun-cache/
 .cache/
 .local-home/
+.local-dev/
 
 # Local environment
 .env

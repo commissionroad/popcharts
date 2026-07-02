@@ -45,12 +45,40 @@ the API, indexer, app, AI review processes, and local chain. Run
 Run `just local-reset` to remove the local Postgres container and data volumes
 before starting again from an empty database.
 
+### Local Dev Control Plane Spike
+
+For split logs, process restarts, and a dependency graph around the same local
+stack, install Process Compose and run:
+
+```bash
+brew install f1bonacc1/tap/process-compose
+just local-dev-control
+```
+
+This spike keeps the current `just local-dev` path intact while adding a
+Process Compose-backed control plane. It still uses the repo bootstrap logic:
+Postgres starts first, Drizzle constraints and schema push run once, the local
+chain becomes healthy, contracts deploy, generated env files are written, and
+then the API, indexer, review workers, and Next.js app start as independently
+inspectable processes. The TUI shows per-process logs; log files are also
+written under ignored `.local-dev/logs/`.
+
+Useful variants:
+
+```bash
+just local-dev-control --no-ai-review
+just local-dev-control --ai-review-only
+just local-dev-control --keep-db
+just local-dev-control api
+```
+
 ## Common Commands
 
 ```bash
 just setup          # install app and protocol dependencies
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
+just local-dev-control # run the split-log local dev control plane
 just local-ai-review # run only Postgres, AI Review service, and runner
 just local-dev-ai-review # explicit alias for the full AI-review local stack
 just local-reset    # clear the local Postgres container and data volumes

@@ -28,6 +28,7 @@
     "server:ai-review-smoke": "cd server && bun run smoke:ai-review-runner",
     "server:check": "cd server && bun run typecheck && bun test",
     "local:dev": "node scripts/local-dev.mjs",
+    "local:dev:control": "node scripts/local-dev-control.mjs",
     "local:dev:ai-review": "node scripts/local-dev.mjs",
     "local:ai-review": "node scripts/local-dev.mjs --ai-review-only",
     "local:reset": "node scripts/local-reset.mjs",
