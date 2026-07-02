@@ -1,0 +1,4 @@
+interface:
+  display_name: "Component Inventory"
+  short_description: "Track Pop Charts UI components"
+  default_prompt: "Use $component-inventory to update the Pop Charts component inventory after changing UI components."
