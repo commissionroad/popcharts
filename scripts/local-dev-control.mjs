@@ -42,6 +42,12 @@ const aiReviewBaseUrl = `http://127.0.0.1:${aiReviewPort}`;
 const serverEnvFile = resolve(serverDir, ".env.local-chain");
 const appEnvFile = resolve(appDir, ".env.development.local");
 const healthFile = resolve(serverDir, ".env.local-dev.indexer-health");
+const processComposeConfigDir = resolve(
+  repoRoot,
+  ".local-dev",
+  "config",
+  "process-compose",
+);
 const logsDir = resolve(repoRoot, ".local-dev", "logs");
 
 const internalCommands = new Set([
@@ -108,6 +114,7 @@ async function startControlPlane(rawArgs) {
     throw new Error("--no-ai-review cannot be combined with --ai-review-only.");
   }
 
+  mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
   mkdirSync(logsDir, { recursive: true });
 
@@ -130,7 +137,9 @@ async function startControlPlane(rawArgs) {
   );
   console.log("[local-dev-control] press ? in the TUI for keyboard help\n");
 
-  await inherit("process-compose", processArgs, { env });
+  await inherit("process-compose", processArgs, {
+    env: withProcessComposeHome(env),
+  });
 }
 
 async function runInternal(name) {
@@ -339,7 +348,13 @@ async function runApp() {
 }
 
 async function ensureToolInstalled() {
-  if (await commandSucceeds("process-compose", ["version"])) {
+  if (
+    await commandSucceeds(
+      "process-compose",
+      ["version"],
+      withProcessComposeHome(),
+    )
+  ) {
     return;
   }
 
@@ -348,6 +363,13 @@ async function ensureToolInstalled() {
       "'brew install f1bonacc1/tap/process-compose' or see " +
       "https://f1bonacc1.github.io/process-compose/installation/.",
   );
+}
+
+function withProcessComposeHome(env = process.env) {
+  return {
+    ...env,
+    XDG_CONFIG_HOME: resolve(repoRoot, ".local-dev", "config"),
+  };
 }
 
 async function resetLocalPostgresForFreshChain() {
