@@ -1,7 +1,8 @@
 # Protocol Deployments
 
 `protocol.json` is the protocol-owned registry that feeds the generated public
-contract metadata in `src/generated/pregrad-manager.ts`.
+contract metadata in `src/generated/pregrad-manager.ts` and
+`src/generated/postgrad-venue.ts`.
 
 Each network entry keeps a stable chain id and a `contracts` object. When
 `PregradManager` is deployed for a network, add:
@@ -18,6 +19,16 @@ Each network entry keeps a stable chain id and a `contracts` object. When
 Use a decimal string for `deployBlock` so the generator can emit a bigint
 literal without losing precision. Omit `deployBlock` if the deployment block is
 not known.
+
+Postgrad venue singletons use the same entry shape but are keyed by their
+manifest keys (`boundedHook`, `orderManager`, `poolTickBounds`,
+`postgradAdapter`, `swapRouter`) so consumers can join generated ABIs to
+addresses with the same names the venue-stack and postgrad manifests use. To
+publish a durable deployment through the generated
+`postgradVenueDeployments` map, copy the address (and deploy block) from the
+run-scoped `*.local.json` manifest into the network's `contracts` object and
+rerun `pnpm build`. See `docs/postgrad-contract-metadata.md` for the manifest
+shapes and the ABI-to-address join story.
 
 ## Venue And Postgrad Manifests
 
