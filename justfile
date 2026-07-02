@@ -63,6 +63,9 @@ server-check:
 local-dev *args:
     pnpm run local:dev -- {{args}}
 
+local-dev-control *args:
+    pnpm run local:dev:control -- {{args}}
+
 local-ai-review *args:
     pnpm run local:ai-review -- {{args}}
 

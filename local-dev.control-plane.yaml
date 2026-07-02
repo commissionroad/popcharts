@@ -1,0 +1,140 @@
+version: "0.5"
+
+log_level: info
+log_location: .local-dev/logs/all.log
+log_configuration:
+  rotation:
+    max_size_mb: 10
+    max_backups: 3
+
+processes:
+  prepare-database:
+    description: Start local Postgres, apply local constraints, and push the schema.
+    command: "node scripts/local-dev-control.mjs prepare-database"
+    working_dir: "."
+    availability:
+      restart: "exit_on_failure"
+    log_location: .local-dev/logs/prepare-database.log
+
+  database-log:
+    description: Follow the local Postgres container logs without owning its data volume.
+    command: "node scripts/local-dev-control.mjs database-log"
+    working_dir: "."
+    depends_on:
+      prepare-database:
+        condition: process_completed_successfully
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/database.log
+
+  chain:
+    description: Start or attach to the local Hardhat JSON-RPC chain.
+    command: "node scripts/local-dev-control.mjs chain"
+    working_dir: "."
+    depends_on:
+      prepare-database:
+        condition: process_completed_successfully
+    readiness_probe:
+      exec:
+        command: "node scripts/local-dev-control.mjs rpc-ready"
+      initial_delay_seconds: 1
+      period_seconds: 1
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 45
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/chain.log
+
+  deploy-contracts:
+    description: Deploy local protocol contracts and write generated app/server env.
+    command: "node scripts/local-dev-control.mjs deploy-contracts"
+    working_dir: "."
+    depends_on:
+      chain:
+        condition: process_healthy
+    availability:
+      restart: "exit_on_failure"
+    log_location: .local-dev/logs/deploy-contracts.log
+
+  review-service:
+    description: Run the local market review service in heuristic mode by default.
+    command: "node scripts/local-dev-control.mjs review-service"
+    working_dir: "."
+    depends_on:
+      prepare-database:
+        condition: process_completed_successfully
+    readiness_probe:
+      exec:
+        command: "node scripts/local-dev-control.mjs review-ready"
+      initial_delay_seconds: 1
+      period_seconds: 1
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 30
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/review-service.log
+
+  review-runner:
+    description: Poll Postgres for markets that need local AI review.
+    command: "node scripts/local-dev-control.mjs review-runner"
+    working_dir: "."
+    depends_on:
+      prepare-database:
+        condition: process_completed_successfully
+      review-service:
+        condition: process_healthy
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/review-runner.log
+
+  api:
+    description: Run the Bun API with generated local chain configuration.
+    command: "node scripts/local-dev-control.mjs api"
+    working_dir: "."
+    depends_on:
+      deploy-contracts:
+        condition: process_completed_successfully
+    readiness_probe:
+      exec:
+        command: "node scripts/local-dev-control.mjs api-ready"
+      initial_delay_seconds: 1
+      period_seconds: 1
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 30
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/api.log
+
+  indexer:
+    description: Run the chain event indexer after the API and generated env are ready.
+    command: "node scripts/local-dev-control.mjs indexer"
+    working_dir: "."
+    depends_on:
+      api:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "node scripts/local-dev-control.mjs indexer-ready"
+      initial_delay_seconds: 1
+      period_seconds: 1
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 45
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/indexer.log
+
+  app:
+    description: Run the Next.js app against the generated local chain/API env.
+    command: "node scripts/local-dev-control.mjs app"
+    working_dir: "."
+    depends_on:
+      indexer:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "node scripts/local-dev-control.mjs app-ready"
+      initial_delay_seconds: 2
+      period_seconds: 2
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 60
+    success_exit_codes: [130, 143]
+    log_location: .local-dev/logs/app.log
