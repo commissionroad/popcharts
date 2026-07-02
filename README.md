@@ -80,7 +80,20 @@ just local-create-market
 
 The helper loads the generated `server/.env.local-chain` file before delegating
 to the protocol market-creation script, so it uses the current local
-`PregradManager` and collateral addresses without manual shell exports.
+`PregradManager` and collateral addresses without manual shell exports. By
+default it randomly generates a near-term market from live public sources:
+
+- BTC, ETH, or SOL spot-price markets use the keyless `/simple/price` endpoint
+  from `https://api.coingecko.com`.
+- NYC, Miami, Los Angeles, or San Francisco temperature markets use the National
+  Weather Service hourly forecast for the threshold and the Aviation Weather
+  Center METAR API for resolution.
+
+The generated market resolves in two hours, with a one-hour graduation deadline.
+Pass `--kind crypto` or `--kind weather` to pick a source family explicitly.
+Pass `--preview` to print the generated metadata without creating a market.
+Pass `--metadata-uri <uri>` to use the older URI-hash smoke behavior and skip
+metadata generation/API sync.
 
 ## Common Commands
 

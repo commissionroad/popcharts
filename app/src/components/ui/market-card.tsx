@@ -13,6 +13,7 @@ const categoryColor: Record<MarketCategory, string> = {
   Politics: "var(--pc-violet)",
   Sports: "var(--pc-lime)",
   Tech: "var(--pc-cyan)",
+  Weather: "var(--pc-lime)",
 };
 
 export function MarketCard({ market }: { market: Market }) {

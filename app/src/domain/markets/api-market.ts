@@ -13,6 +13,7 @@ const generatedCategories: MarketCategory[] = [
   "Crypto",
   "Politics",
   "Sports",
+  "Weather",
   "Culture",
   "Tech",
   "Econ",
