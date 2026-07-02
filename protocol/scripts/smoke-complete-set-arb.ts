@@ -1,5 +1,5 @@
 import hre, { network } from "hardhat";
-import { formatUnits, type Address, type Hex, type PublicClient } from "viem";
+import { formatUnits, type PublicClient } from "viem";
 
 import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
 import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
@@ -10,9 +10,8 @@ import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
 import { decideCompleteSetArbAction } from "./shared/market/decideCompleteSetArbAction.js";
-import { ensureCollateralBalance } from "./shared/market/ensureCollateralBalance.js";
 import { ensureDevBackstopLiquidity } from "./shared/market/ensureDevBackstopLiquidity.js";
-import { floorOutcomeToCollateralUnit } from "./shared/market/floorOutcomeToCollateralUnit.js";
+import { executeCompleteSetArb } from "./shared/market/executeCompleteSetArb.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
@@ -22,39 +21,6 @@ import {
   readPoolDisplayPrice,
   type PoolDisplayPrice,
 } from "./shared/market/readPoolDisplayPrice.js";
-import { tickToSqrtPriceX96 } from "./shared/price/tickToSqrtPriceX96.js";
-import { approveErc20 } from "./shared/viem/approveErc20.js";
-import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
-import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
-
-const HOOK_DATA_NONE: Hex = "0x";
-
-const COMPLETE_SET_MARKET_ABI = [
-  {
-    inputs: [{ name: "collateralAmount", type: "uint256" }],
-    name: "outcomeAmountForCollateral",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "collateralAmount", type: "uint256" },
-    ],
-    name: "mintCompleteSets",
-    outputs: [{ name: "outcomeAmount", type: "uint256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "outcomeAmount", type: "uint256" }],
-    name: "mergeCompleteSets",
-    outputs: [{ name: "collateralAmount", type: "uint256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 /**
  * Smoke flow 3 (protocol MVP tracker item 3): reads YES and NO displayed
@@ -140,17 +106,7 @@ async function main() {
           label: "POPCHARTS_SMOKE_PRICE_SUM_TOLERANCE",
         });
 
-  const flowContext: FlowContext = {
-    account,
-    chainId,
-    connection,
-    manifest,
-    publicClient,
-    swapRouter,
-    walletClient,
-  };
-
-  const pricesBefore = await readBothPoolPrices(flowContext);
+  const pricesBefore = await readBothPoolPrices(publicClient, manifest);
   const decision = decideCompleteSetArbAction({
     noDisplayPriceWad: pricesBefore.no.displayPriceWad,
     toleranceWad,
@@ -185,25 +141,20 @@ async function main() {
     walletClient,
   });
 
-  const collateralBefore = await readErc20Balance(
-    publicClient,
-    manifest.collateral.address,
+  const { collateralDelta } = await executeCompleteSetArb({
     account,
-  );
-  if (decision.action === "mintAndSell") {
-    await mintAndSellBothSides(flowContext, arbCollateral);
-  } else {
-    await buyBothSidesAndMerge(flowContext, arbCollateral);
-  }
-  const collateralAfter = await readErc20Balance(
+    action: decision.action,
+    arbCollateral,
+    chainId,
+    collateralLabel: "POPCHARTS_SMOKE_ARB_COLLATERAL",
+    manifest,
     publicClient,
-    manifest.collateral.address,
-    account,
-  );
+    swapRouter,
+    walletClient,
+  });
 
-  const pricesAfter = await readBothPoolPrices(flowContext);
+  const pricesAfter = await readBothPoolPrices(publicClient, manifest);
   const priceSumAfterWad = pricesAfter.yes.displayPriceWad + pricesAfter.no.displayPriceWad;
-  const collateralDelta = collateralAfter - collateralBefore;
 
   console.log(
     `Prices after: YES ${formatUnits(pricesAfter.yes.displayPriceWad, 18)} + ` +
@@ -231,214 +182,21 @@ async function main() {
 
 await main();
 
-type SmokeWalletClient = {
-  writeContract(parameters: {
-    abi: readonly unknown[];
-    address: Address;
-    args: readonly unknown[];
-    functionName: string;
-  }): Promise<Hex>;
-};
-
-type SmokeConnection = Awaited<ReturnType<typeof network.create>>;
-
-type FlowContext = {
-  readonly account: Address;
-  readonly chainId: number;
-  readonly connection: SmokeConnection;
-  readonly manifest: CompleteSetMarketManifestData;
-  readonly publicClient: PublicClient;
-  readonly swapRouter: Address;
-  readonly walletClient: SmokeWalletClient;
-};
-
-async function readOutcomeAmountForCollateral(
-  context: FlowContext,
-  collateralAmount: bigint,
-): Promise<bigint> {
-  return context.publicClient.readContract({
-    abi: COMPLETE_SET_MARKET_ABI,
-    address: context.manifest.market.address,
-    args: [collateralAmount],
-    functionName: "outcomeAmountForCollateral",
-  });
-}
-
 async function readBothPoolPrices(
-  context: FlowContext,
+  publicClient: PublicClient,
+  manifest: CompleteSetMarketManifestData,
 ): Promise<{ no: PoolDisplayPrice; yes: PoolDisplayPrice }> {
   const readOne = (pool: CompleteSetMarketPool): Promise<PoolDisplayPrice> =>
     readPoolDisplayPrice({
-      collateralDecimals: context.manifest.collateral.decimals,
-      outcomeDecimals: context.manifest.market.outcomeDecimals,
+      collateralDecimals: manifest.collateral.decimals,
+      outcomeDecimals: manifest.market.outcomeDecimals,
       outcomeIsCurrency0: pool.outcomeIsCurrency0,
       poolId: pool.poolId,
-      publicClient: context.publicClient,
-      stateView: context.manifest.venue.stateView,
+      publicClient,
+      stateView: manifest.venue.stateView,
     });
   return {
-    no: await readOne(context.manifest.pools.no),
-    yes: await readOne(context.manifest.pools.yes),
+    no: await readOne(manifest.pools.no),
+    yes: await readOne(manifest.pools.yes),
   };
-}
-
-// Price sum above one: mint complete sets at par and sell both sides into
-// their pools, pushing both displayed prices down toward YES + NO = 1.
-async function mintAndSellBothSides(context: FlowContext, arbCollateral: bigint): Promise<void> {
-  await ensureCollateralBalance({
-    chainId: context.chainId,
-    collateral: context.manifest.collateral.address,
-    owner: context.account,
-    publicClient: context.publicClient,
-    requiredAmount: arbCollateral,
-    requirementLabel: "POPCHARTS_SMOKE_ARB_COLLATERAL",
-    walletClient: context.walletClient,
-  });
-  await approveErc20({
-    amount: arbCollateral,
-    publicClient: context.publicClient,
-    spender: context.manifest.market.address,
-    token: context.manifest.collateral.address,
-    walletClient: context.walletClient,
-  });
-  const outcomeAmount = await readOutcomeAmountForCollateral(context, arbCollateral);
-  const mintHash = await context.walletClient.writeContract({
-    abi: COMPLETE_SET_MARKET_ABI,
-    address: context.manifest.market.address,
-    args: [context.account, arbCollateral],
-    functionName: "mintCompleteSets",
-  });
-  await requireSuccessfulReceipt(context.publicClient, mintHash, "arb mintCompleteSets");
-  console.log(
-    `Minted ${formatUnits(outcomeAmount, context.manifest.market.outcomeDecimals)} complete sets ` +
-      `from ${formatUnits(arbCollateral, context.manifest.collateral.decimals)} collateral.`,
-  );
-
-  const router = await context.connection.viem.getContractAt(
-    "MinimalV4SwapRouter",
-    context.swapRouter,
-  );
-  for (const side of ["yes", "no"] as const) {
-    const pool = context.manifest.pools[side];
-    await approveErc20({
-      amount: outcomeAmount,
-      publicClient: context.publicClient,
-      spender: context.swapRouter,
-      token: pool.outcomeToken,
-      walletClient: context.walletClient,
-    });
-    // Selling outcome pushes the display price down; the limit sits at the
-    // epsilon bound in that direction.
-    const limitTick = pool.outcomeIsCurrency0 ? pool.boundLowerTick : pool.boundUpperTick;
-    const collateralBefore = await readErc20Balance(
-      context.publicClient,
-      context.manifest.collateral.address,
-      context.account,
-    );
-    const swapHash = await router.write.swap([
-      pool.poolKey,
-      {
-        amountSpecified: -outcomeAmount,
-        sqrtPriceLimitX96: tickToSqrtPriceX96(limitTick),
-        zeroForOne: pool.outcomeIsCurrency0,
-      },
-      context.account,
-      HOOK_DATA_NONE,
-    ]);
-    await requireSuccessfulReceipt(context.publicClient, swapHash, `sell ${side.toUpperCase()}`);
-    const collateralAfter = await readErc20Balance(
-      context.publicClient,
-      context.manifest.collateral.address,
-      context.account,
-    );
-    console.log(
-      `Sold ${formatUnits(outcomeAmount, context.manifest.market.outcomeDecimals)} ` +
-        `${side.toUpperCase()} for ` +
-        `${formatUnits(collateralAfter - collateralBefore, context.manifest.collateral.decimals)} ` +
-        "collateral.",
-    );
-  }
-}
-
-// Price sum below one: buy both sides for less than one full set and merge
-// them back into collateral at par, pushing both displayed prices up.
-async function buyBothSidesAndMerge(context: FlowContext, arbCollateral: bigint): Promise<void> {
-  const outcomeTarget = await readOutcomeAmountForCollateral(context, arbCollateral);
-  await ensureCollateralBalance({
-    chainId: context.chainId,
-    collateral: context.manifest.collateral.address,
-    owner: context.account,
-    publicClient: context.publicClient,
-    requiredAmount: arbCollateral * 2n,
-    requirementLabel: "POPCHARTS_SMOKE_ARB_COLLATERAL",
-    walletClient: context.walletClient,
-  });
-  await approveErc20({
-    amount: arbCollateral * 2n,
-    publicClient: context.publicClient,
-    spender: context.swapRouter,
-    token: context.manifest.collateral.address,
-    walletClient: context.walletClient,
-  });
-
-  const router = await context.connection.viem.getContractAt(
-    "MinimalV4SwapRouter",
-    context.swapRouter,
-  );
-  const received: Record<"no" | "yes", bigint> = { no: 0n, yes: 0n };
-  for (const side of ["yes", "no"] as const) {
-    const pool = context.manifest.pools[side];
-    // Buying outcome pushes the display price up; the limit sits at the
-    // epsilon bound in that direction.
-    const limitTick = pool.outcomeIsCurrency0 ? pool.boundUpperTick : pool.boundLowerTick;
-    const outcomeBefore = await readErc20Balance(
-      context.publicClient,
-      pool.outcomeToken,
-      context.account,
-    );
-    const swapHash = await router.write.swap([
-      pool.poolKey,
-      {
-        amountSpecified: outcomeTarget,
-        sqrtPriceLimitX96: tickToSqrtPriceX96(limitTick),
-        zeroForOne: !pool.outcomeIsCurrency0,
-      },
-      context.account,
-      HOOK_DATA_NONE,
-    ]);
-    await requireSuccessfulReceipt(context.publicClient, swapHash, `buy ${side.toUpperCase()}`);
-    const outcomeAfter = await readErc20Balance(
-      context.publicClient,
-      pool.outcomeToken,
-      context.account,
-    );
-    received[side] = outcomeAfter - outcomeBefore;
-    console.log(
-      `Bought ${formatUnits(received[side], context.manifest.market.outcomeDecimals)} ` +
-        `${side.toUpperCase()}.`,
-    );
-  }
-
-  const mergeAmount = floorOutcomeToCollateralUnit({
-    collateralDecimals: context.manifest.collateral.decimals,
-    outcomeAmount: received.yes < received.no ? received.yes : received.no,
-    outcomeDecimals: context.manifest.market.outcomeDecimals,
-  });
-  if (mergeAmount <= 0n) {
-    throw new Error(
-      "buyAndMerge round trip received no mergeable complete sets; the pools lack liquidity " +
-        "on the outcome side.",
-    );
-  }
-  const mergeHash = await context.walletClient.writeContract({
-    abi: COMPLETE_SET_MARKET_ABI,
-    address: context.manifest.market.address,
-    args: [mergeAmount],
-    functionName: "mergeCompleteSets",
-  });
-  await requireSuccessfulReceipt(context.publicClient, mergeHash, "arb mergeCompleteSets");
-  console.log(
-    `Merged ${formatUnits(mergeAmount, context.manifest.market.outcomeDecimals)} complete sets ` +
-      "back into collateral.",
-  );
 }

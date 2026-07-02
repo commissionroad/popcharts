@@ -33,6 +33,8 @@ export type CompleteSetMarketPool = {
 
 /** Manifest fields the smoke flows rely on, produced by `pnpm local:create-complete-set-market`. */
 export type CompleteSetMarketManifestData = {
+  /** Block at market creation; keeper and inspection event scans start here. */
+  readonly blockNumber?: string;
   readonly chainId: number;
   readonly collateral: {
     readonly address: Address;
@@ -109,7 +111,12 @@ function parseManifest(raw: unknown, manifestPath: string): CompleteSetMarketMan
   const pools = requireObject(root.pools, manifestPath, "pools");
   const venue = requireObject(root.venue, manifestPath, "venue");
 
+  const blockNumber =
+    typeof root.blockNumber === "string" && /^\d+$/.test(root.blockNumber)
+      ? root.blockNumber
+      : undefined;
   return {
+    ...(blockNumber === undefined ? {} : { blockNumber }),
     chainId: requireNonNegativeInteger(root.chainId, `${manifestPath} chainId`),
     collateral: {
       address: requireAddress(collateral.address, `${manifestPath} collateral.address`),

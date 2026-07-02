@@ -7,6 +7,7 @@ import { approveErc20 } from "../viem/approveErc20.js";
 import { requireSuccessfulReceipt } from "../viem/requireSuccessfulReceipt.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "./ensureCollateralBalance.js";
+import { readPoolActiveLiquidity } from "./readPoolActiveLiquidity.js";
 import { readPoolDisplayPrice } from "./readPoolDisplayPrice.js";
 import type { CompleteSetMarketManifestData } from "./readCompleteSetMarketManifest.js";
 
@@ -29,16 +30,6 @@ const MARKET_MINT_ABI = [
     name: "mintCompleteSets",
     outputs: [{ name: "outcomeAmount", type: "uint256" }],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const STATE_VIEW_LIQUIDITY_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getLiquidity",
-    outputs: [{ name: "liquidity", type: "uint128" }],
-    stateMutability: "view",
     type: "function",
   },
 ] as const;
@@ -109,11 +100,10 @@ export async function ensureDevBackstopLiquidity(args: {
 }): Promise<void> {
   for (const side of args.sides) {
     const pool = args.manifest.pools[side];
-    const activeLiquidity = await args.publicClient.readContract({
-      abi: STATE_VIEW_LIQUIDITY_ABI,
-      address: args.manifest.venue.stateView,
-      args: [pool.poolId],
-      functionName: "getLiquidity",
+    const activeLiquidity = await readPoolActiveLiquidity({
+      poolId: pool.poolId,
+      publicClient: args.publicClient,
+      stateView: args.manifest.venue.stateView,
     });
     if (activeLiquidity > 0n) {
       continue;

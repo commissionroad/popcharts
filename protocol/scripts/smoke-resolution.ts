@@ -7,6 +7,7 @@ import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { floorOutcomeToCollateralUnit } from "./shared/market/floorOutcomeToCollateralUnit.js";
+import { outcomeCapacityForCollateral } from "./shared/market/outcomeCapacityForCollateral.js";
 import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMarketManifest.js";
 import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
 import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
@@ -188,11 +189,11 @@ async function main() {
     address: manifest.market.noToken,
     functionName: "totalSupply",
   });
-  const backedOutcomeCapacity = outcomeCapacityForCollateral(
-    marketCollateral,
-    manifest.collateral.decimals,
-    manifest.market.outcomeDecimals,
-  );
+  const backedOutcomeCapacity = outcomeCapacityForCollateral({
+    collateralAmount: marketCollateral,
+    collateralDecimals: manifest.collateral.decimals,
+    outcomeDecimals: manifest.market.outcomeDecimals,
+  });
   console.log(
     `Remaining supplies: YES ${formatUnits(yesSupply, manifest.market.outcomeDecimals)}, ` +
       `NO ${formatUnits(noSupply, manifest.market.outcomeDecimals)} (NO is unredeemable).`,
@@ -211,16 +212,3 @@ async function main() {
 }
 
 await main();
-
-// Outcome-token capacity representable by a collateral balance, rounding down
-// like the market's own decimal scaling.
-function outcomeCapacityForCollateral(
-  collateralAmount: bigint,
-  collateralDecimals: number,
-  outcomeDecimals: number,
-): bigint {
-  if (outcomeDecimals >= collateralDecimals) {
-    return collateralAmount * 10n ** BigInt(outcomeDecimals - collateralDecimals);
-  }
-  return collateralAmount / 10n ** BigInt(collateralDecimals - outcomeDecimals);
-}

@@ -1,13 +1,5 @@
 import hre, { network } from "hardhat";
-import {
-  formatUnits,
-  getAddress,
-  parseEventLogs,
-  type Abi,
-  type Address,
-  type Hex,
-  type PublicClient,
-} from "viem";
+import { formatUnits, getAddress, parseEventLogs, type Abi, type Hex } from "viem";
 
 import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
 import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
@@ -17,6 +9,7 @@ import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "./shared/market/ensureCollateralBalance.js";
+import { readBoundedOrder } from "./shared/market/readBoundedOrder.js";
 import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMarketManifest.js";
 import { readPoolDisplayPrice } from "./shared/market/readPoolDisplayPrice.js";
 import { readSmokeMakerOrderManifest } from "./shared/market/readSmokeMakerOrderManifest.js";
@@ -27,33 +20,6 @@ import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt
 
 const HOOK_DATA_NONE: Hex = "0x";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-
-const ORDER_MANAGER_GET_ORDER_ABI = [
-  {
-    inputs: [
-      { name: "poolId", type: "bytes32" },
-      { name: "orderId", type: "uint32" },
-    ],
-    name: "getOrder",
-    outputs: [
-      {
-        components: [
-          { name: "owner", type: "address" },
-          { name: "zeroForOne", type: "bool" },
-          { name: "tickLower", type: "int24" },
-          { name: "tickUpper", type: "int24" },
-          { name: "indexedTick", type: "int24" },
-          { name: "liquidity", type: "uint128" },
-          { name: "enablePartialFill", type: "bool" },
-        ],
-        name: "order",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
 
 /**
  * Smoke flow 2 (protocol MVP tracker item 3): swaps collateral for outcome
@@ -133,12 +99,12 @@ async function main() {
     "BoundedPoolOrderManager",
     manifest.venue.orderManager,
   );
-  const orderBefore = await readOrder(
+  const orderBefore = await readBoundedOrder({
+    orderId: smokeOrder.order.orderId,
+    orderManager: manifest.venue.orderManager,
+    poolId: pool.poolId,
     publicClient,
-    manifest.venue.orderManager,
-    pool.poolId,
-    smokeOrder.order.orderId,
-  );
+  });
   if (orderBefore.owner === ZERO_ADDRESS) {
     throw new Error(
       `Maker order #${smokeOrder.order.orderId} no longer exists (already filled or cancelled). ` +
@@ -225,12 +191,12 @@ async function main() {
   );
   const deferred = orderEvents.find((event) => event.eventName === "DeferredExecutionStored");
 
-  const orderAfter = await readOrder(
+  const orderAfter = await readBoundedOrder({
+    orderId: smokeOrder.order.orderId,
+    orderManager: manifest.venue.orderManager,
+    poolId: pool.poolId,
     publicClient,
-    manifest.venue.orderManager,
-    pool.poolId,
-    smokeOrder.order.orderId,
-  );
+  });
   const priceAfter = await readPoolDisplayPrice({
     collateralDecimals: manifest.collateral.decimals,
     outcomeDecimals: manifest.market.outcomeDecimals,
@@ -339,28 +305,3 @@ async function main() {
 }
 
 await main();
-
-type OrderState = {
-  enablePartialFill: boolean;
-  indexedTick: number;
-  liquidity: bigint;
-  owner: Address;
-  tickLower: number;
-  tickUpper: number;
-  zeroForOne: boolean;
-};
-
-async function readOrder(
-  publicClient: PublicClient,
-  orderManager: Address,
-  poolId: Hex,
-  orderId: number,
-): Promise<OrderState> {
-  const order = await publicClient.readContract({
-    abi: ORDER_MANAGER_GET_ORDER_ABI,
-    address: orderManager,
-    args: [poolId, orderId],
-    functionName: "getOrder",
-  });
-  return { ...order, owner: getAddress(order.owner) };
-}
