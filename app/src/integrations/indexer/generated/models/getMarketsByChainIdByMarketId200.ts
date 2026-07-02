@@ -25,7 +25,6 @@ export type GetMarketsByChainIdByMarketId200 = {
   matchedMarketCap: string;
   metadata?: GetMarketsByChainIdByMarketId200Metadata;
   metadataHash: string;
-  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

@@ -1,11 +1,5 @@
 import { network } from "hardhat";
-import {
-  getAddress,
-  isAddress,
-  keccak256,
-  stringToBytes,
-  type Address,
-} from "viem";
+import { getAddress, isAddress, keccak256, stringToBytes, type Address } from "viem";
 
 const WAD = 10n ** 18n;
 const DAY_SECONDS = 24n * 60n * 60n;

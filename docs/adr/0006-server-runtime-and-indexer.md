@@ -62,13 +62,12 @@ Tradeoffs:
 
 ## Update: Market Metadata Discovery
 
-`PregradManager.MarketCreated` now emits both `metadataHash` and `metadataURI`.
-The hash remains the immutable integrity commitment, while the URI is the
-indexer discovery pointer. The URI must be a self-contained `data:` payload, so
+`PregradManager.MarketCreated` now emits both `metadataHash` and the canonical
+metadata JSON payload. The hash remains the immutable integrity commitment, and
 direct contract-created markets carry their canonical terms in the creation
 event instead of relying on an app side-channel or mutable offchain retrieval.
 The canonical payload can include `resolutionSources`, a list of public source
 names or URLs that review agents can use to gather and corroborate evidence
-against the market's resolution criteria. The indexer records the URI on the
-raw event and market projection, resolves the inline payload, verifies its
-canonical JSON hash, and persists `market_metadata`.
+against the market's resolution criteria. The indexer records the payload on
+the raw event, verifies its canonical JSON hash, and persists
+`market_metadata`.

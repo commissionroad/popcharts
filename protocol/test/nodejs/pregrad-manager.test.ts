@@ -4,7 +4,9 @@ import { network } from "hardhat";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
 const WAD = 10n ** 18n;
-const DEFAULT_METADATA_URI = "data:application/json,%7B%7D";
+const DEFAULT_METADATA =
+  '{"version":1,"question":"Will this test market resolve?","description":"","category":"Test","resolutionCriteria":"Resolves according to test fixtures.","createdAt":"2026-01-01T00:00:00.000Z"}';
+const DEFAULT_METADATA_HASH = keccak256(stringToBytes(DEFAULT_METADATA));
 const MarketStatus = {
   Active: 0,
   Graduating: 2,
@@ -80,8 +82,8 @@ describe("PregradManager", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
-    const metadataURI = DEFAULT_METADATA_URI;
-    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/example"));
+    const metadata = DEFAULT_METADATA;
+    const metadataHash = DEFAULT_METADATA_HASH;
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
 
@@ -90,7 +92,7 @@ describe("PregradManager", async function () {
         {
           collateral: collateral.address,
           metadataHash,
-          metadataURI,
+          metadata,
           openingProbabilityWad: (50n * WAD) / 100n,
           liquidityParameter: 5_000n * WAD,
           graduationThreshold: 2_500n * WAD,
@@ -105,7 +107,7 @@ describe("PregradManager", async function () {
         1n,
         getAddress(creator.account.address),
         metadataHash,
-        metadataURI,
+        metadata,
         getAddress(collateral.address),
         (50n * WAD) / 100n,
         5_000n * WAD,
@@ -151,15 +153,15 @@ describe("PregradManager", async function () {
     const secondGraduationDeadline = firstGraduationDeadline + 11n * 24n * 60n * 60n;
     const firstResolutionTime = firstGraduationDeadline + 27n * 24n * 60n * 60n;
     const secondResolutionTime = secondGraduationDeadline + 46n * 24n * 60n * 60n;
-    const firstMetadataHash = keccak256(stringToBytes("ipfs://popcharts/first"));
-    const secondMetadataHash = keccak256(stringToBytes("ipfs://popcharts/second"));
+    const firstMetadataHash = DEFAULT_METADATA_HASH;
+    const secondMetadataHash = DEFAULT_METADATA_HASH;
 
     await manager.write.createMarket(
       [
         {
           collateral: collateral.address,
           metadataHash: firstMetadataHash,
-          metadataURI: DEFAULT_METADATA_URI,
+          metadata: DEFAULT_METADATA,
           openingProbabilityWad: (20n * WAD) / 100n,
           liquidityParameter: 2_500n * WAD,
           graduationThreshold: 1_250n * WAD,
@@ -176,7 +178,7 @@ describe("PregradManager", async function () {
         {
           collateral: collateral.address,
           metadataHash: secondMetadataHash,
-          metadataURI: DEFAULT_METADATA_URI,
+          metadata: DEFAULT_METADATA,
           openingProbabilityWad: (80n * WAD) / 100n,
           liquidityParameter: 8_000n * WAD,
           graduationThreshold: 4_000n * WAD,
@@ -209,7 +211,7 @@ describe("PregradManager", async function () {
     const [owner, publicCreator, feeRecipient] = await viem.getWalletClients();
     const publicClient = await viem.getPublicClient();
 
-    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/public-fee"));
+    const metadataHash = DEFAULT_METADATA_HASH;
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
 
@@ -223,7 +225,7 @@ describe("PregradManager", async function () {
           {
             collateral: collateral.address,
             metadataHash,
-            metadataURI: DEFAULT_METADATA_URI,
+            metadata: DEFAULT_METADATA,
             openingProbabilityWad: (50n * WAD) / 100n,
             liquidityParameter: 5_000n * WAD,
             graduationThreshold: 2_500n * WAD,
@@ -247,8 +249,8 @@ describe("PregradManager", async function () {
         [
           {
             collateral: collateral.address,
-            metadataHash: keccak256(stringToBytes("ipfs://popcharts/no-fee")),
-            metadataURI: DEFAULT_METADATA_URI,
+            metadataHash: DEFAULT_METADATA_HASH,
+            metadata: DEFAULT_METADATA,
             openingProbabilityWad: (50n * WAD) / 100n,
             liquidityParameter: 5_000n * WAD,
             graduationThreshold: 2_500n * WAD,
@@ -285,7 +287,7 @@ describe("PregradManager", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [, buyer] = await viem.getWalletClients();
 
-    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/receipt"));
+    const metadataHash = DEFAULT_METADATA_HASH;
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
     const shares = 100n * WAD;
@@ -294,7 +296,7 @@ describe("PregradManager", async function () {
       {
         collateral: collateral.address,
         metadataHash,
-        metadataURI: DEFAULT_METADATA_URI,
+        metadata: DEFAULT_METADATA,
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
         graduationThreshold: 2_500n * WAD,
@@ -375,7 +377,7 @@ describe("PregradManager", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [owner, buyer] = await viem.getWalletClients();
 
-    const metadataHash = keccak256(stringToBytes("ipfs://popcharts/graduation"));
+    const metadataHash = DEFAULT_METADATA_HASH;
     const graduationDeadline = BigInt(await networkHelpers.time.latest()) + 7n * 24n * 60n * 60n;
     const resolutionTime = graduationDeadline + 7n * 24n * 60n * 60n;
     const shares = 100n * WAD;
@@ -387,7 +389,7 @@ describe("PregradManager", async function () {
       {
         collateral: collateral.address,
         metadataHash,
-        metadataURI: DEFAULT_METADATA_URI,
+        metadata: DEFAULT_METADATA,
         openingProbabilityWad: (50n * WAD) / 100n,
         liquidityParameter: 5_000n * WAD,
         graduationThreshold: matchedMarketCap,

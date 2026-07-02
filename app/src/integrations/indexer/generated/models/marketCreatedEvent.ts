@@ -19,8 +19,8 @@ export interface MarketCreatedEvent {
   liquidityParameter: string;
   logIndex: number;
   marketId: string;
+  metadata: string;
   metadataHash: string;
-  metadataUri: string;
   openingProbabilityWad: string;
   resolutionTime: string;
   resolutionTimeUnix: string;

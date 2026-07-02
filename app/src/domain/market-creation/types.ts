@@ -44,7 +44,7 @@ export type ProtocolCreateMarketParams = {
   graduationDeadline: bigint;
   liquidityParameter: bigint;
   metadataHash: `0x${string}`;
-  metadataURI: string;
+  metadata: string;
   openingProbabilityWad: bigint;
   resolutionTime: bigint;
 };
@@ -54,7 +54,7 @@ export type CreateMarketPreview = {
   graduationThreshold: number;
   metadata: MarketMetadata;
   metadataHash: `0x${string}`;
-  metadataUri: string;
+  metadataPayload: string;
   protocolParams: ProtocolCreateMarketParams;
 };
 

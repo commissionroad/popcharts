@@ -143,7 +143,6 @@ function createMarketRow(overrides: Partial<MarketRow> = {}): MarketRow {
     marketId: 7n,
     metadataHash:
       "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-    metadataUri: "ipfs://popcharts/dev-market-close",
     noShares: 25n * WAD,
     openingProbabilityWad: WAD / 2n,
     receiptCount: 2n,

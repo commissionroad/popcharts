@@ -224,7 +224,6 @@ async function seedUnderReviewMarket() {
       liquidityParameter: 1_000_000_000_000_000_000n,
       marketId,
       metadataHash,
-      metadataUri: "ipfs://popcharts/ai-review-runner-smoke",
       openingProbabilityWad: 500_000_000_000_000_000n,
       resolutionTime: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
       status: "under_review",

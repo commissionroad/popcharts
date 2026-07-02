@@ -258,12 +258,12 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
-    name: "InvalidMetadataHash",
+    name: "InvalidMetadata",
     type: "error",
   },
   {
     inputs: [],
-    name: "InvalidMetadataURI",
+    name: "InvalidMetadataHash",
     type: "error",
   },
   {
@@ -385,7 +385,7 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
-    name: "MetadataURITooLong",
+    name: "MetadataTooLong",
     type: "error",
   },
   {
@@ -921,7 +921,7 @@ export const pregradManagerAbi = [
       {
         indexed: false,
         internalType: "string",
-        name: "metadataURI",
+        name: "metadata",
         type: "string",
       },
       {
@@ -1236,7 +1236,7 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
-    name: "MAX_METADATA_URI_BYTES",
+    name: "MAX_METADATA_BYTES",
     outputs: [
       {
         internalType: "uint256",
@@ -1422,7 +1422,7 @@ export const pregradManagerAbi = [
           },
           {
             internalType: "string",
-            name: "metadataURI",
+            name: "metadata",
             type: "string",
           },
           {

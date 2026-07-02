@@ -17,9 +17,9 @@ describe("buildMarketCreatedRecords", () => {
         graduationDeadline: 1_780_000_000n,
         liquidityParameter: 5_000n * 10n ** 18n,
         marketId: 7n,
+        metadata: '{"version":1}',
         metadataHash:
           "0x1111111111111111111111111111111111111111111111111111111111111111",
-        metadataURI: "ipfs://popcharts/indexed",
         openingProbabilityWad: 500_000_000_000_000_000n,
         resolutionTime: 1_781_000_000n,
       },
@@ -46,7 +46,7 @@ describe("buildMarketCreatedRecords", () => {
       creator: "0x00000000000000000000000000000000000000aa",
       logIndex: 4,
       marketId: 7n,
-      metadataUri: "ipfs://popcharts/indexed",
+      metadata: '{"version":1}',
       transactionHash:
         "0x2222222222222222222222222222222222222222222222222222222222222222",
     });
@@ -59,7 +59,6 @@ describe("buildMarketCreatedRecords", () => {
       marketId: 7n,
       metadataHash:
         "0x1111111111111111111111111111111111111111111111111111111111111111",
-      metadataUri: "ipfs://popcharts/indexed",
       status: "under_review",
     });
     expect(records.event.graduationTime.toISOString()).toBe(

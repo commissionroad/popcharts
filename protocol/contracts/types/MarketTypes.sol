@@ -41,7 +41,7 @@ library MarketTypes {
     address collateral;
     /// @notice Account that created the market.
     address creator;
-    /// @notice Hash of offchain market metadata, sources, and resolution rules.
+    /// @notice Hash of market metadata, sources, and resolution rules.
     bytes32 metadataHash;
     /// @notice Initial YES probability, scaled by 1e18 and strictly between 0 and 1e18.
     uint256 openingProbabilityWad;
@@ -62,10 +62,10 @@ library MarketTypes {
   struct CreateMarketParams {
     /// @notice ERC20 collateral token escrowed by receipt buyers.
     address collateral;
-    /// @notice Hash of offchain market metadata, sources, and resolution rules.
+    /// @notice Hash of market metadata, sources, and resolution rules.
     bytes32 metadataHash;
-    /// @notice URI where an indexer can retrieve the canonical metadata payload.
-    string metadataURI;
+    /// @notice Canonical JSON metadata payload emitted for indexers.
+    string metadata;
     /// @notice Initial YES probability, scaled by 1e18 and strictly between 0 and 1e18.
     uint256 openingProbabilityWad;
     /// @notice Virtual LMSR smoothness parameter `b`, scaled in collateral units.

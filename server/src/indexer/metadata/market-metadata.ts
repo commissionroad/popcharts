@@ -15,29 +15,29 @@ type MarketMetadataPayload = {
   version: 1;
 };
 
-export async function persistMarketMetadataFromUri({
+export async function persistMarketMetadataFromEventPayload({
   chainId,
   metadataHash,
-  metadataUri,
+  metadata,
 }: {
   chainId: number;
   metadataHash: string;
-  metadataUri: string;
+  metadata: string;
 }) {
-  const metadata = await resolveMarketMetadataFromUri({
+  const payload = resolveMarketMetadataFromEventPayload({
     metadataHash,
-    metadataUri,
+    metadata,
   });
   const values = {
-    category: metadata.category,
+    category: payload.category,
     chainId,
-    description: metadata.description,
-    metadataCreatedAt: metadata.createdAt,
+    description: payload.description,
+    metadataCreatedAt: payload.createdAt,
     metadataHash,
-    question: metadata.question,
-    resolutionCriteria: metadata.resolutionCriteria,
-    resolutionSources: metadata.resolutionSources ?? [],
-    resolutionUrl: metadata.resolutionUrl ?? null,
+    question: payload.question,
+    resolutionCriteria: payload.resolutionCriteria,
+    resolutionSources: payload.resolutionSources ?? [],
+    resolutionUrl: payload.resolutionUrl ?? null,
     updatedAt: new Date(),
   };
 
@@ -53,64 +53,32 @@ export async function persistMarketMetadataFromUri({
     });
 }
 
-export async function resolveMarketMetadataFromUri({
+export function resolveMarketMetadataFromEventPayload({
   metadataHash,
-  metadataUri,
+  metadata,
 }: {
   metadataHash: string;
-  metadataUri: string;
-}): Promise<MarketMetadataPayload> {
-  const text = await fetchMetadataText(metadataUri);
-  const metadata = parseMarketMetadataPayload(JSON.parse(text));
-  const resolvedHash = hashMarketMetadata(metadata);
-
-  if (resolvedHash.toLowerCase() !== metadataHash.toLowerCase()) {
-    throw new Error(
-      `Metadata hash mismatch: event=${metadataHash} uri=${resolvedHash}`,
-    );
-  }
-
-  return metadata;
-}
-
-async function fetchMetadataText(metadataUri: string): Promise<string> {
-  const url = new URL(metadataUri);
-
-  if (url.protocol === "data:") {
-    return readDataUriText(metadataUri);
-  }
-
-  throw new Error(
-    `Metadata URI must be a self-contained data URI; received ${url.protocol}`,
-  );
-}
-
-function readDataUriText(metadataUri: string) {
-  const commaIndex = metadataUri.indexOf(",");
-
-  if (commaIndex === -1) {
-    throw new Error("Metadata data URI is missing a payload.");
-  }
-
-  const metadata = metadataUri.slice(0, commaIndex);
-  const payload = metadataUri.slice(commaIndex + 1);
-  const isBase64 = metadata
-    .split(";")
-    .some((part) => part.toLowerCase() === "base64");
-  const text = isBase64
-    ? Buffer.from(payload, "base64").toString("utf8")
-    : decodeURIComponent(payload);
-
-  if (Buffer.byteLength(text, "utf8") > MAX_METADATA_BYTES) {
+  metadata: string;
+}): MarketMetadataPayload {
+  if (Buffer.byteLength(metadata, "utf8") > MAX_METADATA_BYTES) {
     throw new Error("Metadata payload exceeds the indexer byte limit.");
   }
 
-  return text;
+  const payload = parseMarketMetadataPayload(JSON.parse(metadata) as unknown);
+  const resolvedHash = hashMarketMetadata(payload);
+
+  if (resolvedHash.toLowerCase() !== metadataHash.toLowerCase()) {
+    throw new Error(
+      `Metadata hash mismatch: event=${metadataHash} payload=${resolvedHash}`,
+    );
+  }
+
+  return payload;
 }
 
 function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   if (!isRecord(value)) {
-    throw new Error("Metadata URI must resolve to a JSON object.");
+    throw new Error("Metadata payload must be a JSON object.");
   }
   if (value.version !== 1) {
     throw new Error("Metadata version must be 1.");

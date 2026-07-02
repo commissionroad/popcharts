@@ -25,7 +25,6 @@ export type PostMarketsByChainIdByMarketIdGraduate409Market = {
   matchedMarketCap: string;
   metadata?: PostMarketsByChainIdByMarketIdGraduate409MarketMetadata;
   metadataHash: string;
-  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

@@ -7,7 +7,7 @@ import {
   buildMarketCreatedRecords,
   type MarketCreatedLog,
 } from "src/indexer/handlers/market-created";
-import { persistMarketMetadataFromUri } from "src/indexer/metadata/market-metadata";
+import { persistMarketMetadataFromEventPayload } from "src/indexer/metadata/market-metadata";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import {
   getRecoveryStartBlock,
@@ -18,7 +18,7 @@ import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 const CURSOR_NAME = "MarketCreated";
 
 const MARKET_CREATED_EVENT = parseAbiItem(
-  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, string metadataURI, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution)",
+  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, string metadata, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution)",
 );
 
 type RecoveryOptions = {
@@ -44,7 +44,7 @@ export async function processMarketCreatedEvent(
     log,
   });
 
-  await persistMarketMetadataFromEvent(records);
+  await persistEventMetadata(records);
 
   await db.transaction(async (tx) => {
     await tx
@@ -69,7 +69,6 @@ export async function processMarketCreatedEvent(
           graduationTime: records.market.graduationTime,
           liquidityParameter: records.market.liquidityParameter,
           metadataHash: records.market.metadataHash,
-          metadataUri: records.market.metadataUri,
           openingProbabilityWad: records.market.openingProbabilityWad,
           resolutionTime: records.market.resolutionTime,
           updatedAt: new Date(),
@@ -84,24 +83,24 @@ export async function processMarketCreatedEvent(
   );
 }
 
-async function persistMarketMetadataFromEvent(
+async function persistEventMetadata(
   records: ReturnType<typeof buildMarketCreatedRecords>,
 ) {
-  const metadataUri = records.market.metadataUri;
+  const metadata = records.event.metadata;
 
   try {
-    if (!metadataUri) {
-      throw new Error("MarketCreated records are missing metadataURI.");
+    if (!metadata) {
+      throw new Error("MarketCreated records are missing metadata.");
     }
 
-    await persistMarketMetadataFromUri({
+    await persistMarketMetadataFromEventPayload({
       chainId: records.market.chainId,
       metadataHash: records.market.metadataHash,
-      metadataUri,
+      metadata,
     });
   } catch (error) {
     console.warn(
-      `[MarketCreated] metadata unavailable marketId=${records.market.marketId.toString()} uri=${metadataUri ?? "<missing>"}: ${getErrorMessage(error)}`,
+      `[MarketCreated] metadata unavailable marketId=${records.market.marketId.toString()}: ${getErrorMessage(error)}`,
     );
   }
 }

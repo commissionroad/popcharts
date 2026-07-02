@@ -25,7 +25,6 @@ export interface Market {
   matchedMarketCap: string;
   metadata?: MarketMetadataProperty;
   metadataHash: string;
-  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

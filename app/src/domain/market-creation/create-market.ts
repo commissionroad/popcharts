@@ -94,22 +94,27 @@ export function buildCreateMarketPreview(
   draft: CreateMarketDraft
 ): CreateMarketPreview {
   const metadata = buildMarketMetadata(draft);
-  const metadataHash = createMetadataHash(metadata);
-  const metadataUri = createMetadataDataUri(metadata);
+  const metadataPayload = serializeMarketMetadata(metadata);
+  const metadataHash = createMetadataHashFromPayload(metadataPayload);
 
   return {
     collateralSymbol: COLLATERAL_SYMBOL,
     graduationThreshold: deriveGraduationThreshold(draft.liquidityParameter),
     metadata,
     metadataHash,
-    metadataUri,
-    protocolParams: buildProtocolCreateMarketParams(draft, metadataHash),
+    metadataPayload,
+    protocolParams: buildProtocolCreateMarketParams(
+      draft,
+      metadataHash,
+      metadataPayload
+    ),
   };
 }
 
 export function buildProtocolCreateMarketParams(
   draft: CreateMarketDraft,
-  metadataHash: `0x${string}`
+  metadataHash: `0x${string}`,
+  metadataPayload = serializeMarketMetadata(buildMarketMetadata(draft))
 ): ProtocolCreateMarketParams {
   return {
     bypassAiResolution: draft.bypassAiResolution,
@@ -120,7 +125,7 @@ export function buildProtocolCreateMarketParams(
     ),
     liquidityParameter: amountToWad(draft.liquidityParameter),
     metadataHash,
-    metadataURI: createMetadataDataUri(buildMarketMetadata(draft)),
+    metadata: metadataPayload,
     openingProbabilityWad: percentageToWad(draft.openingProbability),
     resolutionTime: dateTimeLocalToUnixSeconds(draft.resolutionTime),
   };
@@ -259,13 +264,11 @@ export function formatDeadline(value: string) {
 }
 
 export function createMetadataHash(metadata: MarketMetadata): `0x${string}` {
-  return keccak256(stringToBytes(serializeMarketMetadata(metadata)));
+  return createMetadataHashFromPayload(serializeMarketMetadata(metadata));
 }
 
-export function createMetadataDataUri(metadata: MarketMetadata) {
-  return `data:application/json;charset=utf-8,${encodeURIComponent(
-    serializeMarketMetadata(metadata)
-  )}`;
+function createMetadataHashFromPayload(metadataPayload: string): `0x${string}` {
+  return keccak256(stringToBytes(metadataPayload));
 }
 
 export function serializeMarketMetadata(metadata: MarketMetadata) {

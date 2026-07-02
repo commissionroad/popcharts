@@ -40,7 +40,7 @@ export const pregradManagerAbi = [
         components: [
           { name: "collateral", type: "address" },
           { name: "metadataHash", type: "bytes32" },
-          { name: "metadataURI", type: "string" },
+          { name: "metadata", type: "string" },
           { name: "openingProbabilityWad", type: "uint256" },
           { name: "liquidityParameter", type: "uint256" },
           { name: "graduationThreshold", type: "uint256" },
@@ -226,7 +226,7 @@ export const pregradManagerAbi = [
       { indexed: true, name: "marketId", type: "uint256" },
       { indexed: true, name: "creator", type: "address" },
       { indexed: true, name: "metadataHash", type: "bytes32" },
-      { indexed: false, name: "metadataURI", type: "string" },
+      { indexed: false, name: "metadata", type: "string" },
       { indexed: false, name: "collateral", type: "address" },
       { indexed: false, name: "openingProbabilityWad", type: "uint256" },
       { indexed: false, name: "liquidityParameter", type: "uint256" },

@@ -13,8 +13,8 @@ export type MarketCreatedLog = Log & {
     graduationTime?: bigint;
     liquidityParameter?: bigint;
     marketId?: bigint;
+    metadata?: string;
     metadataHash?: `0x${string}`;
-    metadataURI?: string;
     openingProbabilityWad?: bigint;
     resolutionTime?: bigint;
   };
@@ -42,7 +42,7 @@ export function buildMarketCreatedRecords({
   const marketId = requireValue(log.args.marketId, "marketId");
   const creator = requireValue(log.args.creator, "creator").toLowerCase();
   const metadataHash = requireValue(log.args.metadataHash, "metadataHash");
-  const metadataUri = requireValue(log.args.metadataURI, "metadataURI");
+  const metadata = requireValue(log.args.metadata, "metadata");
   const collateral = requireValue(
     log.args.collateral,
     "collateral",
@@ -89,8 +89,8 @@ export function buildMarketCreatedRecords({
       liquidityParameter,
       logIndex,
       marketId,
+      metadata,
       metadataHash,
-      metadataUri,
       openingProbabilityWad,
       resolutionTime,
       resolutionTimeUnix,
@@ -111,7 +111,6 @@ export function buildMarketCreatedRecords({
       liquidityParameter,
       marketId,
       metadataHash,
-      metadataUri,
       openingProbabilityWad,
       resolutionTime,
       status: "under_review",

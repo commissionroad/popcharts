@@ -25,7 +25,6 @@ export type GraduationResponseMarket = {
   matchedMarketCap: string;
   metadata?: GraduationResponseMarketMetadata;
   metadataHash: string;
-  metadataUri: string;
   noShares: string;
   openingProbabilityWad: string;
   receiptCount: string;

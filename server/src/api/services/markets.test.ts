@@ -27,7 +27,6 @@ const market = {
   marketId: 42n,
   metadataHash:
     "0x1111111111111111111111111111111111111111111111111111111111111111",
-  metadataUri: "ipfs://popcharts/test-market",
   noShares: 0n,
   openingProbabilityWad: 500_000_000_000_000_000n,
   receiptCount: 0n,
@@ -120,7 +119,6 @@ describe("market serializers", () => {
     expect(serialized.aiReview?.id).toBe(11);
     expect(serialized.aiReview?.verdict).toBe("approve");
     expect(serialized.marketId).toBe("42");
-    expect(serialized.metadataUri).toBe("ipfs://popcharts/test-market");
     expect(serialized.status).toBe("under_review");
   });
 

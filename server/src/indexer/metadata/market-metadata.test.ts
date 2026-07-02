@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { keccak256, stringToBytes } from "viem";
 
-import { resolveMarketMetadataFromUri } from "./market-metadata";
+import { resolveMarketMetadataFromEventPayload } from "./market-metadata";
 
 const metadata = {
   category: "Crypto",
@@ -9,46 +9,39 @@ const metadata = {
   description: "Resolve using public local smoke evidence.",
   question: "Will direct market creation carry metadata?",
   resolutionCriteria:
-    "YES if the indexer can recover metadata from the creation event URI.",
+    "YES if the indexer can recover metadata from the creation event payload.",
   resolutionSources: ["CNN", "NPR", "https://www.bbc.com/news"],
   version: 1 as const,
 };
 
-describe("resolveMarketMetadataFromUri", () => {
-  it("parses canonical JSON metadata from a data URI", async () => {
-    const metadataUri = metadataToDataUri(metadata);
-    const resolved = await resolveMarketMetadataFromUri({
+describe("resolveMarketMetadataFromEventPayload", () => {
+  it("parses canonical JSON metadata from the creation event payload", () => {
+    const resolved = resolveMarketMetadataFromEventPayload({
       metadataHash: hashMetadata(metadata),
-      metadataUri,
+      metadata: serializeMetadata(metadata),
     });
 
     expect(resolved).toEqual(metadata);
   });
 
-  it("rejects metadata whose canonical payload does not match the event hash", async () => {
-    await expect(
-      resolveMarketMetadataFromUri({
+  it("rejects metadata whose canonical payload does not match the event hash", () => {
+    expect(() =>
+      resolveMarketMetadataFromEventPayload({
         metadataHash: `0x${"f".repeat(64)}`,
-        metadataUri: metadataToDataUri(metadata),
+        metadata: serializeMetadata(metadata),
       }),
-    ).rejects.toThrow("Metadata hash mismatch");
+    ).toThrow("Metadata hash mismatch");
   });
 
-  it("rejects non-data metadata URIs", async () => {
-    await expect(
-      resolveMarketMetadataFromUri({
+  it("rejects metadata payloads that are not JSON objects", () => {
+    expect(() =>
+      resolveMarketMetadataFromEventPayload({
         metadataHash: hashMetadata(metadata),
-        metadataUri: "https://example.com/metadata.json",
+        metadata: '"not an object"',
       }),
-    ).rejects.toThrow("self-contained data URI");
+    ).toThrow("Metadata payload must be a JSON object.");
   });
 });
-
-function metadataToDataUri(value: typeof metadata) {
-  return `data:application/json;charset=utf-8,${encodeURIComponent(
-    serializeMetadata(value),
-  )}`;
-}
 
 function hashMetadata(value: typeof metadata) {
   return keccak256(stringToBytes(serializeMetadata(value)));

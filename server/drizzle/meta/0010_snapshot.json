@@ -1296,8 +1296,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "metadata_uri": {
-          "name": "metadata_uri",
+        "metadata": {
+          "name": "metadata",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2004,13 +2004,6 @@
           "type": "varchar(66)",
           "primaryKey": false,
           "notNull": true
-        },
-        "metadata_uri": {
-          "name": "metadata_uri",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
         },
         "collateral": {
           "name": "collateral",

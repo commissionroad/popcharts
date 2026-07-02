@@ -20,7 +20,7 @@ contract PregradManagerTest is Test {
     uint256 indexed marketId,
     address indexed creator,
     bytes32 indexed metadataHash,
-    string metadataURI,
+    string metadata,
     address collateral,
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
@@ -128,7 +128,7 @@ contract PregradManagerTest is Test {
   }
 
   function test_CreateMarketStoresUnderReviewConfigAndEmitsEvent() public {
-    bytes32 metadataHash = keccak256("ipfs://popcharts/example");
+    bytes32 metadataHash = _defaultMetadataHash();
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.expectEmit(true, true, true, true, address(manager));
@@ -136,7 +136,7 @@ contract PregradManagerTest is Test {
       1,
       address(this),
       metadataHash,
-      params.metadataURI,
+      params.metadata,
       address(collateral),
       params.openingProbabilityWad,
       params.liquidityParameter,
@@ -175,7 +175,7 @@ contract PregradManagerTest is Test {
   }
 
   function test_OwnerCanPauseAndResumeMarketCreation() public {
-    bytes32 metadataHash = keccak256("ipfs://popcharts/paused");
+    bytes32 metadataHash = _defaultMetadataHash();
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.expectEmit(true, true, true, true, address(manager));
@@ -202,9 +202,7 @@ contract PregradManagerTest is Test {
 
   function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
     address notManager = makeAddr("not-reviewer");
-    uint256 approvedMarketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/approved"))
-    );
+    uint256 approvedMarketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
 
     assertTrue(manager.isReviewManager(address(this)));
     assertFalse(manager.isReviewManager(notManager));
@@ -232,9 +230,7 @@ contract PregradManagerTest is Test {
     );
     manager.rejectMarket(approvedMarketId);
 
-    uint256 rejectedMarketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/rejected"))
-    );
+    uint256 rejectedMarketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.expectEmit(true, true, true, true, address(manager));
     emit MarketReviewRejected(rejectedMarketId, address(this));
@@ -255,9 +251,7 @@ contract PregradManagerTest is Test {
   }
 
   function test_ApproveMarketRequiresDeadline() public {
-    uint256 marketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/expired-review"))
-    );
+    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
     MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
 
     vm.warp(config.graduationDeadline);
@@ -274,9 +268,7 @@ contract PregradManagerTest is Test {
 
   function test_UnderReviewAndRejectedMarketsDoNotAcceptReceipts() public {
     address buyer = makeAddr("buyer");
-    uint256 marketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/review-gate"))
-    );
+    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
     uint256 shares = 100 * WAD;
     MarketTypes.PlaceReceiptParams memory params = MarketTypes.PlaceReceiptParams({
       marketId: marketId,
@@ -333,8 +325,8 @@ contract PregradManagerTest is Test {
   function test_CreateMarketIdsIncrementAndMarketsAreIsolated() public {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
-    bytes32 aliceMetadataHash = keccak256("ipfs://popcharts/alice");
-    bytes32 bobMetadataHash = keccak256("ipfs://popcharts/bob");
+    bytes32 aliceMetadataHash = _defaultMetadataHash();
+    bytes32 bobMetadataHash = _defaultMetadataHash();
 
     vm.deal(alice, 10 * WAD);
     vm.deal(bob, 10 * WAD);
@@ -344,7 +336,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: aliceMetadataHash,
-        metadataURI: _defaultMetadataURI(),
+        metadata: _defaultMetadata(),
         openingProbabilityWad: (20 * WAD) / 100,
         liquidityParameter: 2_500 * WAD,
         graduationThreshold: 1_250 * WAD,
@@ -359,7 +351,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: bobMetadataHash,
-        metadataURI: _defaultMetadataURI(),
+        metadata: _defaultMetadata(),
         openingProbabilityWad: (80 * WAD) / 100,
         liquidityParameter: 8_000 * WAD,
         graduationThreshold: 4_000 * WAD,
@@ -386,7 +378,7 @@ contract PregradManagerTest is Test {
   function test_PublicCreatorsPayCreationFeeAndOwnerCanWithdrawIt() public {
     address publicCreator = makeAddr("public-creator");
     address feeRecipient = makeAddr("fee-recipient");
-    bytes32 metadataHash = keccak256("ipfs://popcharts/public-fee");
+    bytes32 metadataHash = _defaultMetadataHash();
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.deal(publicCreator, 10 * WAD);
@@ -400,7 +392,7 @@ contract PregradManagerTest is Test {
       1,
       publicCreator,
       metadataHash,
-      params.metadataURI,
+      params.metadata,
       address(collateral),
       params.openingProbabilityWad,
       params.liquidityParameter,
@@ -424,15 +416,13 @@ contract PregradManagerTest is Test {
     vm.expectRevert(
       abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, 0)
     );
-    manager.createMarket(_defaultMarketParams(keccak256("ipfs://popcharts/no-fee")));
+    manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.prank(publicCreator);
     vm.expectRevert(
       abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, WAD + 1)
     );
-    manager.createMarket{value: WAD + 1}(
-      _defaultMarketParams(keccak256("ipfs://popcharts/overpaid-fee"))
-    );
+    manager.createMarket{value: WAD + 1}(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -593,8 +583,8 @@ contract PregradManagerTest is Test {
   function test_RevertsForInvalidMarketConfig() public {
     MarketTypes.CreateMarketParams memory params = MarketTypes.CreateMarketParams({
       collateral: address(0),
-      metadataHash: keccak256("ipfs://popcharts/example"),
-      metadataURI: _defaultMetadataURI(),
+      metadataHash: _defaultMetadataHash(),
+      metadata: _defaultMetadata(),
       openingProbabilityWad: (50 * WAD) / 100,
       liquidityParameter: 5_000 * WAD,
       graduationThreshold: 2_500 * WAD,
@@ -611,26 +601,26 @@ contract PregradManagerTest is Test {
     vm.expectRevert(PregradManager.InvalidMetadataHash.selector);
     manager.createMarket(params);
 
-    params.metadataHash = keccak256("ipfs://popcharts/example");
-    params.metadataURI = "";
-    vm.expectRevert(PregradManager.InvalidMetadataURI.selector);
+    params.metadataHash = _defaultMetadataHash();
+    params.metadata = "";
+    vm.expectRevert(PregradManager.InvalidMetadata.selector);
     manager.createMarket(params);
 
-    params.metadataURI = "https://example.com/metadata.json";
-    vm.expectRevert(PregradManager.InvalidMetadataURI.selector);
+    params.metadata = "not matching the committed hash";
+    vm.expectRevert(PregradManager.InvalidMetadataHash.selector);
     manager.createMarket(params);
 
-    params.metadataURI = _longMetadataURI();
+    params.metadata = _longMetadata();
     vm.expectRevert(
       abi.encodeWithSelector(
-        PregradManager.MetadataURITooLong.selector,
-        bytes(params.metadataURI).length,
-        manager.MAX_METADATA_URI_BYTES()
+        PregradManager.MetadataTooLong.selector,
+        bytes(params.metadata).length,
+        manager.MAX_METADATA_BYTES()
       )
     );
     manager.createMarket(params);
 
-    params.metadataURI = _defaultMetadataURI();
+    params.metadata = _defaultMetadata();
     params.openingProbabilityWad = 0;
     vm.expectRevert(abi.encodeWithSelector(LmsrMath.InvalidProbability.selector, 0));
     manager.createMarket(params);
@@ -666,9 +656,7 @@ contract PregradManagerTest is Test {
 
   function test_RevertsWhenPublicMarketLeavesCreationEnvelope() public {
     address publicCreator = makeAddr("public-envelope-creator");
-    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
-      keccak256("ipfs://popcharts/public-envelope")
-    );
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
     _fundAndApprove(publicCreator, 10 * WAD);
 
     params.openingProbabilityWad = (1 * WAD) / 100;
@@ -729,9 +717,7 @@ contract PregradManagerTest is Test {
 
   function test_TrustedCreatorsCanBypassPublicEnvelopeAndAiResolution() public {
     address partner = makeAddr("partner");
-    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
-      keccak256("ipfs://popcharts/trusted")
-    );
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
     params.openingProbabilityWad = (1 * WAD) / 100;
     params.liquidityParameter = 50 * WAD;
     params.graduationThreshold = 1 * WAD;
@@ -764,16 +750,12 @@ contract PregradManagerTest is Test {
     vm.expectRevert(
       abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, 0, WAD)
     );
-    manager.createMarket{value: WAD}(
-      _defaultMarketParams(keccak256("ipfs://popcharts/trusted-overpay"))
-    );
+    manager.createMarket{value: WAD}(_defaultMarketParams(_defaultMetadataHash()));
   }
 
   function test_RevertsWhenPublicCreatorBypassesAiResolution() public {
     address publicCreator = makeAddr("public-ai-bypass");
-    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
-      keccak256("ipfs://popcharts/ai-bypass")
-    );
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
     params.bypassAiResolution = true;
 
     vm.expectRevert(
@@ -846,8 +828,8 @@ contract PregradManagerTest is Test {
     uint256 marketId = manager.createMarket(
       MarketTypes.CreateMarketParams({
         collateral: address(feeCollateral),
-        metadataHash: keccak256("ipfs://popcharts/fee-collateral"),
-        metadataURI: _defaultMetadataURI(),
+        metadataHash: _defaultMetadataHash(),
+        metadata: _defaultMetadata(),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 2_500 * WAD,
@@ -1513,25 +1495,19 @@ contract PregradManagerTest is Test {
   }
 
   function _createDefaultMarket() private returns (uint256) {
-    uint256 marketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/example"))
-    );
+    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
     manager.approveMarket(marketId);
     return marketId;
   }
 
   function _createSecondDefaultMarket() private returns (uint256) {
-    uint256 marketId = manager.createMarket(
-      _defaultMarketParams(keccak256("ipfs://popcharts/second"))
-    );
+    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
     manager.approveMarket(marketId);
     return marketId;
   }
 
   function _createGraduatableMarket() private returns (uint256) {
-    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(
-      keccak256("ipfs://popcharts/graduatable")
-    );
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
     params.graduationThreshold = 50 * WAD;
     manager.setTrustedCreator(address(this), true);
     uint256 marketId = manager.createMarket(params);
@@ -1556,7 +1532,7 @@ contract PregradManagerTest is Test {
       MarketTypes.CreateMarketParams({
         collateral: address(collateral),
         metadataHash: metadataHash,
-        metadataURI: _defaultMetadataURI(),
+        metadata: _defaultMetadata(),
         openingProbabilityWad: (50 * WAD) / 100,
         liquidityParameter: 5_000 * WAD,
         graduationThreshold: 2_500 * WAD,
@@ -1566,9 +1542,9 @@ contract PregradManagerTest is Test {
       });
   }
 
-  function _longMetadataURI() private view returns (string memory) {
-    bytes memory prefix = bytes(_defaultMetadataURI());
-    bytes memory value = new bytes(manager.MAX_METADATA_URI_BYTES() + 1);
+  function _longMetadata() private view returns (string memory) {
+    bytes memory prefix = bytes(_defaultMetadata());
+    bytes memory value = new bytes(manager.MAX_METADATA_BYTES() + 1);
     for (uint256 index = 0; index < prefix.length; ++index) {
       value[index] = prefix[index];
     }
@@ -1578,8 +1554,20 @@ contract PregradManagerTest is Test {
     return string(value);
   }
 
-  function _defaultMetadataURI() private pure returns (string memory) {
-    return "data:application/json,%7B%7D";
+  function _defaultMetadata() private pure returns (string memory) {
+    // solhint-disable quotes
+    return
+      string.concat(
+        '{"version":1,"question":"Will this test market resolve?",',
+        '"description":"","category":"Test",',
+        '"resolutionCriteria":"Resolves according to test fixtures.",',
+        '"createdAt":"2026-01-01T00:00:00.000Z"}'
+      );
+    // solhint-enable quotes
+  }
+
+  function _defaultMetadataHash() private pure returns (bytes32) {
+    return keccak256(bytes(_defaultMetadata()));
   }
 
   function _fundAndApprove(address account, uint256 amount) private {

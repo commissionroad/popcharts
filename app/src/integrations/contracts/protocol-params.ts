@@ -9,7 +9,7 @@ export type SerializedProtocolCreateMarketParams = {
   graduationThreshold: string;
   liquidityParameter: string;
   metadataHash: `0x${string}`;
-  metadataURI: string;
+  metadata: string;
   openingProbabilityWad: string;
   resolutionTime: string;
 };
@@ -24,7 +24,7 @@ export function serializeProtocolCreateMarketParams(
     graduationThreshold: params.graduationThreshold.toString(),
     liquidityParameter: params.liquidityParameter.toString(),
     metadataHash: params.metadataHash,
-    metadataURI: params.metadataURI,
+    metadata: params.metadata,
     openingProbabilityWad: params.openingProbabilityWad.toString(),
     resolutionTime: params.resolutionTime.toString(),
   };
@@ -44,7 +44,7 @@ export function parseSerializedProtocolCreateMarketParams(
     graduationThreshold: parseBigInt(value.graduationThreshold, "graduationThreshold"),
     liquidityParameter: parseBigInt(value.liquidityParameter, "liquidityParameter"),
     metadataHash: parseBytes32(value.metadataHash, "metadataHash"),
-    metadataURI: parseNonEmptyString(value.metadataURI, "metadataURI"),
+    metadata: parseNonEmptyString(value.metadata, "metadata"),
     openingProbabilityWad: parseBigInt(
       value.openingProbabilityWad,
       "openingProbabilityWad"

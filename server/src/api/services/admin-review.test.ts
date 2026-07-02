@@ -207,7 +207,6 @@ function createMarketRow(overrides: Partial<MarketRow> = {}): MarketRow {
     marketId: 7n,
     metadataHash:
       "0x1111111111111111111111111111111111111111111111111111111111111111",
-    metadataUri: "ipfs://popcharts/admin-review",
     noShares: 0n,
     openingProbabilityWad: 500_000_000_000_000_000n,
     receiptCount: 0n,

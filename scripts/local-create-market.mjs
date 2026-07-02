@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,7 +83,6 @@ async function main() {
           graduationSeconds: generatedMarket.graduationSeconds,
           kind: generatedMarket.kind,
           metadata: generatedMarket.metadata,
-          metadataHash: generatedMarket.metadataHash,
           resolutionSeconds: generatedMarket.resolutionSeconds,
         },
         null,
@@ -154,7 +152,7 @@ async function main() {
         apiBaseUrl,
         chainId: market.chainId,
         metadata: generatedMarket.metadata,
-        metadataHash: generatedMarket.metadataHash,
+        metadataHash: market.metadataHash,
       });
       console.log(`[local-create-market] metadata saved to ${apiBaseUrl}`);
     } catch (error) {
@@ -356,12 +354,12 @@ async function buildCryptoMarket() {
     version: 1,
   };
 
-  return withMetadataHash({
+  return {
     graduationSeconds: localMarketGraduationSeconds,
     kind: "crypto",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
-  });
+  };
 }
 
 async function buildWeatherMarket() {
@@ -394,12 +392,12 @@ async function buildWeatherMarket() {
     version: 1,
   };
 
-  return withMetadataHash({
+  return {
     graduationSeconds: localMarketGraduationSeconds,
     kind: "weather",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
-  });
+  };
 }
 
 async function fetchForecastWindow(station, start, end) {
@@ -460,17 +458,6 @@ function readForecastTemperature(value) {
   }
 
   return null;
-}
-
-function withMetadataHash(generatedMarket) {
-  return {
-    ...generatedMarket,
-    metadataHash: hashMetadata(generatedMarket.metadata),
-  };
-}
-
-function hashMetadata(metadata) {
-  return `0x${createHash("sha256").update(serializeMetadata(metadata)).digest("hex")}`;
 }
 
 function serializeMetadata(metadata) {
