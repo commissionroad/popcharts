@@ -72,6 +72,9 @@ local-ai-review *args:
 local-dev-ai-review *args:
     pnpm run local:dev:ai-review -- {{args}}
 
+local-create-market *args:
+    pnpm run local:create-market -- {{args}}
+
 local-reset:
     pnpm run local:reset
 
