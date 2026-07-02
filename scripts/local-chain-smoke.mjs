@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,11 @@ const protocolDir = resolve(repoRoot, "protocol");
 const serverDir = resolve(repoRoot, "server");
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
+
+// Pinned demo market symbol so the market manifest filename stays predictable
+// (protocol/deployments/local.market-pcsm.local.json) and matches the default
+// the protocol smoke/health scripts resolve.
+const DEMO_MARKET_SYMBOL = "PCSM";
 
 // This script intentionally orchestrates the whole server/indexer path instead
 // of mocking anything: Postgres, Hardhat, the API, the indexer, and one onchain
@@ -33,6 +38,21 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 // deployed addresses after a successful run with --keep-running.
 const envFile = resolve(serverDir, ".env.local-chain");
 const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
+const venueManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  "local.venue-stack.local.json",
+);
+const postgradManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  "local.postgrad.local.json",
+);
+const marketManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  `local.market-${DEMO_MARKET_SYMBOL.toLowerCase()}.local.json`,
+);
 const children = new Set();
 
 if (helpRequested) {
@@ -106,12 +126,58 @@ async function main() {
     deployOutput.stdout,
     "LOCAL_CHAIN_SMOKE_DEPLOY",
   );
+  // The postgrad venue rides the same fresh chain so the smoke proves the
+  // whole system deploys end-to-end: v4 venue stack, postgrad contracts, and
+  // one demo complete-set market that makes the venue immediately tradeable.
+  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"], {
+    cwd: repoRoot,
+  });
+  await run(
+    "postgrad",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:deploy-postgrad"],
+    {
+      cwd: repoRoot,
+      env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
+    },
+  );
+  await run(
+    "demo market",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:create-complete-set-market"],
+    {
+      cwd: repoRoot,
+      env: {
+        POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
+        POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
+      },
+    },
+  );
+
+  // The deploy scripts write manifests as their machine-readable output, so
+  // read those instead of parsing human stdout for addresses.
+  const postgrad = readPostgradDeployment();
+
+  // The read-only health check walks market status, collateral escrow, pool
+  // prices, bounds, and whitelisting against the manifest — a cheap
+  // whole-system verification that the venue actually works, not merely that
+  // the deploy transactions landed.
+  await run(
+    "market health",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:check-health"],
+    {
+      cwd: repoRoot,
+      env: { POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL },
+    },
+  );
+
   const configuredServerEnv = buildServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
-  writeLocalEnv(configuredServerEnv, deploy);
+  writeLocalEnv(configuredServerEnv, deploy, postgrad);
 
   // The API is checked first because the final assertion goes through the
   // public read endpoint, not a direct database query.
@@ -171,6 +237,13 @@ async function main() {
   console.log("\nSmoke verification passed:");
   console.log(`- PregradManager: ${deploy.pregradManagerAddress}`);
   console.log(`- Collateral: ${deploy.collateralAddress}`);
+  console.log(`- PoolManager: ${postgrad.poolManager}`);
+  console.log(`- OrderManager: ${postgrad.orderManager}`);
+  console.log(`- BoundedHook: ${postgrad.boundedHook}`);
+  console.log(`- PostgradAdapter: ${postgrad.postgradAdapter}`);
+  console.log(
+    `- Demo market (${postgrad.marketSymbol}): ${postgrad.marketAddress}`,
+  );
   console.log(`- Market ID: ${market.marketId}`);
   console.log(`- Metadata hash: ${market.metadataHash}`);
   console.log(`- API: ${apiBaseUrl}/markets?chainId=${market.chainId}`);
@@ -190,8 +263,10 @@ async function main() {
 function printUsage() {
   console.log(`Usage: pnpm run local:smoke -- [--keep-running]
 
-Deploy local protocol contracts, start Postgres/API/indexer, create a market,
-and verify that GET /markets?chainId=31337 returns the indexed market.
+Deploy local protocol contracts (pregrad, v4 venue stack, postgrad venue, and
+one ${DEMO_MARKET_SYMBOL} demo complete-set market), verify market health,
+start Postgres/API/indexer, create a market, and verify that
+GET /markets?chainId=31337 returns the indexed market.
 
 Options:
   --keep-running  Keep Hardhat, API, and indexer running after verification.
@@ -304,7 +379,7 @@ function buildServerEnv(overrides = {}) {
   };
 }
 
-function writeLocalEnv(env, deploy) {
+function writeLocalEnv(env, deploy, postgrad) {
   // The generated file is not sourced by this script; it is a convenience for a
   // developer who wants to inspect or manually restart the same local setup.
   const lines = [
@@ -320,11 +395,76 @@ function writeLocalEnv(env, deploy) {
     `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
+    ...postgradEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
   ];
 
   writeFileSync(envFile, lines.join("\n"));
+}
+
+// The server does not consume these keys yet; they document the local postgrad
+// venue deployment for the upcoming server/app integration.
+function postgradEnvLines(postgrad) {
+  return [
+    `POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
+    `STATE_VIEW_ADDRESS=${postgrad.stateView}`,
+    `QUOTER_ADDRESS=${postgrad.quoter}`,
+    `SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
+    `POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
+    `ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
+    `BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
+    `POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
+    `COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
+    `COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
+    `COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
+    `COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
+    `COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
+    `COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
+    `LOCAL_POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
+    `LOCAL_STATE_VIEW_ADDRESS=${postgrad.stateView}`,
+    `LOCAL_QUOTER_ADDRESS=${postgrad.quoter}`,
+    `LOCAL_SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
+    `LOCAL_POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
+    `LOCAL_ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
+    `LOCAL_BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
+    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
+    `LOCAL_COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
+    `LOCAL_COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
+    `LOCAL_COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
+    `LOCAL_COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
+    `LOCAL_COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
+    `LOCAL_COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
+  ];
+}
+
+// The deploy manifests are the reliable machine-readable record of what was
+// deployed, so read them instead of scraping addresses from Hardhat stdout.
+function readPostgradDeployment() {
+  const venue = readJsonFile(venueManifestFile).contracts;
+  const postgradContracts = readJsonFile(postgradManifestFile).contracts;
+  const market = readJsonFile(marketManifestFile);
+
+  return {
+    boundedHook: postgradContracts.boundedHook.address,
+    marketAddress: market.market.address,
+    marketSymbol: market.market.symbol,
+    noPoolId: market.pools.no.poolId,
+    noTokenAddress: market.market.noToken,
+    orderManager: postgradContracts.orderManager.address,
+    poolManager: venue.poolManager.address,
+    poolTickBounds: postgradContracts.poolTickBounds.address,
+    postgradAdapter: postgradContracts.postgradAdapter.address,
+    quoter: venue.quoter.address,
+    stateView: venue.stateView.address,
+    swapRouter: venue.swapRouter.address,
+    yesPoolId: market.pools.yes.poolId,
+    yesTokenAddress: market.market.yesToken,
+  };
+}
+
+function readJsonFile(path) {
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 function start(name, command, args, options = {}) {

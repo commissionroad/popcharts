@@ -17,6 +17,10 @@ const APP_ENV_END = "# END POPCHARTS LOCAL DEV";
 const COMPOSE_PROJECT_NAME = "popcharts";
 const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
 const POSTGRES_VOLUME_NAME = `${COMPOSE_PROJECT_NAME}_postgres_data`;
+// Pinned demo market symbol so the market manifest filename stays predictable
+// (protocol/deployments/local.market-pcsm.local.json) and matches the default
+// the protocol smoke/health scripts resolve.
+const DEMO_MARKET_SYMBOL = "PCSM";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const helpRequested = args.includes("--help") || args.includes("-h");
@@ -24,6 +28,7 @@ const aiReviewOnly = args.includes("--ai-review-only");
 const noAiReview = args.includes("--no-ai-review");
 const aiReviewEnabled = aiReviewOnly || !noAiReview;
 const keepDb = args.includes("--keep-db");
+const noPostgrad = args.includes("--no-postgrad");
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -42,6 +47,21 @@ const aiReviewBaseUrl = `http://127.0.0.1:${aiReviewPort}`;
 const serverEnvFile = resolve(serverDir, ".env.local-chain");
 const appEnvFile = resolve(appDir, ".env.development.local");
 const healthFile = resolve(serverDir, ".env.local-dev.indexer-health");
+const venueManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  "local.venue-stack.local.json",
+);
+const postgradManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  "local.postgrad.local.json",
+);
+const marketManifestFile = resolve(
+  protocolDir,
+  "deployments",
+  `local.market-${DEMO_MARKET_SYMBOL.toLowerCase()}.local.json`,
+);
 const children = new Set();
 let shuttingDown = false;
 
@@ -151,13 +171,14 @@ async function main() {
     deployOutput.stdout,
     "LOCAL_CHAIN_SMOKE_DEPLOY",
   );
+  const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
   const serverEnv = buildServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
-  const appEnv = buildAppEnv(deploy);
-  writeServerEnv(serverEnv, deploy);
+  const appEnv = buildAppEnv(deploy, postgrad);
+  writeServerEnv(serverEnv, deploy, postgrad);
   writeAppEnv(appEnv);
 
   const aiReviewProcesses = aiReviewEnabled
@@ -228,6 +249,26 @@ async function main() {
   console.log(`- Hardhat RPC: ${rpcHttpUrl}`);
   console.log(`- PregradManager: ${deploy.pregradManagerAddress}`);
   console.log(`- Collateral: ${deploy.collateralAddress}`);
+  if (postgrad !== null) {
+    console.log(`- PoolManager: ${postgrad.poolManager}`);
+    console.log(`- StateView: ${postgrad.stateView}`);
+    console.log(`- Quoter: ${postgrad.quoter}`);
+    console.log(`- SwapRouter: ${postgrad.swapRouter}`);
+    console.log(`- PoolTickBounds: ${postgrad.poolTickBounds}`);
+    console.log(`- OrderManager: ${postgrad.orderManager}`);
+    console.log(`- BoundedHook: ${postgrad.boundedHook}`);
+    console.log(`- PostgradAdapter: ${postgrad.postgradAdapter}`);
+    console.log(
+      `- Demo market (${postgrad.marketSymbol}): ${postgrad.marketAddress}`,
+    );
+    console.log(
+      `- Demo market YES/NO tokens: ${postgrad.yesTokenAddress} / ${postgrad.noTokenAddress}`,
+    );
+    console.log(`- Demo market YES pool: ${postgrad.yesPoolId}`);
+    console.log(`- Demo market NO pool: ${postgrad.noPoolId}`);
+  } else {
+    console.log("- Postgrad venue: skipped (--no-postgrad)");
+  }
   console.log(`- App env: ${appEnvFile}`);
   console.log(`- Server env: ${serverEnvFile}`);
   console.log(
@@ -247,12 +288,15 @@ function printUsage() {
   console.log(`Usage: pnpm run local:dev
        pnpm run local:dev -- --no-ai-review
        pnpm run local:dev -- --keep-db
+       pnpm run local:dev -- --no-postgrad
        pnpm run local:ai-review
 
 Start the full local Pop Charts stack:
   - docker-compose Postgres
   - Hardhat local chain
   - local PregradManager and MockCollateral deployment
+  - local v4 venue stack, postgrad venue, and one ${DEMO_MARKET_SYMBOL} demo
+    complete-set market (skip with --no-postgrad)
   - Bun API server
   - Bun indexer
   - local AI Review service and runner in heuristic mode
@@ -273,6 +317,7 @@ function rejectUnknownArgs() {
     "--help",
     "--keep-db",
     "--no-ai-review",
+    "--no-postgrad",
     "-h",
   ]);
   const unknownArgs = args.filter((arg) => !knownArgs.has(arg));
@@ -558,7 +603,75 @@ function localAiReviewRunnerPollMs() {
   return process.env.LOCAL_AI_REVIEW_RUNNER_POLL_MS ?? "1000";
 }
 
-function buildAppEnv(deploy) {
+// Deploys the postgrad venue on top of the fresh pregrad deployment: the v4
+// venue stack, the complete-set postgrad contracts, and one demo market so the
+// venue is immediately tradeable. The deploy scripts are idempotent against a
+// reused chain (the venue deploy clears stale Ignition journals itself), and
+// every failure rejects loudly through run().
+async function deployPostgradVenue(deploy) {
+  await run(
+    "venue",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:deploy-venue"],
+    {
+      cwd: repoRoot,
+    },
+  );
+  await run(
+    "postgrad",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:deploy-postgrad"],
+    {
+      cwd: repoRoot,
+      env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
+    },
+  );
+  await run(
+    "demo market",
+    "pnpm",
+    ["--dir", "protocol", "run", "local:create-complete-set-market"],
+    {
+      cwd: repoRoot,
+      env: {
+        POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
+        POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
+      },
+    },
+  );
+
+  return readPostgradDeployment();
+}
+
+// The manifests the deploy scripts write are the machine-readable source of
+// truth for addresses, so read them instead of parsing human stdout.
+function readPostgradDeployment() {
+  const venue = readJsonFile(venueManifestFile).contracts;
+  const postgradContracts = readJsonFile(postgradManifestFile).contracts;
+  const market = readJsonFile(marketManifestFile);
+
+  return {
+    boundedHook: postgradContracts.boundedHook.address,
+    marketAddress: market.market.address,
+    marketSymbol: market.market.symbol,
+    noPoolId: market.pools.no.poolId,
+    noTokenAddress: market.market.noToken,
+    orderManager: postgradContracts.orderManager.address,
+    poolManager: venue.poolManager.address,
+    poolTickBounds: postgradContracts.poolTickBounds.address,
+    postgradAdapter: postgradContracts.postgradAdapter.address,
+    quoter: venue.quoter.address,
+    stateView: venue.stateView.address,
+    swapRouter: venue.swapRouter.address,
+    yesPoolId: market.pools.yes.poolId,
+    yesTokenAddress: market.market.yesToken,
+  };
+}
+
+function readJsonFile(path) {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function buildAppEnv(deploy, postgrad) {
   return {
     NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "local",
     NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE: "devchain",
@@ -576,10 +689,34 @@ function buildAppEnv(deploy) {
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
+    ...(postgrad === null
+      ? {}
+      : {
+          NEXT_PUBLIC_POPCHARTS_POOL_MANAGER_ADDRESS: postgrad.poolManager,
+          NEXT_PUBLIC_POPCHARTS_STATE_VIEW_ADDRESS: postgrad.stateView,
+          NEXT_PUBLIC_POPCHARTS_QUOTER_ADDRESS: postgrad.quoter,
+          NEXT_PUBLIC_POPCHARTS_SWAP_ROUTER_ADDRESS: postgrad.swapRouter,
+          NEXT_PUBLIC_POPCHARTS_POOL_TICK_BOUNDS_ADDRESS:
+            postgrad.poolTickBounds,
+          NEXT_PUBLIC_POPCHARTS_ORDER_MANAGER_ADDRESS: postgrad.orderManager,
+          NEXT_PUBLIC_POPCHARTS_BOUNDED_HOOK_ADDRESS: postgrad.boundedHook,
+          NEXT_PUBLIC_POPCHARTS_POSTGRAD_ADAPTER_ADDRESS:
+            postgrad.postgradAdapter,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_MARKET_ADDRESS:
+            postgrad.marketAddress,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_MARKET_SYMBOL:
+            postgrad.marketSymbol,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_YES_TOKEN_ADDRESS:
+            postgrad.yesTokenAddress,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_NO_TOKEN_ADDRESS:
+            postgrad.noTokenAddress,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_YES_POOL_ID: postgrad.yesPoolId,
+          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_NO_POOL_ID: postgrad.noPoolId,
+        }),
   };
 }
 
-function writeServerEnv(env, deploy) {
+function writeServerEnv(env, deploy, postgrad) {
   const lines = [
     "# Generated by scripts/local-dev.mjs.",
     "# Safe to delete; ignored by git.",
@@ -597,11 +734,51 @@ function writeServerEnv(env, deploy) {
     `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
+    ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
   ];
 
   writeFileSync(serverEnvFile, lines.join("\n"));
+}
+
+// The server does not consume these keys yet; they document the local postgrad
+// venue deployment for the upcoming server/app integration.
+function postgradServerEnvLines(postgrad) {
+  if (postgrad === null) {
+    return [];
+  }
+
+  return [
+    `POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
+    `STATE_VIEW_ADDRESS=${postgrad.stateView}`,
+    `QUOTER_ADDRESS=${postgrad.quoter}`,
+    `SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
+    `POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
+    `ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
+    `BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
+    `POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
+    `COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
+    `COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
+    `COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
+    `COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
+    `COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
+    `COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
+    `LOCAL_POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
+    `LOCAL_STATE_VIEW_ADDRESS=${postgrad.stateView}`,
+    `LOCAL_QUOTER_ADDRESS=${postgrad.quoter}`,
+    `LOCAL_SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
+    `LOCAL_POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
+    `LOCAL_ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
+    `LOCAL_BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
+    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
+    `LOCAL_COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
+    `LOCAL_COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
+    `LOCAL_COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
+    `LOCAL_COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
+    `LOCAL_COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
+    `LOCAL_COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
+  ];
 }
 
 function writeAppEnv(env) {

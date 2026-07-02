@@ -42,6 +42,7 @@
     "local:smoke-taker-swap": "hardhat run scripts/smoke-taker-swap.ts --network localhost",
     "local:smoke-arb": "hardhat run scripts/smoke-complete-set-arb.ts --network localhost",
     "local:smoke-resolution": "hardhat run scripts/smoke-resolution.ts --network localhost",
+    "local:smoke-market": "pnpm run local:smoke-maker-order && pnpm run local:smoke-taker-swap && pnpm run local:smoke-arb && pnpm run local:smoke-resolution",
     "local:keeper": "hardhat run scripts/keeper-complete-set.ts --network localhost",
     "local:inspect-orders": "hardhat run scripts/inspect-bounded-orders.ts --network localhost",
     "local:check-health": "hardhat run scripts/check-market-health.ts --network localhost",

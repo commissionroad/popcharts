@@ -44,6 +44,46 @@ Hardhat private key so the development-only API route can create markets during
 automated tests. Manual `just local-dev` runs use wallet-signed creation instead.
 Do not copy that key into any real network.
 
+## Postgrad Venue Local Deployment
+
+`just local-dev` (and `just local-smoke` / `just devchain-e2e`) deploy the
+whole system, not only the pregrad contracts. After the pregrad deploy they
+run, in order:
+
+1. `local:deploy-venue` — the self-hosted v4 venue stack (PoolManager,
+   StateView, V4Quoter, MinimalV4SwapRouter); writes
+   `protocol/deployments/local.venue-stack.local.json`.
+2. `local:deploy-postgrad` — PoolTickBounds, BoundedPoolOrderManager, the
+   CREATE2-mined BoundedPredictionHook, and CompleteSetPostgradAdapter bound to
+   the fresh PregradManager; writes
+   `protocol/deployments/local.postgrad.local.json`.
+3. `local:create-complete-set-market` — one demo complete-set market with the
+   pinned symbol `PCSM` so the venue is immediately tradeable; writes
+   `protocol/deployments/local.market-pcsm.local.json`.
+
+The orchestrators read those manifests (not stdout) for addresses, print them
+in the ready summary, and record them in `server/.env.local-chain` and the app
+env block as documentation for the upcoming server/app integration. Pass
+`--no-postgrad` to `just local-dev` to skip the venue deployment entirely.
+
+Run the pieces individually against an already-running local chain:
+
+```bash
+just local-deploy-venue
+POPCHARTS_PREGRAD_MANAGER_ADDRESS=0x... just local-deploy-postgrad
+POPCHARTS_COLLATERAL_ADDRESS=0x... just local-create-complete-set-market
+just local-market-health
+just local-market-smoke
+```
+
+`just local-market-health` runs the read-only market health check against the
+default `PCSM` market manifest (set `POPCHARTS_MARKET_SYMBOL` or
+`POPCHARTS_MARKET_DEPLOYMENT_FILE` to target another market) and exits nonzero
+on a collateral invariant violation. `just local-market-smoke` chains the four
+protocol smoke flows — maker order, taker swap, complete-set arbitrage, and
+resolution — against the same manifest. Resolution finalizes the market, so
+redeploy or recreate the demo market before trading it again.
+
 ## Arc Testnet
 
 The non-local app and server defaults point at Arc Testnet:
