@@ -201,6 +201,7 @@ async function seedUnderReviewMarket() {
     question: "Will NASA announce a new Artemis launch date in 2026?",
     resolutionCriteria:
       "YES if NASA publishes an official new Artemis launch date before the end of 2026. NO otherwise.",
+    resolutionSources: ["Official NASA announcements", "Major wire coverage"],
     resolutionUrl: "https://www.nasa.gov/",
     updatedAt: now,
   });

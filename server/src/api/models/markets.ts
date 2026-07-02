@@ -41,6 +41,7 @@ export const MarketMetadataSchema = t.Object({
   metadataHash: t.String(),
   question: t.String(),
   resolutionCriteria: t.String(),
+  resolutionSources: t.Optional(t.Array(t.String())),
   resolutionUrl: t.Optional(t.String()),
   updatedAt: t.String(),
 });
@@ -54,6 +55,7 @@ export const MarketMetadataWriteSchema = t.Object({
   }),
   question: t.String({ minLength: 1 }),
   resolutionCriteria: t.String({ minLength: 1 }),
+  resolutionSources: t.Optional(t.Array(t.String())),
   resolutionUrl: t.Optional(t.String()),
 });
 
@@ -204,6 +206,7 @@ export const MarketCreatedEventSchema = t.Object({
   liquidityParameter: t.String(),
   logIndex: t.Number(),
   marketId: t.String(),
+  metadata: t.String(),
   metadataHash: t.String(),
   openingProbabilityWad: t.String(),
   resolutionTime: t.String(),
@@ -283,18 +286,13 @@ export const ManualAiReviewAlreadyReviewedSchema = t.Object({
 export const ManualAiReviewIneligibleSchema = t.Object({
   marketStatus: t.Optional(MarketStatusSchema),
   message: t.String(),
-  reason: t.Union([
-    t.Literal("missing_metadata"),
-    t.Literal("wrong_status"),
-  ]),
+  reason: t.Union([t.Literal("missing_metadata"), t.Literal("wrong_status")]),
   status: t.Literal("ineligible"),
 });
 
 export type MarketResponse = Static<typeof MarketSchema>;
 export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
-export type MarketAiReviewJobResponse = Static<
-  typeof MarketAiReviewJobSchema
->;
+export type MarketAiReviewJobResponse = Static<typeof MarketAiReviewJobSchema>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<

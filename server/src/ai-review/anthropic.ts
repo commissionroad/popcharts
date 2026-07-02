@@ -202,16 +202,19 @@ async function callAnthropicMessages({
   }
 
   try {
-    const response = await fetch(new URL("/v1/messages", config.anthropicBaseUrl), {
-      body: JSON.stringify(body),
-      headers: {
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-        "x-api-key": config.anthropicApiKey ?? "",
+    const response = await fetch(
+      new URL("/v1/messages", config.anthropicBaseUrl),
+      {
+        body: JSON.stringify(body),
+        headers: {
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "x-api-key": config.anthropicApiKey ?? "",
+        },
+        method: "POST",
+        signal: controller.signal,
       },
-      method: "POST",
-      signal: controller.signal,
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`Anthropic returned HTTP ${response.status}.`);
@@ -250,10 +253,13 @@ function buildAnthropicTools({
     });
   }
 
-  const resolutionDomain = domainFromUrl(request.metadata.resolutionUrl);
-  if (resolutionDomain && config.anthropicMaxWebFetches > 0) {
+  const resolutionDomains = unique([
+    domainFromUrl(request.metadata.resolutionUrl),
+    ...(request.metadata.resolutionSources ?? []).map(domainFromUrl),
+  ]);
+  if (resolutionDomains.length > 0 && config.anthropicMaxWebFetches > 0) {
     tools.push({
-      allowed_domains: [resolutionDomain],
+      allowed_domains: resolutionDomains,
       citations: { enabled: true },
       max_content_tokens: config.anthropicWebFetchMaxContentTokens,
       max_uses: config.anthropicMaxWebFetches,
@@ -305,7 +311,10 @@ function evidenceFromSearchResults(content: AnthropicContentBlock[]) {
   const evidence: EvidenceItem[] = [];
 
   for (const block of content) {
-    if (block.type !== "web_search_tool_result" || !Array.isArray(block.content)) {
+    if (
+      block.type !== "web_search_tool_result" ||
+      !Array.isArray(block.content)
+    ) {
       continue;
     }
 
@@ -332,11 +341,9 @@ function evidenceFromFetchResults(content: AnthropicContentBlock[]) {
   const evidence: EvidenceItem[] = [];
 
   for (const block of content) {
-    const result = block.type === "web_fetch_tool_result" ? block.content : null;
-    if (
-      block.type !== "web_fetch_tool_result" ||
-      !isWebFetchResult(result)
-    ) {
+    const result =
+      block.type === "web_fetch_tool_result" ? block.content : null;
+    if (block.type !== "web_fetch_tool_result" || !isWebFetchResult(result)) {
       continue;
     }
 
@@ -504,7 +511,8 @@ function filterSourceChecksByEvidence(
 
   return sourceChecks.filter(
     (sourceCheck) =>
-      evidenceUrls.has(sourceCheck.url) || evidenceDomains.has(sourceCheck.domain),
+      evidenceUrls.has(sourceCheck.url) ||
+      evidenceDomains.has(sourceCheck.domain),
   );
 }
 
@@ -556,6 +564,12 @@ function arrayOfStrings(value: unknown) {
 
 function domainFromUrl(value?: string) {
   return parseHttpUrl(value)?.hostname.toLowerCase();
+}
+
+function unique(values: Array<string | undefined>) {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 }
 
 function parseHttpUrl(value?: string) {

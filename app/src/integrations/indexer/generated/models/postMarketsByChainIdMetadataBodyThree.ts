@@ -18,5 +18,6 @@ export type PostMarketsByChainIdMetadataBodyThree = {
   question: string;
   /** @minLength 1 */
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
 };

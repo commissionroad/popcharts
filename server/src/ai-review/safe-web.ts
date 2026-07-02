@@ -22,7 +22,10 @@ type SearchResult = {
 
 export async function safeFetchEvidence(
   value: string,
-  config: Pick<AiReviewConfig, "maxFetchBytes" | "requestTimeoutMs" | "userAgent">,
+  config: Pick<
+    AiReviewConfig,
+    "maxFetchBytes" | "requestTimeoutMs" | "userAgent"
+  >,
   kind: EvidenceItem["kind"] = "fetched_page",
 ): Promise<EvidenceItem> {
   let finalUrl = await resolveSafeUrl(value);
@@ -139,11 +142,13 @@ export async function resolveSafeUrl(value: string) {
 export function buildSearchQueries({
   question,
   resolutionCriteria,
+  resolutionSources = [],
 }: {
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
 }) {
-  const baseQuery = [question, resolutionCriteria]
+  const baseQuery = [question, resolutionCriteria, ...resolutionSources]
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();

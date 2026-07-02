@@ -134,6 +134,7 @@ export async function upsertMarketMetadata(
     metadataHash: metadata.metadataHash,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
+    resolutionSources: metadata.resolutionSources ?? [],
     resolutionUrl: metadata.resolutionUrl ?? null,
     updatedAt: new Date(),
   };
@@ -195,6 +196,7 @@ export async function getMarketCreatedEvents(
     liquidityParameter: event.liquidityParameter.toString(),
     logIndex: event.logIndex,
     marketId: event.marketId.toString(),
+    metadata: event.metadata,
     metadataHash: event.metadataHash,
     openingProbabilityWad: event.openingProbabilityWad.toString(),
     resolutionTime: event.resolutionTime.toISOString(),
@@ -270,6 +272,9 @@ function serializeMarketMetadataRow(
     metadataHash: metadata.metadataHash,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
+    ...(metadata.resolutionSources.length > 0
+      ? { resolutionSources: metadata.resolutionSources }
+      : {}),
     ...(metadata.resolutionUrl
       ? { resolutionUrl: metadata.resolutionUrl }
       : {}),

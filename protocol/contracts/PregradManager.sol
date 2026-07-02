@@ -28,6 +28,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
   uint256 public constant MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000 * 1e18;
   /// @notice Native USDC fee paid by public creators when a market is created.
   uint256 public constant MARKET_CREATION_FEE = 1e18;
+  /// @notice Maximum bytes allowed for the canonical metadata payload emitted at creation.
+  uint256 public constant MAX_METADATA_BYTES = 8192;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
   bytes32 public constant GRADUATION_SNAPSHOT_TYPEHASH = keccak256(
     "GraduationSnapshot(uint256 chainId,address manager,uint256 marketId,uint256 receiptCount,uint256 totalEscrowed,int256 path,uint256 yesShares,uint256 noShares,uint64 graduationStartedAt)"
@@ -41,6 +43,12 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error InvalidCollateral();
   /// @notice Reverts when a market is created without a metadata hash.
   error InvalidMetadataHash();
+  /// @notice Reverts when a market is created without canonical metadata.
+  error InvalidMetadata();
+  /// @notice Reverts when a market metadata payload is too large for the creation event.
+  /// @param length Byte length supplied by the creator.
+  /// @param maximum Maximum supported byte length.
+  error MetadataTooLong(uint256 length, uint256 maximum);
   /// @notice Reverts when the graduation deadline is not in the future.
   error InvalidGraduationDeadline();
   /// @notice Reverts when the resolution deadline is not after the graduation deadline.
@@ -173,6 +181,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @param marketId Canonical pregrad market ID.
   /// @param creator Account that created the market.
   /// @param metadataHash Hash of market metadata and resolution rules.
+  /// @param metadata Canonical JSON metadata payload emitted for indexers.
   /// @param collateral Collateral token accepted by the market.
   /// @param openingProbabilityWad Opening YES probability, scaled by 1e18.
   /// @param liquidityParameter Virtual LMSR smoothness parameter.
@@ -184,6 +193,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
     uint256 indexed marketId,
     address indexed creator,
     bytes32 indexed metadataHash,
+    string metadata,
     address collateral,
     uint256 openingProbabilityWad,
     uint256 liquidityParameter,
@@ -406,6 +416,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
       marketId,
       msg.sender,
       params.metadataHash,
+      params.metadata,
       params.collateral,
       params.openingProbabilityWad,
       params.liquidityParameter,
@@ -940,6 +951,16 @@ contract PregradManager is Ownable, ReentrancyGuard {
       revert InvalidCollateral();
     }
     if (params.metadataHash == bytes32(0)) {
+      revert InvalidMetadataHash();
+    }
+    uint256 metadataLength = bytes(params.metadata).length;
+    if (metadataLength == 0) {
+      revert InvalidMetadata();
+    }
+    if (metadataLength > MAX_METADATA_BYTES) {
+      revert MetadataTooLong(metadataLength, MAX_METADATA_BYTES);
+    }
+    if (keccak256(bytes(params.metadata)) != params.metadataHash) {
       revert InvalidMetadataHash();
     }
     if (params.graduationDeadline <= block.timestamp) {

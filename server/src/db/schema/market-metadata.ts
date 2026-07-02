@@ -1,5 +1,6 @@
 import {
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -18,6 +19,10 @@ export const marketMetadata = pgTable(
     description: text("description").notNull(),
     category: varchar("category", { length: 40 }).notNull(),
     resolutionCriteria: text("resolution_criteria").notNull(),
+    resolutionSources: jsonb("resolution_sources")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
     resolutionUrl: text("resolution_url"),
     metadataCreatedAt: text("metadata_created_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

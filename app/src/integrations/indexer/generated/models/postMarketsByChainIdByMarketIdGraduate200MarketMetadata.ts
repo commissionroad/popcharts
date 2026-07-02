@@ -15,6 +15,7 @@ export type PostMarketsByChainIdByMarketIdGraduate200MarketMetadata = {
   metadataHash: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   updatedAt: string;
 };

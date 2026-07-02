@@ -74,6 +74,7 @@ const baseMetadata = {
   question: "Will NASA announce a new Artemis launch date in 2026?",
   resolutionCriteria:
     "YES if NASA publishes an official new launch date before 2027.",
+  resolutionSources: ["Official NASA announcements", "Major wire coverage"],
   resolutionUrl: "https://www.nasa.gov/",
   updatedAt: new Date("2026-06-23T12:00:00.000Z"),
 };
@@ -101,6 +102,10 @@ describe("buildMarketReviewRequest", () => {
         question: "Will NASA announce a new Artemis launch date in 2026?",
         resolutionCriteria:
           "YES if NASA publishes an official new launch date before 2027.",
+        resolutionSources: [
+          "Official NASA announcements",
+          "Major wire coverage",
+        ],
         resolutionUrl: "https://www.nasa.gov/",
       },
     });
@@ -116,6 +121,7 @@ describe("buildMarketReviewRequest", () => {
       market: baseMarket,
       metadata: {
         ...baseMetadata,
+        resolutionSources: [],
         resolutionUrl: null,
       },
     });

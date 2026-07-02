@@ -5,10 +5,11 @@ import type { ProtocolCreateMarketParams } from "@/domain/market-creation/types"
 export type SerializedProtocolCreateMarketParams = {
   bypassAiResolution: boolean;
   collateral: `0x${string}`;
+  graduationDeadline: string;
   graduationThreshold: string;
-  graduationTime: string;
   liquidityParameter: string;
   metadataHash: `0x${string}`;
+  metadata: string;
   openingProbabilityWad: string;
   resolutionTime: string;
 };
@@ -19,10 +20,11 @@ export function serializeProtocolCreateMarketParams(
   return {
     bypassAiResolution: params.bypassAiResolution,
     collateral: params.collateral,
+    graduationDeadline: params.graduationDeadline.toString(),
     graduationThreshold: params.graduationThreshold.toString(),
-    graduationTime: params.graduationTime.toString(),
     liquidityParameter: params.liquidityParameter.toString(),
     metadataHash: params.metadataHash,
+    metadata: params.metadata,
     openingProbabilityWad: params.openingProbabilityWad.toString(),
     resolutionTime: params.resolutionTime.toString(),
   };
@@ -38,10 +40,11 @@ export function parseSerializedProtocolCreateMarketParams(
   return {
     bypassAiResolution: parseBoolean(value.bypassAiResolution, "bypassAiResolution"),
     collateral: parseAddress(value.collateral, "collateral"),
+    graduationDeadline: parseBigInt(value.graduationDeadline, "graduationDeadline"),
     graduationThreshold: parseBigInt(value.graduationThreshold, "graduationThreshold"),
-    graduationTime: parseBigInt(value.graduationTime, "graduationTime"),
     liquidityParameter: parseBigInt(value.liquidityParameter, "liquidityParameter"),
     metadataHash: parseBytes32(value.metadataHash, "metadataHash"),
+    metadata: parseNonEmptyString(value.metadata, "metadata"),
     openingProbabilityWad: parseBigInt(
       value.openingProbabilityWad,
       "openingProbabilityWad"
@@ -64,6 +67,14 @@ function parseBytes32(value: unknown, field: string): `0x${string}` {
   }
 
   return value as `0x${string}`;
+}
+
+function parseNonEmptyString(value: unknown, field: string) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Invalid ${field}.`);
+  }
+
+  return value;
 }
 
 function parseBigInt(value: unknown, field: string) {

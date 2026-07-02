@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +56,9 @@ const weatherStations = [
     stationId: "KSFO",
   },
 ];
+const defaultRpcHttpUrl = "http://127.0.0.1:8545";
+const hardhatLocalChainId = "0x7a69";
+const marketCountSelector = "0xec979082";
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
@@ -74,10 +76,6 @@ async function main() {
   }
 
   if (options.preview) {
-    if (options.metadataUri) {
-      throw new Error("--preview cannot be combined with --metadata-uri.");
-    }
-
     const generatedMarket = await buildGeneratedMarket(options.kind);
     console.log(
       JSON.stringify(
@@ -85,7 +83,6 @@ async function main() {
           graduationSeconds: generatedMarket.graduationSeconds,
           kind: generatedMarket.kind,
           metadata: generatedMarket.metadata,
-          metadataHash: generatedMarket.metadataHash,
           resolutionSeconds: generatedMarket.resolutionSeconds,
         },
         null,
@@ -102,19 +99,16 @@ async function main() {
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const commandEnv = { ...process.env, ...fileEnv };
 
-  if (options.metadataUri) {
-    commandEnv.LOCAL_MARKET_METADATA = options.metadataUri;
-  }
-
   validateLocalEnv(commandEnv, envFile, envFileExists);
+  await validateLocalDeployment(commandEnv, envFile);
   ensureDependenciesInstalled();
 
-  const generatedMarket = options.metadataUri
-    ? null
-    : await buildGeneratedMarket(options.kind);
+  const generatedMarket = await buildGeneratedMarket(options.kind);
 
   if (generatedMarket) {
-    commandEnv.LOCAL_MARKET_METADATA_HASH = generatedMarket.metadataHash;
+    commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
+      generatedMarket.metadata,
+    );
     commandEnv.LOCAL_MARKET_GRADUATION_SECONDS = String(
       generatedMarket.graduationSeconds,
     );
@@ -158,7 +152,7 @@ async function main() {
         apiBaseUrl,
         chainId: market.chainId,
         metadata: generatedMarket.metadata,
-        metadataHash: generatedMarket.metadataHash,
+        metadataHash: market.metadataHash,
       });
       console.log(`[local-create-market] metadata saved to ${apiBaseUrl}`);
     } catch (error) {
@@ -169,13 +163,72 @@ async function main() {
   }
 }
 
+async function validateLocalDeployment(env, envFile) {
+  const rpcUrl = env.RPC_HTTP_URL ?? defaultRpcHttpUrl;
+  const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
+  const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
+
+  if (chainId !== hardhatLocalChainId) {
+    throw new Error(
+      `RPC_HTTP_URL=${rpcUrl} reported chain ID ${formatChainId(
+        chainId,
+      )}, but local-create-market expects Hardhat localhost chain 31337. ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  const managerCode = await rpc(
+    rpcUrl,
+    "eth_getCode",
+    [managerAddress, "latest"],
+    envFile,
+  );
+
+  if (!managerCode || managerCode === "0x") {
+    throw new Error(
+      `No contract code exists at PREGRAD_MANAGER_ADDRESS=${managerAddress} ` +
+        `on ${rpcUrl}. ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  const probe = await rpcResult(
+    rpcUrl,
+    "eth_call",
+    [
+      {
+        data: marketCountSelector,
+        to: managerAddress,
+      },
+      "latest",
+    ],
+    envFile,
+  );
+
+  if (probe.error) {
+    throw new Error(
+      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} does not ` +
+        "look like the current local PregradManager deployment " +
+        `(marketCount() failed: ${probe.error.message}). ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  if (!isUint256(probe.result)) {
+    throw new Error(
+      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} returned an ` +
+        `unexpected marketCount() value (${probe.result}). ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+}
+
 function parseArgs(args) {
   const options = {
     apiBaseUrl: undefined,
     envFile: undefined,
     help: false,
     kind: "random",
-    metadataUri: undefined,
     preview: false,
   };
 
@@ -213,15 +266,6 @@ function parseArgs(args) {
       index += 1;
     } else if (arg.startsWith("--kind=")) {
       options.kind = parseKind(arg.slice("--kind=".length));
-    } else if (arg === "--metadata-uri") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--metadata-uri requires a value.");
-      }
-      options.metadataUri = value;
-      index += 1;
-    } else if (arg.startsWith("--metadata-uri=")) {
-      options.metadataUri = arg.slice("--metadata-uri=".length);
     } else {
       throw new Error(`Unknown option ${arg}. Use --help.`);
     }
@@ -246,8 +290,6 @@ Options:
                             Defaults to random.
   --local-chain-env <path>  Load a generated local-chain env file.
                             Defaults to server/.env.local-chain.
-  --metadata-uri <uri>      Override the metadata URI hashed into the market event.
-                            Skips live metadata generation and API sync.
   --preview                 Print generated metadata JSON without creating a market.
   -h, --help                Show this help.
 
@@ -312,12 +354,12 @@ async function buildCryptoMarket() {
     version: 1,
   };
 
-  return withMetadataHash({
+  return {
     graduationSeconds: localMarketGraduationSeconds,
     kind: "crypto",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
-  });
+  };
 }
 
 async function buildWeatherMarket() {
@@ -350,12 +392,12 @@ async function buildWeatherMarket() {
     version: 1,
   };
 
-  return withMetadataHash({
+  return {
     graduationSeconds: localMarketGraduationSeconds,
     kind: "weather",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
-  });
+  };
 }
 
 async function fetchForecastWindow(station, start, end) {
@@ -418,17 +460,6 @@ function readForecastTemperature(value) {
   return null;
 }
 
-function withMetadataHash(generatedMarket) {
-  return {
-    ...generatedMarket,
-    metadataHash: hashMetadata(generatedMarket.metadata),
-  };
-}
-
-function hashMetadata(metadata) {
-  return `0x${createHash("sha256").update(serializeMetadata(metadata)).digest("hex")}`;
-}
-
 function serializeMetadata(metadata) {
   const ordered = {
     version: metadata.version,
@@ -438,6 +469,9 @@ function serializeMetadata(metadata) {
     resolutionCriteria: metadata.resolutionCriteria,
   };
 
+  if (metadata.resolutionSources?.length) {
+    ordered.resolutionSources = metadata.resolutionSources;
+  }
   if (metadata.resolutionUrl) {
     ordered.resolutionUrl = metadata.resolutionUrl;
   }
@@ -463,6 +497,9 @@ async function persistMarketMetadata({
         metadataHash,
         question: metadata.question,
         resolutionCriteria: metadata.resolutionCriteria,
+        ...(metadata.resolutionSources?.length
+          ? { resolutionSources: metadata.resolutionSources }
+          : {}),
         ...(metadata.resolutionUrl
           ? { resolutionUrl: metadata.resolutionUrl }
           : {}),
@@ -697,6 +734,76 @@ function readEnvFile(path) {
 
 function resolvePath(path) {
   return isAbsolute(path) ? path : resolve(repoRoot, path);
+}
+
+async function rpc(rpcUrl, method, params, envFile = defaultEnvFile) {
+  const response = await rpcResult(rpcUrl, method, params, envFile);
+
+  if (response.error) {
+    throw new Error(
+      `RPC ${method} failed on ${rpcUrl}: ${response.error.message}`,
+    );
+  }
+
+  return response.result;
+}
+
+async function rpcResult(rpcUrl, method, params, envFile = defaultEnvFile) {
+  let httpResponse;
+
+  try {
+    httpResponse = await fetch(rpcUrl, {
+      body: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method,
+        params,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+  } catch (error) {
+    throw new Error(
+      `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery(
+        envFile,
+        rpcUrl,
+      )} (${error.message})`,
+    );
+  }
+
+  if (!httpResponse.ok) {
+    throw new Error(
+      `RPC ${method} failed on ${rpcUrl}: HTTP ${httpResponse.status}.`,
+    );
+  }
+
+  return await httpResponse.json();
+}
+
+function isUint256(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function formatChainId(chainId) {
+  if (typeof chainId !== "string") {
+    return String(chainId);
+  }
+
+  try {
+    return `${BigInt(chainId)} (${chainId})`;
+  } catch {
+    return chainId;
+  }
+}
+
+function staleStackRecovery(envFile, rpcUrl) {
+  return (
+    `${envFile} and the running RPC are probably out of sync. ` +
+    `Stop the stale Hardhat node on ${rpcUrl}, then run ` +
+    "'just local-dev-control' or 'just local-dev' from this checkout and " +
+    "wait for contract deployment to complete. To find the process, run " +
+    "'lsof -nP -iTCP:8545 -sTCP:LISTEN'."
+  );
 }
 
 async function run(command, args, options = {}) {

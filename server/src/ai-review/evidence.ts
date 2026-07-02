@@ -20,9 +20,14 @@ export async function collectEvidence({
   }
 
   const evidence: EvidenceItem[] = [];
-  const resolutionUrl = request.metadata.resolutionUrl?.trim();
+  const resolutionUrls = unique([
+    request.metadata.resolutionUrl,
+    ...(request.metadata.resolutionSources ?? []),
+  ])
+    .map((source) => source.trim())
+    .filter(isHttpUrl);
 
-  if (resolutionUrl) {
+  for (const resolutionUrl of resolutionUrls) {
     try {
       evidence.push(
         await safeFetchEvidence(resolutionUrl, config, "provided_url"),
@@ -32,7 +37,8 @@ export async function collectEvidence({
         domain: "unreachable",
         kind: "provided_url",
         sourceTier: "unreachable",
-        summary: error instanceof Error ? error.message : "Could not fetch URL.",
+        summary:
+          error instanceof Error ? error.message : "Could not fetch URL.",
         url: resolutionUrl,
       });
     }
@@ -49,6 +55,7 @@ export async function collectEvidence({
   const queries = buildSearchQueries({
     question: request.metadata.question,
     resolutionCriteria: request.metadata.resolutionCriteria,
+    resolutionSources: request.metadata.resolutionSources,
   });
 
   for (const query of queries) {
@@ -74,4 +81,19 @@ export async function collectEvidence({
   }
 
   return evidence;
+}
+
+function unique(values: Array<string | undefined>) {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

@@ -14,6 +14,7 @@ export type CreateMarketDraft = {
   openingProbability: number;
   question: string;
   resolutionCriteria: string;
+  resolutionSources: string;
   resolutionPreset: ResolutionPresetLabel | "custom";
   resolutionTime: string;
   resolutionUrl: string;
@@ -31,6 +32,7 @@ export type MarketMetadata = {
   description: string;
   question: string;
   resolutionCriteria: string;
+  resolutionSources?: string[];
   resolutionUrl?: string;
   version: 1;
 };
@@ -39,9 +41,10 @@ export type ProtocolCreateMarketParams = {
   collateral: `0x${string}`;
   bypassAiResolution: boolean;
   graduationThreshold: bigint;
-  graduationTime: bigint;
+  graduationDeadline: bigint;
   liquidityParameter: bigint;
   metadataHash: `0x${string}`;
+  metadata: string;
   openingProbabilityWad: bigint;
   resolutionTime: bigint;
 };
@@ -51,6 +54,7 @@ export type CreateMarketPreview = {
   graduationThreshold: number;
   metadata: MarketMetadata;
   metadataHash: `0x${string}`;
+  metadataPayload: string;
   protocolParams: ProtocolCreateMarketParams;
 };
 

@@ -7,6 +7,7 @@ import {
   buildMarketCreatedRecords,
   type MarketCreatedLog,
 } from "src/indexer/handlers/market-created";
+import { persistMarketMetadataFromEventPayload } from "src/indexer/metadata/market-metadata";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import {
   getRecoveryStartBlock,
@@ -17,7 +18,7 @@ import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 const CURSOR_NAME = "MarketCreated";
 
 const MARKET_CREATED_EVENT = parseAbiItem(
-  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationTime, uint64 resolutionTime, bool bypassAiResolution)",
+  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, string metadata, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution)",
 );
 
 type RecoveryOptions = {
@@ -42,6 +43,8 @@ export async function processMarketCreatedEvent(
     contractId,
     log,
   });
+
+  await persistEventMetadata(records);
 
   await db.transaction(async (tx) => {
     await tx
@@ -78,6 +81,32 @@ export async function processMarketCreatedEvent(
     CURSOR_NAME,
     records.event.blockNumber,
   );
+}
+
+async function persistEventMetadata(
+  records: ReturnType<typeof buildMarketCreatedRecords>,
+) {
+  const metadata = records.event.metadata;
+
+  try {
+    if (!metadata) {
+      throw new Error("MarketCreated records are missing metadata.");
+    }
+
+    await persistMarketMetadataFromEventPayload({
+      chainId: records.market.chainId,
+      metadataHash: records.market.metadataHash,
+      metadata,
+    });
+  } catch (error) {
+    console.warn(
+      `[MarketCreated] metadata unavailable marketId=${records.market.marketId.toString()}: ${getErrorMessage(error)}`,
+    );
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function recoverMarketCreatedEvents(

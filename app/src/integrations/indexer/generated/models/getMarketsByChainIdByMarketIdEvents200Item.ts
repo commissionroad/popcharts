@@ -19,6 +19,7 @@ export type GetMarketsByChainIdByMarketIdEvents200Item = {
   liquidityParameter: string;
   logIndex: number;
   marketId: string;
+  metadata: string;
   metadataHash: string;
   openingProbabilityWad: string;
   resolutionTime: string;

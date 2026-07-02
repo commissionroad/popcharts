@@ -58,6 +58,16 @@ Tradeoffs:
 - Export generated contract ABIs and deployment addresses from `protocol/`.
 - Replace app fixture market queries with the server API.
 - Add `ReceiptPlaced` indexing after market creation is stable.
-- Decide where full market metadata is fetched from once the protocol metadata
-  hash points at a durable source.
 - Add a generated API client once frontend integration begins.
+
+## Update: Market Metadata Discovery
+
+`PregradManager.MarketCreated` now emits both `metadataHash` and the canonical
+metadata JSON payload. The hash remains the immutable integrity commitment, and
+direct contract-created markets carry their canonical terms in the creation
+event instead of relying on an app side-channel or mutable offchain retrieval.
+The canonical payload can include `resolutionSources`, a list of public source
+names or URLs that review agents can use to gather and corroborate evidence
+against the market's resolution criteria. The indexer records the payload on
+the raw event, verifies its canonical JSON hash, and persists
+`market_metadata`.

@@ -14,9 +14,10 @@ describe("buildMarketCreatedRecords", () => {
         collateral: "0x0000000000000000000000000000000000000002",
         creator: "0x00000000000000000000000000000000000000AA",
         graduationThreshold: 2_500n * 10n ** 18n,
-        graduationTime: 1_780_000_000n,
+        graduationDeadline: 1_780_000_000n,
         liquidityParameter: 5_000n * 10n ** 18n,
         marketId: 7n,
+        metadata: '{"version":1}',
         metadataHash:
           "0x1111111111111111111111111111111111111111111111111111111111111111",
         openingProbabilityWad: 500_000_000_000_000_000n,
@@ -45,6 +46,7 @@ describe("buildMarketCreatedRecords", () => {
       creator: "0x00000000000000000000000000000000000000aa",
       logIndex: 4,
       marketId: 7n,
+      metadata: '{"version":1}',
       transactionHash:
         "0x2222222222222222222222222222222222222222222222222222222222222222",
     });

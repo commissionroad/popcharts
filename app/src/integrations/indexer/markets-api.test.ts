@@ -193,6 +193,7 @@ describe("createMarketsApiClient", () => {
           liquidityParameter: apiMarket.liquidityParameter,
           logIndex: 4,
           marketId: "7",
+          metadata: '{"version":1}',
           metadataHash: apiMarket.metadataHash,
           openingProbabilityWad: apiMarket.openingProbabilityWad,
           resolutionTime: apiMarket.resolutionTime,

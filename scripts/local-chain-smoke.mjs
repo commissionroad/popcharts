@@ -66,8 +66,8 @@ async function main() {
   // deterministic container name before asking Compose to create one.
   await ensurePostgres();
 
-  // db:push keeps the smoke useful while migrations are evolving. It applies
-  // the current Drizzle schema before the indexer tries to persist events.
+  // db:push keeps the smoke useful while migrations are evolving. The schema's
+  // additive defaults keep this non-interactive against existing local data.
   const serverEnv = buildServerEnv();
   await run("db", "bun", ["run", "--cwd", "server", "db:push"], {
     cwd: repoRoot,
@@ -157,7 +157,8 @@ async function main() {
 
   // Poll the same read API the frontend will use. Matching by market ID and
   // metadata hash proves the event was decoded, persisted, projected, and served
-  // rather than only observing that some market exists.
+  // rather than only observing that some market exists. Requiring metadata proves
+  // direct contract creation emitted enough information for indexer recovery.
   const indexedMarket = await waitFor(
     `GET /markets includes market ${market.marketId}`,
     () => findIndexedMarket(market),
@@ -496,7 +497,9 @@ async function findIndexedMarket(market) {
   return markets.find(
     (row) =>
       row.marketId === market.marketId &&
-      row.metadataHash.toLowerCase() === market.metadataHash.toLowerCase(),
+      row.metadataHash.toLowerCase() === market.metadataHash.toLowerCase() &&
+      row.metadata?.metadataHash?.toLowerCase() ===
+        market.metadataHash.toLowerCase(),
   );
 }
 
