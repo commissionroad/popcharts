@@ -1,7 +1,7 @@
 import { listTransactions, type ArtifactResolver } from "@nomicfoundation/ignition-core";
 import { getAddress, type Address, type Hash, type PublicClient } from "viem";
 
-import { contractExplorerUrl } from "../explorer/contractExplorerUrl.mjs";
+import { contractExplorerUrl } from "../explorer/contractExplorerUrl.js";
 import { findDeploymentTransaction } from "./findDeploymentTransaction.js";
 
 export type IgnitionContractDescriptor = {

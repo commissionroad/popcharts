@@ -15,7 +15,7 @@ This command:
 
 1. Starts `hardhat node` unless a JSON-RPC server is already listening at
    `http://127.0.0.1:8545`.
-2. Runs `protocol/scripts/deploy-devchain.mjs`.
+2. Runs `protocol/scripts/deploy-devchain.ts`.
 3. Deploys `MockCollateral` and `PregradManager`.
 4. Writes `protocol/deployments/devchain.local.json`.
 5. Updates `app/.env.development.local` inside the marked Pop Charts devchain

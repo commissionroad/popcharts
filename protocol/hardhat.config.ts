@@ -2,8 +2,9 @@ import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 import { parseGwei } from "viem";
 
-import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.mjs";
-import { ARCSCAN } from "./scripts/shared/explorer/arcscan.mjs";
+import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.js";
+import { ARCSCAN } from "./scripts/shared/explorer/arcscan.js";
+import postgradAdminTasks from "./scripts/tasks/postgradAdmin.js";
 import venueDeploymentTasks from "./scripts/tasks/venueDeployment.js";
 
 const ARC_TESTNET_RPC_URL = process.env.POPCHARTS_RPC_URL ?? ARC_TESTNET.rpcUrl;
@@ -19,7 +20,7 @@ const soliditySettings = {
 
 export default defineConfig({
   plugins: [hardhatToolboxViem],
-  tasks: [...venueDeploymentTasks],
+  tasks: [...venueDeploymentTasks, ...postgradAdminTasks],
   chainDescriptors: {
     [ARC_TESTNET.chainId]: {
       blockExplorers: {
@@ -55,6 +56,13 @@ export default defineConfig({
     },
   },
   solidity: {
+    // Emit deployable artifacts for the vendored v4 venue-stack contracts so
+    // Ignition can deploy them by fully-qualified name.
+    npmFilesToBuild: [
+      "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol",
+      "@uniswap/v4-periphery/src/lens/StateView.sol",
+      "@uniswap/v4-periphery/src/lens/V4Quoter.sol",
+    ],
     profiles: {
       default: {
         compilers: [
