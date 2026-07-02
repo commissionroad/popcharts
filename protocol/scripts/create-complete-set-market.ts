@@ -24,6 +24,7 @@ import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
+import { COMPLETE_SET_MARKET_DEPLOYMENT } from "./shared/market/completeSetMarketDeployment.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.mjs";
 import { clampDisplayPriceWad } from "./shared/price/clampDisplayPriceWad.js";
 import { COMPLETE_SET_PRICE_POLICY } from "./shared/price/completeSetPricePolicy.js";
@@ -38,7 +39,7 @@ const WAD = 10n ** 18n;
 // reference price instead (plan doc, Pool And Price Plan).
 const DEFAULT_OPENING_DISPLAY_PRICE_WAD = WAD / 2n;
 const DEFAULT_MARKET_NAME = "Pop Charts Complete Set Market";
-const DEFAULT_MARKET_SYMBOL = "PCSM";
+const DEFAULT_MARKET_SYMBOL = COMPLETE_SET_MARKET_DEPLOYMENT.defaultMarketSymbol;
 
 // Minimal ABIs for the vendored v4 venue contracts this script touches; the
 // local Pop Charts contracts use typed Hardhat artifacts instead.
@@ -443,7 +444,7 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
     marketDeploymentFile: resolve(
       hre.config.paths.root,
       env.POPCHARTS_MARKET_DEPLOYMENT_FILE ||
-        `deployments/${profile.chainEnv}.market-${marketFileSlug(marketSymbol)}.local.json`,
+        COMPLETE_SET_MARKET_DEPLOYMENT.defaultDeploymentFile(profile.chainEnv, marketSymbol),
     ),
     marketName,
     marketSymbol,
@@ -474,16 +475,6 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
         VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(profile.chainEnv),
     ),
   };
-}
-
-// Manifest filenames come from operator-supplied symbols, so strip anything
-// that is not a safe path character.
-function marketFileSlug(marketSymbol: string): string {
-  const slug = marketSymbol
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "");
-  return slug.length > 0 ? slug : "market";
 }
 
 // The market's pools live on the v4 stack, so fail with a pointer to the
