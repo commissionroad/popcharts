@@ -57,6 +57,9 @@ const weatherStations = [
     stationId: "KSFO",
   },
 ];
+const defaultRpcHttpUrl = "http://127.0.0.1:8545";
+const hardhatLocalChainId = "0x7a69";
+const marketCountSelector = "0xec979082";
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
@@ -107,6 +110,7 @@ async function main() {
   }
 
   validateLocalEnv(commandEnv, envFile, envFileExists);
+  await validateLocalDeployment(commandEnv, envFile);
   ensureDependenciesInstalled();
 
   const generatedMarket = options.metadataUri
@@ -166,6 +170,66 @@ async function main() {
         `[local-create-market] metadata sync failed: ${getErrorMessage(error)}`,
       );
     }
+  }
+}
+
+async function validateLocalDeployment(env, envFile) {
+  const rpcUrl = env.RPC_HTTP_URL ?? defaultRpcHttpUrl;
+  const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
+  const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
+
+  if (chainId !== hardhatLocalChainId) {
+    throw new Error(
+      `RPC_HTTP_URL=${rpcUrl} reported chain ID ${formatChainId(
+        chainId,
+      )}, but local-create-market expects Hardhat localhost chain 31337. ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  const managerCode = await rpc(
+    rpcUrl,
+    "eth_getCode",
+    [managerAddress, "latest"],
+    envFile,
+  );
+
+  if (!managerCode || managerCode === "0x") {
+    throw new Error(
+      `No contract code exists at PREGRAD_MANAGER_ADDRESS=${managerAddress} ` +
+        `on ${rpcUrl}. ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  const probe = await rpcResult(
+    rpcUrl,
+    "eth_call",
+    [
+      {
+        data: marketCountSelector,
+        to: managerAddress,
+      },
+      "latest",
+    ],
+    envFile,
+  );
+
+  if (probe.error) {
+    throw new Error(
+      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} does not ` +
+        "look like the current local PregradManager deployment " +
+        `(marketCount() failed: ${probe.error.message}). ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
+  }
+
+  if (!isUint256(probe.result)) {
+    throw new Error(
+      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} returned an ` +
+        `unexpected marketCount() value (${probe.result}). ` +
+        staleStackRecovery(envFile, rpcUrl),
+    );
   }
 }
 
@@ -697,6 +761,76 @@ function readEnvFile(path) {
 
 function resolvePath(path) {
   return isAbsolute(path) ? path : resolve(repoRoot, path);
+}
+
+async function rpc(rpcUrl, method, params, envFile = defaultEnvFile) {
+  const response = await rpcResult(rpcUrl, method, params, envFile);
+
+  if (response.error) {
+    throw new Error(
+      `RPC ${method} failed on ${rpcUrl}: ${response.error.message}`,
+    );
+  }
+
+  return response.result;
+}
+
+async function rpcResult(rpcUrl, method, params, envFile = defaultEnvFile) {
+  let httpResponse;
+
+  try {
+    httpResponse = await fetch(rpcUrl, {
+      body: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method,
+        params,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+  } catch (error) {
+    throw new Error(
+      `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery(
+        envFile,
+        rpcUrl,
+      )} (${error.message})`,
+    );
+  }
+
+  if (!httpResponse.ok) {
+    throw new Error(
+      `RPC ${method} failed on ${rpcUrl}: HTTP ${httpResponse.status}.`,
+    );
+  }
+
+  return await httpResponse.json();
+}
+
+function isUint256(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function formatChainId(chainId) {
+  if (typeof chainId !== "string") {
+    return String(chainId);
+  }
+
+  try {
+    return `${BigInt(chainId)} (${chainId})`;
+  } catch {
+    return chainId;
+  }
+}
+
+function staleStackRecovery(envFile, rpcUrl) {
+  return (
+    `${envFile} and the running RPC are probably out of sync. ` +
+    `Stop the stale Hardhat node on ${rpcUrl}, then run ` +
+    "'just local-dev-control' or 'just local-dev' from this checkout and " +
+    "wait for contract deployment to complete. To find the process, run " +
+    "'lsof -nP -iTCP:8545 -sTCP:LISTEN'."
+  );
 }
 
 async function run(command, args, options = {}) {
