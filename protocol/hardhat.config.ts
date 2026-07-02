@@ -55,6 +55,13 @@ export default defineConfig({
     },
   },
   solidity: {
+    // Emit deployable artifacts for the vendored v4 venue-stack contracts so
+    // Ignition can deploy them by fully-qualified name.
+    npmFilesToBuild: [
+      "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol",
+      "@uniswap/v4-periphery/src/lens/StateView.sol",
+      "@uniswap/v4-periphery/src/lens/V4Quoter.sol",
+    ],
     profiles: {
       default: {
         compilers: [
