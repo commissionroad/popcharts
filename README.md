@@ -72,6 +72,16 @@ just local-dev-control --keep-db
 just local-dev-control api
 ```
 
+After the local chain contracts deploy, create an extra local market with:
+
+```bash
+just local-create-market
+```
+
+The helper loads the generated `server/.env.local-chain` file before delegating
+to the protocol market-creation script, so it uses the current local
+`PregradManager` and collateral addresses without manual shell exports.
+
 ## Common Commands
 
 ```bash
@@ -79,6 +89,7 @@ just setup          # install app and protocol dependencies
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
 just local-dev-control # run the split-log local dev control plane
+just local-create-market # create one market against the running local chain
 just local-ai-review # run only Postgres, AI Review service, and runner
 just local-dev-ai-review # explicit alias for the full AI-review local stack
 just local-reset    # clear the local Postgres container and data volumes
