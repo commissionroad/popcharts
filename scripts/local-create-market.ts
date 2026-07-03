@@ -1,14 +1,23 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const protocolDir = resolve(repoRoot, "protocol");
-const defaultEnvFile = resolve(repoRoot, "server", ".env.local-chain");
-const generatedMarketKinds = ["crypto", "weather"];
+import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
+import { readEnvFile } from "./shared/env/readEnvFile.ts";
+import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
+import { protocolDir, repoRoot } from "./shared/paths.ts";
+
+/**
+ * Creates one local market against the currently running local dev chain.
+ * Generates a near-term crypto or weather market from live public sources,
+ * creates it onchain through the protocol helper, then saves the matching
+ * metadata to the local API so the app can render the market it created.
+ */
+
+const defaultEnvFile = localChainEnvFile;
+const generatedMarketKinds = ["crypto", "weather"] as const;
 const sourceTimeoutMs = 8_000;
 const localMarketGraduationSeconds = 60 * 60;
 const localMarketResolutionSeconds = 2 * 60 * 60;
@@ -20,13 +29,65 @@ const spotPriceSourceUrl =
 const forecastPointSourceUrl = "https://api.weather.gov/points/";
 const observationSourceUrl = "https://aviationweather.gov/api/data/metar";
 
-const digitalAssets = [
+type GeneratedMarketKind = (typeof generatedMarketKinds)[number];
+
+type DigitalAsset = {
+  readonly id: string;
+  readonly symbol: string;
+};
+
+type WeatherStation = {
+  readonly city: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly name: string;
+  readonly stationId: string;
+};
+
+type MarketMetadata = {
+  readonly category: string;
+  readonly createdAt: string;
+  readonly description: string;
+  readonly question: string;
+  readonly resolutionCriteria: string;
+  readonly resolutionSources?: readonly string[];
+  readonly resolutionUrl?: string;
+  readonly version: number;
+};
+
+type GeneratedMarket = {
+  readonly graduationSeconds: number;
+  readonly kind: GeneratedMarketKind;
+  readonly metadata: MarketMetadata;
+  readonly resolutionSeconds: number;
+};
+
+type CliOptions = {
+  apiBaseUrl: string | undefined;
+  envFile: string | undefined;
+  help: boolean;
+  kind: GeneratedMarketKind | "random";
+  preview: boolean;
+};
+
+type CreatedMarket = {
+  readonly chainId: number;
+  readonly marketId: string;
+  readonly metadataHash: string;
+};
+
+type RpcResponse = {
+  error?: { message: string };
+  result?: unknown;
+};
+
+const digitalAssets: readonly DigitalAsset[] = [
   { id: "bitcoin", symbol: "BTC" },
   { id: "ethereum", symbol: "ETH" },
   { id: "solana", symbol: "SOL" },
 ];
 
-const weatherStations = [
+const weatherStations: readonly WeatherStation[] = [
   {
     city: "NYC",
     latitude: 40.7128,
@@ -62,12 +123,14 @@ const marketCountSelector = "0xec979082";
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
-main().catch((error) => {
-  console.error(`\n[local-create-market] ${error.message}`);
+main().catch((error: unknown) => {
+  console.error(
+    `\n[local-create-market] ${error instanceof Error ? error.message : error}`,
+  );
   process.exit(1);
 });
 
-async function main() {
+async function main(): Promise<void> {
   const options = parseArgs(rawArgs);
 
   if (options.help) {
@@ -97,7 +160,7 @@ async function main() {
     resolvePath(process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ?? defaultEnvFile);
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
-  const commandEnv = { ...process.env, ...fileEnv };
+  const commandEnv: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
 
   validateLocalEnv(commandEnv, envFile, envFileExists);
   await validateLocalDeployment(commandEnv, envFile);
@@ -105,35 +168,29 @@ async function main() {
 
   const generatedMarket = await buildGeneratedMarket(options.kind);
 
-  if (generatedMarket) {
-    commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
-      generatedMarket.metadata,
-    );
-    commandEnv.LOCAL_MARKET_GRADUATION_SECONDS = String(
-      generatedMarket.graduationSeconds,
-    );
-    commandEnv.LOCAL_MARKET_RESOLUTION_SECONDS = String(
-      generatedMarket.resolutionSeconds,
-    );
-  }
+  commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
+    generatedMarket.metadata,
+  );
+  commandEnv.LOCAL_MARKET_GRADUATION_SECONDS = String(
+    generatedMarket.graduationSeconds,
+  );
+  commandEnv.LOCAL_MARKET_RESOLUTION_SECONDS = String(
+    generatedMarket.resolutionSeconds,
+  );
 
   if (envFileExists) {
     console.log(`[local-create-market] loading ${envFile}`);
   }
 
-  if (generatedMarket) {
-    console.log(
-      `[local-create-market] generated ${generatedMarket.kind} market`,
-    );
-    console.log(
-      `[local-create-market] question: ${generatedMarket.metadata.question}`,
-    );
-    console.log(
-      `[local-create-market] resolution source: ${
-        generatedMarket.metadata.resolutionUrl ?? "none"
-      }`,
-    );
-  }
+  console.log(`[local-create-market] generated ${generatedMarket.kind} market`);
+  console.log(
+    `[local-create-market] question: ${generatedMarket.metadata.question}`,
+  );
+  console.log(
+    `[local-create-market] resolution source: ${
+      generatedMarket.metadata.resolutionUrl ?? "none"
+    }`,
+  );
 
   const output = await run(
     "pnpm",
@@ -142,28 +199,32 @@ async function main() {
       env: commandEnv,
     },
   );
-  const market = parseLabeledJson(output.stdout, "LOCAL_CHAIN_SMOKE_MARKET");
+  const market = parseLabeledJson<CreatedMarket>(
+    output.stdout,
+    "LOCAL_CHAIN_SMOKE_MARKET",
+  );
 
-  if (generatedMarket) {
-    const apiBaseUrl = readApiBaseUrl(options, commandEnv);
+  const apiBaseUrl = readApiBaseUrl(options, commandEnv);
 
-    try {
-      await persistMarketMetadata({
-        apiBaseUrl,
-        chainId: market.chainId,
-        metadata: generatedMarket.metadata,
-        metadataHash: market.metadataHash,
-      });
-      console.log(`[local-create-market] metadata saved to ${apiBaseUrl}`);
-    } catch (error) {
-      console.warn(
-        `[local-create-market] metadata sync failed: ${getErrorMessage(error)}`,
-      );
-    }
+  try {
+    await persistMarketMetadata({
+      apiBaseUrl,
+      chainId: market.chainId,
+      metadata: generatedMarket.metadata,
+      metadataHash: market.metadataHash,
+    });
+    console.log(`[local-create-market] metadata saved to ${apiBaseUrl}`);
+  } catch (error) {
+    console.warn(
+      `[local-create-market] metadata sync failed: ${getErrorMessage(error)}`,
+    );
   }
 }
 
-async function validateLocalDeployment(env, envFile) {
+async function validateLocalDeployment(
+  env: NodeJS.ProcessEnv,
+  envFile: string,
+): Promise<void> {
   const rpcUrl = env.RPC_HTTP_URL ?? defaultRpcHttpUrl;
   const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
   const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
@@ -223,8 +284,8 @@ async function validateLocalDeployment(env, envFile) {
   }
 }
 
-function parseArgs(args) {
-  const options = {
+function parseArgs(args: readonly string[]): CliOptions {
+  const options: CliOptions = {
     apiBaseUrl: undefined,
     envFile: undefined,
     help: false,
@@ -274,7 +335,7 @@ function parseArgs(args) {
   return options;
 }
 
-function printUsage() {
+function printUsage(): void {
   console.log(`Usage: pnpm run local:create-market -- [options]
 
 Create one local market against the currently running local development chain.
@@ -296,17 +357,23 @@ Options:
 Start the local stack first with 'just local-dev-control' or 'just local-dev'.`);
 }
 
-function parseKind(value) {
-  if (value === "random" || generatedMarketKinds.includes(value)) {
+function parseKind(value: string): GeneratedMarketKind | "random" {
+  if (value === "random" || isGeneratedMarketKind(value)) {
     return value;
   }
 
   throw new Error("--kind must be crypto, weather, or random.");
 }
 
-async function buildGeneratedMarket(kind) {
+function isGeneratedMarketKind(value: string): value is GeneratedMarketKind {
+  return (generatedMarketKinds as readonly string[]).includes(value);
+}
+
+async function buildGeneratedMarket(
+  kind: GeneratedMarketKind | "random",
+): Promise<GeneratedMarket> {
   const kinds = kind === "random" ? shuffle([...generatedMarketKinds]) : [kind];
-  const errors = [];
+  const errors: string[] = [];
 
   for (const nextKind of kinds) {
     try {
@@ -327,15 +394,15 @@ async function buildGeneratedMarket(kind) {
   );
 }
 
-async function buildCryptoMarket() {
+async function buildCryptoMarket(): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const direction = choose(["higher", "lower"]);
+  const direction = choose(["higher", "lower"] as const);
   const asset = choose(digitalAssets);
   const prices = await fetchJson(spotPriceSourceUrl);
   const price = readSpotPrice(prices, asset.id);
   const threshold = formatUsd(price);
-  const metadata = {
+  const metadata: MarketMetadata = {
     category: "Crypto",
     createdAt: now.toISOString(),
     description:
@@ -362,15 +429,15 @@ async function buildCryptoMarket() {
   };
 }
 
-async function buildWeatherMarket() {
+async function buildWeatherMarket(): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const direction = choose(["higher", "lower"]);
+  const direction = choose(["higher", "lower"] as const);
   const station = choose(weatherStations);
   const forecast = await fetchForecastWindow(station, now, resolutionAt);
   const threshold = Math.round(forecast.highFahrenheit);
   const observationUrl = buildObservationUrl(station.stationId);
-  const metadata = {
+  const metadata: MarketMetadata = {
     category: "Weather",
     createdAt: now.toISOString(),
     description:
@@ -400,7 +467,11 @@ async function buildWeatherMarket() {
   };
 }
 
-async function fetchForecastWindow(station, start, end) {
+async function fetchForecastWindow(
+  station: WeatherStation,
+  start: Date,
+  end: Date,
+): Promise<{ highFahrenheit: number; sourceUrl: string }> {
   const pointUrl = new URL(
     `${station.latitude.toFixed(4)},${station.longitude.toFixed(4)}`,
     forecastPointSourceUrl,
@@ -413,7 +484,9 @@ async function fetchForecastWindow(station, start, end) {
     forecastPeriodOverlaps(period, start, end),
   );
   const temperatures = matchingPeriods.map(readForecastTemperature);
-  const validTemperatures = temperatures.filter((value) => value !== null);
+  const validTemperatures = temperatures.filter(
+    (value): value is number => value !== null,
+  );
 
   if (validTemperatures.length === 0) {
     throw new Error(
@@ -427,7 +500,11 @@ async function fetchForecastWindow(station, start, end) {
   };
 }
 
-function forecastPeriodOverlaps(value, start, end) {
+function forecastPeriodOverlaps(
+  value: unknown,
+  start: Date,
+  end: Date,
+): boolean {
   if (!isRecord(value)) {
     return false;
   }
@@ -444,7 +521,7 @@ function forecastPeriodOverlaps(value, start, end) {
   );
 }
 
-function readForecastTemperature(value) {
+function readForecastTemperature(value: unknown): number | null {
   if (!isRecord(value) || typeof value.temperature !== "number") {
     return null;
   }
@@ -460,8 +537,10 @@ function readForecastTemperature(value) {
   return null;
 }
 
-function serializeMetadata(metadata) {
-  const ordered = {
+function serializeMetadata(metadata: MarketMetadata): string {
+  // Key order is stable so the serialized metadata (and therefore its hash)
+  // is reproducible for the same generated market.
+  const ordered: Record<string, unknown> = {
     version: metadata.version,
     question: metadata.question,
     description: metadata.description,
@@ -481,12 +560,13 @@ function serializeMetadata(metadata) {
   return JSON.stringify(ordered);
 }
 
-async function persistMarketMetadata({
-  apiBaseUrl,
-  chainId,
-  metadata,
-  metadataHash,
-}) {
+async function persistMarketMetadata(args: {
+  readonly apiBaseUrl: string;
+  readonly chainId: number;
+  readonly metadata: MarketMetadata;
+  readonly metadataHash: string;
+}): Promise<void> {
+  const { apiBaseUrl, chainId, metadata, metadataHash } = args;
   const response = await fetch(
     new URL(`markets/${chainId}/metadata`, ensureTrailingSlash(apiBaseUrl)),
     {
@@ -525,7 +605,10 @@ async function persistMarketMetadata({
   );
 }
 
-async function fetchJson(url, options = {}) {
+async function fetchJson(
+  url: string | URL,
+  options: { readonly weather?: boolean } = {},
+): Promise<unknown> {
   const headers = {
     accept: options.weather
       ? "application/geo+json, application/json"
@@ -544,21 +627,21 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
-function readSpotPrice(value, assetId) {
+function readSpotPrice(value: unknown, assetId: string): number {
   if (!isRecord(value) || !isRecord(value[assetId])) {
     throw new Error(`Spot price response did not include ${assetId}.`);
   }
 
-  const price = value[assetId].usd;
+  const price = (value[assetId] as Record<string, unknown>).usd;
 
-  if (!Number.isFinite(price) || price <= 0) {
+  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
     throw new Error(`Spot price for ${assetId} was not a positive number.`);
   }
 
   return price;
 }
 
-function readApiBaseUrl(options, env) {
+function readApiBaseUrl(options: CliOptions, env: NodeJS.ProcessEnv): string {
   return (
     options.apiBaseUrl ??
     env.POPCHARTS_INDEXER_API_URL ??
@@ -567,19 +650,7 @@ function readApiBaseUrl(options, env) {
   );
 }
 
-function parseLabeledJson(text, label) {
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.startsWith(`${label}=`)) {
-      continue;
-    }
-
-    return JSON.parse(line.slice(label.length + 1));
-  }
-
-  throw new Error(`${label} was not emitted by the protocol helper.`);
-}
-
-function buildObservationUrl(stationId) {
+function buildObservationUrl(stationId: string): string {
   const url = new URL(observationSourceUrl);
   url.searchParams.set("ids", stationId);
   url.searchParams.set("format", "json");
@@ -587,11 +658,11 @@ function buildObservationUrl(stationId) {
   return url.toString();
 }
 
-function ensureTrailingSlash(value) {
+function ensureTrailingSlash(value: string): string {
   return value.endsWith("/") ? value : `${value}/`;
 }
 
-function readString(value, path) {
+function readString(value: unknown, path: readonly string[]): string {
   const current = readPath(value, path);
 
   if (typeof current !== "string" || current.trim().length === 0) {
@@ -601,7 +672,7 @@ function readString(value, path) {
   return current;
 }
 
-function readArray(value, path) {
+function readArray(value: unknown, path: readonly string[]): unknown[] {
   const current = readPath(value, path);
 
   if (!Array.isArray(current)) {
@@ -611,8 +682,8 @@ function readArray(value, path) {
   return current;
 }
 
-function readPath(value, path) {
-  return path.reduce((current, key) => {
+function readPath(value: unknown, path: readonly string[]): unknown {
+  return path.reduce<unknown>((current, key) => {
     if (!isRecord(current)) {
       return undefined;
     }
@@ -621,7 +692,7 @@ function readPath(value, path) {
   }, value);
 }
 
-function parseDate(value) {
+function parseDate(value: unknown): Date | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -630,19 +701,19 @@ function parseDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function addSeconds(date, seconds) {
+function addSeconds(date: Date, seconds: number): Date {
   return new Date(date.getTime() + seconds * 1000);
 }
 
-function celsiusToFahrenheit(value) {
+function celsiusToFahrenheit(value: number): number {
   return (value * 9) / 5 + 32;
 }
 
-function formatUtc(date) {
+function formatUtc(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-function formatUsd(value) {
+function formatUsd(value: number): string {
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
     maximumFractionDigits: value >= 100 ? 0 : 2,
@@ -651,11 +722,11 @@ function formatUsd(value) {
   }).format(value);
 }
 
-function choose(values) {
+function choose<T>(values: readonly T[]): T {
   return values[Math.floor(Math.random() * values.length)];
 }
 
-function shuffle(values) {
+function shuffle<T>(values: T[]): T[] {
   for (let index = values.length - 1; index > 0; index -= 1) {
     const otherIndex = Math.floor(Math.random() * (index + 1));
     [values[index], values[otherIndex]] = [values[otherIndex], values[index]];
@@ -664,15 +735,15 @@ function shuffle(values) {
   return values;
 }
 
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function getErrorMessage(error) {
+function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error.";
 }
 
-function ensureDependenciesInstalled() {
+function ensureDependenciesInstalled(): void {
   if (existsSync(resolve(protocolDir, "node_modules"))) {
     return;
   }
@@ -682,8 +753,12 @@ function ensureDependenciesInstalled() {
   );
 }
 
-function validateLocalEnv(env, envFile, envFileExists) {
-  const missing = [];
+function validateLocalEnv(
+  env: NodeJS.ProcessEnv,
+  envFile: string,
+  envFileExists: boolean,
+): void {
+  const missing: string[] = [];
 
   if (!env.PREGRAD_MANAGER_ADDRESS) {
     missing.push("PREGRAD_MANAGER_ADDRESS");
@@ -708,35 +783,16 @@ function validateLocalEnv(env, envFile, envFileExists) {
   );
 }
 
-function readEnvFile(path) {
-  const env = {};
-  const text = readFileSync(path, "utf8");
-
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separator);
-    const value = trimmed.slice(separator + 1);
-    env[key] = value;
-  }
-
-  return env;
-}
-
-function resolvePath(path) {
+function resolvePath(path: string): string {
   return isAbsolute(path) ? path : resolve(repoRoot, path);
 }
 
-async function rpc(rpcUrl, method, params, envFile = defaultEnvFile) {
+async function rpc(
+  rpcUrl: string,
+  method: string,
+  params: readonly unknown[],
+  envFile: string = defaultEnvFile,
+): Promise<unknown> {
   const response = await rpcResult(rpcUrl, method, params, envFile);
 
   if (response.error) {
@@ -748,8 +804,13 @@ async function rpc(rpcUrl, method, params, envFile = defaultEnvFile) {
   return response.result;
 }
 
-async function rpcResult(rpcUrl, method, params, envFile = defaultEnvFile) {
-  let httpResponse;
+async function rpcResult(
+  rpcUrl: string,
+  method: string,
+  params: readonly unknown[],
+  envFile: string = defaultEnvFile,
+): Promise<RpcResponse> {
+  let httpResponse: Response;
 
   try {
     httpResponse = await fetch(rpcUrl, {
@@ -767,7 +828,7 @@ async function rpcResult(rpcUrl, method, params, envFile = defaultEnvFile) {
       `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery(
         envFile,
         rpcUrl,
-      )} (${error.message})`,
+      )} (${getErrorMessage(error)})`,
     );
   }
 
@@ -777,14 +838,14 @@ async function rpcResult(rpcUrl, method, params, envFile = defaultEnvFile) {
     );
   }
 
-  return await httpResponse.json();
+  return (await httpResponse.json()) as RpcResponse;
 }
 
-function isUint256(value) {
+function isUint256(value: unknown): boolean {
   return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
-function formatChainId(chainId) {
+function formatChainId(chainId: unknown): string {
   if (typeof chainId !== "string") {
     return String(chainId);
   }
@@ -796,7 +857,7 @@ function formatChainId(chainId) {
   }
 }
 
-function staleStackRecovery(envFile, rpcUrl) {
+function staleStackRecovery(envFile: string, rpcUrl: string): string {
   return (
     `${envFile} and the running RPC are probably out of sync. ` +
     `Stop the stale Hardhat node on ${rpcUrl}, then run ` +
@@ -806,8 +867,15 @@ function staleStackRecovery(envFile, rpcUrl) {
   );
 }
 
-async function run(command, args, options = {}) {
-  const child = spawn(command, args, {
+// The protocol helper's output streams through unprefixed (the developer is
+// watching one command, not a multi-service stack) while stdout is captured
+// for the LOCAL_CHAIN_SMOKE_MARKET marker.
+async function run(
+  command: string,
+  args: readonly string[],
+  options: { readonly env?: NodeJS.ProcessEnv } = {},
+): Promise<{ stderr: string; stdout: string }> {
+  const child = spawn(command, [...args], {
     cwd: repoRoot,
     env: options.env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -815,16 +883,16 @@ async function run(command, args, options = {}) {
   let stdout = "";
   let stderr = "";
 
-  child.stdout.on("data", (chunk) => {
-    stdout += chunk;
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
     process.stdout.write(chunk);
   });
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk;
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
     process.stderr.write(chunk);
   });
 
-  const code = await new Promise((resolveCode, reject) => {
+  const code = await new Promise<number>((resolveCode, reject) => {
     child.on("error", reject);
     child.on("exit", (exitCode) => resolveCode(exitCode ?? 0));
   });

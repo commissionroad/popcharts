@@ -4,6 +4,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
@@ -52,12 +53,6 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 // deployed addresses after a successful run with --keep-running.
 const envFile = resolve(serverDir, ".env.local-chain");
 const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
-
-type PregradDeploy = {
-  collateralAddress: string;
-  deployBlock: string;
-  pregradManagerAddress: string;
-};
 
 type SmokeMarket = {
   chainId: number;
@@ -329,7 +324,7 @@ function ensureDependenciesInstalled(): void {
 }
 
 function buildServerEnv(
-  overrides: Partial<PregradDeploy> = {},
+  overrides: Partial<Omit<PregradDeploy, "chainId">> = {},
 ): NodeJS.ProcessEnv {
   // Before deployment, address values are blank so db:push can run with the
   // same DATABASE_URL. After deployment, overrides fill in the chain addresses

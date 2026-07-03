@@ -10,7 +10,7 @@ log_configuration:
 processes:
   prepare-database:
     description: Start local Postgres, apply local constraints, and push the schema.
-    command: "node scripts/local-dev-control.mjs prepare-database"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts prepare-database"
     working_dir: "."
     availability:
       restart: "exit_on_failure"
@@ -18,7 +18,7 @@ processes:
 
   database-log:
     description: Follow the local Postgres container logs without owning its data volume.
-    command: "node scripts/local-dev-control.mjs database-log"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts database-log"
     working_dir: "."
     depends_on:
       prepare-database:
@@ -28,14 +28,14 @@ processes:
 
   chain:
     description: Start or attach to the local Hardhat JSON-RPC chain.
-    command: "node scripts/local-dev-control.mjs chain"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts chain"
     working_dir: "."
     depends_on:
       prepare-database:
         condition: process_completed_successfully
     readiness_probe:
       exec:
-        command: "node scripts/local-dev-control.mjs rpc-ready"
+        command: "node --experimental-strip-types scripts/local-dev-control.ts rpc-ready"
       initial_delay_seconds: 1
       period_seconds: 1
       timeout_seconds: 5
@@ -46,7 +46,7 @@ processes:
 
   deploy-contracts:
     description: Deploy local protocol contracts and write generated app/server env.
-    command: "node scripts/local-dev-control.mjs deploy-contracts"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts deploy-contracts"
     working_dir: "."
     depends_on:
       chain:
@@ -57,14 +57,14 @@ processes:
 
   review-service:
     description: Run the local market review service in heuristic mode by default.
-    command: "node scripts/local-dev-control.mjs review-service"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts review-service"
     working_dir: "."
     depends_on:
       prepare-database:
         condition: process_completed_successfully
     readiness_probe:
       exec:
-        command: "node scripts/local-dev-control.mjs review-ready"
+        command: "node --experimental-strip-types scripts/local-dev-control.ts review-ready"
       initial_delay_seconds: 1
       period_seconds: 1
       timeout_seconds: 5
@@ -75,7 +75,7 @@ processes:
 
   review-runner:
     description: Poll Postgres for markets that need local AI review.
-    command: "node scripts/local-dev-control.mjs review-runner"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts review-runner"
     working_dir: "."
     depends_on:
       prepare-database:
@@ -87,14 +87,14 @@ processes:
 
   api:
     description: Run the Bun API with generated local chain configuration.
-    command: "node scripts/local-dev-control.mjs api"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts api"
     working_dir: "."
     depends_on:
       deploy-contracts:
         condition: process_completed_successfully
     readiness_probe:
       exec:
-        command: "node scripts/local-dev-control.mjs api-ready"
+        command: "node --experimental-strip-types scripts/local-dev-control.ts api-ready"
       initial_delay_seconds: 1
       period_seconds: 1
       timeout_seconds: 5
@@ -105,14 +105,14 @@ processes:
 
   indexer:
     description: Run the chain event indexer after the API and generated env are ready.
-    command: "node scripts/local-dev-control.mjs indexer"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts indexer"
     working_dir: "."
     depends_on:
       api:
         condition: process_healthy
     readiness_probe:
       exec:
-        command: "node scripts/local-dev-control.mjs indexer-ready"
+        command: "node --experimental-strip-types scripts/local-dev-control.ts indexer-ready"
       initial_delay_seconds: 1
       period_seconds: 1
       timeout_seconds: 5
@@ -123,14 +123,14 @@ processes:
 
   app:
     description: Run the Next.js app against the generated local chain/API env.
-    command: "node scripts/local-dev-control.mjs app"
+    command: "node --experimental-strip-types scripts/local-dev-control.ts app"
     working_dir: "."
     depends_on:
       indexer:
         condition: process_healthy
     readiness_probe:
       exec:
-        command: "node scripts/local-dev-control.mjs app-ready"
+        command: "node --experimental-strip-types scripts/local-dev-control.ts app-ready"
       initial_delay_seconds: 2
       period_seconds: 2
       timeout_seconds: 5
