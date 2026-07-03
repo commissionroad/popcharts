@@ -5,13 +5,13 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { GetHealth200, GetVersion200 } from ".././models";
+import type { Health, VersionInfo } from ".././models";
 
 /**
  * @summary Health check
  */
 export type getHealthResponse200 = {
-  data: GetHealth200;
+  data: Health;
   status: 200;
 };
 
@@ -40,7 +40,7 @@ export const getHealth = async (options?: RequestInit): Promise<getHealthRespons
  * @summary Get API version
  */
 export type getVersionResponse200 = {
-  data: GetVersion200;
+  data: VersionInfo;
   status: 200;
 };
 

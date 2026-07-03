@@ -5,79 +5,63 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type {
-  PostDevMarketsByChainIdByMarketIdClose200,
-  PostDevMarketsByChainIdByMarketIdClose409,
-} from ".././models";
+import type { DevMarketCloseIneligible, DevMarketCloseResponse } from ".././models";
 
 /**
  * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.
  * @summary Dev-only close pre-grad market for refunds
  */
-export type postDevMarketsByChainIdByMarketIdCloseResponse200 = {
-  data: PostDevMarketsByChainIdByMarketIdClose200;
+export type closeDevMarketResponse200 = {
+  data: DevMarketCloseResponse;
   status: 200;
 };
 
-export type postDevMarketsByChainIdByMarketIdCloseResponse400 = {
+export type closeDevMarketResponse400 = {
   data: string;
   status: 400;
 };
 
-export type postDevMarketsByChainIdByMarketIdCloseResponse404 = {
+export type closeDevMarketResponse404 = {
   data: string;
   status: 404;
 };
 
-export type postDevMarketsByChainIdByMarketIdCloseResponse409 = {
-  data: PostDevMarketsByChainIdByMarketIdClose409;
+export type closeDevMarketResponse409 = {
+  data: DevMarketCloseIneligible;
   status: 409;
 };
 
-export type postDevMarketsByChainIdByMarketIdCloseResponseSuccess =
-  postDevMarketsByChainIdByMarketIdCloseResponse200 & {
-    headers: Headers;
-  };
-export type postDevMarketsByChainIdByMarketIdCloseResponseError = (
-  | postDevMarketsByChainIdByMarketIdCloseResponse400
-  | postDevMarketsByChainIdByMarketIdCloseResponse404
-  | postDevMarketsByChainIdByMarketIdCloseResponse409
+export type closeDevMarketResponseSuccess = closeDevMarketResponse200 & {
+  headers: Headers;
+};
+export type closeDevMarketResponseError = (
+  | closeDevMarketResponse400
+  | closeDevMarketResponse404
+  | closeDevMarketResponse409
 ) & {
   headers: Headers;
 };
 
-export type postDevMarketsByChainIdByMarketIdCloseResponse =
-  | postDevMarketsByChainIdByMarketIdCloseResponseSuccess
-  | postDevMarketsByChainIdByMarketIdCloseResponseError;
+export type closeDevMarketResponse =
+  | closeDevMarketResponseSuccess
+  | closeDevMarketResponseError;
 
-export const getPostDevMarketsByChainIdByMarketIdCloseUrl = (
-  chainId: string,
-  marketId: string
-) => {
+export const getCloseDevMarketUrl = (chainId: string, marketId: string) => {
   return `/dev/markets/${chainId}/${marketId}/close`;
 };
 
-export const postDevMarketsByChainIdByMarketIdClose = async (
+export const closeDevMarket = async (
   chainId: string,
   marketId: string,
   options?: RequestInit
-): Promise<postDevMarketsByChainIdByMarketIdCloseResponse> => {
-  const res = await fetch(
-    getPostDevMarketsByChainIdByMarketIdCloseUrl(chainId, marketId),
-    {
-      ...options,
-      method: "POST",
-    }
-  );
+): Promise<closeDevMarketResponse> => {
+  const res = await fetch(getCloseDevMarketUrl(chainId, marketId), {
+    ...options,
+    method: "POST",
+  });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: postDevMarketsByChainIdByMarketIdCloseResponse["data"] = body
-    ? JSON.parse(body)
-    : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as postDevMarketsByChainIdByMarketIdCloseResponse;
+  const data: closeDevMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as closeDevMarketResponse;
 };

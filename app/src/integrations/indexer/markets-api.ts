@@ -1,52 +1,27 @@
-import { getPostDevMarketsByChainIdByMarketIdCloseUrl } from "./generated/development/development";
+import { getCloseDevMarketUrl } from "./generated/development/development";
+import { getGraduateMarketUrl } from "./generated/graduation/graduation";
 import {
-  getGetMarketsByChainIdByMarketIdEventsUrl,
-  getGetMarketsByChainIdByMarketIdUrl,
-  getGetMarketsUrl,
+  getGetMarketUrl,
+  getListMarketEventsUrl,
+  getListMarketsUrl,
 } from "./generated/markets/markets";
-import type { GetMarketsParams, Market, MarketCreatedEvent } from "./generated/models";
+import type {
+  DevMarketCloseResponse,
+  GraduationResponse,
+  GraduationSummary,
+  ListMarketsParams as GeneratedListMarketsParams,
+  Market,
+  MarketCreatedEvent,
+  MarketMetadata,
+} from "./generated/models";
 
-export type ApiMarketMetadata = {
-  category: string;
-  chainId: number;
-  createdAt: string;
-  description: string;
-  metadataCreatedAt: string;
-  metadataHash: string;
-  question: string;
-  resolutionCriteria: string;
-  resolutionSources?: string[];
-  resolutionUrl?: string;
-  updatedAt: string;
-};
-
-export type ApiMarket = Market & {
-  metadata?: ApiMarketMetadata;
-};
+export type ApiMarketMetadata = MarketMetadata;
+export type ApiMarket = Market;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
-export type ListMarketsParams = GetMarketsParams;
-export type ApiGraduationSummary = {
-  completeSetCount: string;
-  graduatedAt: string;
-  graduationThreshold: string;
-  matchedMarketCap: string;
-  noTokens: string;
-  receiptCount: string;
-  refundedCollateral: string;
-  totalEscrowed: string;
-  yesTokens: string;
-};
-export type ApiGraduationResponse = {
-  market: ApiMarket;
-  status: "graduated";
-  summary: ApiGraduationSummary;
-};
-export type ApiDevMarketCloseResponse = {
-  market: ApiMarket;
-  refundAvailable: string;
-  status: "refunded";
-  transactionHash?: string;
-};
+export type ListMarketsParams = GeneratedListMarketsParams;
+export type ApiGraduationSummary = GraduationSummary;
+export type ApiGraduationResponse = GraduationResponse;
+export type ApiDevMarketCloseResponse = DevMarketCloseResponse;
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -91,7 +66,7 @@ export function createMarketsApiClient({
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          getPostDevMarketsByChainIdByMarketIdCloseUrl(
+          getCloseDevMarketUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )
@@ -110,9 +85,10 @@ export function createMarketsApiClient({
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          `/markets/${encodeURIComponent(String(chainId))}/${encodeURIComponent(
-            marketId
-          )}/graduate`
+          getGraduateMarketUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId)
+          )
         ),
         { method: "POST" }
       );
@@ -128,7 +104,7 @@ export function createMarketsApiClient({
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          getGetMarketsByChainIdByMarketIdUrl(
+          getGetMarketUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )
@@ -140,7 +116,7 @@ export function createMarketsApiClient({
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          getGetMarketsByChainIdByMarketIdEventsUrl(
+          getListMarketEventsUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )
@@ -152,7 +128,7 @@ export function createMarketsApiClient({
     async getMarkets(params = {}) {
       const response = await requestJson<ApiMarket[]>(
         fetcher,
-        buildUrl(normalizedBaseUrl, getGetMarketsUrl(params))
+        buildUrl(normalizedBaseUrl, getListMarketsUrl(params))
       );
 
       return response ?? [];

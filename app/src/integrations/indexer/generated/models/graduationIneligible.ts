@@ -5,14 +5,15 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { GraduationIneligibleMarket } from "./graduationIneligibleMarket";
+import type { Market } from "./market";
 import type { GraduationIneligibleReason } from "./graduationIneligibleReason";
-import type { GraduationIneligibleSummary } from "./graduationIneligibleSummary";
+import type { GraduationIneligibleStatus } from "./graduationIneligibleStatus";
+import type { GraduationSummary } from "./graduationSummary";
 
 export interface GraduationIneligible {
   message: string;
-  market: GraduationIneligibleMarket;
+  market: Market;
   reason: GraduationIneligibleReason;
-  status: "ineligible";
-  summary: GraduationIneligibleSummary;
+  status: GraduationIneligibleStatus;
+  summary: GraduationSummary;
 }

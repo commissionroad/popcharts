@@ -5,11 +5,12 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { GraduationResponseMarket } from "./graduationResponseMarket";
-import type { GraduationResponseSummary } from "./graduationResponseSummary";
+import type { Market } from "./market";
+import type { GraduationResponseStatus } from "./graduationResponseStatus";
+import type { GraduationSummary } from "./graduationSummary";
 
 export interface GraduationResponse {
-  market: GraduationResponseMarket;
-  status: "graduated";
-  summary: GraduationResponseSummary;
+  market: Market;
+  status: GraduationResponseStatus;
+  summary: GraduationSummary;
 }

@@ -6,40 +6,38 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  GetMarkets200Item,
-  GetMarketsByChainIdByMarketId200,
-  GetMarketsByChainIdByMarketIdEvents200Item,
-  GetMarketsParams,
-  PostMarketsByChainIdMetadata200,
-  PostMarketsByChainIdMetadataBodyOne,
-  PostMarketsByChainIdMetadataBodyThree,
-  PostMarketsByChainIdMetadataBodyTwo,
+  ListMarketsParams,
+  Market,
+  MarketCreatedEventList,
+  MarketList,
+  MarketMetadata,
+  MarketMetadataWrite,
 } from ".././models";
 
 /**
  * Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.
  * @summary List indexed markets
  */
-export type getMarketsResponse200 = {
-  data: GetMarkets200Item[];
+export type listMarketsResponse200 = {
+  data: MarketList;
   status: 200;
 };
 
-export type getMarketsResponse400 = {
+export type listMarketsResponse400 = {
   data: string;
   status: 400;
 };
 
-export type getMarketsResponseSuccess = getMarketsResponse200 & {
+export type listMarketsResponseSuccess = listMarketsResponse200 & {
   headers: Headers;
 };
-export type getMarketsResponseError = getMarketsResponse400 & {
+export type listMarketsResponseError = listMarketsResponse400 & {
   headers: Headers;
 };
 
-export type getMarketsResponse = getMarketsResponseSuccess | getMarketsResponseError;
+export type listMarketsResponse = listMarketsResponseSuccess | listMarketsResponseError;
 
-export const getGetMarketsUrl = (params?: GetMarketsParams) => {
+export const getListMarketsUrl = (params?: ListMarketsParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -53,176 +51,143 @@ export const getGetMarketsUrl = (params?: GetMarketsParams) => {
   return stringifiedParams.length > 0 ? `/markets?${stringifiedParams}` : `/markets`;
 };
 
-export const getMarkets = async (
-  params?: GetMarketsParams,
+export const listMarkets = async (
+  params?: ListMarketsParams,
   options?: RequestInit
-): Promise<getMarketsResponse> => {
-  const res = await fetch(getGetMarketsUrl(params), {
+): Promise<listMarketsResponse> => {
+  const res = await fetch(getListMarketsUrl(params), {
     ...options,
     method: "GET",
   });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: getMarketsResponse["data"] = body ? JSON.parse(body) : {};
-  return { data, status: res.status, headers: res.headers } as getMarketsResponse;
+  const data: listMarketsResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMarketsResponse;
 };
 
 /**
  * Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.
  * @summary Save off-chain market metadata
  */
-export type postMarketsByChainIdMetadataResponse200 = {
-  data: PostMarketsByChainIdMetadata200;
+export type saveMarketMetadataResponse200 = {
+  data: MarketMetadata;
   status: 200;
 };
 
-export type postMarketsByChainIdMetadataResponse400 = {
+export type saveMarketMetadataResponse400 = {
   data: string;
   status: 400;
 };
 
-export type postMarketsByChainIdMetadataResponseSuccess =
-  postMarketsByChainIdMetadataResponse200 & {
-    headers: Headers;
-  };
-export type postMarketsByChainIdMetadataResponseError =
-  postMarketsByChainIdMetadataResponse400 & {
-    headers: Headers;
-  };
+export type saveMarketMetadataResponseSuccess = saveMarketMetadataResponse200 & {
+  headers: Headers;
+};
+export type saveMarketMetadataResponseError = saveMarketMetadataResponse400 & {
+  headers: Headers;
+};
 
-export type postMarketsByChainIdMetadataResponse =
-  | postMarketsByChainIdMetadataResponseSuccess
-  | postMarketsByChainIdMetadataResponseError;
+export type saveMarketMetadataResponse =
+  | saveMarketMetadataResponseSuccess
+  | saveMarketMetadataResponseError;
 
-export const getPostMarketsByChainIdMetadataUrl = (chainId: string) => {
+export const getSaveMarketMetadataUrl = (chainId: string) => {
   return `/markets/${chainId}/metadata`;
 };
 
-export const postMarketsByChainIdMetadata = async (
+export const saveMarketMetadata = async (
   chainId: string,
-  postMarketsByChainIdMetadataBody:
-    | PostMarketsByChainIdMetadataBodyOne
-    | PostMarketsByChainIdMetadataBodyTwo
-    | PostMarketsByChainIdMetadataBodyThree,
+  marketMetadataWrite: MarketMetadataWrite,
   options?: RequestInit
-): Promise<postMarketsByChainIdMetadataResponse> => {
-  const res = await fetch(getPostMarketsByChainIdMetadataUrl(chainId), {
+): Promise<saveMarketMetadataResponse> => {
+  const res = await fetch(getSaveMarketMetadataUrl(chainId), {
     ...options,
     method: "POST",
-    body: JSON.stringify(postMarketsByChainIdMetadataBody),
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(marketMetadataWrite),
   });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: postMarketsByChainIdMetadataResponse["data"] = body
-    ? JSON.parse(body)
-    : {};
+  const data: saveMarketMetadataResponse["data"] = body ? JSON.parse(body) : {};
   return {
     data,
     status: res.status,
     headers: res.headers,
-  } as postMarketsByChainIdMetadataResponse;
+  } as saveMarketMetadataResponse;
 };
 
 /**
  * @summary Get an indexed market
  */
-export type getMarketsByChainIdByMarketIdResponse200 = {
-  data: GetMarketsByChainIdByMarketId200;
+export type getMarketResponse200 = {
+  data: Market;
   status: 200;
 };
 
-export type getMarketsByChainIdByMarketIdResponse404 = {
+export type getMarketResponse404 = {
   data: string;
   status: 404;
 };
 
-export type getMarketsByChainIdByMarketIdResponseSuccess =
-  getMarketsByChainIdByMarketIdResponse200 & {
-    headers: Headers;
-  };
-export type getMarketsByChainIdByMarketIdResponseError =
-  getMarketsByChainIdByMarketIdResponse404 & {
-    headers: Headers;
-  };
+export type getMarketResponseSuccess = getMarketResponse200 & {
+  headers: Headers;
+};
+export type getMarketResponseError = getMarketResponse404 & {
+  headers: Headers;
+};
 
-export type getMarketsByChainIdByMarketIdResponse =
-  | getMarketsByChainIdByMarketIdResponseSuccess
-  | getMarketsByChainIdByMarketIdResponseError;
+export type getMarketResponse = getMarketResponseSuccess | getMarketResponseError;
 
-export const getGetMarketsByChainIdByMarketIdUrl = (
-  chainId: string,
-  marketId: string
-) => {
+export const getGetMarketUrl = (chainId: string, marketId: string) => {
   return `/markets/${chainId}/${marketId}`;
 };
 
-export const getMarketsByChainIdByMarketId = async (
+export const getMarket = async (
   chainId: string,
   marketId: string,
   options?: RequestInit
-): Promise<getMarketsByChainIdByMarketIdResponse> => {
-  const res = await fetch(getGetMarketsByChainIdByMarketIdUrl(chainId, marketId), {
+): Promise<getMarketResponse> => {
+  const res = await fetch(getGetMarketUrl(chainId, marketId), {
     ...options,
     method: "GET",
   });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: getMarketsByChainIdByMarketIdResponse["data"] = body
-    ? JSON.parse(body)
-    : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as getMarketsByChainIdByMarketIdResponse;
+  const data: getMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getMarketResponse;
 };
 
 /**
  * @summary Get market chain events
  */
-export type getMarketsByChainIdByMarketIdEventsResponse200 = {
-  data: GetMarketsByChainIdByMarketIdEvents200Item[];
+export type listMarketEventsResponse200 = {
+  data: MarketCreatedEventList;
   status: 200;
 };
 
-export type getMarketsByChainIdByMarketIdEventsResponseSuccess =
-  getMarketsByChainIdByMarketIdEventsResponse200 & {
-    headers: Headers;
-  };
-export type getMarketsByChainIdByMarketIdEventsResponse =
-  getMarketsByChainIdByMarketIdEventsResponseSuccess;
+export type listMarketEventsResponseSuccess = listMarketEventsResponse200 & {
+  headers: Headers;
+};
+export type listMarketEventsResponse = listMarketEventsResponseSuccess;
 
-export const getGetMarketsByChainIdByMarketIdEventsUrl = (
-  chainId: string,
-  marketId: string
-) => {
+export const getListMarketEventsUrl = (chainId: string, marketId: string) => {
   return `/markets/${chainId}/${marketId}/events`;
 };
 
-export const getMarketsByChainIdByMarketIdEvents = async (
+export const listMarketEvents = async (
   chainId: string,
   marketId: string,
   options?: RequestInit
-): Promise<getMarketsByChainIdByMarketIdEventsResponse> => {
-  const res = await fetch(
-    getGetMarketsByChainIdByMarketIdEventsUrl(chainId, marketId),
-    {
-      ...options,
-      method: "GET",
-    }
-  );
+): Promise<listMarketEventsResponse> => {
+  const res = await fetch(getListMarketEventsUrl(chainId, marketId), {
+    ...options,
+    method: "GET",
+  });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: getMarketsByChainIdByMarketIdEventsResponse["data"] = body
-    ? JSON.parse(body)
-    : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as getMarketsByChainIdByMarketIdEventsResponse;
+  const data: listMarketEventsResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMarketEventsResponse;
 };
