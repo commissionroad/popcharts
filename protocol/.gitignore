@@ -3,6 +3,7 @@
 /coverage/
 coverage.json
 /deployments/*.local.json
+/ignition/deployments/*-local/
 /node_modules/
 /types/
 .env

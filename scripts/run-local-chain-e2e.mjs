@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const RPC_URL = process.env.POPCHARTS_RPC_URL ?? "http://127.0.0.1:8545";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+// Pinned demo market symbol so the market manifest filename stays predictable
+// (protocol/deployments/local.market-pcsm.local.json).
+const DEMO_MARKET_SYMBOL = "PCSM";
 
 let hardhatNode = null;
 let stoppingHardhatNode = false;
@@ -49,6 +53,30 @@ try {
   await run("pnpm", ["--dir", "protocol", "devchain:deploy"], {
     POPCHARTS_RPC_URL: RPC_URL,
   });
+
+  // Deploy the postgrad venue on top of the devchain contracts so the e2e
+  // chain path also proves whole-system deployability: v4 venue stack,
+  // postgrad contracts, and one demo complete-set market.
+  const devchain = JSON.parse(
+    readFileSync(
+      resolve("protocol", "deployments", "devchain.local.json"),
+      "utf8",
+    ),
+  );
+  await run("pnpm", ["--dir", "protocol", "local:deploy-venue"], {
+    POPCHARTS_RPC_URL: RPC_URL,
+  });
+  await run("pnpm", ["--dir", "protocol", "local:deploy-postgrad"], {
+    POPCHARTS_PREGRAD_MANAGER_ADDRESS:
+      devchain.contracts.pregradManager.address,
+    POPCHARTS_RPC_URL: RPC_URL,
+  });
+  await run("pnpm", ["--dir", "protocol", "local:create-complete-set-market"], {
+    POPCHARTS_COLLATERAL_ADDRESS: devchain.contracts.collateral.address,
+    POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
+    POPCHARTS_RPC_URL: RPC_URL,
+  });
+
   await run("pnpm", ["--dir", "app", "test:e2e:chain"], {
     PLAYWRIGHT_BASE_URL: BASE_URL,
     POPCHARTS_E2E_CHAIN: "true",

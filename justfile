@@ -81,6 +81,21 @@ local-reset:
 local-smoke *args:
     pnpm run local:smoke -- {{args}}
 
+local-deploy-venue:
+    pnpm run local:deploy-venue
+
+local-deploy-postgrad:
+    pnpm run local:deploy-postgrad
+
+local-create-complete-set-market:
+    pnpm run local:create-complete-set-market
+
+local-market-health:
+    pnpm run local:market-health
+
+local-market-smoke *args:
+    pnpm run local:market-smoke -- {{args}}
+
 test:
     pnpm run test
 
