@@ -9,6 +9,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/**
+ * Off-chain market text (question, description, resolution criteria/sources)
+ * keyed by (chainId, metadataHash) — the content addressed by the hash the
+ * market commits to on-chain. This is what AI review actually judges.
+ */
 export const marketMetadata = pgTable(
   "market_metadata",
   {

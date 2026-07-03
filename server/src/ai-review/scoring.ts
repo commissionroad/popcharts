@@ -47,6 +47,11 @@ const SUSPICIOUS_HOSTS = [
   "tinyurl.com",
 ];
 
+/**
+ * Fallback score set used when a model omits or corrupts a score. Defaults are
+ * deliberately conservative: zero corroboration and source quality, so missing
+ * model output can never make a market look better sourced than it is.
+ */
 export const DEFAULT_SCORES: ReviewScores = {
   contentSafety: 5,
   corroboration: 0,
@@ -57,6 +62,10 @@ export const DEFAULT_SCORES: ReviewScores = {
   sourceQuality: 0,
 };
 
+/**
+ * Coerces one untrusted score to an integer in the policy's 0-5 range,
+ * substituting the fallback for anything non-numeric.
+ */
 export function clampScore(value: unknown, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
@@ -65,6 +74,11 @@ export function clampScore(value: unknown, fallback: number) {
   return Math.max(0, Math.min(5, Math.round(value)));
 }
 
+/**
+ * Turns an untrusted, possibly partial score object (model output) into a
+ * complete ReviewScores with every dimension clamped to 0-5, falling back to
+ * DEFAULT_SCORES per field.
+ */
 export function normalizeScores(
   value: Partial<Record<keyof ReviewScores, unknown>>,
 ): ReviewScores {
@@ -85,6 +99,12 @@ export function normalizeScores(
   };
 }
 
+/**
+ * Classifies an evidence domain into a trust tier from static host lists —
+ * government/primary, major news, user-generated, or suspicious (link
+ * shorteners, satire, paste sites). Unrecognized hosts return "unknown" rather
+ * than any positive tier, so unlisted domains never gain implicit trust.
+ */
 export function sourceTierForDomain(domain: string): SourceTier {
   const normalized = domain.toLowerCase();
 

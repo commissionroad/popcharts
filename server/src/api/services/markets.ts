@@ -17,8 +17,11 @@ const LOCAL_MARKET_EXISTS_ABI = parseAbi([
   "function marketExists(uint256 marketId) view returns (bool)",
 ]);
 
+/** Drizzle select shape of a markets row, shared by the market services. */
 export type MarketRow = typeof schema.markets.$inferSelect;
+/** Drizzle select shape of a market_ai_reviews row. */
 export type MarketAiReviewRow = typeof schema.marketAiReviews.$inferSelect;
+/** Drizzle select shape of a market_metadata row. */
 export type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
 type MarketQueryRow = {
   market: MarketRow;
@@ -27,6 +30,13 @@ type MarketQueryRow = {
 
 let localPublicClient: ReturnType<typeof createPublicClient> | null = null;
 
+/**
+ * Lists markets for the currently configured PregradManager, newest first,
+ * each decorated with metadata, matched market cap, and its latest AI review.
+ * Returns null when the since filter is unparseable so the route can answer
+ * 400 instead of silently ignoring the filter. On the local network, markets
+ * that no longer exist on-chain (e.g. after a chain restart) are filtered out.
+ */
 export async function getMarkets({
   chainId,
   since,
@@ -72,6 +82,11 @@ export async function getMarkets({
   );
 }
 
+/**
+ * Fetches a single serialized market, or null when the id is malformed, the
+ * market is unknown, or (locally) the market no longer exists on-chain — the
+ * route treats all three uniformly as 404.
+ */
 export async function getMarketById(
   chainId: number,
   marketId: string,
@@ -118,6 +133,12 @@ export async function getMarketById(
   );
 }
 
+/**
+ * Idempotently stores off-chain market metadata keyed by (chainId,
+ * metadataHash), replacing any previous row for the same hash so re-submitted
+ * metadata always converges to the latest write. Returns null for an invalid
+ * chain id.
+ */
 export async function upsertMarketMetadata(
   chainId: number,
   metadata: MarketMetadataWrite,
@@ -153,6 +174,11 @@ export async function upsertMarketMetadata(
   return rows[0] ? serializeMarketMetadataRow(rows[0]) : null;
 }
 
+/**
+ * Returns the indexed MarketCreated events for one market, newest block first.
+ * Malformed ids and locally dead markets yield an empty list rather than an
+ * error, matching the list-shaped response contract.
+ */
 export async function getMarketCreatedEvents(
   chainId: number,
   marketId: string,
@@ -205,6 +231,11 @@ export async function getMarketCreatedEvents(
   }));
 }
 
+/**
+ * Single source of truth for mapping a market row (plus optional metadata and
+ * latest AI review) to the public MarketResponse: bigints become decimal
+ * strings, dates become ISO strings, and absent relations are omitted.
+ */
 export function serializeMarketRow(
   market: MarketRow,
   metadata: MarketMetadataRow | null,
@@ -240,6 +271,11 @@ export function serializeMarketRow(
   };
 }
 
+/**
+ * Maps a persisted AI review row to its API shape, exposing the stored
+ * verdict, scores, and evidence verbatim while normalizing dates to ISO
+ * strings and omitting a missing model id.
+ */
 export function serializeMarketAiReviewRow(
   review: MarketAiReviewRow,
 ): MarketAiReviewResponse {
@@ -385,6 +421,11 @@ function getLocalPublicClient() {
   return localPublicClient;
 }
 
+/**
+ * Parses the optional `since` query parameter, returning null for absent or
+ * unparseable values so callers can distinguish "no filter" from "bad input"
+ * by whether the raw value was provided.
+ */
 export function parseSinceTimestamp(value?: string) {
   if (!value) {
     return null;

@@ -1,5 +1,11 @@
 import { getNetworkConfig, ZERO_ADDRESS } from "./networks";
 
+/**
+ * The server's resolved runtime configuration: the selected network's chain,
+ * RPC, and contract settings plus server-level flags. Feature flags like
+ * adminReviewEnabled and devToolsEnabled default to off — dangerous endpoints
+ * must be enabled explicitly per environment.
+ */
 export const config = {
   ...getNetworkConfig(),
   adminReviewEnabled: process.env.POPCHARTS_ADMIN_REVIEW_ENABLED === "true",
@@ -9,6 +15,10 @@ export const config = {
     process.env.HEALTH_CHECK_FILE ?? "/tmp/popcharts-indexer-healthy",
 };
 
+/**
+ * Fails fast at indexer startup when the websocket RPC URL or PregradManager
+ * address is missing, instead of letting watchers spin up against nothing.
+ */
 export function validateIndexerConfig() {
   if (!config.rpcWssUrl) {
     throw new Error("RPC_WSS_URL is required for event indexing.");

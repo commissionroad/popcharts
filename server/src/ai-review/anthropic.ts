@@ -91,11 +91,24 @@ type RawModelReview = {
   verdict?: unknown;
 };
 
+/**
+ * An Anthropic policy finding plus the evidence extracted from Claude's own
+ * web search/fetch tool results and citations, and the model id that actually
+ * answered.
+ */
 export type AnthropicReview = PolicyFinding & {
   evidence: EvidenceItem[];
   modelId: string;
 };
 
+/**
+ * Reviews a market with Claude, using Anthropic's native web_search/web_fetch
+ * tools instead of pre-collected evidence; web_fetch is restricted to the
+ * submitter's resolution domains. Model output is treated as untrusted: scores
+ * are clamped, an unrecognized verdict falls back to manual_review, and
+ * sourceChecks that do not match tool-result evidence are discarded so the
+ * model cannot invent corroborating sources.
+ */
 export async function reviewWithAnthropic({
   config,
   model,

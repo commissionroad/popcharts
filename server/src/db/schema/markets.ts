@@ -15,6 +15,11 @@ import { sql } from "drizzle-orm";
 import { contracts } from "./contracts";
 import { uint256 } from "./uint256";
 
+/**
+ * Lifecycle of a market as tracked off-chain: AI review gates under_review
+ * into bootstrap (or rejected), and the chain watchers drive the
+ * graduating/graduated/resolved/refunded transitions.
+ */
 export const marketStatus = pgEnum("market_status", [
   "under_review",
   "bootstrap",
@@ -26,6 +31,11 @@ export const marketStatus = pgEnum("market_status", [
   "rejected",
 ]);
 
+/**
+ * Current state of each pregrad market — one row per (chainId, marketId),
+ * updated in place by the indexer as events arrive. Point-in-time history
+ * lives in the *_events tables, not here.
+ */
 export const markets = pgTable(
   "markets",
   {

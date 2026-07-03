@@ -3,6 +3,11 @@ import type { AiReviewConfig } from "../config";
 import type { ConfigValidationResult } from "../types";
 import type { ReviewProvider } from "./types";
 
+/**
+ * Claude-backed review provider. Browses via Anthropic's native web tools, so
+ * it needs no pre-collected evidence, but it requires an API key and network
+ * access — validateConfig blocks the review when either is misconfigured.
+ */
 export const anthropicProvider: ReviewProvider = {
   capabilities: {
     canRunOffline: false,

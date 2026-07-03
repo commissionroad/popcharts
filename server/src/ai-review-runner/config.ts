@@ -1,3 +1,8 @@
+/**
+ * Tuning knobs for the review job runner: queue timing (poll, lease, backoff,
+ * attempts, batch size), the AI Review service endpoint, and the runner
+ * identity stamped into locked_by for lease debugging.
+ */
 export type AiReviewRunnerConfig = {
   backoffMs: number;
   batchSize: number;

@@ -8,6 +8,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+/**
+ * Last processed block per (contract, chain, watcher), the indexer's recovery
+ * checkpoint: on restart each watcher resumes from its cursor instead of
+ * rescanning from the deploy block.
+ */
 export const indexerCursors = pgTable(
   "indexer_cursors",
   {

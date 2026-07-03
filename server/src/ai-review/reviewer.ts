@@ -10,6 +10,13 @@ import type {
   ReviewResult,
 } from "./types";
 
+/**
+ * Runs the full market review pipeline and always returns a usable verdict.
+ * The deterministic heuristic pass runs first and its reject is final — no
+ * model output can overturn a hard flag. Provider errors degrade to the
+ * heuristic finding with an approve downgraded to manual_review, so an outage
+ * can never silently approve a market.
+ */
 export async function reviewMarket({
   config,
   request,

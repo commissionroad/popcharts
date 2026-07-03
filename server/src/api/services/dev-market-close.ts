@@ -49,6 +49,11 @@ type ChainCloseResult =
       status: number;
     };
 
+/**
+ * Discriminated outcome of a dev market close. Each variant maps to a distinct
+ * HTTP response at the route layer; "closed" is idempotent and is also returned
+ * when the market was already refunded.
+ */
 export type DevMarketCloseResult =
   | {
       kind: "closed";
@@ -75,6 +80,10 @@ export type DevMarketCloseResult =
       message: string;
     };
 
+/**
+ * Injectable seams for closePregradMarketForRefund, so tests can cover the
+ * eligibility and chain-status branches without a database or local RPC node.
+ */
 export type DevMarketCloseDependencies = {
   closeMarketOnChain: (marketId: bigint) => Promise<ChainCloseResult>;
   devCloseEnabled: () => boolean;
@@ -96,6 +105,13 @@ export type DevMarketCloseDependencies = {
   }) => Promise<DevMarketCloseRow | null>;
 };
 
+/**
+ * Dev-only escape hatch that force-closes a bootstrap market for refunds by
+ * fast-forwarding the local chain past the graduation deadline and calling
+ * markRefundable on-chain, then mirroring the refunded status into the
+ * database. Refuses to run unless dev tools are enabled on the local network,
+ * so it can never touch a live deployment.
+ */
 export async function closePregradMarketForRefund(
   {
     chainId,

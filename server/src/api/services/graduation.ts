@@ -39,6 +39,12 @@ type GraduationReadiness =
       reason: GraduationIneligibleReason;
     };
 
+/**
+ * Discriminated outcome of a graduation request. Because settlement is
+ * on-chain, the API never performs graduation itself: "graduated" only reports
+ * a market the chain already finalized, and every other variant explains why
+ * the request cannot proceed.
+ */
 export type MarketGraduationResult =
   | {
       kind: "graduated";
@@ -61,6 +67,11 @@ export type MarketGraduationResult =
       message: string;
     };
 
+/**
+ * Derives the graduation accounting from matched market cap: each matched
+ * complete set mints one YES and one NO token, and any escrow above the
+ * matched cap is returned to bettors as refunded collateral.
+ */
 export function buildGraduationSummary({
   graduatedAt = new Date(),
   graduationThreshold,
@@ -90,6 +101,11 @@ export function buildGraduationSummary({
   };
 }
 
+/**
+ * Converts a graduation summary to its API shape: bigints become decimal
+ * strings and the timestamp becomes an ISO string, so JSON serialization never
+ * loses uint256 precision.
+ */
 export function serializeGraduationSummary({
   completeSetCount,
   graduatedAt,
@@ -114,6 +130,12 @@ export function serializeGraduationSummary({
   };
 }
 
+/**
+ * Classifies how close a market is to graduating. Never returns an "eligible"
+ * outcome: even a market above its threshold reports
+ * onchain_settlement_required, because graduation must be finalized through
+ * the on-chain challenge-window flow, not by this API.
+ */
 export function evaluateGraduationReadiness({
   graduationThreshold,
   matchedMarketCap,
@@ -160,6 +182,11 @@ export function evaluateGraduationReadiness({
   };
 }
 
+/**
+ * Reports a market's graduation state and summary for the graduation endpoint.
+ * Read-only by design — it validates identifiers, computes readiness, and
+ * serializes the result, leaving all state changes to the on-chain flow.
+ */
 export async function requestMarketGraduation({
   chainId,
   marketId,

@@ -1,7 +1,18 @@
+/**
+ * How much of the web a review may touch: nothing, only the submitter's
+ * resolution URLs, or full web search. Each step widens the attack surface,
+ * so the mode is set by config/job — never by market text.
+ */
 export type InternetAccessMode = "off" | "provided_urls" | "search";
 
+/** The review backends the service can route a market to. */
 export type ReviewProviderName = "anthropic" | "heuristic" | "ollama";
 
+/**
+ * Static traits of a provider that the pipeline uses to decide what work to do
+ * before calling it — notably whether evidence must be pre-collected because
+ * the provider cannot browse on its own.
+ */
 export type ReviewProviderCapabilities = {
   canRunOffline: boolean;
   requiresApiKey: boolean;
@@ -10,11 +21,19 @@ export type ReviewProviderCapabilities = {
   supportsNativeWebSearch: boolean;
 };
 
+/**
+ * Outcome of a provider's config check: errors block a review from starting,
+ * warnings only surface in provider status responses.
+ */
 export type ConfigValidationResult = {
   errors: string[];
   warnings: string[];
 };
 
+/**
+ * The submitter-authored market text under review. Every field is untrusted
+ * user input and must be treated as potential prompt injection.
+ */
 export type MarketReviewMetadata = {
   category?: string;
   createdAt?: string;
@@ -26,12 +45,18 @@ export type MarketReviewMetadata = {
   resolutionUrl?: string;
 };
 
+/** On-chain identifiers included in the prompt for traceability only. */
 export type MarketReviewContext = {
   chainId?: number;
   creator?: string;
   marketId?: string;
 };
 
+/**
+ * Per-request overrides of the service defaults, set by the operator or job
+ * queue (never derived from market text): provider, model, and evidence
+ * budgets.
+ */
 export type MarketReviewOptions = {
   fetchSearchResults?: boolean;
   internetAccess?: InternetAccessMode;
@@ -40,14 +65,20 @@ export type MarketReviewOptions = {
   provider?: ReviewProviderName;
 };
 
+/** One complete, stateless review request as accepted by the service. */
 export type MarketReviewRequest = {
   context?: MarketReviewContext;
   metadata: MarketReviewMetadata;
   options?: MarketReviewOptions;
 };
 
+/**
+ * Final review decision. approve moves the market to bootstrap, reject ends
+ * it, and manual_review is the safe default whenever the pipeline is unsure.
+ */
 export type ReviewVerdict = "approve" | "reject" | "manual_review";
 
+/** Trust classification of an evidence source, from best to worst. */
 export type SourceTier =
   | "primary"
   | "major_news"
@@ -57,6 +88,11 @@ export type SourceTier =
   | "unreachable"
   | "unknown";
 
+/**
+ * The seven 0-5 policy dimensions every review must score, matching
+ * MARKET_REVIEW_OUTPUT_CONTRACT. Higher is safer/better except disputeRisk
+ * and promptInjectionRisk, where higher means more risk.
+ */
 export type ReviewScores = {
   contentSafety: number;
   corroboration: number;
@@ -67,6 +103,10 @@ export type ReviewScores = {
   sourceQuality: number;
 };
 
+/**
+ * A reviewer judgment about one source. Only sources backed by actual
+ * evidence survive into the stored result — see filterSourceChecksByEvidence.
+ */
 export type SourceCheck = {
   domain: string;
   notes: string;
@@ -75,8 +115,13 @@ export type SourceCheck = {
   url: string;
 };
 
+/** How a piece of evidence entered the review pipeline. */
 export type EvidenceKind = "provided_url" | "search_result" | "fetched_page";
 
+/**
+ * One retrieved (or unreachable) public source, recorded with its trust tier
+ * and a truncated text summary so verdicts stay auditable after the fact.
+ */
 export type EvidenceItem = {
   domain: string;
   kind: EvidenceKind;
@@ -86,6 +131,11 @@ export type EvidenceItem = {
   url: string;
 };
 
+/**
+ * The complete review the service returns and the runner persists: verdict,
+ * scores, evidence trail, and the provider/model/prompt version that produced
+ * it.
+ */
 export type ReviewResult = {
   evidence: EvidenceItem[];
   hardFlags: string[];
@@ -98,6 +148,10 @@ export type ReviewResult = {
   verdict: ReviewVerdict;
 };
 
+/**
+ * A single reviewer's raw judgment (heuristic pass or one model call) before
+ * findings are merged into the final ReviewResult.
+ */
 export type PolicyFinding = {
   hardFlags: string[];
   reasons: string[];
@@ -106,6 +160,11 @@ export type PolicyFinding = {
   verdict: ReviewVerdict;
 };
 
+/**
+ * What a provider hands back to the pipeline: its finding plus the evidence
+ * it used (native tool results, or the pre-collected set passed in) and the
+ * model that produced it.
+ */
 export type PolicyFindingWithEvidence = PolicyFinding & {
   evidence: EvidenceItem[];
   modelId?: string;
