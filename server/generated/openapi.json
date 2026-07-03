@@ -1,0 +1,1446 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Pop Charts API",
+    "description": "Read API for Pop Charts indexed market events.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health check",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "summary": "Get API version",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets": {
+      "get": {
+        "operationId": "listMarkets",
+        "summary": "List indexed markets",
+        "description": "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/metadata": {
+      "post": {
+        "operationId": "saveMarketMetadata",
+        "summary": "Save off-chain market metadata",
+        "description": "Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketMetadataWrite"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketMetadataWrite"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketMetadataWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketMetadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/markets/{chainId}/{marketId}/review": {
+      "post": {
+        "operationId": "requestManualAiReview",
+        "summary": "Admin-only enqueue market AI review",
+        "description": "Disabled unless POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
+        "tags": [
+          "Administration"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean"
+                  },
+                  "model": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "provider": {
+                    "$ref": "#/components/schemas/AiReviewProvider"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean"
+                  },
+                  "model": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "provider": {
+                    "$ref": "#/components/schemas/AiReviewProvider"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean"
+                  },
+                  "model": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "provider": {
+                    "$ref": "#/components/schemas/AiReviewProvider"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualAiReviewExistingJob"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Response for status 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualAiReviewEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualAiReviewConflict"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dev/markets/{chainId}/{marketId}/close": {
+      "post": {
+        "operationId": "closeDevMarket",
+        "summary": "Dev-only close pre-grad market for refunds",
+        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+        "tags": [
+          "Development"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketCloseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketCloseIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/{marketId}": {
+      "get": {
+        "operationId": "getMarket",
+        "summary": "Get an indexed market",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Market"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/{marketId}/events": {
+      "get": {
+        "operationId": "listMarketEvents",
+        "summary": "Get market chain events",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketCreatedEventList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/{marketId}/graduate": {
+      "post": {
+        "operationId": "graduateMarket",
+        "summary": "Request market graduation",
+        "description": "Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.",
+        "tags": [
+          "Graduation"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraduationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraduationIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionInfo": {
+        "type": "object",
+        "required": [
+          "buildTime",
+          "commitSha",
+          "network",
+          "version"
+        ],
+        "properties": {
+          "buildTime": {
+            "type": "string"
+          },
+          "commitSha": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "AiReviewEvidence": {
+        "type": "object",
+        "required": [
+          "domain",
+          "kind",
+          "sourceTier",
+          "summary",
+          "url"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "provided_url",
+              "search_result",
+              "fetched_page"
+            ]
+          },
+          "sourceTier": {
+            "$ref": "#/components/schemas/AiReviewSourceTier"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "AiReviewJobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "retryable_failed",
+          "terminal_failed",
+          "cancelled"
+        ]
+      },
+      "AiReviewJobTrigger": {
+        "type": "string",
+        "enum": [
+          "automatic",
+          "manual",
+          "retry"
+        ]
+      },
+      "AiReviewProvider": {
+        "type": "string",
+        "enum": [
+          "anthropic",
+          "heuristic",
+          "ollama"
+        ]
+      },
+      "AiReviewScores": {
+        "type": "object",
+        "required": [
+          "contentSafety",
+          "corroboration",
+          "disputeRisk",
+          "objectivity",
+          "promptInjectionRisk",
+          "publicKnowability",
+          "sourceQuality"
+        ],
+        "properties": {
+          "contentSafety": {
+            "type": "number"
+          },
+          "corroboration": {
+            "type": "number"
+          },
+          "disputeRisk": {
+            "type": "number"
+          },
+          "objectivity": {
+            "type": "number"
+          },
+          "promptInjectionRisk": {
+            "type": "number"
+          },
+          "publicKnowability": {
+            "type": "number"
+          },
+          "sourceQuality": {
+            "type": "number"
+          }
+        }
+      },
+      "AiReviewSourceCheck": {
+        "type": "object",
+        "required": [
+          "domain",
+          "notes",
+          "relevant",
+          "sourceTier",
+          "url"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "relevant": {
+            "type": "boolean"
+          },
+          "sourceTier": {
+            "$ref": "#/components/schemas/AiReviewSourceTier"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "AiReviewSourceTier": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "major_news",
+          "specialist",
+          "ugc",
+          "suspicious",
+          "unreachable",
+          "unknown"
+        ]
+      },
+      "AiReviewVerdict": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "reject",
+          "manual_review"
+        ]
+      },
+      "DevMarketCloseIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "chain_status",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "DevMarketCloseResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "refundAvailable",
+          "status"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "refundAvailable": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "refunded"
+            ]
+          },
+          "transactionHash": {
+            "type": "string"
+          }
+        }
+      },
+      "GraduationIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "below_threshold",
+              "clearing_pending",
+              "onchain_settlement_required",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GraduationSummary"
+          }
+        }
+      },
+      "GraduationResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "graduated"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GraduationSummary"
+          }
+        }
+      },
+      "GraduationSummary": {
+        "type": "object",
+        "required": [
+          "completeSetCount",
+          "graduatedAt",
+          "graduationThreshold",
+          "matchedMarketCap",
+          "noTokens",
+          "receiptCount",
+          "refundedCollateral",
+          "totalEscrowed",
+          "yesTokens"
+        ],
+        "properties": {
+          "completeSetCount": {
+            "type": "string"
+          },
+          "graduatedAt": {
+            "type": "string"
+          },
+          "graduationThreshold": {
+            "type": "string"
+          },
+          "matchedMarketCap": {
+            "type": "string"
+          },
+          "noTokens": {
+            "type": "string"
+          },
+          "receiptCount": {
+            "type": "string"
+          },
+          "refundedCollateral": {
+            "type": "string"
+          },
+          "totalEscrowed": {
+            "type": "string"
+          },
+          "yesTokens": {
+            "type": "string"
+          }
+        }
+      },
+      "ManualAiReviewAlreadyReviewed": {
+        "type": "object",
+        "required": [
+          "aiReview",
+          "message",
+          "status"
+        ],
+        "properties": {
+          "aiReview": {
+            "$ref": "#/components/schemas/MarketAiReview"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "already_reviewed"
+            ]
+          }
+        }
+      },
+      "ManualAiReviewConflict": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ManualAiReviewAlreadyReviewed"
+          },
+          {
+            "$ref": "#/components/schemas/ManualAiReviewIneligible"
+          }
+        ]
+      },
+      "ManualAiReviewEnqueued": {
+        "type": "object",
+        "required": [
+          "job",
+          "status"
+        ],
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/MarketAiReviewJob"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "enqueued"
+            ]
+          }
+        }
+      },
+      "ManualAiReviewExistingJob": {
+        "type": "object",
+        "required": [
+          "job",
+          "message",
+          "status"
+        ],
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/MarketAiReviewJob"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "already_queued"
+            ]
+          }
+        }
+      },
+      "ManualAiReviewIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "marketStatus": {
+            "$ref": "#/components/schemas/MarketStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "missing_metadata",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "ManualAiReviewRequest": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean"
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiReviewProvider"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "Market": {
+        "type": "object",
+        "required": [
+          "bypassAiResolution",
+          "chainId",
+          "collateral",
+          "createdAt",
+          "createdBlockNumber",
+          "createdBlockTimestamp",
+          "createdLogIndex",
+          "createdTransactionHash",
+          "creator",
+          "graduationThreshold",
+          "graduationTime",
+          "liquidityParameter",
+          "marketId",
+          "matchedMarketCap",
+          "metadataHash",
+          "noShares",
+          "openingProbabilityWad",
+          "receiptCount",
+          "resolutionTime",
+          "status",
+          "totalEscrowed",
+          "updatedAt",
+          "yesShares"
+        ],
+        "properties": {
+          "aiReview": {
+            "$ref": "#/components/schemas/MarketAiReview"
+          },
+          "bypassAiResolution": {
+            "type": "boolean"
+          },
+          "chainId": {
+            "type": "number"
+          },
+          "collateral": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBlockNumber": {
+            "type": "string"
+          },
+          "createdBlockTimestamp": {
+            "type": "string"
+          },
+          "createdLogIndex": {
+            "type": "number"
+          },
+          "createdTransactionHash": {
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "graduationThreshold": {
+            "type": "string"
+          },
+          "graduationTime": {
+            "type": "string"
+          },
+          "liquidityParameter": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "matchedMarketCap": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/MarketMetadata"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "noShares": {
+            "type": "string"
+          },
+          "openingProbabilityWad": {
+            "type": "string"
+          },
+          "receiptCount": {
+            "type": "string"
+          },
+          "resolutionTime": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MarketStatus"
+          },
+          "totalEscrowed": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "yesShares": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketAiReview": {
+        "type": "object",
+        "required": [
+          "createdAt",
+          "evidence",
+          "hardFlags",
+          "id",
+          "metadataHash",
+          "promptVersion",
+          "provider",
+          "reasons",
+          "reviewedAt",
+          "scores",
+          "sourceChecks",
+          "verdict"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiReviewEvidence"
+            }
+          },
+          "hardFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "number"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "modelId": {
+            "type": "string"
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiReviewProvider"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewedAt": {
+            "type": "string"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/AiReviewScores"
+          },
+          "sourceChecks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiReviewSourceCheck"
+            }
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/AiReviewVerdict"
+          }
+        }
+      },
+      "MarketAiReviewJob": {
+        "type": "object",
+        "required": [
+          "attemptCount",
+          "chainId",
+          "createdAt",
+          "id",
+          "marketId",
+          "maxAttempts",
+          "metadataHash",
+          "priority",
+          "runAfter",
+          "status",
+          "trigger",
+          "updatedAt"
+        ],
+        "properties": {
+          "attemptCount": {
+            "type": "number"
+          },
+          "chainId": {
+            "type": "number"
+          },
+          "completedAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "number"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "leaseUntil": {
+            "type": "string"
+          },
+          "lockedBy": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "maxAttempts": {
+            "type": "number"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "requestedModel": {
+            "type": "string"
+          },
+          "requestedProvider": {
+            "$ref": "#/components/schemas/AiReviewProvider"
+          },
+          "reviewId": {
+            "type": "number"
+          },
+          "runAfter": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AiReviewJobStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AiReviewJobTrigger"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketCreatedEvent": {
+        "type": "object",
+        "required": [
+          "bypassAiResolution",
+          "blockNumber",
+          "blockTimestamp",
+          "chainId",
+          "collateral",
+          "creator",
+          "graduationThreshold",
+          "graduationTime",
+          "graduationTimeUnix",
+          "liquidityParameter",
+          "logIndex",
+          "marketId",
+          "metadata",
+          "metadataHash",
+          "openingProbabilityWad",
+          "resolutionTime",
+          "resolutionTimeUnix",
+          "transactionHash"
+        ],
+        "properties": {
+          "bypassAiResolution": {
+            "type": "boolean"
+          },
+          "blockNumber": {
+            "type": "string"
+          },
+          "blockTimestamp": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "number"
+          },
+          "collateral": {
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "graduationThreshold": {
+            "type": "string"
+          },
+          "graduationTime": {
+            "type": "string"
+          },
+          "graduationTimeUnix": {
+            "type": "string"
+          },
+          "liquidityParameter": {
+            "type": "string"
+          },
+          "logIndex": {
+            "type": "number"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "string"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "openingProbabilityWad": {
+            "type": "string"
+          },
+          "resolutionTime": {
+            "type": "string"
+          },
+          "resolutionTimeUnix": {
+            "type": "string"
+          },
+          "transactionHash": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketCreatedEventList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MarketCreatedEvent"
+        }
+      },
+      "MarketList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Market"
+        }
+      },
+      "MarketMetadata": {
+        "type": "object",
+        "required": [
+          "category",
+          "chainId",
+          "createdAt",
+          "description",
+          "metadataCreatedAt",
+          "metadataHash",
+          "question",
+          "resolutionCriteria",
+          "updatedAt"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metadataCreatedAt": {
+            "type": "string"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "resolutionCriteria": {
+            "type": "string"
+          },
+          "resolutionSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolutionUrl": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketMetadataWrite": {
+        "type": "object",
+        "required": [
+          "category",
+          "createdAt",
+          "description",
+          "metadataHash",
+          "question",
+          "resolutionCriteria"
+        ],
+        "properties": {
+          "category": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "createdAt": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metadataHash": {
+            "pattern": "^0x[0-9a-fA-F]{64}$",
+            "type": "string"
+          },
+          "question": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "resolutionCriteria": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "resolutionSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolutionUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketStatus": {
+        "type": "string",
+        "enum": [
+          "under_review",
+          "bootstrap",
+          "graduating",
+          "graduated",
+          "resolved",
+          "refunded",
+          "cancelled",
+          "rejected"
+        ]
+      }
+    }
+  }
+}

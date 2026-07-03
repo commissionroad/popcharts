@@ -1,8 +1,14 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 
+import { HealthSchema, VersionInfoSchema } from "src/api/models/system";
 import { config } from "src/config";
 
+/** Health and version probes, exposed as named OpenAPI models. */
 export const systemRoutes = new Elysia({ prefix: "" })
+  .model({
+    Health: HealthSchema,
+    VersionInfo: VersionInfoSchema,
+  })
   .get(
     "/health",
     () => ({
@@ -10,11 +16,10 @@ export const systemRoutes = new Elysia({ prefix: "" })
     }),
     {
       response: {
-        200: t.Object({
-          status: t.String(),
-        }),
+        200: "Health",
       },
       detail: {
+        operationId: "getHealth",
         summary: "Health check",
         tags: ["System"],
       },
@@ -30,14 +35,10 @@ export const systemRoutes = new Elysia({ prefix: "" })
     }),
     {
       response: {
-        200: t.Object({
-          buildTime: t.String(),
-          commitSha: t.String(),
-          network: t.String(),
-          version: t.String(),
-        }),
+        200: "VersionInfo",
       },
       detail: {
+        operationId: "getVersion",
         summary: "Get API version",
         tags: ["System"],
       },

@@ -5,12 +5,13 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { DevMarketCloseIneligibleMarket } from "./devMarketCloseIneligibleMarket";
+import type { Market } from "./market";
 import type { DevMarketCloseIneligibleReason } from "./devMarketCloseIneligibleReason";
+import type { DevMarketCloseIneligibleStatus } from "./devMarketCloseIneligibleStatus";
 
 export interface DevMarketCloseIneligible {
   message: string;
-  market: DevMarketCloseIneligibleMarket;
+  market: Market;
   reason: DevMarketCloseIneligibleReason;
-  status: "ineligible";
+  status: DevMarketCloseIneligibleStatus;
 }

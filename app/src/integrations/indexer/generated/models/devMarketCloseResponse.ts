@@ -5,11 +5,12 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { DevMarketCloseResponseMarket } from "./devMarketCloseResponseMarket";
+import type { Market } from "./market";
+import type { DevMarketCloseResponseStatus } from "./devMarketCloseResponseStatus";
 
 export interface DevMarketCloseResponse {
-  market: DevMarketCloseResponseMarket;
+  market: Market;
   refundAvailable: string;
-  status: "refunded";
+  status: DevMarketCloseResponseStatus;
   transactionHash?: string;
 }

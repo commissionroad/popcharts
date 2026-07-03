@@ -5,79 +5,63 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type {
-  PostMarketsByChainIdByMarketIdGraduate200,
-  PostMarketsByChainIdByMarketIdGraduate409,
-} from ".././models";
+import type { GraduationIneligible, GraduationResponse } from ".././models";
 
 /**
  * Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.
  * @summary Request market graduation
  */
-export type postMarketsByChainIdByMarketIdGraduateResponse200 = {
-  data: PostMarketsByChainIdByMarketIdGraduate200;
+export type graduateMarketResponse200 = {
+  data: GraduationResponse;
   status: 200;
 };
 
-export type postMarketsByChainIdByMarketIdGraduateResponse400 = {
+export type graduateMarketResponse400 = {
   data: string;
   status: 400;
 };
 
-export type postMarketsByChainIdByMarketIdGraduateResponse404 = {
+export type graduateMarketResponse404 = {
   data: string;
   status: 404;
 };
 
-export type postMarketsByChainIdByMarketIdGraduateResponse409 = {
-  data: PostMarketsByChainIdByMarketIdGraduate409;
+export type graduateMarketResponse409 = {
+  data: GraduationIneligible;
   status: 409;
 };
 
-export type postMarketsByChainIdByMarketIdGraduateResponseSuccess =
-  postMarketsByChainIdByMarketIdGraduateResponse200 & {
-    headers: Headers;
-  };
-export type postMarketsByChainIdByMarketIdGraduateResponseError = (
-  | postMarketsByChainIdByMarketIdGraduateResponse400
-  | postMarketsByChainIdByMarketIdGraduateResponse404
-  | postMarketsByChainIdByMarketIdGraduateResponse409
+export type graduateMarketResponseSuccess = graduateMarketResponse200 & {
+  headers: Headers;
+};
+export type graduateMarketResponseError = (
+  | graduateMarketResponse400
+  | graduateMarketResponse404
+  | graduateMarketResponse409
 ) & {
   headers: Headers;
 };
 
-export type postMarketsByChainIdByMarketIdGraduateResponse =
-  | postMarketsByChainIdByMarketIdGraduateResponseSuccess
-  | postMarketsByChainIdByMarketIdGraduateResponseError;
+export type graduateMarketResponse =
+  | graduateMarketResponseSuccess
+  | graduateMarketResponseError;
 
-export const getPostMarketsByChainIdByMarketIdGraduateUrl = (
-  chainId: string,
-  marketId: string
-) => {
+export const getGraduateMarketUrl = (chainId: string, marketId: string) => {
   return `/markets/${chainId}/${marketId}/graduate`;
 };
 
-export const postMarketsByChainIdByMarketIdGraduate = async (
+export const graduateMarket = async (
   chainId: string,
   marketId: string,
   options?: RequestInit
-): Promise<postMarketsByChainIdByMarketIdGraduateResponse> => {
-  const res = await fetch(
-    getPostMarketsByChainIdByMarketIdGraduateUrl(chainId, marketId),
-    {
-      ...options,
-      method: "POST",
-    }
-  );
+): Promise<graduateMarketResponse> => {
+  const res = await fetch(getGraduateMarketUrl(chainId, marketId), {
+    ...options,
+    method: "POST",
+  });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: postMarketsByChainIdByMarketIdGraduateResponse["data"] = body
-    ? JSON.parse(body)
-    : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as postMarketsByChainIdByMarketIdGraduateResponse;
+  const data: graduateMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as graduateMarketResponse;
 };

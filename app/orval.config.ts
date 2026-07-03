@@ -3,7 +3,10 @@ import { defineConfig } from "orval";
 export default defineConfig({
   popchartsApi: {
     input: {
-      target: process.env.POPCHARTS_API_SPEC ?? "http://localhost:3001/openapi/json",
+      // Default to the committed spec exported by `bun run openapi:generate`
+      // in server/, so client generation is deterministic and does not need a
+      // running API. Override with POPCHARTS_API_SPEC to point at a live one.
+      target: process.env.POPCHARTS_API_SPEC ?? "../server/generated/openapi.json",
     },
     output: {
       client: "fetch",
