@@ -1,5 +1,10 @@
 import { CreateMarketForm } from "@/features/market-create/create-market-form";
 
+/**
+ * The launchpad page: intro copy plus the market creation form. `initialNow`
+ * is threaded through so draft deadlines render identically on server and
+ * client.
+ */
 export function CreateMarketPage({ initialNow }: { initialNow: string }) {
   return (
     <div>

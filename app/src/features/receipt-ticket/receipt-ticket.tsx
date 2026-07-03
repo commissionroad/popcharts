@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  CheckCircle2,
-  CircleDollarSign,
-  Loader2,
-  ReceiptText,
-  ShieldAlert,
-  TriangleAlert,
-} from "lucide-react";
+import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
@@ -21,16 +14,14 @@ import {
   buildReceiptQuotePreview,
   DEFAULT_RECEIPT_SLIPPAGE_BPS,
   getReceiptAmountError,
-  MAX_RECEIPT_BUDGET_USD,
   parseReceiptAmount,
   type PlacedPregradReceipt,
-  type ReceiptQuotePreview,
 } from "@/domain/pregrad-trading/receipt-quote";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { cn } from "@/lib/cn";
-import { formatAddress, formatCents, formatPercent, formatUsd } from "@/lib/format";
+import { formatUsd } from "@/lib/format";
 
 import {
   canMintLocalCollateral,
@@ -39,9 +30,19 @@ import {
   type PlaceReceiptWallet,
   type ReceiptPlacementStep,
   resolveTradingEnvironment,
-  type TradingEnvironment,
 } from "./place-receipt-service";
+import {
+  getMaxPresetAmount,
+  getReceiptAction,
+  getReceiptPlacementErrorMessage,
+} from "./receipt-action";
 import { recordPlacedReceipt } from "./receipt-storage";
+import { formatPlacementStep, formatPresetAmount } from "./receipt-ticket-format";
+import {
+  CollateralBalancePanel,
+  PlacedReceiptNotice,
+  QuotePreview,
+} from "./receipt-ticket-panels";
 
 const sideOptions = [
   { label: "YES", value: "yes" },
@@ -73,6 +74,12 @@ type ContractTicketReadResult = Omit<ContractTicketStatus, "loading"> & {
   requestKey: string | null;
 };
 
+/**
+ * The pre-graduation trade ticket for one market: side and budget entry, a
+ * live quote preview, and receipt placement against the devchain
+ * PregradManager (with balance and market-existence checks) or the mock
+ * environment. Placed receipts are priced intents, not fills.
+ */
 export function ReceiptTicket({ market }: { market: Market }) {
   const router = useRouter();
   const wallet = useWalletAccount();
@@ -491,351 +498,4 @@ export function ReceiptTicket({ market }: { market: Market }) {
       </div>
     </section>
   );
-}
-
-function CollateralBalancePanel({
-  balanceUsd,
-  canMint,
-  error,
-  isLoading,
-  isMinting,
-  onMint,
-  walletConnected,
-}: {
-  balanceUsd: number | null;
-  canMint: boolean;
-  error: string | null;
-  isLoading: boolean;
-  isMinting: boolean;
-  onMint: () => void;
-  walletConnected: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3">
-      <div className="min-w-0">
-        <div className="font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase">
-          pUSD balance
-        </div>
-        <div className="mt-1 font-mono text-[13px] text-[var(--text-primary)]">
-          {formatPusdBalance({ balanceUsd, error, isLoading, walletConnected })}
-        </div>
-      </div>
-
-      {canMint ? (
-        <button
-          className="focus-ring inline-flex h-8 shrink-0 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 font-mono text-[11px] font-bold text-[var(--text-secondary)] transition-colors hover:border-[var(--pc-cyan)] hover:text-[var(--pc-cyan)] disabled:pointer-events-none disabled:opacity-50"
-          disabled={isMinting}
-          onClick={onMint}
-          type="button"
-        >
-          {isMinting ? (
-            <Loader2 className="animate-spin" size={13} />
-          ) : (
-            <CircleDollarSign size={13} />
-          )}
-          Mint test pUSD
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function QuotePreview({
-  quote,
-  sideColor,
-}: {
-  quote: ReceiptQuotePreview | null;
-  sideColor: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] p-4">
-      <TicketRow
-        label="Avg price"
-        value={quote ? formatCents(quote.averagePriceCents) : "--"}
-      />
-      <TicketRow
-        label="Est. receipt shares"
-        tone={sideColor}
-        value={quote ? `${formatShares(quote.shares)} sh` : "--"}
-      />
-      <TicketRow label="Price band" value={quote ? formatPriceBand(quote) : "--"} />
-      <TicketRow
-        label="Price impact"
-        tone={
-          quote && quote.priceImpactCents >= 5 ? "var(--status-graduating)" : undefined
-        }
-        value={quote ? `+${quote.priceImpactCents.toFixed(2)} pts` : "--"}
-      />
-      <TicketRow label="Max cost" value={quote ? formatUsd(quote.maxCostUsd) : "--"} />
-    </div>
-  );
-}
-
-function PlacedReceiptNotice({ receipt }: { receipt: PlacedPregradReceipt }) {
-  return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--pc-lime)] bg-[var(--pc-lime-wash)] p-3">
-      <div className="flex items-center gap-2 font-mono text-[12px] font-bold text-[var(--pc-lime)]">
-        <CheckCircle2 size={15} />
-        Receipt placed
-      </div>
-      <div className="mt-2 grid gap-1 text-[12px] text-[var(--text-secondary)]">
-        <span>
-          #{receipt.receiptId} - {formatUsd(receipt.collateralUsd)} -{" "}
-          {formatShares(receipt.shares)} sh
-        </span>
-        {receipt.transactionHash ? (
-          <span className="font-mono text-[11px] text-[var(--text-muted)]">
-            Tx {formatAddress(receipt.transactionHash)}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function getReceiptAction({
-  amountError,
-  contractMarketMissing,
-  environment,
-  insufficientBalance,
-  isPlacing,
-  marketStatus,
-  onPlace,
-  publicClientReady,
-  quote,
-  side,
-  wallet,
-  walletClientReady,
-}: {
-  amountError: string | null;
-  contractMarketMissing: boolean;
-  environment: TradingEnvironment;
-  insufficientBalance: boolean;
-  isPlacing: boolean;
-  marketStatus: Market["status"];
-  onPlace: () => void;
-  publicClientReady: boolean;
-  quote: ReceiptQuotePreview | null;
-  side: MarketSide;
-  wallet: ReturnType<typeof useWalletAccount>;
-  walletClientReady: boolean;
-}) {
-  const sideLabel = side === "yes" ? "YES" : "NO";
-
-  if (marketStatus !== "bootstrap") {
-    return {
-      disabled: true,
-      label: "Receipt book locked",
-      onClick: undefined,
-    };
-  }
-
-  if (isPlacing) {
-    return {
-      disabled: true,
-      label: "Placing receipt",
-      onClick: undefined,
-    };
-  }
-
-  if (amountError || !quote) {
-    return {
-      disabled: true,
-      label: `Place ${sideLabel} receipt`,
-      onClick: undefined,
-    };
-  }
-
-  if (environment.kind === "mock") {
-    return {
-      disabled: false,
-      label: `Place mock ${sideLabel} receipt`,
-      onClick: onPlace,
-    };
-  }
-
-  if (!wallet.enabled) {
-    return {
-      disabled: true,
-      label: "Sign in unavailable",
-      onClick: undefined,
-    };
-  }
-
-  if (!wallet.ready) {
-    return {
-      disabled: true,
-      label: "Preparing wallet",
-      onClick: undefined,
-    };
-  }
-
-  if (!wallet.authenticated) {
-    return {
-      disabled: false,
-      label: "Sign in to place receipt",
-      onClick: wallet.login,
-    };
-  }
-
-  if (!wallet.address) {
-    return {
-      disabled: false,
-      label: "Create or link wallet",
-      onClick: wallet.connectOrCreateWallet,
-    };
-  }
-
-  if (!wallet.isSupportedChain) {
-    return {
-      disabled: Boolean(wallet.pendingAction),
-      label: `Switch to ${wallet.defaultChain.name}`,
-      onClick: () => void wallet.switchChain(wallet.defaultChain.id),
-    };
-  }
-
-  if (!publicClientReady || !walletClientReady) {
-    return {
-      disabled: true,
-      label: "Preparing trading client",
-      onClick: undefined,
-    };
-  }
-
-  if (contractMarketMissing) {
-    return {
-      disabled: true,
-      label: "Market not on current contract",
-      onClick: undefined,
-    };
-  }
-
-  if (insufficientBalance) {
-    return {
-      disabled: true,
-      label: "Insufficient pUSD",
-      onClick: undefined,
-    };
-  }
-
-  return {
-    disabled: false,
-    label: `Place ${sideLabel} receipt`,
-    onClick: onPlace,
-  };
-}
-
-function formatPusdBalance({
-  balanceUsd,
-  error,
-  isLoading,
-  walletConnected,
-}: {
-  balanceUsd: number | null;
-  error: string | null;
-  isLoading: boolean;
-  walletConnected: boolean;
-}) {
-  if (!walletConnected) {
-    return "Connect wallet";
-  }
-
-  if (isLoading) {
-    return "Loading...";
-  }
-
-  if (error) {
-    return "Unavailable";
-  }
-
-  if (balanceUsd === null) {
-    return "--";
-  }
-
-  return `${balanceUsd.toLocaleString("en-US", {
-    maximumFractionDigits: balanceUsd >= 100 ? 0 : 2,
-    minimumFractionDigits: balanceUsd > 0 && balanceUsd < 100 ? 2 : 0,
-  })} pUSD`;
-}
-
-function TicketRow({
-  label,
-  tone = "var(--text-primary)",
-  value,
-}: {
-  label: string;
-  tone?: string | undefined;
-  value: string;
-}) {
-  return (
-    <div className="flex justify-between gap-4 text-[13px]">
-      <span className="font-mono text-[var(--text-muted)]">{label}</span>
-      <span className="tabular text-right font-mono" style={{ color: tone }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function formatPlacementStep(step: ReceiptPlacementStep) {
-  const labels: Record<ReceiptPlacementStep, string> = {
-    approving: "Approving pUSD spend...",
-    confirming: "Waiting for confirmation...",
-    minting: "Minting local test pUSD...",
-    placing: "Submitting receipt...",
-    quoting: "Refreshing chain quote...",
-  };
-
-  return labels[step];
-}
-
-function formatPriceBand(quote: ReceiptQuotePreview) {
-  return `${formatPercent(quote.priceBand.fromProbability)} to ${formatPercent(
-    quote.priceBand.toProbability
-  )}`;
-}
-
-function formatShares(value: number) {
-  if (value >= 1_000) {
-    return value.toLocaleString("en-US", {
-      maximumFractionDigits: 0,
-    });
-  }
-
-  return value.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
-}
-
-function getReceiptPlacementErrorMessage(error: unknown) {
-  if (!(error instanceof Error)) {
-    return "Could not place receipt.";
-  }
-
-  if (
-    error.message.includes("MarketDoesNotExist") ||
-    error.message.includes("0x7ff80d38")
-  ) {
-    return "This market is not available on the current PregradManager. Create a new local market and try again.";
-  }
-
-  return error.message;
-}
-
-function getMaxPresetAmount(balanceUsd: number | null) {
-  if (balanceUsd === null) {
-    return 5_000;
-  }
-
-  const slippageMultiplier = 1 + DEFAULT_RECEIPT_SLIPPAGE_BPS / 10_000;
-
-  return Math.max(0, Math.min(MAX_RECEIPT_BUDGET_USD, balanceUsd / slippageMultiplier));
-}
-
-function formatPresetAmount(value: number) {
-  if (value >= 100) {
-    return Math.floor(value).toString();
-  }
-
-  return value.toFixed(2).replace(/\.?0+$/, "");
 }

@@ -6,6 +6,10 @@ import type { PlacedPregradReceipt } from "@/domain/pregrad-trading/receipt-quot
 
 const STORAGE_KEY = "popcharts:placed-pregrad-receipts:v1";
 
+/**
+ * Saves a placed receipt to localStorage (deduplicated by id, newest first,
+ * capped at 50) and notifies useStoredReceipts listeners in this tab.
+ */
 export function recordPlacedReceipt(receipt: PlacedPregradReceipt) {
   const receipts = readStoredReceipts();
   const nextReceipts = [
@@ -17,6 +21,11 @@ export function recordPlacedReceipt(receipt: PlacedPregradReceipt) {
   window.dispatchEvent(new Event("popcharts:receipts-updated"));
 }
 
+/**
+ * Subscribes to the locally stored receipts, refreshing when this tab records
+ * a receipt or another tab writes to storage. Malformed stored entries are
+ * silently dropped.
+ */
 export function useStoredReceipts() {
   const [receipts, setReceipts] = useState<PlacedPregradReceipt[]>([]);
 
