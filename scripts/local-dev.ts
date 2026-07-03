@@ -17,6 +17,7 @@ import {
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
+import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
   appLocalDevEnvFile,
   localChainEnvFile,
@@ -57,7 +58,6 @@ const databaseUrl =
 const rpcHost = "127.0.0.1";
 const rpcPort = "8545";
 const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
-const rpcWssUrl = `ws://${rpcHost}:${rpcPort}`;
 const apiPort = process.env.LOCAL_API_PORT ?? "3001";
 const appPort = process.env.LOCAL_APP_PORT ?? "3000";
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
     logLabel: LOG_LABEL,
   });
 
-  const initialServerEnv = buildServerEnv();
+  const initialServerEnv = buildLocalServerEnv();
   await run(
     "db constraints",
     "bun",
@@ -184,7 +184,7 @@ async function main(): Promise<void> {
     "LOCAL_CHAIN_SMOKE_DEPLOY",
   );
   const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
-  const serverEnv = buildServerEnv({
+  const serverEnv = buildLocalServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
     pregradManagerAddress: deploy.pregradManagerAddress,
@@ -376,33 +376,6 @@ function ensureDependenciesInstalled(): void {
   throw new Error(
     `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
   );
-}
-
-function buildServerEnv(
-  overrides: Partial<PregradDeploy> = {},
-): NodeJS.ProcessEnv {
-  // Before deployment, address values are blank so db:push can run with the
-  // same DATABASE_URL. After deployment, overrides fill in the chain
-  // addresses used by both the API and indexer.
-  return {
-    AI_REVIEW_SERVICE_URL: aiReviewBaseUrl,
-    AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
-    DATABASE_URL: databaseUrl,
-    HEALTH_CHECK_FILE: localDevIndexerHealthFile,
-    LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    NETWORK: "local",
-    PORT: apiPort,
-    POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
-    POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    RPC_HTTP_URL: rpcHttpUrl,
-    RPC_WSS_URL: rpcWssUrl,
-  };
 }
 
 async function startAiReviewStack(

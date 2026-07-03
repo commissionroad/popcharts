@@ -7,7 +7,6 @@ import { resolve } from "node:path";
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
-import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import {
@@ -16,6 +15,7 @@ import {
 } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
+import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
   appLocalDevEnvFile,
   localChainEnvFile,
@@ -41,13 +41,9 @@ import { waitFor } from "./shared/wait/waitFor.ts";
 
 const LOG_LABEL = "local-dev-control";
 const CONTROL_FILE = resolve(repoRoot, "local-dev.control-plane.yaml");
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5433/popcharts";
 const rpcHost = "127.0.0.1";
 const rpcPort = "8545";
 const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
-const rpcWssUrl = `ws://${rpcHost}:${rpcPort}`;
 const apiPort = process.env.LOCAL_API_PORT ?? "3001";
 const appPort = process.env.LOCAL_APP_PORT ?? "3000";
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
@@ -245,7 +241,7 @@ async function prepareDatabase(): Promise<void> {
     logLabel: LOG_LABEL,
   });
 
-  const initialServerEnv = buildServerEnv();
+  const initialServerEnv = buildLocalServerEnv();
   await run(
     "db constraints",
     "bun",
@@ -307,7 +303,7 @@ async function deployContracts(): Promise<void> {
     deployOutput.stdout,
     "LOCAL_CHAIN_SMOKE_DEPLOY",
   );
-  const serverEnv = buildServerEnv({
+  const serverEnv = buildLocalServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
     pregradManagerAddress: deploy.pregradManagerAddress,
@@ -328,13 +324,13 @@ async function deployContracts(): Promise<void> {
 
 async function runReviewService(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review"], {
-    env: buildAiReviewEnv(buildServerEnv()),
+    env: buildAiReviewEnv(buildLocalServerEnv()),
   });
 }
 
 async function runReviewRunner(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review-runner"], {
-    env: buildAiReviewRunnerEnv(buildServerEnv()),
+    env: buildAiReviewRunnerEnv(buildLocalServerEnv()),
   });
 }
 
@@ -442,33 +438,6 @@ async function postgresReady(): Promise<boolean> {
     ],
     { cwd: repoRoot },
   );
-}
-
-function buildServerEnv(
-  overrides: Partial<Omit<PregradDeploy, "chainId">> = {},
-): NodeJS.ProcessEnv {
-  // Before deployment, address values are blank so db:push can run with the
-  // same DATABASE_URL. After deployment, overrides fill in the chain
-  // addresses used by both the API and indexer.
-  return {
-    AI_REVIEW_SERVICE_URL: aiReviewBaseUrl,
-    AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
-    DATABASE_URL: databaseUrl,
-    HEALTH_CHECK_FILE: localDevIndexerHealthFile,
-    LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    NETWORK: "local",
-    PORT: apiPort,
-    POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
-    POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    RPC_HTTP_URL: rpcHttpUrl,
-    RPC_WSS_URL: rpcWssUrl,
-  };
 }
 
 function buildAppEnv(deploy: PregradDeploy): Record<string, string> {
