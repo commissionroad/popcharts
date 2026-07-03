@@ -90,7 +90,12 @@ bun run dev:ai-review
 The AI Review runner is a separate process from both the indexer and the AI
 Review service. It polls Postgres for eligible `under_review` markets, leases
 review jobs, calls the AI Review service, persists `market_ai_reviews`, and
-applies guarded market status transitions.
+applies guarded on-chain market status transitions before the SQL projection
+can move to `bootstrap` or `rejected`.
+
+Outside local development, set `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` to a
+review manager account. Local development falls back to
+`POPCHARTS_DEVCHAIN_PRIVATE_KEY` and then the default local account.
 
 ```bash
 cd server

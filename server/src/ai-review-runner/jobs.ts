@@ -14,6 +14,10 @@ import {
   sql,
 } from "src/db/client";
 import { reviewMarketWithService } from "./client";
+import {
+  transitionReviewedMarketOnChain,
+  type MarketReviewChainTransitionResult,
+} from "./chain-review";
 import type { AiReviewRunnerConfig } from "./config";
 
 const MAX_RETRY_DELAY_MS = 30 * 60 * 1000;
@@ -37,6 +41,11 @@ export type ClaimedReviewJob = {
   job: MarketAiReviewJobRow;
   market: MarketRow;
   metadata: MarketMetadataRow;
+};
+
+export type ReviewJobDependencies = {
+  reviewMarketWithService: typeof reviewMarketWithService;
+  transitionReviewedMarketOnChain: typeof transitionReviewedMarketOnChain;
 };
 
 /**
@@ -215,10 +224,12 @@ export async function claimReviewJobs({
 export async function processReviewJob({
   claimed,
   config,
+  dependencies = defaultReviewJobDependencies,
   now = new Date(),
 }: {
   claimed: ClaimedReviewJob;
   config: AiReviewRunnerConfig;
+  dependencies?: ReviewJobDependencies;
   now?: Date;
 }): Promise<ReviewJobOutcome> {
   // Jobs can sit in the queue while another authority moves the market. In that
@@ -233,12 +244,21 @@ export async function processReviewJob({
   }
 
   try {
-    const result = await reviewMarketWithService({
+    const result = await dependencies.reviewMarketWithService({
       config,
       request: buildMarketReviewRequest(claimed),
     });
+    const targetMarketStatus = marketStatusForReviewVerdict(result.verdict);
+    const chainTransition = targetMarketStatus
+      ? await dependencies.transitionReviewedMarketOnChain({
+          chainId: claimed.market.chainId,
+          marketId: claimed.job.marketId,
+          targetMarketStatus,
+        })
+      : null;
 
     const persisted = await persistReviewJobResult({
+      chainTransition,
       job: claimed.job,
       result,
       reviewedAt: now,
@@ -353,10 +373,12 @@ export function compactError(error: unknown) {
 }
 
 async function persistReviewJobResult({
+  chainTransition,
   job,
   result,
   reviewedAt,
 }: {
+  chainTransition: MarketReviewChainTransitionResult | null;
   job: MarketAiReviewJobRow;
   result: ReviewResult;
   reviewedAt: Date;
@@ -409,13 +431,19 @@ async function persistReviewJobResult({
     let transitionedMarket = false;
 
     if (targetMarketStatus) {
+      if (!chainTransition) {
+        throw new Error(
+          "Market review chain transition is required before updating market status.",
+        );
+      }
+
       // Guard on status and metadata hash so stale AI output cannot override a
       // market that the chain watcher or another runner has already moved.
       const rows = await tx
         .update(schema.markets)
         .set({
           status: targetMarketStatus,
-          updatedAt: reviewedAt,
+          updatedAt: chainTransition.blockTimestamp,
         })
         .where(
           and(
@@ -438,6 +466,11 @@ async function persistReviewJobResult({
     };
   });
 }
+
+const defaultReviewJobDependencies: ReviewJobDependencies = {
+  reviewMarketWithService,
+  transitionReviewedMarketOnChain,
+};
 
 async function markReviewJobFailure({
   error,
