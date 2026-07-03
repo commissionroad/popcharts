@@ -16,6 +16,11 @@ import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/pr
 
 const TOKEN_DECIMALS = 18;
 
+/**
+ * Connected wallet context required for wallet-signed devchain market
+ * creation: the signing account, its active chain, and viem clients bound to
+ * the devchain.
+ */
 export type CreateMarketWallet = {
   accountAddress: `0x${string}`;
   activeChainId: number | null;
@@ -23,10 +28,18 @@ export type CreateMarketWallet = {
   walletClient: WalletClient;
 };
 
+/**
+ * Options for createMarket. `wallet` is required only when the app is
+ * configured for wallet-signed creation.
+ */
 export type CreateMarketOptions = {
   wallet?: CreateMarketWallet;
 };
 
+/**
+ * A market draft accepted into the AI review queue: the full creation preview
+ * plus the review ticket the submissions API issued for it.
+ */
 export type SubmittedMarketReview = ReturnType<typeof buildCreateMarketPreview> & {
   aiReview: {
     source: "local" | "webhook";
@@ -44,6 +57,11 @@ type SubmitMarketReviewResponse = {
   submittedAt: string;
 };
 
+/**
+ * Creates an off-chain mock market from a valid draft, for environments
+ * without a devchain. Rejects invalid drafts; the returned market id is
+ * derived from the metadata hash, so nothing is persisted.
+ */
 export async function createMockMarket(
   draft: CreateMarketDraft
 ): Promise<CreatedMarket> {
@@ -64,6 +82,13 @@ export async function createMockMarket(
   };
 }
 
+/**
+ * Creates a market from a valid draft using the configured creation mode:
+ * mock when no devchain is configured, otherwise a devchain transaction
+ * signed by the caller's wallet or the server relay. On-chain creations also
+ * sync the market metadata to the API; a sync failure is reported on the
+ * result rather than failing the creation.
+ */
 export async function createMarket(
   draft: CreateMarketDraft,
   options: CreateMarketOptions = {}
@@ -100,6 +125,11 @@ export async function createMarket(
   return createServerSignedMarket(chainPreview, config.chainId);
 }
 
+/**
+ * Submits a valid draft to the AI market review queue without creating it
+ * on-chain. Throws with the service's error message when the submission is
+ * rejected or the response is malformed.
+ */
 export async function submitMarketForReview(
   draft: CreateMarketDraft
 ): Promise<SubmittedMarketReview> {

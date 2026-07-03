@@ -14,6 +14,11 @@ const BUDGET_POINTS = [25, 50, 100, 250] as const;
 const CURVE_MAX_BUDGET = 500;
 const CURVE_SAMPLE_COUNT = 33;
 
+/**
+ * Advanced-section chart showing how the chosen liquidity parameter b shapes
+ * early price impact: the YES price after sample receipt budgets, computed on
+ * the same virtual LMSR curve the market will open with.
+ */
 export function BImpactPreview({
   b,
   openingProbability,

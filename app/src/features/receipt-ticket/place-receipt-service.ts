@@ -14,6 +14,11 @@ import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
 const TOKEN_DECIMALS = 18;
 
+/**
+ * Connected wallet context required for contract-backed receipt placement:
+ * the signing account, its active chain, and viem clients bound to the
+ * devchain.
+ */
 export type PlaceReceiptWallet = {
   accountAddress: `0x${string}`;
   activeChainId: number | null;
@@ -21,6 +26,10 @@ export type PlaceReceiptWallet = {
   walletClient: WalletClient;
 };
 
+/**
+ * The transaction-sequence stages a receipt placement or test mint moves
+ * through, reported via `onStep` so the ticket can show progress.
+ */
 export type ReceiptPlacementStep =
   | "approving"
   | "confirming"
@@ -28,16 +37,32 @@ export type ReceiptPlacementStep =
   | "placing"
   | "quoting";
 
+/**
+ * Options for placePregradReceipt: step progress callback, slippage tolerance
+ * in basis points for the on-chain max cost, and the wallet context required
+ * for contract markets.
+ */
 export type PlaceReceiptOptions = {
   onStep?: (step: ReceiptPlacementStep) => void;
   slippageBps?: number;
   wallet?: PlaceReceiptWallet;
 };
 
+/**
+ * Where a market's receipts are placed: on the configured devchain
+ * PregradManager (with the parsed on-chain market id) or against the
+ * fixture-backed mock environment.
+ */
 export type TradingEnvironment =
   | { kind: "contract"; config: PopChartsContractConfig; marketId: bigint }
   | { kind: "mock" };
 
+/**
+ * Places a pre-graduation receipt for the quoted budget and side, routing to
+ * the market's trading environment: an approve-then-place transaction
+ * sequence on the devchain PregradManager, or a simulated mock placement.
+ * Resolves to the placed receipt, a priced intent that clears at graduation.
+ */
 export async function placePregradReceipt({
   market,
   options = {},
@@ -64,6 +89,11 @@ export async function placePregradReceipt({
   });
 }
 
+/**
+ * Decides whether a market trades against the configured devchain contracts
+ * or the mock environment. Contract trading requires a contract config and a
+ * market id whose chain matches it; anything else falls back to mock.
+ */
 export function resolveTradingEnvironment(market: Market): TradingEnvironment {
   const config = getPopChartsContractConfig();
   const parsedId = parseApiMarketAppId(market.id);
@@ -269,6 +299,11 @@ async function ensureCollateralReady({
   await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });
 }
 
+/**
+ * Mints test pUSD to the connected wallet on a local dev chain and waits for
+ * the transaction to confirm. Throws when the chain is not a local/mock
+ * environment or the wallet is on the wrong chain.
+ */
 export async function mintLocalCollateral({
   amountUsd,
   config,
@@ -305,6 +340,10 @@ function applySlippage(cost: bigint, slippageBps: number) {
   return (cost * BigInt(10_000 + slippageBps) + 9_999n) / 10_000n;
 }
 
+/**
+ * True when the collateral token supports open test minting, which only
+ * local and mock chain environments allow.
+ */
 export function canMintLocalCollateral(config: PopChartsContractConfig) {
   return config.chainEnv === "local" || config.chainEnv === "mock";
 }
