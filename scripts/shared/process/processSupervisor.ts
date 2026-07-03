@@ -23,6 +23,13 @@ export type ProcessSupervisor = {
     args: readonly string[],
     options?: { readonly env?: NodeJS.ProcessEnv },
   ) => SupervisedProcess;
+  /**
+   * Blocks until one of the given processes exits (then throws) or until a
+   * shutdown request terminates the script. Orchestrators call this after
+   * startup so an unexpected child death surfaces instead of leaving a
+   * half-dead stack running.
+   */
+  waitForever: (processes: readonly SupervisedProcess[]) => Promise<never>;
 };
 
 /**
@@ -85,6 +92,15 @@ export function createProcessSupervisor(options: {
     }
   }
 
+  async function waitForever(
+    processes: readonly SupervisedProcess[],
+  ): Promise<never> {
+    for (;;) {
+      assertRunning(processes);
+      await sleep(1_000);
+    }
+  }
+
   async function stop(processInfo: SupervisedProcess): Promise<void> {
     if (processInfo.code !== null) {
       return;
@@ -120,5 +136,5 @@ export function createProcessSupervisor(options: {
     process.exit(code);
   }
 
-  return { assertRunning, shutdown, start };
+  return { assertRunning, shutdown, start, waitForever };
 }
