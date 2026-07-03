@@ -1,24 +1,38 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 
-import { spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const protocolDir = resolve(repoRoot, "protocol");
-const serverDir = resolve(repoRoot, "server");
+import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import {
+  readPostgradDeployment,
+  type PostgradDeployment,
+} from "./shared/deployments/readPostgradDeployment.ts";
+import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
+import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
+import { isRpcReady } from "./shared/net/isRpcReady.ts";
+import { urlOk } from "./shared/net/urlOk.ts";
+import { collectCommand } from "./shared/process/collectCommand.ts";
+import {
+  createProcessSupervisor,
+  type SupervisedProcess,
+} from "./shared/process/processSupervisor.ts";
+import { protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
+import { waitFor } from "./shared/wait/waitFor.ts";
+
+/**
+ * End-to-end local smoke: deploys the protocol (pregrad, v4 venue stack,
+ * postgrad venue, demo complete-set market), starts Postgres/API/indexer,
+ * creates a market onchain, and asserts the public read API serves it.
+ *
+ * This script intentionally orchestrates the whole server/indexer path
+ * instead of mocking anything: Postgres, Hardhat, the API, the indexer, and
+ * one onchain market creation all run together so regressions show up at the
+ * boundary.
+ */
+
+const LOG_LABEL = "local-smoke";
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
-const POSTGRES_CONTAINER_NAME = "popcharts-postgres";
-
-// Pinned demo market symbol so the market manifest filename stays predictable
-// (protocol/deployments/local.market-pcsm.local.json) and matches the default
-// the protocol smoke/health scripts resolve.
-const DEMO_MARKET_SYMBOL = "PCSM";
-
-// This script intentionally orchestrates the whole server/indexer path instead
-// of mocking anything: Postgres, Hardhat, the API, the indexer, and one onchain
-// market creation all run together so regressions show up at the boundary.
 const keepRunning = args.includes("--keep-running");
 const helpRequested = args.includes("--help") || args.includes("-h");
 const databaseUrl =
@@ -38,22 +52,30 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 // deployed addresses after a successful run with --keep-running.
 const envFile = resolve(serverDir, ".env.local-chain");
 const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
-const venueManifestFile = resolve(
-  protocolDir,
-  "deployments",
-  "local.venue-stack.local.json",
-);
-const postgradManifestFile = resolve(
-  protocolDir,
-  "deployments",
-  "local.postgrad.local.json",
-);
-const marketManifestFile = resolve(
-  protocolDir,
-  "deployments",
-  `local.market-${DEMO_MARKET_SYMBOL.toLowerCase()}.local.json`,
-);
-const children = new Set();
+
+type PregradDeploy = {
+  collateralAddress: string;
+  deployBlock: string;
+  pregradManagerAddress: string;
+};
+
+type SmokeMarket = {
+  chainId: number;
+  marketId: string;
+  metadataHash: string;
+};
+
+type IndexedMarket = {
+  createdTransactionHash: string;
+  marketId: string;
+  metadata?: { metadataHash?: string };
+  metadataHash: string;
+};
+
+const supervisor = createProcessSupervisor({
+  cwd: repoRoot,
+  logLabel: LOG_LABEL,
+});
 
 if (helpRequested) {
   printUsage();
@@ -61,18 +83,20 @@ if (helpRequested) {
 }
 
 process.on("SIGINT", () => {
-  void shutdown(130);
+  void supervisor.shutdown(130);
 });
 process.on("SIGTERM", () => {
-  void shutdown(143);
+  void supervisor.shutdown(143);
 });
 
-main().catch(async (error) => {
-  console.error(`\n[local-smoke] ${error.message}`);
-  await shutdown(1);
+main().catch(async (error: unknown) => {
+  console.error(
+    `\n[${LOG_LABEL}] ${error instanceof Error ? error.message : error}`,
+  );
+  await supervisor.shutdown(1);
 });
 
-async function main() {
+async function main(): Promise<void> {
   console.log("=== Pop Charts local chain/server smoke ===\n");
   rejectUnknownArgs();
   ensureDependenciesInstalled();
@@ -81,22 +105,18 @@ async function main() {
   // it so this run proves the newly started indexer reached healthy state.
   rmSync(healthFile, { force: true });
 
-  // Postgres is the only long-lived dependency we leave running. Existing local
-  // containers may have been created by another worktree, so reuse the
-  // deterministic container name before asking Compose to create one.
-  await ensurePostgres();
+  await ensureLocalPostgres({ cwd: repoRoot, logLabel: LOG_LABEL });
 
   // db:push keeps the smoke useful while migrations are evolving. The schema's
   // additive defaults keep this non-interactive against existing local data.
   const serverEnv = buildServerEnv();
   await run("db", "bun", ["run", "--cwd", "server", "db:push"], {
-    cwd: repoRoot,
     env: serverEnv,
   });
 
   // Hardhat's local node is the chain source for both the deploy helper and the
   // server indexer. The explicit host/port make HTTP and WS URLs predictable.
-  const hardhatNode = start("hardhat", "pnpm", [
+  const hardhatNode = supervisor.start("hardhat", "pnpm", [
     "--dir",
     "protocol",
     "exec",
@@ -107,37 +127,32 @@ async function main() {
     "--port",
     rpcPort,
   ]);
-  await waitFor("Hardhat RPC", () => rpcReady(), {
+  await waitForWithProcesses("Hardhat RPC", () => isRpcReady(rpcHttpUrl), {
     processes: [hardhatNode],
     timeoutMs: 45_000,
   });
 
   // Deploy contracts before starting the server/indexer so the server can boot
   // with the actual manager address and deploy block in its environment.
-  const deployOutput = await run(
-    "deploy",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:deploy-pregrad"],
-    {
-      cwd: repoRoot,
-    },
-  );
-  const deploy = parseLabeledJson(
+  const deployOutput = await run("deploy", "pnpm", [
+    "--dir",
+    "protocol",
+    "run",
+    "local:deploy-pregrad",
+  ]);
+  const deploy = parseLabeledJson<PregradDeploy>(
     deployOutput.stdout,
     "LOCAL_CHAIN_SMOKE_DEPLOY",
   );
   // The postgrad venue rides the same fresh chain so the smoke proves the
   // whole system deploys end-to-end: v4 venue stack, postgrad contracts, and
   // one demo complete-set market that makes the venue immediately tradeable.
-  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"], {
-    cwd: repoRoot,
-  });
+  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"]);
   await run(
     "postgrad",
     "pnpm",
     ["--dir", "protocol", "run", "local:deploy-postgrad"],
     {
-      cwd: repoRoot,
       env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
     },
   );
@@ -146,7 +161,6 @@ async function main() {
     "pnpm",
     ["--dir", "protocol", "run", "local:create-complete-set-market"],
     {
-      cwd: repoRoot,
       env: {
         POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
         POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
@@ -156,7 +170,7 @@ async function main() {
 
   // The deploy scripts write manifests as their machine-readable output, so
   // read those instead of parsing human stdout for addresses.
-  const postgrad = readPostgradDeployment();
+  const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
 
   // The read-only health check walks market status, collateral escrow, pool
   // prices, bounds, and whitelisting against the manifest — a cheap
@@ -167,7 +181,6 @@ async function main() {
     "pnpm",
     ["--dir", "protocol", "run", "local:check-health"],
     {
-      cwd: repoRoot,
       env: { POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL },
     },
   );
@@ -181,10 +194,15 @@ async function main() {
 
   // The API is checked first because the final assertion goes through the
   // public read endpoint, not a direct database query.
-  const api = start("api", "bun", ["run", "--cwd", "server", "start:api"], {
-    env: configuredServerEnv,
-  });
-  await waitFor("API health", () => urlOk(`${apiBaseUrl}/health`), {
+  const api = supervisor.start(
+    "api",
+    "bun",
+    ["run", "--cwd", "server", "start:api"],
+    {
+      env: configuredServerEnv,
+    },
+  );
+  await waitForWithProcesses("API health", () => urlOk(`${apiBaseUrl}/health`), {
     processes: [api],
     timeoutMs: 30_000,
   });
@@ -192,7 +210,7 @@ async function main() {
   // The indexer writes a health marker once it has recovered any missed events
   // and subscribed to live MarketCreated logs. That is stronger than merely
   // checking that the process has started.
-  const indexer = start(
+  const indexer = supervisor.start(
     "indexer",
     "bun",
     ["run", "--cwd", "server", "start:indexer"],
@@ -200,10 +218,14 @@ async function main() {
       env: configuredServerEnv,
     },
   );
-  await waitFor("Indexer health marker", () => existsSync(healthFile), {
-    processes: [indexer],
-    timeoutMs: 45_000,
-  });
+  await waitForWithProcesses(
+    "Indexer health marker",
+    () => existsSync(healthFile),
+    {
+      processes: [indexer],
+      timeoutMs: 45_000,
+    },
+  );
 
   // Create the market after the indexer subscription is healthy. This ensures
   // the smoke exercises the real-time event path instead of only recovery.
@@ -212,11 +234,10 @@ async function main() {
     "pnpm",
     ["--dir", "protocol", "run", "local:create-market"],
     {
-      cwd: repoRoot,
       env: configuredServerEnv,
     },
   );
-  const market = parseLabeledJson(
+  const market = parseLabeledJson<SmokeMarket>(
     marketOutput.stdout,
     "LOCAL_CHAIN_SMOKE_MARKET",
   );
@@ -225,7 +246,7 @@ async function main() {
   // metadata hash proves the event was decoded, persisted, projected, and served
   // rather than only observing that some market exists. Requiring metadata proves
   // direct contract creation emitted enough information for indexer recovery.
-  const indexedMarket = await waitFor(
+  const indexedMarket = await waitForWithProcesses(
     `GET /markets includes market ${market.marketId}`,
     () => findIndexedMarket(market),
     {
@@ -257,10 +278,10 @@ async function main() {
     await new Promise(() => {});
   }
 
-  await shutdown(0);
+  await supervisor.shutdown(0);
 }
 
-function printUsage() {
+function printUsage(): void {
   console.log(`Usage: pnpm run local:smoke -- [--keep-running]
 
 Deploy local protocol contracts (pregrad, v4 venue stack, postgrad venue, and
@@ -273,22 +294,20 @@ Options:
   -h, --help      Show this help.`);
 }
 
-function rejectUnknownArgs() {
+function rejectUnknownArgs(): void {
   // Keep this script deliberately small: one mode and one lifecycle flag. More
   // flags tend to hide setup drift that the smoke is supposed to catch.
   const unknownArgs = args.filter((arg) => arg !== "--keep-running");
 
   if (unknownArgs.length > 0) {
-    throw new Error(
-      `Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`,
-    );
+    throw new Error(`Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`);
   }
 }
 
-function ensureDependenciesInstalled() {
+function ensureDependenciesInstalled(): void {
   // Fail before Docker or ports are touched. Missing dependencies produce noisy
   // secondary failures once several child processes are running.
-  const missing = [];
+  const missing: string[] = [];
 
   if (!existsSync(resolve(protocolDir, "node_modules"))) {
     missing.push("protocol/node_modules");
@@ -309,58 +328,9 @@ function ensureDependenciesInstalled() {
   );
 }
 
-async function ensurePostgres() {
-  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME)) {
-    console.log(
-      `[local-smoke] using existing Docker container ${POSTGRES_CONTAINER_NAME}`,
-    );
-    await run("postgres", "docker", ["start", POSTGRES_CONTAINER_NAME], {
-      cwd: repoRoot,
-    });
-    await waitFor("Postgres readiness", () =>
-      commandSucceeds("docker", [
-        "exec",
-        POSTGRES_CONTAINER_NAME,
-        "pg_isready",
-        "-U",
-        "postgres",
-        "-d",
-        "popcharts",
-      ]),
-    );
-    return;
-  }
-
-  await run("postgres", "docker", ["compose", "up", "-d", "postgres"], {
-    cwd: repoRoot,
-  });
-  await waitFor("Postgres readiness", () =>
-    commandSucceeds("docker", [
-      "compose",
-      "exec",
-      "-T",
-      "postgres",
-      "pg_isready",
-      "-U",
-      "postgres",
-      "-d",
-      "popcharts",
-    ]),
-  );
-}
-
-async function dockerContainerExists(name) {
-  const result = await collect("docker", ["container", "inspect", name], {
-    cwd: repoRoot,
-    env: process.env,
-    print: false,
-    rejectOnFailure: false,
-  });
-
-  return result.code === 0;
-}
-
-function buildServerEnv(overrides = {}) {
+function buildServerEnv(
+  overrides: Partial<PregradDeploy> = {},
+): NodeJS.ProcessEnv {
   // Before deployment, address values are blank so db:push can run with the
   // same DATABASE_URL. After deployment, overrides fill in the chain addresses
   // used by both the API and indexer.
@@ -379,11 +349,15 @@ function buildServerEnv(overrides = {}) {
   };
 }
 
-function writeLocalEnv(env, deploy, postgrad) {
+function writeLocalEnv(
+  env: NodeJS.ProcessEnv,
+  deploy: PregradDeploy,
+  postgrad: PostgradDeployment,
+): void {
   // The generated file is not sourced by this script; it is a convenience for a
   // developer who wants to inspect or manually restart the same local setup.
   const lines = [
-    "# Generated by scripts/local-chain-smoke.mjs.",
+    "# Generated by scripts/local-chain-smoke.ts.",
     "# Safe to delete; ignored by git.",
     `DATABASE_URL=${env.DATABASE_URL}`,
     `PORT=${env.PORT}`,
@@ -405,7 +379,7 @@ function writeLocalEnv(env, deploy, postgrad) {
 
 // The server does not consume these keys yet; they document the local postgrad
 // venue deployment for the upcoming server/app integration.
-function postgradEnvLines(postgrad) {
+function postgradEnvLines(postgrad: PostgradDeployment): string[] {
   return [
     `POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
     `STATE_VIEW_ADDRESS=${postgrad.stateView}`,
@@ -438,199 +412,54 @@ function postgradEnvLines(postgrad) {
   ];
 }
 
-// The deploy manifests are the reliable machine-readable record of what was
-// deployed, so read them instead of scraping addresses from Hardhat stdout.
-function readPostgradDeployment() {
-  const venue = readJsonFile(venueManifestFile).contracts;
-  const postgradContracts = readJsonFile(postgradManifestFile).contracts;
-  const market = readJsonFile(marketManifestFile);
+async function run(
+  name: string,
+  command: string,
+  args: readonly string[],
+  options: { readonly env?: NodeJS.ProcessEnv } = {},
+): Promise<{ stdout: string }> {
+  // Short-lived commands are collected so their labeled JSON can be parsed
+  // after the command exits.
+  console.log(`\n[${LOG_LABEL}] ${name}: ${command} ${args.join(" ")}`);
 
-  return {
-    boundedHook: postgradContracts.boundedHook.address,
-    marketAddress: market.market.address,
-    marketSymbol: market.market.symbol,
-    noPoolId: market.pools.no.poolId,
-    noTokenAddress: market.market.noToken,
-    orderManager: postgradContracts.orderManager.address,
-    poolManager: venue.poolManager.address,
-    poolTickBounds: postgradContracts.poolTickBounds.address,
-    postgradAdapter: postgradContracts.postgradAdapter.address,
-    quoter: venue.quoter.address,
-    stateView: venue.stateView.address,
-    swapRouter: venue.swapRouter.address,
-    yesPoolId: market.pools.yes.poolId,
-    yesTokenAddress: market.market.yesToken,
-  };
-}
-
-function readJsonFile(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
-}
-
-function start(name, command, args, options = {}) {
-  // Long-running child processes are tracked so any failure or Ctrl-C tears down
-  // Hardhat/API/indexer in reverse start order.
-  console.log(`\n[local-smoke] starting ${name}: ${command} ${args.join(" ")}`);
-  const child = spawn(command, args, {
+  return await collectCommand(command, args, {
     cwd: repoRoot,
+    echoPrefix: name,
     env: { ...process.env, ...options.env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const processInfo = { child, code: null, name };
-
-  children.add(processInfo);
-  pipeWithPrefix(name, child.stdout);
-  pipeWithPrefix(name, child.stderr);
-  child.on("exit", (code) => {
-    processInfo.code = code;
-    children.delete(processInfo);
-  });
-
-  return processInfo;
-}
-
-async function run(name, command, args, options = {}) {
-  // Short-lived commands are collected so their labeled JSON can be parsed after
-  // the command exits.
-  console.log(`\n[local-smoke] ${name}: ${command} ${args.join(" ")}`);
-
-  return await collect(command, args, {
-    cwd: options.cwd ?? repoRoot,
-    env: { ...process.env, ...options.env },
-    name,
-    print: true,
     rejectOnFailure: true,
   });
 }
 
-async function commandSucceeds(command, args) {
-  // Readiness checks should keep polling quietly until they pass or time out.
-  const result = await collect(command, args, {
-    cwd: repoRoot,
-    env: process.env,
-    print: false,
-    rejectOnFailure: false,
+async function waitForWithProcesses<T>(
+  label: string,
+  predicate: () => Promise<T | null | undefined | false> | T,
+  options: {
+    readonly processes: readonly SupervisedProcess[];
+    readonly timeoutMs?: number;
+  },
+): Promise<T> {
+  // If a supervised child exits while we are waiting for a downstream
+  // condition, surface that as the primary failure instead of timing out
+  // with stale context.
+  return waitFor(label, predicate, {
+    ensure: () => supervisor.assertRunning(options.processes),
+    logLabel: LOG_LABEL,
+    timeoutMs: options.timeoutMs,
   });
-
-  return result.code === 0;
 }
 
-async function collect(command, args, options) {
-  // Capture stdout/stderr for parsing and error messages while still streaming
-  // prefixed output when humans are watching the smoke run.
-  const child = spawn(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let stdout = "";
-  let stderr = "";
-
-  child.stdout.on("data", (chunk) => {
-    const text = chunk.toString();
-    stdout += text;
-    if (options.print) {
-      writePrefixed(options.name, text);
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    const text = chunk.toString();
-    stderr += text;
-    if (options.print) {
-      writePrefixed(options.name, text);
-    }
-  });
-
-  const code = await new Promise((resolveCode, reject) => {
-    child.on("error", reject);
-    child.on("exit", (exitCode) => resolveCode(exitCode ?? 0));
-  });
-
-  if (options.rejectOnFailure && code !== 0) {
-    throw new Error(
-      `${options.name} failed with exit code ${code}.\n${stderr || stdout}`,
-    );
-  }
-
-  return { code, stderr, stdout };
-}
-
-async function waitFor(label, predicate, options = {}) {
-  // Most of the smoke is eventually consistent: containers start, ports bind,
-  // subscriptions attach, and the indexer writes after receiving a log.
-  const timeoutMs = options.timeoutMs ?? 30_000;
-  const startedAt = Date.now();
-  let lastError;
-
-  while (Date.now() - startedAt < timeoutMs) {
-    assertProcessesRunning(options.processes ?? []);
-
-    try {
-      const value = await predicate();
-
-      if (value) {
-        console.log(`[local-smoke] ${label} ready`);
-        return value;
-      }
-    } catch (error) {
-      lastError = error;
-    }
-
-    await sleep(500);
-  }
-
-  const suffix = lastError ? ` Last error: ${lastError.message}` : "";
-  throw new Error(
-    `${label} did not become ready within ${timeoutMs}ms.${suffix}`,
-  );
-}
-
-function assertProcessesRunning(processes) {
-  // If a supervised child exits while we are waiting for a downstream condition,
-  // surface that as the primary failure instead of timing out with stale context.
-  for (const processInfo of processes) {
-    if (processInfo.code !== null) {
-      throw new Error(
-        `${processInfo.name} exited before the smoke flow completed (code ${processInfo.code}).`,
-      );
-    }
-  }
-}
-
-async function rpcReady() {
-  // A raw JSON-RPC call is enough to prove Hardhat is listening without requiring
-  // any protocol artifacts yet.
-  const response = await fetch(rpcHttpUrl, {
-    body: JSON.stringify({
-      id: 1,
-      jsonrpc: "2.0",
-      method: "eth_chainId",
-      params: [],
-    }),
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
-
-  return response.ok;
-}
-
-async function urlOk(url) {
-  const response = await fetch(url);
-  return response.ok;
-}
-
-async function findIndexedMarket(market) {
+async function findIndexedMarket(
+  market: SmokeMarket,
+): Promise<IndexedMarket | undefined> {
   const response = await fetch(
     `${apiBaseUrl}/markets?chainId=${market.chainId}`,
   );
 
   if (!response.ok) {
-    return null;
+    return undefined;
   }
 
-  const markets = await response.json();
+  const markets = (await response.json()) as IndexedMarket[];
 
   // The market ID alone is deterministic on each fresh Hardhat run. The metadata
   // hash ties the API row to the market created by this particular smoke attempt.
@@ -641,72 +470,4 @@ async function findIndexedMarket(market) {
       row.metadata?.metadataHash?.toLowerCase() ===
         market.metadataHash.toLowerCase(),
   );
-}
-
-function parseLabeledJson(stdout, label) {
-  // Helper scripts emit one stable LABEL={json} line so this orchestrator can
-  // ignore package-manager banners and Hardhat logs around it.
-  const prefix = `${label}=`;
-  const line = stdout
-    .split(/\r?\n/)
-    .find((candidate) => candidate.startsWith(prefix));
-
-  if (!line) {
-    throw new Error(`Could not find ${label} in command output.`);
-  }
-
-  return JSON.parse(line.slice(prefix.length));
-}
-
-function pipeWithPrefix(name, stream) {
-  // Prefixing keeps interleaved output from Hardhat, API, and indexer readable
-  // when all three are running at once.
-  stream.on("data", (chunk) => {
-    writePrefixed(name, chunk.toString());
-  });
-}
-
-function writePrefixed(name, text) {
-  for (const line of text.split(/\r?\n/)) {
-    if (line.length > 0) {
-      console.log(`[${name}] ${line}`);
-    }
-  }
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms);
-  });
-}
-
-async function shutdown(code) {
-  // Reverse shutdown avoids cutting the chain out from under the indexer before
-  // it has a chance to unsubscribe and exit cleanly.
-  for (const processInfo of [...children].reverse()) {
-    await stop(processInfo);
-  }
-
-  process.exit(code);
-}
-
-async function stop(processInfo) {
-  if (processInfo.code !== null) {
-    return;
-  }
-
-  processInfo.child.kill("SIGTERM");
-
-  // Some watchers ignore SIGTERM while they are inside a dependency. Give them a
-  // short grace period, then force-kill so the terminal is not left wedged.
-  await Promise.race([
-    new Promise((resolveStop) => {
-      processInfo.child.once("exit", resolveStop);
-    }),
-    sleep(3_000).then(() => {
-      if (processInfo.code === null) {
-        processInfo.child.kill("SIGKILL");
-      }
-    }),
-  ]);
 }
