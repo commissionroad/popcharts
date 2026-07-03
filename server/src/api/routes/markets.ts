@@ -1,21 +1,34 @@
 import { Elysia, t } from "elysia";
 
 import {
+  AiReviewEvidenceSchema,
+  AiReviewJobStatusSchema,
+  AiReviewJobTriggerSchema,
+  AiReviewProviderSchema,
+  AiReviewScoresSchema,
+  AiReviewSourceCheckSchema,
+  AiReviewSourceTierSchema,
+  AiReviewVerdictSchema,
   DevMarketCloseIneligibleSchema,
   DevMarketCloseResponseSchema,
   GraduationIneligibleSchema,
   GraduationResponseSchema,
-  MarketAiReviewSchema,
+  GraduationSummarySchema,
   ManualAiReviewAlreadyReviewedSchema,
+  ManualAiReviewConflictSchema,
   ManualAiReviewEnqueuedSchema,
   ManualAiReviewExistingJobSchema,
   ManualAiReviewIneligibleSchema,
   ManualAiReviewRequestSchema,
   MarketAiReviewJobSchema,
+  MarketAiReviewSchema,
+  MarketCreatedEventListSchema,
+  MarketCreatedEventSchema,
+  MarketListSchema,
   MarketMetadataSchema,
   MarketMetadataWriteSchema,
-  MarketCreatedEventSchema,
   MarketSchema,
+  MarketStatusSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
@@ -27,23 +40,44 @@ import {
   upsertMarketMetadata,
 } from "src/api/services/markets";
 
+/**
+ * Market, graduation, and AI-review routes.
+ *
+ * Every response schema is a model registered below and referenced by name,
+ * so the OpenAPI spec exposes named `components.schemas` entries and the
+ * generated client gets stable, human-named models (see
+ * `src/api/models/markets.ts` and `scripts/generate-openapi.ts`).
+ */
 export const marketRoutes = new Elysia({ prefix: "" })
   .model({
+    AiReviewEvidence: AiReviewEvidenceSchema,
+    AiReviewJobStatus: AiReviewJobStatusSchema,
+    AiReviewJobTrigger: AiReviewJobTriggerSchema,
+    AiReviewProvider: AiReviewProviderSchema,
+    AiReviewScores: AiReviewScoresSchema,
+    AiReviewSourceCheck: AiReviewSourceCheckSchema,
+    AiReviewSourceTier: AiReviewSourceTierSchema,
+    AiReviewVerdict: AiReviewVerdictSchema,
     DevMarketCloseIneligible: DevMarketCloseIneligibleSchema,
     DevMarketCloseResponse: DevMarketCloseResponseSchema,
     GraduationIneligible: GraduationIneligibleSchema,
     GraduationResponse: GraduationResponseSchema,
-    Market: MarketSchema,
-    MarketAiReview: MarketAiReviewSchema,
-    MarketAiReviewJob: MarketAiReviewJobSchema,
+    GraduationSummary: GraduationSummarySchema,
     ManualAiReviewAlreadyReviewed: ManualAiReviewAlreadyReviewedSchema,
+    ManualAiReviewConflict: ManualAiReviewConflictSchema,
     ManualAiReviewEnqueued: ManualAiReviewEnqueuedSchema,
     ManualAiReviewExistingJob: ManualAiReviewExistingJobSchema,
     ManualAiReviewIneligible: ManualAiReviewIneligibleSchema,
     ManualAiReviewRequest: ManualAiReviewRequestSchema,
+    Market: MarketSchema,
+    MarketAiReview: MarketAiReviewSchema,
+    MarketAiReviewJob: MarketAiReviewJobSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
+    MarketCreatedEventList: MarketCreatedEventListSchema,
+    MarketList: MarketListSchema,
     MarketMetadata: MarketMetadataSchema,
     MarketMetadataWrite: MarketMetadataWriteSchema,
+    MarketStatus: MarketStatusSchema,
   })
   .get(
     "/markets",
@@ -66,10 +100,11 @@ export const marketRoutes = new Elysia({ prefix: "" })
         since: t.Optional(t.String()),
       }),
       response: {
-        200: t.Array(MarketSchema),
+        200: "MarketList",
         400: t.String(),
       },
       detail: {
+        operationId: "listMarkets",
         summary: "List indexed markets",
         description:
           "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
@@ -93,15 +128,16 @@ export const marketRoutes = new Elysia({ prefix: "" })
       return metadata;
     },
     {
-      body: MarketMetadataWriteSchema,
+      body: "MarketMetadataWrite",
       params: t.Object({
         chainId: t.String(),
       }),
       response: {
-        200: MarketMetadataSchema,
+        200: "MarketMetadata",
         400: t.String(),
       },
       detail: {
+        operationId: "saveMarketMetadata",
         summary: "Save off-chain market metadata",
         description:
           "Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.",
@@ -170,16 +206,14 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        200: ManualAiReviewExistingJobSchema,
-        201: ManualAiReviewEnqueuedSchema,
+        200: "ManualAiReviewExistingJob",
+        201: "ManualAiReviewEnqueued",
         400: t.String(),
         404: t.String(),
-        409: t.Union([
-          ManualAiReviewAlreadyReviewedSchema,
-          ManualAiReviewIneligibleSchema,
-        ]),
+        409: "ManualAiReviewConflict",
       },
       detail: {
+        operationId: "requestManualAiReview",
         summary: "Admin-only enqueue market AI review",
         description:
           "Disabled unless POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
@@ -230,12 +264,13 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        200: DevMarketCloseResponseSchema,
+        200: "DevMarketCloseResponse",
         400: t.String(),
         404: t.String(),
-        409: DevMarketCloseIneligibleSchema,
+        409: "DevMarketCloseIneligible",
       },
       detail: {
+        operationId: "closeDevMarket",
         summary: "Dev-only close pre-grad market for refunds",
         description:
           "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
@@ -264,10 +299,11 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        200: MarketSchema,
+        200: "Market",
         404: t.String(),
       },
       detail: {
+        operationId: "getMarket",
         summary: "Get an indexed market",
         tags: ["Markets"],
       },
@@ -286,9 +322,10 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        200: t.Array(MarketCreatedEventSchema),
+        200: "MarketCreatedEventList",
       },
       detail: {
+        operationId: "listMarketEvents",
         summary: "Get market chain events",
         tags: ["Markets"],
       },
@@ -330,12 +367,13 @@ export const marketRoutes = new Elysia({ prefix: "" })
         marketId: t.String(),
       }),
       response: {
-        200: GraduationResponseSchema,
+        200: "GraduationResponse",
         400: t.String(),
         404: t.String(),
-        409: GraduationIneligibleSchema,
+        409: "GraduationIneligible",
       },
       detail: {
+        operationId: "graduateMarket",
         summary: "Request market graduation",
         description:
           "Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.",
