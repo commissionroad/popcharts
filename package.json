@@ -2,6 +2,7 @@
   "name": "popcharts",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.10"
@@ -17,7 +18,7 @@
     "app:e2e:smoke": "pnpm --dir app test:e2e:smoke",
     "app:e2e:chain": "pnpm --dir app test:e2e:chain",
     "devchain:deploy": "pnpm --dir protocol devchain:deploy",
-    "devchain:e2e": "node scripts/run-local-chain-e2e.mjs",
+    "devchain:e2e": "node --experimental-strip-types scripts/run-local-chain-e2e.ts",
     "protocol:build": "pnpm --dir protocol build",
     "protocol:check": "pnpm --dir protocol format:check && pnpm --dir protocol lint:sol && pnpm --dir protocol typecheck && pnpm --dir protocol test",
     "protocol:test": "pnpm --dir protocol test",
@@ -32,16 +33,21 @@
     "local:dev:ai-review": "node scripts/local-dev.mjs",
     "local:ai-review": "node scripts/local-dev.mjs --ai-review-only",
     "local:create-market": "node scripts/local-create-market.mjs",
-    "local:reset": "node scripts/local-reset.mjs",
-    "local:smoke": "node scripts/local-chain-smoke.mjs",
+    "local:reset": "node --experimental-strip-types scripts/local-reset.ts",
+    "local:smoke": "node --experimental-strip-types scripts/local-chain-smoke.ts",
     "local:deploy-venue": "pnpm --dir protocol run local:deploy-venue",
     "local:deploy-postgrad": "pnpm --dir protocol run local:deploy-postgrad",
     "local:create-complete-set-market": "pnpm --dir protocol run local:create-complete-set-market",
     "local:market-health": "pnpm --dir protocol run local:check-health",
     "local:market-smoke": "pnpm --dir protocol run local:smoke-market",
+    "scripts:check": "tsc -p scripts",
     "test": "pnpm run app:test && pnpm run protocol:test && cd server && bun test",
-    "check": "pnpm run app:check && pnpm run protocol:check && pnpm run server:check",
+    "check": "pnpm run app:check && pnpm run protocol:check && pnpm run server:check && pnpm run scripts:check",
     "format": "pnpm --dir app format && pnpm --dir protocol format",
     "format:check": "pnpm --dir app format:check && pnpm --dir protocol format:check"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^6.0.3"
   }
 }

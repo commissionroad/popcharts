@@ -1,16 +1,33 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 
-import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
+
+import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import { readJsonFile } from "./shared/json/readJsonFile.ts";
+import { isRpcReady } from "./shared/net/isRpcReady.ts";
+import { runInheritedCommand } from "./shared/process/runInheritedCommand.ts";
+import { protocolDir } from "./shared/paths.ts";
+import { waitFor } from "./shared/wait/waitFor.ts";
+
+/**
+ * Runs the chain-backed Playwright e2e suite against a full local deployment:
+ * devchain contracts, v4 venue stack, postgrad venue, and one demo
+ * complete-set market — proving whole-system deployability, not just the UI.
+ * Reuses an already-running devchain when one answers on the RPC port.
+ */
 
 const RPC_URL = process.env.POPCHARTS_RPC_URL ?? "http://127.0.0.1:8545";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-// Pinned demo market symbol so the market manifest filename stays predictable
-// (protocol/deployments/local.market-pcsm.local.json).
-const DEMO_MARKET_SYMBOL = "PCSM";
 
-let hardhatNode = null;
+type DevchainManifest = {
+  contracts: {
+    collateral: { address: string };
+    pregradManager: { address: string };
+  };
+};
+
+let hardhatNode: ChildProcess | null = null;
 let stoppingHardhatNode = false;
 
 process.on("SIGINT", () => {
@@ -30,10 +47,10 @@ try {
   } else {
     console.log(`Starting local Hardhat node at ${RPC_URL}`);
     hardhatNode = spawn(
-      resolve("protocol", "node_modules", ".bin", "hardhat"),
+      resolve(protocolDir, "node_modules", ".bin", "hardhat"),
       ["node"],
       {
-        cwd: "protocol",
+        cwd: protocolDir,
         env: process.env,
         stdio: "inherit",
       },
@@ -47,7 +64,9 @@ try {
         );
       }
     });
-    await waitForRpc(RPC_URL, 30_000);
+    await waitFor("JSON-RPC", () => isRpcReady(RPC_URL), {
+      timeoutMs: 30_000,
+    });
   }
 
   await run("pnpm", ["--dir", "protocol", "devchain:deploy"], {
@@ -57,11 +76,8 @@ try {
   // Deploy the postgrad venue on top of the devchain contracts so the e2e
   // chain path also proves whole-system deployability: v4 venue stack,
   // postgrad contracts, and one demo complete-set market.
-  const devchain = JSON.parse(
-    readFileSync(
-      resolve("protocol", "deployments", "devchain.local.json"),
-      "utf8",
-    ),
+  const devchain = readJsonFile<DevchainManifest>(
+    resolve(protocolDir, "deployments", "devchain.local.json"),
   );
   await run("pnpm", ["--dir", "protocol", "local:deploy-venue"], {
     POPCHARTS_RPC_URL: RPC_URL,
@@ -85,71 +101,20 @@ try {
   await stopHardhatNode();
 }
 
-async function run(command, args, extraEnv = {}) {
-  await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env: {
-        ...process.env,
-        ...extraEnv,
-      },
-      stdio: "inherit",
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-
-      reject(
-        new Error(
-          `${command} ${args.join(" ")} failed with ${
-            signal ? `signal ${signal}` : `exit code ${code}`
-          }`,
-        ),
-      );
-    });
+async function run(
+  command: string,
+  args: readonly string[],
+  extraEnv: NodeJS.ProcessEnv = {},
+): Promise<void> {
+  await runInheritedCommand(command, args, {
+    env: {
+      ...process.env,
+      ...extraEnv,
+    },
   });
 }
 
-async function waitForRpc(rpcUrl, timeoutMs) {
-  const started = Date.now();
-
-  while (Date.now() - started < timeoutMs) {
-    if (await isRpcReady(rpcUrl)) {
-      return;
-    }
-
-    await delay(500);
-  }
-
-  throw new Error(`Timed out waiting for JSON-RPC at ${rpcUrl}`);
-}
-
-async function isRpcReady(rpcUrl) {
-  try {
-    const response = await fetch(rpcUrl, {
-      body: JSON.stringify({
-        id: 1,
-        jsonrpc: "2.0",
-        method: "eth_chainId",
-        params: [],
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
-    });
-    const result = await response.json();
-
-    return Boolean(result.result);
-  } catch {
-    return false;
-  }
-}
-
-async function stopHardhatNode() {
+async function stopHardhatNode(): Promise<void> {
   if (!hardhatNode || hardhatNode.killed) {
     return;
   }
@@ -159,16 +124,12 @@ async function stopHardhatNode() {
   hardhatNode.kill("SIGTERM");
   hardhatNode = null;
 
-  await new Promise((resolve) => {
-    const timeout = setTimeout(resolve, 3_000);
+  await new Promise<void>((resolveStop) => {
+    const timeout = setTimeout(resolveStop, 3_000);
 
     child.once("exit", () => {
       clearTimeout(timeout);
-      resolve();
+      resolveStop();
     });
   });
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
