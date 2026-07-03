@@ -17,6 +17,10 @@ import { aiReviewProvider, marketAiReviews } from "./market-ai-reviews";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
+/**
+ * Queue lifecycle of a review job. queued/running/retryable_failed are the
+ * "active" states that block a duplicate job for the same market metadata.
+ */
 export const aiReviewJobStatus = pgEnum("ai_review_job_status", [
   "queued",
   "running",
@@ -26,6 +30,7 @@ export const aiReviewJobStatus = pgEnum("ai_review_job_status", [
   "cancelled",
 ]);
 
+/** Who queued the job: the runner's automatic sweep, an admin, or a retry. */
 export const aiReviewJobTrigger = pgEnum("ai_review_job_trigger", [
   "automatic",
   "manual",

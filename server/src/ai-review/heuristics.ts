@@ -59,6 +59,12 @@ const PRIVATE_KNOWLEDGE_RULES: PatternRule[] = [
   },
 ];
 
+/**
+ * Deterministic, offline first pass of the review policy. Any harm,
+ * prompt-injection, or private-knowledge pattern match is a hard flag and an
+ * immediate reject that no model can overturn; soft issues (e.g. a non-binary
+ * question) downgrade to manual_review instead. Pattern-free markets approve.
+ */
 export function runHeuristicPolicy(
   metadata: MarketReviewMetadata,
 ): PolicyFinding {
@@ -112,6 +118,10 @@ export function runHeuristicPolicy(
   };
 }
 
+/**
+ * Flattens every user-controlled metadata field into one newline-joined string
+ * so the heuristic patterns scan the full submission, not just the question.
+ */
 export function marketText(metadata: MarketReviewMetadata) {
   return [
     metadata.question,

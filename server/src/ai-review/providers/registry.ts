@@ -9,6 +9,10 @@ import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";
 import type { ReviewProvider } from "./types";
 
+/**
+ * A provider's health as reported by the service's status endpoint:
+ * capabilities, the model it would use, and whether its config validates.
+ */
 export type ReviewProviderRuntimeStatus = {
   capabilities: ReviewProviderCapabilities;
   configured: boolean;
@@ -17,16 +21,25 @@ export type ReviewProviderRuntimeStatus = {
   validation: ConfigValidationResult;
 };
 
+/**
+ * The single registry of review backends. The satisfies clause makes adding a
+ * ReviewProviderName without a matching implementation a compile error.
+ */
 export const reviewProviders = {
   anthropic: anthropicProvider,
   heuristic: heuristicProvider,
   ollama: ollamaProvider,
 } satisfies Record<ReviewProviderName, ReviewProvider>;
 
+/** Looks up a provider by name; total over ReviewProviderName, never throws. */
 export function getReviewProvider(name: ReviewProviderName): ReviewProvider {
   return reviewProviders[name];
 }
 
+/**
+ * Snapshots one provider's runtime status (defaulting to the configured
+ * provider), where "configured" means its validation produced no errors.
+ */
 export function getReviewProviderStatus({
   config,
   providerName = config.provider,
@@ -46,6 +59,7 @@ export function getReviewProviderStatus({
   };
 }
 
+/** Status of every registered provider, for the service's status endpoint. */
 export function getAllReviewProviderStatuses(config: AiReviewConfig) {
   return Object.keys(reviewProviders).map((name) =>
     getReviewProviderStatus({
@@ -55,6 +69,10 @@ export function getAllReviewProviderStatuses(config: AiReviewConfig) {
   );
 }
 
+/**
+ * The default model a provider would run with under the current config;
+ * undefined for the heuristic provider, which has no model.
+ */
 export function modelForProvider(
   config: AiReviewConfig,
   providerName: ReviewProviderName,

@@ -9,14 +9,22 @@ import {
 } from "./arc-testnet";
 import { getDatabaseConnectionString } from "./database";
 
+/** Sentinel for "no address configured"; config validation rejects it. */
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+/** The networks the server knows how to run against. */
 export type NetworkId = "local" | "arcTestnet";
 
+/** Protocol contract addresses the server needs on the selected network. */
 export type ContractAddresses = {
   pregradManager: `0x${string}`;
 };
 
+/**
+ * Everything network-specific the API and indexer need: chain identity, RPC
+ * endpoints, contract addresses, the deploy block that bounds event recovery
+ * scans, and the database URL.
+ */
 export type NetworkConfig = {
   chainId: number;
   chain: Chain;
@@ -28,11 +36,17 @@ export type NetworkConfig = {
   rpcWssUrl: string;
 };
 
+/** Maps chain ids to network ids so CHAIN_ID alone can select a network. */
 export const chainIdToNetwork: Record<number, NetworkId> = {
   31337: "local",
   [ARC_TESTNET_CHAIN_ID]: "arcTestnet",
 };
 
+/**
+ * Selects the active network: NETWORK wins, then a recognized CHAIN_ID, and
+ * anything else falls back to arcTestnet so an unset environment targets the
+ * shared testnet rather than a local chain.
+ */
 export function getNetworkId(): NetworkId {
   const networkEnv = process.env.NETWORK;
   if (networkEnv && isNetworkId(networkEnv)) {
@@ -51,6 +65,10 @@ export function getNetworkId(): NetworkId {
   return "arcTestnet";
 }
 
+/**
+ * Builds the full NetworkConfig for a network id, reading network-prefixed
+ * env vars (e.g. LOCAL_*, ARC_TESTNET_*) before their generic fallbacks.
+ */
 export function getNetworkConfig(networkId = getNetworkId()): NetworkConfig {
   switch (networkId) {
     case "arcTestnet":

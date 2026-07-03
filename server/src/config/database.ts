@@ -2,6 +2,12 @@ const DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5433/popc
 
 type DatabaseEnv = Record<string, string | undefined>;
 
+/**
+ * Resolves the Postgres connection string with a strict precedence:
+ * DATABASE_URL verbatim, then a URL assembled from DATABASE_HOST/PORT/NAME/
+ * USER/PASSWORD (password required, sslmode appended when SSL applies), then
+ * the local docker-compose default on port 5433.
+ */
 export function getDatabaseConnectionString(env: DatabaseEnv = process.env) {
   if (env.DATABASE_URL) {
     return env.DATABASE_URL;
@@ -33,6 +39,11 @@ export function getDatabaseConnectionString(env: DatabaseEnv = process.env) {
   return url.toString();
 }
 
+/**
+ * Whether connections must use SSL: forced by DATABASE_SSL=true, and inferred
+ * for RDS hosts and URLs already carrying sslmode=require, so managed
+ * databases are never dialed in plaintext by default.
+ */
 export function requiresDatabaseSsl(
   connectionString: string,
   env: DatabaseEnv = process.env,

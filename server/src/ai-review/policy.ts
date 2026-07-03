@@ -1,3 +1,9 @@
+/**
+ * The human-readable review policy embedded verbatim into every provider's
+ * system prompt. This is the single source of truth for what gets rejected,
+ * approved, or routed to manual_review; the heuristic rules in heuristics.ts
+ * are a deterministic subset of it.
+ */
 export const MARKET_REVIEW_POLICY = [
   "Reject death markets and markets that reward or speculate on murder, suicide, assassination, severe injury, kidnapping, terrorism, bombings, arson, swatting, or other violent harm.",
   "Reject markets whose resolution depends on someone committing, hiding, or successfully completing an illegal act.",
@@ -8,6 +14,11 @@ export const MARKET_REVIEW_POLICY = [
   "Use manual_review when the market is legal but sensitive, ambiguous, weakly sourced, or likely to create disputes.",
 ].join("\n");
 
+/**
+ * JSON shape the model must return, embedded in the system prompt as a
+ * template. Mirrors the PolicyFinding/SourceCheck types in types.ts — keep the
+ * two in sync when either changes.
+ */
 export const MARKET_REVIEW_OUTPUT_CONTRACT = {
   hardFlags: ["string"],
   reasons: ["string"],

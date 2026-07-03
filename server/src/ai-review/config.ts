@@ -1,7 +1,17 @@
 import type { InternetAccessMode, ReviewProviderName } from "./types";
 
+/**
+ * Version tag persisted with every review so stored verdicts can be traced to
+ * the prompt/policy revision that produced them. Bump when the policy or
+ * output contract changes meaning.
+ */
 export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v1";
 
+/**
+ * Full runtime configuration of the AI Review service: provider selection,
+ * per-provider endpoints and models, internet-access mode, and the fetch/token
+ * budgets that bound what untrusted market text can make the service do.
+ */
 export type AiReviewConfig = {
   anthropicApiKey?: string;
   anthropicBaseUrl: string;
@@ -22,6 +32,11 @@ export type AiReviewConfig = {
   userAgent: string;
 };
 
+/**
+ * Config read once from the environment at startup. Invalid numeric or enum
+ * values fall back to defaults rather than crashing; the defaults suit local
+ * development (Ollama on 127.0.0.1, service port 3002, web search enabled).
+ */
 export const aiReviewConfig: AiReviewConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   anthropicBaseUrl:

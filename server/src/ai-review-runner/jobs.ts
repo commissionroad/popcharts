@@ -19,18 +19,31 @@ import type { AiReviewRunnerConfig } from "./config";
 const MAX_RETRY_DELAY_MS = 30 * 60 * 1000;
 const MAX_ERROR_LENGTH = 800;
 
+/** Drizzle select shape of a market_ai_review_jobs queue row. */
 export type MarketAiReviewJobRow =
   typeof schema.marketAiReviewJobs.$inferSelect;
+/** Drizzle select shape of a market_ai_reviews audit row. */
 export type MarketAiReviewRow = typeof schema.marketAiReviews.$inferSelect;
+/** Drizzle select shape of a markets row. */
 export type MarketRow = typeof schema.markets.$inferSelect;
+/** Drizzle select shape of a market_metadata row. */
 export type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
 
+/**
+ * A leased job joined with the market and metadata rows it will review —
+ * everything processReviewJob needs without further queries.
+ */
 export type ClaimedReviewJob = {
   job: MarketAiReviewJobRow;
   market: MarketRow;
   metadata: MarketMetadataRow;
 };
 
+/**
+ * Terminal state of one processing attempt, as reported to the runner loop:
+ * cancelled (market moved on), succeeded (review persisted, market possibly
+ * transitioned), or a retryable/terminal failure.
+ */
 export type ReviewJobOutcome =
   | {
       job: MarketAiReviewJobRow;
@@ -193,6 +206,12 @@ export async function claimReviewJobs({
   });
 }
 
+/**
+ * Runs one claimed job end to end: cancels cleanly if the market left
+ * under_review while queued, otherwise calls the AI Review service, persists
+ * the review atomically with the job completion, and on error schedules a
+ * backed-off retry until maxAttempts is exhausted.
+ */
 export async function processReviewJob({
   claimed,
   config,
@@ -289,6 +308,11 @@ export function buildMarketReviewRequest({
   };
 }
 
+/**
+ * Maps a review verdict to the market status it should trigger: approve moves
+ * the market into bootstrap, reject marks it rejected, and manual_review
+ * returns null because a human — not the runner — must decide.
+ */
 export function marketStatusForReviewVerdict(
   verdict: ReviewResult["verdict"],
 ): MarketStatus | null {
@@ -318,6 +342,10 @@ export function calculateRetryDelayMs({
   return Math.min(baseMs * 2 ** exponent, MAX_RETRY_DELAY_MS);
 }
 
+/**
+ * Flattens any thrown value into a single-line message capped at 800
+ * characters, so the job row's last_error column stays bounded and readable.
+ */
 export function compactError(error: unknown) {
   const message =
     error instanceof Error ? error.message : String(error || "Unknown error");

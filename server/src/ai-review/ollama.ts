@@ -24,6 +24,13 @@ type RawModelReview = {
   verdict?: unknown;
 };
 
+/**
+ * Reviews a market with a local Ollama model. Ollama cannot browse, so all
+ * evidence must be pre-collected and is passed into the prompt; model output
+ * is treated as untrusted — scores are clamped, an unrecognized verdict falls
+ * back to manual_review, and sourceChecks not backed by the supplied evidence
+ * are discarded.
+ */
 export async function reviewWithOllama({
   config,
   evidence,
@@ -87,6 +94,13 @@ export async function reviewWithOllama({
   };
 }
 
+/**
+ * Combines the heuristic and model findings into the final ReviewResult. The
+ * heuristic acts as a floor: a heuristic reject stands regardless of model
+ * output, hard flags from either side force a reject, and reasons are the
+ * union of both. Without a model finding the heuristic result is returned,
+ * with its scores lifted by whatever evidence was still gathered.
+ */
 export function mergeReviewFindings({
   evidence,
   heuristic,

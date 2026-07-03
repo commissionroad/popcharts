@@ -1,6 +1,11 @@
 import type { AiReviewRunnerConfig } from "./config";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
 
+/**
+ * Error type every service-call failure is normalized to, carrying the HTTP
+ * status when one was received so callers can tell rejections from timeouts
+ * and transport failures.
+ */
 export class AiReviewServiceError extends Error {
   constructor(
     message: string,
@@ -11,6 +16,7 @@ export class AiReviewServiceError extends Error {
   }
 }
 
+/** fetch-compatible signature, injectable so tests can stub the service. */
 export type FetchFn = (
   input: string | URL | Request,
   init?: RequestInit,

@@ -6,6 +6,14 @@ import {
 } from "./safe-web";
 import type { EvidenceItem, MarketReviewRequest } from "./types";
 
+/**
+ * Gathers public web evidence for providers that cannot browse themselves
+ * (e.g. Ollama), honoring the configured internet-access mode: nothing when
+ * off, the submitter's resolution URLs when provided_urls, plus web search
+ * results when search. All fetching goes through the SSRF-guarded safe-web
+ * helpers, and per-URL failures become "unreachable" evidence items instead of
+ * aborting the review.
+ */
 export async function collectEvidence({
   config,
   request,

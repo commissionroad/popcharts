@@ -7,6 +7,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/**
+ * Registry of watched protocol contract deployments, unique per (address,
+ * chain). Markets and events reference rows here so a redeploy (new address)
+ * keeps historical data attributable to the deployment that produced it.
+ */
 export const contracts = pgTable(
   "contracts",
   {

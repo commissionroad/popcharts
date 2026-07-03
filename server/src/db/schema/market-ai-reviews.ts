@@ -20,18 +20,25 @@ import type {
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
+/** Postgres enum mirroring ReviewProviderName from src/ai-review/types. */
 export const aiReviewProvider = pgEnum("ai_review_provider", [
   "anthropic",
   "heuristic",
   "ollama",
 ]);
 
+/** Postgres enum mirroring ReviewVerdict from src/ai-review/types. */
 export const aiReviewVerdict = pgEnum("ai_review_verdict", [
   "approve",
   "reject",
   "manual_review",
 ]);
 
+/**
+ * Append-only audit log of completed AI reviews, keyed to the exact market
+ * metadata hash that was judged. Rows are never updated; a re-review of new
+ * metadata adds a new row, so every stored verdict stays reproducible.
+ */
 export const marketAiReviews = pgTable(
   "market_ai_reviews",
   {

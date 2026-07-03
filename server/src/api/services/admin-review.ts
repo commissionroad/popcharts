@@ -28,6 +28,11 @@ type ManualReviewMarketRow = {
   metadata: MarketMetadataRow | null;
 };
 
+/**
+ * Discriminated outcome of a manual review request. Every failure mode is a
+ * typed variant rather than a thrown error so the route layer can map each
+ * kind to a precise HTTP status and message.
+ */
 export type ManualMarketReviewResult =
   | {
       kind: "admin_disabled";
@@ -62,6 +67,7 @@ export type ManualMarketReviewResult =
       message: string;
     };
 
+/** Row values needed to insert a manually triggered AI review job. */
 export type EnqueueManualReviewJobInput = {
   chainId: number;
   marketId: bigint;
@@ -71,6 +77,10 @@ export type EnqueueManualReviewJobInput = {
   provider?: ManualAiReviewRequest["provider"];
 };
 
+/**
+ * Injectable data-access seams for requestManualMarketReview, so tests can
+ * exercise every eligibility branch without a database.
+ */
 export type ManualMarketReviewDependencies = {
   adminReviewEnabled: () => boolean;
   enqueueJob: (
@@ -103,6 +113,12 @@ export type ManualMarketReviewDependencies = {
   }) => Promise<ManualReviewMarketRow | null>;
 };
 
+/**
+ * Queues an admin-triggered AI review for an under_review market. Guarantees at
+ * most one active job per (chain, market, metadata hash): an existing active job
+ * or prior review is surfaced instead of duplicated, unless force re-review is
+ * requested, and insert races resolve to the job that won.
+ */
 export async function requestManualMarketReview(
   {
     body = {},
@@ -236,6 +252,11 @@ export async function requestManualMarketReview(
   throw new Error("Failed to enqueue manual AI review job.");
 }
 
+/**
+ * Maps a review-job row to its API shape: dates become ISO strings, the bigint
+ * market id becomes a string, and nullable columns are omitted rather than
+ * serialized as null.
+ */
 export function serializeMarketAiReviewJobRow(
   job: MarketAiReviewJobRow,
 ): MarketAiReviewJobResponse {

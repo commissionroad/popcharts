@@ -20,6 +20,14 @@ type SearchResult = {
   url: string;
 };
 
+/**
+ * Fetches an untrusted, user-supplied URL as review evidence with SSRF guards
+ * on every hop: each URL (including up to 3 manually followed redirects) is
+ * re-validated against private/local addresses, responses are limited to text
+ * content types, and bodies are truncated to maxFetchBytes before
+ * summarization. HTTP errors and disallowed content types return "unreachable"
+ * evidence rather than throwing.
+ */
 export async function safeFetchEvidence(
   value: string,
   config: Pick<
@@ -78,6 +86,12 @@ export async function safeFetchEvidence(
   };
 }
 
+/**
+ * Runs one DuckDuckGo Lite search and converts up to maxResults hits into
+ * evidence. With fetchResults enabled each hit is fetched through
+ * safeFetchEvidence (same SSRF guards); otherwise only the search listing is
+ * returned, keeping the review fully offline beyond the search itself.
+ */
 export async function searchWebEvidence({
   config,
   fetchResults,
@@ -128,6 +142,12 @@ export async function searchWebEvidence({
   return evidence;
 }
 
+/**
+ * SSRF gate for outbound evidence fetches. Accepts only http(s) URLs without
+ * embedded credentials whose host — and every DNS answer for it — is a public
+ * address, rejecting localhost, private ranges, and link-local targets.
+ * Returns the normalized URL that must be the one actually fetched.
+ */
 export async function resolveSafeUrl(value: string) {
   const url = normalizeHttpUrl(value);
   await assertPublicHostname(url.hostname);
@@ -139,6 +159,11 @@ export async function resolveSafeUrl(value: string) {
   return url;
 }
 
+/**
+ * Builds the search-engine queries for a market: currently one query combining
+ * question, resolution criteria, and sources, whitespace-collapsed and capped
+ * at 240 characters so user text cannot produce oversized requests.
+ */
 export function buildSearchQueries({
   question,
   resolutionCriteria,
@@ -156,6 +181,11 @@ export function buildSearchQueries({
   return [truncateQuery(baseQuery)];
 }
 
+/**
+ * Queries DuckDuckGo Lite (the JS-free HTML endpoint, no API key needed) and
+ * parses the result links. Throws on a non-OK response so callers can record
+ * the search itself as unreachable evidence.
+ */
 export async function searchDuckDuckGoLite(
   query: string,
   config: Pick<AiReviewConfig, "requestTimeoutMs" | "userAgent">,
@@ -171,6 +201,12 @@ export async function searchDuckDuckGoLite(
   return parseDuckDuckGoLiteResults(await response.text());
 }
 
+/**
+ * Extracts result links from DuckDuckGo Lite HTML, unwrapping the uddg
+ * redirect parameter to the real destination and keeping only deduplicated
+ * http(s) URLs (top 10). DuckDuckGo's own hosts are dropped so navigation
+ * links never masquerade as evidence.
+ */
 export function parseDuckDuckGoLiteResults(html: string): SearchResult[] {
   const results: SearchResult[] = [];
   const anchors = html.matchAll(/<a\b([^>]+)>([\s\S]*?)<\/a>/gi);
@@ -196,6 +232,11 @@ export function parseDuckDuckGoLiteResults(html: string): SearchResult[] {
   return dedupeResults(results).slice(0, 10);
 }
 
+/**
+ * True for IPv4 addresses an evidence fetch must never reach: loopback,
+ * RFC 1918 private ranges, link-local, carrier-grade NAT (100.64/10), and
+ * multicast/reserved space (>= 224).
+ */
 export function isPrivateIpv4(value: string) {
   const parts = value.split(".").map((part) => Number.parseInt(part, 10));
   if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -215,6 +256,11 @@ export function isPrivateIpv4(value: string) {
   );
 }
 
+/**
+ * True for IPv6 addresses an evidence fetch must never reach: loopback,
+ * unspecified, unique-local (fc00::/7), link-local (fe80::/10), and
+ * IPv4-mapped forms of the private IPv4 ranges.
+ */
 export function isPrivateIpv6(value: string) {
   const normalized = value.toLowerCase();
 

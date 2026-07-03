@@ -3,6 +3,11 @@ import type { AiReviewConfig } from "../config";
 import type { ConfigValidationResult } from "../types";
 import type { ReviewProvider } from "./types";
 
+/**
+ * Local-model review provider backed by an Ollama runtime. It cannot browse,
+ * so the pipeline must pre-collect evidence (requiresPreCollectedEvidence),
+ * which the provider passes through unchanged into its finding.
+ */
 export const ollamaProvider: ReviewProvider = {
   capabilities: {
     canRunOffline: true,

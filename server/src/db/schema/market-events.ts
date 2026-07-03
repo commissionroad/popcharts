@@ -13,6 +13,12 @@ import {
 import { contracts } from "./contracts";
 import { uint256 } from "./uint256";
 
+/**
+ * Raw MarketCreated log per market, deduplicated on (chain, tx, log index) so
+ * indexer replays and recovery scans stay idempotent — a pattern shared by all
+ * *_events tables in this file, which are the append-only on-chain history
+ * behind the mutable markets row.
+ */
 export const marketCreatedEvents = pgTable(
   "market_created_events",
   {
@@ -57,6 +63,7 @@ export const marketCreatedEvents = pgTable(
   ],
 );
 
+/** ReceiptPlaced logs — one row per bet receipt escrowed into a market. */
 export const receiptPlacedEvents = pgTable(
   "receipt_placed_events",
   {
@@ -93,6 +100,7 @@ export const receiptPlacedEvents = pgTable(
   ],
 );
 
+/** GraduationStarted logs — the frozen market snapshot entering graduation. */
 export const graduationStartedEvents = pgTable(
   "graduation_started_events",
   {
@@ -128,6 +136,10 @@ export const graduationStartedEvents = pgTable(
   ],
 );
 
+/**
+ * ClearingRootSubmitted logs — the proposed clearing Merkle root, its
+ * settlement totals, and the challenge deadline that gates finalization.
+ */
 export const clearingRootSubmittedEvents = pgTable(
   "clearing_root_submitted_events",
   {
@@ -165,6 +177,10 @@ export const clearingRootSubmittedEvents = pgTable(
   ],
 );
 
+/**
+ * GraduationFinalized logs — the settled totals and the postgrad
+ * adapter/market the graduated positions moved to.
+ */
 export const graduationFinalizedEvents = pgTable(
   "graduation_finalized_events",
   {
@@ -194,6 +210,7 @@ export const graduationFinalizedEvents = pgTable(
   ],
 );
 
+/** MarketRefundsAvailable logs — a market opened full-escrow refunds. */
 export const marketRefundsAvailableEvents = pgTable(
   "market_refunds_available_events",
   {
@@ -219,6 +236,10 @@ export const marketRefundsAvailableEvents = pgTable(
   ],
 );
 
+/**
+ * GraduatedReceiptClaimed logs — per-receipt settlement claims, additionally
+ * unique per (chain, receipt) because a receipt can only be claimed once.
+ */
 export const graduatedReceiptClaimedEvents = pgTable(
   "graduated_receipt_claimed_events",
   {
@@ -253,6 +274,10 @@ export const graduatedReceiptClaimedEvents = pgTable(
   ],
 );
 
+/**
+ * RefundedReceiptClaimed logs — per-receipt refund claims on a refunded
+ * market, unique per (chain, receipt) like graduated claims.
+ */
 export const refundedReceiptClaimedEvents = pgTable(
   "refunded_receipt_claimed_events",
   {
