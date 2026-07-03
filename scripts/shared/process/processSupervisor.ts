@@ -37,6 +37,7 @@ export function createProcessSupervisor(options: {
   readonly logLabel: string;
 }): ProcessSupervisor {
   const children = new Set<SupervisedProcess>();
+  let shuttingDown = false;
 
   function start(
     name: string,
@@ -70,6 +71,11 @@ export function createProcessSupervisor(options: {
   }
 
   function assertRunning(processes: readonly SupervisedProcess[]): void {
+    // Children exit on purpose during shutdown; don't report that as failure.
+    if (shuttingDown) {
+      return;
+    }
+
     for (const processInfo of processes) {
       if (processInfo.code !== null) {
         throw new Error(
@@ -99,6 +105,14 @@ export function createProcessSupervisor(options: {
   }
 
   async function shutdown(code: number): Promise<never> {
+    // A signal handler and a failing main() can both request shutdown; the
+    // first request wins and later callers simply wait for the exit.
+    if (shuttingDown) {
+      return new Promise<never>(() => {});
+    }
+
+    shuttingDown = true;
+
     for (const processInfo of [...children].reverse()) {
       await stop(processInfo);
     }
