@@ -10,6 +10,9 @@ Imported from upstream commit:
 Upstream license: MIT. See
 [`LICENSE-MIT-mattpocock-skills`](./LICENSE-MIT-mattpocock-skills).
 
+`engineering/pull-requests` and `engineering/clean-code` are local Pop Charts
+additions, not vendored from upstream.
+
 ## Why These Skills
 
 - `engineering/grill-with-docs` keeps domain terms and hard decisions explicit
@@ -27,6 +30,11 @@ Upstream license: MIT. See
   components, their design-kit references, public inputs, and current usage.
 - `engineering/ui-pr-verification` makes UI-impacting PRs carry local
   verification notes and a screenshot of the changed state.
+- `engineering/pull-requests` sets the bar for PR scope, descriptions, and
+  pre-merge verification so every PR reads well in review the next day.
+- `engineering/clean-code` codifies the house standards from the `protocol/`
+  TypeScript refactor: file size and folder structure, code reuse, function
+  design, naming, comments, and JSDoc on every export.
 - `misc/setup-pre-commit` captures the planned local quality gate pattern for
   formatting, typechecking, and tests once `app/` has a package manager and
   scripts.
