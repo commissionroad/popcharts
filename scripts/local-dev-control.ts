@@ -209,8 +209,8 @@ Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=heuristic
-  LOCAL_AI_REVIEW_INTERNET_ACCESS=off
+  LOCAL_AI_REVIEW_PROVIDER=ollama
+  LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
 }
 

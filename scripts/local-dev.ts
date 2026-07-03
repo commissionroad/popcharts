@@ -320,15 +320,15 @@ Start the full local Pop Charts stack:
     complete-set market (skip with --no-postgrad)
   - Bun API server
   - Bun indexer
-  - local AI Review service and runner in heuristic mode
+  - local AI Review service and runner with source-checking review
   - Next.js app configured for devchain market creation
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=heuristic
-  LOCAL_AI_REVIEW_INTERNET_ACCESS=off
+  LOCAL_AI_REVIEW_PROVIDER=ollama
+  LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
 }
 

@@ -72,9 +72,12 @@ evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only
 provided resolution source URLs, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
 
 From the repository root, `just local-dev` starts the full local app stack plus
-the AI Review service and runner in heuristic mode. Use `just local-ai-review`
-when you only want local Postgres plus the review service and runner, without
-the app, API, indexer, or local chain.
+the AI Review service and runner in source-checking mode. The service discovers
+public evidence, safely fetches provided resolution URLs, and asks the local
+model to judge source quality. If the local model runtime is unavailable, the
+review falls back to `manual_review` instead of approval. Use
+`just local-ai-review` when you only want local Postgres plus the review service
+and runner, without the app, API, indexer, or local chain.
 
 For Claude web-search review:
 
