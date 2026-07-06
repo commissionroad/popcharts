@@ -34,15 +34,24 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
   const metadata = apiMarket.metadata;
 
+  const resolutionCriteria = metadata?.resolutionCriteria?.trim();
+  const resolutionSources = (metadata?.resolutionSources ?? []).filter(
+    (source) => source.trim().length > 0
+  );
+  const resolutionUrl = metadata?.resolutionUrl?.trim();
+
   return {
     b,
     category: categoryForApiMarket(apiMarket),
     chainId: apiMarket.chainId,
     closesAt: apiMarket.resolutionTime,
+    createdAt: apiMarket.createdAt,
+    creator: apiMarket.creator,
     description: marketDescription(apiMarket),
     graduationTargetUsd: wadToNumber(apiMarket.graduationThreshold),
     id: apiMarketAppId(apiMarket),
     matchedUsd: matchedMarketCap,
+    metadataHash: apiMarket.metadataHash,
     noPriceCents,
     openingProbability,
     pricePath: buildPricePath(openingProbability, yesPriceCents),
@@ -51,6 +60,10 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     status: apiMarket.status satisfies MarketStatus,
     volumeUsd: totalEscrowed,
     yesPriceCents,
+    ...(apiMarket.aiReview ? { aiReview: apiMarket.aiReview } : {}),
+    ...(resolutionCriteria ? { resolutionCriteria } : {}),
+    ...(resolutionSources.length > 0 ? { resolutionSources } : {}),
+    ...(resolutionUrl ? { resolutionUrl } : {}),
   };
 }
 
