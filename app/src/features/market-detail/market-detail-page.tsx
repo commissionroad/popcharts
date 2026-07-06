@@ -9,7 +9,9 @@ import type { Market } from "@/domain/markets/types";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
+import { AiReviewCard } from "./ai-review-card";
 import { GraduateMarketButton } from "./graduate-market-button";
+import { MarketAboutCard } from "./market-about-card";
 import { MarketDevSettings } from "./market-dev-settings";
 
 export function MarketDetailPage({ market }: { market: Market }) {
@@ -106,6 +108,10 @@ export function MarketDetailPage({ market }: { market: Market }) {
               <GraduateMarketButton marketId={market.id} />
             ) : null}
           </div>
+
+          <MarketAboutCard market={market} />
+
+          {market.aiReview ? <AiReviewCard review={market.aiReview} /> : null}
         </section>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">

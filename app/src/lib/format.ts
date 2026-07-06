@@ -11,6 +11,27 @@ export function formatAddress(address: string) {
 }
 
 /**
+ * Formats an ISO timestamp as a medium date with a short time, pinned to UTC
+ * ("Aug 1, 2026, 12:00 AM UTC") so server and client renders match.
+ * Unparseable values pass through unchanged.
+ */
+export function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(date);
+
+  return `${formatted} UTC`;
+}
+
+/**
  * Formats an LMSR liquidity parameter b with thousands separators and no
  * currency symbol — b is a curve parameter, not a dollar amount.
  */

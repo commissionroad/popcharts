@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { formatUsdCompact, formatUsdWhole } from "./format";
+import { formatDateTime, formatUsdCompact, formatUsdWhole } from "./format";
+
+describe("date formatting", () => {
+  it("formats ISO timestamps in UTC regardless of environment timezone", () => {
+    expect(formatDateTime("2026-08-01T00:00:00.000Z")).toBe(
+      "Aug 1, 2026, 12:00 AM UTC"
+    );
+  });
+
+  it("passes unparseable values through unchanged", () => {
+    expect(formatDateTime("not-a-date")).toBe("not-a-date");
+  });
+});
 
 describe("money formatting", () => {
   it("formats compact USD values without environment-dependent fractions", () => {

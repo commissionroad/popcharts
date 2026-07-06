@@ -2,19 +2,79 @@ import type { Market } from "./types";
 
 export const markets: Market[] = [
   {
+    aiReview: {
+      evidence: [
+        {
+          domain: "coinmarketcap.com",
+          kind: "provided_url",
+          sourceTier: "specialist",
+          summary:
+            "Live ETH/USD price feed aggregated across major spot exchanges; suitable for verifying a $5,000 print.",
+          title: "Ethereum price | CoinMarketCap",
+          url: "https://coinmarketcap.com/currencies/ethereum/",
+        },
+        {
+          domain: "reuters.com",
+          kind: "search_result",
+          sourceTier: "major_news",
+          summary:
+            "Coverage of prior ETH all-time-high runs confirms major outlets report threshold crossings promptly.",
+          title: "Ether hits record high",
+          url: "https://www.reuters.com/markets/currencies/",
+        },
+      ],
+      hardFlags: [],
+      modelId: "claude-sonnet-4-5",
+      provider: "anthropic",
+      reasons: [
+        "Question has a bright-line numeric threshold and a fixed UTC deadline.",
+        "Outcome is publicly verifiable from multiple independent price feeds.",
+        "Minor ambiguity about which exchanges count as 'major' adds slight dispute risk.",
+      ],
+      reviewedAt: "2026-06-02T09:15:00.000Z",
+      scores: {
+        contentSafety: 5,
+        corroboration: 5,
+        disputeRisk: 2,
+        objectivity: 4,
+        promptInjectionRisk: 0,
+        publicKnowability: 5,
+        sourceQuality: 4,
+      },
+      sourceChecks: [
+        {
+          domain: "coinmarketcap.com",
+          notes: "Aggregated price index reachable and relevant to the threshold.",
+          relevant: true,
+          sourceTier: "specialist",
+          url: "https://coinmarketcap.com/currencies/ethereum/",
+        },
+      ],
+      verdict: "approve",
+    },
     b: 5_000,
     category: "Crypto",
     closesAt: "2026-08-01T00:00:00.000Z",
+    createdAt: "2026-06-01T14:30:00.000Z",
+    creator: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
     description:
       "Resolves YES if a major spot exchange prints ETH at or above $5,000 before August 1, 2026 UTC.",
     graduationTargetUsd: 482_000,
     id: "eth-5000-august",
     matchedUsd: 356_000,
+    metadataHash: "0x7a1c2b3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef",
     noPriceCents: 36,
     openingProbability: 50,
     pricePath: [28, 31, 35, 39, 44, 47, 53, 57, 61, 64],
     question: "Will ETH flip $5,000 before August?",
     receiptCount: 1_284,
+    resolutionCriteria:
+      "Resolves YES if ETH/USD trades at or above $5,000.00 on Coinbase, Binance, or Kraken spot markets at any moment before 2026-08-01 00:00 UTC. Resolves NO otherwise. Wicks count; derivatives prices do not.",
+    resolutionSources: [
+      "https://coinmarketcap.com/currencies/ethereum/",
+      "https://www.coinbase.com/price/ethereum",
+    ],
+    resolutionUrl: "https://coinmarketcap.com/currencies/ethereum/",
     status: "graduating",
     volumeUsd: 482_300,
     yesPriceCents: 64,
