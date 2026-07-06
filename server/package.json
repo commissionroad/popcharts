@@ -23,6 +23,7 @@
     "openapi:generate": "bun run scripts/generate-openapi.ts && bun run scripts/validate-openapi.ts",
     "smoke:ai-review-runner": "bun run src/ai-review-runner/smoke.ts",
     "start:api": "bun run src/api/index.ts",
+    "start:keeper": "bun run src/keeper/index.ts",
     "start:ai-review": "bun run src/ai-review/server.ts",
     "start:ai-review-runner": "bun run src/ai-review-runner/index.ts",
     "start:indexer": "bun run src/indexer/index.ts",

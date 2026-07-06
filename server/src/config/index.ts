@@ -13,6 +13,15 @@ export const config = {
   devToolsEnabled: process.env.POPCHARTS_DEV_TOOLS_ENABLED === "true",
   healthCheckFile:
     process.env.HEALTH_CHECK_FILE ?? "/tmp/popcharts-indexer-healthy",
+  /**
+   * Basis points of a graduated market's retained collateral used to size
+   * each leg of the dev backstop liquidity seeded per outcome pool at
+   * graduation. 0 disables seeding.
+   */
+  venueSeedBps: Number.parseInt(
+    process.env.POPCHARTS_VENUE_SEED_BPS ?? "1000",
+    10,
+  ),
 };
 
 /**

@@ -8,6 +8,7 @@ import {
   parseEventLogs,
   type Hash,
   type Log,
+  type PublicClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -52,8 +53,12 @@ import {
   fastForwardLocalRpc,
   readDevPrivateKey,
 } from "./local-dev-chain";
+import { ensureDevBackstopLiquidity } from "@popcharts/protocol";
+
 import {
+  buildGraduatedMarketManifest,
   closingYesDisplayPriceWad,
+  createVenueContractWriter,
   postgradVenueConfigured,
   readPostgradMarketVenue,
   wirePostgradMarketVenue,
@@ -190,6 +195,7 @@ export type DevMarketGraduateDependencies = {
   wireVenue: (args: {
     market: MarketRow;
     postgradMarket: `0x${string}`;
+    retainedCostTotal: bigint;
   }) => Promise<{
     transactionHashes: Hash[];
     venue: MarketVenueResponse | null;
@@ -317,6 +323,7 @@ export async function graduateDevMarket(
   const wiredVenue = await dependencies.wireVenue({
     market: updatedRow.market,
     postgradMarket: postgrad.marketAddress as `0x${string}`,
+    retainedCostTotal: BigInt(postgrad.retainedCostTotal),
   });
 
   return {
@@ -370,9 +377,11 @@ const defaultDependencies: DevMarketGraduateDependencies = {
 async function wireVenueWithDevSigner({
   market,
   postgradMarket,
+  retainedCostTotal,
 }: {
   market: MarketRow;
   postgradMarket: `0x${string}`;
+  retainedCostTotal: bigint;
 }): Promise<{ transactionHashes: Hash[]; venue: MarketVenueResponse | null }> {
   if (!postgradVenueConfigured()) {
     console.log(
@@ -402,9 +411,81 @@ async function wireVenueWithDevSigner({
       yesShares: market.yesShares,
     }),
   });
+
+  await seedVenueLiquidity({
+    collateral,
+    postgradMarket,
+    publicClient,
+    retainedCostTotal,
+    walletClient,
+  });
+
   const venue = await readPostgradMarketVenue({ collateral, postgradMarket });
 
   return { transactionHashes: wired.transactionHashes, venue };
+}
+
+/**
+ * Seeds each freshly wired pool with a dev backstop position sized by
+ * POPCHARTS_VENUE_SEED_BPS of the market's retained collateral per leg, so a
+ * graduated market is swappable immediately. Skips pools that already hold
+ * liquidity; a seeding failure logs but never fails the graduation that
+ * already settled.
+ */
+async function seedVenueLiquidity({
+  collateral,
+  postgradMarket,
+  publicClient,
+  retainedCostTotal,
+  walletClient,
+}: {
+  collateral: `0x${string}`;
+  postgradMarket: `0x${string}`;
+  publicClient: ReturnType<typeof createPublicClient>;
+  retainedCostTotal: bigint;
+  walletClient: ReturnType<typeof createWalletClient>;
+}): Promise<void> {
+  if (config.venueSeedBps <= 0) {
+    return;
+  }
+
+  if (config.contracts.swapRouter === ZERO_ADDRESS) {
+    console.log(
+      "[Dev graduate] No swap router configured; skipping liquidity seeding.",
+    );
+    return;
+  }
+
+  const devCollateral =
+    (retainedCostTotal * BigInt(config.venueSeedBps)) / 10_000n;
+
+  if (devCollateral <= 0n) {
+    return;
+  }
+
+  try {
+    const manifest = await buildGraduatedMarketManifest({
+      collateral,
+      postgradMarket,
+      publicClient,
+    });
+
+    await ensureDevBackstopLiquidity({
+      account: walletClient.account!.address,
+      chainId: config.chainId,
+      devCollateral,
+      manifest,
+      publicClient: publicClient as PublicClient,
+      sides: ["yes", "no"],
+      swapRouter: config.contracts.swapRouter,
+      walletClient: createVenueContractWriter(walletClient),
+    });
+  } catch (error) {
+    console.warn(
+      `[Dev graduate] Venue liquidity seeding failed for ${postgradMarket}:`,
+      error,
+    );
+  }
 }
 
 async function selectMarketForDevGraduate({

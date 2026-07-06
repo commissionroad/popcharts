@@ -30,6 +30,8 @@ export type ContractAddresses = {
   pregradManager: `0x${string}`;
   /** v4 state view lens; ZERO_ADDRESS when no venue is deployed. */
   stateView: `0x${string}`;
+  /** Minimal v4 swap/liquidity router; ZERO_ADDRESS when no venue is deployed. */
+  swapRouter: `0x${string}`;
 };
 
 /**
@@ -123,6 +125,10 @@ function createLocalConfig(): NetworkConfig {
         "LOCAL_STATE_VIEW_ADDRESS",
         "STATE_VIEW_ADDRESS",
       ]),
+      swapRouter: readAddress([
+        "LOCAL_SWAP_ROUTER_ADDRESS",
+        "SWAP_ROUTER_ADDRESS",
+      ]),
     },
     databaseUrl: readDatabaseUrl(),
     deployBlock: readBigInt([
@@ -173,6 +179,10 @@ function createArcTestnetConfig(): NetworkConfig {
       stateView: readAddress([
         "ARC_TESTNET_STATE_VIEW_ADDRESS",
         "STATE_VIEW_ADDRESS",
+      ]),
+      swapRouter: readAddress([
+        "ARC_TESTNET_SWAP_ROUTER_ADDRESS",
+        "SWAP_ROUTER_ADDRESS",
       ]),
     },
     databaseUrl: readDatabaseUrl(),

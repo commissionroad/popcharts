@@ -20,6 +20,7 @@ import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostg
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
   postgradAppEnv,
+  postgradServerEnv,
   postgradServerEnvLines,
 } from "./shared/env/postgradEnv.ts";
 import {
@@ -184,12 +185,18 @@ async function main(): Promise<void> {
   ]);
   const deploy = parsePregradDeploy(deployOutput.stdout);
   const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
-  const serverEnv = buildLocalServerEnv({
-    collateralAddress: deploy.collateralAddress,
-    deployBlock: deploy.deployBlock,
-    postgradAdapterAddress: deploy.postgradAdapterAddress,
-    pregradManagerAddress: deploy.pregradManagerAddress,
-  });
+  // The supervised server processes receive this object directly (not the
+  // generated env file), so the venue addresses must be merged here for the
+  // API's venue reads and the keeper to see them.
+  const serverEnv = {
+    ...buildLocalServerEnv({
+      collateralAddress: deploy.collateralAddress,
+      deployBlock: deploy.deployBlock,
+      postgradAdapterAddress: deploy.postgradAdapterAddress,
+      pregradManagerAddress: deploy.pregradManagerAddress,
+    }),
+    ...postgradServerEnv(postgrad),
+  };
   const appEnv = buildAppEnv(deploy, postgrad);
   writeServerEnv(serverEnv, deploy, postgrad);
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
@@ -227,6 +234,19 @@ async function main(): Promise<void> {
       timeoutMs: 45_000,
     },
   );
+
+  // The venue keeper needs the postgrad venue contracts; skip it in
+  // --no-postgrad runs where none are deployed.
+  if (postgrad !== null) {
+    supervisor.start(
+      "keeper",
+      "bun",
+      ["run", "--cwd", "server", "start:keeper"],
+      {
+        env: serverEnv,
+      },
+    );
+  }
 
   const app = supervisor.start(
     "app",

@@ -76,6 +76,7 @@ const internalCommands = new Set([
   "deploy-contracts",
   "indexer",
   "indexer-ready",
+  "keeper",
   "postgres-ready",
   "prepare-database",
   "review-ready",
@@ -181,6 +182,8 @@ async function runInternal(name: string): Promise<void> {
     await runApi();
   } else if (name === "indexer") {
     await runIndexer();
+  } else if (name === "keeper") {
+    await runKeeper();
   } else if (name === "app") {
     await runApp();
   } else if (name === "postgres-ready") {
@@ -394,6 +397,12 @@ async function runApi(): Promise<void> {
 
 async function runIndexer(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:indexer"], {
+    env: readGeneratedServerEnv(),
+  });
+}
+
+async function runKeeper(): Promise<void> {
+  await inherit("bun", ["run", "--cwd", "server", "start:keeper"], {
     env: readGeneratedServerEnv(),
   });
 }

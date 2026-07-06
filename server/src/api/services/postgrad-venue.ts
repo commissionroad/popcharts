@@ -6,6 +6,8 @@ import {
   deriveEpsilonBoundTicks,
   displayPriceWadToSqrtPriceX96,
   poolTickBoundsAbi,
+  type CompleteSetMarketManifestData,
+  type CompleteSetMarketPool,
 } from "@popcharts/protocol";
 import {
   createPublicClient,
@@ -412,6 +414,113 @@ async function readOutcomePool({
 
 function wadToNumber(value: bigint): number {
   return Number(value) / 1e18;
+}
+
+/**
+ * Builds the manifest-shaped record the protocol's shared venue helpers
+ * (liquidity seeding, keeper arbitrage, deferred-execution drain) expect,
+ * for a market that graduated through the adapter and therefore never got a
+ * deploy-script manifest file. Pool keys and epsilon bounds are recomputed
+ * deterministically from the same policy the wiring step applied.
+ */
+export async function buildGraduatedMarketManifest({
+  collateral,
+  postgradMarket,
+  publicClient = getVenuePublicClient(),
+}: {
+  collateral: `0x${string}`;
+  postgradMarket: `0x${string}`;
+  publicClient?: ReturnType<typeof createPublicClient>;
+}): Promise<CompleteSetMarketManifestData> {
+  const [yesToken, noToken, resolver, collateralDecimals] = await Promise.all([
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarket,
+      functionName: "yesToken",
+    }) as Promise<`0x${string}`>,
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarket,
+      functionName: "noToken",
+    }) as Promise<`0x${string}`>,
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarket,
+      functionName: "resolver",
+    }) as Promise<`0x${string}`>,
+    publicClient.readContract({
+      abi: ERC20_DECIMALS_ABI,
+      address: collateral,
+      functionName: "decimals",
+    }),
+  ]);
+
+  const buildPool = (outcomeToken: `0x${string}`): CompleteSetMarketPool => {
+    const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+      collateral,
+      outcomeToken,
+    });
+    const bounds = deriveEpsilonBoundTicks({
+      collateralDecimals,
+      outcomeDecimals: COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+      outcomeIsCurrency0,
+    });
+
+    return {
+      boundLowerTick: bounds.lowerTick,
+      boundUpperTick: bounds.upperTick,
+      outcomeIsCurrency0,
+      outcomeToken,
+      poolId: computePoolId(key),
+      poolKey: key,
+    };
+  };
+
+  return {
+    chainId: config.chainId,
+    collateral: { address: collateral, decimals: collateralDecimals },
+    market: {
+      address: postgradMarket,
+      noToken,
+      outcomeDecimals: COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+      resolver,
+      symbol: `PCM-${postgradMarket.slice(2, 10)}`,
+      yesToken,
+    },
+    pools: { no: buildPool(noToken), yes: buildPool(yesToken) },
+    venue: {
+      boundedHook: config.contracts.boundedHook,
+      orderManager: config.contracts.orderManager,
+      poolManager: config.contracts.poolManager,
+      poolTickBounds: config.contracts.poolTickBounds,
+      stateView: config.contracts.stateView,
+    },
+  };
+}
+
+/**
+ * Bridges a strictly typed viem wallet client to the minimal writer shape
+ * the protocol's shared venue helpers accept, pinning account and chain.
+ */
+export function createVenueContractWriter(
+  walletClient: ReturnType<typeof createWalletClient>,
+) {
+  return {
+    writeContract: (parameters: {
+      abi: readonly unknown[];
+      address: `0x${string}`;
+      args: readonly unknown[];
+      functionName: string;
+    }) =>
+      walletClient.writeContract({
+        abi: parameters.abi as [],
+        account: walletClient.account!,
+        address: parameters.address,
+        args: parameters.args as [],
+        chain: config.chain,
+        functionName: parameters.functionName,
+      }),
+  };
 }
 
 let venuePublicClient: ReturnType<typeof createPublicClient> | null = null;

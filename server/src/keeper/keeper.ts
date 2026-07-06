@@ -1,0 +1,199 @@
+import {
+  COMPLETE_SET_KEEPER_POLICY,
+  decideCompleteSetArbAction,
+  executeCompleteSetArb,
+  findPendingDeferredExecutions,
+  readPoolDisplayPrice,
+} from "@popcharts/protocol";
+import {
+  parseUnits,
+  type createPublicClient,
+  type createWalletClient,
+  type PublicClient,
+} from "viem";
+
+import { createVenueContractWriter } from "src/api/services/postgrad-venue";
+import { config } from "src/config";
+
+import type { TrackedMarket } from "./discovery";
+
+const WAD = 10n ** 18n;
+
+/**
+ * One keeper maintenance pass for one market: read both pool prices, run the
+ * complete-set arbitrage policy when the price sum drifts off one full set,
+ * and drain any deferred maker-order executions. The pass is idempotent — a
+ * healthy market costs four reads and no writes — so it can run after every
+ * swap without churning.
+ */
+export async function runMarketPass({
+  clients,
+  market,
+}: {
+  clients: {
+    publicClient: ReturnType<typeof createPublicClient>;
+    walletClient: ReturnType<typeof createWalletClient>;
+  };
+  market: TrackedMarket;
+}): Promise<{
+  action: "buyAndMerge" | "hold" | "mintAndSell";
+  priceSumWad: bigint;
+  resolvedDeferred: number;
+}> {
+  const { manifest } = market;
+  const publicClient = clients.publicClient as PublicClient;
+  const [yes, no] = await Promise.all([
+    readPoolDisplayPrice({
+      collateralDecimals: manifest.collateral.decimals,
+      outcomeDecimals: manifest.market.outcomeDecimals,
+      outcomeIsCurrency0: manifest.pools.yes.outcomeIsCurrency0,
+      poolId: manifest.pools.yes.poolId,
+      publicClient,
+      stateView: manifest.venue.stateView,
+    }),
+    readPoolDisplayPrice({
+      collateralDecimals: manifest.collateral.decimals,
+      outcomeDecimals: manifest.market.outcomeDecimals,
+      outcomeIsCurrency0: manifest.pools.no.outcomeIsCurrency0,
+      poolId: manifest.pools.no.poolId,
+      publicClient,
+      stateView: manifest.venue.stateView,
+    }),
+  ]);
+
+  const decision = decideCompleteSetArbAction({
+    noDisplayPriceWad: no.displayPriceWad,
+    toleranceWad: keeperPriceSumToleranceWad(),
+    yesDisplayPriceWad: yes.displayPriceWad,
+  });
+
+  if (decision.action !== "hold") {
+    await executeCompleteSetArb({
+      account: clients.walletClient.account!.address,
+      action: decision.action,
+      arbCollateral: keeperArbCollateral(manifest.collateral.decimals),
+      chainId: config.chainId,
+      collateralLabel: "POPCHARTS_KEEPER_ARB_COLLATERAL",
+      manifest,
+      publicClient,
+      swapRouter: config.contracts.swapRouter,
+      walletClient: createVenueContractWriter(clients.walletClient),
+    });
+    console.log(
+      `[Keeper] ${market.label}: ${decision.action} at price sum ` +
+        `${formatWad(decision.priceSumWad)}.`,
+    );
+  }
+
+  const resolvedDeferred = await drainDeferredExecutions({
+    clients,
+    market,
+  });
+
+  return {
+    action: decision.action,
+    priceSumWad: decision.priceSumWad,
+    resolvedDeferred,
+  };
+}
+
+/**
+ * Resolves deferred maker-order executions for one market's pools. Crossed
+ * orders that could not settle inline stay queued in the order manager until
+ * a resolver call executes them; without this drain, maker fills never land.
+ */
+async function drainDeferredExecutions({
+  clients,
+  market,
+}: {
+  clients: {
+    publicClient: ReturnType<typeof createPublicClient>;
+    walletClient: ReturnType<typeof createWalletClient>;
+  };
+  market: TrackedMarket;
+}): Promise<number> {
+  const pending = await findPendingDeferredExecutions({
+    fromBlock: config.deployBlock,
+    orderManager: config.contracts.orderManager,
+    poolIds: [
+      market.manifest.pools.yes.poolId,
+      market.manifest.pools.no.poolId,
+    ],
+    publicClient: clients.publicClient as PublicClient,
+  });
+  let resolved = 0;
+
+  for (const execution of pending) {
+    const requested = minBigInt(
+      execution.remainingOrderCount,
+      BigInt(COMPLETE_SET_KEEPER_POLICY.maxDeferredResolveIterations),
+    );
+
+    if (requested <= 0n) {
+      continue;
+    }
+
+    const hash = await clients.walletClient.writeContract({
+      abi: RESOLVE_DEFERRED_ABI,
+      account: clients.walletClient.account!,
+      address: config.contracts.orderManager,
+      args: [execution.executionId, requested],
+      chain: config.chain,
+      functionName: "resolveDeferredExecution",
+    });
+    const receipt = await clients.publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    if (receipt.status !== "success") {
+      throw new Error(`resolveDeferredExecution failed: ${hash}`);
+    }
+
+    resolved += 1;
+    console.log(
+      `[Keeper] ${market.label}: resolved deferred execution ` +
+        `${execution.executionId} (${requested} orders).`,
+    );
+  }
+
+  return resolved;
+}
+
+const RESOLVE_DEFERRED_ABI = [
+  {
+    inputs: [
+      { name: "executionId", type: "bytes32" },
+      { name: "requestedExecutionCount", type: "uint256" },
+    ],
+    name: "resolveDeferredExecution",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+/** Collateral committed per arbitrage round trip, env-overridable. */
+function keeperArbCollateral(collateralDecimals: number): bigint {
+  return parseUnits(
+    process.env.POPCHARTS_KEEPER_ARB_COLLATERAL ??
+      COMPLETE_SET_KEEPER_POLICY.arbCollateral,
+    collateralDecimals,
+  );
+}
+
+/** Displayed |YES + NO - 1| drift tolerated before arbitrage, env-overridable. */
+function keeperPriceSumToleranceWad(): bigint {
+  return parseUnits(
+    process.env.POPCHARTS_KEEPER_PRICE_SUM_TOLERANCE ??
+      COMPLETE_SET_KEEPER_POLICY.priceSumTolerance,
+    18,
+  );
+}
+
+function formatWad(value: bigint): string {
+  return (Number(value) / Number(WAD)).toFixed(4);
+}
+
+function minBigInt(left: bigint, right: bigint): bigint {
+  return left < right ? left : right;
+}
