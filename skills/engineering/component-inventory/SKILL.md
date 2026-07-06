@@ -1,6 +1,6 @@
 ---
 name: component-inventory
-description: Maintain the Pop Charts UI component inventory. Use when Codex creates, edits, renames, removes, splits, consolidates, or materially changes React components under app/src/components, imports or adapts designkit/components references, or prepares UI work that should keep app/docs/component-inventory.md current.
+description: Maintain the Pop Charts UI component inventory. Use when creating, editing, renaming, removing, splitting, consolidating, or materially changing React components under app/src/components, importing or adapting designkit/components references, or preparing UI work that should keep app/docs/component-inventory.md current.
 ---
 
 # Component Inventory
