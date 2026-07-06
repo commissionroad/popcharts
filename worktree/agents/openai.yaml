@@ -1,4 +1,0 @@
-interface:
-  display_name: "Worktree"
-  short_description: "Use isolated git worktrees for repo changes"
-  default_prompt: "Use $worktree to make this repository change in an isolated branch and open a pull request."
