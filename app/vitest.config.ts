@@ -20,6 +20,16 @@ export default defineConfig({
         "src/test/**",
         "src/**/fixtures.ts",
         "src/**/generated/**",
+        // Server-component page shells and layout chrome are exercised by the
+        // Playwright smoke e2e, not unit tests. API route handlers under
+        // src/app/api/** intentionally stay in the coverage denominator.
+        "src/app/**/page.tsx",
+        "src/app/**/layout.tsx",
+        "src/app/loading.tsx",
+        "src/app/not-found.tsx",
+        "src/app/error.tsx",
+        // Third-party provider wiring (Privy/wagmi); no meaningful unit seam.
+        "src/integrations/wallet/wallet-provider.tsx",
       ],
       reporter: ["text", "html", "lcov", "json-summary"],
       reportsDirectory: "coverage",
