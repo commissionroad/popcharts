@@ -19,3 +19,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
   exercise the real local app path when feasible, capture a screenshot of the
   changed state, and include the screenshot plus local verification notes in the
   PR description.
+- When shared components under `src/components/` change, use
+  `../skills/engineering/component-inventory/SKILL.md` to keep
+  `docs/component-inventory.md` current.
