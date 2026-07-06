@@ -1,0 +1,269 @@
+# ADR 0007: Monorepo Architecture Cleanup Program
+
+Status: Accepted
+
+Date: 2026-07-06
+
+## Context
+
+A full architectural review of the monorepo (2026-07-06) found that the
+macro-architecture is healthy: the cross-workspace dependency graph is acyclic,
+workspace boundaries are explicit, generated code is quarantined behind
+adapters, and the OpenAPI pipeline gives the app a single typed source of truth
+for the server API. No structural rework is needed.
+
+The debt is concentrated at the file level, in four recurring patterns:
+
+1. **God files/contracts.** Seven files over 500 lines accumulate mixed
+   responsibilities, the worst being `protocol/contracts/PregradManager.sol`
+   (1,365 lines: lifecycle + custody + fees + quoting + clearing + refunds +
+   four access roles) and
+   `protocol/contracts/v4/BoundedPoolOrderManager.sol` (1,273 lines: orders +
+   callbacks + deferred execution + partial fills + settlement).
+2. **Same-layer duplication.** Small utilities were re-implemented instead of
+   shared: token formatting and `TOKEN_DECIMALS` twice in app services,
+   error-message extraction three times in the app, AI-review response
+   parsing/score clamping duplicated between the anthropic and ollama
+   providers (a duplicated security control), inline ABIs re-declared in
+   protocol scripts, and script initialization boilerplate repeated across
+   ~18 protocol scripts.
+3. **Boundary leaks.** App feature components import contract ABIs and call
+   `useReadContract` directly; server API services construct ad-hoc viem
+   clients instead of using the canonical indexer factory; and — highest risk —
+   `app/src/integrations/contracts/pregrad-manager.ts` is a ~347-line
+   hand-written ABI with no pipeline connecting it to
+   `protocol/contracts/PregradManager.sol`, so interface drift surfaces as
+   runtime transaction failures instead of build failures.
+4. **Tooling inconsistency.** Five divergent tsconfigs with no shared base,
+   linting present only in app and protocol, and loose verification
+   screenshots cluttering the top level of `docs/`.
+
+Duplication that is **intentional and must be preserved**: the `MarketStatus`
+definitions in Solidity / server TypeBox / app domain types (each authoritative
+in its layer, kept aligned by codegen and events), and the LMSR math in both
+`protocol/contracts/libraries/LmsrMath.sol` (canonical) and
+`app/src/domain/lmsr/lmsr.ts` (UI replica, independently tested).
+
+## Decision
+
+Run a tracked cleanup program of small, independent PRs — one concern per PR —
+rather than a big-bang refactor. This document is the single source of truth
+for scope and progress. Each item below is sized to be one PR.
+
+Rules for executing this program:
+
+- One checklist item per PR. Reference this ADR and the item ID in the PR
+  description. Tick the checkbox in this file **in the same PR** that
+  completes the item.
+- Behavior-preserving refactors only, unless the item says otherwise. Every PR
+  must pass the relevant workspace gate (`pnpm run app:check`,
+  `pnpm run server:check`, `pnpm run protocol:check`, `pnpm run scripts:check`)
+  before merge; run the full `pnpm run check` when a change touches more than
+  one workspace.
+- When a PR moves or extracts code, delete the old copy in the same PR. No
+  transitional re-exports left behind unless an item calls for one.
+- Track C (Solidity contract decomposition) touches contracts that hold funds.
+  Those items require human review and must NOT be executed autonomously; an
+  unattended session may prepare a design note or draft branch but must not
+  merge them.
+- Update the Progress Log at the bottom of this file as items land (PR number,
+  date, notes/deviations).
+
+## Work Plan
+
+### Track A — Contract ABI pipeline and drift protection (highest value)
+
+- [ ] **A1. Export v4 contract ABIs from the protocol metadata pipeline.**
+  Extend `protocol/scripts/export-contract-metadata.ts` to also generate
+  TypeScript ABI modules for `BoundedPoolOrderManager`,
+  `BoundedPredictionHook`, `MinimalV4SwapRouter`, and `PoolTickBounds` into
+  `protocol/src/generated/`, re-exported from `protocol/src/index.ts`.
+  Generation must stay deterministic (sorted contracts). Validation:
+  `pnpm run protocol:check`; regenerating twice produces no diff.
+- [ ] **A2. Generate the app's pregrad-manager ABI from protocol artifacts.**
+  Replace the hand-written `app/src/integrations/contracts/pregrad-manager.ts`
+  with output generated from the protocol pipeline (A1's mechanism). Keep the
+  same exported name so app imports do not churn. Commit the generated file.
+  Depends on: A1. Validation: `pnpm run app:check`; a diff between the old
+  hand-written ABI and the generated one is reviewed function-by-function
+  before merge (any semantic difference is a finding, not a silent fix).
+- [ ] **A3. Add an ABI freshness gate.** Add a check script (wired into
+  `app:check` or root `check`) that regenerates the app-side ABI(s) and fails
+  on diff, mirroring the existing `openapi:check` pattern. Depends on: A2.
+- [ ] **A4. Replace inline ABIs in protocol scripts with generated imports.**
+  Remove the hand-declared ABI blocks in
+  `protocol/scripts/create-complete-set-market.ts` (~80 lines),
+  `protocol/scripts/operate-postgrad-admin.ts` (~130 lines), and
+  `protocol/scripts/smoke-maker-order.ts`, importing from
+  `protocol/src/generated/` instead. Depends on: A1. Validation:
+  `pnpm run protocol:check` plus a local smoke run of at least one affected
+  script against the devchain.
+- [ ] **A5. Ensure OpenAPI drift check runs in CI ahead of app codegen.**
+  Verify/adjust CI so `server openapi:check` is a prerequisite of any job that
+  runs the app's `api:generate` or build. If CI already guarantees this,
+  document the guarantee in `server/README` (or nearest doc) and close the
+  item with a note.
+
+### Track B — Server cleanup
+
+- [ ] **B1. Extract shared AI-review response parsing.** Create
+  `server/src/ai-review/response-parsing.ts` holding the verdict parsing,
+  source-check parsing/filtering-by-evidence, score clamping/adjustment, and
+  related helpers currently duplicated between
+  `server/src/ai-review/anthropic.ts` and `server/src/ai-review/ollama.ts`.
+  Both providers import it; duplicated copies are deleted. This is a security
+  control — behavior must be preserved exactly; port existing tests and add
+  coverage for the shared module. Validation: `pnpm run server:check`.
+- [ ] **B2. Split `server/src/ai-review/anthropic.ts` (604 lines) into focused
+  modules** — HTTP call, tool/system-prompt building, evidence extraction, and
+  a thin orchestrator — after B1 removes the parsing code. Depends on: B1.
+- [ ] **B3. Centralize viem client creation.** Export read-only and wallet
+  client factories from `server/src/indexer/blockchain/client.ts` (or a new
+  `server/src/blockchain/` module if indexer placement reads poorly) and
+  migrate the ad-hoc clients in `server/src/api/services/markets.ts` and
+  `server/src/api/services/dev-market-close.ts` (and
+  `server/src/ai-review-runner/chain-review.ts` if applicable) onto them.
+- [ ] **B4. Extract SQL condition builders from
+  `server/src/ai-review-runner/jobs.ts`** into a sibling `queries.ts`
+  (claimable-job condition, no-active-job, no-existing-review predicates).
+- [ ] **B5. Extract failure handling from jobs.ts** into a sibling
+  `failures.ts` (`markReviewJobFailure`, `cancelReviewJob`,
+  `calculateRetryDelayMs`, `compactError`). Depends on: B4 (keeps the diff
+  reviewable).
+- [ ] **B6. Add lint/format to the server workspace.** ESLint (flat config) +
+  Prettier consistent with the shared config from D2, wired into
+  `server:check`. Depends on: D2. Expect a mechanical formatting commit
+  separate from any logic changes.
+
+### Track C — Protocol contracts (human review required; NOT for autonomous merge)
+
+- [ ] **C1. Extract FeeManager from PregradManager.** Move creation-fee
+  collection/withdrawal state and logic out of
+  `protocol/contracts/PregradManager.sol`. Full test parity in
+  `protocol/test/solidity/`.
+- [ ] **C2. Extract ReceiptBook from PregradManager.** Move receipt storage,
+  validation, and LMSR quote entry points; PregradManager remains the
+  lifecycle orchestrator. Depends on: C1.
+- [ ] **C3. Tighten the IPostgradAdapter handoff.** Have
+  `prepareMarket` return (or PregradManager assert) outcome capacity so
+  `finalizeGraduation` fails loudly on an underfunded adapter instead of
+  trusting it.
+- [ ] **C4. Extract DeferredExecutionProcessor from BoundedPoolOrderManager.**
+- [ ] **C5. Extract SettlementManager from BoundedPoolOrderManager.**
+  Depends on: C4.
+- [ ] **C6. Unify price/tick conversion.** Add a Solidity
+  `PriceConversion` library (or extend `PoolTickBounds`) exposing
+  display-price ↔ sqrtPriceX96 ↔ tick conversions, and re-anchor the
+  TypeScript helpers in `protocol/scripts/shared/price/` (and their hardcoded
+  policy bounds) against it so the two cannot silently diverge.
+
+### Track D — Protocol tests and scripts (safe for autonomous execution)
+
+- [ ] **D1. Add `protocol/test/solidity/BaseTest.sol`** with shared fixtures
+  (mock collateral setup, manager instantiation) and migrate the existing test
+  contracts onto it.
+- [ ] **D1a. Stop re-declaring events in Solidity tests.** Import events from
+  the contracts under test (e.g. the 10+ redeclarations in
+  `protocol/test/solidity/PregradManager.t.sol`) so signature drift becomes a
+  compile error. Depends on: D1 (land together or immediately after).
+- [ ] **D2. Bundle protocol script initialization.** Create
+  `protocol/scripts/shared/cli/initializeScriptEnvironment.ts` wrapping the
+  repeated connection/profile/wallet/chain-assert preamble, and migrate the
+  top-level scripts onto it (mechanical, ~10 lines saved per script).
+- [ ] **D3. Split settlement indexer handlers only if they grow.** Explicitly
+  deferred: `server/src/indexer/handlers/settlement.ts` (436 lines, 6 events)
+  stays as-is until it gains more event types. This item exists so nobody
+  "cleans it up" prematurely — close as won't-do unless the trigger fires.
+
+### Track E — App cleanup
+
+- [ ] **E1. Split `app/src/integrations/wallet/wallet-provider.tsx` (539
+  lines)** into `privy-wallet-provider.tsx`, `local-wallet-provider.tsx`, and
+  `wallet-utilities.ts`, keeping `wallet-provider.tsx` as the context +
+  orchestrator with an unchanged public API.
+- [ ] **E2. Consolidate token/WAD utilities.** One home (e.g.
+  `app/src/domain/crypto/constants.ts` or `app/src/lib/`) for
+  `TOKEN_DECIMALS`, `WAD`, `wadToNumber`/`numberToWad`, and a single
+  `formatTokenAmount` in `app/src/lib/format.ts`; delete the copies in
+  `create-market-service.ts`, `place-receipt-service.ts`,
+  `create-market-panels.tsx`, and `api-market.ts`. Add unit tests.
+- [ ] **E3. Consolidate error-message extraction** into
+  `app/src/lib/error-handling.ts` with an optional error-matcher hook;
+  migrate the three variants (create-market-form, receipt-action,
+  wallet-provider).
+- [ ] **E4. Wrap contract reads in integration-layer hooks.** Add
+  `app/src/integrations/contracts/hooks/` (`useTrustedCreatorStatus`,
+  `useMarketBalance`, `useMarketExists`) so
+  `create-market-form.tsx` and `receipt-ticket.tsx` stop importing ABIs and
+  calling `useReadContract` directly.
+- [ ] **E5. Extract the receipt-ticket state machine** into a
+  `useReceiptTicketState` (and/or `useContractMarketStatus`) hook, leaving
+  `receipt-ticket.tsx` as presentation. Depends on: E4.
+- [ ] **E6. Extract the create-market form state machine** into a
+  `useCreateMarketFormState` hook (stage transitions, validation orchestration,
+  retry/error flow). Depends on: E4.
+- [ ] **E7. Split `create-market-panels.tsx` (498 lines)** into a
+  `create-market-panels/` directory with one file per panel plus `shared.tsx`;
+  panel-local formatters move to shared or `lib/format.ts` where duplicated.
+- [ ] **E8. Move app-ID parsing out of the domain layer.**
+  `parseApiMarketAppId`/`apiMarketAppId` from
+  `app/src/domain/markets/api-market.ts` to `app/src/lib/app-id.ts` (they are
+  encoding-scheme adapters, not domain logic); update importers.
+
+### Track F — Tooling and repo hygiene
+
+- [ ] **F1. Add a root `tsconfig.base.json`** carrying the shared strictness
+  flags (`strict`, `skipLibCheck`, `esModuleInterop`,
+  `forceConsistentCasingInFileNames`, `resolveJsonModule`); each workspace
+  extends it and keeps only runtime-specific settings (target, module,
+  moduleResolution, paths, jsx).
+- [ ] **F2. Share a root Prettier config**; app and protocol extend it instead
+  of carrying separate copies. (Server picks it up via B6.)
+- [ ] **F3. Move verification screenshots out of `docs/` top level** into
+  `docs/screenshots/` (~20 PNGs), updating any references in docs or PR
+  templates/skills that link to them.
+- [ ] **F4. Write `docs/architecture.md`** documenting the workspace dependency
+  graph and import rules (what may import from what, where generated code
+  lives, the intentional MarketStatus/LMSR duplication), so the boundaries
+  this program restores are enforceable by convention.
+
+## Consequences
+
+Positive:
+
+- Contract interface drift between protocol and app becomes a build-time
+  failure (Track A) instead of a runtime transaction failure.
+- Security-relevant AI-review parsing has exactly one implementation (B1).
+- The seven oversized files/contracts decompose into testable units without
+  changing the system's shape.
+- Small PRs keep every step reviewable and revertable; this file gives any
+  session (human or autonomous) the full remaining work list.
+
+Tradeoffs:
+
+- ~30 PRs of review overhead and churn in file paths/imports; `git blame`
+  history fragments across the moves.
+- Generated ABI files add committed artifacts (mitigated by freshness gates).
+- Track C is real contract surgery with audit implications; it is sequenced
+  last and gated on human review by design.
+
+## Execution Notes for Autonomous Sessions
+
+- Safe to execute unattended: Tracks A, B, D (except D3 — leave closed), E, F.
+  Do NOT merge Track C items unattended.
+- Suggested order: A1 → A2 → A3 → A4, B1 → B2, then B3–B5, D1 → D1a, D2, E1–E8,
+  F1–F4, A5. Items without a stated dependency are independent and may be done
+  in any order.
+- Workflow per item: fresh worktree/branch off `main` → implement → run the
+  workspace gate(s) → open PR referencing this ADR item → merge-commit PR →
+  delete the branch → pull the primary checkout (process-compose runs from
+  it). Tick the checkbox and update the Progress Log in the same PR.
+- If an item turns out to be wrong or already done, do not force it: close it
+  in the Progress Log with a note and move on.
+- If a gate fails for pre-existing reasons unrelated to the change, stop and
+  record it in the Progress Log rather than working around it.
+
+## Progress Log
+
+| Date | Item | PR | Notes |
+| ---- | ---- | -- | ----- |
