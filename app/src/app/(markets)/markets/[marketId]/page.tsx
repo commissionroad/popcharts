@@ -41,7 +41,7 @@ export default async function Page({ params }: PageProps) {
   }
 
   const pricePath =
-    receipts.length > 0 ? pricePathFromReceipts(market, receipts) : market.pricePath;
+    receipts.length > 0 ? pricePathFromReceipts(market, receipts) : null;
 
-  return <MarketDetailPage market={{ ...market, pricePath }} />;
+  return <MarketDetailPage market={market} {...(pricePath ? { pricePath } : {})} />;
 }

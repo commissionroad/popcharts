@@ -78,6 +78,13 @@ export type MarketAiReview = {
   verdict: AiReviewVerdict;
 };
 
+/** One sample on a market's implied-probability history curve. */
+export type PricePathPoint = {
+  /** ISO timestamp of the trade behind this sample, when known. */
+  at?: string;
+  cents: number;
+};
+
 export type Market = {
   aiReview?: MarketAiReview;
   b: number;
