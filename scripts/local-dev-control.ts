@@ -220,6 +220,12 @@ async function prepareDatabase(): Promise<void> {
   rmSync(localDevIndexerHealthFile, { force: true });
 
   const reuseExistingHardhatRpc = await isRpcReady(rpcHttpUrl);
+  if (!reuseExistingHardhatRpc) {
+    // A fresh chain invalidates previously deployed addresses; drop the stale
+    // generated env so review-runner waits for the new deployment instead of
+    // signing transitions against contracts that no longer exist.
+    rmSync(localChainEnvFile, { force: true });
+  }
   if (
     !reuseExistingHardhatRpc &&
     process.env.POPCHARTS_LOCAL_DEV_KEEP_DB !== "true"
@@ -329,8 +335,19 @@ async function runReviewService(): Promise<void> {
 }
 
 async function runReviewRunner(): Promise<void> {
+  // The runner submits approve/reject transitions to the PregradManager, so
+  // unlike the review service it cannot run on the blank pre-deploy addresses
+  // from buildLocalServerEnv. Wait for deploy-contracts to write the generated
+  // env (or reuse one from an attached chain) instead of a yaml dependency,
+  // which would drag chain + deploy-contracts into --ai-review-only.
+  await waitFor(
+    "generated server env from deploy-contracts",
+    () => existsSync(localChainEnvFile),
+    { logLabel: LOG_LABEL, timeoutMs: 600_000 },
+  );
+
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review-runner"], {
-    env: buildAiReviewRunnerEnv(buildLocalServerEnv()),
+    env: buildAiReviewRunnerEnv(readGeneratedServerEnv()),
   });
 }
 
