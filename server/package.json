@@ -6,6 +6,7 @@
   "packageManager": "bun@1.3.14",
   "scripts": {
     "build": "bun build src/api/index.ts --outdir dist/api --target bun && bun build src/indexer/index.ts --outdir dist/indexer --target bun && bun build src/ai-review/server.ts --outdir dist/ai-review --target bun && bun build src/ai-review-runner/index.ts --outdir dist/ai-review-runner --target bun",
+    "bot:trade": "bun run scripts/bot-trade.ts",
     "db:generate": "drizzle-kit generate",
     "db:ensure-local-constraints": "bun run src/db/ensure-local-unique-constraints.ts",
     "db:migrate": "drizzle-kit migrate",

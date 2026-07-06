@@ -72,6 +72,9 @@ local-ai-review *args:
 local-dev-ai-review *args:
     pnpm run local:dev:ai-review -- {{args}}
 
+local-bot-trade *args:
+    pnpm run local:bot-trade -- {{args}}
+
 local-create-market *args:
     pnpm run local:create-market -- {{args}}
 
