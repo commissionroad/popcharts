@@ -284,6 +284,31 @@ export const MarketCreatedEventListSchema = t.Array(
   { $id: "MarketCreatedEventList" },
 );
 
+/** Raw ReceiptPlaced chain event as indexed; side 0 is YES, side 1 is NO. */
+export const ReceiptPlacedEventSchema = t.Object(
+  {
+    blockNumber: t.String(),
+    blockTimestamp: t.String(),
+    chainId: t.Number(),
+    cost: t.String(),
+    logIndex: t.Number(),
+    marketId: t.String(),
+    owner: t.String(),
+    receiptId: t.String(),
+    sequence: t.String(),
+    shares: t.String(),
+    side: t.Number(),
+    transactionHash: t.String(),
+  },
+  { $id: "ReceiptPlacedEvent" },
+);
+
+/** Receipt events recorded for one market, ordered oldest first by sequence. */
+export const ReceiptPlacedEventListSchema = t.Array(
+  t.Ref(ReceiptPlacedEventSchema),
+  { $id: "ReceiptPlacedEventList" },
+);
+
 /** Settlement totals recorded when a market graduates. */
 export const GraduationSummarySchema = t.Object(
   {
@@ -416,6 +441,9 @@ export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
   typeof MarketCreatedEventSchema
+>;
+export type ReceiptPlacedEventResponse = Static<
+  typeof ReceiptPlacedEventSchema
 >;
 export type GraduationSummaryResponse = Static<typeof GraduationSummarySchema>;
 export type GraduationResponse = Static<typeof GraduationResponseSchema>;
