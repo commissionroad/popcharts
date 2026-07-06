@@ -62,8 +62,7 @@ export const markets: Market[] = [
     graduationTargetUsd: 482_000,
     id: "eth-5000-august",
     matchedUsd: 356_000,
-    metadataHash:
-      "0x7a1c2b3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef",
+    metadataHash: "0x7a1c2b3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef",
     noPriceCents: 36,
     openingProbability: 50,
     pricePath: [28, 31, 35, 39, 44, 47, 53, 57, 61, 64],
