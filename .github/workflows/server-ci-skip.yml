@@ -1,0 +1,21 @@
+# Companion to server-ci.yml for branch protection. See app-ci-skip.yml
+# for why this exists.
+name: Server CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - server/**
+      - .github/workflows/server-ci.yml
+
+permissions: {}
+
+jobs:
+  server:
+    name: Check server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip (no server changes)
+        run: 'echo "No server changes; check satisfied."'

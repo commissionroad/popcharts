@@ -1,0 +1,25 @@
+# Companion to app-ci.yml for branch protection. "Check app" is a required
+# status check, but App CI is path-filtered, so PRs that don't touch app/**
+# would wait forever for a check that never runs. This workflow triggers on
+# the exact complement of App CI's paths and reports success under the same
+# job name. See:
+# https://docs.github.com/en/actions/using-workflows/troubleshooting-workflows#handling-skipped-but-required-checks
+name: App CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - app/**
+      - .github/workflows/app-ci.yml
+
+permissions: {}
+
+jobs:
+  app:
+    name: Check app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip (no app changes)
+        run: 'echo "No app changes; check satisfied."'
