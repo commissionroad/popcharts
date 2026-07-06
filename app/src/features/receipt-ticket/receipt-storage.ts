@@ -48,6 +48,7 @@ export function useStoredReceipts() {
 }
 
 function readStoredReceipts() {
+  /* v8 ignore next 3 -- SSR guard; unreachable under the jsdom test env. */
   if (typeof window === "undefined") {
     return [];
   }

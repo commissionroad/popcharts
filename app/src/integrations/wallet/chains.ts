@@ -15,8 +15,8 @@ import {
   localChainEnabled,
 } from "@/integrations/contracts/config";
 
-const localChainId = configuredPopChartsChainId ?? 31337;
-const localRpcUrl = configuredPopChartsRpcUrl ?? "http://127.0.0.1:8545";
+const localChainId = configuredPopChartsChainId;
+const localRpcUrl = configuredPopChartsRpcUrl;
 const localHardhatChain = defineChain({
   id: localChainId,
   name: localChainId === 31337 ? "Hardhat Local" : `Local Devchain ${localChainId}`,
@@ -83,9 +83,7 @@ export const supportedWalletChains: readonly WalletChainSummary[] =
   }));
 
 export function getWalletRpcUrlForChain(chainId: number) {
-  return chainId === configuredPopChartsChainId
-    ? (configuredPopChartsRpcUrl ?? undefined)
-    : undefined;
+  return chainId === configuredPopChartsChainId ? configuredPopChartsRpcUrl : undefined;
 }
 
 export function findSupportedEvmChain(chainId: number | null | undefined) {
