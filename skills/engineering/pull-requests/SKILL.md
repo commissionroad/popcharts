@@ -53,3 +53,23 @@ was a choice, not an oversight.
 
 Follow `engineering/ui-pr-verification`: include local verification notes and
 a screenshot of the changed state.
+
+## After landing
+
+Landing a PR is not done until the branches are cleaned up and the local main
+checkout is current. The repo does not auto-delete branches on merge.
+
+- Merge with `gh pr merge --merge --delete-branch` (this repo uses merge
+  commits). If the remote branch survived, delete it:
+  `git push origin --delete <branch>`.
+- Delete the local branch. If it is checked out in a worktree, remove the
+  worktree first (`git worktree remove <path>` — never `--force`; a refusal
+  means uncommitted work that must be looked at, not discarded), then
+  `git branch -d <branch>`. From inside the worktree itself, `git checkout
+  --detach` before `git branch -d`.
+- Sweep other fully-merged branches while you are here
+  (`git branch --merged origin/main`), using the same non-forcing commands.
+  Leave unmerged branches and other agents' in-flight worktrees alone.
+- Update the primary checkout: `git -C <repo-root> pull --ff-only` on `main`.
+  Local services (process-compose / `just local-dev`) run from the primary
+  checkout, so until it is pulled, restarting them serves the pre-merge code.
