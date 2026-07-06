@@ -29,6 +29,8 @@ import {
   MarketMetadataWriteSchema,
   MarketSchema,
   MarketStatusSchema,
+  ReceiptPlacedEventListSchema,
+  ReceiptPlacedEventSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
@@ -36,6 +38,7 @@ import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
   getMarketCreatedEvents,
+  getMarketReceiptPlacedEvents,
   getMarkets,
   upsertMarketMetadata,
 } from "src/api/services/markets";
@@ -78,6 +81,8 @@ export const marketRoutes = new Elysia({ prefix: "" })
     MarketMetadata: MarketMetadataSchema,
     MarketMetadataWrite: MarketMetadataWriteSchema,
     MarketStatus: MarketStatusSchema,
+    ReceiptPlacedEvent: ReceiptPlacedEventSchema,
+    ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
   })
   .get(
     "/markets",
@@ -327,6 +332,30 @@ export const marketRoutes = new Elysia({ prefix: "" })
       detail: {
         operationId: "listMarketEvents",
         summary: "Get market chain events",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/receipts",
+    ({ params }) =>
+      getMarketReceiptPlacedEvents(
+        Number.parseInt(params.chainId, 10),
+        params.marketId,
+      ),
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "ReceiptPlacedEventList",
+      },
+      detail: {
+        operationId: "listMarketReceipts",
+        summary: "Get market receipt events",
+        description:
+          "Returns the indexed ReceiptPlaced events for one market ordered oldest first by on-chain sequence, so clients can replay the LMSR price history without touching an RPC provider.",
         tags: ["Markets"],
       },
     },

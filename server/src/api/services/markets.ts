@@ -6,10 +6,11 @@ import type {
   MarketMetadataResponse,
   MarketMetadataWrite,
   MarketResponse,
+  ReceiptPlacedEventResponse,
 } from "src/api/models/markets";
 import { config } from "src/config";
 import { db } from "src/db/client";
-import { and, desc, eq, gt, inArray, schema } from "src/db/client";
+import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 
 const MARKET_LIST_LIMIT = 200;
@@ -232,6 +233,72 @@ export async function getMarketCreatedEvents(
 }
 
 /**
+ * Returns the indexed ReceiptPlaced events for one market, oldest first by
+ * on-chain sequence so callers can replay the LMSR price path in trade order.
+ * Malformed ids and locally dead markets yield an empty list rather than an
+ * error, matching the list-shaped response contract.
+ */
+export async function getMarketReceiptPlacedEvents(
+  chainId: number,
+  marketId: string,
+): Promise<ReceiptPlacedEventResponse[]> {
+  let parsedMarketId: bigint;
+
+  try {
+    parsedMarketId = BigInt(marketId);
+  } catch {
+    return [];
+  }
+
+  const rows = await db
+    .select({ event: schema.receiptPlacedEvents })
+    .from(schema.receiptPlacedEvents)
+    .innerJoin(schema.contracts, receiptPlacedEventContractJoinCondition())
+    .where(
+      and(
+        eq(schema.contracts.address, currentPregradManagerAddress()),
+        eq(schema.contracts.chainId, config.chainId),
+        eq(schema.receiptPlacedEvents.chainId, chainId),
+        eq(schema.receiptPlacedEvents.marketId, parsedMarketId),
+      ),
+    )
+    .orderBy(asc(schema.receiptPlacedEvents.sequence));
+
+  if (!(await isLiveLocalMarket(parsedMarketId))) {
+    return [];
+  }
+
+  return rows.map(({ event }) => serializeReceiptPlacedEventRow(event));
+}
+
+/** Drizzle select shape of a receipt_placed_events row. */
+export type ReceiptPlacedEventRow =
+  typeof schema.receiptPlacedEvents.$inferSelect;
+
+/**
+ * Maps a receipt event row to its API shape: bigints become decimal strings
+ * and dates become ISO strings, mirroring serializeMarketRow.
+ */
+export function serializeReceiptPlacedEventRow(
+  event: ReceiptPlacedEventRow,
+): ReceiptPlacedEventResponse {
+  return {
+    blockNumber: event.blockNumber.toString(),
+    blockTimestamp: event.blockTimestamp.toISOString(),
+    chainId: event.chainId,
+    cost: event.cost.toString(),
+    logIndex: event.logIndex,
+    marketId: event.marketId.toString(),
+    owner: event.owner,
+    receiptId: event.receiptId.toString(),
+    sequence: event.sequence.toString(),
+    shares: event.shares.toString(),
+    side: event.side,
+    transactionHash: event.transactionHash,
+  };
+}
+
+/**
  * Single source of truth for mapping a market row (plus optional metadata and
  * latest AI review) to the public MarketResponse: bigints become decimal
  * strings, dates become ISO strings, and absent relations are omitted.
@@ -336,6 +403,13 @@ function marketCreatedEventContractJoinCondition() {
   return and(
     eq(schema.contracts.id, schema.marketCreatedEvents.contractId),
     eq(schema.contracts.chainId, schema.marketCreatedEvents.chainId),
+  );
+}
+
+function receiptPlacedEventContractJoinCondition() {
+  return and(
+    eq(schema.contracts.id, schema.receiptPlacedEvents.contractId),
+    eq(schema.contracts.chainId, schema.receiptPlacedEvents.chainId),
   );
 }
 

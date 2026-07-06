@@ -4,8 +4,10 @@ import {
   parseSinceTimestamp,
   serializeMarketAiReviewRow,
   serializeMarketRow,
+  serializeReceiptPlacedEventRow,
   type MarketAiReviewRow,
   type MarketRow,
+  type ReceiptPlacedEventRow,
 } from "./markets";
 
 const market = {
@@ -126,5 +128,44 @@ describe("market serializers", () => {
     const serialized = serializeMarketRow(market, null, 0n);
 
     expect(serialized.aiReview).toBeUndefined();
+  });
+
+  it("serializes receipt placed event rows for price-history reads", () => {
+    const event = {
+      blockNumber: 456n,
+      blockTimestamp: new Date("2026-06-23T12:05:00.000Z"),
+      chainId: 5042002,
+      contractId: 1,
+      cost: 3_288_901_914_750_925_000n,
+      createdAt: new Date("2026-06-23T12:05:01.000Z"),
+      id: 9,
+      logIndex: 2,
+      marketId: 42n,
+      owner: "0x00000000000000000000000000000000000000bb",
+      rHigh: "969000000000000000000",
+      rLow: "963000000000000000000",
+      receiptId: 17n,
+      sequence: 3n,
+      shares: 6n * 10n ** 18n,
+      side: 0,
+      transactionHash:
+        "0x3333333333333333333333333333333333333333333333333333333333333333",
+    } satisfies ReceiptPlacedEventRow;
+
+    expect(serializeReceiptPlacedEventRow(event)).toEqual({
+      blockNumber: "456",
+      blockTimestamp: "2026-06-23T12:05:00.000Z",
+      chainId: 5042002,
+      cost: "3288901914750925000",
+      logIndex: 2,
+      marketId: "42",
+      owner: "0x00000000000000000000000000000000000000bb",
+      receiptId: "17",
+      sequence: "3",
+      shares: "6000000000000000000",
+      side: 0,
+      transactionHash:
+        "0x3333333333333333333333333333333333333333333333333333333333333333",
+    });
   });
 });
