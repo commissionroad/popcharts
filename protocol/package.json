@@ -49,6 +49,7 @@
     "metadata:check": "hardhat build && node --experimental-strip-types scripts/export-contract-metadata.ts --check",
     "operator:postgrad-admin": "hardhat operator",
     "test": "hardhat test",
+    "test:coverage": "hardhat test --coverage",
     "test:nodejs": "hardhat test nodejs",
     "test:solidity": "hardhat test solidity",
     "typecheck": "pnpm metadata:check && tsc --noEmit"

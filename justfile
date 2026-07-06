@@ -21,6 +21,9 @@ app-check:
 app-test:
     pnpm run app:test
 
+app-coverage:
+    pnpm run app:coverage
+
 app-smoke:
     pnpm run app:e2e:smoke
 
@@ -42,6 +45,9 @@ protocol-check:
 protocol-test:
     pnpm run protocol:test
 
+protocol-coverage:
+    pnpm run protocol:coverage
+
 server-install:
     pnpm run server:install
 
@@ -59,6 +65,9 @@ server-ai-review-smoke:
 
 server-check:
     pnpm run server:check
+
+server-coverage:
+    pnpm run server:coverage
 
 local-dev *args:
     pnpm run local:dev -- {{args}}
@@ -101,6 +110,9 @@ local-market-smoke *args:
 
 test:
     pnpm run test
+
+coverage:
+    pnpm run test:coverage
 
 check:
     pnpm run check
