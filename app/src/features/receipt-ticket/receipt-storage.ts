@@ -8,7 +8,9 @@ const STORAGE_KEY = "popcharts:placed-pregrad-receipts:v1";
 
 /**
  * Saves a placed receipt to localStorage (deduplicated by id, newest first,
- * capped at 50) and notifies useStoredReceipts listeners in this tab.
+ * capped at 50) and notifies useStoredReceipts listeners in this tab. A
+ * storage failure (quota, private mode) drops the local copy silently — the
+ * receipt itself is already placed and must not look failed.
  */
 export function recordPlacedReceipt(receipt: PlacedPregradReceipt) {
   const receipts = readStoredReceipts();
@@ -17,7 +19,12 @@ export function recordPlacedReceipt(receipt: PlacedPregradReceipt) {
     ...receipts.filter((item) => item.id !== receipt.id),
   ].slice(0, 50);
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextReceipts));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextReceipts));
+  } catch {
+    return;
+  }
+
   window.dispatchEvent(new Event("popcharts:receipts-updated"));
 }
 
