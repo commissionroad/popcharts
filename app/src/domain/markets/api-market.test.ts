@@ -4,7 +4,11 @@ import type { ApiReceiptPlacedEvent } from "@/integrations/indexer/markets-api";
 
 import { pricePathFromReceipts } from "./api-market";
 
-const market = { b: 5_000, openingProbability: 50 };
+const market = {
+  b: 5_000,
+  createdAt: "2026-06-13T12:00:00.000Z",
+  openingProbability: 50,
+};
 
 function receipt(
   overrides: Partial<ApiReceiptPlacedEvent> = {}
@@ -27,16 +31,24 @@ function receipt(
   };
 }
 
+function cents(path: { cents: number }[]) {
+  return path.map((point) => point.cents);
+}
+
 describe("pricePathFromReceipts", () => {
   it("starts at the opening price with no receipts", () => {
-    expect(pricePathFromReceipts(market, [])).toEqual([50]);
+    expect(pricePathFromReceipts(market, [])).toEqual([
+      { at: "2026-06-13T12:00:00.000Z", cents: 50 },
+    ]);
   });
 
   it("moves the YES price up on YES buys and down on NO buys", () => {
-    const path = pricePathFromReceipts(market, [
-      receipt({ receiptId: "1", sequence: "1", side: 0 }),
-      receipt({ receiptId: "2", sequence: "2", side: 1 }),
-    ]);
+    const path = cents(
+      pricePathFromReceipts(market, [
+        receipt({ receiptId: "1", sequence: "1", side: 0 }),
+        receipt({ receiptId: "2", sequence: "2", side: 1 }),
+      ])
+    );
 
     expect(path).toHaveLength(3);
     expect(path[0]).toBe(50);
@@ -44,6 +56,36 @@ describe("pricePathFromReceipts", () => {
     expect(path[2]).toBeLessThan(path[1] ?? Number.NaN);
     // Equal-sized YES and NO buys return the market to its opening price.
     expect(path[2]).toBeCloseTo(50, 6);
+  });
+
+  it("stamps each point with the timestamp of the trade behind it", () => {
+    const path = pricePathFromReceipts(market, [
+      receipt({
+        blockTimestamp: "2026-06-13T12:05:00.000Z",
+        receiptId: "1",
+        sequence: "1",
+      }),
+      receipt({
+        blockTimestamp: "2026-06-13T12:06:00.000Z",
+        receiptId: "2",
+        sequence: "2",
+      }),
+    ]);
+
+    expect(path.map((point) => point.at)).toEqual([
+      "2026-06-13T12:00:00.000Z",
+      "2026-06-13T12:05:00.000Z",
+      "2026-06-13T12:06:00.000Z",
+    ]);
+  });
+
+  it("omits the opening timestamp when the market creation time is unknown", () => {
+    const path = pricePathFromReceipts(
+      { b: market.b, openingProbability: market.openingProbability },
+      []
+    );
+
+    expect(path).toEqual([{ cents: 50 }]);
   });
 
   it("replays receipts in sequence order regardless of input order", () => {
@@ -83,7 +125,7 @@ describe("pricePathFromReceipts", () => {
     const path = pricePathFromReceipts(market, receipts);
 
     expect(path).toHaveLength(256);
-    expect(path[0]).toBe(50);
-    expect(path.at(-1)).toBeGreaterThan(full.at(-1) ?? Number.NaN);
+    expect(path[0]?.cents).toBe(50);
+    expect(path.at(-1)?.cents).toBeGreaterThan(full.at(-1)?.cents ?? Number.NaN);
   });
 });

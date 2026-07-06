@@ -9,7 +9,7 @@ import type {
   ApiReceiptPlacedEvent,
 } from "@/integrations/indexer/markets-api";
 
-import type { Market, MarketCategory, MarketStatus } from "./types";
+import type { Market, MarketCategory, MarketStatus, PricePathPoint } from "./types";
 
 const WAD = 10n ** 18n;
 const MAX_PRICE_PATH_POINTS = 256;
@@ -154,19 +154,25 @@ function currentLmsrState({
 /**
  * Replays indexed ReceiptPlaced events through the virtual LMSR to recover the
  * market's actual price history: the opening price followed by the implied YES
- * price after each receipt, in on-chain sequence order. Long histories are
- * downsampled to MAX_PRICE_PATH_POINTS while always keeping the first and
- * latest prices.
+ * price after each receipt, in on-chain sequence order. Each point carries the
+ * timestamp of the trade behind it (the market creation time for the opening
+ * point). Long histories are downsampled to MAX_PRICE_PATH_POINTS while always
+ * keeping the first and latest prices.
  */
 export function pricePathFromReceipts(
-  market: Pick<Market, "b" | "openingProbability">,
+  market: Pick<Market, "b" | "createdAt" | "openingProbability">,
   receipts: ApiReceiptPlacedEvent[]
-) {
+): PricePathPoint[] {
   let state = createOpeningState({
     b: market.b,
     openingProbability: market.openingProbability,
   });
-  const path = [marginalPriceCents(state, "yes")];
+  const path: PricePathPoint[] = [
+    {
+      cents: marginalPriceCents(state, "yes"),
+      ...(market.createdAt ? { at: market.createdAt } : {}),
+    },
+  ];
 
   const ordered = [...receipts].sort((a, b) =>
     parseBigInt(a.sequence) < parseBigInt(b.sequence) ? -1 : 1
@@ -178,13 +184,16 @@ export function pricePathFromReceipts(
       side: receipt.side === 0 ? "yes" : "no",
       state,
     });
-    path.push(marginalPriceCents(state, "yes"));
+    path.push({
+      at: receipt.blockTimestamp,
+      cents: marginalPriceCents(state, "yes"),
+    });
   }
 
   return downsamplePricePath(path, MAX_PRICE_PATH_POINTS);
 }
 
-function downsamplePricePath(path: number[], maxPoints: number) {
+function downsamplePricePath(path: PricePathPoint[], maxPoints: number) {
   if (path.length <= maxPoints) {
     return path;
   }
@@ -193,7 +202,7 @@ function downsamplePricePath(path: number[], maxPoints: number) {
 
   return Array.from(
     { length: maxPoints },
-    (_, index) => path[Math.round(index * stride)] ?? 0
+    (_, index) => path[Math.round(index * stride)] ?? { cents: 0 }
   );
 }
 

@@ -5,7 +5,7 @@ import { PriceCurve } from "@/components/charts/price-curve";
 import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
-import type { Market } from "@/domain/markets/types";
+import type { Market, PricePathPoint } from "@/domain/markets/types";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
@@ -14,7 +14,14 @@ import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
 import { MarketDevSettings } from "./market-dev-settings";
 
-export function MarketDetailPage({ market }: { market: Market }) {
+export function MarketDetailPage({
+  market,
+  pricePath,
+}: {
+  market: Market;
+  pricePath?: PricePathPoint[];
+}) {
+  const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
   const canRequestGraduation =
     market.status === "bootstrap" &&
     market.graduationTargetUsd > 0 &&
@@ -76,7 +83,7 @@ export function MarketDetailPage({ market }: { market: Market }) {
             <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
               Virtual LMSR - implied probability
             </div>
-            <PriceCurve path={market.pricePath} side="yes" />
+            <PriceCurve points={chartPoints} side="yes" />
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
