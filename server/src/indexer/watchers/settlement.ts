@@ -22,6 +22,7 @@ import {
   type MarketRefundsAvailableLog,
   type RefundedReceiptClaimedLog,
 } from "src/indexer/handlers/settlement";
+import { retryUntilMarketIndexed } from "src/indexer/handlers/market-projection";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import {
   getRecoveryStartBlock,
@@ -127,7 +128,12 @@ export async function processGraduationStartedEvent(
     log,
   });
 
-  await persistGraduationStartedRecord(record);
+  // Settlement events can race ahead of the independent MarketCreated
+  // watcher; wait for the markets row rather than losing the projection. If
+  // retries run out, the error keeps the cursor behind so recovery replays it.
+  await retryUntilMarketIndexed(() => persistGraduationStartedRecord(record), {
+    label: "GraduationStarted",
+  });
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "GraduationStarted",
@@ -151,7 +157,10 @@ export async function processClearingRootSubmittedEvent(
     log,
   });
 
-  await persistClearingRootSubmittedRecord(record);
+  await retryUntilMarketIndexed(
+    () => persistClearingRootSubmittedRecord(record),
+    { label: "ClearingRootSubmitted" },
+  );
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "ClearingRootSubmitted",
@@ -175,7 +184,10 @@ export async function processGraduationFinalizedEvent(
     log,
   });
 
-  await persistGraduationFinalizedRecord(record);
+  await retryUntilMarketIndexed(
+    () => persistGraduationFinalizedRecord(record),
+    { label: "GraduationFinalized" },
+  );
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "GraduationFinalized",
@@ -199,7 +211,10 @@ export async function processMarketRefundsAvailableEvent(
     log,
   });
 
-  await persistMarketRefundsAvailableRecord(record);
+  await retryUntilMarketIndexed(
+    () => persistMarketRefundsAvailableRecord(record),
+    { label: "MarketRefundsAvailable" },
+  );
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "MarketRefundsAvailable",
@@ -223,7 +238,10 @@ export async function processGraduatedReceiptClaimedEvent(
     log,
   });
 
-  await persistGraduatedReceiptClaimedRecord(record);
+  await retryUntilMarketIndexed(
+    () => persistGraduatedReceiptClaimedRecord(record),
+    { label: "GraduatedReceiptClaimed" },
+  );
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "GraduatedReceiptClaimed",
@@ -247,7 +265,10 @@ export async function processRefundedReceiptClaimedEvent(
     log,
   });
 
-  await persistRefundedReceiptClaimedRecord(record);
+  await retryUntilMarketIndexed(
+    () => persistRefundedReceiptClaimedRecord(record),
+    { label: "RefundedReceiptClaimed" },
+  );
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "RefundedReceiptClaimed",

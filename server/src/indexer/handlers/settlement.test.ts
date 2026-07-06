@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import { MarketNotIndexedError } from "./market-projection";
 import {
   buildClearingRootSubmittedRecord,
   buildGraduatedReceiptClaimedRecord,
@@ -7,6 +8,7 @@ import {
   buildGraduationStartedRecord,
   buildMarketRefundsAvailableRecord,
   buildRefundedReceiptClaimedRecord,
+  persistGraduationStartedRecord,
   type ClearingRootSubmittedLog,
   type GraduatedReceiptClaimedLog,
   type GraduationFinalizedLog,
@@ -195,6 +197,61 @@ describe("settlement event record builders", () => {
   });
 });
 
+describe("persistGraduationStartedRecord", () => {
+  const record = buildGraduationStartedRecord({
+    blockTimestamp,
+    config,
+    contractId,
+    log: baseLog({
+      graduationStartedAt: 1_782_144_000n,
+      manager: "0x00000000000000000000000000000000000000AA",
+      marketId: 7n,
+      noShares: 12n,
+      path: -5n,
+      receiptCount: 4n,
+      snapshotHash:
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      totalEscrowed: 100n,
+      yesShares: 17n,
+    }) as GraduationStartedLog,
+  });
+
+  it("throws MarketNotIndexedError when the event lands before MarketCreated", async () => {
+    // Rolls back the whole transaction, so the event row is not committed and
+    // a later replay is not skipped by the onConflictDoNothing dedup.
+    const { dbc } = fakeSettlementDb({
+      insertedRows: [{ id: 1 }],
+      updatedRows: [],
+    });
+
+    await expect(
+      persistGraduationStartedRecord(record, dbc),
+    ).rejects.toBeInstanceOf(MarketNotIndexedError);
+  });
+
+  it("skips the projection for a duplicate event row", async () => {
+    const { dbc, updateCalls } = fakeSettlementDb({
+      insertedRows: [],
+      updatedRows: [],
+    });
+
+    await persistGraduationStartedRecord(record, dbc);
+
+    expect(updateCalls()).toBe(0);
+  });
+
+  it("updates the market when both rows exist", async () => {
+    const { dbc, updateCalls } = fakeSettlementDb({
+      insertedRows: [{ id: 1 }],
+      updatedRows: [{ id: 1 }],
+    });
+
+    await persistGraduationStartedRecord(record, dbc);
+
+    expect(updateCalls()).toBe(1);
+  });
+});
+
 function baseLog(args: Record<string, unknown>) {
   return {
     args,
@@ -203,4 +260,44 @@ function baseLog(args: Record<string, unknown>) {
     transactionHash:
       "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   };
+}
+
+/**
+ * Minimal stand-in for the transactional drizzle handle used by settlement
+ * persists: `insertedRows` is what the event insert returns (empty means the
+ * dedup conflict fired), `updatedRows` is what the markets UPDATE matched.
+ */
+function fakeSettlementDb({
+  insertedRows,
+  updatedRows,
+}: {
+  insertedRows: Array<{ id: number }>;
+  updatedRows: Array<{ id: number }>;
+}) {
+  let updateCallCount = 0;
+  const tx = {
+    insert: () => ({
+      values: () => ({
+        onConflictDoNothing: () => ({
+          returning: async () => insertedRows,
+        }),
+      }),
+    }),
+    update: () => {
+      updateCallCount += 1;
+      return {
+        set: () => ({
+          where: () => ({
+            returning: async () => updatedRows,
+          }),
+        }),
+      };
+    },
+  };
+  const dbc = {
+    transaction: (callback: (handle: typeof tx) => Promise<void>) =>
+      callback(tx),
+  } as unknown as Parameters<typeof persistGraduationStartedRecord>[1];
+
+  return { dbc, updateCalls: () => updateCallCount };
 }

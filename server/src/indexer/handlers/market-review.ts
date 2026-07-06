@@ -3,6 +3,7 @@ import type { Log } from "viem";
 import type { MarketStatus } from "src/api/models/markets";
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
+import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 
 export type MarketReviewLog = Log & {
   args: {
@@ -44,8 +45,9 @@ export function buildMarketReviewStatusUpdate({
 
 export async function persistMarketReviewStatusUpdate(
   update: MarketReviewStatusUpdate,
+  dbc: typeof db = db,
 ) {
-  await db
+  const updated = await dbc
     .update(schema.markets)
     .set({
       status: update.status,
@@ -55,8 +57,33 @@ export async function persistMarketReviewStatusUpdate(
       and(
         eq(schema.markets.chainId, update.chainId),
         eq(schema.markets.marketId, update.marketId),
+        // Review events only ever move a market out of under_review, so a
+        // replayed event can never stomp a later graduation or settlement
+        // status back to bootstrap/rejected.
+        eq(schema.markets.status, "under_review"),
       ),
-    );
+    )
+    .returning({ id: schema.markets.id });
+
+  if (updated.length > 0) {
+    return;
+  }
+
+  // Zero matched rows is ambiguous: the market may already be past review (an
+  // idempotent replay), or MarketCreated may not be persisted yet — dropping
+  // the update then would lose the status change forever, because the block
+  // cursor advances past this event. Only the missing row is an error.
+  const market = await dbc.query.markets.findFirst({
+    columns: { id: true },
+    where: and(
+      eq(schema.markets.chainId, update.chainId),
+      eq(schema.markets.marketId, update.marketId),
+    ),
+  });
+
+  if (!market) {
+    throw new MarketNotIndexedError(update);
+  }
 }
 
 function requireValue<T>(value: T | null | undefined, name: string): T {

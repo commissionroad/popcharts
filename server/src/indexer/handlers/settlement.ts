@@ -2,6 +2,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema, sql } from "src/db/client";
+import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 
 type BaseSettlementArgs = {
   marketId?: bigint;
@@ -245,8 +246,9 @@ export function buildRefundedReceiptClaimedRecord({
 
 export async function persistGraduationStartedRecord(
   record: GraduationStartedRecord,
+  dbc: typeof db = db,
 ) {
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.graduationStartedEvents)
       .values(record)
@@ -257,7 +259,7 @@ export async function persistGraduationStartedRecord(
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         noShares: record.noShares,
@@ -267,14 +269,18 @@ export async function persistGraduationStartedRecord(
         updatedAt: record.blockTimestamp,
         yesShares: record.yesShares,
       })
-      .where(marketWhere(record));
+      .where(marketWhere(record))
+      .returning({ id: schema.markets.id });
+
+    requireMarketUpdated(updated, record);
   });
 }
 
 export async function persistClearingRootSubmittedRecord(
   record: ClearingRootSubmittedRecord,
+  dbc: typeof db = db,
 ) {
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.clearingRootSubmittedEvents)
       .values(record)
@@ -285,20 +291,24 @@ export async function persistClearingRootSubmittedRecord(
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         status: "graduating",
         updatedAt: record.blockTimestamp,
       })
-      .where(marketWhere(record));
+      .where(marketWhere(record))
+      .returning({ id: schema.markets.id });
+
+    requireMarketUpdated(updated, record);
   });
 }
 
 export async function persistGraduationFinalizedRecord(
   record: GraduationFinalizedRecord,
+  dbc: typeof db = db,
 ) {
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.graduationFinalizedEvents)
       .values(record)
@@ -309,21 +319,25 @@ export async function persistGraduationFinalizedRecord(
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         status: "graduated",
         totalEscrowed: record.refundTotal,
         updatedAt: record.blockTimestamp,
       })
-      .where(marketWhere(record));
+      .where(marketWhere(record))
+      .returning({ id: schema.markets.id });
+
+    requireMarketUpdated(updated, record);
   });
 }
 
 export async function persistMarketRefundsAvailableRecord(
   record: MarketRefundsAvailableRecord,
+  dbc: typeof db = db,
 ) {
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.marketRefundsAvailableEvents)
       .values(record)
@@ -334,21 +348,26 @@ export async function persistMarketRefundsAvailableRecord(
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         status: "refunded",
         totalEscrowed: record.totalEscrowed,
         updatedAt: record.blockTimestamp,
       })
-      .where(marketWhere(record));
+      .where(marketWhere(record))
+      .returning({ id: schema.markets.id });
+
+    requireMarketUpdated(updated, record);
   });
 }
 
 export async function persistGraduatedReceiptClaimedRecord(
   record: GraduatedReceiptClaimedRecord,
+  dbc: typeof db = db,
 ) {
   await persistReceiptSettlementRecord({
+    dbc,
     record,
     table: schema.graduatedReceiptClaimedEvents,
   });
@@ -356,8 +375,10 @@ export async function persistGraduatedReceiptClaimedRecord(
 
 export async function persistRefundedReceiptClaimedRecord(
   record: RefundedReceiptClaimedRecord,
+  dbc: typeof db = db,
 ) {
   await persistReceiptSettlementRecord({
+    dbc,
     record,
     table: schema.refundedReceiptClaimedEvents,
   });
@@ -386,15 +407,17 @@ function baseEventFields<TArgs extends BaseSettlementArgs>({
 }
 
 async function persistReceiptSettlementRecord({
+  dbc,
   record,
   table,
 }: {
+  dbc: typeof db;
   record: GraduatedReceiptClaimedRecord | RefundedReceiptClaimedRecord;
   table:
     | typeof schema.graduatedReceiptClaimedEvents
     | typeof schema.refundedReceiptClaimedEvents;
 }) {
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const refundDecrement = record.refund.toString();
     const inserted = await tx
       .insert(table)
@@ -406,14 +429,32 @@ async function persistReceiptSettlementRecord({
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         totalEscrowed: sql`${schema.markets.totalEscrowed} - ${refundDecrement}::numeric(78, 0)`,
         updatedAt: record.blockTimestamp,
       })
-      .where(marketWhere(record));
+      .where(marketWhere(record))
+      .returning({ id: schema.markets.id });
+
+    requireMarketUpdated(updated, record);
   });
+}
+
+/**
+ * Throwing here rolls back the event insert in the surrounding transaction.
+ * Committing the event row without its markets projection would make the
+ * onConflictDoNothing dedup skip the projection on every future replay,
+ * losing the update forever once the block cursor advances.
+ */
+function requireMarketUpdated(
+  updated: Array<{ id: number }>,
+  record: { chainId: number; marketId: bigint },
+) {
+  if (!updated[0]) {
+    throw new MarketNotIndexedError(record);
+  }
 }
 
 function marketWhere(record: { chainId: number; marketId: bigint }) {

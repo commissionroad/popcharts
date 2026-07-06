@@ -8,6 +8,7 @@ import {
   type MarketReviewLog,
   type MarketReviewStatus,
 } from "src/indexer/handlers/market-review";
+import { retryUntilMarketIndexed } from "src/indexer/handlers/market-projection";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import {
   getRecoveryStartBlock,
@@ -53,7 +54,12 @@ export async function processMarketReviewEvent(
     status,
   });
 
-  await persistMarketReviewStatusUpdate(update);
+  // A review event can race ahead of the independent MarketCreated watcher;
+  // wait for the markets row rather than losing the status change. If retries
+  // run out, the thrown error keeps the cursor behind so recovery replays it.
+  await retryUntilMarketIndexed(() => persistMarketReviewStatusUpdate(update), {
+    label,
+  });
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     cursorName,

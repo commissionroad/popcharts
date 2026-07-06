@@ -2,6 +2,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema, sql } from "src/db/client";
+import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 
 export type ReceiptPlacedLog = Log & {
   args: {
@@ -50,8 +51,11 @@ export function buildReceiptPlacedRecord({
   };
 }
 
-export async function persistReceiptPlacedRecord(record: ReceiptPlacedRecord) {
-  await db.transaction(async (tx) => {
+export async function persistReceiptPlacedRecord(
+  record: ReceiptPlacedRecord,
+  dbc: typeof db = db,
+) {
+  await dbc.transaction(async (tx) => {
     const costIncrement = record.cost.toString();
     const sharesIncrement = record.shares.toString();
     const inserted = await tx
@@ -64,7 +68,7 @@ export async function persistReceiptPlacedRecord(record: ReceiptPlacedRecord) {
       return;
     }
 
-    await tx
+    const updated = await tx
       .update(schema.markets)
       .set({
         receiptCount: record.sequence,
@@ -83,7 +87,15 @@ export async function persistReceiptPlacedRecord(record: ReceiptPlacedRecord) {
           eq(schema.markets.chainId, record.chainId),
           eq(schema.markets.marketId, record.marketId),
         ),
-      );
+      )
+      .returning({ id: schema.markets.id });
+
+    // Roll back the event insert too: committing it without the markets
+    // projection would make the onConflictDoNothing dedup skip the counter
+    // updates on every future replay of this receipt.
+    if (!updated[0]) {
+      throw new MarketNotIndexedError(record);
+    }
   });
 }
 
