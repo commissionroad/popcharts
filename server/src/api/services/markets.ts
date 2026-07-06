@@ -5,6 +5,7 @@ import type {
   MarketCreatedEventResponse,
   MarketMetadataResponse,
   MarketMetadataWrite,
+  MarketPostgradResponse,
   MarketResponse,
   ReceiptPlacedEventResponse,
 } from "src/api/models/markets";
@@ -73,9 +74,9 @@ export async function getMarkets({
     .orderBy(desc(schema.markets.createdBlockTimestamp))
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
-  const reviews = await getLatestAiReviews(
-    liveRows.map(({ market }) => market),
-  );
+  const liveMarkets = liveRows.map(({ market }) => market);
+  const reviews = await getLatestAiReviews(liveMarkets);
+  const postgrads = await getLatestPostgradInfos(liveMarkets);
 
   return liveRows.map(({ market, metadata }) =>
     serializeMarketRow(
@@ -83,6 +84,7 @@ export async function getMarkets({
       metadata,
       calculateMatchedMarketCap(market),
       reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
+      postgrads.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
     ),
   );
 }
@@ -128,12 +130,15 @@ export async function getMarketById(
   }
 
   const reviews = await getLatestAiReviews([row.market]);
+  const postgrads = await getLatestPostgradInfos([row.market]);
 
   return serializeMarketRow(
     row.market,
     row.metadata,
     calculateMatchedMarketCap(row.market),
     reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
+      null,
+    postgrads.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
   );
 }
@@ -314,9 +319,11 @@ export function serializeMarketRow(
   metadata: MarketMetadataRow | null,
   matchedMarketCap: bigint,
   aiReview: MarketAiReviewRow | null = null,
+  postgrad: MarketPostgradResponse | null = null,
 ): MarketResponse {
   return {
     ...(aiReview ? { aiReview: serializeMarketAiReviewRow(aiReview) } : {}),
+    ...(postgrad ? { postgrad } : {}),
     bypassAiResolution: market.bypassAiResolution,
     chainId: market.chainId,
     collateral: market.collateral,
@@ -459,6 +466,90 @@ async function getLatestAiReviews(markets: MarketRow[]) {
 
 function marketReviewKey(chainId: number, marketId: bigint) {
   return `${chainId}:${marketId.toString()}`;
+}
+
+/** Drizzle select shape of a graduation_finalized_events row. */
+export type GraduationFinalizedRow =
+  typeof schema.graduationFinalizedEvents.$inferSelect;
+
+/**
+ * Maps a GraduationFinalized event row to the postgrad handoff shape exposed
+ * on graduated markets: where the matched exposure settled and what it minted.
+ */
+export function serializePostgradRow(
+  row: GraduationFinalizedRow,
+): MarketPostgradResponse {
+  return {
+    adapterAddress: row.postgradAdapter,
+    completeSetCount: row.completeSetCount.toString(),
+    finalizedAt: row.blockTimestamp.toISOString(),
+    marketAddress: row.postgradMarket,
+    refundTotal: row.refundTotal.toString(),
+    retainedCostTotal: row.retainedCostTotal.toString(),
+    transactionHash: row.transactionHash,
+  };
+}
+
+/** Serializes the latest GraduationFinalized record for one market, if any. */
+export async function selectPostgradInfo({
+  chainId,
+  marketId,
+}: {
+  chainId: number;
+  marketId: bigint;
+}): Promise<MarketPostgradResponse | null> {
+  const rows = await db
+    .select()
+    .from(schema.graduationFinalizedEvents)
+    .where(
+      and(
+        eq(schema.graduationFinalizedEvents.chainId, chainId),
+        eq(schema.graduationFinalizedEvents.marketId, marketId),
+      ),
+    )
+    .orderBy(
+      desc(schema.graduationFinalizedEvents.blockNumber),
+      desc(schema.graduationFinalizedEvents.logIndex),
+    )
+    .limit(1);
+  const row = rows[0];
+
+  return row ? serializePostgradRow(row) : null;
+}
+
+async function getLatestPostgradInfos(markets: MarketRow[]) {
+  const infos = new Map<string, MarketPostgradResponse>();
+  const settledMarkets = markets.filter(
+    (market) => market.status === "graduated" || market.status === "resolved",
+  );
+  if (settledMarkets.length === 0) {
+    return infos;
+  }
+
+  const chainIds = unique(settledMarkets.map((market) => market.chainId));
+  const marketIds = unique(settledMarkets.map((market) => market.marketId));
+  const rows = await db
+    .select()
+    .from(schema.graduationFinalizedEvents)
+    .where(
+      and(
+        inArray(schema.graduationFinalizedEvents.chainId, chainIds),
+        inArray(schema.graduationFinalizedEvents.marketId, marketIds),
+      ),
+    )
+    .orderBy(
+      desc(schema.graduationFinalizedEvents.blockNumber),
+      desc(schema.graduationFinalizedEvents.logIndex),
+    );
+
+  for (const row of rows) {
+    const key = marketReviewKey(row.chainId, row.marketId);
+    if (!infos.has(key)) {
+      infos.set(key, serializePostgradRow(row));
+    }
+  }
+
+  return infos;
 }
 
 async function filterLiveLocalMarketRows(rows: MarketQueryRow[]) {

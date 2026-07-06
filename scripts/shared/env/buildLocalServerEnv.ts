@@ -23,6 +23,7 @@ export function buildLocalServerEnv(
       "postgresql://postgres:postgres@localhost:5433/popcharts",
     HEALTH_CHECK_FILE: localDevIndexerHealthFile,
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
+    LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     NETWORK: "local",

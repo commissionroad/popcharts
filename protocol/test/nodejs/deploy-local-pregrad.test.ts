@@ -23,6 +23,10 @@ describe("deploy-local-pregrad helper", async function () {
       await publicClient.getCode({ address: summary.pregradManagerAddress }),
       undefined,
     );
+    assert.notEqual(
+      await publicClient.getCode({ address: summary.postgradAdapterAddress }),
+      undefined,
+    );
 
     const manager = await viem.getContractAt("PregradManager", summary.pregradManagerAddress);
     assert.equal(await manager.read.marketCount(), 0n);
@@ -40,6 +44,7 @@ describe("deploy-local-pregrad helper", async function () {
       "chainId",
       "collateralAddress",
       "deployBlock",
+      "postgradAdapterAddress",
       "pregradManagerAddress",
     ]);
     assert.deepEqual(JSON.parse(JSON.stringify(summary)), summary);

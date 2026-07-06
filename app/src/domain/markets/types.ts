@@ -85,6 +85,16 @@ export type PricePathPoint = {
   cents: number;
 };
 
+/** Where a graduated market's matched exposure settled after onchain handoff. */
+export type MarketPostgradHandoff = {
+  adapterAddress: string;
+  completeSets: number;
+  finalizedAt: string;
+  marketAddress: string;
+  refundedUsd: number;
+  retainedUsd: number;
+};
+
 export type Market = {
   aiReview?: MarketAiReview;
   b: number;
@@ -104,6 +114,7 @@ export type Market = {
   outcomeNo?: string;
   /** Creator-supplied display label for the YES outcome, when one was set. */
   outcomeYes?: string;
+  postgrad?: MarketPostgradHandoff;
   pricePath: number[];
   question: string;
   receiptCount: number;

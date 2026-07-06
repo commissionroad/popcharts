@@ -1,4 +1,7 @@
-import { getCloseDevMarketUrl } from "@popcharts/api-client/development";
+import {
+  getCloseDevMarketUrl,
+  getGraduateDevMarketUrl,
+} from "@popcharts/api-client/development";
 import { getGraduateMarketUrl } from "@popcharts/api-client/graduation";
 import {
   getGetMarketUrl,
@@ -8,6 +11,7 @@ import {
 } from "@popcharts/api-client/markets";
 import type {
   DevMarketCloseResponse,
+  DevMarketGraduateResponse,
   GraduationResponse,
   GraduationSummary,
   ListMarketsParams as GeneratedListMarketsParams,
@@ -25,6 +29,7 @@ export type ListMarketsParams = GeneratedListMarketsParams;
 export type ApiGraduationSummary = GraduationSummary;
 export type ApiGraduationResponse = GraduationResponse;
 export type ApiDevMarketCloseResponse = DevMarketCloseResponse;
+export type ApiDevMarketGraduateResponse = DevMarketGraduateResponse;
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -38,6 +43,7 @@ export type MarketsApiFetch = (
 
 export type MarketsApiClient = {
   closePregradMarket: (lookup: MarketApiLookup) => Promise<ApiDevMarketCloseResponse>;
+  graduateDevMarket: (lookup: MarketApiLookup) => Promise<ApiDevMarketGraduateResponse>;
   graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
@@ -80,6 +86,28 @@ export function createMarketsApiClient({
 
       if (!response) {
         throw new MarketsApiError("Dev market close is disabled or unavailable.", 404);
+      }
+
+      return response;
+    },
+    async graduateDevMarket({ chainId, marketId }) {
+      const response = await requestJson<ApiDevMarketGraduateResponse>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getGraduateDevMarketUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId)
+          )
+        ),
+        { method: "POST" }
+      );
+
+      if (!response) {
+        throw new MarketsApiError(
+          "Dev market graduation is disabled or unavailable.",
+          404
+        );
       }
 
       return response;

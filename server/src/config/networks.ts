@@ -17,6 +17,8 @@ export type NetworkId = "local" | "arcTestnet";
 
 /** Protocol contract addresses the server needs on the selected network. */
 export type ContractAddresses = {
+  /** Adapter dev graduation finalizes with; ZERO_ADDRESS when unconfigured. */
+  postgradAdapter: `0x${string}`;
   pregradManager: `0x${string}`;
 };
 
@@ -83,6 +85,10 @@ function createLocalConfig(): NetworkConfig {
     chainId: hardhat.id,
     chain: hardhat,
     contracts: {
+      postgradAdapter: readAddress([
+        "LOCAL_POSTGRAD_ADAPTER_ADDRESS",
+        "POSTGRAD_ADAPTER_ADDRESS",
+      ]),
       pregradManager: readAddress([
         "LOCAL_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
@@ -110,6 +116,10 @@ function createArcTestnetConfig(): NetworkConfig {
     chainId: arcTestnet.id,
     chain: arcTestnet,
     contracts: {
+      postgradAdapter: readAddress([
+        "ARC_TESTNET_POSTGRAD_ADAPTER_ADDRESS",
+        "POSTGRAD_ADAPTER_ADDRESS",
+      ]),
       pregradManager: readAddress([
         "ARC_TESTNET_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",

@@ -11,7 +11,13 @@ import type {
 } from "@/integrations/indexer/markets-api";
 import { apiMarketAppId } from "@/lib/app-id";
 
-import type { Market, MarketCategory, MarketStatus, PricePathPoint } from "./types";
+import type {
+  Market,
+  MarketCategory,
+  MarketPostgradHandoff,
+  MarketStatus,
+  PricePathPoint,
+} from "./types";
 
 const MAX_PRICE_PATH_POINTS = 256;
 
@@ -71,9 +77,25 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     ...(apiMarket.aiReview ? { aiReview: apiMarket.aiReview } : {}),
     ...(outcomeNo ? { outcomeNo } : {}),
     ...(outcomeYes ? { outcomeYes } : {}),
+    ...(apiMarket.postgrad
+      ? { postgrad: apiPostgradToHandoff(apiMarket.postgrad) }
+      : {}),
     ...(resolutionCriteria ? { resolutionCriteria } : {}),
     ...(resolutionSources.length > 0 ? { resolutionSources } : {}),
     ...(resolutionUrl ? { resolutionUrl } : {}),
+  };
+}
+
+function apiPostgradToHandoff(
+  postgrad: NonNullable<ApiMarket["postgrad"]>
+): MarketPostgradHandoff {
+  return {
+    adapterAddress: postgrad.adapterAddress,
+    completeSets: wadToNumber(postgrad.completeSetCount),
+    finalizedAt: postgrad.finalizedAt,
+    marketAddress: postgrad.marketAddress,
+    refundedUsd: wadToNumber(postgrad.refundTotal),
+    retainedUsd: wadToNumber(postgrad.retainedCostTotal),
   };
 }
 

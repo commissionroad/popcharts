@@ -375,6 +375,76 @@
         }
       }
     },
+    "/dev/markets/{chainId}/{marketId}/graduate": {
+      "post": {
+        "operationId": "graduateDevMarket",
+        "summary": "Dev-only graduate a pre-grad market end to end",
+        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Tops up receipts to the graduation threshold if needed, starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, and claims every receipt so outcome tokens and refunds settle.",
+        "tags": [
+          "Development"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketGraduateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketGraduateIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}": {
       "get": {
         "operationId": "getMarket",
@@ -809,6 +879,71 @@
           }
         }
       },
+      "DevMarketGraduateIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "adapter_unconfigured",
+              "chain_status",
+              "past_deadline",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "DevMarketGraduateResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "postgrad",
+          "status",
+          "summary",
+          "transactionHashes"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "postgrad": {
+            "$ref": "#/components/schemas/MarketPostgrad"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "graduated"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GraduationSummary"
+          },
+          "transactionHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "GraduationIneligible": {
         "type": "object",
         "required": [
@@ -1114,6 +1249,9 @@
           "openingProbabilityWad": {
             "type": "string"
           },
+          "postgrad": {
+            "$ref": "#/components/schemas/MarketPostgrad"
+          },
           "receiptCount": {
             "type": "string"
           },
@@ -1201,6 +1339,41 @@
           },
           "verdict": {
             "$ref": "#/components/schemas/AiReviewVerdict"
+          }
+        }
+      },
+      "MarketPostgrad": {
+        "type": "object",
+        "required": [
+          "adapterAddress",
+          "completeSetCount",
+          "finalizedAt",
+          "marketAddress",
+          "refundTotal",
+          "retainedCostTotal",
+          "transactionHash"
+        ],
+        "properties": {
+          "adapterAddress": {
+            "type": "string"
+          },
+          "completeSetCount": {
+            "type": "string"
+          },
+          "finalizedAt": {
+            "type": "string"
+          },
+          "marketAddress": {
+            "type": "string"
+          },
+          "refundTotal": {
+            "type": "string"
+          },
+          "retainedCostTotal": {
+            "type": "string"
+          },
+          "transactionHash": {
+            "type": "string"
           }
         }
       },

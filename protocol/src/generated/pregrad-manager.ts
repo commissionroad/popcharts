@@ -132,6 +132,22 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "period",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "maximum",
+        type: "uint64",
+      },
+    ],
+    name: "InvalidClearingChallengePeriod",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "InvalidClearingRoot",
     type: "error",
@@ -678,6 +694,25 @@ export const pregradManagerAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: false,
+        internalType: "uint64",
+        name: "previousPeriod",
+        type: "uint64",
+      },
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "newPeriod",
+        type: "uint64",
+      },
+    ],
+    name: "ClearingChallengePeriodUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "uint256",
         name: "marketId",
@@ -1213,19 +1248,6 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
-    name: "CLEARING_CHALLENGE_PERIOD",
-    outputs: [
-      {
-        internalType: "uint64",
-        name: "",
-        type: "uint64",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
     name: "GRADUATION_SNAPSHOT_TYPEHASH",
     outputs: [
       {
@@ -1245,6 +1267,19 @@ export const pregradManagerAbi = [
         internalType: "uint256",
         name: "",
         type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MAX_CLEARING_CHALLENGE_PERIOD",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
       },
     ],
     stateMutability: "view",
@@ -1407,6 +1442,19 @@ export const pregradManagerAbi = [
     name: "claimRefundedReceipt",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "clearingChallengePeriod",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -2168,6 +2216,19 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "renounceOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "newPeriod",
+        type: "uint64",
+      },
+    ],
+    name: "setClearingChallengePeriod",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

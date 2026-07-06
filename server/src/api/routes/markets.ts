@@ -11,6 +11,8 @@ import {
   AiReviewVerdictSchema,
   DevMarketCloseIneligibleSchema,
   DevMarketCloseResponseSchema,
+  DevMarketGraduateIneligibleSchema,
+  DevMarketGraduateResponseSchema,
   GraduationIneligibleSchema,
   GraduationResponseSchema,
   GraduationSummarySchema,
@@ -27,6 +29,7 @@ import {
   MarketListSchema,
   MarketMetadataSchema,
   MarketMetadataWriteSchema,
+  MarketPostgradSchema,
   MarketSchema,
   MarketStatusSchema,
   ReceiptPlacedEventListSchema,
@@ -34,6 +37,7 @@ import {
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
+import { graduateDevMarket } from "src/api/services/dev-market-graduate";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -63,6 +67,8 @@ export const marketRoutes = new Elysia({ prefix: "" })
     AiReviewVerdict: AiReviewVerdictSchema,
     DevMarketCloseIneligible: DevMarketCloseIneligibleSchema,
     DevMarketCloseResponse: DevMarketCloseResponseSchema,
+    DevMarketGraduateIneligible: DevMarketGraduateIneligibleSchema,
+    DevMarketGraduateResponse: DevMarketGraduateResponseSchema,
     GraduationIneligible: GraduationIneligibleSchema,
     GraduationResponse: GraduationResponseSchema,
     GraduationSummary: GraduationSummarySchema,
@@ -74,6 +80,7 @@ export const marketRoutes = new Elysia({ prefix: "" })
     ManualAiReviewRequest: ManualAiReviewRequestSchema,
     Market: MarketSchema,
     MarketAiReview: MarketAiReviewSchema,
+    MarketPostgrad: MarketPostgradSchema,
     MarketAiReviewJob: MarketAiReviewJobSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
     MarketCreatedEventList: MarketCreatedEventListSchema,
@@ -277,6 +284,62 @@ export const marketRoutes = new Elysia({ prefix: "" })
         summary: "Dev-only close pre-grad market for refunds",
         description:
           "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+        tags: ["Development"],
+      },
+    },
+  )
+  .post(
+    "/dev/markets/:chainId/:marketId/graduate",
+    async ({ params, set }) => {
+      const result = await graduateDevMarket({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (result.kind === "graduated") {
+        return {
+          market: result.market,
+          postgrad: result.postgrad,
+          status: "graduated" as const,
+          summary: result.summary,
+          transactionHashes: result.transactionHashes,
+        };
+      }
+
+      if (result.kind === "ineligible") {
+        set.status = 409;
+        return {
+          market: result.market,
+          message: result.message,
+          reason: result.reason,
+          status: "ineligible" as const,
+        };
+      }
+
+      if (result.kind === "dev_disabled") {
+        set.status = 404;
+        return "Not found";
+      }
+
+      set.status = result.kind === "invalid_market_id" ? 400 : 404;
+      return result.message;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "DevMarketGraduateResponse",
+        400: t.String(),
+        404: t.String(),
+        409: "DevMarketGraduateIneligible",
+      },
+      detail: {
+        operationId: "graduateDevMarket",
+        summary: "Dev-only graduate a pre-grad market end to end",
+        description:
+          "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Tops up receipts to the graduation threshold if needed, starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, and claims every receipt so outcome tokens and refunds settle.",
         tags: ["Development"],
       },
     },

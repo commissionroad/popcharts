@@ -308,6 +308,7 @@ async function deployContracts(): Promise<void> {
   const serverEnv = buildLocalServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
+    postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
   const appEnv = buildAppEnv(deploy);
@@ -319,6 +320,7 @@ async function deployContracts(): Promise<void> {
   console.log(`- API: ${apiBaseUrl}/markets?chainId=${deploy.chainId}`);
   console.log(`- Hardhat RPC: ${rpcHttpUrl}`);
   console.log(`- PregradManager: ${deploy.pregradManagerAddress}`);
+  console.log(`- Postgrad adapter: ${deploy.postgradAdapterAddress}`);
   console.log(`- Collateral: ${deploy.collateralAddress}`);
   console.log(`- App env: ${appLocalDevEnvFile}`);
   console.log(`- Server env: ${localChainEnvFile}`);
@@ -492,6 +494,7 @@ function writeServerEnv(env: NodeJS.ProcessEnv, deploy: PregradDeploy): void {
     `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
+    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
   ];

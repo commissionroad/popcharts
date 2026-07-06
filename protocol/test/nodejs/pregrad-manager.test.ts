@@ -456,7 +456,7 @@ describe("PregradManager", async function () {
     );
 
     const clearingRoot = (await manager.read.getClearingRoot([1n])) as ClearingRoot;
-    const challengePeriod = (await manager.read.CLEARING_CHALLENGE_PERIOD()) as bigint;
+    const challengePeriod = (await manager.read.clearingChallengePeriod()) as bigint;
 
     assert.equal(await manager.read.hasClearingRoot([1n]), true);
     assert.equal(clearingRoot.merkleRoot, merkleRoot);

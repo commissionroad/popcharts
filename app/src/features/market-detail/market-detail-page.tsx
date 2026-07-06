@@ -26,11 +26,16 @@ export function MarketDetailPage({
   pricePath?: PricePathPoint[];
 }) {
   const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
-  const canRequestGraduation =
-    market.status === "bootstrap" &&
-    market.graduationTargetUsd > 0 &&
-    market.matchedUsd >= market.graduationTargetUsd &&
-    isApiBackedMarket(market);
+  // With dev tools on, the graduate button drives the whole onchain
+  // settlement and will top the market up to its threshold itself, so it
+  // shows for any bootstrap (or resumable graduating) market.
+  const canRequestGraduation = devSettingsAvailable()
+    ? (market.status === "bootstrap" || market.status === "graduating") &&
+      isApiBackedMarket(market)
+    : market.status === "bootstrap" &&
+      market.graduationTargetUsd > 0 &&
+      market.matchedUsd >= market.graduationTargetUsd &&
+      isApiBackedMarket(market);
   const canClosePregradForRefund =
     market.status === "bootstrap" && isApiBackedMarket(market);
 
@@ -150,8 +155,13 @@ export function MarketDetailPage({
 }
 
 function GraduatedMarketSummary({ market }: { market: Market }) {
-  const tokensCreated = Math.round(market.matchedUsd).toLocaleString("en-US");
-  const refundedUsd = Math.max(market.volumeUsd - market.matchedUsd, 0);
+  const postgrad = market.postgrad;
+  const tokensCreated = Math.round(
+    postgrad?.completeSets ?? market.matchedUsd
+  ).toLocaleString("en-US");
+  const refundedUsd = postgrad
+    ? postgrad.refundedUsd
+    : Math.max(market.volumeUsd - market.matchedUsd, 0);
 
   return (
     <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-4">
@@ -170,11 +180,39 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
         />
         <SmallMetric label="Unmatched refunds" value={formatUsdCompact(refundedUsd)} />
       </div>
-      <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
-        Matched liquidity created equal YES and NO claim tokens. The remaining
-        pre-graduation collateral is marked for refund while post-graduation handoff is
-        prepared.
-      </p>
+      {postgrad ? (
+        <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
+          <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
+            Postgrad handoff
+          </div>
+          <ContractAddressRow label="Postgrad market" value={postgrad.marketAddress} />
+          <ContractAddressRow label="Adapter" value={postgrad.adapterAddress} />
+          <p className="mt-3 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
+            Matched liquidity minted equal YES and NO outcome tokens in the postgrad
+            market above; unmatched pre-graduation collateral refunds at its exact path
+            cost.
+          </p>
+        </div>
+      ) : (
+        <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
+          Matched liquidity created equal YES and NO claim tokens. The remaining
+          pre-graduation collateral is marked for refund while post-graduation handoff
+          is prepared.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ContractAddressRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+      <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
+        {label}
+      </span>
+      <span className="font-mono text-[11px] break-all text-[var(--text-primary)]">
+        {value}
+      </span>
     </div>
   );
 }

@@ -12,6 +12,7 @@ const DEPLOY_LINE =
   'LOCAL_CHAIN_SMOKE_DEPLOY={"chainId":31337,' +
   '"collateralAddress":"0xc5a5c42992decbae36851359345fe25997f5c42d",' +
   '"deployBlock":"30",' +
+  '"postgradAdapterAddress":"0x9a676e781a523b5d0c0e43731313a708cb607508",' +
   '"pregradManagerAddress":"0x67d269191c92caf3cd7723f116c85e6e9bf55933"}';
 const DEPLOY_OUTPUT = [
   "> @popcharts/protocol@0.1.0 local:deploy-pregrad /popcharts/protocol",
@@ -26,6 +27,7 @@ describe("parsePregradDeploy", function () {
       chainId: 31337,
       collateralAddress: "0xc5a5c42992decbae36851359345fe25997f5c42d",
       deployBlock: "30",
+      postgradAdapterAddress: "0x9a676e781a523b5d0c0e43731313a708cb607508",
       pregradManagerAddress: "0x67d269191c92caf3cd7723f116c85e6e9bf55933",
     });
   });
@@ -56,6 +58,13 @@ describe("parsePregradDeploy", function () {
           DEPLOY_LINE.replace(/"pregradManagerAddress":"0x[0-9a-f]+"/, '"pregradManagerAddress":"0x1234"'),
         ),
       /pregradManagerAddress/,
+    );
+    assert.throws(
+      () =>
+        parsePregradDeploy(
+          DEPLOY_LINE.replace(/"postgradAdapterAddress":"0x[0-9a-f]+",/, ""),
+        ),
+      /postgradAdapterAddress/,
     );
     assert.throws(
       () => parsePregradDeploy(DEPLOY_LINE.replace('"deployBlock":"30"', '"deployBlock":30')),

@@ -7,6 +7,7 @@
  */
 import type { MarketAiReview } from "./marketAiReview";
 import type { MarketMetadata } from "./marketMetadata";
+import type { MarketPostgrad } from "./marketPostgrad";
 import type { MarketStatus } from "./marketStatus";
 
 export interface Market {
@@ -29,6 +30,7 @@ export interface Market {
   metadataHash: string;
   noShares: string;
   openingProbabilityWad: string;
+  postgrad?: MarketPostgrad;
   receiptCount: string;
   resolutionTime: string;
   status: MarketStatus;

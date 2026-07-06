@@ -11,6 +11,7 @@ import {
   getMarketById,
   getMarketReceipts,
   getMarkets,
+  requestDevMarketGraduation,
   requestMarketGraduation,
   requestPregradMarketCloseForRefund,
 } from "./queries";
@@ -235,6 +236,53 @@ describe("market queries", () => {
     expect(result.status).toBe("graduated");
   });
 
+  it("requests a dev graduation by chain-prefixed app id", async () => {
+    const client = createClient({
+      devGraduation: {
+        market: { ...apiMarket, status: "graduated" },
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: apiMarket.graduationThreshold,
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "0",
+          retainedCostTotal: apiMarket.graduationThreshold,
+          transactionHash:
+            "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        },
+        status: "graduated",
+        summary: {
+          completeSetCount: apiMarket.graduationThreshold,
+          graduatedAt: "2026-06-14T12:00:00.000Z",
+          graduationThreshold: apiMarket.graduationThreshold,
+          matchedMarketCap: apiMarket.graduationThreshold,
+          noTokens: apiMarket.graduationThreshold,
+          receiptCount: "10",
+          refundedCollateral: "0",
+          totalEscrowed: apiMarket.graduationThreshold,
+          yesTokens: apiMarket.graduationThreshold,
+        },
+        transactionHashes: [
+          "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        ],
+      },
+    });
+
+    const result = await requestDevMarketGraduation("5042002:7", {
+      client,
+      source: "api",
+    });
+
+    expect(client.graduateDevMarket).toHaveBeenCalledWith({
+      chainId: 5042002,
+      marketId: "7",
+    });
+    expect(result.status).toBe("graduated");
+    expect(result.postgrad.marketAddress).toBe(
+      "0x00000000000000000000000000000000000000cd"
+    );
+  });
+
   it("requests a dev close by chain-prefixed app id", async () => {
     const client = createClient({
       close: {
@@ -434,12 +482,14 @@ describe("market queries", () => {
 
 function createClient({
   close,
+  devGraduation,
   graduation,
   market = null,
   markets = [],
   receipts = [],
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
+  devGraduation?: Awaited<ReturnType<MarketsApiClient["graduateDevMarket"]>>;
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
@@ -452,6 +502,13 @@ function createClient({
       }
 
       return close;
+    }),
+    graduateDevMarket: vi.fn(async () => {
+      if (!devGraduation) {
+        throw new Error("Missing dev graduation fixture.");
+      }
+
+      return devGraduation;
     }),
     graduateMarket: vi.fn(async () => {
       if (!graduation) {

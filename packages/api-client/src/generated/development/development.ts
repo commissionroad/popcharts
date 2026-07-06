@@ -5,7 +5,12 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { DevMarketCloseIneligible, DevMarketCloseResponse } from ".././models";
+import type {
+  DevMarketCloseIneligible,
+  DevMarketCloseResponse,
+  DevMarketGraduateIneligible,
+  DevMarketGraduateResponse,
+} from ".././models";
 
 /**
  * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.
@@ -64,4 +69,67 @@ export const closeDevMarket = async (
 
   const data: closeDevMarketResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as closeDevMarketResponse;
+};
+
+/**
+ * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Tops up receipts to the graduation threshold if needed, starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, and claims every receipt so outcome tokens and refunds settle.
+ * @summary Dev-only graduate a pre-grad market end to end
+ */
+export type graduateDevMarketResponse200 = {
+  data: DevMarketGraduateResponse;
+  status: 200;
+};
+
+export type graduateDevMarketResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type graduateDevMarketResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type graduateDevMarketResponse409 = {
+  data: DevMarketGraduateIneligible;
+  status: 409;
+};
+
+export type graduateDevMarketResponseSuccess = graduateDevMarketResponse200 & {
+  headers: Headers;
+};
+export type graduateDevMarketResponseError = (
+  | graduateDevMarketResponse400
+  | graduateDevMarketResponse404
+  | graduateDevMarketResponse409
+) & {
+  headers: Headers;
+};
+
+export type graduateDevMarketResponse =
+  | graduateDevMarketResponseSuccess
+  | graduateDevMarketResponseError;
+
+export const getGraduateDevMarketUrl = (chainId: string, marketId: string) => {
+  return `/dev/markets/${chainId}/${marketId}/graduate`;
+};
+
+export const graduateDevMarket = async (
+  chainId: string,
+  marketId: string,
+  options?: RequestInit
+): Promise<graduateDevMarketResponse> => {
+  const res = await fetch(getGraduateDevMarketUrl(chainId, marketId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: graduateDevMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as graduateDevMarketResponse;
 };
