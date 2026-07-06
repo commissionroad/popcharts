@@ -1,13 +1,18 @@
 import {
   createOpeningState,
   marginalPriceCents,
+  stateAfterBuy,
   type VirtualLmsrState,
 } from "@/domain/lmsr/lmsr";
-import type { ApiMarket } from "@/integrations/indexer/markets-api";
+import type {
+  ApiMarket,
+  ApiReceiptPlacedEvent,
+} from "@/integrations/indexer/markets-api";
 
 import type { Market, MarketCategory, MarketStatus } from "./types";
 
 const WAD = 10n ** 18n;
+const MAX_PRICE_PATH_POINTS = 256;
 
 const generatedCategories: MarketCategory[] = [
   "Crypto",
@@ -144,6 +149,52 @@ function currentLmsrState({
     noShares: openingState.noShares + noShares,
     yesShares: openingState.yesShares + yesShares,
   };
+}
+
+/**
+ * Replays indexed ReceiptPlaced events through the virtual LMSR to recover the
+ * market's actual price history: the opening price followed by the implied YES
+ * price after each receipt, in on-chain sequence order. Long histories are
+ * downsampled to MAX_PRICE_PATH_POINTS while always keeping the first and
+ * latest prices.
+ */
+export function pricePathFromReceipts(
+  market: Pick<Market, "b" | "openingProbability">,
+  receipts: ApiReceiptPlacedEvent[]
+) {
+  let state = createOpeningState({
+    b: market.b,
+    openingProbability: market.openingProbability,
+  });
+  const path = [marginalPriceCents(state, "yes")];
+
+  const ordered = [...receipts].sort((a, b) =>
+    parseBigInt(a.sequence) < parseBigInt(b.sequence) ? -1 : 1
+  );
+
+  for (const receipt of ordered) {
+    state = stateAfterBuy({
+      shares: wadToNumber(receipt.shares),
+      side: receipt.side === 0 ? "yes" : "no",
+      state,
+    });
+    path.push(marginalPriceCents(state, "yes"));
+  }
+
+  return downsamplePricePath(path, MAX_PRICE_PATH_POINTS);
+}
+
+function downsamplePricePath(path: number[], maxPoints: number) {
+  if (path.length <= maxPoints) {
+    return path;
+  }
+
+  const stride = (path.length - 1) / (maxPoints - 1);
+
+  return Array.from(
+    { length: maxPoints },
+    (_, index) => path[Math.round(index * stride)] ?? 0
+  );
 }
 
 function buildPricePath(openingPriceCents: number, currentPriceCents: number) {

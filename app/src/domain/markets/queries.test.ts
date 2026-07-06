@@ -5,6 +5,7 @@ import type { ApiMarket, MarketsApiClient } from "@/integrations/indexer/markets
 import { markets as fixtureMarkets } from "./fixtures";
 import {
   getMarketById,
+  getMarketReceipts,
   getMarkets,
   requestMarketGraduation,
   requestPregradMarketCloseForRefund,
@@ -125,6 +126,42 @@ describe("market queries", () => {
     expect(market?.id).toBe("5042002:7");
   });
 
+  it("reads market receipts by chain-prefixed app id", async () => {
+    const receipt = {
+      blockNumber: "111",
+      blockTimestamp: "2026-06-13T12:05:00.000Z",
+      chainId: 5042002,
+      cost: "3288901914750925000",
+      logIndex: 1,
+      marketId: "7",
+      owner: "0x0000000000000000000000000000000000000003",
+      receiptId: "1",
+      sequence: "1",
+      shares: "6000000000000000000",
+      side: 0,
+      transactionHash:
+        "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    };
+    const client = createClient({ receipts: [receipt] });
+
+    const receipts = await getMarketReceipts("5042002:7", {
+      client,
+      source: "api",
+    });
+
+    expect(client.getMarketReceipts).toHaveBeenCalledWith({
+      chainId: 5042002,
+      marketId: "7",
+    });
+    expect(receipts).toEqual([receipt]);
+  });
+
+  it("returns no receipts for fixture-backed markets", async () => {
+    await expect(
+      getMarketReceipts("eth-5000-august", { source: "fixtures" })
+    ).resolves.toEqual([]);
+  });
+
   it("reads individual API markets by URL-encoded chain-prefixed app id", async () => {
     const client = createClient({ market: apiMarket });
 
@@ -215,11 +252,13 @@ function createClient({
   graduation,
   market = null,
   markets = [],
+  receipts = [],
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
+  receipts?: Awaited<ReturnType<MarketsApiClient["getMarketReceipts"]>>;
 } = {}): MarketsApiClient {
   return {
     closePregradMarket: vi.fn(async () => {
@@ -238,6 +277,7 @@ function createClient({
     }),
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
+    getMarketReceipts: vi.fn(async () => receipts),
     getMarkets: vi.fn(async () => markets),
   };
 }

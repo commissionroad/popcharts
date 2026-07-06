@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getMarketById, getMarkets } from "@/domain/markets/queries";
+import { pricePathFromReceipts } from "@/domain/markets/api-market";
+import { getMarketById, getMarketReceipts, getMarkets } from "@/domain/markets/queries";
 import { MarketDetailPage } from "@/features/market-detail/market-detail-page";
 
 type PageProps = {
@@ -30,11 +31,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function Page({ params }: PageProps) {
   const { marketId } = await params;
-  const market = await getMarketById(marketId);
+  const [market, receipts] = await Promise.all([
+    getMarketById(marketId),
+    getMarketReceipts(marketId),
+  ]);
 
   if (!market) {
     notFound();
   }
 
-  return <MarketDetailPage market={market} />;
+  const pricePath =
+    receipts.length > 0 ? pricePathFromReceipts(market, receipts) : market.pricePath;
+
+  return <MarketDetailPage market={{ ...market, pricePath }} />;
 }

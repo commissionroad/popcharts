@@ -44,6 +44,27 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
   return fixtureMarkets.find((market) => market.id === id);
 }
 
+/**
+ * Fetches the indexed ReceiptPlaced events for one market, oldest first, so
+ * the caller can rebuild the real LMSR price path. Fixture-backed markets have
+ * no receipt history and yield an empty list.
+ */
+export async function getMarketReceipts(id: string, options: MarketQueryOptions = {}) {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    return [];
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    return [];
+  }
+
+  return config.client.getMarketReceipts(lookup);
+}
+
 export async function getMarkets(options: MarketQueryOptions = {}) {
   const config = resolveMarketQueryConfig(options);
 

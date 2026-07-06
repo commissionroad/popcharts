@@ -3,6 +3,7 @@ import { getGraduateMarketUrl } from "./generated/graduation/graduation";
 import {
   getGetMarketUrl,
   getListMarketEventsUrl,
+  getListMarketReceiptsUrl,
   getListMarketsUrl,
 } from "./generated/markets/markets";
 import type {
@@ -13,11 +14,13 @@ import type {
   Market,
   MarketCreatedEvent,
   MarketMetadata,
+  ReceiptPlacedEvent,
 } from "./generated/models";
 
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
+export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
 export type ListMarketsParams = GeneratedListMarketsParams;
 export type ApiGraduationSummary = GraduationSummary;
 export type ApiGraduationResponse = GraduationResponse;
@@ -38,6 +41,7 @@ export type MarketsApiClient = {
   graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
+  getMarketReceipts: (lookup: MarketApiLookup) => Promise<ApiReceiptPlacedEvent[]>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
 };
 
@@ -117,6 +121,20 @@ export function createMarketsApiClient({
         buildUrl(
           normalizedBaseUrl,
           getListMarketEventsUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId)
+          )
+        )
+      );
+
+      return response ?? [];
+    },
+    async getMarketReceipts({ chainId, marketId }) {
+      const response = await requestJson<ApiReceiptPlacedEvent[]>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getListMarketReceiptsUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )
