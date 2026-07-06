@@ -14,7 +14,7 @@ verification, local manifests, and deployment preflight checks.
 
 ## Workflow
 
-1. Read `protocol/AGENTS.md` and `protocol/skills/engineering/protocol-code-quality/SKILL.md` first.
+1. Read `protocol/AGENTS.md` and `skills/engineering/protocol-code-quality/SKILL.md` first.
 2. Keep chain-specific scripts thin. The entrypoint owns network defaults,
    env parsing, contract selection, and manifest shape.
 3. Move reusable behavior into `protocol/scripts/shared/`.

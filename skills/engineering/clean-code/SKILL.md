@@ -9,6 +9,12 @@ These codify the conventions established by the `protocol/` TypeScript
 refactor. They apply to all TypeScript in the repo: `protocol/`, `scripts/`,
 `server/`, `app/`, `infra/`.
 
+Adapted in part from the MIT-licensed
+[ertugrul-dmr/clean-code-skills](https://github.com/ertugrul-dmr/clean-code-skills)
+TypeScript track (see `skills/README.md` for the reviewed upstream commit and
+update procedure); `engineering/protocol-code-quality` carries the
+protocol-side adaptation of the same source.
+
 ## Files and folders
 
 - **One exported concept per helper file**, named after its main export:

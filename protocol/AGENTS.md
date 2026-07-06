@@ -9,7 +9,9 @@ Before changing protocol code, read these files:
 3. `docs/CODE_GUIDELINES.md`
 4. `docs/TESTING.md`
 5. Relevant ADRs in `docs/adr/`
-6. `skills/engineering/protocol-code-quality/SKILL.md`
+6. `../skills/engineering/protocol-code-quality/SKILL.md` (and
+   `../skills/engineering/protocol-deployment-scripts/SKILL.md` for work under
+   `scripts/`)
 
 Treat `../documents/whitepaper_v4.pdf` as the source of truth for mechanism
 semantics. Earlier whitepapers can provide context, but they do not override

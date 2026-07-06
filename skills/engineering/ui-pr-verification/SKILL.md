@@ -1,6 +1,6 @@
 ---
 name: ui-pr-verification
-description: Verify UI-impacting Pop Charts changes before publishing or updating a PR. Use when Codex changes app pages, routes, components, visual states, browser-visible flows, screenshots, frontend API wiring, or asks to prove a UI change locally; also use when preparing a PR description for UI work.
+description: Verify UI-impacting Pop Charts changes before publishing or updating a PR. Use when changing app pages, routes, components, visual states, browser-visible flows, screenshots, or frontend API wiring, or when asked to prove a UI change locally; also use when preparing a PR description for UI work.
 ---
 
 # UI PR Verification

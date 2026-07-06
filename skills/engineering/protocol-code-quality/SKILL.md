@@ -9,9 +9,11 @@ description: Use when writing, reviewing, or refactoring Pop Charts protocol cod
 
 Apply Pop Charts protocol conventions plus the useful parts of the external
 TypeScript clean-code skill set. The source inspiration is the MIT-licensed
-`ertugrul-dmr/clean-code-skills` TypeScript track, adapted here instead of
-copied wholesale so it fits Solidity, Hardhat 3, viem, and Pop Charts mechanism
-language.
+[ertugrul-dmr/clean-code-skills](https://github.com/ertugrul-dmr/clean-code-skills)
+TypeScript track, adapted here instead of copied wholesale so it fits Solidity,
+Hardhat 3, viem, and Pop Charts mechanism language. See `skills/README.md` for
+the reviewed upstream commit and update procedure; `engineering/clean-code`
+carries the repo-wide TypeScript adaptation of the same source.
 
 ## Workflow
 
