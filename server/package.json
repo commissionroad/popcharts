@@ -24,6 +24,7 @@
     "start:ai-review-runner": "bun run src/ai-review-runner/index.ts",
     "start:indexer": "bun run src/indexer/index.ts",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

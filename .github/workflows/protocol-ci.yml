@@ -1,24 +1,24 @@
-name: App CI
+name: Protocol CI
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - app/**
-      - .github/workflows/app-ci.yml
+      - protocol/**
+      - .github/workflows/protocol-ci.yml
   push:
     branches:
       - main
     paths:
-      - app/**
-      - .github/workflows/app-ci.yml
+      - protocol/**
+      - .github/workflows/protocol-ci.yml
 
 permissions:
   contents: read
 
 concurrency:
-  group: app-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: protocol-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -27,13 +27,13 @@ env:
   PNPM_VERSION: "10.33.0"
 
 jobs:
-  app:
-    name: Check app
+  protocol:
+    name: Check protocol
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
-        working-directory: app
+        working-directory: protocol
 
     steps:
       - name: Checkout
@@ -52,32 +52,23 @@ jobs:
           corepack prepare "pnpm@${PNPM_VERSION}" --activate
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Check formatting
         run: pnpm format:check
 
-      - name: Lint
-        run: pnpm lint
+      - name: Lint Solidity
+        run: pnpm lint:sol
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests with coverage
+      - name: Tests with coverage
         run: pnpm test:coverage
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: app-coverage
-          path: app/coverage/lcov.info
+          name: protocol-coverage
+          path: protocol/coverage/lcov.info
           retention-days: 14
-
-      - name: Build
-        run: pnpm build
-
-      - name: Smoke test
-        run: pnpm test:e2e:smoke
