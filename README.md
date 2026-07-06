@@ -172,11 +172,13 @@ just local-smoke --keep-running
 
 ## Engineering Skills
 
-The `skills/` directory vendors the engineering skills selected for Pop Charts'
-frontend buildout. They are adapted from
-[`mattpocock/skills`](https://github.com/mattpocock/skills) and cover planning
-with docs, TDD, diagnosis, architecture review, throwaway prototypes, and
-pre-commit setup.
+The `skills/` directory is the single skills tree for the repo: vendored
+engineering workflows from
+[`mattpocock/skills`](https://github.com/mattpocock/skills) (planning with
+docs, TDD, diagnosis, architecture review, throwaway prototypes, pre-commit
+setup) plus local Pop Charts skills scoped to `app/`, `server/`, and
+`protocol/`. See [`skills/README.md`](skills/README.md) for the full list,
+upstream provenance pins, and update procedure.
 
 ## Developer Helpers
 
@@ -184,6 +186,6 @@ Use `scripts/land` to merge a GitHub pull request, fast-forward the base branch 
 
 ```bash
 scripts/land 12
-scripts/land codex/my-feature
+scripts/land my-feature-branch
 scripts/land --squash 12
 ```
