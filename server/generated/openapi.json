@@ -463,6 +463,46 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/receipts": {
+      "get": {
+        "operationId": "listMarketReceipts",
+        "summary": "Get market receipt events",
+        "description": "Returns the indexed ReceiptPlaced events for one market ordered oldest first by on-chain sequence, so clients can replay the LMSR price history without touching an RPC provider.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptPlacedEventList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}/graduate": {
       "post": {
         "operationId": "graduateMarket",
@@ -1440,6 +1480,67 @@
           "cancelled",
           "rejected"
         ]
+      },
+      "ReceiptPlacedEvent": {
+        "type": "object",
+        "required": [
+          "blockNumber",
+          "blockTimestamp",
+          "chainId",
+          "cost",
+          "logIndex",
+          "marketId",
+          "owner",
+          "receiptId",
+          "sequence",
+          "shares",
+          "side",
+          "transactionHash"
+        ],
+        "properties": {
+          "blockNumber": {
+            "type": "string"
+          },
+          "blockTimestamp": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "number"
+          },
+          "cost": {
+            "type": "string"
+          },
+          "logIndex": {
+            "type": "number"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "receiptId": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "string"
+          },
+          "shares": {
+            "type": "string"
+          },
+          "side": {
+            "type": "number"
+          },
+          "transactionHash": {
+            "type": "string"
+          }
+        }
+      },
+      "ReceiptPlacedEventList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReceiptPlacedEvent"
+        }
       }
     }
   }

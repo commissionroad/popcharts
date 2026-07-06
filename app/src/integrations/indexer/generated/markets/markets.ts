@@ -12,6 +12,7 @@ import type {
   MarketList,
   MarketMetadata,
   MarketMetadataWrite,
+  ReceiptPlacedEventList,
 } from ".././models";
 
 /**
@@ -190,4 +191,42 @@ export const listMarketEvents = async (
 
   const data: listMarketEventsResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listMarketEventsResponse;
+};
+
+/**
+ * Returns the indexed ReceiptPlaced events for one market ordered oldest first by on-chain sequence, so clients can replay the LMSR price history without touching an RPC provider.
+ * @summary Get market receipt events
+ */
+export type listMarketReceiptsResponse200 = {
+  data: ReceiptPlacedEventList;
+  status: 200;
+};
+
+export type listMarketReceiptsResponseSuccess = listMarketReceiptsResponse200 & {
+  headers: Headers;
+};
+export type listMarketReceiptsResponse = listMarketReceiptsResponseSuccess;
+
+export const getListMarketReceiptsUrl = (chainId: string, marketId: string) => {
+  return `/markets/${chainId}/${marketId}/receipts`;
+};
+
+export const listMarketReceipts = async (
+  chainId: string,
+  marketId: string,
+  options?: RequestInit
+): Promise<listMarketReceiptsResponse> => {
+  const res = await fetch(getListMarketReceiptsUrl(chainId, marketId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMarketReceiptsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listMarketReceiptsResponse;
 };

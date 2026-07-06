@@ -52,3 +52,5 @@ export * from "./requestManualAiReviewBodyOne";
 export * from "./requestManualAiReviewBodyThree";
 export * from "./requestManualAiReviewBodyTwo";
 export * from "./versionInfo";
+export * from "./receiptPlacedEvent";
+export * from "./receiptPlacedEventList";
