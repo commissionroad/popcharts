@@ -5,6 +5,7 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
+import type { MarketVenue } from "./marketVenue";
 
 export interface MarketPostgrad {
   adapterAddress: string;
@@ -14,4 +15,5 @@ export interface MarketPostgrad {
   refundTotal: string;
   retainedCostTotal: string;
   transactionHash: string;
+  venue?: MarketVenue;
 }

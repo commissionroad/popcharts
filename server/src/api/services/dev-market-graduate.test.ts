@@ -126,6 +126,48 @@ describe("graduateDevMarket", () => {
     ]);
   });
 
+  it("merges wired venue pools into the postgrad handoff", async () => {
+    const venue = {
+      boundedHookAddress: "0x00000000000000000000000000000000000000f1",
+      live: true,
+      noPool: {
+        initialized: true,
+        outcomeTokenAddress: "0x00000000000000000000000000000000000000f3",
+        poolId: `0x${"22".repeat(32)}`,
+        whitelisted: true,
+      },
+      orderManagerAddress: "0x00000000000000000000000000000000000000f2",
+      poolManagerAddress: "0x00000000000000000000000000000000000000f0",
+      yesPool: {
+        initialized: true,
+        outcomeTokenAddress: "0x00000000000000000000000000000000000000f4",
+        poolId: `0x${"11".repeat(32)}`,
+        whitelisted: true,
+      },
+    };
+    const result = await graduateDevMarket(
+      { chainId: 31337, marketId: "7" },
+      createDependencies({
+        market: createMarketRow({ status: "graduated" }),
+        wireVenue: async () => ({
+          transactionHashes: [
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          ],
+          venue,
+        }),
+      }),
+    );
+
+    if (result.kind !== "graduated") {
+      throw new Error("expected graduated result");
+    }
+
+    expect(result.postgrad.venue).toEqual(venue);
+    expect(result.transactionHashes).toContain(
+      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    );
+  });
+
   it("responds idempotently for a market the chain already graduated", async () => {
     const result = await graduateDevMarket(
       { chainId: 31337, marketId: "7" },
@@ -177,6 +219,7 @@ function createDependencies({
   postgrad = createPostgradInfo(),
   postgradAdapterConfigured = true,
   selectMarket,
+  wireVenue,
 }: {
   devGraduateEnabled?: boolean;
   graduateMarketOnChain?: DevMarketGraduateDependencies["graduateMarketOnChain"];
@@ -184,6 +227,7 @@ function createDependencies({
   postgrad?: MarketPostgradResponse;
   postgradAdapterConfigured?: boolean;
   selectMarket?: DevMarketGraduateDependencies["selectMarket"];
+  wireVenue?: DevMarketGraduateDependencies["wireVenue"];
 } = {}): DevMarketGraduateDependencies {
   return {
     devGraduateEnabled: () => devGraduateEnabled,
@@ -196,6 +240,8 @@ function createDependencies({
           ? { market, metadata: null }
           : null),
     selectPostgradInfo: async () => postgrad,
+    wireVenue:
+      wireVenue ?? (async () => ({ transactionHashes: [], venue: null })),
   };
 }
 

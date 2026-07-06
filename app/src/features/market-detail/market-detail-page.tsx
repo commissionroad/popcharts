@@ -156,6 +156,7 @@ export function MarketDetailPage({
 
 function GraduatedMarketSummary({ market }: { market: Market }) {
   const postgrad = market.postgrad;
+  const venue = postgrad?.venue;
   const tokensCreated = Math.round(
     postgrad?.completeSets ?? market.matchedUsd
   ).toLocaleString("en-US");
@@ -167,7 +168,7 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
     <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-4">
       <div className="mb-4 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--status-graduated)] uppercase">
         <BadgeCheck size={16} />
-        Trading closed
+        {venue?.live ? "Graduated - postgrad venue live" : "Receipt book settled"}
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <SmallMetric
@@ -187,10 +188,16 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
           </div>
           <ContractAddressRow label="Postgrad market" value={postgrad.marketAddress} />
           <ContractAddressRow label="Adapter" value={postgrad.adapterAddress} />
+          {venue ? (
+            <>
+              <ContractAddressRow label="YES pool" value={venue.yesPool.poolId} />
+              <ContractAddressRow label="NO pool" value={venue.noPool.poolId} />
+            </>
+          ) : null}
           <p className="mt-3 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
-            Matched liquidity minted equal YES and NO outcome tokens in the postgrad
-            market above; unmatched pre-graduation collateral refunds at its exact path
-            cost.
+            {venue?.live
+              ? "Matched liquidity minted equal YES and NO outcome tokens, and trading continues on the bounded venue: swap outcome tokens through the pool manager or rest bounded maker orders with the order manager."
+              : "Matched liquidity minted equal YES and NO outcome tokens in the postgrad market above; unmatched pre-graduation collateral refunds at its exact path cost."}
           </p>
         </div>
       ) : (

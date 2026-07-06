@@ -32,6 +32,8 @@ import {
   MarketPostgradSchema,
   MarketSchema,
   MarketStatusSchema,
+  MarketVenuePoolSchema,
+  MarketVenueSchema,
   ReceiptPlacedEventListSchema,
   ReceiptPlacedEventSchema,
 } from "src/api/models/markets";
@@ -81,6 +83,8 @@ export const marketRoutes = new Elysia({ prefix: "" })
     Market: MarketSchema,
     MarketAiReview: MarketAiReviewSchema,
     MarketPostgrad: MarketPostgradSchema,
+    MarketVenue: MarketVenueSchema,
+    MarketVenuePool: MarketVenuePoolSchema,
     MarketAiReviewJob: MarketAiReviewJobSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
     MarketCreatedEventList: MarketCreatedEventListSchema,

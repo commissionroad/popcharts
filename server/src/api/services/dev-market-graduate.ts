@@ -16,6 +16,7 @@ import type {
   GraduationSummaryResponse,
   MarketPostgradResponse,
   MarketResponse,
+  MarketVenueResponse,
 } from "src/api/models/markets";
 import { config, ZERO_ADDRESS } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
@@ -51,6 +52,12 @@ import {
   fastForwardLocalRpc,
   readDevPrivateKey,
 } from "./local-dev-chain";
+import {
+  closingYesDisplayPriceWad,
+  postgradVenueConfigured,
+  readPostgradMarketVenue,
+  wirePostgradMarketVenue,
+} from "./postgrad-venue";
 import {
   buildGraduationSummary,
   serializeGraduationSummary,
@@ -180,6 +187,13 @@ export type DevMarketGraduateDependencies = {
     chainId: number;
     marketId: bigint;
   }) => Promise<MarketPostgradResponse | null>;
+  wireVenue: (args: {
+    market: MarketRow;
+    postgradMarket: `0x${string}`;
+  }) => Promise<{
+    transactionHashes: Hash[];
+    venue: MarketVenueResponse | null;
+  }>;
 };
 
 /**
@@ -297,10 +311,20 @@ export async function graduateDevMarket(
     );
   }
 
+  // Wire (or heal) the venue side of the handoff so trading continues on the
+  // postgrad pools: idempotent, so re-running on an already graduated market
+  // only fills in whatever is missing.
+  const wiredVenue = await dependencies.wireVenue({
+    market: updatedRow.market,
+    postgradMarket: postgrad.marketAddress as `0x${string}`,
+  });
+
   return {
     kind: "graduated",
     market: serializeGraduateMarketRow(updatedRow),
-    postgrad,
+    postgrad: wiredVenue.venue
+      ? { ...postgrad, venue: wiredVenue.venue }
+      : postgrad,
     summary: serializeGraduationSummary(
       buildGraduationSummary({
         graduatedAt: new Date(postgrad.finalizedAt),
@@ -311,8 +335,10 @@ export async function graduateDevMarket(
           BigInt(postgrad.retainedCostTotal) + BigInt(postgrad.refundTotal),
       }),
     ),
-    transactionHashes:
-      chainResult.kind === "graduated" ? chainResult.transactionHashes : [],
+    transactionHashes: [
+      ...(chainResult.kind === "graduated" ? chainResult.transactionHashes : []),
+      ...wiredVenue.transactionHashes,
+    ],
   };
 }
 
@@ -332,7 +358,54 @@ const defaultDependencies: DevMarketGraduateDependencies = {
     Boolean(config.contracts.postgradAdapter),
   selectMarket: selectMarketForDevGraduate,
   selectPostgradInfo,
+  wireVenue: wireVenueWithDevSigner,
 };
+
+/**
+ * Default venue wiring: opens the postgrad pools where the pregrad book
+ * closed, using the dev signer that owns the venue contracts locally. Skips
+ * quietly when no venue is configured so bare pregrad-only setups still
+ * graduate.
+ */
+async function wireVenueWithDevSigner({
+  market,
+  postgradMarket,
+}: {
+  market: MarketRow;
+  postgradMarket: `0x${string}`;
+}): Promise<{ transactionHashes: Hash[]; venue: MarketVenueResponse | null }> {
+  if (!postgradVenueConfigured()) {
+    console.log(
+      "[Dev graduate] No postgrad venue configured; skipping pool wiring.",
+    );
+    return { transactionHashes: [], venue: null };
+  }
+
+  const publicClient = createPublicClient({
+    chain: config.chain,
+    transport: http(config.rpcHttpUrl),
+  });
+  const walletClient = createWalletClient({
+    account: privateKeyToAccount(readDevPrivateKey()),
+    chain: config.chain,
+    transport: http(config.rpcHttpUrl),
+  });
+  const collateral = market.collateral as `0x${string}`;
+  const wired = await wirePostgradMarketVenue({
+    clients: { publicClient, walletClient },
+    collateral,
+    postgradMarket,
+    yesDisplayPriceWad: closingYesDisplayPriceWad({
+      liquidityParameter: market.liquidityParameter,
+      noShares: market.noShares,
+      openingProbabilityWad: market.openingProbabilityWad,
+      yesShares: market.yesShares,
+    }),
+  });
+  const venue = await readPostgradMarketVenue({ collateral, postgradMarket });
+
+  return { transactionHashes: wired.transactionHashes, venue };
+}
 
 async function selectMarketForDevGraduate({
   chainId,

@@ -1374,6 +1374,63 @@
           },
           "transactionHash": {
             "type": "string"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/MarketVenue"
+          }
+        }
+      },
+      "MarketVenue": {
+        "type": "object",
+        "required": [
+          "boundedHookAddress",
+          "live",
+          "noPool",
+          "orderManagerAddress",
+          "poolManagerAddress",
+          "yesPool"
+        ],
+        "properties": {
+          "boundedHookAddress": {
+            "type": "string"
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "noPool": {
+            "$ref": "#/components/schemas/MarketVenuePool"
+          },
+          "orderManagerAddress": {
+            "type": "string"
+          },
+          "poolManagerAddress": {
+            "type": "string"
+          },
+          "yesPool": {
+            "$ref": "#/components/schemas/MarketVenuePool"
+          }
+        }
+      },
+      "MarketVenuePool": {
+        "type": "object",
+        "required": [
+          "initialized",
+          "outcomeTokenAddress",
+          "poolId",
+          "whitelisted"
+        ],
+        "properties": {
+          "initialized": {
+            "type": "boolean"
+          },
+          "outcomeTokenAddress": {
+            "type": "string"
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "whitelisted": {
+            "type": "boolean"
           }
         }
       },

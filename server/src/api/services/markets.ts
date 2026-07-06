@@ -17,6 +17,7 @@ import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
+import { readPostgradMarketVenue } from "./postgrad-venue";
 
 const MARKET_LIST_LIMIT = 200;
 const LOCAL_MARKET_EXISTS_ABI = parseAbi([
@@ -131,6 +132,23 @@ export async function getMarketById(
 
   const reviews = await getLatestAiReviews([row.market]);
   const postgrads = await getLatestPostgradInfos([row.market]);
+  let postgrad =
+    postgrads.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
+    null;
+
+  // Single-market reads also report the venue side of the handoff so the UI
+  // can point at the live postgrad pools. Kept off the list endpoint to avoid
+  // per-market chain reads there.
+  if (postgrad) {
+    const venue = await readPostgradMarketVenue({
+      collateral: row.market.collateral as `0x${string}`,
+      postgradMarket: postgrad.marketAddress as `0x${string}`,
+    });
+
+    if (venue) {
+      postgrad = { ...postgrad, venue };
+    }
+  }
 
   return serializeMarketRow(
     row.market,
@@ -138,8 +156,7 @@ export async function getMarketById(
     calculateMatchedMarketCap(row.market),
     reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
-    postgrads.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
-      null,
+    postgrad,
   );
 }
 

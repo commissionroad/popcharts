@@ -224,6 +224,30 @@ export const MarketAiReviewJobSchema = t.Object(
   { $id: "MarketAiReviewJob" },
 );
 
+/** One outcome-token pool on the bounded v4 venue. */
+export const MarketVenuePoolSchema = t.Object(
+  {
+    initialized: t.Boolean(),
+    outcomeTokenAddress: t.String(),
+    poolId: t.String(),
+    whitelisted: t.Boolean(),
+  },
+  { $id: "MarketVenuePool" },
+);
+
+/** Venue wiring for a graduated market's YES and NO outcome pools. */
+export const MarketVenueSchema = t.Object(
+  {
+    boundedHookAddress: t.String(),
+    live: t.Boolean(),
+    noPool: t.Ref(MarketVenuePoolSchema),
+    orderManagerAddress: t.String(),
+    poolManagerAddress: t.String(),
+    yesPool: t.Ref(MarketVenuePoolSchema),
+  },
+  { $id: "MarketVenue" },
+);
+
 /** Where a graduated market's matched exposure settled after handoff. */
 export const MarketPostgradSchema = t.Object(
   {
@@ -234,6 +258,7 @@ export const MarketPostgradSchema = t.Object(
     refundTotal: t.String(),
     retainedCostTotal: t.String(),
     transactionHash: t.String(),
+    venue: t.Optional(t.Ref(MarketVenueSchema)),
   },
   { $id: "MarketPostgrad" },
 );
@@ -507,6 +532,8 @@ export type DevMarketCloseResponse = Static<
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
 >;
+export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
+export type MarketVenueResponse = Static<typeof MarketVenueSchema>;
 export type MarketPostgradResponse = Static<typeof MarketPostgradSchema>;
 export type DevMarketGraduateResponse = Static<
   typeof DevMarketGraduateResponseSchema

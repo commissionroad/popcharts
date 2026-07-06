@@ -60,3 +60,5 @@ export * from "./requestManualAiReviewBodyOne";
 export * from "./requestManualAiReviewBodyThree";
 export * from "./requestManualAiReviewBodyTwo";
 export * from "./versionInfo";
+export * from "./marketVenue";
+export * from "./marketVenuePool";

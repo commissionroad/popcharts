@@ -96,6 +96,7 @@ function apiPostgradToHandoff(
     marketAddress: postgrad.marketAddress,
     refundedUsd: wadToNumber(postgrad.refundTotal),
     retainedUsd: wadToNumber(postgrad.retainedCostTotal),
+    ...(postgrad.venue ? { venue: postgrad.venue } : {}),
   };
 }
 
