@@ -126,7 +126,7 @@ Rules for executing this program:
 - [x] **B4. Extract SQL condition builders from
   `server/src/ai-review-runner/jobs.ts`** into a sibling `queries.ts`
   (claimable-job condition, no-active-job, no-existing-review predicates).
-- [ ] **B5. Extract failure handling from jobs.ts** into a sibling
+- [x] **B5. Extract failure handling from jobs.ts** into a sibling
   `failures.ts` (`markReviewJobFailure`, `cancelReviewJob`,
   `calculateRetryDelayMs`, `compactError`). Depends on: B4 (keeps the diff
   reviewable).
@@ -267,7 +267,8 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
-| 2026-07-06 | B4 | TBD | Moved the three pure query-predicate builders (`claimableReviewJobCondition`, `noActiveReviewJobForCurrentMarket`, `noAiReviewForCurrentMarket`) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `queries.ts`; jobs.ts imports them and drops its now-unused `isNull`/`lte`/`or` db-client imports — no behavior change. |
+| 2026-07-06 | B5 | TBD | Moved the failure-path helpers (`markReviewJobFailure`, `cancelReviewJob`, `calculateRetryDelayMs`, `compactError`, and the retry-cap/error-length constants) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `failures.ts`; jobs.ts imports the two job-state writers and jobs.test.ts imports the two pure helpers from the new module — no behavior change. |
+| 2026-07-06 | B4 | #101 | Moved the three pure query-predicate builders (`claimableReviewJobCondition`, `noActiveReviewJobForCurrentMarket`, `noAiReviewForCurrentMarket`) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `queries.ts`; jobs.ts imports them and drops its now-unused `isNull`/`lte`/`or` db-client imports — no behavior change. |
 | 2026-07-06 | B3 | #100 | Chose the new-module placement: the indexer factory moved verbatim to `server/src/blockchain/client.ts` (shared home, since importing from `indexer/` into `api/` crosses subsystem boundaries), which now also exports `createReadOnlyClient()` and `createWalletClient(account)` HTTP factories; migrated the ad-hoc clients in `api/services/markets.ts`, `api/services/dev-market-close.ts`, and `ai-review-runner/chain-review.ts` onto them with no config or behavior changes. |
 | 2026-07-06 | B2 | #99 | Split `server/src/ai-review/anthropic.ts` into `anthropic/http.ts` (Messages API call + response/content-block types), `anthropic/tools.ts` (web tool + system prompt building), and `anthropic/evidence.ts` (evidence extraction/dedupe + URL helpers), leaving `anthropic.ts` as a thin orchestrator exporting `reviewWithAnthropic`/`AnthropicReview` at its unchanged import path; code moved verbatim. |
 | 2026-07-06 | B1 | #98 | `server/src/ai-review/response-parsing.ts` now holds the single implementation of verdict parsing, source-check parsing/filtering, score clamping, and the shared `RawModelReview` type; anthropic and ollama providers import it (~150 duplicated lines deleted, byte-identical logic — only the JSON-failure message is parameterized by provider name). Ollama keeps its heuristic-only helpers. 16 new unit tests cover the shared module directly. |
