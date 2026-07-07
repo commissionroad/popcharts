@@ -44,8 +44,9 @@ evidence in the PR.
      fold.
 
 5. Preserve the screenshot.
-   - Put small, PR-specific screenshots under `docs/` with a descriptive name,
-     such as `docs/graduation-market-detail-local.png`.
+   - Put small, PR-specific screenshots under `docs/screenshots/` with a
+     descriptive name, such as
+     `docs/screenshots/graduation-market-detail-local.png`.
    - Commit the screenshot when the PR description should embed a stable raw
      GitHub URL. Do not commit large, noisy, or sensitive screenshots.
 
