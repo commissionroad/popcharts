@@ -4,14 +4,13 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import { parsePregradDeploy, type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import { parseSmokeMarket, type SmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
 } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
-import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
@@ -130,10 +129,7 @@ async function main(): Promise<void> {
     "run",
     "local:deploy-pregrad",
   ]);
-  const deploy = parseLabeledJson<PregradDeploy>(
-    deployOutput.stdout,
-    "LOCAL_CHAIN_SMOKE_DEPLOY",
-  );
+  const deploy = parsePregradDeploy(deployOutput.stdout);
   // The postgrad venue rides the same fresh chain so the smoke proves the
   // whole system deploys end-to-end: v4 venue stack, postgrad contracts, and
   // one demo complete-set market that makes the venue immediately tradeable.

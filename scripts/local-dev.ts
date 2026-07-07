@@ -9,7 +9,7 @@ import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts
 import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import { parsePregradDeploy, type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
@@ -24,7 +24,6 @@ import {
   localDevIndexerHealthFile,
 } from "./shared/env/localDevEnvFiles.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
-import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -179,10 +178,7 @@ async function main(): Promise<void> {
     "run",
     "local:deploy-pregrad",
   ]);
-  const deploy = parseLabeledJson<PregradDeploy>(
-    deployOutput.stdout,
-    "LOCAL_CHAIN_SMOKE_DEPLOY",
-  );
+  const deploy = parsePregradDeploy(deployOutput.stdout);
   const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
   const serverEnv = buildLocalServerEnv({
     collateralAddress: deploy.collateralAddress,

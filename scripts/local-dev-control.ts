@@ -8,7 +8,7 @@ import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
-import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import { parsePregradDeploy, type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import {
   POSTGRES_CONTAINER_NAME,
   POSTGRES_VOLUME_NAME,
@@ -23,7 +23,6 @@ import {
 } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
-import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -305,10 +304,7 @@ async function deployContracts(): Promise<void> {
     "run",
     "local:deploy-pregrad",
   ]);
-  const deploy = parseLabeledJson<PregradDeploy>(
-    deployOutput.stdout,
-    "LOCAL_CHAIN_SMOKE_DEPLOY",
-  );
+  const deploy = parsePregradDeploy(deployOutput.stdout);
   const serverEnv = buildLocalServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
