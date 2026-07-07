@@ -1,7 +1,7 @@
 import { parseAbiItem, type AbiEvent } from "viem";
 
 import { config } from "src/config";
-import type { BlockchainClient } from "src/indexer/blockchain/client";
+import type { BlockchainClient } from "src/blockchain/client";
 import {
   buildClearingRootSubmittedRecord,
   buildGraduatedReceiptClaimedRecord,

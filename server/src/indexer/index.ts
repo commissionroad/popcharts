@@ -4,7 +4,7 @@ import { config, validateIndexerConfig } from "src/config";
 import {
   createBlockchainClient,
   type BlockchainClient,
-} from "src/indexer/blockchain/client";
+} from "src/blockchain/client";
 import {
   recoverMarketCreatedEvents,
   recoverMarketReviewEvents,

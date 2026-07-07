@@ -1,4 +1,4 @@
-import type { BlockchainClient } from "src/indexer/blockchain/client";
+import type { BlockchainClient } from "src/blockchain/client";
 
 const blockTimestampCache = new Map<bigint, Date>();
 
