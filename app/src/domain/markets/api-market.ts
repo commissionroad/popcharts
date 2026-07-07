@@ -4,6 +4,7 @@ import {
   stateAfterBuy,
   type VirtualLmsrState,
 } from "@/domain/lmsr/lmsr";
+import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
 import type {
   ApiMarket,
   ApiReceiptPlacedEvent,
@@ -11,7 +12,6 @@ import type {
 
 import type { Market, MarketCategory, MarketStatus, PricePathPoint } from "./types";
 
-const WAD = 10n ** 18n;
 const MAX_PRICE_PATH_POINTS = 256;
 
 const generatedCategories: MarketCategory[] = [
@@ -224,11 +224,7 @@ function wadToCents(value: string) {
 }
 
 function wadToNumber(value: string) {
-  const wad = parseBigInt(value);
-  const whole = wad / WAD;
-  const fractional = wad % WAD;
-
-  return Number(whole) + Number(fractional) / Number(WAD);
+  return wadBigintToNumber(parseBigInt(value));
 }
 
 function bigintStringToNumber(value: string) {

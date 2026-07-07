@@ -1,6 +1,7 @@
 import { keccak256, stringToBytes } from "viem";
 
 import { MARKET_CATEGORIES } from "@/domain/markets/types";
+import { WAD } from "@/domain/tokens/wad";
 
 import type {
   CreateMarketDraft,
@@ -12,7 +13,6 @@ import type {
   ResolutionPresetLabel,
 } from "./types";
 
-const WAD = 10n ** 18n;
 const WAD_DECIMALS = 1_000_000n;
 
 export const COLLATERAL_SYMBOL = "pUSD";

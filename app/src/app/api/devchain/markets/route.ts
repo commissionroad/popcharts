@@ -3,7 +3,6 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  formatUnits,
   http,
   parseEventLogs,
 } from "viem";
@@ -12,8 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseSerializedProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
-
-const TOKEN_DECIMALS = 18;
+import { formatTokenAmount } from "@/lib/format";
 
 export async function POST(request: Request) {
   if (!devchainWritesEnabled()) {
@@ -169,13 +167,4 @@ function getErrorMessage(error: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function formatTokenAmount(value: bigint) {
-  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
-
-  return amount.toLocaleString("en-US", {
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
-    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
-  });
 }

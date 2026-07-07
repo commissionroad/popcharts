@@ -7,12 +7,12 @@ import type {
   PlacedPregradReceipt,
   ReceiptQuotePreview,
 } from "@/domain/pregrad-trading/receipt-quote";
+import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
-
-const TOKEN_DECIMALS = 18;
+import { formatTokenAmount } from "@/lib/format";
 
 /**
  * Connected wallet context required for contract-backed receipt placement:
@@ -354,13 +354,4 @@ function toTokenUnits(value: number) {
 
 function toDecimalString(value: number) {
   return value.toFixed(8).replace(/\.?0+$/, "");
-}
-
-function formatTokenAmount(value: bigint) {
-  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
-
-  return amount.toLocaleString("en-US", {
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
-    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
-  });
 }

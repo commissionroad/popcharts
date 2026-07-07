@@ -23,6 +23,7 @@ import type {
   CreateMarketDraft,
   CreateMarketPreview,
 } from "@/domain/market-creation/types";
+import { WAD, wadToNumber } from "@/domain/tokens/wad";
 import { cn } from "@/lib/cn";
 import { formatB, formatCents, formatUsdWhole } from "@/lib/format";
 
@@ -490,9 +491,5 @@ function formatSubmittedAt(value: string) {
 }
 
 function formatWadPercent(value: bigint) {
-  return `${Number((value * 10_000n) / 10n ** 18n) / 100}%`;
-}
-
-function wadToNumber(value: bigint) {
-  return Number(value / 10n ** 18n);
+  return `${Number((value * 10_000n) / WAD) / 100}%`;
 }

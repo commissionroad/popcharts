@@ -1,3 +1,7 @@
+import { formatUnits } from "viem";
+
+import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
+
 /**
  * Shortens an address or transaction hash to a "0x123...abc" form for
  * display. Values of 10 characters or fewer pass through unchanged.
@@ -97,4 +101,18 @@ export function formatUsd(value: number) {
  */
 export function formatUsdWhole(value: number) {
   return `$${Math.max(0, Math.round(value)).toLocaleString("en-US")}`;
+}
+
+/**
+ * Formats an 18-decimal on-chain token amount with separators and no currency
+ * symbol, showing two decimals only below 100 where they matter ("1,250",
+ * "42.50", "0").
+ */
+export function formatTokenAmount(value: bigint) {
+  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
+
+  return amount.toLocaleString("en-US", {
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
+  });
 }
