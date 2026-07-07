@@ -108,6 +108,12 @@ local-market-health:
 local-market-smoke *args:
     pnpm run local:market-smoke -- {{args}}
 
+scripts-check:
+    pnpm run scripts:check
+
+scripts-test:
+    pnpm run scripts:test
+
 test:
     pnpm run test
 

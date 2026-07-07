@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import { parseSmokeMarket, type SmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
@@ -53,12 +54,6 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 // deployed addresses after a successful run with --keep-running.
 const envFile = resolve(serverDir, ".env.local-chain");
 const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
-
-type SmokeMarket = {
-  chainId: number;
-  marketId: string;
-  metadataHash: string;
-};
 
 type IndexedMarket = {
   createdTransactionHash: string;
@@ -232,10 +227,7 @@ async function main(): Promise<void> {
       env: configuredServerEnv,
     },
   );
-  const market = parseLabeledJson<SmokeMarket>(
-    marketOutput.stdout,
-    "LOCAL_CHAIN_SMOKE_MARKET",
-  );
+  const market = parseSmokeMarket(marketOutput.stdout);
 
   // Poll the same read API the frontend will use. Matching by market ID and
   // metadata hash proves the event was decoded, persisted, projected, and served

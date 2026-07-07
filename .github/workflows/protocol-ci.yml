@@ -43,6 +43,7 @@ jobs:
           filters: |
             relevant:
             - protocol/**
+            - scripts/**
             - pnpm-lock.yaml
             - pnpm-workspace.yaml
             - .github/workflows/protocol-ci.yml
@@ -88,6 +89,12 @@ jobs:
 
       - name: Tests with coverage
         run: pnpm test:coverage
+
+      # The root local dev scripts drive the protocol deploy and market
+      # creation helpers, so their typecheck and seam tests gate here.
+      - name: Check root scripts
+        working-directory: .
+        run: pnpm run scripts:check
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
