@@ -4,9 +4,15 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
+import {
+  MARKET_COUNT_SELECTOR,
+  formatChainId,
+  isUint256Word,
+} from "./shared/chain/pregradManagerProbe.ts";
+import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
-import { parseLabeledJson } from "./shared/json/parseLabeledJson.ts";
+import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
 import { protocolDir, repoRoot } from "./shared/paths.ts";
 
 /**
@@ -21,7 +27,6 @@ const generatedMarketKinds = ["crypto", "weather"] as const;
 const sourceTimeoutMs = 8_000;
 const localMarketGraduationSeconds = 60 * 60;
 const localMarketResolutionSeconds = 2 * 60 * 60;
-const defaultApiPort = "3001";
 const sourceUserAgent =
   "popcharts-local-create-market (local development helper)";
 const spotPriceSourceUrl =
@@ -70,12 +75,6 @@ type CliOptions = {
   preview: boolean;
 };
 
-type CreatedMarket = {
-  readonly chainId: number;
-  readonly marketId: string;
-  readonly metadataHash: string;
-};
-
 type RpcResponse = {
   error?: { message: string };
   result?: unknown;
@@ -119,7 +118,6 @@ const weatherStations: readonly WeatherStation[] = [
 ];
 const defaultRpcHttpUrl = "http://127.0.0.1:8545";
 const hardhatLocalChainId = "0x7a69";
-const marketCountSelector = "0xec979082";
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
@@ -199,12 +197,9 @@ async function main(): Promise<void> {
       env: commandEnv,
     },
   );
-  const market = parseLabeledJson<CreatedMarket>(
-    output.stdout,
-    "LOCAL_CHAIN_SMOKE_MARKET",
-  );
+  const market = parseSmokeMarket(output.stdout);
 
-  const apiBaseUrl = readApiBaseUrl(options, commandEnv);
+  const apiBaseUrl = resolveIndexerApiBaseUrl(options.apiBaseUrl, commandEnv);
 
   try {
     await persistMarketMetadata({
@@ -258,7 +253,7 @@ async function validateLocalDeployment(
     "eth_call",
     [
       {
-        data: marketCountSelector,
+        data: MARKET_COUNT_SELECTOR,
         to: managerAddress,
       },
       "latest",
@@ -275,7 +270,7 @@ async function validateLocalDeployment(
     );
   }
 
-  if (!isUint256(probe.result)) {
+  if (!isUint256Word(probe.result)) {
     throw new Error(
       `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} returned an ` +
         `unexpected marketCount() value (${probe.result}). ` +
@@ -641,15 +636,6 @@ function readSpotPrice(value: unknown, assetId: string): number {
   return price;
 }
 
-function readApiBaseUrl(options: CliOptions, env: NodeJS.ProcessEnv): string {
-  return (
-    options.apiBaseUrl ??
-    env.POPCHARTS_INDEXER_API_URL ??
-    env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ??
-    `http://127.0.0.1:${env.LOCAL_API_PORT ?? env.PORT ?? defaultApiPort}`
-  );
-}
-
 function buildObservationUrl(stationId: string): string {
   const url = new URL(observationSourceUrl);
   url.searchParams.set("ids", stationId);
@@ -839,22 +825,6 @@ async function rpcResult(
   }
 
   return (await httpResponse.json()) as RpcResponse;
-}
-
-function isUint256(value: unknown): boolean {
-  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
-}
-
-function formatChainId(chainId: unknown): string {
-  if (typeof chainId !== "string") {
-    return String(chainId);
-  }
-
-  try {
-    return `${BigInt(chainId)} (${chainId})`;
-  } catch {
-    return chainId;
-  }
 }
 
 function staleStackRecovery(envFile: string, rpcUrl: string): string {
