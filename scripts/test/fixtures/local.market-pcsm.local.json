@@ -1,0 +1,76 @@
+{
+    "blockNumber": "18",
+    "chainId": 31337,
+    "collateral": {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "decimals": 18
+    },
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "generatedAt": "2026-07-07T17:18:11.636Z",
+    "market": {
+        "address": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+        "deploymentTransaction": "0x166c94ba241606b68607657b0ea32b4e1229e05d11c8c3ec63a84d0e2df6f5f5",
+        "name": "Pop Charts Complete Set Market",
+        "noToken": "0x3Ca8f9C04c7e3E1624Ac2008F92f6F366A869444",
+        "outcomeDecimals": 18,
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "resolver": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "retainedMinter": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "symbol": "PCSM",
+        "yesToken": "0x8dAF17A20c9DBA35f005b6324F493785D239719d"
+    },
+    "pools": {
+        "no": {
+            "boundLowerTick": -69120,
+            "boundUpperTick": 0,
+            "initialSqrtPriceX96": "56022770974786139918731938227",
+            "initialTick": -6932,
+            "openingDisplayPriceWad": "500000000000000000",
+            "outcomeIsCurrency0": true,
+            "outcomeToken": "0x3Ca8f9C04c7e3E1624Ac2008F92f6F366A869444",
+            "poolId": "0x0ca92b1a2171bf80275e36a60cbe6bd141921bf7281a4a89fbc11a56415ece1b",
+            "poolKey": {
+                "currency0": "0x3Ca8f9C04c7e3E1624Ac2008F92f6F366A869444",
+                "currency1": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+                "fee": 3000,
+                "hooks": "0x3c03862Bb3ee9Bf99Dd173fD42b67214697e40C0",
+                "tickSpacing": 60
+            },
+            "transactions": {
+                "initializePool": "0xd83157b326441e9c9e6971ed9c5805fe3ec3996bfbd2a1e303a5b5ba490db2a3",
+                "setPoolTickBounds": "0x1796eaea99919bcb8caac5849bef4493a1748c50e84fbc2a3a4ced342e6542c6",
+                "setPoolWhitelisted": "0x74dd18f2239583d112510800139011bd2587e3f170447d23baac33e680c5c02d"
+            }
+        },
+        "yes": {
+            "boundLowerTick": 0,
+            "boundUpperTick": 69120,
+            "initialSqrtPriceX96": "112045541949572279837463876454",
+            "initialTick": 6931,
+            "openingDisplayPriceWad": "500000000000000000",
+            "outcomeIsCurrency0": false,
+            "outcomeToken": "0x8dAF17A20c9DBA35f005b6324F493785D239719d",
+            "poolId": "0xabec7929565b36b26d522adc65fcfe72f21488f5e8130813ff0d204157f78e4f",
+            "poolKey": {
+                "currency0": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+                "currency1": "0x8dAF17A20c9DBA35f005b6324F493785D239719d",
+                "fee": 3000,
+                "hooks": "0x3c03862Bb3ee9Bf99Dd173fD42b67214697e40C0",
+                "tickSpacing": 60
+            },
+            "transactions": {
+                "initializePool": "0xf71bfbc22380e92a04a54abf23f236b2bfc2c7f3be52c12b2b17cce91a4654a7",
+                "setPoolTickBounds": "0xe10e00efe949c1f7a796908d74738fe36b9d6e828c1e2936760d4a5df6104ddc",
+                "setPoolWhitelisted": "0x2b3d41397ab2f096be071d73c3c8ee88f11f32dda05eaf9d31f50fdaac5e13bb"
+            }
+        }
+    },
+    "rpcUrl": "http://127.0.0.1:8545",
+    "venue": {
+        "boundedHook": "0x3c03862Bb3ee9Bf99Dd173fD42b67214697e40C0",
+        "orderManager": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+        "poolManager": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+        "poolTickBounds": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+        "stateView": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    }
+}

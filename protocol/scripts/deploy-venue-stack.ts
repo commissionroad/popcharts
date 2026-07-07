@@ -2,24 +2,21 @@ import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import hre, { network, tasks } from "hardhat";
-import type { Address, Hex, PublicClient } from "viem";
+import type { Address, PublicClient } from "viem";
 
 import VenueStackModule from "../ignition/modules/VenueStack.js";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
+import {
+  ensureDeterministicFactory,
+  hasBytecode,
+  LOCAL_DEVCHAIN_CHAIN_ID,
+} from "./shared/deployment/deterministicFactory.js";
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 import { writeVenueManifest } from "./write-venue-manifest.js";
-
-// Runtime bytecode of the keyless CREATE2 factory expected at
-// VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress. Source: Arachnid's
-// deterministic-deployment-proxy, read back from the canonical mainnet deploy.
-const DETERMINISTIC_FACTORY_RUNTIME_BYTECODE: Hex =
-  "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
-
-const LOCAL_DEVCHAIN_CHAIN_ID = 31_337;
 
 /**
  * Deploys the self-hosted v4 venue stack (PoolManager, StateView, V4Quoter,
@@ -58,7 +55,13 @@ async function main() {
     rpcUrl: config.rpcUrl,
   });
 
-  await ensureDeterministicFactory({ chainId, connection, publicClient });
+  await ensureDeterministicFactory({
+    chainId,
+    chainName: profile.chainName,
+    connection,
+    factoryAddress: VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress,
+    publicClient,
+  });
   const transferApprovalDeployed = await hasBytecode(
     publicClient,
     VENUE_STACK_DEPLOYMENT.transferApprovalAddress,
@@ -137,14 +140,6 @@ async function main() {
 
 await main();
 
-type VenueStackDeployConnection = {
-  viem: {
-    getTestClient(): Promise<{
-      setCode(parameters: { address: Address; bytecode: Hex }): Promise<void>;
-    }>;
-  };
-};
-
 /**
  * Reads operator settings and resolves repo-local output paths for one chain.
  */
@@ -165,42 +160,4 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
     shouldVerify:
       profile.supportsExplorerVerification && env.POPCHARTS_VERIFY_CONTRACTS !== "false",
   };
-}
-
-// The postgrad hook deploy needs the keyless CREATE2 factory. Real chains must
-// already have it; the throwaway local devchain is seeded in place instead.
-async function ensureDeterministicFactory({
-  chainId,
-  connection,
-  publicClient,
-}: {
-  chainId: number;
-  connection: VenueStackDeployConnection;
-  publicClient: PublicClient;
-}): Promise<void> {
-  const factoryAddress = VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress;
-  if (await hasBytecode(publicClient, factoryAddress)) {
-    return;
-  }
-  if (chainId !== LOCAL_DEVCHAIN_CHAIN_ID) {
-    throw new Error(
-      `Deterministic CREATE2 factory has no bytecode at ${factoryAddress}. ` +
-        "Deploy or locate the keyless factory before deploying the venue stack.",
-    );
-  }
-
-  const testClient = await connection.viem.getTestClient();
-  await testClient.setCode({
-    address: factoryAddress,
-    bytecode: DETERMINISTIC_FACTORY_RUNTIME_BYTECODE,
-  });
-  if (!(await hasBytecode(publicClient, factoryAddress))) {
-    throw new Error(`Failed to seed the deterministic CREATE2 factory at ${factoryAddress}.`);
-  }
-  console.log(`Seeded local deterministic CREATE2 factory at ${factoryAddress}.`);
-}
-
-async function hasBytecode(publicClient: PublicClient, address: Address): Promise<boolean> {
-  const bytecode = await publicClient.getCode({ address });
-  return bytecode !== undefined && bytecode !== "0x";
 }

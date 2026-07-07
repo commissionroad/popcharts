@@ -1,21 +1,14 @@
 import { relative, resolve } from "node:path";
 
 import hre, { network } from "hardhat";
-import {
-  concatHex,
-  encodeAbiParameters,
-  getAddress,
-  type Address,
-  type Hex,
-  type PublicClient,
-} from "viem";
+import { type Address, type Hex, type PublicClient } from "viem";
 
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { requireAddress, requireNonNegativeInteger } from "./shared/cli/requireCliValue.js";
-import { mineHookSalt } from "./shared/contract/mineHookSalt.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
+import { deployCompleteSetPostgradContracts } from "./shared/deployment/deployCompleteSetPostgrad.js";
 import {
   collectVenueAddressEntries,
   formatVenueContractEntry,
@@ -25,11 +18,6 @@ import {
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
-
-// Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
-// requires its deployment address to encode: beforeSwap (1 << 7) and
-// afterSwap (1 << 6) per the v4-core Hooks.sol flag bit layout.
-const BOUNDED_HOOK_PERMISSION_FLAGS = (1n << 7n) | (1n << 6n);
 
 // Complete-set outcome tokens default to 18 decimals, matching the local v4
 // stack smoke and the whitepaper's WAD-scaled outcome accounting.
@@ -97,76 +85,30 @@ async function main() {
   });
   const resolverAddress = config.resolverAddress ?? deployerAddress;
 
-  const poolTickBounds = await connection.viem.deployContract("PoolTickBounds", [deployerAddress]);
-  const poolTickBoundsAddress = getAddress(poolTickBounds.address);
-  console.log(`PoolTickBounds: ${poolTickBoundsAddress}`);
-
-  const orderManager = await connection.viem.deployContract("BoundedPoolOrderManager", [
-    venueAddresses.poolManager,
-    venueAddresses.transferApproval,
+  const {
+    boundedHookAddress,
+    hookSalt,
+    orderManagerAddress,
+    poolTickBoundsAddress,
+    postgradAdapterAddress,
+  } = await deployCompleteSetPostgradContracts({
+    connection,
     deployerAddress,
-  ]);
-  const orderManagerAddress = getAddress(orderManager.address);
-  console.log(`BoundedPoolOrderManager: ${orderManagerAddress}`);
-
-  const hookArtifact = await hre.artifacts.readArtifact("BoundedPredictionHook");
-  const hookInitCode = concatHex([
-    hookArtifact.bytecode as Hex,
-    encodeAbiParameters(
-      [{ type: "address" }, { type: "address" }, { type: "address" }],
-      [venueAddresses.poolManager, poolTickBoundsAddress, orderManagerAddress],
-    ),
-  ]);
-  const { hookAddress, salt } = mineHookSalt({
     deterministicFactory: venueAddresses.deterministicFactory,
-    initCode: hookInitCode,
-    requiredFlags: BOUNDED_HOOK_PERMISSION_FLAGS,
-  });
-  console.log(`Mined hook salt ${salt} for BoundedPredictionHook at ${hookAddress}`);
-
-  // The keyless factory expects calldata of salt ++ init code and performs the
-  // CREATE2 deployment at the pre-computed, flag-encoding address.
-  const hookDeployHash = await walletClient.sendTransaction({
-    data: concatHex([salt, hookInitCode]),
-    to: venueAddresses.deterministicFactory,
-  });
-  await publicClient.waitForTransactionReceipt({ hash: hookDeployHash });
-  await assertBytecode(publicClient, "boundedHook", hookAddress);
-
-  const hook = await connection.viem.getContractAt("BoundedPredictionHook", hookAddress);
-  const deployedFlags = (await hook.read.hookPermissionFlags()) as bigint;
-  if (deployedFlags !== BOUNDED_HOOK_PERMISSION_FLAGS) {
-    throw new Error(
-      `BoundedPredictionHook reports permission flags ${deployedFlags}, ` +
-        `expected ${BOUNDED_HOOK_PERMISSION_FLAGS}.`,
-    );
-  }
-  console.log(`BoundedPredictionHook: ${hookAddress}`);
-
-  // The hook may only push crossed-order execution into the order manager once
-  // the owner grants it the hook role.
-  const hookRoleHash = await orderManager.write.setHookRole([hookAddress, true]);
-  await publicClient.waitForTransactionReceipt({ hash: hookRoleHash });
-  if ((await orderManager.read.hookRole([hookAddress])) !== true) {
-    throw new Error(`Order manager did not record the hook role for ${hookAddress}.`);
-  }
-  console.log(`Granted order-manager hook role to ${hookAddress}`);
-
-  const postgradAdapter = await connection.viem.deployContract("CompleteSetPostgradAdapter", [
+    outcomeDecimals: config.outcomeDecimals,
+    poolManager: venueAddresses.poolManager,
     pregradManagerAddress,
-    deployerAddress,
     resolverAddress,
-    config.outcomeDecimals,
-  ]);
-  const postgradAdapterAddress = getAddress(postgradAdapter.address);
-  console.log(`CompleteSetPostgradAdapter: ${postgradAdapterAddress}`);
+    transferApproval: venueAddresses.transferApproval,
+    walletClient,
+  });
 
   const blockNumber = await publicClient.getBlockNumber();
   const transferApprovalDeployed = await hasBytecode(publicClient, venueAddresses.transferApproval);
   const contracts = normalizeVenueContractEntries([
     { required: true, spec: `poolTickBounds=${poolTickBoundsAddress}` },
     { required: true, spec: `orderManager=${orderManagerAddress}` },
-    { required: true, spec: `boundedHook=${hookAddress}` },
+    { required: true, spec: `boundedHook=${boundedHookAddress}` },
     { required: true, spec: `postgradAdapter=${postgradAdapterAddress}` },
     { required: true, spec: `pregradManager=${pregradManagerAddress}` },
     { required: true, spec: `poolManager=${venueAddresses.poolManager}` },
@@ -184,7 +126,7 @@ async function main() {
     ),
     deployer: deployerAddress,
     generatedAt: new Date().toISOString(),
-    hookSalt: salt,
+    hookSalt,
     rpcUrl: config.rpcUrl,
   };
   await writeJsonFile(config.deploymentFile, manifest);
