@@ -13,12 +13,10 @@ import { formatB, formatUsdWhole } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
 import { CategoryPicker, DeadlineControl } from "./create-market-fields";
-import {
-  LivePreviewPanel,
-  ReviewPanel,
-  SubmittedPanel,
-  SuccessPanel,
-} from "./create-market-panels";
+import { LivePreviewPanel } from "./create-market-panels/live-preview-panel";
+import { ReviewPanel } from "./create-market-panels/review-panel";
+import { SubmittedPanel } from "./create-market-panels/submitted-panel";
+import { SuccessPanel } from "./create-market-panels/success-panel";
 import { useCreateMarketFormState } from "./use-create-market-form-state";
 
 /**
