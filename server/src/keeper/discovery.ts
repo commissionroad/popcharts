@@ -13,6 +13,47 @@ export type TrackedMarket = {
   manifest: CompleteSetMarketManifestData;
 };
 
+/** One pregrad market the keeper watches for graduation eligibility. */
+export type TrackedPregradMarket = {
+  chainId: number;
+  graduationThreshold: bigint;
+  /** Stable scheduler/log key, e.g. "pregrad:31337:7". */
+  key: string;
+  label: string;
+  marketId: bigint;
+};
+
+/**
+ * Discovers bootstrap markets the keeper should watch for graduation:
+ * every indexed pregrad market still taking receipts (plus any stuck in
+ * `graduating`, so an interrupted settlement resumes). Eligibility itself is
+ * re-checked against live chain state at pass time — this list only decides
+ * which markets get a pass at all.
+ */
+export async function discoverPregradMarkets(): Promise<
+  TrackedPregradMarket[]
+> {
+  const rows = await db
+    .select({
+      chainId: schema.markets.chainId,
+      graduationThreshold: schema.markets.graduationThreshold,
+      marketId: schema.markets.marketId,
+      status: schema.markets.status,
+    })
+    .from(schema.markets)
+    .where(eq(schema.markets.chainId, config.chainId));
+
+  return rows
+    .filter((row) => row.status === "bootstrap" || row.status === "graduating")
+    .map((row) => ({
+      chainId: row.chainId,
+      graduationThreshold: row.graduationThreshold,
+      key: `pregrad:${row.chainId}:${row.marketId.toString()}`,
+      label: `pregrad market ${row.chainId}:${row.marketId.toString()}`,
+      marketId: row.marketId,
+    }));
+}
+
 /**
  * Discovers every venue market the keeper should maintain: graduated markets
  * from the indexer's GraduationFinalized projections, plus the operator demo

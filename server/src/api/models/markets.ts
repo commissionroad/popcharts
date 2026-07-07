@@ -44,7 +44,11 @@ export type GraduationIneligibleReason =
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
 export type DevMarketGraduateIneligibleReason =
-  "adapter_unconfigured" | "chain_status" | "past_deadline" | "wrong_status";
+  | "adapter_unconfigured"
+  | "below_threshold"
+  | "chain_status"
+  | "past_deadline"
+  | "wrong_status";
 export type ManualAiReviewIneligibleReason =
   "missing_metadata" | "wrong_status";
 
@@ -438,6 +442,7 @@ export const DevMarketGraduateIneligibleSchema = t.Object(
     market: t.Ref(MarketSchema),
     reason: t.Union([
       t.Literal("adapter_unconfigured"),
+      t.Literal("below_threshold"),
       t.Literal("chain_status"),
       t.Literal("past_deadline"),
       t.Literal("wrong_status"),

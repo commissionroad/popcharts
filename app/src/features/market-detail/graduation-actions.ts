@@ -17,6 +17,33 @@ export type GraduateMarketActionResult =
       message: string;
     };
 
+/**
+ * Dev-tools force graduation: mints local collateral and places receipts
+ * until the market covers its threshold, then settles it end to end. Only
+ * reachable from the dev settings menu.
+ */
+export async function forceGraduateMarketAction(
+  marketId: string
+): Promise<GraduateMarketActionResult> {
+  try {
+    await requestDevMarketGraduation(marketId, { force: true });
+    revalidatePath("/");
+    revalidatePath(`/markets/${marketId}`);
+    revalidatePath(`/markets/${marketId}/graduation`);
+
+    return {
+      message: "Forced graduation settled onchain.",
+      status: "success",
+    };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error ? error.message : "Could not graduate this market.",
+      status: "error",
+    };
+  }
+}
+
 export async function graduateMarketAction(
   marketId: string
 ): Promise<GraduateMarketActionResult> {

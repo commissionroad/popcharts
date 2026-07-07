@@ -10,6 +10,7 @@ import type {
   DevMarketCloseResponse,
   DevMarketGraduateIneligible,
   DevMarketGraduateResponse,
+  GraduateDevMarketParams,
 } from ".././models";
 
 /**
@@ -72,7 +73,7 @@ export const closeDevMarket = async (
 };
 
 /**
- * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Tops up receipts to the graduation threshold if needed, starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, and claims every receipt so outcome tokens and refunds settle.
+ * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.
  * @summary Dev-only graduate a pre-grad market end to end
  */
 export type graduateDevMarketResponse200 = {
@@ -110,16 +111,33 @@ export type graduateDevMarketResponse =
   | graduateDevMarketResponseSuccess
   | graduateDevMarketResponseError;
 
-export const getGraduateDevMarketUrl = (chainId: string, marketId: string) => {
-  return `/dev/markets/${chainId}/${marketId}/graduate`;
+export const getGraduateDevMarketUrl = (
+  chainId: string,
+  marketId: string,
+  params?: GraduateDevMarketParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/dev/markets/${chainId}/${marketId}/graduate?${stringifiedParams}`
+    : `/dev/markets/${chainId}/${marketId}/graduate`;
 };
 
 export const graduateDevMarket = async (
   chainId: string,
   marketId: string,
+  params?: GraduateDevMarketParams,
   options?: RequestInit
 ): Promise<graduateDevMarketResponse> => {
-  const res = await fetch(getGraduateDevMarketUrl(chainId, marketId), {
+  const res = await fetch(getGraduateDevMarketUrl(chainId, marketId, params), {
     ...options,
     method: "POST",
   });

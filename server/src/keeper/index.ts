@@ -10,21 +10,28 @@ import { readDevPrivateKey } from "src/api/services/local-dev-chain";
 import { postgradVenueConfigured } from "src/api/services/postgrad-venue";
 import { config, ZERO_ADDRESS } from "src/config";
 
-import { discoverTrackedMarkets, type TrackedMarket } from "./discovery";
-import { runMarketPass } from "./keeper";
+import {
+  discoverPregradMarkets,
+  discoverTrackedMarkets,
+  type TrackedMarket,
+  type TrackedPregradMarket,
+} from "./discovery";
+import { runGraduationPass, runMarketPass } from "./keeper";
 import { createSingleFlightScheduler } from "./scheduler";
 
 /**
- * Venue keeper: keeps every tracked complete-set market's YES/NO pools
- * economically consistent and its maker orders filling.
+ * Venue keeper: graduates pregrad markets the moment they earn it, then
+ * keeps every graduated market's YES/NO pools economically consistent and
+ * its maker orders filling.
  *
- * Discovery is database-driven — graduated markets come from the indexer's
- * GraduationFinalized projections (plus the env-configured demo market), so
- * a market becomes tracked the moment it graduates. Reaction is trade-driven
- * — a PoolManager Swap or an order-manager DeferredExecutionStored on a
- * tracked pool schedules a maintenance pass for that market, coalesced to
- * one in-flight pass per market. A periodic sweep backstops anything a
- * watcher misses.
+ * Discovery is database-driven — bootstrap markets and graduated markets
+ * come from the indexer's projections (plus the env-configured demo market),
+ * so a market is watched from creation and tracked as a venue the moment it
+ * graduates. Reaction is trade-driven — a pregrad ReceiptPlaced schedules a
+ * graduation check, and a PoolManager Swap or an order-manager
+ * DeferredExecutionStored on a tracked pool schedules a maintenance pass,
+ * coalesced to one in-flight pass per market. A periodic sweep backstops
+ * anything a watcher misses.
  */
 
 const SWAP_EVENT = parseAbiItem(
@@ -32,6 +39,9 @@ const SWAP_EVENT = parseAbiItem(
 );
 const DEFERRED_STORED_EVENT = parseAbiItem(
   "event DeferredExecutionStored(bytes32 indexed executionId, bytes32 indexed poolId, int24 fromTick, int24 toTick, uint256 orderCount)",
+);
+const RECEIPT_PLACED_EVENT = parseAbiItem(
+  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
 );
 
 const sweepIntervalMs = Number.parseInt(
@@ -42,6 +52,13 @@ const discoveryIntervalMs = Number.parseInt(
   process.env.POPCHARTS_KEEPER_DISCOVERY_MS ?? "15000",
   10,
 );
+// Automatic graduation drives the same dev settlement flow as the graduate
+// button, so it exists exactly where that flow does: dev tools on the local
+// network. POPCHARTS_KEEPER_AUTO_GRADUATE=false opts out.
+const autoGraduateEnabled =
+  config.devToolsEnabled &&
+  config.name === "local" &&
+  process.env.POPCHARTS_KEEPER_AUTO_GRADUATE !== "false";
 
 if (
   !postgradVenueConfigured() ||
@@ -72,6 +89,8 @@ const scheduler = createSingleFlightScheduler({
 
 let trackedByPoolId = new Map<string, TrackedMarket>();
 let trackedMarkets: TrackedMarket[] = [];
+let pregradByMarketId = new Map<string, TrackedPregradMarket>();
+let pregradMarkets: TrackedPregradMarket[] = [];
 
 function schedulePass(market: TrackedMarket, reason: string) {
   if (reason !== "periodic sweep") {
@@ -86,6 +105,23 @@ function schedulePass(market: TrackedMarket, reason: string) {
         `[Keeper] ${market.label}: pass complete ` +
           `(action ${result.action}, deferred resolved ${result.resolvedDeferred}).`,
       );
+    }),
+  );
+}
+
+function scheduleGraduationPass(market: TrackedPregradMarket, reason: string) {
+  if (reason !== "periodic sweep") {
+    console.log(
+      `[Keeper] ${market.label}: graduation check scheduled (${reason}).`,
+    );
+  }
+  void scheduler.schedule(market.key, () =>
+    runGraduationPass({ market }).then((outcome) => {
+      if (outcome === "graduated") {
+        // Track the fresh venue (and stop watching the pregrad side)
+        // without waiting for the next discovery interval.
+        void refreshDiscovery();
+      }
     }),
   );
 }
@@ -107,6 +143,23 @@ async function refreshDiscovery(initial = false) {
     for (const market of markets) {
       if (initial || !previousKeys.has(market.key)) {
         schedulePass(market, initial ? "startup" : "newly tracked");
+      }
+    }
+
+    if (autoGraduateEnabled) {
+      const pregrads = await discoverPregradMarkets();
+      const previousPregradKeys = new Set(
+        pregradMarkets.map((market) => market.key),
+      );
+      pregradMarkets = pregrads;
+      pregradByMarketId = new Map(
+        pregrads.map((market) => [market.marketId.toString(), market]),
+      );
+
+      for (const market of pregrads) {
+        if (initial || !previousPregradKeys.has(market.key)) {
+          scheduleGraduationPass(market, initial ? "startup" : "newly tracked");
+        }
       }
     }
   } catch (error) {
@@ -148,19 +201,48 @@ function watchVenueEvents() {
   });
 }
 
+function watchPregradEvents() {
+  publicClient.watchEvent({
+    address: config.contracts.pregradManager,
+    event: RECEIPT_PLACED_EVENT,
+    onError: (error) => console.error("[Keeper] Receipt watcher error:", error),
+    onLogs: (logs) => {
+      for (const log of logs) {
+        const market = pregradByMarketId.get(
+          (log.args.marketId ?? 0n).toString(),
+        );
+
+        if (market) {
+          scheduleGraduationPass(market, "receipt placed");
+        }
+      }
+    },
+  });
+}
+
 console.log(
   `[Keeper] Starting venue keeper on ${config.name} ` +
-    `(pool manager ${config.contracts.poolManager}).`,
+    `(pool manager ${config.contracts.poolManager}, auto-graduate ` +
+    `${autoGraduateEnabled ? "on" : "off"}).`,
 );
 await refreshDiscovery(true);
 watchVenueEvents();
+
+if (autoGraduateEnabled) {
+  watchPregradEvents();
+}
+
 setInterval(() => void refreshDiscovery(), discoveryIntervalMs);
 setInterval(() => {
   for (const market of trackedMarkets) {
     schedulePass(market, "periodic sweep");
   }
+  for (const market of pregradMarkets) {
+    scheduleGraduationPass(market, "periodic sweep");
+  }
 }, sweepIntervalMs);
 console.log(
-  `[Keeper] Tracking ${trackedMarkets.length} market(s); ` +
-    `sweep every ${sweepIntervalMs}ms, discovery every ${discoveryIntervalMs}ms.`,
+  `[Keeper] Tracking ${trackedMarkets.length} venue market(s) and ` +
+    `${pregradMarkets.length} pregrad market(s); sweep every ` +
+    `${sweepIntervalMs}ms, discovery every ${discoveryIntervalMs}ms.`,
 );

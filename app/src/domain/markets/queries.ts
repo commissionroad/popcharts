@@ -109,7 +109,7 @@ export async function requestMarketGraduation(
 
 export async function requestDevMarketGraduation(
   id: string,
-  options: MarketQueryOptions = {}
+  options: MarketQueryOptions & { force?: boolean } = {}
 ) {
   const config = resolveMarketQueryConfig(options);
 
@@ -123,7 +123,10 @@ export async function requestDevMarketGraduation(
     throw new Error("Dev market graduation requires a chain-prefixed market id.");
   }
 
-  return config.client.graduateDevMarket(lookup);
+  return config.client.graduateDevMarket({
+    ...lookup,
+    force: options.force ?? false,
+  });
 }
 
 export async function requestPregradMarketCloseForRefund(

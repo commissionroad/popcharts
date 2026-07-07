@@ -12,10 +12,11 @@ import {
   type PublicClient,
 } from "viem";
 
+import { graduateDevMarket } from "src/api/services/dev-market-graduate";
 import { createVenueContractWriter } from "src/api/services/postgrad-venue";
 import { config } from "src/config";
 
-import type { TrackedMarket } from "./discovery";
+import type { TrackedMarket, TrackedPregradMarket } from "./discovery";
 
 const WAD = 10n ** 18n;
 
@@ -171,6 +172,50 @@ const RESOLVE_DEFERRED_ABI = [
     type: "function",
   },
 ] as const;
+
+/**
+ * One graduation pass for one pregrad market: asks the dev graduation flow to
+ * settle it without force, so a market below its threshold is a cheap
+ * "below_threshold" no-op and an eligible one settles end to end (clearing
+ * root, finalize, claims, venue wiring, liquidity seed). The flow is
+ * idempotent and resumable, so a pass racing the graduate button only heals
+ * whatever the other left unfinished.
+ */
+export async function runGraduationPass({
+  graduate = graduateDevMarket,
+  market,
+}: {
+  graduate?: typeof graduateDevMarket;
+  market: TrackedPregradMarket;
+}): Promise<"graduated" | "skipped"> {
+  const result = await graduate({
+    chainId: market.chainId,
+    force: false,
+    marketId: market.marketId.toString(),
+  });
+
+  if (result.kind === "graduated") {
+    // A zero-transaction result is the idempotent resume path re-confirming
+    // an already settled market; only real settlements are worth a log line.
+    if (result.transactionHashes.length > 0) {
+      console.log(
+        `[Keeper] ${market.label}: graduated automatically ` +
+          `(${result.transactionHashes.length} transactions).`,
+      );
+    }
+    return "graduated";
+  }
+
+  if (result.kind === "ineligible" && result.reason === "below_threshold") {
+    return "skipped";
+  }
+
+  console.log(
+    `[Keeper] ${market.label}: graduation pass skipped (${result.kind}` +
+      `${result.kind === "ineligible" ? `: ${result.reason}` : ""}).`,
+  );
+  return "skipped";
+}
 
 /** Collateral committed per arbitrage round trip, env-overridable. */
 function keeperArbCollateral(collateralDecimals: number): bigint {

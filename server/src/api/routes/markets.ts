@@ -294,9 +294,10 @@ export const marketRoutes = new Elysia({ prefix: "" })
   )
   .post(
     "/dev/markets/:chainId/:marketId/graduate",
-    async ({ params, set }) => {
+    async ({ params, query, set }) => {
       const result = await graduateDevMarket({
         chainId: Number.parseInt(params.chainId, 10),
+        force: query.force === "true",
         marketId: params.marketId,
       });
 
@@ -333,6 +334,9 @@ export const marketRoutes = new Elysia({ prefix: "" })
         chainId: t.String(),
         marketId: t.String(),
       }),
+      query: t.Object({
+        force: t.Optional(t.String()),
+      }),
       response: {
         200: "DevMarketGraduateResponse",
         400: t.String(),
@@ -343,7 +347,7 @@ export const marketRoutes = new Elysia({ prefix: "" })
         operationId: "graduateDevMarket",
         summary: "Dev-only graduate a pre-grad market end to end",
         description:
-          "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Tops up receipts to the graduation threshold if needed, starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, and claims every receipt so outcome tokens and refunds settle.",
+          "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
         tags: ["Development"],
       },
     },

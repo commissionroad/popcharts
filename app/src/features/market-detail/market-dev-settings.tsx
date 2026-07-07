@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, Settings, XCircle } from "lucide-react";
+import { GraduationCap, LoaderCircle, Settings, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -11,12 +11,15 @@ import {
   closePregradMarketAction,
   type ClosePregradMarketActionResult,
 } from "./dev-market-actions";
+import { forceGraduateMarketAction } from "./graduation-actions";
 
 export function MarketDevSettings({
   canClosePregrad,
+  canForceGraduate,
   marketId,
 }: {
   canClosePregrad: boolean;
+  canForceGraduate: boolean;
   marketId: string;
 }) {
   const router = useRouter();
@@ -74,6 +77,46 @@ export function MarketDevSettings({
               />
             </span>
           </button>
+
+          {devSettingsEnabled && canForceGraduate ? (
+            <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
+              <Button
+                className="w-full"
+                disabled={isPending}
+                leftIcon={
+                  isPending ? (
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className="animate-spin"
+                      size={17}
+                    />
+                  ) : (
+                    <GraduationCap aria-hidden="true" size={17} />
+                  )
+                }
+                onClick={() => {
+                  setResult(null);
+                  startTransition(async () => {
+                    const nextResult = await forceGraduateMarketAction(marketId);
+
+                    setResult(nextResult);
+
+                    if (nextResult.status === "success") {
+                      router.refresh();
+                    }
+                  });
+                }}
+                size="sm"
+                variant="secondary"
+              >
+                {isPending ? "Graduating" : "Force graduate"}
+              </Button>
+              <p className="mt-2 text-[11px] leading-4 text-[var(--text-muted)]">
+                Mints dev collateral up to the graduation threshold, then settles
+                graduation onchain.
+              </p>
+            </div>
+          ) : null}
 
           {devSettingsEnabled && canClosePregrad ? (
             <div className="mt-3 border-t border-[var(--border-soft)] pt-3">

@@ -275,6 +275,7 @@ describe("market queries", () => {
 
     expect(client.graduateDevMarket).toHaveBeenCalledWith({
       chainId: 5042002,
+      force: false,
       marketId: "7",
     });
     expect(result.status).toBe("graduated");
@@ -395,6 +396,49 @@ describe("market queries", () => {
     await expect(
       requestPregradMarketCloseForRefund("7", { client, source: "api" })
     ).rejects.toThrowError("Dev market close requires a chain-prefixed market id.");
+  });
+
+  it("passes the force flag through to the dev graduation client", async () => {
+    const client = createClient({
+      devGraduation: {
+        market: { ...apiMarket, status: "graduated" },
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: apiMarket.graduationThreshold,
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "0",
+          retainedCostTotal: apiMarket.graduationThreshold,
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+        status: "graduated",
+        summary: {
+          completeSetCount: apiMarket.graduationThreshold,
+          graduatedAt: "2026-06-14T12:00:00.000Z",
+          graduationThreshold: apiMarket.graduationThreshold,
+          matchedMarketCap: apiMarket.graduationThreshold,
+          noTokens: apiMarket.graduationThreshold,
+          receiptCount: "10",
+          refundedCollateral: "0",
+          totalEscrowed: apiMarket.graduationThreshold,
+          yesTokens: apiMarket.graduationThreshold,
+        },
+        transactionHashes: [],
+      },
+    });
+
+    await requestDevMarketGraduation("5042002:7", {
+      client,
+      force: true,
+      source: "api",
+    });
+
+    expect(client.graduateDevMarket).toHaveBeenCalledWith({
+      chainId: 5042002,
+      force: true,
+      marketId: "7",
+    });
   });
 
   it("rejects dev graduation requests for fixture-backed markets", async () => {

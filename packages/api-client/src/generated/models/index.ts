@@ -25,6 +25,7 @@ export * from "./devMarketGraduateIneligibleReason";
 export * from "./devMarketGraduateIneligibleStatus";
 export * from "./devMarketGraduateResponse";
 export * from "./devMarketGraduateResponseStatus";
+export * from "./graduateDevMarketParams";
 export * from "./graduationIneligible";
 export * from "./graduationIneligibleReason";
 export * from "./graduationIneligibleStatus";

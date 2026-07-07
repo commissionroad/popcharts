@@ -43,7 +43,9 @@ export type MarketsApiFetch = (
 
 export type MarketsApiClient = {
   closePregradMarket: (lookup: MarketApiLookup) => Promise<ApiDevMarketCloseResponse>;
-  graduateDevMarket: (lookup: MarketApiLookup) => Promise<ApiDevMarketGraduateResponse>;
+  graduateDevMarket: (
+    lookup: MarketApiLookup & { force?: boolean }
+  ) => Promise<ApiDevMarketGraduateResponse>;
   graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
@@ -90,14 +92,15 @@ export function createMarketsApiClient({
 
       return response;
     },
-    async graduateDevMarket({ chainId, marketId }) {
+    async graduateDevMarket({ chainId, force, marketId }) {
       const response = await requestJson<ApiDevMarketGraduateResponse>(
         fetcher,
         buildUrl(
           normalizedBaseUrl,
           getGraduateDevMarketUrl(
             encodeURIComponent(String(chainId)),
-            encodeURIComponent(marketId)
+            encodeURIComponent(marketId),
+            force ? { force: "true" } : undefined
           )
         ),
         { method: "POST" }

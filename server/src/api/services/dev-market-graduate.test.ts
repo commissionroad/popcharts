@@ -126,6 +126,57 @@ describe("graduateDevMarket", () => {
     ]);
   });
 
+  it("reports below-threshold markets ineligible when not forced", async () => {
+    const graduateMarketOnChain = async (_marketId: bigint, force: boolean) => {
+      expect(force).toBe(false);
+      return {
+        kind: "below_threshold" as const,
+        matchedMarketCap: 100n * WAD,
+        threshold: 2_500n * WAD,
+      };
+    };
+
+    const result = await graduateDevMarket(
+      { chainId: 31337, force: false, marketId: "7" },
+      createDependencies({ graduateMarketOnChain }),
+    );
+
+    expect(result.kind).toBe("ineligible");
+
+    if (result.kind !== "ineligible") {
+      throw new Error("expected ineligible result");
+    }
+
+    expect(result.reason).toBe("below_threshold");
+    expect(result.message).toContain("force");
+  });
+
+  it("passes the force flag through to the chain flow", async () => {
+    const seenForce: boolean[] = [];
+    const result = await graduateDevMarket(
+      { chainId: 31337, force: true, marketId: "7" },
+      createDependencies({
+        graduateMarketOnChain: async (_marketId, force) => {
+          seenForce.push(force);
+          return {
+            finalized: {
+              blockTimestamp: new Date("2026-06-22T18:00:00.000Z"),
+              completeSetCount: 40_000n * WAD,
+              matchedMarketCap: 40_000n * WAD,
+              refundTotal: 0n,
+              retainedCostTotal: 40_000n * WAD,
+            },
+            kind: "graduated" as const,
+            transactionHashes: [],
+          };
+        },
+      }),
+    );
+
+    expect(seenForce).toEqual([true]);
+    expect(result.kind).toBe("graduated");
+  });
+
   it("merges wired venue pools into the postgrad handoff", async () => {
     const venue = {
       boundedHookAddress: "0x00000000000000000000000000000000000000f1",

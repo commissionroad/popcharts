@@ -113,6 +113,11 @@ type ChainGraduationResult =
       kind: "already_graduated";
     }
   | {
+      kind: "below_threshold";
+      matchedMarketCap: bigint;
+      threshold: bigint;
+    }
+  | {
       finalized: {
         blockTimestamp: Date;
         completeSetCount: bigint;
@@ -170,7 +175,10 @@ export type DevMarketGraduateResult =
  */
 export type DevMarketGraduateDependencies = {
   devGraduateEnabled: () => boolean;
-  graduateMarketOnChain: (marketId: bigint) => Promise<ChainGraduationResult>;
+  graduateMarketOnChain: (
+    marketId: bigint,
+    force: boolean,
+  ) => Promise<ChainGraduationResult>;
   postgradAdapterConfigured: () => boolean;
   selectMarket: ({
     chainId,
@@ -208,9 +216,16 @@ export type DevMarketGraduateDependencies = {
 export async function graduateDevMarket(
   {
     chainId,
+    force = false,
     marketId,
   }: {
     chainId: number;
+    /**
+     * When true, the flow mints dev collateral and places receipts until the
+     * market covers its graduation threshold before settling. When false, a
+     * market below its threshold is reported ineligible instead.
+     */
+    force?: boolean;
     marketId: string;
   },
   dependencies: DevMarketGraduateDependencies = defaultDependencies,
@@ -275,7 +290,21 @@ export async function graduateDevMarket(
     };
   }
 
-  const chainResult = await dependencies.graduateMarketOnChain(parsedMarketId);
+  const chainResult = await dependencies.graduateMarketOnChain(
+    parsedMarketId,
+    force,
+  );
+
+  if (chainResult.kind === "below_threshold") {
+    return {
+      kind: "ineligible",
+      market: serializeGraduateMarketRow(row),
+      message:
+        `Matched liquidity ${chainResult.matchedMarketCap} is below the graduation ` +
+        `threshold ${chainResult.threshold}. Use force to mint dev liquidity and graduate anyway.`,
+      reason: "below_threshold",
+    };
+  }
 
   if (chainResult.kind === "wrong_status") {
     return {
@@ -536,6 +565,7 @@ async function selectMarketForDevGraduate({
  */
 async function graduateLocalMarketOnChain(
   marketId: bigint,
+  force: boolean,
 ): Promise<ChainGraduationResult> {
   const publicClient = createPublicClient({
     chain: config.chain,
@@ -616,16 +646,37 @@ async function graduateLocalMarketOnChain(
       };
     }
 
-    await topUpToGraduationThreshold({
-      account: account.address,
-      collateral: marketConfig.collateral,
-      graduationThreshold: marketConfig.graduationThreshold,
-      marketId,
-      publicClient,
-      readState,
-      walletClient,
-      write,
-    });
+    if (force) {
+      await topUpToGraduationThreshold({
+        account: account.address,
+        collateral: marketConfig.collateral,
+        graduationThreshold: marketConfig.graduationThreshold,
+        marketId,
+        publicClient,
+        readState,
+        walletClient,
+        write,
+      });
+    } else {
+      // Without force this flow settles only markets that already earned
+      // graduation: the same eligibility the keeper and the graduate button
+      // check before asking for settlement.
+      const matchedMarketCap = calculateMatchedMarketCap({
+        noShares: state.noShares,
+        yesShares: state.yesShares,
+      });
+
+      if (
+        matchedMarketCap < marketConfig.graduationThreshold ||
+        state.totalEscrowed < marketConfig.graduationThreshold
+      ) {
+        return {
+          kind: "below_threshold",
+          matchedMarketCap,
+          threshold: marketConfig.graduationThreshold,
+        };
+      }
+    }
     await write("startGraduation", [marketId]);
   }
 

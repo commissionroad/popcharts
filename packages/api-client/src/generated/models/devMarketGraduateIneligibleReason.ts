@@ -12,6 +12,7 @@ export type DevMarketGraduateIneligibleReason =
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DevMarketGraduateIneligibleReason = {
   adapter_unconfigured: "adapter_unconfigured",
+  below_threshold: "below_threshold",
   chain_status: "chain_status",
   past_deadline: "past_deadline",
   wrong_status: "wrong_status",

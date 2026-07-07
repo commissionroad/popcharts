@@ -26,18 +26,21 @@ export function MarketDetailPage({
   pricePath?: PricePathPoint[];
 }) {
   const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
-  // With dev tools on, the graduate button drives the whole onchain
-  // settlement and will top the market up to its threshold itself, so it
-  // shows for any bootstrap (or resumable graduating) market.
-  const canRequestGraduation = devSettingsAvailable()
-    ? (market.status === "bootstrap" || market.status === "graduating") &&
-      isApiBackedMarket(market)
-    : market.status === "bootstrap" &&
-      market.graduationTargetUsd > 0 &&
-      market.matchedUsd >= market.graduationTargetUsd &&
-      isApiBackedMarket(market);
+  // The graduate button is the manual fallback for a market that earned
+  // graduation but was not yet picked up by the keeper — it never forces
+  // liquidity, so it only shows once the threshold is met.
+  const canRequestGraduation =
+    market.status === "bootstrap" &&
+    market.graduationTargetUsd > 0 &&
+    market.matchedUsd >= market.graduationTargetUsd &&
+    isApiBackedMarket(market);
   const canClosePregradForRefund =
     market.status === "bootstrap" && isApiBackedMarket(market);
+  // Force graduation mints whatever liquidity the threshold still needs, so
+  // dev settings offer it for any market still on the pregrad side.
+  const canForceGraduate =
+    (market.status === "bootstrap" || market.status === "graduating") &&
+    isApiBackedMarket(market);
 
   return (
     <div>
@@ -59,6 +62,7 @@ export function MarketDetailPage({
               {devSettingsAvailable() ? (
                 <MarketDevSettings
                   canClosePregrad={canClosePregradForRefund}
+                  canForceGraduate={canForceGraduate}
                   marketId={market.id}
                 />
               ) : null}

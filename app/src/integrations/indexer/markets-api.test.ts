@@ -322,6 +322,38 @@ describe("createMarketsApiClient", () => {
     });
   });
 
+  it("appends the force flag to dev graduation requests", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        market: { ...apiMarket, status: "graduated" },
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: apiMarket.graduationThreshold,
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "0",
+          retainedCostTotal: apiMarket.graduationThreshold,
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+        status: "graduated",
+        transactionHashes: [],
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await client.graduateDevMarket({ chainId: 5042002, force: true, marketId: "7" });
+
+    const [input] = firstFetchCall(fetcher);
+
+    expect(String(input)).toBe(
+      "http://localhost:3001/dev/markets/5042002/7/graduate?force=true"
+    );
+  });
+
   it("raises a 404 error when the dev graduation endpoint is unavailable", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () => new Response("Not found", { status: 404 })
