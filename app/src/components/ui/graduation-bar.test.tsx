@@ -36,6 +36,20 @@ describe("GraduationBar", () => {
     expect(screen.getByText("GRADUATION")).toBeInTheDocument();
   });
 
+  it.each([
+    ["zero", 0],
+    ["negative", -100],
+    ["non-finite", Number.NaN],
+  ])("renders an empty pending bar for a %s target", (_label, targetUsd) => {
+    render(<GraduationBar matchedUsd={25_000} targetUsd={targetUsd} />);
+
+    expect(screen.getByText("GRADUATION")).toBeInTheDocument();
+    expect(screen.getByText("$25K")).toBeInTheDocument();
+    expect(screen.getByText("/ target pending")).toBeInTheDocument();
+    expect(barFill()).toHaveStyle({ width: "0%" });
+    expect(barFill()).toHaveStyle({ background: "var(--status-graduating)" });
+  });
+
   it("hides the caption and honors a custom height when asked", () => {
     render(
       <GraduationBar

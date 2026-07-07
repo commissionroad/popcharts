@@ -12,7 +12,13 @@ export function GraduationBar({
   showCaption?: boolean;
   targetUsd: number;
 }) {
-  const progress = calculateGraduationProgress({ matchedUsd, targetUsd });
+  // Indexed markets can carry a zero threshold (e.g. metadata not yet
+  // synced); render an empty bar instead of letting the domain guard throw
+  // and take down every card that shows this market.
+  const hasTarget = Number.isFinite(targetUsd) && targetUsd > 0;
+  const progress = hasTarget
+    ? calculateGraduationProgress({ matchedUsd, targetUsd })
+    : { matchedUsd, percent: 0, ratio: 0, ready: false, targetUsd };
   const color = progress.ready ? "var(--status-graduated)" : "var(--status-graduating)";
 
   return (
@@ -25,7 +31,8 @@ export function GraduationBar({
           <span style={{ color }}>
             {formatUsdCompact(matchedUsd)}{" "}
             <span className="text-[var(--text-muted)]">
-              / {formatUsdCompact(targetUsd)} matched
+              /{" "}
+              {hasTarget ? `${formatUsdCompact(targetUsd)} matched` : "target pending"}
             </span>
           </span>
         </div>
