@@ -137,7 +137,7 @@ Rules for executing this program:
 
 ### Track C — Protocol contracts (human review required; NOT for autonomous merge)
 
-- [ ] **C1. Extract FeeManager from PregradManager.** Move creation-fee
+- [x] **C1. Extract FeeManager from PregradManager.** Move creation-fee
   collection/withdrawal state and logic out of
   `protocol/contracts/PregradManager.sol`. Full test parity in
   `protocol/test/solidity/`.
@@ -267,7 +267,8 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
-| 2026-07-07 | C3 | TBD | Human-reviewed (Track C rule respected): `prepareMarket` now returns `(postgradMarket, outcomeCapacity)` and `finalizeGraduation` reverts with `PostgradCapacityMismatch` unless capacity equals the clearing root's `completeSetCount` — the check moved to the trust boundary instead of living only inside the concrete adapter. Strict equality is dust-safe: `_scaleAmount` is exact-or-revert (`AmountHasDust`), so capacity is a deterministic function of `retainedCostTotal`. New `MisreportingPostgradAdapter` mock proves the revert path. |
+| 2026-07-07 | C1 | TBD | Human-reviewed: fee custody mechanics moved to a new abstract `CreationFeeVault` base (collection accounting, withdrawal guards, fee errors/events); PregradManager keeps fee policy (`MARKET_CREATION_FEE`, trusted-creator waiver, `onlyOwner` gate) and inherits the vault, so the deployed contract, funds custody, and event emitter are unchanged — proven by a zero-diff metadata regeneration (identical ABI). 173 tests, exact parity; test edits are qualified-reference repoints only. Named CreationFeeVault rather than the ADR's FeeManager to say what it is (custody, not policy). |
+| 2026-07-07 | C3 | #126 | Human-reviewed (Track C rule respected): `prepareMarket` now returns `(postgradMarket, outcomeCapacity)` and `finalizeGraduation` reverts with `PostgradCapacityMismatch` unless capacity equals the clearing root's `completeSetCount` — the check moved to the trust boundary instead of living only inside the concrete adapter. Strict equality is dust-safe: `_scaleAmount` is exact-or-revert (`AmountHasDust`), so capacity is a deterministic function of `retainedCostTotal`. New `MisreportingPostgradAdapter` mock proves the revert path. |
 | 2026-07-07 | A2+A3 | — | Superseded by the workspace unification (follow-up to #120): the app now consumes `@popcharts/protocol` as a `workspace:*` dependency — `app/src/integrations/contracts/pregrad-manager.ts` is a one-line re-export of the package's generated module (Next transpiles the TS source via `transpilePackages`) — so the copy-and-check pipeline (`app/scripts/generate-contract-abis.mts`, its `abi:generate`/`abi:check` scripts, and the App CI step) is deleted. Freshness is structural now: there is no second copy to go stale. App CI path filters widen from the single generated file to `protocol/src/**`, mirrored in `app-ci-skip.yml`. |
 | 2026-07-07 | D3 | — | Closed as deferred-by-design, per the item's own text: `settlement.ts` is still 6 events (~436 lines) and gained no new event types during this program, so the split trigger has not fired. The item stays unticked as the standing guard against premature cleanup. |
 | 2026-07-07 | — | — | Program status: Tracks A, B, D, E, and F are complete (PRs #94–#118, plus #95 for a root-lockfile drift found en route). Track C (contract decomposition, C1–C6) remains open by design — it requires human review and must not be executed autonomously. |
