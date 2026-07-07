@@ -7,6 +7,7 @@ import { formatCents } from "@/lib/format";
 export function OutcomeButton({
   href,
   label,
+  onClick,
   priceCents,
   selected,
   side,
@@ -14,6 +15,7 @@ export function OutcomeButton({
 }: {
   href?: string;
   label?: string;
+  onClick?: () => void;
   priceCents: number;
   selected?: boolean;
   side: MarketSide;
@@ -65,16 +67,21 @@ export function OutcomeButton({
     );
   }
 
+  // A real button so the focus-ring and hover affordances the styles promise
+  // are actually reachable by keyboard and announced by assistive tech.
   return (
-    <div
+    <button
+      aria-pressed={selected ?? false}
       className={className}
+      onClick={onClick}
       style={{
         ...style,
         background: selected ? color : "var(--surface-raised)",
         borderColor: selected ? color : border,
       }}
+      type="button"
     >
       {content}
-    </div>
+    </button>
   );
 }
