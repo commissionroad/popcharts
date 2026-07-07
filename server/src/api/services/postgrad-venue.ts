@@ -19,7 +19,10 @@ import {
   type Hash,
 } from "viem";
 
-import type { MarketVenuePoolResponse, MarketVenueResponse } from "src/api/models/markets";
+import type {
+  MarketVenuePoolResponse,
+  MarketVenueResponse,
+} from "src/api/models/markets";
 import { config, ZERO_ADDRESS } from "src/config";
 
 /**
@@ -132,7 +135,10 @@ export function closingYesDisplayPriceWad({
   yesShares: bigint;
 }): bigint {
   const b = wadToNumber(liquidityParameter);
-  const opening = Math.min(Math.max(wadToNumber(openingProbabilityWad), 1e-9), 1 - 1e-9);
+  const opening = Math.min(
+    Math.max(wadToNumber(openingProbabilityWad), 1e-9),
+    1 - 1e-9,
+  );
 
   if (!(b > 0)) {
     return clampDisplayPriceWad(openingProbabilityWad);
@@ -175,7 +181,10 @@ export async function wirePostgradMarketVenue({
   collateral: `0x${string}`;
   postgradMarket: `0x${string}`;
   yesDisplayPriceWad: bigint;
-}): Promise<{ pools: { no: WiredPool; yes: WiredPool }; transactionHashes: Hash[] }> {
+}): Promise<{
+  pools: { no: WiredPool; yes: WiredPool };
+  transactionHashes: Hash[];
+}> {
   const { publicClient } = clients;
   const [yesToken, noToken] = await Promise.all([
     publicClient.readContract({
@@ -357,13 +366,25 @@ export async function readPostgradMarketVenue({
       }),
     ]);
     const [yesPool, noPool] = await Promise.all([
-      readOutcomePool({ collateral, outcomeToken: yesToken as `0x${string}`, publicClient }),
-      readOutcomePool({ collateral, outcomeToken: noToken as `0x${string}`, publicClient }),
+      readOutcomePool({
+        collateral,
+        outcomeToken: yesToken as `0x${string}`,
+        publicClient,
+      }),
+      readOutcomePool({
+        collateral,
+        outcomeToken: noToken as `0x${string}`,
+        publicClient,
+      }),
     ]);
 
     return {
       boundedHookAddress: config.contracts.boundedHook,
-      live: yesPool.initialized && yesPool.whitelisted && noPool.initialized && noPool.whitelisted,
+      live:
+        yesPool.initialized &&
+        yesPool.whitelisted &&
+        noPool.initialized &&
+        noPool.whitelisted,
       noPool,
       orderManagerAddress: config.contracts.orderManager,
       poolManagerAddress: config.contracts.poolManager,

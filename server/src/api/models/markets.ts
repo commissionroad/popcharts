@@ -44,10 +44,7 @@ export type GraduationIneligibleReason =
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
 export type DevMarketGraduateIneligibleReason =
-  | "adapter_unconfigured"
-  | "chain_status"
-  | "past_deadline"
-  | "wrong_status";
+  "adapter_unconfigured" | "chain_status" | "past_deadline" | "wrong_status";
 export type ManualAiReviewIneligibleReason =
   "missing_metadata" | "wrong_status";
 

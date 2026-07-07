@@ -36,7 +36,9 @@ and is fully replaced.
   ([protocol ADR 0003](../summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md)).
 - Optimistic clearing: `startGraduation` locks the book → offchain service
   computes band-pass clearing → `submitClearingRoot` (Merkle root + totals) →
-  challenge window (timeout-only in v1) → `finalizeGraduation` funds the
+  challenge window (owner-configurable, default 0 per
+  [protocol ADR 0010](../summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md))
+  → `finalizeGraduation` funds the
   [postgrad adapter](postgrad-adapter.md) → per-receipt Merkle claims. See
   [graduation clearing](../concepts/graduation-clearing.md).
 - Refunds: deadline passing while `Active` makes the market refundable; refunded

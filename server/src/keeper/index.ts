@@ -43,7 +43,10 @@ const discoveryIntervalMs = Number.parseInt(
   10,
 );
 
-if (!postgradVenueConfigured() || config.contracts.swapRouter === ZERO_ADDRESS) {
+if (
+  !postgradVenueConfigured() ||
+  config.contracts.swapRouter === ZERO_ADDRESS
+) {
   console.error(
     "[Keeper] Postgrad venue contracts are not configured " +
       "(pool manager, state view, tick bounds, order manager, hook, swap router); exiting.",
@@ -118,9 +121,7 @@ function watchVenueEvents() {
     onError: (error) => console.error("[Keeper] Swap watcher error:", error),
     onLogs: (logs) => {
       for (const log of logs) {
-        const market = trackedByPoolId.get(
-          (log.args.id ?? "").toLowerCase(),
-        );
+        const market = trackedByPoolId.get((log.args.id ?? "").toLowerCase());
 
         if (market) {
           schedulePass(market, "swap observed");

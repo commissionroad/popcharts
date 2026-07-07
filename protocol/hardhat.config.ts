@@ -55,14 +55,6 @@ export default defineConfig({
       type: "http",
       url: ARC_TESTNET_RPC_URL,
     },
-    // Same shape as the built-in localhost network, with the URL overridable
-    // so isolated tooling (worktree e2e, parallel stacks) can target a
-    // Hardhat node on a non-default port.
-    localhost: {
-      chainType: "l1",
-      type: "http",
-      url: process.env.POPCHARTS_LOCAL_RPC_URL ?? "http://127.0.0.1:8545",
-    },
   },
   paths: {
     sources: "./contracts",

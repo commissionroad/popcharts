@@ -49,10 +49,7 @@ import {
   type DevClearingReceipt,
   type DevReceiptClaim,
 } from "./dev-graduation-clearing";
-import {
-  fastForwardLocalRpc,
-  readDevPrivateKey,
-} from "./local-dev-chain";
+import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
 import { ensureDevBackstopLiquidity } from "@popcharts/protocol";
 
 import {
@@ -68,10 +65,7 @@ import {
   serializeGraduationSummary,
 } from "./graduation";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
-import {
-  selectPostgradInfo,
-  serializeMarketRow,
-} from "./markets";
+import { selectPostgradInfo, serializeMarketRow } from "./markets";
 
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 const PREGRAD_MARKET_STATUS_GRADUATING = 2;
@@ -343,7 +337,9 @@ export async function graduateDevMarket(
       }),
     ),
     transactionHashes: [
-      ...(chainResult.kind === "graduated" ? chainResult.transactionHashes : []),
+      ...(chainResult.kind === "graduated"
+        ? chainResult.transactionHashes
+        : []),
       ...wiredVenue.transactionHashes,
     ],
   };
@@ -751,10 +747,7 @@ async function topUpToGraduationThreshold({
     yesShares: bigint;
   }>;
   walletClient: ReturnType<typeof createWalletClient>;
-  write: (
-    functionName: "placeReceipt",
-    args: unknown[],
-  ) => Promise<unknown>;
+  write: (functionName: "placeReceipt", args: unknown[]) => Promise<unknown>;
 }) {
   for (let round = 0; round < MAX_TOPUP_ROUNDS; round += 1) {
     const state = await readState();

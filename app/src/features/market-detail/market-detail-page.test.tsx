@@ -70,7 +70,7 @@ describe("MarketDetailPage", () => {
     expect(
       screen.getByRole("link", { name: /View graduation clearing/ })
     ).toHaveAttribute("href", "/markets/eth-5000-august/graduation");
-    expect(screen.queryByText("Trading closed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Receipt book settled")).not.toBeInTheDocument();
   });
 
   it("summarizes minted tokens and refunds once the market graduated", () => {
@@ -84,13 +84,58 @@ describe("MarketDetailPage", () => {
       />
     );
 
-    expect(screen.getByText("Trading closed")).toBeInTheDocument();
+    expect(screen.getByText("Receipt book settled")).toBeInTheDocument();
     expect(screen.getByText("YES tokens")).toBeInTheDocument();
     expect(screen.getAllByText("356,000")).not.toHaveLength(0);
     expect(screen.getByText("$126K")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /View graduation clearing/ })
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the live postgrad venue with pool ids once wired", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          matchedUsd: 356_000,
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+            venue: {
+              boundedHookAddress: "0x00000000000000000000000000000000000000f1",
+              live: true,
+              noPool: {
+                initialized: true,
+                outcomeTokenAddress: "0x00000000000000000000000000000000000000f3",
+                poolId: `0x${"22".repeat(32)}`,
+                whitelisted: true,
+              },
+              orderManagerAddress: "0x00000000000000000000000000000000000000f2",
+              poolManagerAddress: "0x00000000000000000000000000000000000000f0",
+              yesPool: {
+                initialized: true,
+                outcomeTokenAddress: "0x00000000000000000000000000000000000000f4",
+                poolId: `0x${"11".repeat(32)}`,
+                whitelisted: true,
+              },
+            },
+          },
+          status: "graduated",
+          volumeUsd: 482_300,
+        })}
+      />
+    );
+
+    expect(screen.getByText("Graduated - postgrad venue live")).toBeInTheDocument();
+    expect(screen.getByText("YES pool")).toBeInTheDocument();
+    expect(screen.getByText(`0x${"11".repeat(32)}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(/trading continues on the bounded venue/i)
+    ).toBeInTheDocument();
   });
 
   it("clamps graduated refunds to zero when matched exceeds volume", () => {

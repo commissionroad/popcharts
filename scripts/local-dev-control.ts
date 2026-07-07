@@ -9,7 +9,10 @@ import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  type PregradDeploy,
+} from "./shared/deployments/pregradDeploy.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,

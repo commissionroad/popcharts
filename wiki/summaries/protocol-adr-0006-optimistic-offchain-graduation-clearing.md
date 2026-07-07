@@ -1,7 +1,7 @@
 ---
 type: summary
 title: "ADR 0006: Use Optimistic Offchain Graduation Clearing"
-description: Accepted — band-pass clearing is computed offchain and committed onchain as a Merkle root with a challenge window; bonded challenges and fraud proofs are deferred past v1
+description: Accepted (amended by ADR 0010) — band-pass clearing is computed offchain and committed onchain as a Merkle root with a challenge window (owner-configurable, default 0); bonded challenges and fraud proofs are deferred past v1
 sources:
   - protocol/docs/adr/0006-use-optimistic-offchain-graduation-clearing.md
 updated: 2026-07-07
@@ -9,7 +9,10 @@ updated: 2026-07-07
 
 # ADR 0006: Use Optimistic Offchain Graduation Clearing
 
-**Status: Accepted.**
+**Status: Accepted. Amended by
+[ADR 0010](protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md):
+the challenge window is owner-configurable and disabled by default while
+clearing roots are manager-submitted.**
 
 ## Decision
 
@@ -28,7 +31,10 @@ Target flow:
    `retainedCostTotal`, `completeSetCount`, and a Merkle root of per-receipt
    outcomes.
 4. Challenge window — timeout-gated finalization in the current contract;
-   bonded challenges / fraud proofs are deferred.
+   bonded challenges / fraud proofs are deferred. Per
+   [ADR 0010](protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md)
+   the window is owner-configurable (`clearingChallengePeriod`) and defaults
+   to zero while roots are manager-submitted.
 5. `finalizeGraduation(...)` — marks the root final and funds a postgrad
    adapter with retained collateral
    ([postgrad market](../entities/postgrad-market.md)).

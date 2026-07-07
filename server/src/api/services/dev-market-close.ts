@@ -8,7 +8,6 @@ import type {
 import {
   createReadOnlyClient,
   createWalletClient,
-  type BlockchainClient,
 } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
