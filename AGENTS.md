@@ -1,5 +1,11 @@
 # Repository Agent Instructions
 
+- `wiki/` is an LLM-maintained knowledge wiki over this repo's design docs
+  (ADRs, whitepapers, architecture docs). When you need design context, read
+  `wiki/index.md` first and open only the pages it points to, instead of
+  bulk-reading docs. Maintenance rules (ingest/query/lint) are in
+  `wiki/CLAUDE.md`; after changing any doc the wiki summarizes, run the
+  ingest workflow for it.
 - Never create, edit, delete, or otherwise mutate files outside this repository
   without explicit user approval. If a tool installer may change shell profiles,
   global config, home-directory caches, keychains, or other user files, ask first
