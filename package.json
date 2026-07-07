@@ -8,7 +8,7 @@
     "node": ">=22.10"
   },
   "scripts": {
-    "setup": "pnpm --dir app install --frozen-lockfile && pnpm --dir protocol install --frozen-lockfile --ignore-workspace && cd server && bun install --frozen-lockfile",
+    "setup": "pnpm install --frozen-lockfile && cd server && bun install --frozen-lockfile",
     "dev": "pnpm --dir app dev",
     "app:dev": "pnpm --dir app dev",
     "app:build": "pnpm --dir app build",

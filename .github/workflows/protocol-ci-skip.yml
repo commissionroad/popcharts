@@ -8,6 +8,8 @@ on:
       - main
     paths-ignore:
       - protocol/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .github/workflows/protocol-ci.yml
 
 permissions: {}

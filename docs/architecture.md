@@ -21,10 +21,12 @@ document disagree, fix one of them in the same PR.
 | `docs/` | ADRs (`docs/adr/`), design notes, deployment docs, and verification screenshots (`docs/screenshots/`). |
 | `skills/` | Engineering workflow skills (PR verification, OpenAPI sync, protocol code quality, …) used by agent sessions. |
 
-Tooling note: `pnpm-workspace.yaml` lists only `app` and `protocol`; the
-server installs with Bun, and protocol installs with `--ignore-workspace`
-(see the root `setup` script). Shared strictness flags live in the root
-`tsconfig.base.json`; shared Prettier options in the root `.prettierrc.json`.
+Tooling note: `app` and `protocol` are true pnpm workspace members — one
+root `pnpm install`, one root `pnpm-lock.yaml` (no nested pnpm lockfiles).
+The server stays outside the workspace and installs with Bun (`bun.lock`);
+it produces artifacts for the others but imports nothing from them. Shared
+strictness flags live in the root `tsconfig.base.json`; shared Prettier
+options in the root `.prettierrc.json`.
 
 ## Dependency graph
 
