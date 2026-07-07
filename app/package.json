@@ -17,6 +17,8 @@
     "test:e2e:chain": "POPCHARTS_E2E_CHAIN=true playwright test --project=chromium --grep @chain",
     "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
     "api:generate": "orval",
+    "abi:generate": "node --experimental-strip-types scripts/generate-contract-abis.mts",
+    "abi:check": "node --experimental-strip-types scripts/generate-contract-abis.mts --check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
