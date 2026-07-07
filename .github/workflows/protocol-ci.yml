@@ -4,20 +4,9 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - protocol/**
-      # Dependency changes land in the root workspace lockfile.
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - .github/workflows/protocol-ci.yml
   push:
     branches:
       - main
-    paths:
-      - protocol/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - .github/workflows/protocol-ci.yml
 
 permissions:
   contents: read
@@ -32,8 +21,36 @@ env:
   PNPM_VERSION: "10.33.0"
 
 jobs:
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Single source of truth for which paths this CI cares about. The
+      # workflow always triggers; this job decides whether the real job runs.
+      # A conditionally skipped job satisfies required status checks, so no
+      # skip-twin workflow is needed (and none exists to drift out of sync).
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            relevant:
+            - protocol/**
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+            - .github/workflows/protocol-ci.yml
+
   protocol:
     name: Check protocol
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
