@@ -14,6 +14,16 @@ export interface MarketMetadataWrite {
   description: string;
   /** @pattern ^0x[0-9a-fA-F]{64}$ */
   metadataHash: string;
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
+  outcomeNo?: string;
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
+  outcomeYes?: string;
   /** @minLength 1 */
   question: string;
   /** @minLength 1 */
