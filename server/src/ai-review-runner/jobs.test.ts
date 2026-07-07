@@ -2,10 +2,9 @@ import { describe, expect, it } from "bun:test";
 
 import type { MarketStatus } from "src/api/models/markets";
 import type { ReviewResult } from "src/ai-review/types";
+import { calculateRetryDelayMs, compactError } from "./failures";
 import {
   buildMarketReviewRequest,
-  calculateRetryDelayMs,
-  compactError,
   marketStatusForReviewVerdict,
   type ClaimedReviewJob,
 } from "./jobs";
