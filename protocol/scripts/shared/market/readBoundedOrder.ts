@@ -1,31 +1,6 @@
 import { getAddress, type Address, type Hex, type PublicClient } from "viem";
 
-const ORDER_MANAGER_GET_ORDER_ABI = [
-  {
-    inputs: [
-      { name: "poolId", type: "bytes32" },
-      { name: "orderId", type: "uint32" },
-    ],
-    name: "getOrder",
-    outputs: [
-      {
-        components: [
-          { name: "owner", type: "address" },
-          { name: "zeroForOne", type: "bool" },
-          { name: "tickLower", type: "int24" },
-          { name: "tickUpper", type: "int24" },
-          { name: "indexedTick", type: "int24" },
-          { name: "liquidity", type: "uint128" },
-          { name: "enablePartialFill", type: "bool" },
-        ],
-        name: "order",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { boundedPoolOrderManagerAbi } from "../../../src/generated/postgrad-venue.js";
 
 /** Stored order-manager state for one maker order; zero owner means deleted. */
 export type BoundedOrderState = {
@@ -50,7 +25,7 @@ export async function readBoundedOrder(args: {
   readonly publicClient: PublicClient;
 }): Promise<BoundedOrderState> {
   const order = await args.publicClient.readContract({
-    abi: ORDER_MANAGER_GET_ORDER_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: args.orderManager,
     args: [args.poolId, args.orderId],
     functionName: "getOrder",

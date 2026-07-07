@@ -11,183 +11,14 @@ import {
   type CompleteSetMarketManifestData,
 } from "./shared/market/readCompleteSetMarketManifest.js";
 import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
+import { pregradManagerAbi } from "../src/generated/pregrad-manager.js";
+import {
+  boundedPoolOrderManagerAbi,
+  completeSetBinaryMarketAbi,
+} from "../src/generated/postgrad-venue.js";
 
 // MarketTypes.Side enum values.
 const SIDE_ENUM = { no: 1, yes: 0 } as const;
-
-const ORDER_MANAGER_ADMIN_ABI = [
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "resolverRole",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "hookRole",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "poolWhitelisted",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "maximumExecutionCount",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "token", type: "address" }],
-    name: "minimumOrderAmount",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "resolver", type: "address" },
-      { name: "allowed", type: "bool" },
-    ],
-    name: "setResolverRole",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "hook", type: "address" },
-      { name: "allowed", type: "bool" },
-    ],
-    name: "setHookRole",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          { name: "currency0", type: "address" },
-          { name: "currency1", type: "address" },
-          { name: "fee", type: "uint24" },
-          { name: "tickSpacing", type: "int24" },
-          { name: "hooks", type: "address" },
-        ],
-        name: "key",
-        type: "tuple",
-      },
-      { name: "whitelisted", type: "bool" },
-    ],
-    name: "setPoolWhitelisted",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "maximumExecutionCount_", type: "uint256" }],
-    name: "setMaximumExecutionCount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "token", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    name: "setMinimumOrderAmount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const MARKET_ADMIN_ABI = [
-  {
-    inputs: [],
-    name: "status",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "resolver",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "side", type: "uint8" }],
-    name: "resolve",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "cancel",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const PREGRAD_ADMIN_ABI = [
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "isTrustedCreator",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "marketCreationPaused",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "account", type: "address" },
-      { name: "trusted", type: "bool" },
-    ],
-    name: "setTrustedCreator",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "paused", type: "bool" }],
-    name: "setMarketCreationPaused",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 /** One owner/resolver workflow the postgrad admin CLI can plan and broadcast. */
 export type PostgradAdminAction =
@@ -336,7 +167,7 @@ async function planOrderManagerFlag(
   const orderManager = await resolveOrderManagerAddress(context);
   const owner = await readOrderManagerOwner(context, orderManager);
   const current = await context.publicClient.readContract({
-    abi: ORDER_MANAGER_ADMIN_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: orderManager,
     args: [args.account],
     functionName: args.readFunction,
@@ -350,7 +181,7 @@ async function planOrderManagerFlag(
     requiredRole: { holder: owner, name: "BoundedPoolOrderManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [args.account],
         functionName: args.readFunction,
@@ -361,7 +192,7 @@ async function planOrderManagerFlag(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [args.account, args.desired],
         functionName: args.writeFunction,
@@ -379,7 +210,7 @@ async function planPoolWhitelisted(
   const orderManager = manifest.venue.orderManager;
   const owner = await readOrderManagerOwner(context, orderManager);
   const current = await context.publicClient.readContract({
-    abi: ORDER_MANAGER_ADMIN_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: orderManager,
     args: [pool.poolId],
     functionName: "poolWhitelisted",
@@ -393,7 +224,7 @@ async function planPoolWhitelisted(
     requiredRole: { holder: owner, name: "BoundedPoolOrderManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [pool.poolId],
         functionName: "poolWhitelisted",
@@ -404,7 +235,7 @@ async function planPoolWhitelisted(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [pool.poolKey, whitelisted],
         functionName: "setPoolWhitelisted",
@@ -422,7 +253,7 @@ async function planMaximumExecutionCount(
   const orderManager = await resolveOrderManagerAddress(context);
   const owner = await readOrderManagerOwner(context, orderManager);
   const current = await context.publicClient.readContract({
-    abi: ORDER_MANAGER_ADMIN_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: orderManager,
     functionName: "maximumExecutionCount",
   });
@@ -435,7 +266,7 @@ async function planMaximumExecutionCount(
     requiredRole: { holder: owner, name: "BoundedPoolOrderManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         functionName: "maximumExecutionCount",
       });
@@ -445,7 +276,7 @@ async function planMaximumExecutionCount(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [count],
         functionName: "setMaximumExecutionCount",
@@ -479,7 +310,7 @@ async function planMinimumOrderAmount(
   });
   const owner = await readOrderManagerOwner(context, orderManager);
   const current = await context.publicClient.readContract({
-    abi: ORDER_MANAGER_ADMIN_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: orderManager,
     args: [token],
     functionName: "minimumOrderAmount",
@@ -495,7 +326,7 @@ async function planMinimumOrderAmount(
     requiredRole: { holder: owner, name: "BoundedPoolOrderManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [token],
         functionName: "minimumOrderAmount",
@@ -506,7 +337,7 @@ async function planMinimumOrderAmount(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: ORDER_MANAGER_ADMIN_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: orderManager,
         args: [token, amount],
         functionName: "setMinimumOrderAmount",
@@ -522,14 +353,14 @@ async function planMarketLifecycle(
   const market = manifest.market.address;
   const resolver = getAddress(
     await context.publicClient.readContract({
-      abi: MARKET_ADMIN_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: market,
       functionName: "resolver",
     }),
   );
   const status = Number(
     await context.publicClient.readContract({
-      abi: MARKET_ADMIN_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: market,
       functionName: "status",
     }),
@@ -561,7 +392,7 @@ async function planMarketLifecycle(
     verify: async () => {
       const after = Number(
         await context.publicClient.readContract({
-          abi: MARKET_ADMIN_ABI,
+          abi: completeSetBinaryMarketAbi,
           address: market,
           functionName: "status",
         }),
@@ -573,13 +404,13 @@ async function planMarketLifecycle(
     write: () =>
       request.kind === "resolve"
         ? context.walletClient.writeContract({
-            abi: MARKET_ADMIN_ABI,
+            abi: completeSetBinaryMarketAbi,
             address: market,
             args: [SIDE_ENUM[request.side]],
             functionName: "resolve",
           })
         : context.walletClient.writeContract({
-            abi: MARKET_ADMIN_ABI,
+            abi: completeSetBinaryMarketAbi,
             address: market,
             args: [],
             functionName: "cancel",
@@ -595,7 +426,7 @@ async function planTrustedCreator(
   const pregradManager = await resolvePostgradManifestAddress(context, "pregradManager");
   const owner = await readPregradOwner(context, pregradManager);
   const current = await context.publicClient.readContract({
-    abi: PREGRAD_ADMIN_ABI,
+    abi: pregradManagerAbi,
     address: pregradManager,
     args: [account],
     functionName: "isTrustedCreator",
@@ -609,7 +440,7 @@ async function planTrustedCreator(
     requiredRole: { holder: owner, name: "PregradManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: PREGRAD_ADMIN_ABI,
+        abi: pregradManagerAbi,
         address: pregradManager,
         args: [account],
         functionName: "isTrustedCreator",
@@ -620,7 +451,7 @@ async function planTrustedCreator(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: PREGRAD_ADMIN_ABI,
+        abi: pregradManagerAbi,
         address: pregradManager,
         args: [account, trusted],
         functionName: "setTrustedCreator",
@@ -635,7 +466,7 @@ async function planPregradPause(
   const pregradManager = await resolvePostgradManifestAddress(context, "pregradManager");
   const owner = await readPregradOwner(context, pregradManager);
   const current = await context.publicClient.readContract({
-    abi: PREGRAD_ADMIN_ABI,
+    abi: pregradManagerAbi,
     address: pregradManager,
     functionName: "marketCreationPaused",
   });
@@ -648,7 +479,7 @@ async function planPregradPause(
     requiredRole: { holder: owner, name: "PregradManager owner" },
     verify: async () => {
       const after = await context.publicClient.readContract({
-        abi: PREGRAD_ADMIN_ABI,
+        abi: pregradManagerAbi,
         address: pregradManager,
         functionName: "marketCreationPaused",
       });
@@ -658,7 +489,7 @@ async function planPregradPause(
     },
     write: () =>
       context.walletClient.writeContract({
-        abi: PREGRAD_ADMIN_ABI,
+        abi: pregradManagerAbi,
         address: pregradManager,
         args: [paused],
         functionName: "setMarketCreationPaused",
@@ -672,7 +503,7 @@ async function readOrderManagerOwner(
 ): Promise<Address> {
   return getAddress(
     await context.publicClient.readContract({
-      abi: ORDER_MANAGER_ADMIN_ABI,
+      abi: boundedPoolOrderManagerAbi,
       address: orderManager,
       functionName: "owner",
     }),
@@ -685,7 +516,7 @@ async function readPregradOwner(
 ): Promise<Address> {
   return getAddress(
     await context.publicClient.readContract({
-      abi: PREGRAD_ADMIN_ABI,
+      abi: pregradManagerAbi,
       address: pregradManager,
       functionName: "owner",
     }),

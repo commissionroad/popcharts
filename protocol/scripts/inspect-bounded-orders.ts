@@ -1,5 +1,5 @@
 import hre, { network } from "hardhat";
-import { formatUnits, type Address, type Hex, type PublicClient } from "viem";
+import { formatUnits, getAbiItem, type Address, type Hex, type PublicClient } from "viem";
 
 import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
@@ -18,99 +18,19 @@ import {
   type CompleteSetMarketPool,
 } from "./shared/market/readCompleteSetMarketManifest.js";
 import { readPoolDisplayPrice } from "./shared/market/readPoolDisplayPrice.js";
+import { boundedPoolOrderManagerAbi, poolTickBoundsAbi } from "../src/generated/postgrad-venue.js";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+// getContractEvents decodes every event in the ABI it is given, so keep the
+// inspection scoped to order lifecycle events by deriving that subset from the
+// generated order-manager ABI instead of passing the full ABI.
 const ORDER_LIFECYCLE_EVENTS_ABI = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: true, name: "orderId", type: "uint32" },
-      { indexed: true, name: "owner", type: "address" },
-      { indexed: false, name: "zeroForOne", type: "bool" },
-      { indexed: false, name: "tickLower", type: "int24" },
-      { indexed: false, name: "tickUpper", type: "int24" },
-      { indexed: false, name: "liquidity", type: "uint128" },
-      { indexed: false, name: "amountIn", type: "uint256" },
-    ],
-    name: "OrderCreated",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: true, name: "orderId", type: "uint32" },
-      { indexed: true, name: "owner", type: "address" },
-      { indexed: false, name: "amount0", type: "uint256" },
-      { indexed: false, name: "amount1", type: "uint256" },
-    ],
-    name: "OrderCancelled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: true, name: "orderId", type: "uint32" },
-      { indexed: true, name: "owner", type: "address" },
-      { indexed: false, name: "amount0", type: "uint256" },
-      { indexed: false, name: "amount1", type: "uint256" },
-    ],
-    name: "OrderFilled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: true, name: "orderId", type: "uint32" },
-      { indexed: true, name: "owner", type: "address" },
-      { indexed: false, name: "amount0", type: "uint256" },
-      { indexed: false, name: "amount1", type: "uint256" },
-      { indexed: false, name: "tickLower", type: "int24" },
-      { indexed: false, name: "tickUpper", type: "int24" },
-      { indexed: false, name: "indexedTick", type: "int24" },
-      { indexed: false, name: "remainingLiquidity", type: "uint128" },
-    ],
-    name: "OrderPartiallyFilled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: true, name: "orderId", type: "uint32" },
-      { indexed: false, name: "thresholdTick", type: "int24" },
-    ],
-    name: "OrderRequeued",
-    type: "event",
-  },
-] as const;
-
-const POOL_WHITELISTED_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "poolWhitelisted",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-const GET_POOL_TICK_BOUNDS_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getPoolTickBounds",
-    outputs: [
-      { name: "configured", type: "bool" },
-      { name: "lowerTick", type: "int24" },
-      { name: "upperTick", type: "int24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
+  getAbiItem({ abi: boundedPoolOrderManagerAbi, name: "OrderCreated" }),
+  getAbiItem({ abi: boundedPoolOrderManagerAbi, name: "OrderCancelled" }),
+  getAbiItem({ abi: boundedPoolOrderManagerAbi, name: "OrderFilled" }),
+  getAbiItem({ abi: boundedPoolOrderManagerAbi, name: "OrderPartiallyFilled" }),
+  getAbiItem({ abi: boundedPoolOrderManagerAbi, name: "OrderRequeued" }),
 ] as const;
 
 /**
@@ -300,13 +220,13 @@ async function inspectPool(args: {
     stateView: manifest.venue.stateView,
   });
   const whitelisted = await publicClient.readContract({
-    abi: POOL_WHITELISTED_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: manifest.venue.orderManager,
     args: [pool.poolId],
     functionName: "poolWhitelisted",
   });
   const [boundsConfigured, lowerTick, upperTick] = await publicClient.readContract({
-    abi: GET_POOL_TICK_BOUNDS_ABI,
+    abi: poolTickBoundsAbi,
     address: manifest.venue.poolTickBounds,
     args: [pool.poolId],
     functionName: "getPoolTickBounds",

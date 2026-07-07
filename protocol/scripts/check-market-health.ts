@@ -12,47 +12,11 @@ import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMa
 import { readPoolActiveLiquidity } from "./shared/market/readPoolActiveLiquidity.js";
 import { readPoolDisplayPrice } from "./shared/market/readPoolDisplayPrice.js";
 import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
-
-const MARKET_STATUS_ABI = [
-  {
-    inputs: [],
-    name: "status",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "winningSide",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-const POOL_WHITELISTED_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "poolWhitelisted",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-const GET_POOL_TICK_BOUNDS_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getPoolTickBounds",
-    outputs: [
-      { name: "configured", type: "bool" },
-      { name: "lowerTick", type: "int24" },
-      { name: "upperTick", type: "int24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import {
+  boundedPoolOrderManagerAbi,
+  completeSetBinaryMarketAbi,
+  poolTickBoundsAbi,
+} from "../src/generated/postgrad-venue.js";
 
 const STATUS_NAMES: Record<number, string> = {
   [COMPLETE_SET_MARKET_STATUS.cancelled]: "Cancelled",
@@ -112,7 +76,7 @@ async function main() {
 
   const status = Number(
     await publicClient.readContract({
-      abi: MARKET_STATUS_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: manifest.market.address,
       functionName: "status",
     }),
@@ -121,7 +85,7 @@ async function main() {
     status === COMPLETE_SET_MARKET_STATUS.resolved
       ? Number(
           await publicClient.readContract({
-            abi: MARKET_STATUS_ABI,
+            abi: completeSetBinaryMarketAbi,
             address: manifest.market.address,
             functionName: "winningSide",
           }),
@@ -165,13 +129,13 @@ async function main() {
       stateView: manifest.venue.stateView,
     });
     const whitelisted = await publicClient.readContract({
-      abi: POOL_WHITELISTED_ABI,
+      abi: boundedPoolOrderManagerAbi,
       address: manifest.venue.orderManager,
       args: [pool.poolId],
       functionName: "poolWhitelisted",
     });
     const [boundsConfigured] = await publicClient.readContract({
-      abi: GET_POOL_TICK_BOUNDS_ABI,
+      abi: poolTickBoundsAbi,
       address: manifest.venue.poolTickBounds,
       args: [pool.poolId],
       functionName: "getPoolTickBounds",

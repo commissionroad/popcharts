@@ -9,66 +9,14 @@ import { COMPLETE_SET_SMOKE_POLICY } from "./completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "./ensureCollateralBalance.js";
 import { readPoolActiveLiquidity } from "./readPoolActiveLiquidity.js";
 import { readPoolDisplayPrice } from "./readPoolDisplayPrice.js";
+import {
+  completeSetBinaryMarketAbi,
+  minimalV4SwapRouterAbi,
+} from "../../../src/generated/postgrad-venue.js";
 import type { CompleteSetMarketManifestData } from "./readCompleteSetMarketManifest.js";
 
 const HOOK_DATA_NONE: Hex = "0x";
 const ZERO_SALT: Hex = "0x0000000000000000000000000000000000000000000000000000000000000000";
-
-const MARKET_MINT_ABI = [
-  {
-    inputs: [{ name: "collateralAmount", type: "uint256" }],
-    name: "outcomeAmountForCollateral",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "collateralAmount", type: "uint256" },
-    ],
-    name: "mintCompleteSets",
-    outputs: [{ name: "outcomeAmount", type: "uint256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const ROUTER_MODIFY_LIQUIDITY_ABI = [
-  {
-    inputs: [
-      {
-        components: [
-          { name: "currency0", type: "address" },
-          { name: "currency1", type: "address" },
-          { name: "fee", type: "uint24" },
-          { name: "tickSpacing", type: "int24" },
-          { name: "hooks", type: "address" },
-        ],
-        name: "key",
-        type: "tuple",
-      },
-      {
-        components: [
-          { name: "tickLower", type: "int24" },
-          { name: "tickUpper", type: "int24" },
-          { name: "liquidityDelta", type: "int256" },
-          { name: "salt", type: "bytes32" },
-        ],
-        name: "params",
-        type: "tuple",
-      },
-      { name: "hookData", type: "bytes" },
-    ],
-    name: "modifyLiquidity",
-    outputs: [
-      { name: "delta", type: "int256" },
-      { name: "feesAccrued", type: "int256" },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 type SmokeContractWriter = {
   writeContract(parameters: {
@@ -137,7 +85,7 @@ export async function ensureDevBackstopLiquidity(args: {
     // Fund both sides: mint complete sets for the outcome leg and hold the
     // same collateral budget for the collateral leg.
     const devOutcome = await args.publicClient.readContract({
-      abi: MARKET_MINT_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: args.manifest.market.address,
       args: [args.devCollateral],
       functionName: "outcomeAmountForCollateral",
@@ -159,7 +107,7 @@ export async function ensureDevBackstopLiquidity(args: {
       walletClient: args.walletClient,
     });
     const mintHash = await args.walletClient.writeContract({
-      abi: MARKET_MINT_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: args.manifest.market.address,
       args: [args.account, args.devCollateral],
       functionName: "mintCompleteSets",
@@ -195,7 +143,7 @@ export async function ensureDevBackstopLiquidity(args: {
       walletClient: args.walletClient,
     });
     const seedHash = await args.walletClient.writeContract({
-      abi: ROUTER_MODIFY_LIQUIDITY_ABI,
+      abi: minimalV4SwapRouterAbi,
       address: args.swapRouter,
       args: [
         pool.poolKey,
