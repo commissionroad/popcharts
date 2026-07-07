@@ -46,17 +46,17 @@ type MarketManifest = {
  */
 export function readPostgradDeployment(
   marketSymbol: string,
+  deploymentsDir: string = resolve(protocolDir, "deployments"),
 ): PostgradDeployment {
   const venue = readJsonFile<ContractsManifest>(
-    resolve(protocolDir, "deployments", "local.venue-stack.local.json"),
+    resolve(deploymentsDir, "local.venue-stack.local.json"),
   ).contracts;
   const postgradContracts = readJsonFile<ContractsManifest>(
-    resolve(protocolDir, "deployments", "local.postgrad.local.json"),
+    resolve(deploymentsDir, "local.postgrad.local.json"),
   ).contracts;
   const market = readJsonFile<MarketManifest>(
     resolve(
-      protocolDir,
-      "deployments",
+      deploymentsDir,
       `local.market-${marketSymbol.toLowerCase()}.local.json`,
     ),
   );

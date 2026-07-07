@@ -1,0 +1,42 @@
+{
+    "blockNumber": "11",
+    "chainId": 31337,
+    "contracts": {
+        "boundedHook": {
+            "address": "0x3c03862Bb3ee9Bf99Dd173fD42b67214697e40C0",
+            "required": true
+        },
+        "deterministicFactory": {
+            "address": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+            "required": true
+        },
+        "orderManager": {
+            "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+            "required": true
+        },
+        "poolManager": {
+            "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+            "required": true
+        },
+        "poolTickBounds": {
+            "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+            "required": true
+        },
+        "postgradAdapter": {
+            "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+            "required": true
+        },
+        "pregradManager": {
+            "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+            "required": true
+        },
+        "transferApproval": {
+            "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "required": false
+        }
+    },
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "generatedAt": "2026-07-07T17:18:09.870Z",
+    "hookSalt": "0x00000000000000000000000000000000000000000000000000000000000051b0",
+    "rpcUrl": "http://127.0.0.1:8545"
+}
