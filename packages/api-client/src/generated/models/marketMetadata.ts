@@ -13,6 +13,8 @@ export interface MarketMetadata {
   description: string;
   metadataCreatedAt: string;
   metadataHash: string;
+  outcomeNo?: string;
+  outcomeYes?: string;
   question: string;
   resolutionCriteria: string;
   resolutionSources?: string[];

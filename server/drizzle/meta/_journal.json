@@ -78,6 +78,13 @@
       "when": 1783009564946,
       "tag": "0010_numerous_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783449195951,
+      "tag": "0011_lethal_mauler",
+      "breakpoints": true
     }
   ]
 }

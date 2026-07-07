@@ -55,6 +55,8 @@ export const MarketMetadataSchema = t.Object(
     description: t.String(),
     metadataCreatedAt: t.String(),
     metadataHash: t.String(),
+    outcomeNo: t.Optional(t.String()),
+    outcomeYes: t.Optional(t.String()),
     question: t.String(),
     resolutionCriteria: t.String(),
     resolutionSources: t.Optional(t.Array(t.String())),
@@ -73,6 +75,8 @@ export const MarketMetadataWriteSchema = t.Object(
     metadataHash: t.String({
       pattern: "^0x[0-9a-fA-F]{64}$",
     }),
+    outcomeNo: t.Optional(t.String({ maxLength: 40, minLength: 1 })),
+    outcomeYes: t.Optional(t.String({ maxLength: 40, minLength: 1 })),
     question: t.String({ minLength: 1 }),
     resolutionCriteria: t.String({ minLength: 1 }),
     resolutionSources: t.Optional(t.Array(t.String())),

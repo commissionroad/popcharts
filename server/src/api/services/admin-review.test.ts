@@ -229,6 +229,8 @@ function createMetadataRow(overrides: Partial<MetadataRow> = {}): MetadataRow {
     metadataCreatedAt: "2026-06-23T11:59:00.000Z",
     metadataHash:
       "0x1111111111111111111111111111111111111111111111111111111111111111",
+    outcomeNo: null,
+    outcomeYes: null,
     question: "Will NASA announce a new Artemis launch date in 2026?",
     resolutionCriteria:
       "YES if NASA publishes an official new launch date before 2027.",

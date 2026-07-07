@@ -8,6 +8,8 @@ type MarketMetadataPayload = {
   category: string;
   createdAt: string;
   description: string;
+  outcomeNo?: string;
+  outcomeYes?: string;
   question: string;
   resolutionCriteria: string;
   resolutionSources?: string[];
@@ -34,6 +36,8 @@ export async function persistMarketMetadataFromEventPayload({
     description: payload.description,
     metadataCreatedAt: payload.createdAt,
     metadataHash,
+    outcomeNo: payload.outcomeNo ?? null,
+    outcomeYes: payload.outcomeYes ?? null,
     question: payload.question,
     resolutionCriteria: payload.resolutionCriteria,
     resolutionSources: payload.resolutionSources ?? [],
@@ -93,6 +97,12 @@ function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
     version: 1,
   };
 
+  if (value.outcomeYes !== undefined) {
+    metadata.outcomeYes = readNonEmptyString(value, "outcomeYes");
+  }
+  if (value.outcomeNo !== undefined) {
+    metadata.outcomeNo = readNonEmptyString(value, "outcomeNo");
+  }
   if (value.resolutionUrl !== undefined) {
     metadata.resolutionUrl = readString(value, "resolutionUrl");
   }
@@ -115,6 +125,14 @@ function serializeMarketMetadata(metadata: MarketMetadataPayload) {
     category: metadata.category,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+
+  if (metadata.outcomeYes) {
+    ordered.outcomeYes = metadata.outcomeYes;
+  }
+
+  if (metadata.outcomeNo) {
+    ordered.outcomeNo = metadata.outcomeNo;
+  }
 
   if (metadata.resolutionSources?.length) {
     ordered.resolutionSources = metadata.resolutionSources;

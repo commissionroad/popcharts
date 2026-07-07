@@ -12,6 +12,8 @@ export type CreateMarketDraft = {
   graduationTime: string;
   liquidityParameter: number;
   openingProbability: number;
+  outcomeNo: string;
+  outcomeYes: string;
   question: string;
   resolutionCriteria: string;
   resolutionSources: string;
@@ -30,6 +32,8 @@ export type MarketMetadata = {
   category: MarketCategory;
   createdAt: string;
   description: string;
+  outcomeNo?: string;
+  outcomeYes?: string;
   question: string;
   resolutionCriteria: string;
   resolutionSources?: string[];

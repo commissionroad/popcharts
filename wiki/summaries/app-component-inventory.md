@@ -21,14 +21,17 @@ promoted.
   account slot), `Logo` (wordmark + glyph, wordmark hidden below 460px).
 - Charts: `BandStrip` (price-band clearing strip with matched / yes-only /
   no-only / no-demand legend — currently static demo bands), `PriceCurve`
-  (virtual LMSR price-path SVG with yes/no color state).
+  (YES/NO price-history chart: trailing-window pills 1H–1M/ALL, quarter
+  gridlines with axis values, crosshair hover readout, optional creator
+  outcome labels).
 - UI: `Button` (primary/secondary/ghost, sm/md/lg, link support, glow),
   `Field` (labeled input/textarea with hint/error, mono, suffix),
   `GraduationBar` (matched-liquidity progress toward target),
   `MarketCard` (discovery card: category color, status, outcome prices,
   graduation progress), `MetricCard` (compact metric tile), `OutcomeButton`
-  (YES/NO price action tile in cents), `SegmentedControl` (tokenized
-  selector), `StatusPill` (market status badge, pulses on active statuses).
+  (YES/NO price action tile in cents, optional creator outcome label),
+  `SegmentedControl` (tokenized selector), `StatusPill` (market status
+  badge, pulses on active statuses).
 
 Eight of the twelve are adaptations of [designkit](../entities/designkit.md)
 reference components (`Button`, `Field`, `GraduationBar`, `Logo`,

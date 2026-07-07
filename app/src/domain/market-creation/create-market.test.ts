@@ -11,6 +11,8 @@ import {
   dateTimeLocalToDate,
   deriveGraduationThreshold,
   formatDeadline,
+  MAX_OUTCOME_LABEL_LENGTH,
+  serializeMarketMetadata,
   toDateTimeLocalValue,
   validateCreateMarketDraft,
 } from "./create-market";
@@ -146,6 +148,77 @@ describe("market creation draft", () => {
     );
     expect(firstPreview.protocolParams.graduationThreshold).toBe(
       2500000000000000000000n
+    );
+  });
+
+  test("carries trimmed outcome labels into metadata and drops blank ones", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      outcomeNo: "   ",
+      outcomeYes: "  Argentina ",
+      question: "Will ARG beat EGY?",
+      resolutionCriteria: "YES if ARG wins.",
+    };
+    const metadata = buildMarketMetadata(draft);
+
+    expect(metadata.outcomeYes).toBe("Argentina");
+    expect(metadata.outcomeNo).toBeUndefined();
+  });
+
+  test("rejects outcome labels above the length limit", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      outcomeNo: "n".repeat(MAX_OUTCOME_LABEL_LENGTH + 1),
+      outcomeYes: "y".repeat(MAX_OUTCOME_LABEL_LENGTH + 1),
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      outcomeNo: `Keep the NO label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`,
+      outcomeYes: `Keep the YES label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`,
+    });
+  });
+
+  test("serializes labeled metadata in the canonical indexer field order", () => {
+    // Must stay byte-identical with the server indexer's serializer
+    // (server/src/indexer/metadata/market-metadata.ts) or on-chain markets
+    // carrying labels fail the ingestion hash check.
+    const payload = serializeMarketMetadata({
+      category: "Sports",
+      createdAt: "2026-07-02T12:00:00.000Z",
+      description: "",
+      outcomeNo: "Egypt",
+      outcomeYes: "Argentina",
+      question: "Will ARG beat EGY?",
+      resolutionCriteria: "YES if ARG wins.",
+      version: 1,
+    });
+
+    expect(payload).toBe(
+      '{"version":1,"question":"Will ARG beat EGY?","description":"",' +
+        '"category":"Sports","resolutionCriteria":"YES if ARG wins.",' +
+        '"outcomeYes":"Argentina","outcomeNo":"Egypt",' +
+        '"createdAt":"2026-07-02T12:00:00.000Z"}'
+    );
+  });
+
+  test("keeps unlabeled metadata payloads unchanged", () => {
+    const payload = serializeMarketMetadata({
+      category: "Sports",
+      createdAt: "2026-07-02T12:00:00.000Z",
+      description: "",
+      question: "Will ARG beat EGY?",
+      resolutionCriteria: "YES if ARG wins.",
+      version: 1,
+    });
+
+    expect(payload).toBe(
+      '{"version":1,"question":"Will ARG beat EGY?","description":"",' +
+        '"category":"Sports","resolutionCriteria":"YES if ARG wins.",' +
+        '"createdAt":"2026-07-02T12:00:00.000Z"}'
     );
   });
 

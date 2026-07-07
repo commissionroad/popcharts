@@ -45,6 +45,8 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     (source) => source.trim().length > 0
   );
   const resolutionUrl = metadata?.resolutionUrl?.trim();
+  const outcomeYes = metadata?.outcomeYes?.trim();
+  const outcomeNo = metadata?.outcomeNo?.trim();
 
   return {
     b,
@@ -67,6 +69,8 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     volumeUsd: totalEscrowed,
     yesPriceCents,
     ...(apiMarket.aiReview ? { aiReview: apiMarket.aiReview } : {}),
+    ...(outcomeNo ? { outcomeNo } : {}),
+    ...(outcomeYes ? { outcomeYes } : {}),
     ...(resolutionCriteria ? { resolutionCriteria } : {}),
     ...(resolutionSources.length > 0 ? { resolutionSources } : {}),
     ...(resolutionUrl ? { resolutionUrl } : {}),

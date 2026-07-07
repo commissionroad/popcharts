@@ -108,6 +108,8 @@ export const markets: Market[] = [
     matchedUsd: 12_500,
     noPriceCents: 78,
     openingProbability: 20,
+    outcomeNo: "Favorite",
+    outcomeYes: "Underdog",
     pricePath: [18, 19, 21, 20, 22, 23, 22],
     question: "Will an underdog win the next major final?",
     receiptCount: 207,

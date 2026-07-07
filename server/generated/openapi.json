@@ -1403,6 +1403,12 @@
           "metadataHash": {
             "type": "string"
           },
+          "outcomeNo": {
+            "type": "string"
+          },
+          "outcomeYes": {
+            "type": "string"
+          },
           "question": {
             "type": "string"
           },
@@ -1447,6 +1453,16 @@
           },
           "metadataHash": {
             "pattern": "^0x[0-9a-fA-F]{64}$",
+            "type": "string"
+          },
+          "outcomeNo": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcomeYes": {
+            "maxLength": 40,
+            "minLength": 1,
             "type": "string"
           },
           "question": {

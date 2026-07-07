@@ -61,9 +61,14 @@ function toIndexerMetadataBody({ metadata, metadataHash }: MetadataProxyRequest)
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+  const withOutcomes = {
+    ...body,
+    ...(metadata.outcomeNo ? { outcomeNo: metadata.outcomeNo } : {}),
+    ...(metadata.outcomeYes ? { outcomeYes: metadata.outcomeYes } : {}),
+  };
   const withSources = metadata.resolutionSources?.length
-    ? { ...body, resolutionSources: metadata.resolutionSources }
-    : body;
+    ? { ...withOutcomes, resolutionSources: metadata.resolutionSources }
+    : withOutcomes;
 
   return metadata.resolutionUrl
     ? { ...withSources, resolutionUrl: metadata.resolutionUrl }
@@ -121,6 +126,14 @@ function parseRequestBody(
     return { error: "metadata.resolutionUrl must be a string.", ok: false };
   }
 
+  if (metadata.outcomeYes !== undefined && !isNonEmptyString(metadata.outcomeYes)) {
+    return { error: "metadata.outcomeYes must be a non-empty string.", ok: false };
+  }
+
+  if (metadata.outcomeNo !== undefined && !isNonEmptyString(metadata.outcomeNo)) {
+    return { error: "metadata.outcomeNo must be a non-empty string.", ok: false };
+  }
+
   if (
     metadata.resolutionSources !== undefined &&
     !isStringArray(metadata.resolutionSources)
@@ -139,6 +152,8 @@ function parseRequestBody(
         category: metadata.category,
         createdAt: metadata.createdAt,
         description: metadata.description,
+        ...(metadata.outcomeNo ? { outcomeNo: metadata.outcomeNo } : {}),
+        ...(metadata.outcomeYes ? { outcomeYes: metadata.outcomeYes } : {}),
         question: metadata.question,
         resolutionCriteria: metadata.resolutionCriteria,
         ...(metadata.resolutionSources?.length

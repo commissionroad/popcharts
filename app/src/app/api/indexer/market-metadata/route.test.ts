@@ -194,6 +194,43 @@ describe("POST /api/indexer/market-metadata", () => {
       expect(withoutOptional).not.toHaveProperty("resolutionSources");
       expect(withoutOptional).not.toHaveProperty("resolutionUrl");
     });
+
+    it("forwards outcome labels only when they carry values", async () => {
+      vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
+      const fetcher = stubUpstream(new Response("{}", { status: 200 }));
+
+      await POST(
+        jsonRequest(
+          proxyBody({
+            metadata: { ...metadata(), outcomeNo: "Egypt", outcomeYes: "Argentina" },
+          })
+        )
+      );
+      await POST(jsonRequest(proxyBody()));
+
+      const withLabels = upstreamBody(fetcher, 0);
+      const withoutLabels = upstreamBody(fetcher, 1);
+
+      expect(withLabels.outcomeYes).toBe("Argentina");
+      expect(withLabels.outcomeNo).toBe("Egypt");
+      expect(withoutLabels).not.toHaveProperty("outcomeYes");
+      expect(withoutLabels).not.toHaveProperty("outcomeNo");
+    });
+
+    it("rejects blank outcome labels", async () => {
+      vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
+      stubUpstream(new Response("{}", { status: 200 }));
+
+      const yesResponse = await POST(
+        jsonRequest(proxyBody({ metadata: { ...metadata(), outcomeYes: "  " } }))
+      );
+      const noResponse = await POST(
+        jsonRequest(proxyBody({ metadata: { ...metadata(), outcomeNo: 7 } }))
+      );
+
+      await expectError(yesResponse, "metadata.outcomeYes must be a non-empty string.");
+      await expectError(noResponse, "metadata.outcomeNo must be a non-empty string.");
+    });
   });
 });
 

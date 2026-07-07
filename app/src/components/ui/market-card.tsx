@@ -3,7 +3,11 @@ import Link from "next/link";
 import { GraduationBar } from "@/components/ui/graduation-bar";
 import { OutcomeButton } from "@/components/ui/outcome-button";
 import { StatusPill } from "@/components/ui/status-pill";
-import type { Market, MarketCategory } from "@/domain/markets/types";
+import {
+  marketSideLabel,
+  type Market,
+  type MarketCategory,
+} from "@/domain/markets/types";
 import { formatB, formatUsdCompact } from "@/lib/format";
 
 const categoryColor: Record<MarketCategory, string> = {
@@ -45,11 +49,13 @@ export function MarketCard({ market }: { market: Market }) {
       <div className="flex gap-2.5">
         <OutcomeButton
           href={`${marketHref}?side=yes`}
+          label={marketSideLabel(market, "yes")}
           priceCents={market.yesPriceCents}
           side="yes"
         />
         <OutcomeButton
           href={`${marketHref}?side=no`}
+          label={marketSideLabel(market, "no")}
           priceCents={market.noPriceCents}
           side="no"
         />

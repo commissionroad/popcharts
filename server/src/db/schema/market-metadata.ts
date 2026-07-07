@@ -29,6 +29,8 @@ export const marketMetadata = pgTable(
       .default([])
       .notNull(),
     resolutionUrl: text("resolution_url"),
+    outcomeYes: text("outcome_yes"),
+    outcomeNo: text("outcome_no"),
     metadataCreatedAt: text("metadata_created_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
