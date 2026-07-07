@@ -1,6 +1,7 @@
 import type { ConnectedWallet } from "@privy-io/react-auth";
 
 import { defaultEvmChain } from "@/integrations/wallet/chains";
+import { getErrorMessage } from "@/lib/error-handling";
 import { formatAddress } from "@/lib/format";
 
 export type WalletPendingAction =
@@ -79,10 +80,12 @@ function formatWalletClientType(walletClientType: string) {
     .join(" ");
 }
 
-export function getWalletErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
+const WALLET_ERROR_FALLBACK = "Wallet action failed. Try again from your wallet.";
 
-  return "Wallet action failed. Try again from your wallet.";
+export function getWalletErrorMessage(error: unknown) {
+  return getErrorMessage(error, {
+    fallback: WALLET_ERROR_FALLBACK,
+    // Unlike the default behavior, an empty error.message also falls back.
+    matcher: (walletError) => (walletError.message ? undefined : WALLET_ERROR_FALLBACK),
+  });
 }

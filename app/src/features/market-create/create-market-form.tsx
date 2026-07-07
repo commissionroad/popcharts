@@ -27,6 +27,7 @@ import {
 } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { getErrorMessage } from "@/lib/error-handling";
 import { formatB, formatUsdWhole } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
@@ -502,13 +503,13 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
 }
 
 function getCreateMarketErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The creation service could not create this market.";
+  return getErrorMessage(error, {
+    fallback: "The creation service could not create this market.",
+  });
 }
 
 function getReviewSubmissionErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The review service could not submit this market.";
+  return getErrorMessage(error, {
+    fallback: "The review service could not submit this market.",
+  });
 }
