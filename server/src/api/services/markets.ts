@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbi } from "viem";
+import { parseAbi } from "viem";
 
 import type {
   MarketAiReviewResponse,
@@ -8,6 +8,10 @@ import type {
   MarketResponse,
   ReceiptPlacedEventResponse,
 } from "src/api/models/markets";
+import {
+  createReadOnlyClient,
+  type BlockchainClient,
+} from "src/blockchain/client";
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
@@ -29,7 +33,7 @@ type MarketQueryRow = {
   metadata: MarketMetadataRow | null;
 };
 
-let localPublicClient: ReturnType<typeof createPublicClient> | null = null;
+let localPublicClient: BlockchainClient | null = null;
 
 /**
  * Lists markets for the currently configured PregradManager, newest first,
@@ -487,10 +491,7 @@ async function isLiveLocalMarket(marketId: bigint) {
 }
 
 function getLocalPublicClient() {
-  localPublicClient ??= createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  localPublicClient ??= createReadOnlyClient();
 
   return localPublicClient;
 }

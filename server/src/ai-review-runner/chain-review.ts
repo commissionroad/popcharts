@@ -1,13 +1,11 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  type Hash,
-} from "viem";
+import { parseAbi, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { MarketStatus } from "src/api/models/markets";
+import {
+  createReadOnlyClient,
+  createWalletClient,
+} from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
 
 const DEFAULT_LOCAL_REVIEW_PRIVATE_KEY =
@@ -162,16 +160,9 @@ function createDefaultMarketReviewChainTransitionDependencies(): MarketReviewCha
     );
   }
 
-  const publicClient = createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const publicClient = createReadOnlyClient();
   const account = privateKeyToAccount(readReviewManagerPrivateKey());
-  const walletClient = createWalletClient({
-    account,
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const walletClient = createWalletClient(account);
 
   return {
     currentChainId: () => config.chainId,

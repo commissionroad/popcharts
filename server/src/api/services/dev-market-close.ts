@@ -1,16 +1,15 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  type Hash,
-} from "viem";
+import { parseAbi, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type {
   DevMarketCloseIneligibleReason,
   MarketResponse,
 } from "src/api/models/markets";
+import {
+  createReadOnlyClient,
+  createWalletClient,
+  type BlockchainClient,
+} from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
@@ -288,10 +287,7 @@ async function markMarketRefunded({
 async function closeLocalMarketOnChain(
   marketId: bigint,
 ): Promise<ChainCloseResult> {
-  const publicClient = createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const publicClient = createReadOnlyClient();
   const state = (await publicClient.readContract({
     abi: PREGRAD_DEV_CLOSE_ABI,
     address: config.contracts.pregradManager,
@@ -323,11 +319,7 @@ async function closeLocalMarketOnChain(
   await fastForwardLocalRpc(publicClient, marketConfig.graduationDeadline);
 
   const account = privateKeyToAccount(readDevPrivateKey());
-  const walletClient = createWalletClient({
-    account,
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const walletClient = createWalletClient(account);
   const transactionHash = await walletClient.writeContract({
     abi: PREGRAD_DEV_CLOSE_ABI,
     address: config.contracts.pregradManager,
@@ -354,7 +346,7 @@ async function closeLocalMarketOnChain(
 }
 
 async function fastForwardLocalRpc(
-  publicClient: ReturnType<typeof createPublicClient>,
+  publicClient: BlockchainClient,
   targetTimestamp: bigint,
 ) {
   const latestBlock = await publicClient.getBlock();
@@ -392,9 +384,7 @@ async function requestLocalRpc(method: string, params: unknown[]) {
   }
 }
 
-async function getLatestBlockTimestamp(
-  publicClient: ReturnType<typeof createPublicClient>,
-) {
+async function getLatestBlockTimestamp(publicClient: BlockchainClient) {
   const block = await publicClient.getBlock();
 
   return new Date(Number(block.timestamp) * 1000);

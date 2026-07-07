@@ -2,7 +2,7 @@ import { parseAbiItem } from "viem";
 
 import { config } from "src/config";
 import { db, schema } from "src/db/client";
-import type { BlockchainClient } from "src/indexer/blockchain/client";
+import type { BlockchainClient } from "src/blockchain/client";
 import {
   buildMarketCreatedRecords,
   type MarketCreatedLog,
