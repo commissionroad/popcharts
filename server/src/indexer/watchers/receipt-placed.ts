@@ -7,6 +7,7 @@ import {
   persistReceiptPlacedRecord,
   type ReceiptPlacedLog,
 } from "src/indexer/handlers/receipt-placed";
+import { retryUntilMarketIndexed } from "src/indexer/handlers/market-projection";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import {
   getRecoveryStartBlock,
@@ -43,7 +44,12 @@ export async function processReceiptPlacedEvent(
     log,
   });
 
-  await persistReceiptPlacedRecord(record);
+  // A receipt can race ahead of the independent MarketCreated watcher; wait
+  // for the markets row rather than losing the counter updates. If retries
+  // run out, the thrown error keeps the cursor behind so recovery replays it.
+  await retryUntilMarketIndexed(() => persistReceiptPlacedRecord(record), {
+    label: "ReceiptPlaced",
+  });
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     CURSOR_NAME,
