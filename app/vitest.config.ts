@@ -41,6 +41,16 @@ export default defineConfig({
       ],
       reporter: ["text", "html", "lcov", "json-summary"],
       reportsDirectory: "coverage",
+      // Ratchet: the suite reached 100% lines (PR #136). The sub-100 floors
+      // allow only the documented dead defensive branches (see
+      // skills/engineering/frontend-testing). Raise these if coverage rises;
+      // never lower them to make a PR pass.
+      thresholds: {
+        branches: 99.7,
+        functions: 99.2,
+        lines: 100,
+        statements: 99.7,
+      },
     },
   },
 });
