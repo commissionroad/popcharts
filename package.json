@@ -29,7 +29,7 @@
     "server:api": "cd server && bun run dev:api",
     "server:indexer": "cd server && bun run dev:indexer",
     "server:ai-review-smoke": "cd server && bun run smoke:ai-review-runner",
-    "server:check": "cd server && bun run typecheck && bun run openapi:check && bun test",
+    "server:check": "cd server && bun run format:check && bun run lint && bun run typecheck && bun run openapi:check && bun test",
     "server:coverage": "cd server && bun run test:coverage",
     "local:dev": "node --experimental-strip-types scripts/local-dev.ts",
     "local:dev:control": "node --experimental-strip-types scripts/local-dev-control.ts",

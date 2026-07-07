@@ -16,6 +16,9 @@
     "dev:ai-review": "bun run --watch src/ai-review/server.ts",
     "dev:ai-review-runner": "bun run --watch src/ai-review-runner/index.ts",
     "dev:indexer": "bun run --watch src/indexer/index.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
     "openapi:check": "bun run scripts/generate-openapi.ts --check && bun run scripts/validate-openapi.ts",
     "openapi:generate": "bun run scripts/generate-openapi.ts && bun run scripts/validate-openapi.ts",
     "smoke:ai-review-runner": "bun run src/ai-review-runner/smoke.ts",
@@ -38,8 +41,12 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
+    "@eslint/js": "^9",
     "@types/bun": "^1.3.4",
     "drizzle-kit": "^0.30.0",
-    "typescript": "^6.0.3"
+    "eslint": "^9",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8"
   }
 }
