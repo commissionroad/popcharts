@@ -9,6 +9,7 @@ import type {
   ApiMarket,
   ApiReceiptPlacedEvent,
 } from "@/integrations/indexer/markets-api";
+import { apiMarketAppId } from "@/lib/app-id";
 
 import type { Market, MarketCategory, MarketStatus, PricePathPoint } from "./types";
 
@@ -72,25 +73,6 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
   };
 }
 
-export function apiMarketAppId({
-  chainId,
-  marketId,
-}: Pick<ApiMarket, "chainId" | "marketId">) {
-  return `${chainId}:${marketId}`;
-}
-
-export function parseApiMarketAppId(id: string) {
-  const decodedId = decodePathSegment(id);
-  const [chainIdValue, marketId, ...rest] = decodedId.split(":");
-  const chainId = Number.parseInt(chainIdValue ?? "", 10);
-
-  if (!chainIdValue || !marketId || rest.length > 0 || Number.isNaN(chainId)) {
-    return null;
-  }
-
-  return { chainId, marketId };
-}
-
 function marketDescription(apiMarket: ApiMarket) {
   const metadataDescription = apiMarket.metadata?.description?.trim();
 
@@ -117,14 +99,6 @@ function categoryForApiMarket(apiMarket: ApiMarket): MarketCategory {
     : numericMarketId + apiMarket.chainId;
 
   return generatedCategories[index % generatedCategories.length] ?? "Econ";
-}
-
-function decodePathSegment(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function isMarketCategory(value: string | undefined): value is MarketCategory {
