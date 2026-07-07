@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { OutcomeButton } from "./outcome-button";
 
@@ -13,17 +13,31 @@ describe("OutcomeButton", () => {
     expect(screen.getByText("64c")).toHaveStyle({ color: "var(--yes)" });
   });
 
-  it("renders a NO tile without a link when no href is given", () => {
-    render(<OutcomeButton priceCents={36} side="no" />);
+  it("renders a real focusable button when no href is given", () => {
+    const onClick = vi.fn();
+    render(<OutcomeButton onClick={onClick} priceCents={36} side="no" />);
+    const button = screen.getByRole("button", { name: /NO/ });
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(button).toHaveAttribute("type", "button");
+    expect(button).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByText("NO")).toHaveStyle({ color: "var(--no)" });
     expect(screen.getByText("36c")).toBeInTheDocument();
+
+    button.focus();
+    expect(button).toHaveFocus();
+
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("inverts the text onto the outcome color when selected", () => {
+  it("inverts the text and reports pressed state when selected", () => {
     render(<OutcomeButton priceCents={64} selected side="yes" />);
 
+    expect(screen.getByRole("button", { name: /YES/ })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     expect(screen.getByText("YES")).toHaveStyle({ color: "var(--pc-ink)" });
     expect(screen.getByText("64c")).toHaveStyle({ color: "var(--pc-ink)" });
   });

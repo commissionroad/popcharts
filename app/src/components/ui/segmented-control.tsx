@@ -31,6 +31,7 @@ export function SegmentedControl({
         full ? "w-full" : null,
         className
       )}
+      role="group"
     >
       {options.map((option) => {
         const selected = option.value === value;
@@ -39,6 +40,7 @@ export function SegmentedControl({
 
         return (
           <button
+            aria-pressed={selected}
             className={cn(
               "focus-ring font-display rounded-[var(--radius-sm)] border border-transparent font-bold transition-colors duration-[var(--duration-fast)]",
               full ? "flex-1" : null,
