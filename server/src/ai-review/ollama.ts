@@ -1,6 +1,15 @@
 import type { AiReviewConfig } from "./config";
 import { MARKET_REVIEW_OUTPUT_CONTRACT, MARKET_REVIEW_POLICY } from "./policy";
 import { normalizeScores } from "./scoring";
+import {
+  adjustModelScoresForEvidence,
+  arrayOfStrings,
+  filterSourceChecksByEvidence,
+  parseModelReview,
+  parseSourceChecks,
+  parseVerdict,
+  unique,
+} from "./response-parsing";
 import type {
   EvidenceItem,
   MarketReviewRequest,
@@ -14,14 +23,6 @@ type OllamaChatResponse = {
   message?: {
     content?: string;
   };
-};
-
-type RawModelReview = {
-  hardFlags?: unknown;
-  reasons?: unknown;
-  scores?: unknown;
-  sourceChecks?: unknown;
-  verdict?: unknown;
 };
 
 /**
@@ -68,7 +69,7 @@ export async function reviewWithOllama({
     ],
     model: modelId,
   });
-  const parsed = parseModelReview(response.message?.content ?? "");
+  const parsed = parseModelReview(response.message?.content ?? "", "Ollama");
   const hardFlags = arrayOfStrings(parsed.hardFlags);
   const sourceChecks = filterSourceChecksByEvidence(
     parseSourceChecks(parsed.sourceChecks),
@@ -218,56 +219,6 @@ function buildSystemPrompt() {
   ].join("\n");
 }
 
-function parseModelReview(content: string): RawModelReview {
-  try {
-    return JSON.parse(content) as RawModelReview;
-  } catch {
-    const json = content.match(/\{[\s\S]*\}/)?.[0];
-    if (!json) {
-      throw new Error("Ollama did not return JSON.");
-    }
-
-    return JSON.parse(json) as RawModelReview;
-  }
-}
-
-function parseVerdict(value: unknown) {
-  return value === "approve" || value === "reject" || value === "manual_review"
-    ? value
-    : "manual_review";
-}
-
-function parseSourceChecks(value: unknown): SourceCheck[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-
-      const record = item as Record<string, unknown>;
-      const url = typeof record.url === "string" ? record.url : "";
-      const domain = typeof record.domain === "string" ? record.domain : "";
-      const notes = typeof record.notes === "string" ? record.notes : "";
-
-      if (!url || !domain) {
-        return null;
-      }
-
-      return {
-        domain,
-        notes,
-        relevant: record.relevant === true,
-        sourceTier: parseSourceTier(record.sourceTier),
-        url,
-      } satisfies SourceCheck;
-    })
-    .filter((item): item is SourceCheck => item !== null);
-}
-
 function sourceChecksFromEvidence(evidence: EvidenceItem[]): SourceCheck[] {
   return evidence.map((item) => ({
     domain: item.domain,
@@ -320,69 +271,3 @@ function sourceQualityScore(sourceTier: SourceCheck["sourceTier"]) {
   }
 }
 
-function filterSourceChecksByEvidence(
-  sourceChecks: SourceCheck[],
-  evidence: EvidenceItem[],
-) {
-  if (evidence.length === 0) {
-    return [];
-  }
-
-  const evidenceUrls = new Set(evidence.map((item) => item.url));
-  const evidenceDomains = new Set(evidence.map((item) => item.domain));
-
-  return sourceChecks.filter(
-    (sourceCheck) =>
-      evidenceUrls.has(sourceCheck.url) || evidenceDomains.has(sourceCheck.domain),
-  );
-}
-
-function adjustModelScoresForEvidence(
-  scores: ReturnType<typeof normalizeScores>,
-  sourceChecks: SourceCheck[],
-  hardFlags: string[],
-) {
-  const hasPromptInjectionFlag = hardFlags.some((flag) =>
-    flag.includes("prompt_injection"),
-  );
-  const promptInjectionRisk = hasPromptInjectionFlag
-    ? scores.promptInjectionRisk
-    : Math.min(scores.promptInjectionRisk, 2);
-
-  if (sourceChecks.length === 0) {
-    return {
-      ...scores,
-      corroboration: Math.min(scores.corroboration, 1),
-      promptInjectionRisk,
-      sourceQuality: Math.min(scores.sourceQuality, 1),
-    };
-  }
-
-  return { ...scores, promptInjectionRisk };
-}
-
-function parseSourceTier(value: unknown) {
-  if (
-    value === "primary" ||
-    value === "major_news" ||
-    value === "specialist" ||
-    value === "ugc" ||
-    value === "suspicious" ||
-    value === "unreachable" ||
-    value === "unknown"
-  ) {
-    return value;
-  }
-
-  return "unknown";
-}
-
-function arrayOfStrings(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function unique(values: string[]) {
-  return Array.from(new Set(values));
-}

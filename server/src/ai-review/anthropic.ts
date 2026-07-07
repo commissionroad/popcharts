@@ -1,6 +1,16 @@
 import type { AiReviewConfig } from "./config";
 import { MARKET_REVIEW_OUTPUT_CONTRACT, MARKET_REVIEW_POLICY } from "./policy";
 import { normalizeScores, sourceTierForDomain } from "./scoring";
+import {
+  adjustModelScoresForEvidence,
+  arrayOfStrings,
+  filterSourceChecksByEvidence,
+  parseModelReview,
+  parseSourceChecks,
+  parseVerdict,
+  unique,
+  type RawModelReview,
+} from "./response-parsing";
 import type {
   EvidenceItem,
   InternetAccessMode,
@@ -83,14 +93,6 @@ type AnthropicTool =
       type: "web_fetch_20250910";
     };
 
-type RawModelReview = {
-  hardFlags?: unknown;
-  reasons?: unknown;
-  scores?: unknown;
-  sourceChecks?: unknown;
-  verdict?: unknown;
-};
-
 /**
  * An Anthropic policy finding plus the evidence extracted from Claude's own
  * web search/fetch tool results and citations, and the model id that actually
@@ -142,7 +144,7 @@ export async function reviewWithAnthropic({
     tools: buildAnthropicTools({ config, mode, request }),
   });
   const content = response.content ?? [];
-  const parsed = parseModelReview(collectText(content));
+  const parsed = parseModelReview(collectText(content), "Anthropic");
   const evidence = evidenceFromContent(content);
   const sourceChecks = filterSourceChecksByEvidence(
     parseSourceChecks(parsed.sourceChecks),
@@ -461,128 +463,8 @@ function isWebFetchResult(value: unknown): value is AnthropicWebFetchResult {
   );
 }
 
-function parseModelReview(content: string): RawModelReview {
-  try {
-    return JSON.parse(content) as RawModelReview;
-  } catch {
-    const json = content.match(/\{[\s\S]*\}/)?.[0];
-    if (!json) {
-      throw new Error("Anthropic did not return JSON.");
-    }
-
-    return JSON.parse(json) as RawModelReview;
-  }
-}
-
-function parseVerdict(value: unknown) {
-  return value === "approve" || value === "reject" || value === "manual_review"
-    ? value
-    : "manual_review";
-}
-
-function parseSourceChecks(value: unknown): SourceCheck[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-
-      const record = item as Record<string, unknown>;
-      const url = typeof record.url === "string" ? record.url : "";
-      const domain = typeof record.domain === "string" ? record.domain : "";
-      const notes = typeof record.notes === "string" ? record.notes : "";
-
-      if (!url || !domain) {
-        return null;
-      }
-
-      return {
-        domain,
-        notes,
-        relevant: record.relevant === true,
-        sourceTier: parseSourceTier(record.sourceTier),
-        url,
-      } satisfies SourceCheck;
-    })
-    .filter((item): item is SourceCheck => item !== null);
-}
-
-function filterSourceChecksByEvidence(
-  sourceChecks: SourceCheck[],
-  evidence: EvidenceItem[],
-) {
-  if (evidence.length === 0) {
-    return [];
-  }
-
-  const evidenceUrls = new Set(evidence.map((item) => item.url));
-  const evidenceDomains = new Set(evidence.map((item) => item.domain));
-
-  return sourceChecks.filter(
-    (sourceCheck) =>
-      evidenceUrls.has(sourceCheck.url) ||
-      evidenceDomains.has(sourceCheck.domain),
-  );
-}
-
-function adjustModelScoresForEvidence(
-  scores: ReturnType<typeof normalizeScores>,
-  sourceChecks: SourceCheck[],
-  hardFlags: string[],
-) {
-  const hasPromptInjectionFlag = hardFlags.some((flag) =>
-    flag.includes("prompt_injection"),
-  );
-  const promptInjectionRisk = hasPromptInjectionFlag
-    ? scores.promptInjectionRisk
-    : Math.min(scores.promptInjectionRisk, 2);
-
-  if (sourceChecks.length === 0) {
-    return {
-      ...scores,
-      corroboration: Math.min(scores.corroboration, 1),
-      promptInjectionRisk,
-      sourceQuality: Math.min(scores.sourceQuality, 1),
-    };
-  }
-
-  return { ...scores, promptInjectionRisk };
-}
-
-function parseSourceTier(value: unknown) {
-  if (
-    value === "primary" ||
-    value === "major_news" ||
-    value === "specialist" ||
-    value === "ugc" ||
-    value === "suspicious" ||
-    value === "unreachable" ||
-    value === "unknown"
-  ) {
-    return value;
-  }
-
-  return "unknown";
-}
-
-function arrayOfStrings(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
 function domainFromUrl(value?: string) {
   return parseHttpUrl(value)?.hostname.toLowerCase();
-}
-
-function unique(values: Array<string | undefined>) {
-  return Array.from(
-    new Set(values.filter((value): value is string => Boolean(value))),
-  );
 }
 
 function parseHttpUrl(value?: string) {
