@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 // solhint-disable use-natspec
 
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
+import {CreationFeeVault} from "../../contracts/CreationFeeVault.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
 import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
@@ -307,7 +308,7 @@ contract PregradManagerTest is BaseTest {
       params.bypassAiResolution
     );
     vm.expectEmit(true, true, true, true, address(manager));
-    emit PregradManager.MarketCreationFeePaid(1, publicCreator, WAD);
+    emit CreationFeeVault.MarketCreationFeePaid(1, publicCreator, WAD);
 
     vm.prank(publicCreator);
     uint256 marketId = manager.createMarket{value: WAD}(params);
@@ -319,30 +320,30 @@ contract PregradManagerTest is BaseTest {
 
     vm.prank(publicCreator);
     vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, 0)
+      abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, WAD, 0)
     );
     manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.prank(publicCreator);
     vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, WAD, WAD + 1)
+      abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, WAD, WAD + 1)
     );
     manager.createMarket{value: WAD + 1}(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.expectRevert(
       abi.encodeWithSelector(
-        PregradManager.CreationFeeWithdrawalExceedsBalance.selector,
+        CreationFeeVault.CreationFeeWithdrawalExceedsBalance.selector,
         WAD,
         WAD + 1
       )
     );
     manager.withdrawCreationFees(payable(feeRecipient), WAD + 1);
 
-    vm.expectRevert(PregradManager.InvalidCreationFeeRecipient.selector);
+    vm.expectRevert(CreationFeeVault.InvalidCreationFeeRecipient.selector);
     manager.withdrawCreationFees(payable(address(0)), WAD);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit PregradManager.CreationFeesWithdrawn(feeRecipient, WAD);
+    emit CreationFeeVault.CreationFeesWithdrawn(feeRecipient, WAD);
     manager.withdrawCreationFees(payable(feeRecipient), WAD);
 
     assertEq(manager.collectedCreationFees(), 0);
@@ -653,7 +654,7 @@ contract PregradManagerTest is BaseTest {
     manager.setTrustedCreator(partner, true);
     vm.prank(partner);
     vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.InvalidMarketCreationFee.selector, 0, WAD)
+      abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, 0, WAD)
     );
     manager.createMarket{value: WAD}(_defaultMarketParams(_defaultMetadataHash()));
   }

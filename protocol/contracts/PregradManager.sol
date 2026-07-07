@@ -8,12 +8,13 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPostgradAdapter} from "./postgrad/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
+import {CreationFeeVault} from "./CreationFeeVault.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
 /// @title PregradManager
 /// @author Pop Charts
 /// @notice Singleton manager for all Pop Charts pre-graduation markets.
-contract PregradManager is Ownable, ReentrancyGuard {
+contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   using SafeERC20 for IERC20;
 
   /// @notice Challenge period used after an optimistic clearing root is submitted.
@@ -75,20 +76,6 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error MarketCreationPaused();
   /// @notice Reverts when owner configuration targets the zero account.
   error InvalidTrustedCreator();
-  /// @notice Reverts when owner fee withdrawal targets the zero account.
-  error InvalidCreationFeeRecipient();
-  /// @notice Reverts when a market creation transaction sends the wrong native fee.
-  /// @param expected Native fee required for the creator.
-  /// @param received Native value sent with the transaction.
-  error InvalidMarketCreationFee(uint256 expected, uint256 received);
-  /// @notice Reverts when owner fee withdrawal exceeds collected fees.
-  /// @param available Collected fees available for withdrawal.
-  /// @param requested Fee amount requested by the owner.
-  error CreationFeeWithdrawalExceedsBalance(uint256 available, uint256 requested);
-  /// @notice Reverts when native fee withdrawal fails.
-  /// @param recipient Account that should have received the fees.
-  /// @param amount Fee amount attempted.
-  error CreationFeeWithdrawalFailed(address recipient, uint256 amount);
   /// @notice Reverts when a receipt is placed or quoted with zero shares.
   error InvalidShares();
   /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
@@ -224,17 +211,6 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @param paused True when new market creation is paused.
   event MarketCreationPausedUpdated(bool paused);
 
-  /// @notice Emitted when a public creator pays the market creation fee.
-  /// @param marketId Market whose creation paid the fee.
-  /// @param creator Account that paid the fee.
-  /// @param amount Exact native amount collected as the fee.
-  event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
-
-  /// @notice Emitted when the owner withdraws collected market creation fees.
-  /// @param recipient Account receiving the fees.
-  /// @param amount Fee amount withdrawn.
-  event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
-
   /// @notice Emitted when a locked pre-graduation receipt is placed.
   /// @param receiptId Canonical receipt ID.
   /// @param marketId Market that owns the receipt.
@@ -361,7 +337,6 @@ contract PregradManager is Ownable, ReentrancyGuard {
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
   mapping(uint256 marketId => address) private _postgradAdapters;
   mapping(address account => bool trusted) private _trustedCreators;
-  uint256 private _collectedCreationFees;
 
   /// @notice Returns true when new market creation is paused.
   bool public marketCreationPaused;
@@ -486,22 +461,7 @@ contract PregradManager is Ownable, ReentrancyGuard {
     address payable recipient,
     uint256 amount
   ) external onlyOwner nonReentrant {
-    if (recipient == address(0)) {
-      revert InvalidCreationFeeRecipient();
-    }
-
-    uint256 available = _collectedCreationFees;
-    if (amount > available) {
-      revert CreationFeeWithdrawalExceedsBalance(available, amount);
-    }
-
-    _collectedCreationFees = available - amount;
-    (bool success, ) = recipient.call{value: amount}("");
-    if (!success) {
-      revert CreationFeeWithdrawalFailed(recipient, amount);
-    }
-
-    emit CreationFeesWithdrawn(recipient, amount);
+    _withdrawCreationFees(recipient, amount);
   }
 
   /// @notice Returns the next market ID that will be assigned.
@@ -594,12 +554,6 @@ contract PregradManager is Ownable, ReentrancyGuard {
   /// @return Native fee amount; zero for trusted creators.
   function marketCreationFee(address creator) public view returns (uint256) {
     return isTrustedCreator(creator) ? 0 : MARKET_CREATION_FEE;
-  }
-
-  /// @notice Returns collected native market creation fees not yet withdrawn.
-  /// @return Fee amount collected and not yet withdrawn.
-  function collectedCreationFees() external view returns (uint256) {
-    return _collectedCreationFees;
   }
 
   /// @notice Returns the optimistic clearing root stored for a market.
@@ -701,16 +655,6 @@ contract PregradManager is Ownable, ReentrancyGuard {
       quote.rHigh,
       sequence
     );
-  }
-
-  /// @notice Validates and accounts for the native market creation fee.
-  /// @param amount Exact native fee amount required.
-  function _collectCreationFee(uint256 amount) private {
-    if (msg.value != amount) {
-      revert InvalidMarketCreationFee(amount, msg.value);
-    }
-
-    _collectedCreationFees += amount;
   }
 
   /// @notice Locks an active market's receipt book while the offchain service computes clearing.
