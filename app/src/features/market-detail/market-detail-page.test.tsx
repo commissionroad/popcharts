@@ -199,17 +199,13 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("cannot render a market whose graduation target is zero", () => {
-    // The graduate action correctly stays hidden for a zero target, but the
-    // page still crashes because GraduationBar rejects non-positive targets.
-    // Documented here as observed behavior; likely a bug worth fixing.
-    suppressRenderErrors();
+  it("renders a market whose graduation target is zero without crashing", () => {
+    render(<MarketDetailPage market={graduatableMarket({ graduationTargetUsd: 0 })} />);
 
-    expect(() =>
-      render(
-        <MarketDetailPage market={graduatableMarket({ graduationTargetUsd: 0 })} />
-      )
-    ).toThrow("targetUsd must be positive");
+    expect(screen.getByText("/ target pending")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Graduate market" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows the dev settings menu when dev tools are enabled", () => {
@@ -226,10 +222,6 @@ function offChainMarket(): Market {
   delete market.chainId;
 
   return market;
-}
-
-function suppressRenderErrors() {
-  vi.spyOn(console, "error").mockImplementation(() => undefined);
 }
 
 function graduatableMarket(overrides: Partial<Market> = {}): Market {
