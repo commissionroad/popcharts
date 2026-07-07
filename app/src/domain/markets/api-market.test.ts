@@ -193,6 +193,28 @@ describe("apiMarketToMarket", () => {
     expect(converted.resolutionUrl).toBe("https://example.com/source");
   });
 
+  it("carries trimmed creator outcome labels and drops blank ones", () => {
+    const labeled = apiMarketToMarket(
+      apiMarket({
+        metadata: {
+          ...apiMarketMetadata(),
+          outcomeNo: "  Egypt ",
+          outcomeYes: "Argentina",
+        },
+      })
+    );
+    const blank = apiMarketToMarket(
+      apiMarket({
+        metadata: { ...apiMarketMetadata(), outcomeNo: "   ", outcomeYes: "" },
+      })
+    );
+
+    expect(labeled.outcomeYes).toBe("Argentina");
+    expect(labeled.outcomeNo).toBe("Egypt");
+    expect(blank).not.toHaveProperty("outcomeYes");
+    expect(blank).not.toHaveProperty("outcomeNo");
+  });
+
   it("treats unparseable numeric strings as zero", () => {
     const converted = apiMarketToMarket(apiMarket({ receiptCount: "not-a-bigint" }));
 

@@ -18,6 +18,18 @@ describe("SegmentedControl", () => {
     expect(onChange).toHaveBeenCalledWith("no");
   });
 
+  it("exposes the selection to assistive tech, not just by color", () => {
+    render(<SegmentedControl onChange={vi.fn()} options={sides()} value="yes" />);
+
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "YES", pressed: true })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "NO", pressed: false })
+    ).toBeInTheDocument();
+  });
+
   it("still reports a click on the already selected option", () => {
     const onChange = vi.fn();
     render(<SegmentedControl onChange={onChange} options={sides()} value="yes" />);

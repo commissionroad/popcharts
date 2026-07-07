@@ -1,5 +1,10 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  ComponentProps,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+} from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -52,10 +57,30 @@ export function Button({
   );
 
   if (href) {
+    // Anchors never match :disabled, so a disabled link needs the blocking
+    // done explicitly: no tab stop, no pointer events, and a suppressed
+    // click for good measure. The button-typed rest props share the DOM
+    // attribute surface Link accepts; the cast reconciles the two prop types.
+    const anchorProps = props as unknown as Omit<
+      ComponentProps<typeof Link>,
+      "children" | "href"
+    >;
+
     return (
       <Link
+        {...anchorProps}
+        {...(disabled
+          ? {
+              onClick: (event: ReactMouseEvent<HTMLAnchorElement>) =>
+                event.preventDefault(),
+              tabIndex: -1,
+            }
+          : {})}
         aria-disabled={disabled || undefined}
-        className={buttonClassName}
+        className={cn(
+          buttonClassName,
+          disabled ? "pointer-events-none opacity-45" : null
+        )}
         href={href}
       >
         {leftIcon}

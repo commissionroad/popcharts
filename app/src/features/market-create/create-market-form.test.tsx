@@ -54,11 +54,19 @@ describe("CreateMarketForm", () => {
     fireEvent.change(screen.getByLabelText(/Resolution sources/), {
       target: { value: "CNN" },
     });
+    fireEvent.change(screen.getByLabelText(/YES label/), {
+      target: { value: "Argentina" },
+    });
+    fireEvent.change(screen.getByLabelText(/NO label/), {
+      target: { value: "Egypt" },
+    });
     fireEvent.change(screen.getByLabelText("Opening YES probability"), {
       target: { value: "64" },
     });
 
     expect(state.updateDraft).toHaveBeenCalledWith("question", "Will it pop twice?");
+    expect(state.updateDraft).toHaveBeenCalledWith("outcomeYes", "Argentina");
+    expect(state.updateDraft).toHaveBeenCalledWith("outcomeNo", "Egypt");
     expect(state.updateDraft).toHaveBeenCalledWith("category", "Politics");
     expect(state.updateDraft).toHaveBeenCalledWith("description", "Context.");
     expect(state.updateDraft).toHaveBeenCalledWith(

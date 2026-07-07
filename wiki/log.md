@@ -31,3 +31,11 @@ misses them). Notable findings filed on pages:
 Follow-ups for next lint: verify whitepaper Example A/B golden tests in the
 test suite; check app MarketStatus vs ADR 0003's frozen ladder; decide
 whether operator-auth deserves its own concept page once implemented.
+
+## [2026-07-07] ingest | app component inventory — PriceCurve rework + outcome labels
+Pages: ~summaries/app-component-inventory.md
+Notes: PriceCurve became a dual-series YES/NO history chart (trailing-window
+pills 1H-1M/ALL, quarter gridlines with axis values, crosshair hover);
+OutcomeButton gained an optional creator outcome label. Backed by new optional
+outcomeYes/outcomeNo market-metadata fields flowing creation form -> canonical
+serialization -> indexer/API -> Market type.

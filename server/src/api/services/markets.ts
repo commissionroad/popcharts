@@ -158,6 +158,8 @@ export async function upsertMarketMetadata(
     description: metadata.description,
     metadataCreatedAt: metadata.createdAt,
     metadataHash: metadata.metadataHash,
+    outcomeNo: metadata.outcomeNo ?? null,
+    outcomeYes: metadata.outcomeYes ?? null,
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
     resolutionSources: metadata.resolutionSources ?? [],
@@ -377,6 +379,8 @@ function serializeMarketMetadataRow(
     description: metadata.description,
     metadataCreatedAt: metadata.metadataCreatedAt,
     metadataHash: metadata.metadataHash,
+    ...(metadata.outcomeNo ? { outcomeNo: metadata.outcomeNo } : {}),
+    ...(metadata.outcomeYes ? { outcomeYes: metadata.outcomeYes } : {}),
     question: metadata.question,
     resolutionCriteria: metadata.resolutionCriteria,
     ...(metadata.resolutionSources.length > 0

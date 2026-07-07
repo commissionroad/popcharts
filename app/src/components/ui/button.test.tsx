@@ -96,16 +96,38 @@ describe("Button", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("marks a disabled link with aria-disabled", () => {
+  it("forwards handlers and attributes to the link variant", () => {
+    const onClick = vi.fn((event: { preventDefault: () => void }) =>
+      event.preventDefault()
+    );
     render(
-      <Button disabled href="/create">
+      <Button aria-label="Create a market" href="/create" onClick={onClick}>
         Pop a market
       </Button>
     );
+    const link = screen.getByRole("link", { name: "Create a market" });
 
-    expect(screen.getByRole("link", { name: "Pop a market" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
+    fireEvent.click(link);
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a disabled link out of the interaction order entirely", () => {
+    const onClick = vi.fn();
+    render(
+      <Button disabled href="/create" onClick={onClick}>
+        Pop a market
+      </Button>
     );
+    const link = screen.getByRole("link", { name: "Pop a market" });
+
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("tabindex", "-1");
+    expect(link).toHaveClass("pointer-events-none");
+
+    // Even a programmatic click must not reach the caller's handler.
+    fireEvent.click(link);
+
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

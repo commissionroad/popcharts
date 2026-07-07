@@ -5,7 +5,7 @@ import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import type { Market } from "@/domain/markets/types";
+import { marketSideLabel, type Market } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 
 import { getMaxPresetAmount } from "./receipt-action";
@@ -16,11 +16,6 @@ import {
   QuotePreview,
 } from "./receipt-ticket-panels";
 import { presetAmounts, useReceiptTicketState } from "./use-receipt-ticket-state";
-
-const sideOptions = [
-  { label: "YES", value: "yes" },
-  { label: "NO", value: "no" },
-];
 
 const marketStatusLabels: Record<Market["status"], string> = {
   under_review: "under review",
@@ -88,7 +83,10 @@ export function ReceiptTicket({ market }: { market: Market }) {
         accentBy={(value) => (value === "yes" ? "var(--yes)" : "var(--no)")}
         full
         onChange={selectSide}
-        options={sideOptions}
+        options={[
+          { label: marketSideLabel(market, "yes"), value: "yes" },
+          { label: marketSideLabel(market, "no"), value: "no" },
+        ]}
         value={side}
       />
 

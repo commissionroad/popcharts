@@ -84,6 +84,31 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
           value={draft.description}
         />
 
+        <div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              error={visibleErrors.outcomeYes}
+              id="outcome-yes"
+              label="YES label"
+              onChange={(event) => updateDraft("outcomeYes", event.target.value)}
+              placeholder="YES"
+              value={draft.outcomeYes}
+            />
+            <Field
+              error={visibleErrors.outcomeNo}
+              id="outcome-no"
+              label="NO label"
+              onChange={(event) => updateDraft("outcomeNo", event.target.value)}
+              placeholder="NO"
+              value={draft.outcomeNo}
+            />
+          </div>
+          <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+            Optional display names for the outcomes, like team names. Resolution still
+            follows YES/NO.
+          </p>
+        </div>
+
         <Field
           error={visibleErrors.resolutionCriteria}
           hint="This text should stand on its own even if a source link changes."
