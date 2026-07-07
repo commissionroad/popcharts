@@ -12,6 +12,7 @@ on:
       - main
     paths-ignore:
       - app/**
+      - protocol/src/generated/pregrad-manager.ts
       - .github/workflows/app-ci.yml
 
 permissions: {}
