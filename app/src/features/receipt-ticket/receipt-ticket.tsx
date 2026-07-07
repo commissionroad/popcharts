@@ -2,7 +2,7 @@
 
 import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { usePublicClient, useWalletClient } from "wagmi";
 
@@ -18,8 +18,7 @@ import {
   type PlacedPregradReceipt,
 } from "@/domain/pregrad-trading/receipt-quote";
 import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
-import { erc20Abi } from "@/integrations/contracts/erc20";
-import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
+import { useContractMarketStatus } from "@/integrations/contracts/hooks/use-contract-market-status";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { cn } from "@/lib/cn";
 import { formatUsd } from "@/lib/format";
@@ -63,17 +62,6 @@ const marketStatusLabels: Record<Market["status"], string> = {
   resolved: "resolved",
 };
 
-type ContractTicketStatus = {
-  balance: bigint | null;
-  error: string | null;
-  loading: boolean;
-  marketExists: boolean | null;
-};
-
-type ContractTicketReadResult = Omit<ContractTicketStatus, "loading"> & {
-  requestKey: string | null;
-};
-
 /**
  * The pre-graduation trade ticket for one market: side and budget entry, a
  * live quote preview, and receipt placement against the devchain
@@ -91,13 +79,6 @@ export function ReceiptTicket({ market }: { market: Market }) {
   const [placedReceipt, setPlacedReceipt] = useState<PlacedPregradReceipt | null>(null);
   const [statusRefreshKey, setStatusRefreshKey] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [contractReadResult, setContractReadResult] =
-    useState<ContractTicketReadResult>({
-      balance: null,
-      error: null,
-      marketExists: null,
-      requestKey: null,
-    });
   const environment = useMemo(() => resolveTradingEnvironment(market), [market]);
   const contractChainId =
     environment.kind === "contract" ? environment.config.chainId : undefined;
@@ -106,38 +87,14 @@ export function ReceiptTicket({ market }: { market: Market }) {
     environment.kind === "contract" ? environment.marketId : null;
   const publicClient = usePublicClient({ chainId: contractChainId });
   const { data: walletClient } = useWalletClient({ chainId: contractChainId });
-  const contractStatusRequestKey =
-    contractConfig && contractMarketId !== null && wallet.address && publicClient
-      ? [
-          contractConfig.chainId,
-          contractConfig.collateralAddress,
-          contractConfig.pregradManagerAddress,
-          contractMarketId.toString(),
-          wallet.address,
-          statusRefreshKey,
-        ].join(":")
-      : null;
-  const contractStatus: ContractTicketStatus =
-    contractStatusRequestKey === null
-      ? {
-          balance: null,
-          error: null,
-          loading: false,
-          marketExists: null,
-        }
-      : contractReadResult.requestKey === contractStatusRequestKey
-        ? {
-            balance: contractReadResult.balance,
-            error: contractReadResult.error,
-            loading: false,
-            marketExists: contractReadResult.marketExists,
-          }
-        : {
-            balance: null,
-            error: null,
-            loading: true,
-            marketExists: null,
-          };
+  const contractStatus = useContractMarketStatus({
+    config: contractConfig,
+    formatError: getReceiptPlacementErrorMessage,
+    marketId: contractMarketId,
+    publicClient,
+    refreshKey: statusRefreshKey,
+    walletAddress: wallet.address,
+  });
   const amountError = getReceiptAmountError(amount);
   const numericAmount = parseReceiptAmount(amount);
   const quote = useMemo(
@@ -195,69 +152,6 @@ export function ReceiptTicket({ market }: { market: Market }) {
     wallet,
     walletClientReady: Boolean(walletClient),
   });
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (
-      !contractStatusRequestKey ||
-      !contractConfig ||
-      contractMarketId === null ||
-      !wallet.address ||
-      !publicClient
-    ) {
-      return;
-    }
-
-    Promise.all([
-      publicClient.readContract({
-        abi: erc20Abi,
-        address: contractConfig.collateralAddress,
-        functionName: "balanceOf",
-        args: [wallet.address as `0x${string}`],
-      }),
-      publicClient.readContract({
-        abi: pregradManagerAbi,
-        address: contractConfig.pregradManagerAddress,
-        functionName: "marketExists",
-        args: [contractMarketId],
-      }),
-    ])
-      .then(([balance, marketExists]) => {
-        if (!isActive) {
-          return;
-        }
-
-        setContractReadResult({
-          balance,
-          error: null,
-          marketExists,
-          requestKey: contractStatusRequestKey,
-        });
-      })
-      .catch((error: unknown) => {
-        if (!isActive) {
-          return;
-        }
-
-        setContractReadResult({
-          balance: null,
-          error: getReceiptPlacementErrorMessage(error),
-          marketExists: null,
-          requestKey: contractStatusRequestKey,
-        });
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [
-    contractConfig,
-    contractMarketId,
-    contractStatusRequestKey,
-    publicClient,
-    wallet.address,
-  ]);
 
   function updateAmount(value: string) {
     setAmount(value.replace(/[^0-9.]/g, ""));

@@ -2,7 +2,7 @@
 
 import { ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
-import { usePublicClient, useReadContract, useWalletClient } from "wagmi";
+import { usePublicClient, useWalletClient } from "wagmi";
 
 import { Field } from "@/components/ui/field";
 import {
@@ -25,7 +25,7 @@ import {
   marketCreationMode,
   marketCreationSigner,
 } from "@/integrations/contracts/config";
-import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
+import { useTrustedCreatorStatus } from "@/integrations/contracts/hooks/use-trusted-creator-status";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { getErrorMessage } from "@/lib/error-handling";
 import { formatB, formatUsdWhole } from "@/lib/format";
@@ -68,18 +68,8 @@ export function CreateMarketForm({ initialNow }: { initialNow: string }) {
   const { data: walletClient } = useWalletClient({
     chainId: contractConfig?.chainId,
   });
-  const trustedCreatorRead = useReadContract({
-    abi: pregradManagerAbi,
-    address: contractConfig?.pregradManagerAddress,
-    args: wallet.address ? [wallet.address as `0x${string}`] : undefined,
-    chainId: contractConfig?.chainId,
-    functionName: "isTrustedCreator",
-    query: {
-      enabled:
-        marketCreationMode === "devchain" &&
-        marketCreationSigner === "wallet" &&
-        Boolean(contractConfig?.pregradManagerAddress && wallet.address),
-    },
+  const trustedCreatorRead = useTrustedCreatorStatus({
+    walletAddress: wallet.address,
   });
   const [advanced, setAdvanced] = useState(false);
   const [draft, setDraft] = useState<CreateMarketDraft>(() =>
