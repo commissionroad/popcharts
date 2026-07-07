@@ -14,13 +14,16 @@ interface IPostgradAdapter {
   /// @param retainedCollateral Collateral amount retained for the postgrad market.
   /// @param completeSetCount Outcome-token capacity represented by retained collateral.
   /// @return postgradMarket Address of the prepared postgrad market.
+  /// @return outcomeCapacity Outcome-token capacity actually funded in the prepared
+  ///   market. Callers must not trust preparation silently: PregradManager reverts
+  ///   graduation unless this equals the clearing root's completeSetCount.
   function prepareMarket(
     uint256 marketId,
     address collateral,
     bytes32 metadataHash,
     uint256 retainedCollateral,
     uint256 completeSetCount
-  ) external returns (address postgradMarket);
+  ) external returns (address postgradMarket, uint256 outcomeCapacity);
 
   /// @notice Mints retained postgrad outcome tokens to a finalized receipt owner.
   /// @param marketId Pregrad market ID whose finalized claim is being distributed.

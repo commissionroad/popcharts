@@ -8,6 +8,7 @@ import {PregradManager} from "../../contracts/PregradManager.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
 import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
 import {CompleteSetPostgradAdapter} from "../../contracts/postgrad/CompleteSetPostgradAdapter.sol";
+import {MisreportingPostgradAdapter} from "./mocks/MisreportingPostgradAdapter.sol";
 import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
 import {BaseTest} from "./BaseTest.sol";
@@ -1135,6 +1136,21 @@ contract PregradManagerTest is BaseTest {
     assertEq(postgradMarket.noToken().totalSupply(), 0);
   }
 
+  function test_FinalizeGraduationRevertsWhenAdapterMisreportsCapacity() public {
+    SubmittedClearingFixture memory fixture = _submitSingleReceiptClearingRoot();
+    MisreportingPostgradAdapter adapter = new MisreportingPostgradAdapter(1);
+
+    vm.warp(fixture.challengeDeadline);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.PostgradCapacityMismatch.selector,
+        fixture.matchedMarketCap,
+        fixture.matchedMarketCap - 1
+      )
+    );
+    manager.finalizeGraduation(fixture.marketId, address(adapter));
+  }
   function test_FinalizeGraduationRejectsMissingRootAndWrongStatus() public {
     CompleteSetPostgradAdapter adapter = _deployPostgradAdapter();
     uint256 activeMarketId = _createGraduatableMarket();

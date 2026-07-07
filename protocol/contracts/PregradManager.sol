@@ -167,6 +167,8 @@ contract PregradManager is Ownable, ReentrancyGuard {
   error ClearingChallengeActive(uint256 marketId, uint64 challengeDeadline);
   /// @notice Reverts when finalization receives the zero postgrad adapter address.
   error InvalidPostgradAdapter();
+  /// @notice The adapter reported an outcome capacity that does not match the clearing root.
+  error PostgradCapacityMismatch(uint256 expected, uint256 actual);
   /// @notice Reverts when a receipt has already been settled.
   /// @param receiptId Receipt that is no longer active.
   error ReceiptAlreadyClaimed(uint256 receiptId);
@@ -802,13 +804,17 @@ contract PregradManager is Ownable, ReentrancyGuard {
     IERC20 collateralToken = IERC20(market.config.collateral);
     uint256 balanceBefore = collateralToken.balanceOf(address(this));
     collateralToken.forceApprove(postgradAdapter, clearingRoot.retainedCostTotal);
-    address postgradMarket = IPostgradAdapter(postgradAdapter).prepareMarket(
-      marketId,
-      market.config.collateral,
-      market.config.metadataHash,
-      clearingRoot.retainedCostTotal,
-      clearingRoot.completeSetCount
-    );
+    (address postgradMarket, uint256 outcomeCapacity) = IPostgradAdapter(postgradAdapter)
+      .prepareMarket(
+        marketId,
+        market.config.collateral,
+        market.config.metadataHash,
+        clearingRoot.retainedCostTotal,
+        clearingRoot.completeSetCount
+      );
+    if (outcomeCapacity != clearingRoot.completeSetCount) {
+      revert PostgradCapacityMismatch(clearingRoot.completeSetCount, outcomeCapacity);
+    }
     collateralToken.forceApprove(postgradAdapter, 0);
     uint256 balanceAfter = collateralToken.balanceOf(address(this));
     uint256 transferred = balanceBefore > balanceAfter ? balanceBefore - balanceAfter : 0;
