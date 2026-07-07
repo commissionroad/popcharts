@@ -5,7 +5,9 @@
   "type": "module",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pregrad-manager": "./src/generated/pregrad-manager.ts",
+    "./postgrad-venue": "./src/generated/postgrad-venue.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {

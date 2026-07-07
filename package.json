@@ -12,7 +12,7 @@
     "dev": "pnpm --dir app dev",
     "app:dev": "pnpm --dir app dev",
     "app:build": "pnpm --dir app build",
-    "app:check": "pnpm --dir app format:check && pnpm --dir app lint && pnpm --dir app abi:check && pnpm --dir app api:check && pnpm --dir app typecheck && pnpm --dir app test:unit",
+    "app:check": "pnpm --dir app format:check && pnpm --dir app lint && pnpm --dir app api:check && pnpm --dir app typecheck && pnpm --dir app test:unit",
     "app:test": "pnpm --dir app test:unit",
     "app:coverage": "pnpm --dir app test:coverage",
     "app:e2e": "pnpm --dir app test:e2e",

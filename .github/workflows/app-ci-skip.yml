@@ -12,7 +12,7 @@ on:
       - main
     paths-ignore:
       - app/**
-      - protocol/src/generated/pregrad-manager.ts
+      - protocol/src/**
       - server/generated/openapi.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
