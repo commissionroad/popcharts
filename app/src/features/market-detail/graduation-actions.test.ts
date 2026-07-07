@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { graduateMarketAction } from "./graduation-actions";
+import { forceGraduateMarketAction, graduateMarketAction } from "./graduation-actions";
 
 const mocks = vi.hoisted(() => ({
+  requestDevMarketGraduation: vi.fn(),
   requestMarketGraduation: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -12,12 +13,18 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/domain/markets/queries", () => ({
+  requestDevMarketGraduation: mocks.requestDevMarketGraduation,
   requestMarketGraduation: mocks.requestMarketGraduation,
 }));
 
 beforeEach(() => {
+  mocks.requestDevMarketGraduation.mockReset();
   mocks.requestMarketGraduation.mockReset();
   mocks.revalidatePath.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("graduateMarketAction", () => {
@@ -33,6 +40,55 @@ describe("graduateMarketAction", () => {
     expect(mocks.requestMarketGraduation).toHaveBeenCalledWith("31337:9");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/markets/31337:9");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/markets/31337:9/graduation");
+  });
+
+  it("forces graduation with dev liquidity top-ups", async () => {
+    mocks.requestDevMarketGraduation.mockResolvedValueOnce(undefined);
+
+    const result = await forceGraduateMarketAction("31337:9");
+
+    expect(result).toEqual({
+      message: "Forced graduation settled onchain.",
+      status: "success",
+    });
+    expect(mocks.requestDevMarketGraduation).toHaveBeenCalledWith("31337:9", {
+      force: true,
+    });
+  });
+
+  it("surfaces force graduation failures", async () => {
+    mocks.requestDevMarketGraduation.mockRejectedValueOnce(
+      new Error("Dev market graduation is disabled.")
+    );
+
+    const result = await forceGraduateMarketAction("31337:9");
+
+    expect(result).toEqual({
+      message: "Dev market graduation is disabled.",
+      status: "error",
+    });
+  });
+
+  it("falls back to generic copy when a forced failure is not an Error", async () => {
+    mocks.requestDevMarketGraduation.mockRejectedValueOnce("boom");
+
+    const result = await forceGraduateMarketAction("31337:9");
+
+    expect(result).toEqual({
+      message: "Could not graduate this market.",
+      status: "error",
+    });
+  });
+
+  it("drives the dev graduation flow when dev tools are enabled", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED", "true");
+    mocks.requestDevMarketGraduation.mockResolvedValueOnce(undefined);
+
+    const result = await graduateMarketAction("31337:9");
+
+    expect(result.status).toBe("success");
+    expect(mocks.requestDevMarketGraduation).toHaveBeenCalledWith("31337:9");
+    expect(mocks.requestMarketGraduation).not.toHaveBeenCalled();
   });
 
   it("surfaces the graduation request's error message", async () => {

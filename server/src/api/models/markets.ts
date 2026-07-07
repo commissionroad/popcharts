@@ -43,6 +43,12 @@ export type GraduationIneligibleReason =
   | "onchain_settlement_required"
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
+export type DevMarketGraduateIneligibleReason =
+  | "adapter_unconfigured"
+  | "below_threshold"
+  | "chain_status"
+  | "past_deadline"
+  | "wrong_status";
 export type ManualAiReviewIneligibleReason =
   "missing_metadata" | "wrong_status";
 
@@ -219,6 +225,45 @@ export const MarketAiReviewJobSchema = t.Object(
   { $id: "MarketAiReviewJob" },
 );
 
+/** One outcome-token pool on the bounded v4 venue. */
+export const MarketVenuePoolSchema = t.Object(
+  {
+    initialized: t.Boolean(),
+    outcomeTokenAddress: t.String(),
+    poolId: t.String(),
+    whitelisted: t.Boolean(),
+  },
+  { $id: "MarketVenuePool" },
+);
+
+/** Venue wiring for a graduated market's YES and NO outcome pools. */
+export const MarketVenueSchema = t.Object(
+  {
+    boundedHookAddress: t.String(),
+    live: t.Boolean(),
+    noPool: t.Ref(MarketVenuePoolSchema),
+    orderManagerAddress: t.String(),
+    poolManagerAddress: t.String(),
+    yesPool: t.Ref(MarketVenuePoolSchema),
+  },
+  { $id: "MarketVenue" },
+);
+
+/** Where a graduated market's matched exposure settled after handoff. */
+export const MarketPostgradSchema = t.Object(
+  {
+    adapterAddress: t.String(),
+    completeSetCount: t.String(),
+    finalizedAt: t.String(),
+    marketAddress: t.String(),
+    refundTotal: t.String(),
+    retainedCostTotal: t.String(),
+    transactionHash: t.String(),
+    venue: t.Optional(t.Ref(MarketVenueSchema)),
+  },
+  { $id: "MarketPostgrad" },
+);
+
 /** An indexed market projection, including optional metadata and AI review. */
 export const MarketSchema = t.Object(
   {
@@ -241,6 +286,7 @@ export const MarketSchema = t.Object(
     metadataHash: t.String(),
     noShares: t.String(),
     openingProbabilityWad: t.String(),
+    postgrad: t.Optional(t.Ref(MarketPostgradSchema)),
     receiptCount: t.String(),
     resolutionTime: t.String(),
     status: t.Ref(MarketStatusSchema),
@@ -377,6 +423,35 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   { $id: "DevMarketCloseIneligible" },
 );
 
+/** Result of a dev-only end-to-end market graduation. */
+export const DevMarketGraduateResponseSchema = t.Object(
+  {
+    market: t.Ref(MarketSchema),
+    postgrad: t.Ref(MarketPostgradSchema),
+    status: t.Literal("graduated"),
+    summary: t.Ref(GraduationSummarySchema),
+    transactionHashes: t.Array(t.String()),
+  },
+  { $id: "DevMarketGraduateResponse" },
+);
+
+/** Dev-only graduation refusal, with the reason. */
+export const DevMarketGraduateIneligibleSchema = t.Object(
+  {
+    message: t.String(),
+    market: t.Ref(MarketSchema),
+    reason: t.Union([
+      t.Literal("adapter_unconfigured"),
+      t.Literal("below_threshold"),
+      t.Literal("chain_status"),
+      t.Literal("past_deadline"),
+      t.Literal("wrong_status"),
+    ]),
+    status: t.Literal("ineligible"),
+  },
+  { $id: "DevMarketGraduateIneligible" },
+);
+
 /** Operator request to enqueue a manual AI review. */
 export const ManualAiReviewRequestSchema = t.Object(
   {
@@ -458,6 +533,15 @@ export type DevMarketCloseResponse = Static<
 >;
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
+>;
+export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
+export type MarketVenueResponse = Static<typeof MarketVenueSchema>;
+export type MarketPostgradResponse = Static<typeof MarketPostgradSchema>;
+export type DevMarketGraduateResponse = Static<
+  typeof DevMarketGraduateResponseSchema
+>;
+export type DevMarketGraduateIneligibleResponse = Static<
+  typeof DevMarketGraduateIneligibleSchema
 >;
 export type ManualAiReviewRequest = Static<typeof ManualAiReviewRequestSchema>;
 export type ManualAiReviewEnqueuedResponse = Static<

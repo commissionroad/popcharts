@@ -5,6 +5,7 @@ import { MarketDevSettings } from "./market-dev-settings";
 
 const mocks = vi.hoisted(() => ({
   closePregradMarketAction: vi.fn(),
+  forceGraduateMarketAction: vi.fn(),
   refresh: vi.fn(),
 }));
 
@@ -16,14 +17,21 @@ vi.mock("./dev-market-actions", () => ({
   closePregradMarketAction: mocks.closePregradMarketAction,
 }));
 
+vi.mock("./graduation-actions", () => ({
+  forceGraduateMarketAction: mocks.forceGraduateMarketAction,
+}));
+
 beforeEach(() => {
   mocks.closePregradMarketAction.mockReset();
+  mocks.forceGraduateMarketAction.mockReset();
   mocks.refresh.mockReset();
 });
 
 describe("MarketDevSettings", () => {
   it("keeps the popover closed until the settings button is clicked", () => {
-    render(<MarketDevSettings canClosePregrad marketId="31337:9" />);
+    render(
+      <MarketDevSettings canClosePregrad canForceGraduate={false} marketId="31337:9" />
+    );
 
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 
@@ -37,7 +45,9 @@ describe("MarketDevSettings", () => {
   });
 
   it("reveals the close action only after dev settings are switched on", () => {
-    render(<MarketDevSettings canClosePregrad marketId="31337:9" />);
+    render(
+      <MarketDevSettings canClosePregrad canForceGraduate={false} marketId="31337:9" />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
 
@@ -54,7 +64,13 @@ describe("MarketDevSettings", () => {
   });
 
   it("never offers the close action when the market cannot be closed", () => {
-    render(<MarketDevSettings canClosePregrad={false} marketId="31337:9" />);
+    render(
+      <MarketDevSettings
+        canClosePregrad={false}
+        canForceGraduate={false}
+        marketId="31337:9"
+      />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
     fireEvent.click(screen.getByRole("switch"));
@@ -64,13 +80,69 @@ describe("MarketDevSettings", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("force graduates the market and refreshes the route", async () => {
+    mocks.forceGraduateMarketAction.mockResolvedValueOnce({
+      message: "Forced graduation settled onchain.",
+      status: "success",
+    });
+
+    render(<MarketDevSettings canClosePregrad canForceGraduate marketId="31337:9" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: /Force graduate/ }));
+
+    expect(
+      await screen.findByText("Forced graduation settled onchain.")
+    ).toBeInTheDocument();
+    expect(mocks.forceGraduateMarketAction).toHaveBeenCalledWith("31337:9");
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  });
+
+  it("reports force graduation errors without refreshing", async () => {
+    mocks.forceGraduateMarketAction.mockResolvedValueOnce({
+      message: "Dev market graduation is disabled.",
+      status: "error",
+    });
+
+    render(<MarketDevSettings canClosePregrad canForceGraduate marketId="31337:9" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: /Force graduate/ }));
+
+    expect(
+      await screen.findByText("Dev market graduation is disabled.")
+    ).toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("hides the force graduate action off the pregrad side", () => {
+    render(
+      <MarketDevSettings
+        canClosePregrad={false}
+        canForceGraduate={false}
+        marketId="31337:9"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
+    fireEvent.click(screen.getByRole("switch"));
+
+    expect(
+      screen.queryByRole("button", { name: /Force graduate/ })
+    ).not.toBeInTheDocument();
+  });
+
   it("closes the market, reports success, and refreshes the route", async () => {
     mocks.closePregradMarketAction.mockResolvedValueOnce({
       message: "Closed for refunds.",
       status: "success",
     });
 
-    render(<MarketDevSettings canClosePregrad marketId="31337:9" />);
+    render(
+      <MarketDevSettings canClosePregrad canForceGraduate={false} marketId="31337:9" />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
     fireEvent.click(screen.getByRole("switch"));
@@ -89,7 +161,9 @@ describe("MarketDevSettings", () => {
       })
     );
 
-    render(<MarketDevSettings canClosePregrad marketId="31337:9" />);
+    render(
+      <MarketDevSettings canClosePregrad canForceGraduate={false} marketId="31337:9" />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
     fireEvent.click(screen.getByRole("switch"));
@@ -110,7 +184,9 @@ describe("MarketDevSettings", () => {
       status: "error",
     });
 
-    render(<MarketDevSettings canClosePregrad marketId="31337:9" />);
+    render(
+      <MarketDevSettings canClosePregrad canForceGraduate={false} marketId="31337:9" />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Market settings" }));
     fireEvent.click(screen.getByRole("switch"));

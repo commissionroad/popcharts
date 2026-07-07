@@ -8,16 +8,18 @@ import type {
 import {
   createReadOnlyClient,
   createWalletClient,
-  type BlockchainClient,
 } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
+import {
+  fastForwardLocalRpc,
+  getLatestBlockTimestamp,
+  readDevPrivateKey,
+} from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import { serializeMarketRow } from "./markets";
 
-const DEFAULT_HARDHAT_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 const PREGRAD_MARKET_STATUS_REFUNDED = 4;
 const PREGRAD_DEV_CLOSE_ABI = parseAbi([
@@ -343,66 +345,6 @@ async function closeLocalMarketOnChain(
     kind: "closed",
     transactionHash,
   };
-}
-
-async function fastForwardLocalRpc(
-  publicClient: BlockchainClient,
-  targetTimestamp: bigint,
-) {
-  const latestBlock = await publicClient.getBlock();
-
-  if (latestBlock.timestamp >= targetTimestamp) {
-    return;
-  }
-
-  await requestLocalRpc("evm_setNextBlockTimestamp", [Number(targetTimestamp)]);
-}
-
-async function requestLocalRpc(method: string, params: unknown[]) {
-  const response = await fetch(config.rpcHttpUrl, {
-    body: JSON.stringify({
-      id: 1,
-      jsonrpc: "2.0",
-      method,
-      params,
-    }),
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
-  const body = (await response.json()) as {
-    error?: {
-      message?: string;
-    };
-  };
-
-  if (!response.ok || body.error) {
-    throw new Error(
-      body.error?.message ?? `${method} failed with HTTP ${response.status}`,
-    );
-  }
-}
-
-async function getLatestBlockTimestamp(publicClient: BlockchainClient) {
-  const block = await publicClient.getBlock();
-
-  return new Date(Number(block.timestamp) * 1000);
-}
-
-function readDevPrivateKey(): `0x${string}` {
-  const value =
-    process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-    process.env.POPCHARTS_DEPLOYER_PRIVATE_KEY ??
-    DEFAULT_HARDHAT_PRIVATE_KEY;
-
-  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
-    throw new Error(
-      "POPCHARTS_DEVCHAIN_PRIVATE_KEY must be a 32-byte hex key.",
-    );
-  }
-
-  return value as `0x${string}`;
 }
 
 function marketMetadataJoinCondition() {

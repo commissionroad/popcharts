@@ -9,6 +9,7 @@ export type PregradDeploy = {
   readonly chainId: number;
   readonly collateralAddress: string;
   readonly deployBlock: string;
+  readonly postgradAdapterAddress: string;
   readonly pregradManagerAddress: string;
 };
 
@@ -29,6 +30,11 @@ export function parsePregradDeploy(stdout: string): PregradDeploy {
       "LOCAL_CHAIN_SMOKE_DEPLOY is missing a pregradManagerAddress.",
     );
   }
+  if (!isEvmAddress(deploy.postgradAdapterAddress)) {
+    throw new Error(
+      "LOCAL_CHAIN_SMOKE_DEPLOY is missing a postgradAdapterAddress.",
+    );
+  }
   if (
     typeof deploy.deployBlock !== "string" ||
     !/^\d+$/.test(deploy.deployBlock)
@@ -40,6 +46,7 @@ export function parsePregradDeploy(stdout: string): PregradDeploy {
     chainId: deploy.chainId,
     collateralAddress: deploy.collateralAddress as string,
     deployBlock: deploy.deployBlock,
+    postgradAdapterAddress: deploy.postgradAdapterAddress as string,
     pregradManagerAddress: deploy.pregradManagerAddress as string,
   };
 }

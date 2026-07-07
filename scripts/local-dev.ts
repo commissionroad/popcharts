@@ -19,6 +19,11 @@ import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
+  postgradAppEnv,
+  postgradServerEnv,
+  postgradServerEnvLines,
+} from "./shared/env/postgradEnv.ts";
+import {
   appLocalDevEnvFile,
   localChainEnvFile,
   localDevIndexerHealthFile,
@@ -180,11 +185,18 @@ async function main(): Promise<void> {
   ]);
   const deploy = parsePregradDeploy(deployOutput.stdout);
   const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
-  const serverEnv = buildLocalServerEnv({
-    collateralAddress: deploy.collateralAddress,
-    deployBlock: deploy.deployBlock,
-    pregradManagerAddress: deploy.pregradManagerAddress,
-  });
+  // The supervised server processes receive this object directly (not the
+  // generated env file), so the venue addresses must be merged here for the
+  // API's venue reads and the keeper to see them.
+  const serverEnv = {
+    ...buildLocalServerEnv({
+      collateralAddress: deploy.collateralAddress,
+      deployBlock: deploy.deployBlock,
+      postgradAdapterAddress: deploy.postgradAdapterAddress,
+      pregradManagerAddress: deploy.pregradManagerAddress,
+    }),
+    ...postgradServerEnv(postgrad),
+  };
   const appEnv = buildAppEnv(deploy, postgrad);
   writeServerEnv(serverEnv, deploy, postgrad);
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
@@ -222,6 +234,19 @@ async function main(): Promise<void> {
       timeoutMs: 45_000,
     },
   );
+
+  // The venue keeper needs the postgrad venue contracts; skip it in
+  // --no-postgrad runs where none are deployed.
+  if (postgrad !== null) {
+    supervisor.start(
+      "keeper",
+      "bun",
+      ["run", "--cwd", "server", "start:keeper"],
+      {
+        env: serverEnv,
+      },
+    );
+  }
 
   const app = supervisor.start(
     "app",
@@ -460,30 +485,7 @@ function buildAppEnv(
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
-    ...(postgrad === null
-      ? {}
-      : {
-          NEXT_PUBLIC_POPCHARTS_POOL_MANAGER_ADDRESS: postgrad.poolManager,
-          NEXT_PUBLIC_POPCHARTS_STATE_VIEW_ADDRESS: postgrad.stateView,
-          NEXT_PUBLIC_POPCHARTS_QUOTER_ADDRESS: postgrad.quoter,
-          NEXT_PUBLIC_POPCHARTS_SWAP_ROUTER_ADDRESS: postgrad.swapRouter,
-          NEXT_PUBLIC_POPCHARTS_POOL_TICK_BOUNDS_ADDRESS:
-            postgrad.poolTickBounds,
-          NEXT_PUBLIC_POPCHARTS_ORDER_MANAGER_ADDRESS: postgrad.orderManager,
-          NEXT_PUBLIC_POPCHARTS_BOUNDED_HOOK_ADDRESS: postgrad.boundedHook,
-          NEXT_PUBLIC_POPCHARTS_POSTGRAD_ADAPTER_ADDRESS:
-            postgrad.postgradAdapter,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_MARKET_ADDRESS:
-            postgrad.marketAddress,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_MARKET_SYMBOL:
-            postgrad.marketSymbol,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_YES_TOKEN_ADDRESS:
-            postgrad.yesTokenAddress,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_NO_TOKEN_ADDRESS:
-            postgrad.noTokenAddress,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_YES_POOL_ID: postgrad.yesPoolId,
-          NEXT_PUBLIC_POPCHARTS_COMPLETE_SET_NO_POOL_ID: postgrad.noPoolId,
-        }),
+    ...postgradAppEnv(postgrad),
   };
 }
 
@@ -509,51 +511,13 @@ function writeServerEnv(
     `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
+    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
     ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
   ];
 
   writeFileSync(localChainEnvFile, lines.join("\n"));
-}
-
-// The server does not consume these keys yet; they document the local postgrad
-// venue deployment for the upcoming server/app integration.
-function postgradServerEnvLines(postgrad: PostgradDeployment | null): string[] {
-  if (postgrad === null) {
-    return [];
-  }
-
-  return [
-    `POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
-    `STATE_VIEW_ADDRESS=${postgrad.stateView}`,
-    `QUOTER_ADDRESS=${postgrad.quoter}`,
-    `SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
-    `POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
-    `ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
-    `BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
-    `POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
-    `COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
-    `COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
-    `COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
-    `COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
-    `COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
-    `COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
-    `LOCAL_POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
-    `LOCAL_STATE_VIEW_ADDRESS=${postgrad.stateView}`,
-    `LOCAL_QUOTER_ADDRESS=${postgrad.quoter}`,
-    `LOCAL_SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
-    `LOCAL_POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
-    `LOCAL_ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
-    `LOCAL_BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
-    `LOCAL_COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
-    `LOCAL_COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
-    `LOCAL_COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
-    `LOCAL_COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
-    `LOCAL_COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
-    `LOCAL_COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
-  ];
 }
 
 async function run(

@@ -375,6 +375,84 @@
         }
       }
     },
+    "/dev/markets/{chainId}/{marketId}/graduate": {
+      "post": {
+        "operationId": "graduateDevMarket",
+        "summary": "Dev-only graduate a pre-grad market end to end",
+        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
+        "tags": [
+          "Development"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketGraduateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketGraduateIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}": {
       "get": {
         "operationId": "getMarket",
@@ -809,6 +887,72 @@
           }
         }
       },
+      "DevMarketGraduateIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "adapter_unconfigured",
+              "below_threshold",
+              "chain_status",
+              "past_deadline",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "DevMarketGraduateResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "postgrad",
+          "status",
+          "summary",
+          "transactionHashes"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "postgrad": {
+            "$ref": "#/components/schemas/MarketPostgrad"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "graduated"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GraduationSummary"
+          },
+          "transactionHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "GraduationIneligible": {
         "type": "object",
         "required": [
@@ -1114,6 +1258,9 @@
           "openingProbabilityWad": {
             "type": "string"
           },
+          "postgrad": {
+            "$ref": "#/components/schemas/MarketPostgrad"
+          },
           "receiptCount": {
             "type": "string"
           },
@@ -1201,6 +1348,98 @@
           },
           "verdict": {
             "$ref": "#/components/schemas/AiReviewVerdict"
+          }
+        }
+      },
+      "MarketPostgrad": {
+        "type": "object",
+        "required": [
+          "adapterAddress",
+          "completeSetCount",
+          "finalizedAt",
+          "marketAddress",
+          "refundTotal",
+          "retainedCostTotal",
+          "transactionHash"
+        ],
+        "properties": {
+          "adapterAddress": {
+            "type": "string"
+          },
+          "completeSetCount": {
+            "type": "string"
+          },
+          "finalizedAt": {
+            "type": "string"
+          },
+          "marketAddress": {
+            "type": "string"
+          },
+          "refundTotal": {
+            "type": "string"
+          },
+          "retainedCostTotal": {
+            "type": "string"
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/MarketVenue"
+          }
+        }
+      },
+      "MarketVenue": {
+        "type": "object",
+        "required": [
+          "boundedHookAddress",
+          "live",
+          "noPool",
+          "orderManagerAddress",
+          "poolManagerAddress",
+          "yesPool"
+        ],
+        "properties": {
+          "boundedHookAddress": {
+            "type": "string"
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "noPool": {
+            "$ref": "#/components/schemas/MarketVenuePool"
+          },
+          "orderManagerAddress": {
+            "type": "string"
+          },
+          "poolManagerAddress": {
+            "type": "string"
+          },
+          "yesPool": {
+            "$ref": "#/components/schemas/MarketVenuePool"
+          }
+        }
+      },
+      "MarketVenuePool": {
+        "type": "object",
+        "required": [
+          "initialized",
+          "outcomeTokenAddress",
+          "poolId",
+          "whitelisted"
+        ],
+        "properties": {
+          "initialized": {
+            "type": "boolean"
+          },
+          "outcomeTokenAddress": {
+            "type": "string"
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "whitelisted": {
+            "type": "boolean"
           }
         }
       },

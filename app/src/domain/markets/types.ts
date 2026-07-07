@@ -85,6 +85,35 @@ export type PricePathPoint = {
   cents: number;
 };
 
+/** One outcome-token pool on the bounded postgrad venue. */
+export type MarketVenuePool = {
+  initialized: boolean;
+  outcomeTokenAddress: string;
+  poolId: string;
+  whitelisted: boolean;
+};
+
+/** Venue wiring for a graduated market's YES and NO outcome pools. */
+export type MarketVenueInfo = {
+  boundedHookAddress: string;
+  live: boolean;
+  noPool: MarketVenuePool;
+  orderManagerAddress: string;
+  poolManagerAddress: string;
+  yesPool: MarketVenuePool;
+};
+
+/** Where a graduated market's matched exposure settled after onchain handoff. */
+export type MarketPostgradHandoff = {
+  adapterAddress: string;
+  completeSets: number;
+  finalizedAt: string;
+  marketAddress: string;
+  refundedUsd: number;
+  retainedUsd: number;
+  venue?: MarketVenueInfo;
+};
+
 export type Market = {
   aiReview?: MarketAiReview;
   b: number;
@@ -104,6 +133,7 @@ export type Market = {
   outcomeNo?: string;
   /** Creator-supplied display label for the YES outcome, when one was set. */
   outcomeYes?: string;
+  postgrad?: MarketPostgradHandoff;
   pricePath: number[];
   question: string;
   receiptCount: number;

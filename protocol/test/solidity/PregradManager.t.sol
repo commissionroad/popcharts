@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 // solhint-disable use-natspec
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {CreationFeeVault} from "../../contracts/CreationFeeVault.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
@@ -104,6 +105,46 @@ contract PregradManagerTest is BaseTest {
     assertEq(manager.createMarket(params), 1);
     assertEq(manager.nextMarketId(), 2);
     assertEq(manager.marketCount(), 1);
+  }
+
+  function test_SetClearingChallengePeriodValidatesOwnerAndBounds() public {
+    address notOwner = makeAddr("not-owner");
+
+    vm.prank(notOwner);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+    manager.setClearingChallengePeriod(5 minutes);
+
+    uint64 tooLong = manager.MAX_CLEARING_CHALLENGE_PERIOD() + 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidClearingChallengePeriod.selector,
+        tooLong,
+        manager.MAX_CLEARING_CHALLENGE_PERIOD()
+      )
+    );
+    manager.setClearingChallengePeriod(tooLong);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.ClearingChallengePeriodUpdated(0, 5 minutes);
+    manager.setClearingChallengePeriod(5 minutes);
+
+    assertEq(manager.clearingChallengePeriod(), 5 minutes);
+  }
+
+  function test_ClearingChallengeWindowIsDisabledByDefault() public {
+    assertEq(manager.clearingChallengePeriod(), 0);
+
+    SubmittedClearingFixture memory fixture = _submitSingleReceiptClearingRoot();
+    CompleteSetPostgradAdapter adapter = _deployPostgradAdapter();
+    MarketTypes.ClearingRoot memory clearingRoot = manager.getClearingRoot(fixture.marketId);
+
+    assertEq(fixture.challengeDeadline, clearingRoot.submittedAt);
+
+    // No warp: with the window disabled the root finalizes in the same block.
+    manager.finalizeGraduation(fixture.marketId, address(adapter));
+
+    MarketTypes.MarketState memory state = manager.getMarketState(fixture.marketId);
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Graduated));
   }
 
   function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
@@ -903,11 +944,13 @@ contract PregradManagerTest is BaseTest {
     vm.warp(startedAt);
     bytes32 snapshotHash = manager.startGraduation(marketId);
 
+    manager.setClearingChallengePeriod(1 days);
+
     bytes32 merkleRoot = keccak256("clearing-root");
     uint256 matchedMarketCap = 50 * WAD;
     uint256 refundTotal = quote.cost - matchedMarketCap;
     uint64 submittedAt = uint64(block.timestamp + 1 hours);
-    uint64 challengeDeadline = submittedAt + manager.CLEARING_CHALLENGE_PERIOD();
+    uint64 challengeDeadline = submittedAt + manager.clearingChallengePeriod();
     vm.warp(submittedAt);
 
     vm.expectEmit(true, true, true, true, address(manager));
@@ -1081,6 +1124,8 @@ contract PregradManagerTest is BaseTest {
   }
 
   function test_FinalizeGraduationFundsCompleteSetAdapterAfterChallenge() public {
+    manager.setClearingChallengePeriod(1 days);
+
     SubmittedClearingFixture memory fixture = _submitSingleReceiptClearingRoot();
     CompleteSetPostgradAdapter adapter = _deployPostgradAdapter();
     bytes32[] memory proof = new bytes32[](0);

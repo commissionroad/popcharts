@@ -55,6 +55,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0007](summaries/protocol-adr-0007-ctf-style-postgrad-handoff.md) — handoff to CTF-style postgrad via IPostgradAdapter
 - [ADR 0008](summaries/protocol-adr-0008-complete-set-erc20-arc-testnet.md) — ERC20 complete sets on Arc Testnet (bounded deviation from 0007)
 - [ADR 0009](summaries/protocol-adr-0009-complete-set-testnet-policy.md) — proposed testnet policy: caps, roles, display, audit gates
+- [ADR 0010](summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md) — Accepted — the clearing challenge window becomes owner-configurable `clearingChallengePeriod`, default 0, capped at 7 days; re-enable (~5 minutes) only when third-party proposers and a dispute mechanism exist
 
 ## Summaries — protocol design docs (protocol/docs/)
 

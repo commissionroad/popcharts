@@ -153,7 +153,7 @@ export function evaluateGraduationReadiness({
     return {
       kind: "ineligible",
       message:
-        "Onchain graduation is in progress. Wait for the clearing root challenge window to finish and for the graduation manager to finalize the market.",
+        "Onchain graduation is in progress. Wait for the graduation manager to finalize the market's clearing root.",
       reason: "clearing_pending",
     };
   }
@@ -177,7 +177,7 @@ export function evaluateGraduationReadiness({
   return {
     kind: "ineligible",
     message:
-      "Market is graduation-eligible, but settlement must happen onchain: start graduation, submit a clearing Merkle root, wait through the challenge window, then finalize with a postgrad adapter.",
+      "Market is graduation-eligible, but settlement must happen onchain: start graduation, submit a clearing Merkle root, then finalize with a postgrad adapter.",
     reason: "onchain_settlement_required",
   };
 }

@@ -17,8 +17,8 @@ import {MarketTypes} from "./types/MarketTypes.sol";
 contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   using SafeERC20 for IERC20;
 
-  /// @notice Challenge period used after an optimistic clearing root is submitted.
-  uint64 public constant CLEARING_CHALLENGE_PERIOD = 1 days;
+  /// @notice Longest clearing challenge window the owner may configure.
+  uint64 public constant MAX_CLEARING_CHALLENGE_PERIOD = 7 days;
   /// @notice Lowest opening YES probability allowed for public market creation.
   uint256 public constant MIN_PUBLIC_OPENING_PROBABILITY_WAD = 2e16;
   /// @notice Highest opening YES probability allowed for public market creation.
@@ -152,6 +152,10 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @param marketId Market whose clearing root is still challengeable.
   /// @param challengeDeadline Timestamp when finalization becomes available.
   error ClearingChallengeActive(uint256 marketId, uint64 challengeDeadline);
+  /// @notice Reverts when the owner configures a challenge window beyond the supported maximum.
+  /// @param period Challenge period supplied by the owner.
+  /// @param maximum Longest supported challenge period.
+  error InvalidClearingChallengePeriod(uint64 period, uint64 maximum);
   /// @notice Reverts when finalization receives the zero postgrad adapter address.
   error InvalidPostgradAdapter();
   /// @notice The adapter reported an outcome capacity that does not match the clearing root.
@@ -210,6 +214,11 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @notice Emitted when the owner pauses or resumes new market creation.
   /// @param paused True when new market creation is paused.
   event MarketCreationPausedUpdated(bool paused);
+
+  /// @notice Emitted when the owner changes the clearing challenge window.
+  /// @param previousPeriod Challenge period replaced by this update.
+  /// @param newPeriod Challenge period applied to future clearing root submissions.
+  event ClearingChallengePeriodUpdated(uint64 previousPeriod, uint64 newPeriod);
 
   /// @notice Emitted when a locked pre-graduation receipt is placed.
   /// @param receiptId Canonical receipt ID.
@@ -341,6 +350,12 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @notice Returns true when new market creation is paused.
   bool public marketCreationPaused;
 
+  /// @notice Challenge window applied after an optimistic clearing root is submitted.
+  /// @dev Zero (the default) disables the window while the graduation manager both
+  /// computes and submits clearing roots. Set a nonzero period only once third
+  /// parties can propose roots and an active dispute mechanism can check them.
+  uint64 public clearingChallengePeriod;
+
   /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) {}
 
@@ -452,6 +467,19 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   function setMarketCreationPaused(bool paused) external onlyOwner {
     marketCreationPaused = paused;
     emit MarketCreationPausedUpdated(paused);
+  }
+
+  /// @notice Sets the challenge window applied to future clearing root submissions.
+  /// @param newPeriod Seconds between root submission and earliest finalization; zero disables the window.
+  function setClearingChallengePeriod(uint64 newPeriod) external onlyOwner {
+    if (newPeriod > MAX_CLEARING_CHALLENGE_PERIOD) {
+      revert InvalidClearingChallengePeriod(newPeriod, MAX_CLEARING_CHALLENGE_PERIOD);
+    }
+
+    uint64 previousPeriod = clearingChallengePeriod;
+    clearingChallengePeriod = newPeriod;
+
+    emit ClearingChallengePeriodUpdated(previousPeriod, newPeriod);
   }
 
   /// @notice Withdraws collected market creation fees without touching receipt escrow.
@@ -700,7 +728,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
 
     snapshotHash = _graduationSnapshotHash(params.marketId, market.state);
     uint64 submittedAt = uint64(block.timestamp);
-    uint64 challengeDeadline = submittedAt + CLEARING_CHALLENGE_PERIOD;
+    uint64 challengeDeadline = submittedAt + clearingChallengePeriod;
 
     _clearingRoots[params.marketId] = MarketTypes.ClearingRoot({
       merkleRoot: params.merkleRoot,

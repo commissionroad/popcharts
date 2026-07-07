@@ -17,7 +17,21 @@ export type NetworkId = "local" | "arcTestnet";
 
 /** Protocol contract addresses the server needs on the selected network. */
 export type ContractAddresses = {
+  /** Shared bounded prediction hook; ZERO_ADDRESS when no venue is deployed. */
+  boundedHook: `0x${string}`;
+  /** Bounded pool order manager; ZERO_ADDRESS when no venue is deployed. */
+  orderManager: `0x${string}`;
+  /** v4 pool manager; ZERO_ADDRESS when no venue is deployed. */
+  poolManager: `0x${string}`;
+  /** Per-pool tick bounds registry; ZERO_ADDRESS when no venue is deployed. */
+  poolTickBounds: `0x${string}`;
+  /** Adapter dev graduation finalizes with; ZERO_ADDRESS when unconfigured. */
+  postgradAdapter: `0x${string}`;
   pregradManager: `0x${string}`;
+  /** v4 state view lens; ZERO_ADDRESS when no venue is deployed. */
+  stateView: `0x${string}`;
+  /** Minimal v4 swap/liquidity router; ZERO_ADDRESS when no venue is deployed. */
+  swapRouter: `0x${string}`;
 };
 
 /**
@@ -83,9 +97,37 @@ function createLocalConfig(): NetworkConfig {
     chainId: hardhat.id,
     chain: hardhat,
     contracts: {
+      boundedHook: readAddress([
+        "LOCAL_BOUNDED_HOOK_ADDRESS",
+        "BOUNDED_HOOK_ADDRESS",
+      ]),
+      orderManager: readAddress([
+        "LOCAL_ORDER_MANAGER_ADDRESS",
+        "ORDER_MANAGER_ADDRESS",
+      ]),
+      poolManager: readAddress([
+        "LOCAL_POOL_MANAGER_ADDRESS",
+        "POOL_MANAGER_ADDRESS",
+      ]),
+      poolTickBounds: readAddress([
+        "LOCAL_POOL_TICK_BOUNDS_ADDRESS",
+        "POOL_TICK_BOUNDS_ADDRESS",
+      ]),
+      postgradAdapter: readAddress([
+        "LOCAL_POSTGRAD_ADAPTER_ADDRESS",
+        "POSTGRAD_ADAPTER_ADDRESS",
+      ]),
       pregradManager: readAddress([
         "LOCAL_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
+      ]),
+      stateView: readAddress([
+        "LOCAL_STATE_VIEW_ADDRESS",
+        "STATE_VIEW_ADDRESS",
+      ]),
+      swapRouter: readAddress([
+        "LOCAL_SWAP_ROUTER_ADDRESS",
+        "SWAP_ROUTER_ADDRESS",
       ]),
     },
     databaseUrl: readDatabaseUrl(),
@@ -110,9 +152,37 @@ function createArcTestnetConfig(): NetworkConfig {
     chainId: arcTestnet.id,
     chain: arcTestnet,
     contracts: {
+      boundedHook: readAddress([
+        "ARC_TESTNET_BOUNDED_HOOK_ADDRESS",
+        "BOUNDED_HOOK_ADDRESS",
+      ]),
+      orderManager: readAddress([
+        "ARC_TESTNET_ORDER_MANAGER_ADDRESS",
+        "ORDER_MANAGER_ADDRESS",
+      ]),
+      poolManager: readAddress([
+        "ARC_TESTNET_POOL_MANAGER_ADDRESS",
+        "POOL_MANAGER_ADDRESS",
+      ]),
+      poolTickBounds: readAddress([
+        "ARC_TESTNET_POOL_TICK_BOUNDS_ADDRESS",
+        "POOL_TICK_BOUNDS_ADDRESS",
+      ]),
+      postgradAdapter: readAddress([
+        "ARC_TESTNET_POSTGRAD_ADAPTER_ADDRESS",
+        "POSTGRAD_ADAPTER_ADDRESS",
+      ]),
       pregradManager: readAddress([
         "ARC_TESTNET_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
+      ]),
+      stateView: readAddress([
+        "ARC_TESTNET_STATE_VIEW_ADDRESS",
+        "STATE_VIEW_ADDRESS",
+      ]),
+      swapRouter: readAddress([
+        "ARC_TESTNET_SWAP_ROUTER_ADDRESS",
+        "SWAP_ROUTER_ADDRESS",
       ]),
     },
     databaseUrl: readDatabaseUrl(),

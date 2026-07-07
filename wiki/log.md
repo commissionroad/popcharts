@@ -39,3 +39,14 @@ pills 1H-1M/ALL, quarter gridlines with axis values, crosshair hover);
 OutcomeButton gained an optional creator outcome label. Backed by new optional
 outcomeYes/outcomeNo market-metadata fields flowing creation form -> canonical
 serialization -> indexer/API -> Market type.
+
+## [2026-07-07] ingest | protocol ADR 0010 — disable the clearing challenge window by default
+Pages: +summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md,
+~summaries/protocol-adr-0006-optimistic-offchain-graduation-clearing.md,
+~concepts/graduation-clearing.md, ~entities/pregrad-manager.md, ~index.md
+Notes: ADR 0010 amends 0006 — `CLEARING_CHALLENGE_PERIOD = 1 days` becomes
+owner-set `clearingChallengePeriod` (default 0, max 7 days) because roots are
+manager-submitted and the timeout had no dispute mechanism behind it. The
+`challengeDeadline` plumbing (events, indexer, API) is kept so a real window
+is a parameter change later. Same PR lands the dev graduation flow + postgrad
+venue wiring the ADR unblocks.

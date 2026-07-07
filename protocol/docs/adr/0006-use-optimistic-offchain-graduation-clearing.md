@@ -4,6 +4,9 @@
 
 Accepted
 
+Amended by ADR 0010: the challenge window is owner-configurable and disabled
+by default while clearing roots are manager-submitted.
+
 ## Context
 
 Whitepaper v4 defines deterministic band-pass graduation clearing over a frozen

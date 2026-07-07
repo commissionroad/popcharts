@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requestMarketGraduation } from "@/domain/markets/queries";
+import {
+  requestDevMarketGraduation,
+  requestMarketGraduation,
+} from "@/domain/markets/queries";
 
 export type GraduateMarketActionResult =
   | {
@@ -14,11 +17,46 @@ export type GraduateMarketActionResult =
       message: string;
     };
 
+/**
+ * Dev-tools force graduation: mints local collateral and places receipts
+ * until the market covers its threshold, then settles it end to end. Only
+ * reachable from the dev settings menu.
+ */
+export async function forceGraduateMarketAction(
+  marketId: string
+): Promise<GraduateMarketActionResult> {
+  try {
+    await requestDevMarketGraduation(marketId, { force: true });
+    revalidatePath("/");
+    revalidatePath(`/markets/${marketId}`);
+    revalidatePath(`/markets/${marketId}/graduation`);
+
+    return {
+      message: "Forced graduation settled onchain.",
+      status: "success",
+    };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error ? error.message : "Could not graduate this market.",
+      status: "error",
+    };
+  }
+}
+
 export async function graduateMarketAction(
   marketId: string
 ): Promise<GraduateMarketActionResult> {
   try {
-    await requestMarketGraduation(marketId);
+    // With dev tools enabled the server runs the whole onchain settlement
+    // (top-up, clearing root, challenge window, postgrad handoff); otherwise
+    // the read-only endpoint only reports markets the chain already settled.
+    if (devToolsEnabled()) {
+      await requestDevMarketGraduation(marketId);
+    } else {
+      await requestMarketGraduation(marketId);
+    }
+    revalidatePath("/");
     revalidatePath(`/markets/${marketId}`);
     revalidatePath(`/markets/${marketId}/graduation`);
 
@@ -33,4 +71,8 @@ export async function graduateMarketAction(
       status: "error",
     };
   }
+}
+
+function devToolsEnabled() {
+  return process.env.NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED === "true";
 }

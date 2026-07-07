@@ -174,6 +174,7 @@ async function main(): Promise<void> {
   const configuredServerEnv = buildServerEnv({
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
+    postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
   writeLocalEnv(configuredServerEnv, deploy, postgrad);
@@ -321,6 +322,7 @@ function buildServerEnv(
     DATABASE_URL: databaseUrl,
     HEALTH_CHECK_FILE: healthFile,
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
+    LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     NETWORK: "local",
@@ -352,6 +354,7 @@ function writeLocalEnv(
     `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
+    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
     ...postgradEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",

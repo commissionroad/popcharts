@@ -47,7 +47,9 @@ becomes the manipulator's own refund — "information is not collateral."
 `startGraduation` locks receipt count + LMSR state → offchain compute →
 `submitClearingRoot` (root + matchedMarketCap, refundTotal,
 retainedCostTotal, completeSetCount; totals must pass escrow conservation) →
-challenge window (timeout-only in v1; bonds/fraud proofs deferred to mainnet)
+challenge window (owner-configurable `clearingChallengePeriod`, default 0 per
+[protocol ADR 0010](../summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md);
+bonds/fraud proofs deferred to mainnet)
 → `finalizeGraduation` funds the [adapter](../entities/postgrad-adapter.md)
 (capacity asserted, `PostgradCapacityMismatch`) → one-time per-receipt Merkle
 claims. Anyone may freeze an eligible market.
