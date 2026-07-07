@@ -108,7 +108,7 @@ stale relative to its source:
 | `protocol/src/generated/*.ts` | Compiled contract artifacts | `protocol build` (runs `export-contract-metadata.ts`) | `protocol metadata:check` (`export-contract-metadata.ts --check`), wired into `protocol typecheck`, so `pnpm run protocol:check` and Protocol CI enforce it |
 | `app/src/integrations/contracts/pregrad-manager.ts` | `protocol/src/generated/pregrad-manager.ts` | `app abi:generate` | `app abi:check`, wired into `pnpm run app:check` and App CI; App CI path filters also trigger on the protocol generated source so a metadata regeneration cannot merge with a stale app ABI |
 | `server/generated/openapi.json` | Elysia route schemas | `server openapi:generate` | `server openapi:check` (regenerate-and-diff plus spec validation), wired into `pnpm run server:check` and Server CI |
-| `app/src/integrations/indexer/generated/` | `server/generated/openapi.json` | `app api:generate` (orval, deterministic from the committed spec) | No dedicated diff gate yet; drift is caught upstream by `openapi:check` and downstream by app typecheck/tests. Tightening the CI ordering is ADR 0007 item A5. |
+| `app/src/integrations/indexer/generated/` | `server/generated/openapi.json` | `app api:generate` (orval, deterministic from the committed spec) | `app api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` changes (ADR 0007 item A5). |
 
 The pattern is uniform: hand-written code never crosses a workspace boundary;
 a generator does, and a `--check` twin keeps the committed output honest.
