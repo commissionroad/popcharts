@@ -1,5 +1,5 @@
 import type { PublicClient, WalletClient } from "viem";
-import { formatUnits, parseEventLogs } from "viem";
+import { parseEventLogs } from "viem";
 
 import {
   buildCreateMarketPreview,
@@ -13,8 +13,7 @@ import {
 } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
-
-const TOKEN_DECIMALS = 18;
+import { formatTokenAmount } from "@/lib/format";
 
 /**
  * Connected wallet context required for wallet-signed devchain market
@@ -369,13 +368,4 @@ function isSubmitMarketReviewResponse(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function formatTokenAmount(value: bigint) {
-  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
-
-  return amount.toLocaleString("en-US", {
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
-    minimumFractionDigits: amount > 0 && amount < 100 ? 2 : 0,
-  });
 }

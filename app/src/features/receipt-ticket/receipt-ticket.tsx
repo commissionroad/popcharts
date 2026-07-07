@@ -17,6 +17,7 @@ import {
   parseReceiptAmount,
   type PlacedPregradReceipt,
 } from "@/domain/pregrad-trading/receipt-quote";
+import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
@@ -50,7 +51,6 @@ const sideOptions = [
 ];
 
 const presetAmounts = ["50", "250", "1000", "Max"] as const;
-const TOKEN_DECIMALS = 18;
 const TEST_MINT_AMOUNT_USD = 10_000;
 const marketStatusLabels: Record<Market["status"], string> = {
   under_review: "under review",
