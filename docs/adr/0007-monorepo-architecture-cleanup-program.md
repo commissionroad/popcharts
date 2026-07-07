@@ -114,7 +114,7 @@ Rules for executing this program:
   Both providers import it; duplicated copies are deleted. This is a security
   control — behavior must be preserved exactly; port existing tests and add
   coverage for the shared module. Validation: `pnpm run server:check`.
-- [ ] **B2. Split `server/src/ai-review/anthropic.ts` (604 lines) into focused
+- [x] **B2. Split `server/src/ai-review/anthropic.ts` (604 lines) into focused
   modules** — HTTP call, tool/system-prompt building, evidence extraction, and
   a thin orchestrator — after B1 removes the parsing code. Depends on: B1.
 - [ ] **B3. Centralize viem client creation.** Export read-only and wallet
@@ -267,7 +267,8 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
-| 2026-07-06 | B1 | TBD | `server/src/ai-review/response-parsing.ts` now holds the single implementation of verdict parsing, source-check parsing/filtering, score clamping, and the shared `RawModelReview` type; anthropic and ollama providers import it (~150 duplicated lines deleted, byte-identical logic — only the JSON-failure message is parameterized by provider name). Ollama keeps its heuristic-only helpers. 16 new unit tests cover the shared module directly. |
+| 2026-07-06 | B2 | TBD | Split `server/src/ai-review/anthropic.ts` into `anthropic/http.ts` (Messages API call + response/content-block types), `anthropic/tools.ts` (web tool + system prompt building), and `anthropic/evidence.ts` (evidence extraction/dedupe + URL helpers), leaving `anthropic.ts` as a thin orchestrator exporting `reviewWithAnthropic`/`AnthropicReview` at its unchanged import path; code moved verbatim. |
+| 2026-07-06 | B1 | #98 | `server/src/ai-review/response-parsing.ts` now holds the single implementation of verdict parsing, source-check parsing/filtering, score clamping, and the shared `RawModelReview` type; anthropic and ollama providers import it (~150 duplicated lines deleted, byte-identical logic — only the JSON-failure message is parameterized by provider name). Ollama keeps its heuristic-only helpers. 16 new unit tests cover the shared module directly. |
 | 2026-07-06 | A4 | #97 | Scope corrected during execution: the pool-manager/state-view ABIs in `create-complete-set-market.ts` and the transfer-approval ABI in `smoke-maker-order.ts` are vendored external v4 contracts (not in our pipeline) and stay inline, as does the dev-only mintable-collateral ABI. The real Pop Charts inline ABIs lived in `operate-postgrad-admin.ts`, `check-market-health.ts`, `inspect-bounded-orders.ts`, and four `scripts/shared/market/` helpers — all now import from `protocol/src/generated/`. Event-scanning call sites derive their event subset via `getAbiItem` because `getContractEvents` decodes every event in the ABI it receives. Also added an env-overridable localhost network URL (`POPCHARTS_LOCAL_RPC_URL`) to `hardhat.config.ts` so smoke validation can run on an isolated chain. Validated on an isolated devchain: deploy → create market → maker order → `check-market-health` and `inspect-bounded-orders` both correct. |
 | 2026-07-06 | A1 | — | Closed as already done: `export-contract-metadata.ts` already generates all four v4 ABIs (plus CompleteSetBinaryMarket, CompleteSetPostgradAdapter, OutcomeToken) into `protocol/src/generated/postgrad-venue.ts`, deterministically, re-exported from `protocol/src/index.ts`. The ADR item was written against a stale premise. |
 | 2026-07-06 | A3 | #96 | `abi:check` wired into root `app:check` and as an App CI step. App CI path filters now also trigger on `protocol/src/generated/pregrad-manager.ts` (the generation source), with the complement mirrored in `app-ci-skip.yml`, so a protocol metadata regeneration cannot merge with a stale app ABI. |
