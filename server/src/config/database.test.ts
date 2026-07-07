@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  getDatabaseConnectionString,
-  requiresDatabaseSsl,
-} from "./database";
+import { getDatabaseConnectionString, requiresDatabaseSsl } from "./database";
 
 describe("getDatabaseConnectionString", () => {
   test("uses DATABASE_URL when present", () => {

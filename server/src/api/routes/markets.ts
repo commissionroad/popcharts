@@ -187,9 +187,7 @@ export const marketRoutes = new Elysia({ prefix: "" })
       if (result.kind === "ineligible") {
         set.status = 409;
         return {
-          ...(result.marketStatus
-            ? { marketStatus: result.marketStatus }
-            : {}),
+          ...(result.marketStatus ? { marketStatus: result.marketStatus } : {}),
           message: result.message,
           reason: result.reason,
           status: "ineligible" as const,

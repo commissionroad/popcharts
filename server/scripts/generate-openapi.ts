@@ -21,12 +21,7 @@ const OUTPUT_PATH = join(import.meta.dir, "../generated/openapi.json");
 
 /** JSON value shape used while walking the spec. */
 type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 /**
  * Normalizes one node of the spec tree: drops TypeBox `$id` artifacts,
@@ -47,7 +42,11 @@ function cleanNode(node: JsonValue): JsonValue {
     if (key === "$id") {
       continue;
     }
-    if (key === "$ref" && typeof value === "string" && !value.startsWith("#/")) {
+    if (
+      key === "$ref" &&
+      typeof value === "string" &&
+      !value.startsWith("#/")
+    ) {
       cleaned[key] = `#/components/schemas/${value}`;
       continue;
     }
@@ -78,9 +77,7 @@ function cleanNode(node: JsonValue): JsonValue {
   return cleaned;
 }
 
-const response = await app.handle(
-  new Request("http://localhost/openapi/json"),
-);
+const response = await app.handle(new Request("http://localhost/openapi/json"));
 if (!response.ok) {
   console.error(`Failed to read OpenAPI spec from app: ${response.status}`);
   process.exit(1);

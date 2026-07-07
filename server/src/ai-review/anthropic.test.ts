@@ -122,12 +122,10 @@ describe("reviewWithAnthropic", () => {
     expect(bodies).toHaveLength(1);
     expect(
       (bodies[0] as { tools?: Array<Record<string, unknown>> }).tools,
-    ).toContainEqual(
-      {
-        max_uses: 2,
-        name: "web_search",
-        type: "web_search_20250305",
-      },
-    );
+    ).toContainEqual({
+      max_uses: 2,
+      name: "web_search",
+      type: "web_search_20250305",
+    });
   });
 });

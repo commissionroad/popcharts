@@ -22,7 +22,10 @@ export type RawModelReview = {
  * falling back to the outermost braced block. `providerLabel` names the
  * provider in the failure message (e.g. "Anthropic did not return JSON.").
  */
-export function parseModelReview(content: string, providerLabel: string): RawModelReview {
+export function parseModelReview(
+  content: string,
+  providerLabel: string,
+): RawModelReview {
   try {
     return JSON.parse(content) as RawModelReview;
   } catch {
@@ -89,7 +92,8 @@ export function filterSourceChecksByEvidence(
 
   return sourceChecks.filter(
     (sourceCheck) =>
-      evidenceUrls.has(sourceCheck.url) || evidenceDomains.has(sourceCheck.domain),
+      evidenceUrls.has(sourceCheck.url) ||
+      evidenceDomains.has(sourceCheck.domain),
   );
 }
 
@@ -103,7 +107,9 @@ export function adjustModelScoresForEvidence(
   sourceChecks: SourceCheck[],
   hardFlags: string[],
 ) {
-  const hasPromptInjectionFlag = hardFlags.some((flag) => flag.includes("prompt_injection"));
+  const hasPromptInjectionFlag = hardFlags.some((flag) =>
+    flag.includes("prompt_injection"),
+  );
   const promptInjectionRisk = hasPromptInjectionFlag
     ? scores.promptInjectionRisk
     : Math.min(scores.promptInjectionRisk, 2);
@@ -143,5 +149,7 @@ export function arrayOfStrings(value: unknown) {
 }
 
 export function unique(values: Array<string | undefined>) {
-  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 }

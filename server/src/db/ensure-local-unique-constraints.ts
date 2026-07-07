@@ -79,7 +79,10 @@ async function convertIndexToConstraint({
 if (import.meta.main) {
   main()
     .catch((error) => {
-      console.error("[local schema] failed to ensure unique constraints", error);
+      console.error(
+        "[local schema] failed to ensure unique constraints",
+        error,
+      );
       process.exitCode = 1;
     })
     .finally(async () => {

@@ -1,4 +1,5 @@
-const DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5433/popcharts";
+const DEFAULT_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5433/popcharts";
 
 type DatabaseEnv = Record<string, string | undefined>;
 

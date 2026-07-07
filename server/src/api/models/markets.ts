@@ -44,8 +44,7 @@ export type GraduationIneligibleReason =
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
 export type ManualAiReviewIneligibleReason =
-  | "missing_metadata"
-  | "wrong_status";
+  "missing_metadata" | "wrong_status";
 
 /** Off-chain market metadata as returned by the read API. */
 export const MarketMetadataSchema = t.Object(

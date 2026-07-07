@@ -83,8 +83,14 @@ export function normalizeScores(
   value: Partial<Record<keyof ReviewScores, unknown>>,
 ): ReviewScores {
   return {
-    contentSafety: clampScore(value.contentSafety, DEFAULT_SCORES.contentSafety),
-    corroboration: clampScore(value.corroboration, DEFAULT_SCORES.corroboration),
+    contentSafety: clampScore(
+      value.contentSafety,
+      DEFAULT_SCORES.contentSafety,
+    ),
+    corroboration: clampScore(
+      value.corroboration,
+      DEFAULT_SCORES.corroboration,
+    ),
     disputeRisk: clampScore(value.disputeRisk, DEFAULT_SCORES.disputeRisk),
     objectivity: clampScore(value.objectivity, DEFAULT_SCORES.objectivity),
     promptInjectionRisk: clampScore(
@@ -95,7 +101,10 @@ export function normalizeScores(
       value.publicKnowability,
       DEFAULT_SCORES.publicKnowability,
     ),
-    sourceQuality: clampScore(value.sourceQuality, DEFAULT_SCORES.sourceQuality),
+    sourceQuality: clampScore(
+      value.sourceQuality,
+      DEFAULT_SCORES.sourceQuality,
+    ),
   };
 }
 
@@ -112,11 +121,19 @@ export function sourceTierForDomain(domain: string): SourceTier {
     return "primary";
   }
 
-  if (MAJOR_NEWS_HOSTS.some((host) => normalized === host || normalized.endsWith(`.${host}`))) {
+  if (
+    MAJOR_NEWS_HOSTS.some(
+      (host) => normalized === host || normalized.endsWith(`.${host}`),
+    )
+  ) {
     return "major_news";
   }
 
-  if (UGC_HOSTS.some((host) => normalized === host || normalized.endsWith(`.${host}`))) {
+  if (
+    UGC_HOSTS.some(
+      (host) => normalized === host || normalized.endsWith(`.${host}`),
+    )
+  ) {
     return "ugc";
   }
 

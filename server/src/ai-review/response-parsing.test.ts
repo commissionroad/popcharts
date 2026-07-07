@@ -44,8 +44,11 @@ describe("parseModelReview", () => {
   });
 
   it("extracts JSON wrapped in prose or markdown", () => {
-    const content = 'Here is my review:\n```json\n{"verdict":"reject"}\n```\nDone.';
-    expect(parseModelReview(content, "Anthropic")).toEqual({ verdict: "reject" });
+    const content =
+      'Here is my review:\n```json\n{"verdict":"reject"}\n```\nDone.';
+    expect(parseModelReview(content, "Anthropic")).toEqual({
+      verdict: "reject",
+    });
   });
 
   it("names the provider when no JSON is present", () => {
@@ -106,7 +109,12 @@ describe("parseSourceChecks", () => {
 
   it("coerces unknown tiers and non-boolean relevance", () => {
     const [parsed] = parseSourceChecks([
-      { domain: "example.com", relevant: "yes", sourceTier: "top", url: "https://example.com" },
+      {
+        domain: "example.com",
+        relevant: "yes",
+        sourceTier: "top",
+        url: "https://example.com",
+      },
     ]);
     expect(parsed?.sourceTier).toBe("unknown");
     expect(parsed?.relevant).toBe(false);
@@ -120,14 +128,19 @@ describe("filterSourceChecksByEvidence", () => {
 
   it("keeps checks matching an evidence url or domain and drops invented ones", () => {
     const evidence = [evidenceItem()];
-    const byUrl = sourceCheck({ domain: "other.com", url: "https://example.com/a" });
+    const byUrl = sourceCheck({
+      domain: "other.com",
+      url: "https://example.com/a",
+    });
     const byDomain = sourceCheck({ url: "https://example.com/other" });
-    const invented = sourceCheck({ domain: "invented.com", url: "https://invented.com/x" });
+    const invented = sourceCheck({
+      domain: "invented.com",
+      url: "https://invented.com/x",
+    });
 
-    expect(filterSourceChecksByEvidence([byUrl, byDomain, invented], evidence)).toEqual([
-      byUrl,
-      byDomain,
-    ]);
+    expect(
+      filterSourceChecksByEvidence([byUrl, byDomain, invented], evidence),
+    ).toEqual([byUrl, byDomain]);
   });
 });
 
@@ -150,20 +163,28 @@ describe("adjustModelScoresForEvidence", () => {
   });
 
   it("keeps evidence-backed scores when source checks exist", () => {
-    const adjusted = adjustModelScoresForEvidence(baseScores, [sourceCheck()], []);
+    const adjusted = adjustModelScoresForEvidence(
+      baseScores,
+      [sourceCheck()],
+      [],
+    );
     expect(adjusted.corroboration).toBe(baseScores.corroboration);
     expect(adjusted.sourceQuality).toBe(baseScores.sourceQuality);
   });
 
   it("lets promptInjectionRisk stand only with a corroborating hard flag", () => {
-    const flagged = adjustModelScoresForEvidence(baseScores, [sourceCheck()], [
-      "prompt_injection_detected",
-    ]);
+    const flagged = adjustModelScoresForEvidence(
+      baseScores,
+      [sourceCheck()],
+      ["prompt_injection_detected"],
+    );
     expect(flagged.promptInjectionRisk).toBe(baseScores.promptInjectionRisk);
 
-    const unflagged = adjustModelScoresForEvidence(baseScores, [sourceCheck()], [
-      "unrelated_flag",
-    ]);
+    const unflagged = adjustModelScoresForEvidence(
+      baseScores,
+      [sourceCheck()],
+      ["unrelated_flag"],
+    );
     expect(unflagged.promptInjectionRisk).toBe(2);
   });
 });

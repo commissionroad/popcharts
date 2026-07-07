@@ -3,10 +3,7 @@ import {
   enqueueEligibleMarketReviewJobs,
   processReviewJob,
 } from "./jobs";
-import {
-  getAiReviewRunnerConfig,
-  type AiReviewRunnerConfig,
-} from "./config";
+import { getAiReviewRunnerConfig, type AiReviewRunnerConfig } from "./config";
 
 let stopRequested = false;
 

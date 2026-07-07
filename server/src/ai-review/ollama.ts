@@ -238,18 +238,25 @@ function adjustHeuristicScoresForEvidence(
   );
   const sourceQuality = Math.max(
     scores.sourceQuality,
-    ...reachable.map((sourceCheck) => sourceQualityScore(sourceCheck.sourceTier)),
+    ...reachable.map((sourceCheck) =>
+      sourceQualityScore(sourceCheck.sourceTier),
+    ),
   );
   const corroboration = Math.max(
     scores.corroboration,
-    Math.min(5, new Set(reachable.map((sourceCheck) => sourceCheck.domain)).size),
+    Math.min(
+      5,
+      new Set(reachable.map((sourceCheck) => sourceCheck.domain)).size,
+    ),
   );
 
   return {
     ...scores,
     corroboration,
     publicKnowability:
-      reachable.length > 0 ? Math.max(scores.publicKnowability, 4) : scores.publicKnowability,
+      reachable.length > 0
+        ? Math.max(scores.publicKnowability, 4)
+        : scores.publicKnowability,
     sourceQuality,
   };
 }
@@ -270,4 +277,3 @@ function sourceQualityScore(sourceTier: SourceCheck["sourceTier"]) {
       return 1;
   }
 }
-
