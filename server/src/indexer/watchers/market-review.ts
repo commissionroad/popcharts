@@ -141,8 +141,7 @@ async function recoverMarketReviewEvent(
   }: {
     cursorName: string;
     event:
-      | typeof MARKET_REVIEW_APPROVED_EVENT
-      | typeof MARKET_REVIEW_REJECTED_EVENT;
+      typeof MARKET_REVIEW_APPROVED_EVENT | typeof MARKET_REVIEW_REJECTED_EVENT;
     eventName: "MarketReviewApproved" | "MarketReviewRejected";
     label: string;
     quiet?: boolean;

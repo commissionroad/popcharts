@@ -221,9 +221,7 @@ async function main(): Promise<void> {
   });
   type Bot = (typeof bots)[number];
 
-  console.log(
-    `[bot-trade] market #${plan.market.id}: ${plan.market.question}`,
-  );
+  console.log(`[bot-trade] market #${plan.market.id}: ${plan.market.question}`);
   console.log(
     `[bot-trade] pattern: ${describePattern(plan)} | bots: ${
       plan.botCount

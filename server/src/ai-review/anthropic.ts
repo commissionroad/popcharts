@@ -11,11 +11,7 @@ import {
   parseVerdict,
 } from "./response-parsing";
 import { normalizeScores } from "./scoring";
-import type {
-  EvidenceItem,
-  MarketReviewRequest,
-  PolicyFinding,
-} from "./types";
+import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /**
  * An Anthropic policy finding plus the evidence extracted from Claude's own

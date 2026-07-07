@@ -1,15 +1,6 @@
 import type { MarketStatus } from "src/api/models/markets";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
-import {
-  and,
-  asc,
-  db,
-  desc,
-  eq,
-  inArray,
-  schema,
-  sql,
-} from "src/db/client";
+import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import { reviewMarketWithService } from "./client";
 import { cancelReviewJob, markReviewJobFailure } from "./failures";
 import {

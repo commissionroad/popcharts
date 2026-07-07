@@ -82,8 +82,7 @@ export async function transitionReviewedMarketOnChain(
     marketId: bigint;
     targetMarketStatus: MarketStatus;
   },
-  dependencies: MarketReviewChainTransitionDependencies =
-    createDefaultMarketReviewChainTransitionDependencies(),
+  dependencies: MarketReviewChainTransitionDependencies = createDefaultMarketReviewChainTransitionDependencies(),
 ): Promise<MarketReviewChainTransitionResult | null> {
   const action = marketReviewChainAction(targetMarketStatus);
 
