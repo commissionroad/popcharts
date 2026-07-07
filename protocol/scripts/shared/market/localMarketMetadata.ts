@@ -10,6 +10,8 @@ export type MarketMetadata = {
   category: string;
   createdAt: string;
   description: string;
+  outcomeNo?: string;
+  outcomeYes?: string;
   question: string;
   resolutionCriteria: string;
   resolutionSources?: string[];
@@ -54,6 +56,12 @@ export function parseMarketMetadata(value: unknown): MarketMetadata {
     version: 1,
   };
 
+  if (value.outcomeYes !== undefined) {
+    metadata.outcomeYes = readString(value, "outcomeYes");
+  }
+  if (value.outcomeNo !== undefined) {
+    metadata.outcomeNo = readString(value, "outcomeNo");
+  }
   if (value.resolutionUrl !== undefined) {
     metadata.resolutionUrl = readString(value, "resolutionUrl");
   }
@@ -74,6 +82,13 @@ export function serializeMarketMetadata(metadata: MarketMetadata): string {
     category: metadata.category,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+
+  if (metadata.outcomeYes) {
+    ordered.outcomeYes = metadata.outcomeYes;
+  }
+  if (metadata.outcomeNo) {
+    ordered.outcomeNo = metadata.outcomeNo;
+  }
 
   if (metadata.resolutionSources?.length) {
     ordered.resolutionSources = metadata.resolutionSources;

@@ -22,6 +22,7 @@ export const DEFAULT_LIQUIDITY_PARAMETER = 5_000;
 export const MIN_PUBLIC_LIQUIDITY_PARAMETER = 500;
 export const MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000;
 export const GRADUATION_THRESHOLD_MULTIPLE = 0.5;
+export const MAX_OUTCOME_LABEL_LENGTH = 40;
 export const GRADUATION_PRESETS = [
   { label: "1h", milliseconds: 60 * 60 * 1000 },
   { label: "6h", milliseconds: 6 * 60 * 60 * 1000 },
@@ -45,6 +46,8 @@ export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
     ),
     liquidityParameter: DEFAULT_LIQUIDITY_PARAMETER,
     openingProbability: 50,
+    outcomeNo: "",
+    outcomeYes: "",
     question: "",
     resolutionCriteria: "",
     resolutionSources: "",
@@ -57,10 +60,14 @@ export function createInitialMarketDraft(now = new Date()): CreateMarketDraft {
 }
 
 export function buildMarketMetadata(draft: CreateMarketDraft): MarketMetadata {
+  const outcomeYes = draft.outcomeYes.trim();
+  const outcomeNo = draft.outcomeNo.trim();
   const baseMetadata = {
     category: draft.category,
     createdAt: draft.createdAt,
     description: draft.description.trim(),
+    ...(outcomeNo ? { outcomeNo } : {}),
+    ...(outcomeYes ? { outcomeYes } : {}),
     question: draft.question.trim(),
     resolutionCriteria: draft.resolutionCriteria.trim(),
     version: 1 as const,
@@ -149,6 +156,14 @@ export function validateCreateMarketDraft(
 
   if (!draft.resolutionCriteria.trim()) {
     errors.resolutionCriteria = "Add resolution criteria.";
+  }
+
+  if (draft.outcomeYes.trim().length > MAX_OUTCOME_LABEL_LENGTH) {
+    errors.outcomeYes = `Keep the YES label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`;
+  }
+
+  if (draft.outcomeNo.trim().length > MAX_OUTCOME_LABEL_LENGTH) {
+    errors.outcomeNo = `Keep the NO label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`;
   }
 
   const invalidSource = parseResolutionSources(draft.resolutionSources).find(
@@ -279,6 +294,14 @@ export function serializeMarketMetadata(metadata: MarketMetadata) {
     category: metadata.category,
     resolutionCriteria: metadata.resolutionCriteria,
   };
+
+  if (metadata.outcomeYes) {
+    ordered.outcomeYes = metadata.outcomeYes;
+  }
+
+  if (metadata.outcomeNo) {
+    ordered.outcomeNo = metadata.outcomeNo;
+  }
 
   if (metadata.resolutionSources?.length) {
     ordered.resolutionSources = metadata.resolutionSources;

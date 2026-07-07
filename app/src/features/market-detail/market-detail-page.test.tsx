@@ -35,8 +35,9 @@ describe("MarketDetailPage", () => {
       "href",
       "/"
     );
-    expect(screen.getByText("64%")).toBeInTheDocument();
-    expect(screen.getByText("36%")).toBeInTheDocument();
+    // Prices render in both the header and the chart legend.
+    expect(screen.getAllByText("64%")).not.toHaveLength(0);
+    expect(screen.getAllByText("36%")).not.toHaveLength(0);
     expect(screen.getByText("Receipt ticket for eth-5000-august")).toBeInTheDocument();
     expect(screen.getByText("Receipts waiting")).toBeInTheDocument();
     expect(screen.getByText("Matched liquidity")).toBeInTheDocument();
