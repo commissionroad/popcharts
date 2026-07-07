@@ -18,13 +18,12 @@
     "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
     "api:generate": "orval",
     "api:check": "node --experimental-strip-types scripts/check-generated-api.mts",
-    "abi:generate": "node --experimental-strip-types scripts/generate-contract-abis.mts",
-    "abi:check": "node --experimental-strip-types scripts/generate-contract-abis.mts --check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
   },
   "dependencies": {
+    "@popcharts/protocol": "workspace:*",
     "@privy-io/chains": "^0.3.0",
     "@privy-io/react-auth": "^3.30.0",
     "@privy-io/wagmi": "^4.0.12",

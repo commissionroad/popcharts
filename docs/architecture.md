@@ -30,17 +30,18 @@ options in the root `.prettierrc.json`.
 
 ## Dependency graph
 
-All cross-workspace coupling flows through committed, generated artifacts or
-over the network — never through source imports:
+Cross-workspace coupling flows through the `@popcharts/protocol` workspace
+package, committed generated artifacts, or over the network:
 
 ```txt
 protocol/contracts/*.sol  (canonical)
   │  protocol/scripts/export-contract-metadata.ts  (runs in `protocol build`)
   ▼
 protocol/src/generated/{pregrad-manager,postgrad-venue}.ts  (committed)
-  │  app/scripts/generate-contract-abis.mts  (`abi:generate` / `abi:check`)
+  │  @popcharts/protocol `workspace:*` dependency (TS source, no build step;
+  │  Next transpiles it via `transpilePackages`)
   ▼
-app/src/integrations/contracts/pregrad-manager.ts  (committed)
+app/src/integrations/contracts/pregrad-manager.ts  (re-export shim)
 
 server/src/api (Elysia route schemas, TypeBox)
   │  server/scripts/generate-openapi.ts  (`openapi:generate` / `openapi:check`)
@@ -78,9 +79,12 @@ The remaining edges:
 - `server/` never imports protocol source or artifacts. Chain knowledge
   enters the server only as inline viem ABI fragments plus addresses from
   config/env. It never imports app code.
-- `app/` never imports server or protocol source. The only protocol- and
-  server-derived code in the app is the committed codegen output listed
-  above, quarantined under `app/src/integrations/`.
+- `app/` never imports server source. Protocol code enters the app only
+  through the `@popcharts/protocol` package (its generated contract metadata
+  exports), imported solely by the re-export shims under
+  `app/src/integrations/contracts/` — feature code never imports the package
+  directly. Server-derived code in the app is the committed codegen output
+  listed above, quarantined under `app/src/integrations/`.
 - Within the app (per `app/AGENTS.md`):
   - `src/domain/` is pure TypeScript: no React, Next.js, browser APIs, wallet
     SDKs, or UI component imports. Importing `src/lib/` (pure helpers) is
@@ -108,7 +112,6 @@ stale relative to its source:
 | Artifact (committed) | Source of truth | Regenerate | Freshness gate |
 | -------------------- | --------------- | ---------- | -------------- |
 | `protocol/src/generated/*.ts` | Compiled contract artifacts | `protocol build` (runs `export-contract-metadata.ts`) | `protocol metadata:check` (`export-contract-metadata.ts --check`), wired into `protocol typecheck`, so `pnpm run protocol:check` and Protocol CI enforce it |
-| `app/src/integrations/contracts/pregrad-manager.ts` | `protocol/src/generated/pregrad-manager.ts` | `app abi:generate` | `app abi:check`, wired into `pnpm run app:check` and App CI; App CI path filters also trigger on the protocol generated source so a metadata regeneration cannot merge with a stale app ABI |
 | `server/generated/openapi.json` | Elysia route schemas | `server openapi:generate` | `server openapi:check` (regenerate-and-diff plus spec validation), wired into `pnpm run server:check` and Server CI |
 | `app/src/integrations/indexer/generated/` | `server/generated/openapi.json` | `app api:generate` (orval, deterministic from the committed spec) | `app api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` changes (ADR 0007 item A5). |
 

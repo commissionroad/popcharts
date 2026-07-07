@@ -1,6 +1,6 @@
 // Verifies the committed orval client in src/integrations/indexer/generated
-// is exactly what regenerating from server/generated/openapi.json produces,
-// mirroring abi:check. Regenerates into a throwaway directory inside app/ (so
+// is exactly what regenerating from server/generated/openapi.json produces.
+// Regenerates into a throwaway directory inside app/ (so
 // prettier config resolution matches) and compares trees without touching the
 // committed files.
 import { execFileSync } from "node:child_process";

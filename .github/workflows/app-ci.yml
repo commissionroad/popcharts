@@ -6,10 +6,10 @@ on:
       - main
     paths:
       - app/**
-      # The committed app ABI and API client are generated from these files;
-      # run abi:check/api:check when they change. Mirror any path change in
-      # app-ci-skip.yml.
-      - protocol/src/generated/pregrad-manager.ts
+      # The app consumes @popcharts/protocol TS source via workspace:*, and
+      # the committed API client is generated from the OpenAPI spec; run App
+      # CI when either changes. Mirror any path change in app-ci-skip.yml.
+      - protocol/src/**
       - server/generated/openapi.json
       # Dependency changes land in the root workspace lockfile.
       - pnpm-lock.yaml
@@ -20,7 +20,7 @@ on:
       - main
     paths:
       - app/**
-      - protocol/src/generated/pregrad-manager.ts
+      - protocol/src/**
       - server/generated/openapi.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -72,9 +72,6 @@ jobs:
 
       - name: Check formatting
         run: pnpm format:check
-
-      - name: Check generated contract ABIs
-        run: pnpm abi:check
 
       - name: Check generated API client
         run: pnpm api:check
