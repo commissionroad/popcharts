@@ -1,56 +1,27 @@
 "use client";
 
 import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { formatUnits } from "viem";
-import { usePublicClient, useWalletClient } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import type { Market, MarketSide } from "@/domain/markets/types";
-import {
-  buildReceiptQuotePreview,
-  DEFAULT_RECEIPT_SLIPPAGE_BPS,
-  getReceiptAmountError,
-  parseReceiptAmount,
-  type PlacedPregradReceipt,
-} from "@/domain/pregrad-trading/receipt-quote";
-import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
-import { useContractMarketStatus } from "@/integrations/contracts/hooks/use-contract-market-status";
-import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import type { Market } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
-import { formatUsd } from "@/lib/format";
 
-import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
-  placePregradReceipt,
-  type PlaceReceiptWallet,
-  type ReceiptPlacementStep,
-  resolveTradingEnvironment,
-} from "./place-receipt-service";
-import {
-  getMaxPresetAmount,
-  getReceiptAction,
-  getReceiptPlacementErrorMessage,
-} from "./receipt-action";
-import { recordPlacedReceipt } from "./receipt-storage";
+import { getMaxPresetAmount } from "./receipt-action";
 import { formatPlacementStep, formatPresetAmount } from "./receipt-ticket-format";
 import {
   CollateralBalancePanel,
   PlacedReceiptNotice,
   QuotePreview,
 } from "./receipt-ticket-panels";
+import { presetAmounts, useReceiptTicketState } from "./use-receipt-ticket-state";
 
 const sideOptions = [
   { label: "YES", value: "yes" },
   { label: "NO", value: "no" },
 ];
 
-const presetAmounts = ["50", "250", "1000", "Max"] as const;
-const TEST_MINT_AMOUNT_USD = 10_000;
 const marketStatusLabels: Record<Market["status"], string> = {
   under_review: "under review",
   bootstrap: "bootstrap",
@@ -66,191 +37,34 @@ const marketStatusLabels: Record<Market["status"], string> = {
  * The pre-graduation trade ticket for one market: side and budget entry, a
  * live quote preview, and receipt placement against the devchain
  * PregradManager (with balance and market-existence checks) or the mock
- * environment. Placed receipts are priced intents, not fills.
+ * environment. Placed receipts are priced intents, not fills. State and
+ * submission flows live in useReceiptTicketState; this component is
+ * presentation.
  */
 export function ReceiptTicket({ market }: { market: Market }) {
-  const router = useRouter();
-  const wallet = useWalletAccount();
-  const [amount, setAmount] = useState("250");
-  const [side, setSide] = useState<MarketSide>("yes");
-  const [isPlacing, setIsPlacing] = useState(false);
-  const [isMinting, setIsMinting] = useState(false);
-  const [placementStep, setPlacementStep] = useState<ReceiptPlacementStep | null>(null);
-  const [placedReceipt, setPlacedReceipt] = useState<PlacedPregradReceipt | null>(null);
-  const [statusRefreshKey, setStatusRefreshKey] = useState(0);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const environment = useMemo(() => resolveTradingEnvironment(market), [market]);
-  const contractChainId =
-    environment.kind === "contract" ? environment.config.chainId : undefined;
-  const contractConfig = environment.kind === "contract" ? environment.config : null;
-  const contractMarketId =
-    environment.kind === "contract" ? environment.marketId : null;
-  const publicClient = usePublicClient({ chainId: contractChainId });
-  const { data: walletClient } = useWalletClient({ chainId: contractChainId });
-  const contractStatus = useContractMarketStatus({
-    config: contractConfig,
-    formatError: getReceiptPlacementErrorMessage,
-    marketId: contractMarketId,
-    publicClient,
-    refreshKey: statusRefreshKey,
-    walletAddress: wallet.address,
-  });
-  const amountError = getReceiptAmountError(amount);
-  const numericAmount = parseReceiptAmount(amount);
-  const quote = useMemo(
-    () =>
-      amountError || numericAmount === null
-        ? null
-        : buildReceiptQuotePreview({
-            budgetUsd: numericAmount,
-            market,
-            side,
-          }),
-    [amountError, market, numericAmount, side]
-  );
-  const sideColor = side === "yes" ? "var(--yes)" : "var(--no)";
-  const balanceUsd =
-    contractStatus.balance === null
-      ? null
-      : Number(formatUnits(contractStatus.balance, TOKEN_DECIMALS));
-  const insufficientBalance =
-    environment.kind === "contract" &&
-    Boolean(wallet.address) &&
-    balanceUsd !== null &&
-    quote !== null &&
-    quote.maxCostUsd > balanceUsd + 0.000001;
-  const insufficientBalanceMessage =
-    insufficientBalance && balanceUsd !== null && quote
-      ? `Max cost is ${formatUsd(quote.maxCostUsd)}, but your wallet has ${formatUsd(
-          balanceUsd
-        )} pUSD.`
-      : null;
-  const contractMarketMissing =
-    environment.kind === "contract" && contractStatus.marketExists === false;
-  const amountFieldError =
-    market.status === "bootstrap"
-      ? (amountError ?? insufficientBalanceMessage ?? undefined)
-      : undefined;
-  const canMintTestPusd =
-    contractConfig !== null &&
-    Boolean(wallet.address) &&
-    wallet.isSupportedChain &&
-    publicClient !== undefined &&
-    walletClient !== undefined &&
-    canMintLocalCollateral(contractConfig);
-  const receiptAction = getReceiptAction({
-    amountError,
+  const {
+    amount,
+    amountFieldError,
+    balanceUsd,
+    canMintTestPusd,
     contractMarketMissing,
+    contractStatus,
     environment,
-    insufficientBalance,
+    isMinting,
     isPlacing,
-    marketStatus: market.status,
-    onPlace: handlePlaceReceipt,
-    publicClientReady: Boolean(publicClient),
+    placedReceipt,
+    placementStep,
     quote,
+    receiptAction,
     side,
-    wallet,
-    walletClientReady: Boolean(walletClient),
-  });
-
-  function updateAmount(value: string) {
-    setAmount(value.replace(/[^0-9.]/g, ""));
-    setPlacedReceipt(null);
-    setSubmitError(null);
-  }
-
-  function selectPresetAmount(preset: (typeof presetAmounts)[number]) {
-    if (preset !== "Max") {
-      updateAmount(preset);
-      return;
-    }
-
-    updateAmount(formatPresetAmount(getMaxPresetAmount(balanceUsd)));
-  }
-
-  async function handleMintTestPusd() {
-    if (
-      environment.kind !== "contract" ||
-      !wallet.address ||
-      !publicClient ||
-      !walletClient
-    ) {
-      return;
-    }
-
-    setIsMinting(true);
-    setPlacementStep(null);
-    setPlacedReceipt(null);
-    setSubmitError(null);
-
-    try {
-      await mintLocalCollateral({
-        amountUsd: TEST_MINT_AMOUNT_USD,
-        config: environment.config,
-        onStep: setPlacementStep,
-        wallet: {
-          accountAddress: wallet.address as `0x${string}`,
-          activeChainId: wallet.activeChainId,
-          publicClient,
-          walletClient,
-        },
-      });
-      setStatusRefreshKey((value) => value + 1);
-    } catch (error) {
-      setSubmitError(getReceiptPlacementErrorMessage(error));
-    } finally {
-      setIsMinting(false);
-      setPlacementStep(null);
-    }
-  }
-
-  async function handlePlaceReceipt() {
-    if (!quote) {
-      return;
-    }
-
-    setIsPlacing(true);
-    setPlacementStep(null);
-    setPlacedReceipt(null);
-    setSubmitError(null);
-
-    try {
-      const walletContext =
-        environment.kind === "contract" &&
-        wallet.address &&
-        publicClient &&
-        walletClient
-          ? ({
-              accountAddress: wallet.address as `0x${string}`,
-              activeChainId: wallet.activeChainId,
-              publicClient,
-              walletClient,
-            } satisfies PlaceReceiptWallet)
-          : undefined;
-      const receipt = await placePregradReceipt({
-        market,
-        options: {
-          onStep: setPlacementStep,
-          slippageBps: DEFAULT_RECEIPT_SLIPPAGE_BPS,
-          ...(walletContext ? { wallet: walletContext } : {}),
-        },
-        quote,
-        side,
-      });
-
-      recordPlacedReceipt(receipt);
-      setPlacedReceipt(receipt);
-      setStatusRefreshKey((value) => value + 1);
-      router.refresh();
-      window.setTimeout(() => router.refresh(), 1_500);
-      window.setTimeout(() => router.refresh(), 4_000);
-    } catch (error) {
-      setSubmitError(getReceiptPlacementErrorMessage(error));
-    } finally {
-      setIsPlacing(false);
-      setPlacementStep(null);
-    }
-  }
+    submitError,
+    walletConnected,
+    mintTestPusd,
+    selectPresetAmount,
+    selectSide,
+    updateAmount,
+  } = useReceiptTicketState(market);
+  const sideColor = side === "yes" ? "var(--yes)" : "var(--no)";
 
   return (
     <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6">
@@ -273,11 +87,7 @@ export function ReceiptTicket({ market }: { market: Market }) {
       <SegmentedControl
         accentBy={(value) => (value === "yes" ? "var(--yes)" : "var(--no)")}
         full
-        onChange={(value) => {
-          setSide(value === "no" ? "no" : "yes");
-          setPlacedReceipt(null);
-          setSubmitError(null);
-        }}
+        onChange={selectSide}
         options={sideOptions}
         value={side}
       />
@@ -324,8 +134,8 @@ export function ReceiptTicket({ market }: { market: Market }) {
           error={contractStatus.error}
           isLoading={contractStatus.loading}
           isMinting={isMinting}
-          onMint={handleMintTestPusd}
-          walletConnected={Boolean(wallet.address)}
+          onMint={mintTestPusd}
+          walletConnected={walletConnected}
         />
       ) : null}
 
