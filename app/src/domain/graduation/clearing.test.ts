@@ -36,4 +36,29 @@ describe("graduation clearing helpers", () => {
 
     expect(matched).toBe(true);
   });
+
+  test("rejects non-positive graduation targets", () => {
+    expect(() =>
+      calculateGraduationProgress({ matchedUsd: 100, targetUsd: 0 })
+    ).toThrowError("targetUsd must be positive");
+  });
+
+  test("returns no overlap for disjoint price bands", () => {
+    expect(
+      overlapPriceBand(
+        { fromProbability: 10, toProbability: 20 },
+        { fromProbability: 30, toProbability: 40 }
+      )
+    ).toBeNull();
+  });
+
+  test("leaves a band unmatched when only one side overlaps", () => {
+    const matched = isBandMatched({
+      band: { fromProbability: 40, toProbability: 50 },
+      noBands: [{ fromProbability: 90, toProbability: 95 }],
+      yesBands: [{ fromProbability: 20, toProbability: 70 }],
+    });
+
+    expect(matched).toBe(false);
+  });
 });

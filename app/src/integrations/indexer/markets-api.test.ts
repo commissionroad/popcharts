@@ -214,6 +214,173 @@ describe("createMarketsApiClient", () => {
       "http://localhost:3001/markets/5042002/7/events"
     );
   });
+
+  it("fetches market receipts", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse([
+        {
+          blockNumber: "111",
+          blockTimestamp: "2026-06-13T12:05:00.000Z",
+          chainId: 5042002,
+          cost: "3288901914750925000",
+          logIndex: 1,
+          marketId: "7",
+          owner: "0x0000000000000000000000000000000000000003",
+          receiptId: "1",
+          sequence: "1",
+          shares: "6000000000000000000",
+          side: 0,
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+      ])
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    const receipts = await client.getMarketReceipts({
+      chainId: 5042002,
+      marketId: "7",
+    });
+
+    expect(receipts).toHaveLength(1);
+    expect(String(firstFetchCall(fetcher)[0])).toBe(
+      "http://localhost:3001/markets/5042002/7/receipts"
+    );
+  });
+
+  it("returns empty lists when list endpoints 404", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(client.getMarkets()).resolves.toEqual([]);
+    await expect(
+      client.getMarketEvents({ chainId: 5042002, marketId: "7" })
+    ).resolves.toEqual([]);
+    await expect(
+      client.getMarketReceipts({ chainId: 5042002, marketId: "7" })
+    ).resolves.toEqual([]);
+  });
+
+  it("raises a 404 error when graduation targets a missing market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.graduateMarket({ chainId: 5042002, marketId: "404" })
+    ).rejects.toMatchObject({
+      message: "Market not found.",
+      name: "MarketsApiError",
+      status: 404,
+    });
+  });
+
+  it("raises a 404 error when the dev close endpoint is unavailable", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.closePregradMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: "Dev market close is disabled or unavailable.",
+      name: "MarketsApiError",
+      status: 404,
+    });
+  });
+
+  it("falls back to the status text when an error body is empty", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () =>
+        new Response(null, { status: 500, statusText: "Internal Server Error" })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: "Markets API request failed (500): Internal Server Error",
+      status: 500,
+    });
+  });
+
+  it("surfaces raw error bodies that are not JSON", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("upstream indexer exploded", { status: 502 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: "Markets API request failed (502): upstream indexer exploded",
+      status: 502,
+    });
+  });
+
+  it("surfaces JSON error bodies without a usable message field", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: "nope" }), {
+          headers: { "content-type": "application/json" },
+          status: 500,
+        })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: 'Markets API request failed (500): {"error":"nope"}',
+      status: 500,
+    });
+  });
+
+  it("surfaces JSON error bodies with an empty message field", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ message: "" }), {
+          headers: { "content-type": "application/json" },
+          status: 500,
+        })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: 'Markets API request failed (500): {"message":""}',
+      status: 500,
+    });
+  });
 });
 
 function firstFetchCall(fetcher: MockedFunction<MarketsApiFetch>) {

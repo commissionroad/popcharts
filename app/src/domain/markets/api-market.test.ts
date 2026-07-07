@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ApiReceiptPlacedEvent } from "@/integrations/indexer/markets-api";
+import type {
+  ApiMarket,
+  ApiReceiptPlacedEvent,
+} from "@/integrations/indexer/markets-api";
 
-import { pricePathFromReceipts } from "./api-market";
+import { apiMarketToMarket, pricePathFromReceipts } from "./api-market";
 
 const market = {
   b: 5_000,
@@ -33,6 +36,50 @@ function receipt(
 
 function cents(path: { cents: number }[]) {
   return path.map((point) => point.cents);
+}
+
+function apiMarket(overrides: Partial<ApiMarket> = {}): ApiMarket {
+  return {
+    bypassAiResolution: false,
+    chainId: 5042002,
+    collateral: "0x0000000000000000000000000000000000000001",
+    createdAt: "2026-06-13T12:00:00.000Z",
+    createdBlockNumber: "123",
+    createdBlockTimestamp: "2026-06-13T12:00:00.000Z",
+    createdLogIndex: 4,
+    createdTransactionHash:
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    creator: "0x0000000000000000000000000000000000000002",
+    graduationThreshold: "40000000000000000000000",
+    graduationTime: "2026-06-20T12:00:00.000Z",
+    liquidityParameter: "5000000000000000000000",
+    marketId: "7",
+    matchedMarketCap: "0",
+    metadataHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    noShares: "0",
+    openingProbabilityWad: "500000000000000000",
+    receiptCount: "2",
+    resolutionTime: "2026-07-01T12:00:00.000Z",
+    status: "bootstrap",
+    totalEscrowed: "0",
+    updatedAt: "2026-06-13T12:00:00.000Z",
+    yesShares: "0",
+    ...overrides,
+  };
+}
+
+function apiMarketMetadata() {
+  return {
+    category: "Politics",
+    chainId: 5042002,
+    createdAt: "2026-06-13T12:01:00.000Z",
+    description: "Resolves using the official source.",
+    metadataCreatedAt: "2026-06-13T12:01:00.000Z",
+    metadataHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    question: "Will this market keep its metadata?",
+    resolutionCriteria: "Resolves YES if the event happens.",
+    updatedAt: "2026-06-13T12:01:00.000Z",
+  };
 }
 
 describe("pricePathFromReceipts", () => {
@@ -127,5 +174,75 @@ describe("pricePathFromReceipts", () => {
     expect(path).toHaveLength(256);
     expect(path[0]?.cents).toBe(50);
     expect(path.at(-1)?.cents).toBeGreaterThan(full.at(-1)?.cents ?? Number.NaN);
+  });
+});
+
+describe("apiMarketToMarket", () => {
+  it("keeps only non-blank resolution sources", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        metadata: {
+          ...apiMarketMetadata(),
+          resolutionSources: ["   ", "https://example.com/source"],
+          resolutionUrl: "https://example.com/source",
+        },
+      })
+    );
+
+    expect(converted.resolutionSources).toEqual(["https://example.com/source"]);
+    expect(converted.resolutionUrl).toBe("https://example.com/source");
+  });
+
+  it("treats unparseable numeric strings as zero", () => {
+    const converted = apiMarketToMarket(apiMarket({ receiptCount: "not-a-bigint" }));
+
+    expect(converted.receiptCount).toBe(0);
+  });
+
+  it("carries the AI review through when present", () => {
+    const aiReview: NonNullable<ApiMarket["aiReview"]> = {
+      createdAt: "2026-06-13T12:02:00.000Z",
+      evidence: [],
+      hardFlags: [],
+      id: 1,
+      metadataHash:
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      promptVersion: "v1",
+      provider: "heuristic",
+      reasons: [],
+      reviewedAt: "2026-06-13T12:02:00.000Z",
+      scores: {
+        contentSafety: 1,
+        corroboration: 1,
+        disputeRisk: 0,
+        objectivity: 1,
+        promptInjectionRisk: 0,
+        publicKnowability: 1,
+        sourceQuality: 1,
+      },
+      sourceChecks: [],
+      verdict: "approve",
+    };
+
+    const converted = apiMarketToMarket(apiMarket({ aiReview }));
+
+    expect(converted.aiReview).toEqual(aiReview);
+  });
+
+  it("generates a category from the chain id when the market id is not numeric", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({ chainId: 3, marketId: "not-a-number" })
+    );
+
+    // generatedCategories[3 % 7]
+    expect(converted.category).toBe("Weather");
+  });
+
+  it("falls back to Econ when the generated category index misses", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({ chainId: -1, marketId: "not-a-number" })
+    );
+
+    expect(converted.category).toBe("Econ");
   });
 });

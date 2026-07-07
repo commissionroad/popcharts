@@ -60,4 +60,63 @@ describe("virtual LMSR", () => {
 
     expect(after).toBeGreaterThan(before);
   });
+
+  test("rejects negative share purchases", () => {
+    const state = createOpeningState({ b: 5_000, openingProbability: 50 });
+
+    expect(() => costToBuyShares({ shares: -1, side: "yes", state })).toThrowError(
+      "shares must be non-negative"
+    );
+    expect(() => stateAfterBuy({ shares: -1, side: "no", state })).toThrowError(
+      "shares must be non-negative"
+    );
+  });
+
+  test("rejects non-finite or negative budgets", () => {
+    const state = createOpeningState({ b: 5_000, openingProbability: 50 });
+
+    expect(() =>
+      sharesForBudget({ budget: Number.NaN, side: "yes", state })
+    ).toThrowError("budget must be non-negative");
+    expect(() => sharesForBudget({ budget: -5, side: "no", state })).toThrowError(
+      "budget must be non-negative"
+    );
+  });
+
+  test("quotes zero shares for a zero budget", () => {
+    const state = createOpeningState({ b: 5_000, openingProbability: 50 });
+
+    expect(sharesForBudget({ budget: 0, side: "yes", state })).toBe(0);
+  });
+
+  test("grows the bracket when the clamped opening price undershoots the cost", () => {
+    // A very low opening probability with a large b keeps the marginal price
+    // below the 0.01 clamp, so the initial bracket is too small to cover the
+    // budget and must be doubled before bisecting.
+    const state = createOpeningState({ b: 1_000_000, openingProbability: 0.5 });
+    const shares = sharesForBudget({ budget: 100, side: "yes", state });
+
+    expect(costToBuyShares({ shares, side: "yes", state })).toBeCloseTo(100, 6);
+  });
+
+  test("rejects non-positive liquidity parameters", () => {
+    expect(() => yesProbability({ b: 0, noShares: 0, yesShares: 0 })).toThrowError(
+      "b must be positive"
+    );
+    expect(() =>
+      createOpeningState({ b: Number.NaN, openingProbability: 50 })
+    ).toThrowError("b must be positive");
+  });
+
+  test("rejects out-of-range opening probabilities", () => {
+    expect(() => createOpeningState({ b: 5_000, openingProbability: 0 })).toThrowError(
+      "openingProbability must be between 0 and 100"
+    );
+    expect(() =>
+      createOpeningState({ b: 5_000, openingProbability: 100 })
+    ).toThrowError("openingProbability must be between 0 and 100");
+    expect(() =>
+      createOpeningState({ b: 5_000, openingProbability: Number.NaN })
+    ).toThrowError("openingProbability must be between 0 and 100");
+  });
 });
