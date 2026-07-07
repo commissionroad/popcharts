@@ -11,11 +11,8 @@ import {
 } from "viem";
 
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
-import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
-import {
-  resolveDeploymentChainProfile,
-  type DeploymentChainProfile,
-} from "./shared/chain/resolveDeploymentChainProfile.js";
+import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
+import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { requireAddress, requireNonNegativeInteger } from "./shared/cli/requireCliValue.js";
 import { mineHookSalt } from "./shared/contract/mineHookSalt.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
@@ -26,7 +23,6 @@ import {
   type VenueManifestContractEntry,
 } from "./shared/deployment/venueManifest.js";
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
-import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
@@ -55,22 +51,18 @@ type PostgradVenueManifest = {
  * CREATE2-mined BoundedPredictionHook, and CompleteSetPostgradAdapter.
  */
 async function main() {
-  const connection = await network.create();
-  const profile = resolveDeploymentChainProfile(connection.networkName);
-  const config = loadConfig(process.env, profile);
-  const publicClient = await connection.viem.getPublicClient();
-  const [walletClient] = await connection.viem.getWalletClients();
-  const deployerAddress = getWalletClientAddress({
-    missingMessage:
-      `Expected Hardhat network ${profile.networkName} to expose a deployer account. ` +
-      "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
-    walletClient,
-  });
-  const chainId = await assertHardhatNetwork({
-    expectedChainId: profile.chainId,
-    expectedNetworkName: profile.networkName,
-    networkName: connection.networkName,
+  const {
+    account: deployerAddress,
+    chainId,
+    config,
+    connection,
+    profile,
     publicClient,
+    walletClient,
+  } = await initializeWalletScriptEnvironment({
+    accountRole: "deployer",
+    loadConfig: (profile) => loadConfig(process.env, profile),
+    network,
   });
   const balance = await assertNativeBalance({
     chainName: profile.chainName,

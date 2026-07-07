@@ -1,9 +1,8 @@
 import hre, { network } from "hardhat";
 import { formatUnits, getAbiItem, type Address, type Hex, type PublicClient } from "viem";
 
-import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
+import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
 import {
   detectBoundedOrderAnomalies,
@@ -47,14 +46,8 @@ const ORDER_LIFECYCLE_EVENTS_ABI = [
  * POPCHARTS_INSPECT_STALE_DEFERRED_BLOCKS, POPCHARTS_INSPECT_STRICT.
  */
 async function main() {
-  const connection = await network.create();
-  const profile = resolveDeploymentChainProfile(connection.networkName);
-  const publicClient = await connection.viem.getPublicClient();
-  const chainId = await assertHardhatNetwork({
-    expectedChainId: profile.chainId,
-    expectedNetworkName: profile.networkName,
-    networkName: connection.networkName,
-    publicClient,
+  const { chainId, profile, publicClient } = await initializeReadOnlyScriptEnvironment({
+    network,
   });
   const { manifest, manifestPath } = await readCompleteSetMarketManifest({
     chainEnv: profile.chainEnv,

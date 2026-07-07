@@ -1,10 +1,9 @@
 import hre, { network } from "hardhat";
 import { erc20Abi, formatUnits } from "viem";
 
-import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
+import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { evaluateMarketHealth } from "./shared/market/evaluateMarketHealth.js";
@@ -36,14 +35,8 @@ const STATUS_NAMES: Record<number, string> = {
  * from COMPLETE_SET_KEEPER_POLICY).
  */
 async function main() {
-  const connection = await network.create();
-  const profile = resolveDeploymentChainProfile(connection.networkName);
-  const publicClient = await connection.viem.getPublicClient();
-  const chainId = await assertHardhatNetwork({
-    expectedChainId: profile.chainId,
-    expectedNetworkName: profile.networkName,
-    networkName: connection.networkName,
-    publicClient,
+  const { chainId, profile, publicClient } = await initializeReadOnlyScriptEnvironment({
+    network,
   });
   const { manifest, manifestPath } = await readCompleteSetMarketManifest({
     chainEnv: profile.chainEnv,

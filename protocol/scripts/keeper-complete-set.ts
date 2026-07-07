@@ -7,12 +7,10 @@
 import hre, { network } from "hardhat";
 import { formatUnits, getAddress, type Address, type PublicClient } from "viem";
 
-import { getWalletClientAddress } from "./shared/account/getWalletClientAddress.js";
-import { resolveDeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
+import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
-import { assertHardhatNetwork } from "./shared/hardhat/assertHardhatNetwork.js";
 import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
@@ -50,28 +48,8 @@ import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt
  * sizing), POPCHARTS_KEEPER_LOOP_SECONDS.
  */
 async function main() {
-  const connection = await network.create();
-  const profile = resolveDeploymentChainProfile(connection.networkName);
-  const publicClient = await connection.viem.getPublicClient();
-  const [walletClient] = await connection.viem.getWalletClients();
-  if (walletClient === undefined) {
-    throw new Error(
-      `Expected Hardhat network ${profile.networkName} to expose a keeper account. ` +
-        "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
-    );
-  }
-  const account = getWalletClientAddress({
-    missingMessage:
-      `Expected Hardhat network ${profile.networkName} to expose a keeper account. ` +
-      "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
-    walletClient,
-  });
-  const chainId = await assertHardhatNetwork({
-    expectedChainId: profile.chainId,
-    expectedNetworkName: profile.networkName,
-    networkName: connection.networkName,
-    publicClient,
-  });
+  const { account, chainId, connection, profile, publicClient, walletClient } =
+    await initializeWalletScriptEnvironment({ accountRole: "keeper", network });
   const { manifest, manifestPath } = await readCompleteSetMarketManifest({
     chainEnv: profile.chainEnv,
     env: process.env,

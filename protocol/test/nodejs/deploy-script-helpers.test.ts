@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { normalizePrivateKey } from "../../scripts/shared/account/normalizePrivateKey.js";
+import { formatMissingAccountMessage } from "../../scripts/shared/cli/initializeScriptEnvironment.js";
 import { contractExplorerUrl } from "../../scripts/shared/explorer/contractExplorerUrl.js";
 import { normalizeExplorerMessage } from "../../scripts/shared/explorer/normalizeExplorerMessage.js";
 import { parseExplorerJson } from "../../scripts/shared/json/parseExplorerJson.js";
@@ -56,6 +57,26 @@ describe("deploy script helpers", function () {
     it("passes strings through and stringifies structured results", function () {
       assert.equal(normalizeExplorerMessage("Pass - Verified"), "Pass - Verified");
       assert.equal(normalizeExplorerMessage({ error: "rate limited" }), '{"error":"rate limited"}');
+    });
+  });
+
+  describe("formatMissingAccountMessage", function () {
+    it("keeps the exact per-role wording scripts printed before the shared preamble", function () {
+      assert.equal(
+        formatMissingAccountMessage({ accountRole: "deployer", networkName: "localhost" }),
+        "Expected Hardhat network localhost to expose a deployer account. " +
+          "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
+      );
+      assert.equal(
+        formatMissingAccountMessage({ accountRole: "keeper", networkName: "arcTestnet" }),
+        "Expected Hardhat network arcTestnet to expose a keeper account. " +
+          "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
+      );
+      assert.equal(
+        formatMissingAccountMessage({ accountRole: "smoke", networkName: "arcTestnet" }),
+        "Expected Hardhat network arcTestnet to expose a smoke account. " +
+          "Set POPCHARTS_DEPLOYER_PRIVATE_KEY.",
+      );
     });
   });
 
