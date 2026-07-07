@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - app/**
-      # The app consumes @popcharts/protocol TS source via workspace:*, and
-      # the committed API client is generated from the OpenAPI spec; run App
-      # CI when either changes. Mirror any path change in app-ci-skip.yml.
+      # The app consumes @popcharts/protocol TS source and the
+      # @popcharts/api-client generated client via workspace:*, and the client
+      # is generated from the OpenAPI spec; run App CI when any of them
+      # changes. Mirror any path change in app-ci-skip.yml.
+      - packages/api-client/**
       - protocol/src/**
       - server/generated/openapi.json
       # Dependency changes land in the root workspace lockfile.
@@ -20,6 +22,7 @@ on:
       - main
     paths:
       - app/**
+      - packages/api-client/**
       - protocol/src/**
       - server/generated/openapi.json
       - pnpm-lock.yaml
@@ -74,7 +77,8 @@ jobs:
         run: pnpm format:check
 
       - name: Check generated API client
-        run: pnpm api:check
+        working-directory: .
+        run: pnpm --dir packages/api-client api:check
 
       - name: Lint
         run: pnpm lint

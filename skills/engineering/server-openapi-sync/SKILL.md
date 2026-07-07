@@ -1,14 +1,15 @@
 ---
 name: server-openapi-sync
-description: Keep the server OpenAPI spec and the app's generated API client in sync. Use when adding or changing Elysia routes, route schemas, or response models under server/src/api, when server:check fails on openapi:check, or when app code needs types for a new or changed endpoint.
+description: Keep the server OpenAPI spec and the generated API client package in sync. Use when adding or changing Elysia routes, route schemas, or response models under server/src/api, when server:check fails on openapi:check, or when app code needs types for a new or changed endpoint.
 ---
 
 # Server OpenAPI Sync
 
 The API contract flows one way: TypeBox route schemas in `server/src/api` →
 committed spec at `server/generated/openapi.json` → orval-generated client in
-`app/src/integrations/indexer/generated`. All three are in git; only the first
-is hand-written. When a route or model changes, regenerate the other two in the
+`packages/api-client/src/generated` (the `@popcharts/api-client` workspace
+package the app consumes). All three are in git; only the first is
+hand-written. When a route or model changes, regenerate the other two in the
 same PR so `server:check` stays green and the app never types against a stale
 contract.
 
@@ -30,31 +31,33 @@ cd server && bun run openapi:generate
    `anyOf`-with-null to `nullable`), then validates it with the same parser
    orval uses (`scripts/validate-openapi.ts`).
 
-3. Regenerate the app client from the committed spec:
+3. Regenerate the client package from the committed spec:
 
 ```bash
-pnpm --dir app api:generate
+pnpm --dir packages/api-client api:generate
 ```
 
-   Orval (config in `app/orval.config.ts`) reads
+   Orval (config in `packages/api-client/orval.config.ts`) reads
    `server/generated/openapi.json` by default — no running API needed — and
    writes tags-split fetch clients plus models under
-   `app/src/integrations/indexer/generated/`. Set `POPCHARTS_API_SPEC` to
+   `packages/api-client/src/generated/`. Set `POPCHARTS_API_SPEC` to
    point at a live spec only when debugging generation itself.
 
 4. Verify: `pnpm run server:check` (includes `openapi:check`, the `--check`
-   mode that fails when the committed spec is stale) and
-   `pnpm --dir app typecheck`.
+   mode that fails when the committed spec is stale),
+   `pnpm --dir packages/api-client api:check` (fails when the committed
+   client is stale), and `pnpm --dir app typecheck`.
 
 ## Rules
 
 - Never hand-edit `server/generated/openapi.json` or anything under
-  `app/src/integrations/indexer/generated/`. Fix the route schema or the
+  `packages/api-client/src/generated/`. Fix the route schema or the
   generator script instead (`skills/engineering/clean-code/SKILL.md`).
 - Commit regenerated output as a mechanical commit separate from the
   behavioral schema change, and say so in the PR description
   ("Mechanical output of `bun run openapi:generate` (server) and
-  `pnpm api:generate` (app)."). See `skills/engineering/pull-requests/SKILL.md`.
+  `pnpm --dir packages/api-client api:generate`."). See
+  `skills/engineering/pull-requests/SKILL.md`.
 - If orval output looks wrong (synthesized model names, missing nullability),
   the fix belongs in the normalization pass of
   `server/scripts/generate-openapi.ts`, not in the generated files.
@@ -66,8 +69,9 @@ pnpm --dir app api:generate
 
 - `openapi:check` fails in CI or `server:check` → step 2 was skipped after a
   route change; regenerate and commit.
-- App typecheck fails on generated imports after a server change → step 3 was
-  skipped; regenerate the client.
+- `api:check` fails in CI or `app:check`, or app typecheck fails on
+  `@popcharts/api-client` imports after a server change → step 3 was skipped;
+  regenerate the client.
 - `validate-openapi.ts` fails → the route schema emits something OpenAPI 3.0
   cannot express; adjust the TypeBox schema or extend the normalizer, then
   rerun step 2.

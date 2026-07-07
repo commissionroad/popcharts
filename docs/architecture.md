@@ -13,6 +13,7 @@ document disagree, fix one of them in the same PR.
 | Workspace | Owns |
 | --------- | ---- |
 | `app/` | The Next.js frontend. Routes (`src/app/`) compose feature components (`src/features/`) and shared components (`src/components/`); pure business logic lives in `src/domain/`; external-system adapters (contracts, indexer API client, wallet) live in `src/integrations/`; generic helpers in `src/lib/`; design tokens in `src/design-system/`. |
+| `packages/` | Shared workspace packages. `packages/api-client/` (`@popcharts/api-client`) owns the orval-generated fetch client + models for the server API (`src/generated/`, committed), the orval config that produces it, and its freshness gate (`api:check`). |
 | `server/` | The Bun + Elysia read API (`src/api/`), the viem event indexer (`src/indexer/`), the AI review service and runner (`src/ai-review/`, `src/ai-review-runner/`), Drizzle/PostgreSQL persistence (`src/db/`), shared viem client factories (`src/blockchain/`), and config (`src/config/`). |
 | `protocol/` | Solidity contracts (`contracts/`), Hardhat deployment and operations scripts (`scripts/`), the contract-metadata export pipeline, and protocol tests (`test/solidity/`, `test/nodejs/`). |
 | `scripts/` | Root-level local-dev orchestration (`local-dev.ts`, `local-chain-smoke.ts`, `run-local-chain-e2e.ts`, …) plus their `scripts/shared/` helpers. These spawn workspace commands as child processes; they are glue, not a library. |
@@ -21,8 +22,9 @@ document disagree, fix one of them in the same PR.
 | `docs/` | ADRs (`docs/adr/`), design notes, deployment docs, and verification screenshots (`docs/screenshots/`). |
 | `skills/` | Engineering workflow skills (PR verification, OpenAPI sync, protocol code quality, …) used by agent sessions. |
 
-Tooling note: `app` and `protocol` are true pnpm workspace members — one
-root `pnpm install`, one root `pnpm-lock.yaml` (no nested pnpm lockfiles).
+Tooling note: `app`, `protocol`, and `packages/*` are true pnpm workspace
+members — one root `pnpm install`, one root `pnpm-lock.yaml` (no nested pnpm
+lockfiles).
 The server stays outside the workspace and installs with Bun (`bun.lock`);
 it produces artifacts for the others but imports nothing from them. Shared
 strictness flags live in the root `tsconfig.base.json`; shared Prettier
@@ -47,9 +49,13 @@ server/src/api (Elysia route schemas, TypeBox)
   │  server/scripts/generate-openapi.ts  (`openapi:generate` / `openapi:check`)
   ▼
 server/generated/openapi.json  (committed)
-  │  orval (`app api:generate`, app/orval.config.ts)
+  │  orval (`api-client api:generate`, packages/api-client/orval.config.ts)
   ▼
-app/src/integrations/indexer/generated/  (committed fetch client + models)
+packages/api-client/src/generated/  (committed fetch client + models)
+  │  @popcharts/api-client `workspace:*` dependency (TS source, no build step;
+  │  Next transpiles it via `transpilePackages`)
+  ▼
+app/src/integrations/indexer/markets-api.ts  (hand-written adapter)
 ```
 
 The remaining edges:
@@ -62,8 +68,8 @@ The remaining edges:
   `src/indexer/watchers/market-created.ts`,
   `src/ai-review-runner/chain-review.ts`); it does not import protocol
   artifacts.
-- **app → server at runtime**: HTTP calls through the generated fetch client,
-  wrapped by the hand-written adapter
+- **app → server at runtime**: HTTP calls through the generated fetch client
+  in `@popcharts/api-client`, wrapped by the hand-written adapter
   `app/src/integrations/indexer/markets-api.ts`.
 - **protocol tests → protocol scripts**: the `test/nodejs/` suites import pure
   helpers from `protocol/scripts/shared/` (protocol's own shared library), so
@@ -83,8 +89,9 @@ The remaining edges:
   through the `@popcharts/protocol` package (its generated contract metadata
   exports), imported solely by the re-export shims under
   `app/src/integrations/contracts/` — feature code never imports the package
-  directly. Server-derived code in the app is the committed codegen output
-  listed above, quarantined under `app/src/integrations/`.
+  directly. Server-derived code enters the app only through the
+  `@popcharts/api-client` package (the committed orval output listed above),
+  imported solely by the adapter under `app/src/integrations/indexer/`.
 - Within the app (per `app/AGENTS.md`):
   - `src/domain/` is pure TypeScript: no React, Next.js, browser APIs, wallet
     SDKs, or UI component imports. Importing `src/lib/` (pure helpers) is
@@ -98,9 +105,9 @@ The remaining edges:
     modules that build wallet transactions (e.g.
     `src/features/receipt-ticket/place-receipt-service.ts`) import the
     generated ABI from `integrations/contracts`, never their own copy.
-  - Generated code under `integrations/indexer/generated/` is consumed only
-    through the `markets-api.ts` adapter and mapped into domain types at one
-    seam (`src/domain/markets/api-market.ts`).
+  - Generated code from `@popcharts/api-client` is consumed only through the
+    `markets-api.ts` adapter and mapped into domain types at one seam
+    (`src/domain/markets/api-market.ts`).
 - Root `scripts/` may spawn and observe any workspace but must stay glue:
   no workspace imports root scripts.
 
@@ -113,7 +120,7 @@ stale relative to its source:
 | -------------------- | --------------- | ---------- | -------------- |
 | `protocol/src/generated/*.ts` | Compiled contract artifacts | `protocol build` (runs `export-contract-metadata.ts`) | `protocol metadata:check` (`export-contract-metadata.ts --check`), wired into `protocol typecheck`, so `pnpm run protocol:check` and Protocol CI enforce it |
 | `server/generated/openapi.json` | Elysia route schemas | `server openapi:generate` | `server openapi:check` (regenerate-and-diff plus spec validation), wired into `pnpm run server:check` and Server CI |
-| `app/src/integrations/indexer/generated/` | `server/generated/openapi.json` | `app api:generate` (orval, deterministic from the committed spec) | `app api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` changes (ADR 0007 item A5). |
+| `packages/api-client/src/generated/` | `server/generated/openapi.json` | `pnpm --dir packages/api-client api:generate` (orval, deterministic from the committed spec) | `packages/api-client api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` and `packages/api-client/**` changes (ADR 0007 item A5). |
 
 The pattern is uniform: hand-written code never crosses a workspace boundary;
 a generator does, and a `--check` twin keeps the committed output honest.
@@ -164,8 +171,8 @@ Solidity math must be mirrored in the replica deliberately.
   scripts need a new ABI, regenerate via `export-contract-metadata.ts`;
   never hand-write ABI blocks.
 - **A new API endpoint or indexer projection** → `server/`. Define TypeBox
-  schemas with the route, run `openapi:generate`, then `api:generate` in the
-  app to pick it up.
+  schemas with the route, run `openapi:generate`, then `api:generate` in
+  `packages/api-client` to pick it up.
 - **App code that calls a contract** → the ABI import and any
   `useReadContract` wrapping belong in `app/src/integrations/contracts/`
   (hooks for reads); the feature keeps only orchestration.

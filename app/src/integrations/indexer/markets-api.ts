@@ -1,11 +1,11 @@
-import { getCloseDevMarketUrl } from "./generated/development/development";
-import { getGraduateMarketUrl } from "./generated/graduation/graduation";
+import { getCloseDevMarketUrl } from "@popcharts/api-client/development";
+import { getGraduateMarketUrl } from "@popcharts/api-client/graduation";
 import {
   getGetMarketUrl,
   getListMarketEventsUrl,
   getListMarketReceiptsUrl,
   getListMarketsUrl,
-} from "./generated/markets/markets";
+} from "@popcharts/api-client/markets";
 import type {
   DevMarketCloseResponse,
   GraduationResponse,
@@ -15,7 +15,7 @@ import type {
   MarketCreatedEvent,
   MarketMetadata,
   ReceiptPlacedEvent,
-} from "./generated/models";
+} from "@popcharts/api-client/models";
 
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
