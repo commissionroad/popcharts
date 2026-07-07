@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PlacedPregradReceipt } from "@/domain/pregrad-trading/receipt-quote";
 
@@ -46,6 +46,22 @@ describe("recordPlacedReceipt", () => {
     recordPlacedReceipt(placedReceipt({ id: "31337:1" }));
 
     expect(storedIds()).toEqual(["31337:1"]);
+  });
+
+  it("does not fail the placement when storage rejects the write", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Quota exceeded.", "QuotaExceededError");
+    });
+    const updated = vi.fn();
+    window.addEventListener("popcharts:receipts-updated", updated);
+
+    try {
+      expect(() => recordPlacedReceipt(placedReceipt({ id: "31337:1" }))).not.toThrow();
+      expect(updated).not.toHaveBeenCalled();
+    } finally {
+      setItem.mockRestore();
+      window.removeEventListener("popcharts:receipts-updated", updated);
+    }
   });
 });
 
