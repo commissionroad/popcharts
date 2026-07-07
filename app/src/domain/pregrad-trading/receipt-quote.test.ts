@@ -67,4 +67,26 @@ describe("receipt quote preview", () => {
       "Amount is above the current receipt limit."
     );
   });
+
+  it("reports unparseable amounts and accepts in-range amounts", () => {
+    expect(getReceiptAmountError("")).toBe("Enter a collateral amount.");
+    expect(getReceiptAmountError("abc")).toBe("Enter a collateral amount.");
+    expect(getReceiptAmountError("250")).toBeNull();
+  });
+
+  it("rejects budgets outside the receipt limits", () => {
+    expect(() =>
+      buildReceiptQuotePreview({ budgetUsd: 0, market, side: "yes" })
+    ).toThrowError("budgetUsd must be positive");
+    expect(() =>
+      buildReceiptQuotePreview({ budgetUsd: Number.NaN, market, side: "yes" })
+    ).toThrowError("budgetUsd must be positive");
+    expect(() =>
+      buildReceiptQuotePreview({
+        budgetUsd: MAX_RECEIPT_BUDGET_USD + 1,
+        market,
+        side: "yes",
+      })
+    ).toThrowError("budgetUsd is above the receipt limit");
+  });
 });
