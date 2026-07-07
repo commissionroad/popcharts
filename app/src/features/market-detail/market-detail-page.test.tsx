@@ -93,6 +93,31 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the postgrad handoff without pools before the venue is wired", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          matchedUsd: 356_000,
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+          volumeUsd: 482_300,
+        })}
+      />
+    );
+
+    expect(screen.getByText("Receipt book settled")).toBeInTheDocument();
+    expect(screen.getByText("Postgrad handoff")).toBeInTheDocument();
+    expect(screen.queryByText("YES pool")).not.toBeInTheDocument();
+    expect(screen.getByText(/refunds at its exact path cost/i)).toBeInTheDocument();
+  });
+
   it("shows the live postgrad venue with pool ids once wired", () => {
     render(
       <MarketDetailPage

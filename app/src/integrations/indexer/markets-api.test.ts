@@ -111,6 +111,41 @@ describe("createMarketsApiClient", () => {
     expect(String(input)).toBe("http://localhost:3001/markets/5042002/7/graduate");
   });
 
+  it("requests a dev-only graduation for an API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        market: { ...apiMarket, status: "graduated" },
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: apiMarket.graduationThreshold,
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "0",
+          retainedCostTotal: apiMarket.graduationThreshold,
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+        status: "graduated",
+        transactionHashes: [],
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001/",
+      fetcher,
+    });
+
+    const result = await client.graduateDevMarket({
+      chainId: 5042002,
+      marketId: "7",
+    });
+
+    const [input, init] = firstFetchCall(fetcher);
+
+    expect(result.status).toBe("graduated");
+    expect(init?.method).toBe("POST");
+    expect(String(input)).toBe("http://localhost:3001/dev/markets/5042002/7/graduate");
+  });
+
   it("requests a dev-only pregrad close for an API market", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
       jsonResponse({
@@ -282,6 +317,24 @@ describe("createMarketsApiClient", () => {
       client.graduateMarket({ chainId: 5042002, marketId: "404" })
     ).rejects.toMatchObject({
       message: "Market not found.",
+      name: "MarketsApiError",
+      status: 404,
+    });
+  });
+
+  it("raises a 404 error when the dev graduation endpoint is unavailable", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.graduateDevMarket({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: "Dev market graduation is disabled or unavailable.",
       name: "MarketsApiError",
       status: 404,
     });

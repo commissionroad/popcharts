@@ -397,6 +397,22 @@ describe("market queries", () => {
     ).rejects.toThrowError("Dev market close requires a chain-prefixed market id.");
   });
 
+  it("rejects dev graduation requests for fixture-backed markets", async () => {
+    await expect(
+      requestDevMarketGraduation("eth-5000-august", { source: "fixtures" })
+    ).rejects.toThrowError("Dev market graduation requires API-backed market data.");
+  });
+
+  it("rejects dev graduation requests without a chain-scoped id", async () => {
+    const client = createClient();
+
+    await expect(
+      requestDevMarketGraduation("7", { client, source: "api" })
+    ).rejects.toThrowError(
+      "Dev market graduation requires a chain-prefixed market id."
+    );
+  });
+
   it("requires an indexer URL when the api source is forced", async () => {
     await expect(getMarkets({ source: "api" })).rejects.toThrowError(
       "POPCHARTS_INDEXER_API_URL is required when POPCHARTS_MARKET_DATA_SOURCE=api."

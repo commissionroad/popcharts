@@ -251,6 +251,70 @@ describe("apiMarketToMarket", () => {
     expect(converted.aiReview).toEqual(aiReview);
   });
 
+  it("maps the postgrad handoff into USD amounts", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: "2500000000000000000000",
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "100000000000000000000",
+          retainedCostTotal: "2500000000000000000000",
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+      })
+    );
+
+    expect(converted.postgrad).toMatchObject({
+      adapterAddress: "0x00000000000000000000000000000000000000ab",
+      completeSets: 2_500,
+      marketAddress: "0x00000000000000000000000000000000000000cd",
+      refundedUsd: 100,
+      retainedUsd: 2_500,
+    });
+    expect(converted.postgrad?.venue).toBeUndefined();
+  });
+
+  it("carries the live venue through the postgrad handoff", () => {
+    const venue = {
+      boundedHookAddress: "0x00000000000000000000000000000000000000f1",
+      live: true,
+      noPool: {
+        initialized: true,
+        outcomeTokenAddress: "0x00000000000000000000000000000000000000f3",
+        poolId: `0x${"22".repeat(32)}`,
+        whitelisted: true,
+      },
+      orderManagerAddress: "0x00000000000000000000000000000000000000f2",
+      poolManagerAddress: "0x00000000000000000000000000000000000000f0",
+      yesPool: {
+        initialized: true,
+        outcomeTokenAddress: "0x00000000000000000000000000000000000000f4",
+        poolId: `0x${"11".repeat(32)}`,
+        whitelisted: true,
+      },
+    };
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: {
+          adapterAddress: "0x00000000000000000000000000000000000000ab",
+          completeSetCount: "2500000000000000000000",
+          finalizedAt: "2026-06-14T12:00:00.000Z",
+          marketAddress: "0x00000000000000000000000000000000000000cd",
+          refundTotal: "0",
+          retainedCostTotal: "2500000000000000000000",
+          transactionHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          venue,
+        },
+      })
+    );
+
+    expect(converted.postgrad?.venue).toEqual(venue);
+  });
+
   it("generates a category from the chain id when the market id is not numeric", () => {
     const converted = apiMarketToMarket(
       apiMarket({ chainId: 3, marketId: "not-a-number" })
