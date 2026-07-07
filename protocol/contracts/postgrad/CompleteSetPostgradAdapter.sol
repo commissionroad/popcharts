@@ -139,7 +139,12 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     bytes32 metadataHash,
     uint256 retainedCollateral,
     uint256 completeSetCount
-  ) external onlyPregradManager nonReentrant returns (address preparedMarketAddress) {
+  )
+    external
+    onlyPregradManager
+    nonReentrant
+    returns (address preparedMarketAddress, uint256 outcomeCapacity)
+  {
     if (_preparedMarkets[marketId].prepared) {
       revert MarketAlreadyPrepared(marketId);
     }
@@ -171,7 +176,7 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
 
     preparedMarketAddress = address(market);
     collateralToken.forceApprove(preparedMarketAddress, retainedCollateral);
-    uint256 outcomeCapacity = market.fundRetainedCollateral(retainedCollateral);
+    outcomeCapacity = market.fundRetainedCollateral(retainedCollateral);
     collateralToken.forceApprove(preparedMarketAddress, 0);
     if (outcomeCapacity != completeSetCount) {
       revert OutcomeCapacityMismatch(completeSetCount, outcomeCapacity);

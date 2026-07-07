@@ -526,6 +526,22 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "expected",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "actual",
+        type: "uint256",
+      },
+    ],
+    name: "PostgradCapacityMismatch",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "graduationThreshold",
         type: "uint256",
       },
