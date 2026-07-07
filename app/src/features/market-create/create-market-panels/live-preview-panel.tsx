@@ -42,8 +42,16 @@ export function LivePreviewPanel({
           {draft.question || "Your question appears here"}
         </div>
         <div className="flex gap-2.5">
-          <PreviewOutcome label="YES" price={draft.openingProbability} side="yes" />
-          <PreviewOutcome label="NO" price={100 - draft.openingProbability} side="no" />
+          <PreviewOutcome
+            label={draft.outcomeYes.trim() || "YES"}
+            price={draft.openingProbability}
+            side="yes"
+          />
+          <PreviewOutcome
+            label={draft.outcomeNo.trim() || "NO"}
+            price={100 - draft.openingProbability}
+            side="no"
+          />
         </div>
         <div className="grid grid-cols-2 gap-2.5 border-t border-[var(--border-soft)] pt-3">
           <CompactMetric

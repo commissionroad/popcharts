@@ -100,6 +100,10 @@ export type Market = {
   metadataHash?: string;
   noPriceCents: number;
   openingProbability: number;
+  /** Creator-supplied display label for the NO outcome, when one was set. */
+  outcomeNo?: string;
+  /** Creator-supplied display label for the YES outcome, when one was set. */
+  outcomeYes?: string;
   pricePath: number[];
   question: string;
   receiptCount: number;
@@ -110,6 +114,17 @@ export type Market = {
   volumeUsd: number;
   yesPriceCents: number;
 };
+
+/**
+ * Display label for a market side: the creator-applied outcome label when one
+ * exists, otherwise the canonical YES/NO.
+ */
+export function marketSideLabel(
+  market: Pick<Market, "outcomeNo" | "outcomeYes">,
+  side: MarketSide
+) {
+  return side === "yes" ? (market.outcomeYes ?? "YES") : (market.outcomeNo ?? "NO");
+}
 
 export const MARKET_CATEGORIES: MarketCategory[] = [
   "Crypto",

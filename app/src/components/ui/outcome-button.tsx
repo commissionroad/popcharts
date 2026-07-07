@@ -6,12 +6,14 @@ import { formatCents } from "@/lib/format";
 
 export function OutcomeButton({
   href,
+  label,
   priceCents,
   selected,
   side,
   sub,
 }: {
   href?: string;
+  label?: string;
   priceCents: number;
   selected?: boolean;
   side: MarketSide;
@@ -20,7 +22,7 @@ export function OutcomeButton({
   const isYes = side === "yes";
   const color = isYes ? "var(--yes)" : "var(--no)";
   const border = isYes ? "var(--yes-border)" : "var(--no-border)";
-  const label = isYes ? "YES" : "NO";
+  const resolvedLabel = label ?? (isYes ? "YES" : "NO");
   const className =
     "focus-ring flex flex-1 flex-col items-start gap-1 rounded-[var(--radius-md)] border p-3.5 text-left transition-colors duration-[var(--duration-fast)] hover:border-[var(--outcome-color)]";
   const style = {
@@ -33,7 +35,7 @@ export function OutcomeButton({
         className="font-mono text-xs font-bold tracking-[0.06em]"
         style={{ color: selected ? "var(--pc-ink)" : color }}
       >
-        {label}
+        {resolvedLabel}
       </span>
       <span
         className="font-display tabular text-[26px] font-black"

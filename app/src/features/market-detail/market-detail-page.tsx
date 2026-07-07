@@ -5,7 +5,11 @@ import { PriceCurve } from "@/components/charts/price-curve";
 import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
-import type { Market, PricePathPoint } from "@/domain/markets/types";
+import {
+  marketSideLabel,
+  type Market,
+  type PricePathPoint,
+} from "@/domain/markets/types";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
@@ -66,7 +70,7 @@ export function MarketDetailPage({
                 {formatPercent(market.yesPriceCents)}
               </span>
               <span className="ml-2 font-mono text-xs text-[var(--text-muted)]">
-                YES
+                {marketSideLabel(market, "yes")}
               </span>
             </div>
             <div>
@@ -74,7 +78,7 @@ export function MarketDetailPage({
                 {formatPercent(market.noPriceCents)}
               </span>
               <span className="ml-2 font-mono text-xs text-[var(--text-muted)]">
-                NO
+                {marketSideLabel(market, "no")}
               </span>
             </div>
           </div>
@@ -83,7 +87,11 @@ export function MarketDetailPage({
             <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
               Virtual LMSR - implied probability
             </div>
-            <PriceCurve points={chartPoints} side="yes" />
+            <PriceCurve
+              noLabel={marketSideLabel(market, "no")}
+              points={chartPoints}
+              yesLabel={marketSideLabel(market, "yes")}
+            />
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
@@ -152,8 +160,14 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
         Trading closed
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <SmallMetric label="YES tokens" value={tokensCreated} />
-        <SmallMetric label="NO tokens" value={tokensCreated} />
+        <SmallMetric
+          label={`${marketSideLabel(market, "yes")} tokens`}
+          value={tokensCreated}
+        />
+        <SmallMetric
+          label={`${marketSideLabel(market, "no")} tokens`}
+          value={tokensCreated}
+        />
         <SmallMetric label="Unmatched refunds" value={formatUsdCompact(refundedUsd)} />
       </div>
       <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">

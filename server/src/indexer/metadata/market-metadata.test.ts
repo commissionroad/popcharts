@@ -41,6 +41,34 @@ describe("resolveMarketMetadataFromEventPayload", () => {
       }),
     ).toThrow("Metadata payload must be a JSON object.");
   });
+
+  it("recovers creator-applied outcome labels from the canonical payload", () => {
+    // Canonical field order must match the app serializer
+    // (app/src/domain/market-creation/create-market.ts) or the hash check
+    // rejects label-carrying markets at ingestion.
+    const labeled =
+      '{"version":1,"question":"Will ARG beat EGY?","description":"",' +
+      '"category":"Sports","resolutionCriteria":"YES if ARG wins.",' +
+      '"outcomeYes":"Argentina","outcomeNo":"Egypt",' +
+      '"createdAt":"2026-07-02T12:00:00.000Z"}';
+
+    const resolved = resolveMarketMetadataFromEventPayload({
+      metadataHash: keccak256(stringToBytes(labeled)),
+      metadata: labeled,
+    });
+
+    expect(resolved.outcomeYes).toBe("Argentina");
+    expect(resolved.outcomeNo).toBe("Egypt");
+  });
+
+  it("rejects blank outcome labels", () => {
+    expect(() =>
+      resolveMarketMetadataFromEventPayload({
+        metadataHash: hashMetadata(metadata),
+        metadata: JSON.stringify({ ...metadata, outcomeYes: "  " }),
+      }),
+    ).toThrow("Metadata outcomeYes is required.");
+  });
 });
 
 function hashMetadata(value: typeof metadata) {
