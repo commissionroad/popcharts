@@ -159,10 +159,10 @@ Rules for executing this program:
 
 ### Track D — Protocol tests and scripts (safe for autonomous execution)
 
-- [ ] **D1. Add `protocol/test/solidity/BaseTest.sol`** with shared fixtures
+- [x] **D1. Add `protocol/test/solidity/BaseTest.sol`** with shared fixtures
   (mock collateral setup, manager instantiation) and migrate the existing test
   contracts onto it.
-- [ ] **D1a. Stop re-declaring events in Solidity tests.** Import events from
+- [x] **D1a. Stop re-declaring events in Solidity tests.** Import events from
   the contracts under test (e.g. the 10+ redeclarations in
   `protocol/test/solidity/PregradManager.t.sol`) so signature drift becomes a
   compile error. Depends on: D1 (land together or immediately after).
@@ -267,7 +267,8 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
-| 2026-07-06 | B5 | TBD | Moved the failure-path helpers (`markReviewJobFailure`, `cancelReviewJob`, `calculateRetryDelayMs`, `compactError`, and the retry-cap/error-length constants) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `failures.ts`; jobs.ts imports the two job-state writers and jobs.test.ts imports the two pure helpers from the new module — no behavior change. |
+| 2026-07-06 | D1+D1a | TBD | Added `protocol/test/solidity/BaseTest.sol` (mock-collateral fixture, WAD, PregradManager deploy helper, fund-and-approve helper) and migrated `PregradManager.t.sol` and `CompleteSetBinaryMarket.t.sol` onto it; the v4 venue suites (`BoundedPoolOrderManager`, `HookSkeletonAndPriceBounds`, `LocalV4StackSmoke`) stay standalone because v4-core pins them to solc 0.8.26 and they share no fixtures with the 0.8.28 BaseTest, and the library-harness suites (`ClearingMath`, `LmsrMath`, `ReceiptBands`, `V4DependencyHarness`) have one-line unique setups; deleted the 14 re-declared events in `PregradManager.t.sol` in favor of qualified `emit PregradManager.X(...)` references and replaced the hand-hashed `DeferredExecutionStored` topic constant with the event's `.selector` — test count unchanged at 104 solidity + 67 nodejs. |
+| 2026-07-06 | B5 | #102 | Moved the failure-path helpers (`markReviewJobFailure`, `cancelReviewJob`, `calculateRetryDelayMs`, `compactError`, and the retry-cap/error-length constants) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `failures.ts`; jobs.ts imports the two job-state writers and jobs.test.ts imports the two pure helpers from the new module — no behavior change. |
 | 2026-07-06 | B4 | #101 | Moved the three pure query-predicate builders (`claimableReviewJobCondition`, `noActiveReviewJobForCurrentMarket`, `noAiReviewForCurrentMarket`) verbatim from `server/src/ai-review-runner/jobs.ts` into a sibling `queries.ts`; jobs.ts imports them and drops its now-unused `isNull`/`lte`/`or` db-client imports — no behavior change. |
 | 2026-07-06 | B3 | #100 | Chose the new-module placement: the indexer factory moved verbatim to `server/src/blockchain/client.ts` (shared home, since importing from `indexer/` into `api/` crosses subsystem boundaries), which now also exports `createReadOnlyClient()` and `createWalletClient(account)` HTTP factories; migrated the ad-hoc clients in `api/services/markets.ts`, `api/services/dev-market-close.ts`, and `ai-review-runner/chain-review.ts` onto them with no config or behavior changes. |
 | 2026-07-06 | B2 | #99 | Split `server/src/ai-review/anthropic.ts` into `anthropic/http.ts` (Messages API call + response/content-block types), `anthropic/tools.ts` (web tool + system prompt building), and `anthropic/evidence.ts` (evidence extraction/dedupe + URL helpers), leaving `anthropic.ts` as a thin orchestrator exporting `reviewWithAnthropic`/`AnthropicReview` at its unchanged import path; code moved verbatim. |

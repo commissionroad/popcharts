@@ -3,8 +3,6 @@ pragma solidity ^0.8.28;
 
 // solhint-disable use-natspec
 
-import {Test} from "forge-std/Test.sol";
-import {MockCollateral} from "../../contracts/mocks/MockCollateral.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
@@ -12,101 +10,9 @@ import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinar
 import {CompleteSetPostgradAdapter} from "../../contracts/postgrad/CompleteSetPostgradAdapter.sol";
 import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
+import {BaseTest} from "./BaseTest.sol";
 
-contract PregradManagerTest is Test {
-  uint256 private constant WAD = 1e18;
-
-  event MarketCreated(
-    uint256 indexed marketId,
-    address indexed creator,
-    bytes32 indexed metadataHash,
-    string metadata,
-    address collateral,
-    uint256 openingProbabilityWad,
-    uint256 liquidityParameter,
-    uint256 graduationThreshold,
-    uint64 graduationDeadline,
-    uint64 resolutionTime,
-    bool bypassAiResolution
-  );
-
-  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
-
-  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
-
-  event TrustedCreatorUpdated(address indexed account, bool trusted);
-
-  event MarketCreationPausedUpdated(bool paused);
-
-  event MarketCreationFeePaid(uint256 indexed marketId, address indexed creator, uint256 amount);
-
-  event CreationFeesWithdrawn(address indexed recipient, uint256 amount);
-
-  event ReceiptPlaced(
-    uint256 indexed receiptId,
-    uint256 indexed marketId,
-    address indexed owner,
-    MarketTypes.Side side,
-    uint256 shares,
-    uint256 cost,
-    int256 rLow,
-    int256 rHigh,
-    uint64 sequence
-  );
-
-  event GraduationStarted(
-    uint256 indexed marketId,
-    address indexed manager,
-    uint256 receiptCount,
-    uint256 totalEscrowed,
-    int256 path,
-    uint256 yesShares,
-    uint256 noShares,
-    uint64 graduationStartedAt,
-    bytes32 snapshotHash
-  );
-
-  event ClearingRootSubmitted(
-    uint256 indexed marketId,
-    address indexed submitter,
-    bytes32 indexed merkleRoot,
-    bytes32 snapshotHash,
-    uint256 matchedMarketCap,
-    uint256 retainedCostTotal,
-    uint256 refundTotal,
-    uint256 completeSetCount,
-    uint64 submittedAt,
-    uint64 challengeDeadline
-  );
-
-  event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
-
-  event GraduationFinalized(
-    uint256 indexed marketId,
-    address indexed postgradAdapter,
-    address indexed postgradMarket,
-    uint256 completeSetCount,
-    uint256 retainedCostTotal,
-    uint256 refundTotal
-  );
-
-  event GraduatedReceiptClaimed(
-    uint256 indexed receiptId,
-    uint256 indexed marketId,
-    address indexed owner,
-    MarketTypes.Side side,
-    uint256 retainedShares,
-    uint256 retainedCost,
-    uint256 refund
-  );
-
-  event RefundedReceiptClaimed(
-    uint256 indexed receiptId,
-    uint256 indexed marketId,
-    address indexed owner,
-    uint256 refund
-  );
-
+contract PregradManagerTest is BaseTest {
   struct SubmittedClearingFixture {
     uint256 marketId;
     uint256 receiptId;
@@ -118,13 +24,11 @@ contract PregradManagerTest is Test {
     uint64 challengeDeadline;
   }
 
-  MockCollateral private collateral;
   PregradManager private manager;
 
-  function setUp() public {
-    collateral = new MockCollateral();
-    manager = new PregradManager();
-    manager.setTrustedCreator(address(this), true);
+  function setUp() public override {
+    super.setUp();
+    manager = _deployPregradManager();
   }
 
   function test_CreateMarketStoresUnderReviewConfigAndEmitsEvent() public {
@@ -132,7 +36,7 @@ contract PregradManagerTest is Test {
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreated(
+    emit PregradManager.MarketCreated(
       1,
       address(this),
       metadataHash,
@@ -179,7 +83,7 @@ contract PregradManagerTest is Test {
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreationPausedUpdated(true);
+    emit PregradManager.MarketCreationPausedUpdated(true);
     manager.setMarketCreationPaused(true);
 
     assertTrue(manager.marketCreationPaused());
@@ -191,7 +95,7 @@ contract PregradManagerTest is Test {
     assertEq(manager.marketCount(), 0);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreationPausedUpdated(false);
+    emit PregradManager.MarketCreationPausedUpdated(false);
     manager.setMarketCreationPaused(false);
 
     assertFalse(manager.marketCreationPaused());
@@ -214,7 +118,7 @@ contract PregradManagerTest is Test {
     manager.approveMarket(approvedMarketId);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketReviewApproved(approvedMarketId, address(this));
+    emit PregradManager.MarketReviewApproved(approvedMarketId, address(this));
     manager.approveMarket(approvedMarketId);
 
     MarketTypes.MarketState memory approvedState = manager.getMarketState(approvedMarketId);
@@ -233,7 +137,7 @@ contract PregradManagerTest is Test {
     uint256 rejectedMarketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketReviewRejected(rejectedMarketId, address(this));
+    emit PregradManager.MarketReviewRejected(rejectedMarketId, address(this));
     manager.rejectMarket(rejectedMarketId);
 
     MarketTypes.MarketState memory rejectedState = manager.getMarketState(rejectedMarketId);
@@ -388,7 +292,7 @@ contract PregradManagerTest is Test {
     assertEq(manager.collectedCreationFees(), 0);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreated(
+    emit PregradManager.MarketCreated(
       1,
       publicCreator,
       metadataHash,
@@ -402,7 +306,7 @@ contract PregradManagerTest is Test {
       params.bypassAiResolution
     );
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketCreationFeePaid(1, publicCreator, WAD);
+    emit PregradManager.MarketCreationFeePaid(1, publicCreator, WAD);
 
     vm.prank(publicCreator);
     uint256 marketId = manager.createMarket{value: WAD}(params);
@@ -437,7 +341,7 @@ contract PregradManagerTest is Test {
     manager.withdrawCreationFees(payable(address(0)), WAD);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit CreationFeesWithdrawn(feeRecipient, WAD);
+    emit PregradManager.CreationFeesWithdrawn(feeRecipient, WAD);
     manager.withdrawCreationFees(payable(feeRecipient), WAD);
 
     assertEq(manager.collectedCreationFees(), 0);
@@ -463,7 +367,7 @@ contract PregradManagerTest is Test {
     assertEq(quote.rHigh, int256(shares));
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit ReceiptPlaced(
+    emit PregradManager.ReceiptPlaced(
       1,
       marketId,
       buyer,
@@ -724,7 +628,7 @@ contract PregradManagerTest is Test {
     params.bypassAiResolution = true;
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit TrustedCreatorUpdated(partner, true);
+    emit PregradManager.TrustedCreatorUpdated(partner, true);
     manager.setTrustedCreator(partner, true);
 
     assertTrue(manager.isTrustedCreator(partner));
@@ -897,7 +801,7 @@ contract PregradManagerTest is Test {
     );
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit GraduationStarted(
+    emit PregradManager.GraduationStarted(
       marketId,
       address(this),
       1,
@@ -972,7 +876,7 @@ contract PregradManagerTest is Test {
     vm.warp(config.graduationDeadline);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit MarketRefundsAvailable(marketId, 0);
+    emit PregradManager.MarketRefundsAvailable(marketId, 0);
 
     manager.markRefundable(marketId);
 
@@ -1005,7 +909,7 @@ contract PregradManagerTest is Test {
     vm.warp(submittedAt);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit ClearingRootSubmitted(
+    emit PregradManager.ClearingRootSubmitted(
       marketId,
       address(this),
       merkleRoot,
@@ -1264,7 +1168,7 @@ contract PregradManagerTest is Test {
     uint256 buyerBalanceBefore = collateral.balanceOf(fixture.buyer);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit GraduatedReceiptClaimed(
+    emit PregradManager.GraduatedReceiptClaimed(
       fixture.receiptId,
       fixture.marketId,
       fixture.buyer,
@@ -1372,7 +1276,7 @@ contract PregradManagerTest is Test {
     uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
+    emit PregradManager.RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
 
     manager.claimRefundedReceipt(receiptId);
 
@@ -1571,9 +1475,7 @@ contract PregradManagerTest is Test {
   }
 
   function _fundAndApprove(address account, uint256 amount) private {
-    collateral.mint(account, amount);
-    vm.prank(account);
-    collateral.approve(address(manager), type(uint256).max);
+    _fundAndApprove(account, address(manager), amount, type(uint256).max);
   }
 
   function _placeReceiptAs(

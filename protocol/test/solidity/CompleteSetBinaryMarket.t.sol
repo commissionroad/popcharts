@@ -3,17 +3,15 @@ pragma solidity ^0.8.28;
 
 // solhint-disable use-natspec
 
-import {Test} from "forge-std/Test.sol";
-import {MockCollateral} from "../../contracts/mocks/MockCollateral.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {OutcomeToken} from "../../contracts/postgrad/OutcomeToken.sol";
 import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
+import {BaseTest} from "./BaseTest.sol";
 import {ExcessDecimalCollateral} from "./mocks/ExcessDecimalCollateral.sol";
 import {SixDecimalCollateral} from "./mocks/SixDecimalCollateral.sol";
 
-contract CompleteSetBinaryMarketTest is Test {
-  uint256 private constant WAD = 1e18;
+contract CompleteSetBinaryMarketTest is BaseTest {
   uint256 private constant SIX_DECIMAL_UNIT = 1e6;
 
   address private trader = makeAddr("trader");
@@ -22,13 +20,12 @@ contract CompleteSetBinaryMarketTest is Test {
   address private retainedMinter = makeAddr("retained-minter");
   address private resolver = makeAddr("resolver");
 
-  MockCollateral private collateral;
   CompleteSetBinaryMarket private market;
   OutcomeToken private yesToken;
   OutcomeToken private noToken;
 
-  function setUp() public {
-    collateral = new MockCollateral();
+  function setUp() public override {
+    super.setUp();
     market = _deployMarket(address(collateral), 18);
     yesToken = market.yesToken();
     noToken = market.noToken();
@@ -537,15 +534,11 @@ contract CompleteSetBinaryMarketTest is Test {
   }
 
   function _fundAndApprove(address account, uint256 amount) private {
-    collateral.mint(account, amount);
-    vm.prank(account);
-    collateral.approve(address(market), amount);
+    _fundAndApprove(account, address(market), amount, amount);
   }
 
   function _fundRetainedMinter(uint256 amount) private {
-    collateral.mint(retainedMinter, amount);
-    vm.prank(retainedMinter);
-    collateral.approve(address(market), amount);
+    _fundAndApprove(retainedMinter, address(market), amount, amount);
   }
 
   function _mintCompleteSets(address account, uint256 collateralAmount) private {
