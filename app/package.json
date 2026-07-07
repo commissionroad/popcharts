@@ -16,13 +16,12 @@
     "test:e2e": "playwright test",
     "test:e2e:chain": "POPCHARTS_E2E_CHAIN=true playwright test --project=chromium --grep @chain",
     "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
-    "api:generate": "orval",
-    "api:check": "node --experimental-strip-types scripts/check-generated-api.mts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
   },
   "dependencies": {
+    "@popcharts/api-client": "workspace:*",
     "@popcharts/protocol": "workspace:*",
     "@privy-io/chains": "^0.3.0",
     "@privy-io/react-auth": "^3.30.0",
@@ -53,7 +52,6 @@
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.7",
-    "orval": "^7.21.0",
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",

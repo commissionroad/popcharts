@@ -12,6 +12,7 @@ on:
       - main
     paths-ignore:
       - app/**
+      - packages/api-client/**
       - protocol/src/**
       - server/generated/openapi.json
       - pnpm-lock.yaml

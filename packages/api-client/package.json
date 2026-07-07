@@ -1,0 +1,26 @@
+{
+  "name": "@popcharts/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./development": "./src/generated/development/development.ts",
+    "./graduation": "./src/generated/graduation/graduation.ts",
+    "./markets": "./src/generated/markets/markets.ts",
+    "./models": "./src/generated/models/index.ts"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.10"
+  },
+  "scripts": {
+    "api:generate": "orval",
+    "api:check": "node --experimental-strip-types scripts/check-generated-api.mts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "orval": "^7.21.0",
+    "prettier": "^3.8.4",
+    "typescript": "^5"
+  }
+}
