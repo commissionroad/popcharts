@@ -49,9 +49,6 @@ contract BoundedPoolOrderManagerTest is Test {
   uint128 private constant BASE_LIQUIDITY = 100_000e18;
   uint256 private constant ORDER_AMOUNT = 100e18;
   uint256 private constant STARTING_BALANCE = 1_000_000e18;
-  bytes32 private constant DEFERRED_EXECUTION_STORED_TOPIC = keccak256(
-    "DeferredExecutionStored(bytes32,bytes32,int24,int24,uint256)"
-  );
 
   PoolManager private poolManager;
   StateView private stateView;
@@ -474,7 +471,10 @@ contract BoundedPoolOrderManagerTest is Test {
     Vm.Log[] memory entries = vm.getRecordedLogs();
     for (uint256 i = entries.length; i > 0; --i) {
       Vm.Log memory entry = entries[i - 1];
-      if (entry.topics.length > 1 && entry.topics[0] == DEFERRED_EXECUTION_STORED_TOPIC) {
+      if (
+        entry.topics.length > 1 &&
+        entry.topics[0] == BoundedPoolOrderManager.DeferredExecutionStored.selector
+      ) {
         return entry.topics[1];
       }
     }
