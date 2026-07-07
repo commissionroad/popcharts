@@ -189,3 +189,4 @@ Solidity math must be mirrored in the replica deliberately.
 
 When a change does not fit these rules, that is an architecture decision:
 write or amend an ADR in `docs/adr/` rather than quietly bending a boundary.
+
