@@ -14,6 +14,8 @@ on:
       - app/**
       - protocol/src/generated/pregrad-manager.ts
       - server/generated/openapi.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .github/workflows/app-ci.yml
 
 permissions: {}

@@ -11,6 +11,9 @@ on:
       # app-ci-skip.yml.
       - protocol/src/generated/pregrad-manager.ts
       - server/generated/openapi.json
+      # Dependency changes land in the root workspace lockfile.
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .github/workflows/app-ci.yml
   push:
     branches:
@@ -19,6 +22,8 @@ on:
       - app/**
       - protocol/src/generated/pregrad-manager.ts
       - server/generated/openapi.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .github/workflows/app-ci.yml
 
 permissions:
@@ -59,6 +64,7 @@ jobs:
           corepack prepare "pnpm@${PNPM_VERSION}" --activate
 
       - name: Install dependencies
+        working-directory: .
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browser
