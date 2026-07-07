@@ -15,6 +15,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Use the product language from `CONTEXT.md`: pre-graduation buys are receipts or priced intents, not fills or final positions.
 - Use Pop Charts tokens from `src/design-system/tokens.css`; avoid raw hex colors in product components.
 - Keep tests close to the code for domain and component behavior. Browser flows live in `src/tests/e2e/`.
+- Unit tests follow `../skills/engineering/frontend-testing/SKILL.md` (mocking
+  seams, unhappy-path checklist, coverage thresholds — 100% lines is enforced).
 - For UI-impacting PRs, use `../skills/engineering/ui-pr-verification/SKILL.md`:
   exercise the real local app path when feasible, capture a screenshot of the
   changed state, and include the screenshot plus local verification notes in the

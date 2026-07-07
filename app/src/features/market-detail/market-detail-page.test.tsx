@@ -1,0 +1,174 @@
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { Market } from "@/domain/markets/types";
+import { marketFactory } from "@/test/factories/markets";
+
+import { MarketDetailPage } from "./market-detail-page";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
+vi.mock("@/features/receipt-ticket/receipt-ticket", () => ({
+  ReceiptTicket: ({ market }: { market: Market }) => (
+    <div>Receipt ticket for {market.id}</div>
+  ),
+}));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("MarketDetailPage", () => {
+  it("renders the market header, prices, metrics, and ticket", () => {
+    const market = marketFactory({ noPriceCents: 36, yesPriceCents: 64 });
+    delete market.aiReview;
+
+    render(<MarketDetailPage market={market} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Will ETH flip $5,000 before August?" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /All markets/ })).toHaveAttribute(
+      "href",
+      "/"
+    );
+    // Prices render in both the header and the chart legend.
+    expect(screen.getAllByText("64%")).not.toHaveLength(0);
+    expect(screen.getAllByText("36%")).not.toHaveLength(0);
+    expect(screen.getByText("Receipt ticket for eth-5000-august")).toBeInTheDocument();
+    expect(screen.getByText("Receipts waiting")).toBeInTheDocument();
+    expect(screen.getByText("Matched liquidity")).toBeInTheDocument();
+    expect(screen.queryByText("AI review")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Market settings" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the AI review card when the market has one", () => {
+    render(<MarketDetailPage market={marketFactory()} />);
+
+    expect(screen.getByText("AI review")).toBeInTheDocument();
+  });
+
+  it("prefers an explicit price path over the market's own", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory()}
+        pricePath={[{ cents: 10 }, { cents: 90 }]}
+      />
+    );
+
+    expect(screen.getByText("Virtual LMSR - implied probability")).toBeInTheDocument();
+  });
+
+  it("links to graduation clearing while the market is graduating", () => {
+    render(<MarketDetailPage market={marketFactory({ status: "graduating" })} />);
+
+    expect(
+      screen.getByRole("link", { name: /View graduation clearing/ })
+    ).toHaveAttribute("href", "/markets/eth-5000-august/graduation");
+    expect(screen.queryByText("Trading closed")).not.toBeInTheDocument();
+  });
+
+  it("summarizes minted tokens and refunds once the market graduated", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          matchedUsd: 356_000,
+          status: "graduated",
+          volumeUsd: 482_300,
+        })}
+      />
+    );
+
+    expect(screen.getByText("Trading closed")).toBeInTheDocument();
+    expect(screen.getByText("YES tokens")).toBeInTheDocument();
+    expect(screen.getAllByText("356,000")).not.toHaveLength(0);
+    expect(screen.getByText("$126K")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /View graduation clearing/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it("clamps graduated refunds to zero when matched exceeds volume", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          matchedUsd: 500_000,
+          status: "graduated",
+          volumeUsd: 400_000,
+        })}
+      />
+    );
+
+    expect(screen.getByText("$0")).toBeInTheDocument();
+  });
+
+  it("offers graduation for an api-backed bootstrap market at target", () => {
+    render(<MarketDetailPage market={graduatableMarket()} />);
+
+    expect(screen.getByRole("button", { name: "Graduate market" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["the market is not bootstrap", graduatableMarket({ status: "graduated" })],
+    ["matched demand is below target", graduatableMarket({ matchedUsd: 1 })],
+    ["the market has no chain id", offChainMarket()],
+    [
+      "the market id is not chain-prefixed",
+      graduatableMarket({ id: "eth-5000-august" }),
+    ],
+  ])("hides the graduate action when %s", (_reason, market) => {
+    render(<MarketDetailPage market={market} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Graduate market" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("cannot render a market whose graduation target is zero", () => {
+    // The graduate action correctly stays hidden for a zero target, but the
+    // page still crashes because GraduationBar rejects non-positive targets.
+    // Documented here as observed behavior; likely a bug worth fixing.
+    suppressRenderErrors();
+
+    expect(() =>
+      render(
+        <MarketDetailPage market={graduatableMarket({ graduationTargetUsd: 0 })} />
+      )
+    ).toThrow("targetUsd must be positive");
+  });
+
+  it("shows the dev settings menu when dev tools are enabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED", "true");
+
+    render(<MarketDetailPage market={marketFactory()} />);
+
+    expect(screen.getByRole("button", { name: "Market settings" })).toBeInTheDocument();
+  });
+});
+
+function offChainMarket(): Market {
+  const market = graduatableMarket();
+  delete market.chainId;
+
+  return market;
+}
+
+function suppressRenderErrors() {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+}
+
+function graduatableMarket(overrides: Partial<Market> = {}): Market {
+  return marketFactory({
+    chainId: 31337,
+    graduationTargetUsd: 1_000,
+    id: "31337:9",
+    matchedUsd: 1_500,
+    status: "bootstrap",
+    ...overrides,
+  });
+}

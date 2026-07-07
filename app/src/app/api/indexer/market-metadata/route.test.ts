@@ -221,11 +221,15 @@ describe("POST /api/indexer/market-metadata", () => {
       vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
       stubUpstream(new Response("{}", { status: 200 }));
 
-      const response = await POST(
+      const yesResponse = await POST(
         jsonRequest(proxyBody({ metadata: { ...metadata(), outcomeYes: "  " } }))
       );
+      const noResponse = await POST(
+        jsonRequest(proxyBody({ metadata: { ...metadata(), outcomeNo: 7 } }))
+      );
 
-      await expectError(response, "metadata.outcomeYes must be a non-empty string.");
+      await expectError(yesResponse, "metadata.outcomeYes must be a non-empty string.");
+      await expectError(noResponse, "metadata.outcomeNo must be a non-empty string.");
     });
   });
 });

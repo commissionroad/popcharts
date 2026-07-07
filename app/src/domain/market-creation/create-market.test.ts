@@ -5,13 +5,18 @@ import {
   applyResolutionTime,
   buildCreateMarketPreview,
   buildMarketMetadata,
+  buildProtocolCreateMarketParams,
   createInitialMarketDraft,
+  createMetadataHash,
+  dateTimeLocalToDate,
   deriveGraduationThreshold,
+  formatDeadline,
   MAX_OUTCOME_LABEL_LENGTH,
   serializeMarketMetadata,
   toDateTimeLocalValue,
   validateCreateMarketDraft,
 } from "./create-market";
+import type { CreateMarketDraft } from "./types";
 
 describe("market creation draft", () => {
   test("derives graduation target from b", () => {
@@ -164,6 +169,7 @@ describe("market creation draft", () => {
     const draft = {
       ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
       outcomeNo: "n".repeat(MAX_OUTCOME_LABEL_LENGTH + 1),
+      outcomeYes: "y".repeat(MAX_OUTCOME_LABEL_LENGTH + 1),
       question: "Will the demo market graduate?",
       resolutionCriteria: "Resolves YES if the demo condition is met.",
     };
@@ -172,6 +178,7 @@ describe("market creation draft", () => {
       validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
     ).toMatchObject({
       outcomeNo: `Keep the NO label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`,
+      outcomeYes: `Keep the YES label under ${MAX_OUTCOME_LABEL_LENGTH} characters.`,
     });
   });
 
@@ -213,5 +220,156 @@ describe("market creation draft", () => {
         '"category":"Sports","resolutionCriteria":"YES if ARG wins.",' +
         '"createdAt":"2026-07-02T12:00:00.000Z"}'
     );
+  });
+
+  test("keeps resolution sources without a resolution URL", () => {
+    const metadata = buildMarketMetadata({
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      resolutionSources: "News Desk, https://example.com/source",
+    });
+
+    expect(metadata.resolutionSources).toEqual([
+      "News Desk",
+      "https://example.com/source",
+    ]);
+    expect(metadata).not.toHaveProperty("resolutionUrl");
+  });
+
+  test("omits source metadata entirely when nothing is provided", () => {
+    const metadata = buildMarketMetadata(
+      createInitialMarketDraft(new Date("2026-06-13T12:00:00Z"))
+    );
+
+    expect(metadata).not.toHaveProperty("resolutionSources");
+    expect(metadata).not.toHaveProperty("resolutionUrl");
+  });
+
+  test("rejects unsupported categories", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      category: "Mystery" as CreateMarketDraft["category"],
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({ category: "Choose a supported category." });
+  });
+
+  test("rejects values below the public ranges and missing deadlines", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      graduationTime: "",
+      liquidityParameter: 0,
+      openingProbability: 1,
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+      resolutionTime: "",
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      graduationThreshold: "Graduation target must be greater than zero.",
+      graduationTime: "Choose a graduation deadline.",
+      liquidityParameter: "Choose b from 500 to 10,000.",
+      openingProbability: "Choose an opening YES probability from 2% to 98%.",
+      resolutionTime: "Choose a resolution deadline.",
+    });
+  });
+
+  test("rejects values above the public ranges", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      liquidityParameter: 20_000,
+      openingProbability: 99,
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+    const nanDraft = {
+      ...draft,
+      liquidityParameter: Number.NaN,
+      openingProbability: Number.NaN,
+    };
+
+    expect(
+      validateCreateMarketDraft(draft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      liquidityParameter: "Choose b from 500 to 10,000.",
+      openingProbability: "Choose an opening YES probability from 2% to 98%.",
+    });
+    expect(
+      validateCreateMarketDraft(nanDraft, new Date("2026-06-13T12:00:00Z"))
+    ).toMatchObject({
+      liquidityParameter: "Choose b from 500 to 10,000.",
+      openingProbability: "Choose an opening YES probability from 2% to 98%.",
+    });
+  });
+
+  test("flags source URLs that cannot be parsed and accepts http and https", () => {
+    const baseDraft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+
+    expect(
+      validateCreateMarketDraft(
+        { ...baseDraft, resolutionSources: "http://[" },
+        new Date("2026-06-13T12:00:00Z")
+      )
+    ).toMatchObject({
+      resolutionSources: "Use http or https for source URLs.",
+    });
+    expect(
+      validateCreateMarketDraft(
+        {
+          ...baseDraft,
+          resolutionSources: "http://example.com/a, https://example.com/b",
+        },
+        new Date("2026-06-13T12:00:00Z")
+      )
+    ).not.toHaveProperty("resolutionSources");
+  });
+
+  test("handles empty and invalid deadline values", () => {
+    expect(dateTimeLocalToDate("")).toBeNull();
+    expect(formatDeadline("")).toBe("Invalid date");
+    expect(formatDeadline("2026-06-13T12:00")).toContain("Jun 13, 2026");
+  });
+
+  test("hashes metadata consistently with previews", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+    const preview = buildCreateMarketPreview(draft);
+
+    expect(createMetadataHash(preview.metadata)).toBe(preview.metadataHash);
+  });
+
+  test("derives the metadata payload when it is not supplied", () => {
+    const draft = {
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      question: "Will the demo market graduate?",
+      resolutionCriteria: "Resolves YES if the demo condition is met.",
+    };
+    const preview = buildCreateMarketPreview(draft);
+    const params = buildProtocolCreateMarketParams(draft, preview.metadataHash);
+
+    expect(params.metadata).toBe(preview.metadataPayload);
+  });
+
+  test("encodes missing deadlines as zero unix seconds", () => {
+    const preview = buildCreateMarketPreview({
+      ...createInitialMarketDraft(new Date("2026-06-13T12:00:00Z")),
+      graduationTime: "",
+      resolutionTime: "",
+    });
+
+    expect(preview.protocolParams.graduationDeadline).toBe(0n);
+    expect(preview.protocolParams.resolutionTime).toBe(0n);
   });
 });

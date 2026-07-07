@@ -186,6 +186,7 @@ export function useReceiptTicketState(market: Market) {
   }
 
   async function handlePlaceReceipt() {
+    /* v8 ignore next 3 -- defensive: the receipt action disables onClick whenever quote is null */
     if (!quote) {
       return;
     }
