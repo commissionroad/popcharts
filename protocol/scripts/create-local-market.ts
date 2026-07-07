@@ -51,9 +51,15 @@ const publicClient = await viem.getPublicClient();
 const [creator] = await viem.getWalletClients();
 const manager = await viem.getContractAt("PregradManager", managerAddress);
 const nextMarketId = ((await manager.read.marketCount()) as bigint) + 1n;
+// An idle local chain mines the next block at wall-clock time, while a
+// time-jumped chain mines it after the latest block. Anchor deadlines to
+// whichever clock is further along so they are still in the future when the
+// creation transaction mines.
 const latestBlock = await publicClient.getBlock();
-const graduationDeadline = latestBlock.timestamp + timing.graduationSeconds;
-const resolutionTime = latestBlock.timestamp + timing.resolutionSeconds;
+const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+const anchorTimestamp = latestBlock.timestamp > nowSeconds ? latestBlock.timestamp : nowSeconds;
+const graduationDeadline = anchorTimestamp + timing.graduationSeconds;
+const resolutionTime = anchorTimestamp + timing.resolutionSeconds;
 const creationFee = (await manager.read.marketCreationFee([creator.account.address])) as bigint;
 
 // Use realistic WAD-scaled values here. The smoke should catch schema/indexer
