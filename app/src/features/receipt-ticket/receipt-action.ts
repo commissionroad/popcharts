@@ -5,6 +5,7 @@ import {
   type ReceiptQuotePreview,
 } from "@/domain/pregrad-trading/receipt-quote";
 import type { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { getErrorMessage } from "@/lib/error-handling";
 
 import type { TradingEnvironment } from "./place-receipt-service";
 
@@ -164,18 +165,14 @@ export function getReceiptAction({
  * stale-devchain explanation instead of surfacing the raw error.
  */
 export function getReceiptPlacementErrorMessage(error: unknown) {
-  if (!(error instanceof Error)) {
-    return "Could not place receipt.";
-  }
-
-  if (
-    error.message.includes("MarketDoesNotExist") ||
-    error.message.includes("0x7ff80d38")
-  ) {
-    return "This market is not available on the current PregradManager. Create a new local market and try again.";
-  }
-
-  return error.message;
+  return getErrorMessage(error, {
+    fallback: "Could not place receipt.",
+    matcher: (placementError) =>
+      placementError.message.includes("MarketDoesNotExist") ||
+      placementError.message.includes("0x7ff80d38")
+        ? "This market is not available on the current PregradManager. Create a new local market and try again."
+        : undefined,
+  });
 }
 
 /**
