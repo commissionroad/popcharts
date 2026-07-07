@@ -1,38 +1,6 @@
 import type { Address, Hex, PublicClient } from "viem";
 
-const DEFERRED_EXECUTION_STORED_EVENT_ABI = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "executionId", type: "bytes32" },
-      { indexed: true, name: "poolId", type: "bytes32" },
-      { indexed: false, name: "fromTick", type: "int24" },
-      { indexed: false, name: "toTick", type: "int24" },
-      { indexed: false, name: "orderCount", type: "uint256" },
-    ],
-    name: "DeferredExecutionStored",
-    type: "event",
-  },
-] as const;
-
-const GET_DEFERRED_EXECUTION_ABI = [
-  {
-    inputs: [{ name: "executionId", type: "bytes32" }],
-    name: "getDeferredExecution",
-    outputs: [
-      { name: "pending", type: "bool" },
-      { name: "poolId", type: "bytes32" },
-      { name: "fromTick", type: "int24" },
-      { name: "toTick", type: "int24" },
-      { name: "sqrtPriceX96", type: "uint160" },
-      { name: "nextOrderIndex", type: "uint256" },
-      { name: "orderCount", type: "uint256" },
-      { name: "remainingOrderCount", type: "uint256" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { boundedPoolOrderManagerAbi } from "../../../src/generated/postgrad-venue.js";
 
 /** One deferred crossed-order batch still awaiting resolver work. */
 export type PendingDeferredExecution = {
@@ -62,7 +30,7 @@ export async function findPendingDeferredExecutions(args: {
   }
 
   const logs = await args.publicClient.getContractEvents({
-    abi: DEFERRED_EXECUTION_STORED_EVENT_ABI,
+    abi: boundedPoolOrderManagerAbi,
     address: args.orderManager,
     eventName: "DeferredExecutionStored",
     fromBlock: args.fromBlock,
@@ -90,7 +58,7 @@ export async function findPendingDeferredExecutions(args: {
     // since the event fired, and the read carries the fresh remaining count.
     const [isPending, , fromTick, toTick, , , orderCount, remainingOrderCount] =
       await args.publicClient.readContract({
-        abi: GET_DEFERRED_EXECUTION_ABI,
+        abi: boundedPoolOrderManagerAbi,
         address: args.orderManager,
         args: [executionId],
         functionName: "getDeferredExecution",

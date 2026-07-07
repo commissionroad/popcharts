@@ -35,6 +35,14 @@ export default defineConfig({
     },
   },
   networks: {
+    // Same shape as Hardhat's built-in localhost network, with the URL
+    // overridable so isolated stacks (worktrees, CI) can target an alternate
+    // devchain port without touching the primary stack on 8545.
+    localhost: {
+      chainType: "l1",
+      type: "http",
+      url: process.env.POPCHARTS_LOCAL_RPC_URL ?? "http://127.0.0.1:8545",
+    },
     arcTestnet: {
       accounts: [configVariable("POPCHARTS_DEPLOYER_PRIVATE_KEY")],
       chainId: ARC_TESTNET.chainId,

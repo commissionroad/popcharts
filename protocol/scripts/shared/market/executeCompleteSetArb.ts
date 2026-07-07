@@ -10,68 +10,12 @@ import type {
   CompleteSetMarketManifestData,
   CompleteSetMarketPool,
 } from "./readCompleteSetMarketManifest.js";
+import {
+  completeSetBinaryMarketAbi,
+  minimalV4SwapRouterAbi,
+} from "../../../src/generated/postgrad-venue.js";
 
 const HOOK_DATA_NONE: Hex = "0x";
-
-const COMPLETE_SET_MARKET_ABI = [
-  {
-    inputs: [{ name: "collateralAmount", type: "uint256" }],
-    name: "outcomeAmountForCollateral",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "collateralAmount", type: "uint256" },
-    ],
-    name: "mintCompleteSets",
-    outputs: [{ name: "outcomeAmount", type: "uint256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "outcomeAmount", type: "uint256" }],
-    name: "mergeCompleteSets",
-    outputs: [{ name: "collateralAmount", type: "uint256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const SWAP_ROUTER_ABI = [
-  {
-    inputs: [
-      {
-        components: [
-          { name: "currency0", type: "address" },
-          { name: "currency1", type: "address" },
-          { name: "fee", type: "uint24" },
-          { name: "tickSpacing", type: "int24" },
-          { name: "hooks", type: "address" },
-        ],
-        name: "key",
-        type: "tuple",
-      },
-      {
-        components: [
-          { name: "zeroForOne", type: "bool" },
-          { name: "amountSpecified", type: "int256" },
-          { name: "sqrtPriceLimitX96", type: "uint160" },
-        ],
-        name: "params",
-        type: "tuple",
-      },
-      { name: "recipient", type: "address" },
-      { name: "hookData", type: "bytes" },
-    ],
-    name: "swap",
-    outputs: [{ name: "delta", type: "int256" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 type ArbContractWriter = {
   writeContract(parameters: {
@@ -140,7 +84,7 @@ async function readOutcomeAmountForCollateral(
   collateralAmount: bigint,
 ): Promise<bigint> {
   return context.publicClient.readContract({
-    abi: COMPLETE_SET_MARKET_ABI,
+    abi: completeSetBinaryMarketAbi,
     address: context.manifest.market.address,
     args: [collateralAmount],
     functionName: "outcomeAmountForCollateral",
@@ -154,7 +98,7 @@ async function swapThroughRouter(
   label: string,
 ): Promise<void> {
   const swapHash = await context.walletClient.writeContract({
-    abi: SWAP_ROUTER_ABI,
+    abi: minimalV4SwapRouterAbi,
     address: context.swapRouter,
     args: [
       pool.poolKey,
@@ -192,7 +136,7 @@ async function mintAndSellBothSides(context: ArbContext): Promise<void> {
   });
   const outcomeAmount = await readOutcomeAmountForCollateral(context, context.arbCollateral);
   const mintHash = await context.walletClient.writeContract({
-    abi: COMPLETE_SET_MARKET_ABI,
+    abi: completeSetBinaryMarketAbi,
     address: context.manifest.market.address,
     args: [context.account, context.arbCollateral],
     functionName: "mintCompleteSets",
@@ -302,7 +246,7 @@ async function buyBothSidesAndMerge(context: ArbContext): Promise<void> {
     );
   }
   const mergeHash = await context.walletClient.writeContract({
-    abi: COMPLETE_SET_MARKET_ABI,
+    abi: completeSetBinaryMarketAbi,
     address: context.manifest.market.address,
     args: [mergeAmount],
     functionName: "mergeCompleteSets",

@@ -90,7 +90,7 @@ Rules for executing this program:
 - [x] **A3. Add an ABI freshness gate.** Add a check script (wired into
   `app:check` or root `check`) that regenerates the app-side ABI(s) and fails
   on diff, mirroring the existing `openapi:check` pattern. Depends on: A2.
-- [ ] **A4. Replace inline ABIs in protocol scripts with generated imports.**
+- [x] **A4. Replace inline ABIs in protocol scripts with generated imports.**
   Remove the hand-declared ABI blocks in
   `protocol/scripts/create-complete-set-market.ts` (~80 lines),
   `protocol/scripts/operate-postgrad-admin.ts` (~130 lines), and
@@ -267,6 +267,7 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
+| 2026-07-06 | A4 | TBD | Scope corrected during execution: the pool-manager/state-view ABIs in `create-complete-set-market.ts` and the transfer-approval ABI in `smoke-maker-order.ts` are vendored external v4 contracts (not in our pipeline) and stay inline, as does the dev-only mintable-collateral ABI. The real Pop Charts inline ABIs lived in `operate-postgrad-admin.ts`, `check-market-health.ts`, `inspect-bounded-orders.ts`, and four `scripts/shared/market/` helpers — all now import from `protocol/src/generated/`. Event-scanning call sites derive their event subset via `getAbiItem` because `getContractEvents` decodes every event in the ABI it receives. Also added an env-overridable localhost network URL (`POPCHARTS_LOCAL_RPC_URL`) to `hardhat.config.ts` so smoke validation can run on an isolated chain. Validated on an isolated devchain: deploy → create market → maker order → `check-market-health` and `inspect-bounded-orders` both correct. |
 | 2026-07-06 | A1 | — | Closed as already done: `export-contract-metadata.ts` already generates all four v4 ABIs (plus CompleteSetBinaryMarket, CompleteSetPostgradAdapter, OutcomeToken) into `protocol/src/generated/postgrad-venue.ts`, deterministically, re-exported from `protocol/src/index.ts`. The ADR item was written against a stale premise. |
-| 2026-07-06 | A3 | TBD | `abi:check` wired into root `app:check` and as an App CI step. App CI path filters now also trigger on `protocol/src/generated/pregrad-manager.ts` (the generation source), with the complement mirrored in `app-ci-skip.yml`, so a protocol metadata regeneration cannot merge with a stale app ABI. |
+| 2026-07-06 | A3 | #96 | `abi:check` wired into root `app:check` and as an App CI step. App CI path filters now also trigger on `protocol/src/generated/pregrad-manager.ts` (the generation source), with the complement mirrored in `app-ci-skip.yml`, so a protocol metadata regeneration cannot merge with a stale app ABI. |
 | 2026-07-06 | A2 | #94 | `app/scripts/generate-contract-abis.mts` renders the app's `pregradManagerAbi` from `protocol/src/generated/pregrad-manager.ts` (mirrors the orval/openapi.json pattern). Hand-written 28-entry subset replaced by the full 118-entry generated ABI; structural comparison of all 28 overlapping entries found zero semantic differences (`internalType` annotations and `as const satisfies Abi` are the only additions). `--check` flag included, wired into the gate in A3. |
