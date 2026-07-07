@@ -87,7 +87,7 @@ Rules for executing this program:
   Depends on: A1. Validation: `pnpm run app:check`; a diff between the old
   hand-written ABI and the generated one is reviewed function-by-function
   before merge (any semantic difference is a finding, not a silent fix).
-- [ ] **A3. Add an ABI freshness gate.** Add a check script (wired into
+- [x] **A3. Add an ABI freshness gate.** Add a check script (wired into
   `app:check` or root `check`) that regenerates the app-side ABI(s) and fails
   on diff, mirroring the existing `openapi:check` pattern. Depends on: A2.
 - [ ] **A4. Replace inline ABIs in protocol scripts with generated imports.**
@@ -268,4 +268,5 @@ Tradeoffs:
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
 | 2026-07-06 | A1 | — | Closed as already done: `export-contract-metadata.ts` already generates all four v4 ABIs (plus CompleteSetBinaryMarket, CompleteSetPostgradAdapter, OutcomeToken) into `protocol/src/generated/postgrad-venue.ts`, deterministically, re-exported from `protocol/src/index.ts`. The ADR item was written against a stale premise. |
-| 2026-07-06 | A2 | TBD | `app/scripts/generate-contract-abis.mts` renders the app's `pregradManagerAbi` from `protocol/src/generated/pregrad-manager.ts` (mirrors the orval/openapi.json pattern). Hand-written 28-entry subset replaced by the full 118-entry generated ABI; structural comparison of all 28 overlapping entries found zero semantic differences (`internalType` annotations and `as const satisfies Abi` are the only additions). `--check` flag included, wired into the gate in A3. |
+| 2026-07-06 | A3 | TBD | `abi:check` wired into root `app:check` and as an App CI step. App CI path filters now also trigger on `protocol/src/generated/pregrad-manager.ts` (the generation source), with the complement mirrored in `app-ci-skip.yml`, so a protocol metadata regeneration cannot merge with a stale app ABI. |
+| 2026-07-06 | A2 | #94 | `app/scripts/generate-contract-abis.mts` renders the app's `pregradManagerAbi` from `protocol/src/generated/pregrad-manager.ts` (mirrors the orval/openapi.json pattern). Hand-written 28-entry subset replaced by the full 118-entry generated ABI; structural comparison of all 28 overlapping entries found zero semantic differences (`internalType` annotations and `as const satisfies Abi` are the only additions). `--check` flag included, wired into the gate in A3. |

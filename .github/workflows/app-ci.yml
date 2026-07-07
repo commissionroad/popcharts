@@ -6,12 +6,16 @@ on:
       - main
     paths:
       - app/**
+      # The committed app ABI is generated from this file; run abi:check when
+      # it changes. Mirror any path change in app-ci-skip.yml.
+      - protocol/src/generated/pregrad-manager.ts
       - .github/workflows/app-ci.yml
   push:
     branches:
       - main
     paths:
       - app/**
+      - protocol/src/generated/pregrad-manager.ts
       - .github/workflows/app-ci.yml
 
 permissions:
@@ -59,6 +63,9 @@ jobs:
 
       - name: Check formatting
         run: pnpm format:check
+
+      - name: Check generated contract ABIs
+        run: pnpm abi:check
 
       - name: Lint
         run: pnpm lint
