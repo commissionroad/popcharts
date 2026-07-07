@@ -1,7 +1,6 @@
 import type { PublicClient, WalletClient } from "viem";
 import { formatUnits, parseEventLogs, parseUnits } from "viem";
 
-import { parseApiMarketAppId } from "@/domain/markets/api-market";
 import type { Market, MarketSide } from "@/domain/markets/types";
 import type {
   PlacedPregradReceipt,
@@ -12,6 +11,7 @@ import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
+import { parseApiMarketAppId } from "@/lib/app-id";
 import { formatTokenAmount } from "@/lib/format";
 
 /**

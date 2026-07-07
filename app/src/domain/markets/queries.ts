@@ -5,8 +5,9 @@ import {
   type MarketsApiClient,
   type MarketsApiFetch,
 } from "@/integrations/indexer/markets-api";
+import { parseApiMarketAppId } from "@/lib/app-id";
 
-import { apiMarketToMarket, parseApiMarketAppId } from "./api-market";
+import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
