@@ -73,14 +73,14 @@ Rules for executing this program:
 
 ### Track A — Contract ABI pipeline and drift protection (highest value)
 
-- [ ] **A1. Export v4 contract ABIs from the protocol metadata pipeline.**
+- [x] **A1. Export v4 contract ABIs from the protocol metadata pipeline.**
   Extend `protocol/scripts/export-contract-metadata.ts` to also generate
   TypeScript ABI modules for `BoundedPoolOrderManager`,
   `BoundedPredictionHook`, `MinimalV4SwapRouter`, and `PoolTickBounds` into
   `protocol/src/generated/`, re-exported from `protocol/src/index.ts`.
   Generation must stay deterministic (sorted contracts). Validation:
   `pnpm run protocol:check`; regenerating twice produces no diff.
-- [ ] **A2. Generate the app's pregrad-manager ABI from protocol artifacts.**
+- [x] **A2. Generate the app's pregrad-manager ABI from protocol artifacts.**
   Replace the hand-written `app/src/integrations/contracts/pregrad-manager.ts`
   with output generated from the protocol pipeline (A1's mechanism). Keep the
   same exported name so app imports do not churn. Commit the generated file.
@@ -267,3 +267,5 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
+| 2026-07-06 | A1 | — | Closed as already done: `export-contract-metadata.ts` already generates all four v4 ABIs (plus CompleteSetBinaryMarket, CompleteSetPostgradAdapter, OutcomeToken) into `protocol/src/generated/postgrad-venue.ts`, deterministically, re-exported from `protocol/src/index.ts`. The ADR item was written against a stale premise. |
+| 2026-07-06 | A2 | TBD | `app/scripts/generate-contract-abis.mts` renders the app's `pregradManagerAbi` from `protocol/src/generated/pregrad-manager.ts` (mirrors the orval/openapi.json pattern). Hand-written 28-entry subset replaced by the full 118-entry generated ABI; structural comparison of all 28 overlapping entries found zero semantic differences (`internalType` annotations and `as const satisfies Abi` are the only additions). `--check` flag included, wired into the gate in A3. |
