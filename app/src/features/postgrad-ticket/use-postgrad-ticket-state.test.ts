@@ -3,15 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePublicClient, useWalletClient } from "wagmi";
 
 import type { Market } from "@/domain/markets/types";
+import {
+  canMintLocalCollateral,
+  mintLocalCollateral,
+} from "@/features/receipt-ticket/place-receipt-service";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { useVenueBalances } from "@/integrations/contracts/hooks/use-venue-balances";
 import type { PostgradVenueContractConfig } from "@/integrations/contracts/postgrad-venue";
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
-import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
-} from "@/features/receipt-ticket/place-receipt-service";
 import { marketFactory } from "@/test/factories/markets";
 
 import {
@@ -72,8 +72,10 @@ const contractConfig: PopChartsContractConfig = {
 };
 
 const venueConfig: PostgradVenueContractConfig = {
+  orderManagerAddress: "0x00000000000000000000000000000000000000f2",
   poolTickBoundsAddress: "0x00000000000000000000000000000000000000b2",
   quoterAddress: "0x00000000000000000000000000000000000000b3",
+  stateViewAddress: null,
   swapRouterAddress: "0x00000000000000000000000000000000000000b1",
 };
 

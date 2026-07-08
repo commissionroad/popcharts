@@ -251,8 +251,10 @@ function contractEnvironment(): VenueTradingEnvironment {
       },
     },
     venueConfig: {
+      orderManagerAddress: "0x00000000000000000000000000000000000000f2",
       poolTickBoundsAddress: "0x00000000000000000000000000000000000000b2",
       quoterAddress: null,
+      stateViewAddress: null,
       swapRouterAddress: "0x00000000000000000000000000000000000000b1",
     },
   };

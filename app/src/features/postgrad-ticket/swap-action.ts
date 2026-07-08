@@ -111,6 +111,48 @@ export function getVenueSwapAction({
     };
   }
 
+  const walletGate = getVenueWalletGate({
+    publicClientReady,
+    wallet,
+    walletClientReady,
+  });
+
+  if (walletGate) {
+    return walletGate;
+  }
+
+  if (insufficientBalance) {
+    return {
+      disabled: true,
+      label:
+        action === "buy" ? "Insufficient pUSD" : `Insufficient ${sideLabel} tokens`,
+      onClick: undefined,
+    };
+  }
+
+  return {
+    disabled: false,
+    label: tradeLabel,
+    onClick: onSwap,
+  };
+}
+
+/**
+ * The shared wallet-and-client gating sequence for venue transactions:
+ * sign-in availability, wallet readiness, authentication, wallet linkage,
+ * chain, and viem client readiness, checked in blocking order. Returns null
+ * when nothing blocks, so callers continue to their own trade-specific
+ * checks.
+ */
+export function getVenueWalletGate({
+  publicClientReady,
+  wallet,
+  walletClientReady,
+}: {
+  publicClientReady: boolean;
+  wallet: ReturnType<typeof useWalletAccount>;
+  walletClientReady: boolean;
+}): VenueSwapAction | null {
   if (!wallet.enabled) {
     return {
       disabled: true,
@@ -159,20 +201,7 @@ export function getVenueSwapAction({
     };
   }
 
-  if (insufficientBalance) {
-    return {
-      disabled: true,
-      label:
-        action === "buy" ? "Insufficient pUSD" : `Insufficient ${sideLabel} tokens`,
-      onClick: undefined,
-    };
-  }
-
-  return {
-    disabled: false,
-    label: tradeLabel,
-    onClick: onSwap,
-  };
+  return null;
 }
 
 /**

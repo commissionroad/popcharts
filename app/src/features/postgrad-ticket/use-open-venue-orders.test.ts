@@ -1,0 +1,276 @@
+import type { VenueOrder } from "@popcharts/api-client/models";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  OPEN_ORDERS_POLL_INTERVAL_MS,
+  useOpenVenueOrders,
+} from "./use-open-venue-orders";
+
+const OWNER = "0x1111111111111111111111111111111111111111";
+const YES_POOL_ID = `0x${"11".repeat(32)}`;
+
+beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013");
+  stubFetch({
+    book: {
+      chainId: 31337,
+      marketId: "7",
+      yes: {
+        asks: [],
+        bids: [],
+        marketPriceWad: "880000000000000000",
+        outcomeTokenAddress: "0xabc",
+        poolId: YES_POOL_ID,
+        side: "yes",
+      },
+    },
+    orders: [openOrder()],
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
+
+describe("useOpenVenueOrders", () => {
+  it("stays disabled until every input is available", () => {
+    const { result } = renderHook(() =>
+      useOpenVenueOrders({ chainId: 31337, marketId: "7", owner: null, refreshKey: 0 })
+    );
+
+    expect(result.current.orders).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("stays disabled without an indexer base URL", () => {
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "");
+
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    expect(result.current.orders).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("reads the owner's orders and the pool prices", async () => {
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    expect(result.current.loading).toBe(true);
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+
+    expect(result.current.orders).toEqual([openOrder()]);
+    expect(result.current.poolPricesWad).toEqual({
+      [YES_POOL_ID]: "880000000000000000",
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.loading).toBe(false);
+
+    const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
+    expect(requested).toEqual([
+      `http://127.0.0.1:3013/markets/31337/7/orders?owner=${OWNER}`,
+      "http://127.0.0.1:3013/markets/31337/7/orderbook",
+    ]);
+  });
+
+  it("re-reads when refresh() is called", async () => {
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+
+    act(() => {
+      result.current.refresh();
+    });
+
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(4));
+    // The previous read stays on screen while the re-read is in flight.
+    expect(result.current.orders).toEqual([openOrder()]);
+  });
+
+  it("re-reads when the external refresh key bumps", async () => {
+    const { rerender, result } = renderHook(
+      ({ refreshKey }: { refreshKey: number }) =>
+        useOpenVenueOrders({
+          chainId: 31337,
+          marketId: "7",
+          owner: OWNER,
+          refreshKey,
+        }),
+      { initialProps: { refreshKey: 0 } }
+    );
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+
+    rerender({ refreshKey: 1 });
+
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(4));
+  });
+
+  it("polls again after the interval and skips reads while hidden", async () => {
+    const timers = interceptPollTimeouts();
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+    expect(timers.scheduled()).toBe(1);
+
+    // Hidden tab: the tick reschedules without fetching.
+    setVisibility("hidden");
+    act(() => {
+      timers.fire();
+    });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+    expect(timers.scheduled()).toBe(1);
+
+    // Visible again: the next tick re-reads.
+    setVisibility("visible");
+    act(() => {
+      timers.fire();
+    });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(4));
+  });
+
+  it("surfaces HTTP failures as a readable error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 }))
+    );
+
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("Open orders request failed (500).")
+    );
+    expect(result.current.orders).toBeNull();
+  });
+
+  it("falls back to generic copy for unreadable failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw "socket vanished";
+      })
+    );
+
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("Could not load your open orders.")
+    );
+  });
+
+  it("tolerates a book without pool prices", async () => {
+    stubFetch({ book: { chainId: 31337, marketId: "7" }, orders: [] });
+
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).toEqual([]));
+    expect(result.current.poolPricesWad).toEqual({});
+  });
+
+  it("joins paths onto a base URL that already ends in a slash", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013/");
+
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+
+    const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
+    expect(requested).toEqual([
+      `http://127.0.0.1:3013/markets/31337/7/orders?owner=${OWNER}`,
+      "http://127.0.0.1:3013/markets/31337/7/orderbook",
+    ]);
+  });
+
+  it("tears down cleanly when unmounted before the first read settles", () => {
+    const { unmount } = renderHook(() => useOpenOrdersArgs());
+
+    // Unmount while the initial fetch is still pending: no poll has been
+    // scheduled yet, so cleanup runs without a timer to clear.
+    expect(() => unmount()).not.toThrow();
+  });
+});
+
+function useOpenOrdersArgs() {
+  return useOpenVenueOrders({
+    chainId: 31337,
+    marketId: "7",
+    owner: OWNER,
+    refreshKey: 0,
+  });
+}
+
+function stubFetch({ book, orders }: { book: unknown; orders: VenueOrder[] }) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: URL | string) => {
+      const url = String(input);
+
+      if (url.includes("/orders")) {
+        return Response.json(orders);
+      }
+
+      if (url.includes("/orderbook")) {
+        return Response.json(book);
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    })
+  );
+}
+
+function interceptPollTimeouts() {
+  const scheduled: (() => void)[] = [];
+  const original = window.setTimeout.bind(window);
+
+  vi.spyOn(window, "setTimeout").mockImplementation(((
+    handler: TimerHandler,
+    timeout?: number,
+    ...args: unknown[]
+  ) => {
+    if (timeout === OPEN_ORDERS_POLL_INTERVAL_MS) {
+      scheduled.push(handler as () => void);
+      return scheduled.length as unknown as ReturnType<typeof window.setTimeout>;
+    }
+
+    return original(handler, timeout, ...args);
+  }) as typeof window.setTimeout);
+
+  return {
+    fire: () => {
+      scheduled.shift()?.();
+    },
+    scheduled: () => scheduled.length,
+  };
+}
+
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => state,
+  });
+}
+
+function openOrder(): VenueOrder {
+  return {
+    amountIn: "30000000000000000000",
+    createdBlockTimestamp: "2026-07-08T00:00:00.000Z",
+    createdTransactionHash: `0x${"cc".repeat(32)}`,
+    direction: "bid",
+    orderId: 9,
+    owner: OWNER,
+    poolId: YES_POOL_ID,
+    priceWad: "300000000000000000",
+    remainingSizeWad: "100000000000000000000",
+    side: "yes",
+    sizeWad: "100000000000000000000",
+    status: "open",
+    tickLower: -12120,
+    tickUpper: -12060,
+  };
+}

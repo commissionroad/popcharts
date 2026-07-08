@@ -3,9 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { VenueSwapQuote } from "@/domain/postgrad-trading/venue-trade";
 
+import type { VenueLimitOrderReceipt } from "./limit-order-service";
 import type { VenueSwapReceipt } from "./postgrad-swap-service";
 import {
+  CompletedLimitOrderNotice,
   CompletedSwapNotice,
+  LimitOrderPreview,
   SwapQuotePreview,
   VenueBalancesPanel,
 } from "./postgrad-ticket-panels";
@@ -181,6 +184,94 @@ describe("CompletedSwapNotice", () => {
     expect(screen.getByText(/reached its price bound/)).toBeInTheDocument();
   });
 });
+
+describe("LimitOrderPreview", () => {
+  it("previews a bid: deposits collateral, receives tokens if filled", () => {
+    render(
+      <LimitOrderPreview
+        quote={{
+          depositWad: 30n * WAD,
+          direction: "bid",
+          priceCents: 30,
+          sizeWad: 100n * WAD,
+        }}
+        sideColor="var(--yes)"
+      />
+    );
+
+    expect(screen.getByText("30.0c")).toBeInTheDocument();
+    expect(screen.getByText("You deposit")).toBeInTheDocument();
+    expect(screen.getByText("30 pUSD")).toBeInTheDocument();
+    expect(screen.getByText("If filled you receive")).toBeInTheDocument();
+    // Size row and the if-filled row both read 100 tok for a bid.
+    expect(screen.getAllByText("100 tok")).toHaveLength(2);
+  });
+
+  it("previews an ask: escrows tokens, receives collateral if filled", () => {
+    render(
+      <LimitOrderPreview
+        quote={{
+          depositWad: 100n * WAD,
+          direction: "ask",
+          priceCents: 95,
+          sizeWad: 100n * WAD,
+        }}
+        sideColor="var(--no)"
+      />
+    );
+
+    expect(screen.getByText("You escrow")).toBeInTheDocument();
+    // Size row and the escrow row both read 100 tok for an ask.
+    expect(screen.getAllByText("100 tok")).toHaveLength(2);
+    // 100 tokens at 95c fill into 95 pUSD.
+    expect(screen.getByText("95 pUSD")).toBeInTheDocument();
+  });
+
+  it("renders placeholder dashes without a validated quote", () => {
+    render(<LimitOrderPreview quote={null} sideColor="var(--yes)" />);
+
+    expect(screen.getAllByText("--")).toHaveLength(4);
+    // Without a quote the deposit row defaults to the escrow label.
+    expect(screen.getByText("You escrow")).toBeInTheDocument();
+  });
+});
+
+describe("CompletedLimitOrderNotice", () => {
+  it("summarizes a resting bid with its order id and hash", () => {
+    render(
+      <CompletedLimitOrderNotice noLabel="NO" order={restingBid()} yesLabel="YES" />
+    );
+
+    expect(screen.getByText("Limit order placed")).toBeInTheDocument();
+    expect(screen.getByText("Buy 100 YES tokens at 30.0c")).toBeInTheDocument();
+    expect(screen.getByText(/order #9/)).toBeInTheDocument();
+    expect(screen.getByText(/Tx 0xccc/)).toBeInTheDocument();
+  });
+
+  it("summarizes a resting ask on the NO side", () => {
+    render(
+      <CompletedLimitOrderNotice
+        noLabel="NO"
+        order={{ ...restingBid(), direction: "ask", priceCents: 95, side: "no" }}
+        yesLabel="YES"
+      />
+    );
+
+    expect(screen.getByText("Sell 100 NO tokens at 95.0c")).toBeInTheDocument();
+  });
+});
+
+function restingBid(): VenueLimitOrderReceipt {
+  return {
+    amountIn: 30n * WAD,
+    direction: "bid",
+    orderId: 9,
+    priceCents: 30,
+    side: "yes",
+    sizeWad: 100n * WAD,
+    transactionHash: `0x${"cc".repeat(32)}`,
+  };
+}
 
 function buyQuote(): VenueSwapQuote {
   return {

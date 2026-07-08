@@ -1,3 +1,4 @@
+import type { VenueCancelOrderStep, VenueLimitOrderStep } from "./limit-order-service";
 import type { VenueSwapStep } from "./postgrad-swap-service";
 
 /**
@@ -10,6 +11,21 @@ export function formatSwapStep(step: VenueSwapStep | "minting") {
     confirming: "Waiting for confirmation...",
     minting: "Minting local test pUSD...",
     swapping: "Submitting swap...",
+  };
+
+  return labels[step];
+}
+
+/**
+ * Progress copy for each on-chain limit-order step, shown while an order
+ * placement or cancellation sequence is in flight.
+ */
+export function formatLimitOrderStep(step: VenueCancelOrderStep | VenueLimitOrderStep) {
+  const labels: Record<VenueCancelOrderStep | VenueLimitOrderStep, string> = {
+    approving: "Approving order deposit...",
+    cancelling: "Cancelling order...",
+    confirming: "Waiting for confirmation...",
+    placing: "Submitting limit order...",
   };
 
   return labels[step];
