@@ -51,6 +51,9 @@ export type { EpsilonBoundTicks } from "../scripts/shared/price/deriveEpsilonBou
 export { displayPriceWadToSqrtPriceX96 } from "../scripts/shared/price/displayPriceWadToSqrtPriceX96.js";
 export type { DisplayPricePoolOrientation } from "../scripts/shared/price/displayPriceWadToSqrtPriceX96.js";
 export { sqrtPriceX96ToDisplayPriceWad } from "../scripts/shared/price/sqrtPriceX96ToDisplayPriceWad.js";
+export { liquidityForAmounts } from "../scripts/shared/price/liquidityForAmounts.js";
+export { tickToDisplayPriceWad } from "../scripts/shared/price/tickToDisplayPriceWad.js";
+export { tickToSqrtPriceX96 } from "../scripts/shared/price/tickToSqrtPriceX96.js";
 
 export { COMPLETE_SET_KEEPER_POLICY } from "../scripts/shared/market/completeSetKeeperPolicy.js";
 export { COMPLETE_SET_SMOKE_POLICY } from "../scripts/shared/market/completeSetSmokePolicy.js";

@@ -255,6 +255,112 @@ export const MarketVenueSchema = t.Object(
   { $id: "MarketVenue" },
 );
 
+/** Which binary outcome a bounded-venue pool trades against collateral. */
+export const VenuePoolSideSchema = t.Union(
+  [t.Literal("yes"), t.Literal("no")],
+  {
+    $id: "VenuePoolSide",
+  },
+);
+
+/** Lifecycle status of an indexed bounded-venue maker order. */
+export const VenueOrderStatusSchema = t.Union(
+  [t.Literal("open"), t.Literal("filled"), t.Literal("cancelled")],
+  { $id: "VenueOrderStatus" },
+);
+
+/**
+ * Which side of the outcome's book a maker order rests on: an ask sells
+ * outcome tokens for collateral, a bid buys them.
+ */
+export const VenueOrderDirectionSchema = t.Union(
+  [t.Literal("bid"), t.Literal("ask")],
+  { $id: "VenueOrderDirection" },
+);
+
+/**
+ * One aggregated price level of a venue depth ladder: every open order
+ * sharing a direction and tick range, summed. `priceWad` is the display price
+ * (collateral per outcome token, WAD) at the tick-range edge nearest the
+ * current pool price — the price at which the level starts to fill — and
+ * `sizeWad` is the outcome-token quantity (WAD) the level's remaining
+ * liquidity represents across its range.
+ */
+export const VenueOrderBookLevelSchema = t.Object(
+  {
+    orderCount: t.Number(),
+    priceWad: t.String(),
+    sizeWad: t.String(),
+    tickLower: t.Number(),
+    tickUpper: t.Number(),
+  },
+  { $id: "VenueOrderBookLevel" },
+);
+
+/**
+ * Depth ladder for one outcome pool: asks sorted best (lowest price) first,
+ * bids sorted best (highest price) first. `marketPriceWad` is the pool's
+ * current display price, omitted while the pool is uninitialized or the
+ * venue read fails.
+ */
+export const VenueOrderBookPoolSchema = t.Object(
+  {
+    asks: t.Array(t.Ref(VenueOrderBookLevelSchema)),
+    bids: t.Array(t.Ref(VenueOrderBookLevelSchema)),
+    marketPriceWad: t.Optional(t.String()),
+    outcomeTokenAddress: t.String(),
+    poolId: t.String(),
+    side: t.Ref(VenuePoolSideSchema),
+  },
+  { $id: "VenueOrderBookPool" },
+);
+
+/**
+ * Bounded-venue order book for one market. The YES and NO ladders are omitted
+ * while the market has no indexed venue pools (not yet graduated).
+ */
+export const MarketOrderBookSchema = t.Object(
+  {
+    chainId: t.Number(),
+    marketId: t.String(),
+    no: t.Optional(t.Ref(VenueOrderBookPoolSchema)),
+    yes: t.Optional(t.Ref(VenueOrderBookPoolSchema)),
+  },
+  { $id: "MarketOrderBook" },
+);
+
+/**
+ * One indexed bounded-venue maker order. `priceWad` follows the ladder's
+ * price convention; `sizeWad` / `remainingSizeWad` are the outcome-token
+ * quantities (WAD) of the order's total and remaining liquidity over its
+ * current tick range, and `amountIn` is the exact raw deposit (outcome tokens
+ * for asks, collateral for bids).
+ */
+export const VenueOrderSchema = t.Object(
+  {
+    amountIn: t.String(),
+    createdBlockTimestamp: t.String(),
+    createdTransactionHash: t.String(),
+    direction: t.Ref(VenueOrderDirectionSchema),
+    orderId: t.Number(),
+    owner: t.String(),
+    poolId: t.String(),
+    priceWad: t.String(),
+    remainingSizeWad: t.String(),
+    side: t.Ref(VenuePoolSideSchema),
+    sizeWad: t.String(),
+    status: t.Ref(VenueOrderStatusSchema),
+    tickLower: t.Number(),
+    tickUpper: t.Number(),
+  },
+  { $id: "VenueOrder" },
+);
+
+/** Maker orders for one market and owner, newest first. */
+export const VenueOrderListSchema = t.Array(t.Ref(VenueOrderSchema), {
+  $id: "VenueOrderList",
+});
+
 /** Where a graduated market's matched exposure settled after handoff. */
 export const MarketPostgradSchema = t.Object(
   {
@@ -540,6 +646,19 @@ export type DevMarketCloseResponse = Static<
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
 >;
+export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
+export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;
+export type VenueOrderDirectionResponse = Static<
+  typeof VenueOrderDirectionSchema
+>;
+export type VenueOrderBookLevelResponse = Static<
+  typeof VenueOrderBookLevelSchema
+>;
+export type VenueOrderBookPoolResponse = Static<
+  typeof VenueOrderBookPoolSchema
+>;
+export type MarketOrderBookResponse = Static<typeof MarketOrderBookSchema>;
+export type VenueOrderResponse = Static<typeof VenueOrderSchema>;
 export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
 export type MarketVenueResponse = Static<typeof MarketVenueSchema>;
 export type MarketPostgradResponse = Static<typeof MarketPostgradSchema>;

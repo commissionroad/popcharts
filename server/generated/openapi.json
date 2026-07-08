@@ -502,6 +502,138 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/orderbook": {
+      "get": {
+        "operationId": "getMarketOrderBook",
+        "summary": "Get a market's venue order book",
+        "description": "Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketOrderBook"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/{marketId}/orders": {
+      "get": {
+        "operationId": "listMarketOrders",
+        "summary": "List a wallet's venue maker orders on one market",
+        "description": "Returns the indexed bounded-venue maker orders one owner placed on a market's outcome pools, newest first. Only open orders are returned unless a status filter is provided; status=all includes every lifecycle state.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "filled",
+                "cancelled",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueOrderList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}/events": {
       "get": {
         "operationId": "listMarketEvents",
@@ -1726,6 +1858,27 @@
           }
         }
       },
+      "MarketOrderBook": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "marketId"
+        ],
+        "properties": {
+          "chainId": {
+            "type": "number"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "no": {
+            "$ref": "#/components/schemas/VenueOrderBookPool"
+          },
+          "yes": {
+            "$ref": "#/components/schemas/VenueOrderBookPool"
+          }
+        }
+      },
       "MarketStatus": {
         "type": "string",
         "enum": [
@@ -1799,6 +1952,160 @@
         "items": {
           "$ref": "#/components/schemas/ReceiptPlacedEvent"
         }
+      },
+      "VenueOrder": {
+        "type": "object",
+        "required": [
+          "amountIn",
+          "createdBlockTimestamp",
+          "createdTransactionHash",
+          "direction",
+          "orderId",
+          "owner",
+          "poolId",
+          "priceWad",
+          "remainingSizeWad",
+          "side",
+          "sizeWad",
+          "status",
+          "tickLower",
+          "tickUpper"
+        ],
+        "properties": {
+          "amountIn": {
+            "type": "string"
+          },
+          "createdBlockTimestamp": {
+            "type": "string"
+          },
+          "createdTransactionHash": {
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/VenueOrderDirection"
+          },
+          "orderId": {
+            "type": "number"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "priceWad": {
+            "type": "string"
+          },
+          "remainingSizeWad": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/VenuePoolSide"
+          },
+          "sizeWad": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VenueOrderStatus"
+          },
+          "tickLower": {
+            "type": "number"
+          },
+          "tickUpper": {
+            "type": "number"
+          }
+        }
+      },
+      "VenueOrderBookLevel": {
+        "type": "object",
+        "required": [
+          "orderCount",
+          "priceWad",
+          "sizeWad",
+          "tickLower",
+          "tickUpper"
+        ],
+        "properties": {
+          "orderCount": {
+            "type": "number"
+          },
+          "priceWad": {
+            "type": "string"
+          },
+          "sizeWad": {
+            "type": "string"
+          },
+          "tickLower": {
+            "type": "number"
+          },
+          "tickUpper": {
+            "type": "number"
+          }
+        }
+      },
+      "VenueOrderBookPool": {
+        "type": "object",
+        "required": [
+          "asks",
+          "bids",
+          "outcomeTokenAddress",
+          "poolId",
+          "side"
+        ],
+        "properties": {
+          "asks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueOrderBookLevel"
+            }
+          },
+          "bids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueOrderBookLevel"
+            }
+          },
+          "marketPriceWad": {
+            "type": "string"
+          },
+          "outcomeTokenAddress": {
+            "type": "string"
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/VenuePoolSide"
+          }
+        }
+      },
+      "VenueOrderDirection": {
+        "type": "string",
+        "enum": [
+          "bid",
+          "ask"
+        ]
+      },
+      "VenueOrderList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VenueOrder"
+        }
+      },
+      "VenueOrderStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "filled",
+          "cancelled"
+        ]
+      },
+      "VenuePoolSide": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ]
       }
     }
   }

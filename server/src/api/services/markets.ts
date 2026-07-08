@@ -161,6 +161,40 @@ export async function getMarketById(
 }
 
 /**
+ * Loads one market row for the configured PregradManager, or null when the
+ * market is unknown or (locally) no longer exists on-chain — the same
+ * existence rules getMarketById applies, without the serialization work.
+ */
+export async function selectLiveMarketRow({
+  chainId,
+  marketId,
+}: {
+  chainId: number;
+  marketId: bigint;
+}): Promise<MarketRow | null> {
+  const rows = await db
+    .select({ market: schema.markets })
+    .from(schema.markets)
+    .innerJoin(schema.contracts, marketContractJoinCondition())
+    .where(
+      and(
+        eq(schema.contracts.address, currentPregradManagerAddress()),
+        eq(schema.contracts.chainId, config.chainId),
+        eq(schema.markets.chainId, chainId),
+        eq(schema.markets.marketId, marketId),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+
+  if (!row || !(await isLiveLocalMarket(marketId))) {
+    return null;
+  }
+
+  return row.market;
+}
+
+/**
  * Idempotently stores off-chain market metadata keyed by (chainId,
  * metadataHash), replacing any previous row for the same hash so re-submitted
  * metadata always converges to the latest write. Returns null for an invalid
