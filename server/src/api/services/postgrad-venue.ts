@@ -448,6 +448,72 @@ async function readOutcomePool({
   });
 }
 
+const collateralDecimalsCache = new Map<string, number>();
+
+/**
+ * Reads (and memoizes) the ERC-20 decimals of a collateral token through the
+ * venue RPC client. Decimals are immutable, so each collateral address is
+ * read at most once per process.
+ */
+export async function readCollateralDecimals(
+  collateral: `0x${string}`,
+): Promise<number> {
+  const cached = collateralDecimalsCache.get(collateral.toLowerCase());
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const decimals = await getVenuePublicClient().readContract({
+    abi: ERC20_DECIMALS_ABI,
+    address: collateral,
+    functionName: "decimals",
+  });
+  collateralDecimalsCache.set(collateral.toLowerCase(), decimals);
+
+  return decimals;
+}
+
+/**
+ * Reads the current slot0 sqrt price for each pool id through the StateView
+ * lens; a value of 0n means the pool is uninitialized. Returns an empty map
+ * when the venue contracts are not configured or the reads fail, so callers
+ * can still serve indexed order data without a live price.
+ */
+export async function readPoolSqrtPricesX96(
+  poolIds: readonly string[],
+): Promise<Map<string, bigint>> {
+  const prices = new Map<string, bigint>();
+
+  if (!postgradVenueConfigured() || poolIds.length === 0) {
+    return prices;
+  }
+
+  try {
+    const publicClient = getVenuePublicClient();
+    const slots = await Promise.all(
+      poolIds.map(
+        (poolId) =>
+          publicClient.readContract({
+            abi: STATE_VIEW_ABI,
+            address: config.contracts.stateView,
+            functionName: "getSlot0",
+            args: [poolId as `0x${string}`],
+          }) as Promise<readonly [bigint, number, number, number]>,
+      ),
+    );
+
+    poolIds.forEach((poolId, index) => {
+      prices.set(poolId, slots[index]?.[0] ?? 0n);
+    });
+  } catch (error) {
+    console.warn("[Postgrad venue] Could not read pool sqrt prices:", error);
+    prices.clear();
+  }
+
+  return prices;
+}
+
 /**
  * Maps a pool's raw slot0 sqrt price to the venue pool response, converting
  * it into the ADR 0009 WAD display price (collateral per one outcome token)

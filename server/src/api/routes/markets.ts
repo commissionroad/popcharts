@@ -29,6 +29,7 @@ import {
   MarketListSchema,
   MarketMetadataSchema,
   MarketMetadataWriteSchema,
+  MarketOrderBookSchema,
   MarketPostgradSchema,
   MarketSchema,
   MarketStatusSchema,
@@ -36,6 +37,13 @@ import {
   MarketVenueSchema,
   ReceiptPlacedEventListSchema,
   ReceiptPlacedEventSchema,
+  VenueOrderBookLevelSchema,
+  VenueOrderBookPoolSchema,
+  VenueOrderDirectionSchema,
+  VenueOrderListSchema,
+  VenueOrderSchema,
+  VenueOrderStatusSchema,
+  VenuePoolSideSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
@@ -48,6 +56,10 @@ import {
   getMarkets,
   upsertMarketMetadata,
 } from "src/api/services/markets";
+import {
+  getMarketOrderBook,
+  getMarketVenueOrders,
+} from "src/api/services/venue-orderbook";
 
 /**
  * Market, graduation, and AI-review routes.
@@ -91,9 +103,17 @@ export const marketRoutes = new Elysia({ prefix: "" })
     MarketList: MarketListSchema,
     MarketMetadata: MarketMetadataSchema,
     MarketMetadataWrite: MarketMetadataWriteSchema,
+    MarketOrderBook: MarketOrderBookSchema,
     MarketStatus: MarketStatusSchema,
     ReceiptPlacedEvent: ReceiptPlacedEventSchema,
     ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
+    VenueOrder: VenueOrderSchema,
+    VenueOrderBookLevel: VenueOrderBookLevelSchema,
+    VenueOrderBookPool: VenueOrderBookPoolSchema,
+    VenueOrderDirection: VenueOrderDirectionSchema,
+    VenueOrderList: VenueOrderListSchema,
+    VenueOrderStatus: VenueOrderStatusSchema,
+    VenuePoolSide: VenuePoolSideSchema,
   })
   .get(
     "/markets",
@@ -379,6 +399,91 @@ export const marketRoutes = new Elysia({ prefix: "" })
       detail: {
         operationId: "getMarket",
         summary: "Get an indexed market",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/orderbook",
+    async ({ params, set }) => {
+      const orderBook = await getMarketOrderBook({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (!orderBook) {
+        set.status = 404;
+        return "Market not found";
+      }
+
+      return orderBook;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "MarketOrderBook",
+        404: t.String(),
+      },
+      detail: {
+        operationId: "getMarketOrderBook",
+        summary: "Get a market's venue order book",
+        description:
+          "Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/orders",
+    async ({ params, query, set }) => {
+      const result = await getMarketVenueOrders({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+        owner: query.owner,
+        status: query.status,
+      });
+
+      if (result.kind === "invalid_owner") {
+        set.status = 400;
+        return result.message;
+      }
+
+      if (result.kind === "unknown_market") {
+        set.status = 404;
+        return result.message;
+      }
+
+      return result.orders;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      query: t.Object({
+        owner: t.String(),
+        status: t.Optional(
+          t.Union([
+            t.Literal("open"),
+            t.Literal("filled"),
+            t.Literal("cancelled"),
+            t.Literal("all"),
+          ]),
+        ),
+      }),
+      response: {
+        200: "VenueOrderList",
+        400: t.String(),
+        404: t.String(),
+      },
+      detail: {
+        operationId: "listMarketOrders",
+        summary: "List a wallet's venue maker orders on one market",
+        description:
+          "Returns the indexed bounded-venue maker orders one owner placed on a market's outcome pools, newest first. Only open orders are returned unless a status filter is provided; status=all includes every lifecycle state.",
         tags: ["Markets"],
       },
     },
