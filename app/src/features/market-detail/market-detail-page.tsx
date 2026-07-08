@@ -8,6 +8,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import {
   marketSideLabel,
   type Market,
+  type MarketPostgradHandoff,
   type PricePathPoint,
 } from "@/domain/markets/types";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
@@ -26,6 +27,9 @@ export function MarketDetailPage({
   pricePath?: PricePathPoint[];
 }) {
   const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
+  // Once a market graduates the receipt book is history: the page leads with
+  // the graduation outcome and drops the pre-graduation progress/trading UI.
+  const isGraduated = market.status === "graduated";
   // The graduate button is the manual fallback for a market that earned
   // graduation but was not yet picked up by the keeper — it never forces
   // liquidity, so it only shows once the threshold is met.
@@ -92,9 +96,13 @@ export function MarketDetailPage({
             </div>
           </div>
 
+          {isGraduated ? <GraduatedMarketSummary market={market} /> : null}
+
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
             <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-              Virtual LMSR - implied probability
+              {isGraduated
+                ? "Pre-graduation price history"
+                : "Virtual LMSR - implied probability"}
             </div>
             <PriceCurve
               noLabel={marketSideLabel(market, "no")}
@@ -103,35 +111,37 @@ export function MarketDetailPage({
             />
           </div>
 
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
-            <GraduationBar
-              matchedUsd={market.matchedUsd}
-              targetUsd={market.graduationTargetUsd}
-            />
-            <div className="mt-5 grid gap-3 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-3">
-              <SmallMetric label="Volume" value={formatUsdCompact(market.volumeUsd)} />
-              <SmallMetric
-                label="Receipts"
-                value={market.receiptCount.toLocaleString()}
+          {isGraduated ? null : (
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
+              <GraduationBar
+                matchedUsd={market.matchedUsd}
+                targetUsd={market.graduationTargetUsd}
               />
-              <SmallMetric label="b" value={formatB(market.b)} />
+              <div className="mt-5 grid gap-3 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-3">
+                <SmallMetric
+                  label="Volume"
+                  value={formatUsdCompact(market.volumeUsd)}
+                />
+                <SmallMetric
+                  label="Receipts"
+                  value={market.receiptCount.toLocaleString()}
+                />
+                <SmallMetric label="b" value={formatB(market.b)} />
+              </div>
+              {market.status === "graduating" ? (
+                <Link
+                  className="mt-5 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--surface-raised)] px-4 py-3 font-mono text-xs tracking-[0.06em] text-[var(--status-graduating)] uppercase"
+                  href={`/markets/${market.id}/graduation`}
+                >
+                  View graduation clearing
+                  <TrendingUp size={16} />
+                </Link>
+              ) : null}
+              {canRequestGraduation ? (
+                <GraduateMarketButton marketId={market.id} />
+              ) : null}
             </div>
-            {market.status === "graduating" ? (
-              <Link
-                className="mt-5 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--surface-raised)] px-4 py-3 font-mono text-xs tracking-[0.06em] text-[var(--status-graduating)] uppercase"
-                href={`/markets/${market.id}/graduation`}
-              >
-                View graduation clearing
-                <TrendingUp size={16} />
-              </Link>
-            ) : null}
-            {market.status === "graduated" ? (
-              <GraduatedMarketSummary market={market} />
-            ) : null}
-            {canRequestGraduation ? (
-              <GraduateMarketButton marketId={market.id} />
-            ) : null}
-          </div>
+          )}
 
           <MarketAboutCard market={market} />
 
@@ -139,19 +149,25 @@ export function MarketDetailPage({
         </section>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
-          <ReceiptTicket market={market} />
-          <MetricCard
-            icon={<ReceiptText size={20} />}
-            label="Receipts waiting"
-            tone="var(--pc-cyan)"
-            value={market.receiptCount.toLocaleString()}
-          />
-          <MetricCard
-            icon={<Coins size={20} />}
-            label="Matched liquidity"
-            tone="var(--status-graduating)"
-            value={formatUsdCompact(market.matchedUsd)}
-          />
+          {isGraduated ? (
+            <PostgradVenueCard postgrad={market.postgrad} />
+          ) : (
+            <>
+              <ReceiptTicket market={market} />
+              <MetricCard
+                icon={<ReceiptText size={20} />}
+                label="Receipts waiting"
+                tone="var(--pc-cyan)"
+                value={market.receiptCount.toLocaleString()}
+              />
+              <MetricCard
+                icon={<Coins size={20} />}
+                label="Matched liquidity"
+                tone="var(--status-graduating)"
+                value={formatUsdCompact(market.matchedUsd)}
+              />
+            </>
+          )}
         </aside>
       </div>
     </div>
@@ -169,7 +185,7 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
     : Math.max(market.volumeUsd - market.matchedUsd, 0);
 
   return (
-    <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-4">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-5">
       <div className="mb-4 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--status-graduated)] uppercase">
         <BadgeCheck size={16} />
         {venue?.live ? "Graduated - postgrad venue live" : "Receipt book settled"}
@@ -211,6 +227,48 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
           is prepared.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Aside card for a graduated market: says where trading lives now instead of
+ * offering the retired pre-graduation receipt ticket. Deliberately holds no
+ * trade affordances — the postgrad trade ticket ships separately.
+ */
+function PostgradVenueCard({
+  postgrad,
+}: {
+  postgrad: MarketPostgradHandoff | undefined;
+}) {
+  const venue = postgrad?.venue;
+  const status = venue?.live
+    ? "Venue live"
+    : postgrad
+      ? "Venue wiring in progress"
+      : "Handoff pending";
+  const detail = venue?.live
+    ? "Outcome tokens trade on the bounded venue: swap through the pool manager or rest bounded maker orders with the order manager."
+    : postgrad
+      ? "Matched liquidity settled into complete sets in the postgrad market; the bounded venue is not live yet."
+      : "This market graduated, but its onchain handoff has not been indexed yet.";
+
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
+      <div className="mb-3 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
+        <TrendingUp size={16} /> Post-graduation trading
+      </div>
+      <div
+        className="font-display text-xl font-black"
+        style={{
+          color: venue?.live ? "var(--status-graduated)" : "var(--text-primary)",
+        }}
+      >
+        {status}
+      </div>
+      <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+        {detail}
+      </p>
     </div>
   );
 }
