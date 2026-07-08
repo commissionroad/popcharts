@@ -11,3 +11,4 @@ export {
   watchReceiptPlacedEvents,
 } from "./receipt-placed";
 export { recoverSettlementEvents, watchSettlementEvents } from "./settlement";
+export { recoverVenueOrderEvents, watchVenueOrderEvents } from "./venue-orders";

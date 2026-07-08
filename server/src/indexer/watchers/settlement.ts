@@ -29,6 +29,7 @@ import {
   updateLastProcessedBlock,
 } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
+import { registerVenuePoolsForGraduatedMarket } from "src/indexer/utils/venue-pool-registry";
 
 const GRADUATION_STARTED_EVENT = parseAbiItem(
   "event GraduationStarted(uint256 indexed marketId, address indexed manager, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt, bytes32 snapshotHash)",
@@ -188,6 +189,22 @@ export async function processGraduationFinalizedEvent(
     () => persistGraduationFinalizedRecord(record),
     { label: "GraduationFinalized" },
   );
+
+  // Best-effort: the venue order watcher re-derives this mapping lazily, so a
+  // failure here (e.g. venue not deployed yet) must not hold the cursor back.
+  try {
+    await registerVenuePoolsForGraduatedMarket({
+      client,
+      marketId: record.marketId,
+      postgradMarket: record.postgradMarket as `0x${string}`,
+    });
+  } catch (error) {
+    console.warn(
+      `[GraduationFinalized] Venue pool registration failed for market ${marketId}:`,
+      error,
+    );
+  }
+
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "GraduationFinalized",
