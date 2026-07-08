@@ -1,3 +1,5 @@
+import { retryUntilIndexed } from "src/indexer/utils/retry-until-indexed";
+
 /**
  * Every projection update on the markets row assumes the MarketCreated event
  * has already been persisted, but each watcher runs independently, so a later
@@ -23,33 +25,19 @@ export type RetryUntilMarketIndexedOptions = {
   label: string;
 };
 
-const DEFAULT_ATTEMPTS = 10;
-const DEFAULT_DELAY_MS = 500;
-
+/**
+ * Retries a persistence operation until its markets row exists, treating only
+ * MarketNotIndexedError as "wait for the MarketCreated watcher".
+ */
 export async function retryUntilMarketIndexed<T>(
   operation: () => Promise<T>,
-  {
-    attempts = DEFAULT_ATTEMPTS,
-    delayMs = DEFAULT_DELAY_MS,
-    label,
-  }: RetryUntilMarketIndexedOptions,
+  { attempts, delayMs, label }: RetryUntilMarketIndexedOptions,
 ): Promise<T> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (!(error instanceof MarketNotIndexedError) || attempt >= attempts) {
-        throw error;
-      }
-
-      console.warn(
-        `[${label}] ${error.message} Waiting ${delayMs}ms for MarketCreated (attempt ${attempt}/${attempts}).`,
-      );
-      await sleep(delayMs);
-    }
-  }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return retryUntilIndexed(operation, {
+    attempts,
+    delayMs,
+    isRetryable: (error) => error instanceof MarketNotIndexedError,
+    label,
+    waitingFor: "MarketCreated",
+  });
 }

@@ -10,10 +10,12 @@ import {
   recoverMarketReviewEvents,
   recoverReceiptPlacedEvents,
   recoverSettlementEvents,
+  recoverVenueOrderEvents,
   watchMarketCreatedEvents,
   watchMarketReviewEvents,
   watchReceiptPlacedEvents,
   watchSettlementEvents,
+  watchVenueOrderEvents,
 } from "src/indexer/watchers";
 
 const LOCAL_RECOVERY_POLL_INTERVAL_MS = 2_000;
@@ -59,6 +61,7 @@ async function main() {
   const unwatchMarketReview = watchMarketReviewEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
+  const unwatchVenueOrders = watchVenueOrderEvents(client);
 
   markHealthy();
   console.log("\nIndexer is running and healthy");
@@ -84,6 +87,7 @@ async function main() {
     unwatchMarketReview();
     unwatchReceiptPlaced();
     unwatchSettlement();
+    unwatchVenueOrders();
     console.log("Shutdown complete");
     process.exit(0);
   };
@@ -104,6 +108,7 @@ async function recoverMissedEvents(
   await recoverMarketReviewEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
+  await recoverVenueOrderEvents(client, currentBlock, { quiet });
 }
 
 main().catch((error) => {
