@@ -9,6 +9,7 @@ import { displayPriceWadToSqrtPriceX96 } from "../../scripts/shared/price/displa
 import { displayPriceWadToTick } from "../../scripts/shared/price/displayPriceWadToTick.js";
 import { parseDisplayPriceWad } from "../../scripts/shared/price/parseDisplayPriceWad.js";
 import { sqrtPriceX96ToTick } from "../../scripts/shared/price/sqrtPriceX96ToTick.js";
+import { tickToDisplayPriceWad } from "../../scripts/shared/price/tickToDisplayPriceWad.js";
 import {
   MAX_TICK,
   MIN_TICK,
@@ -170,6 +171,75 @@ describe("displayPriceWadToTick", function () {
     };
     assert.equal(displayPriceWadToTick({ ...maxArgs, rounding: "down" }), -276335);
     assert.equal(displayPriceWadToTick({ ...maxArgs, rounding: "up" }), -276334);
+  });
+});
+
+describe("tickToDisplayPriceWad", function () {
+  it("brackets 0.5 across the displayPriceWadToTick golden ticks in every orientation", function () {
+    // Mirrors the displayPriceWadToTick fixtures: the floor tick prices at or
+    // below 0.5 WAD and the ceil tick at or above it.
+    assert.equal(
+      tickToDisplayPriceWad({ ...USDC_OUTCOME_IS_CURRENCY0, tick: -283256 }),
+      499992241098655015n,
+    );
+    assert.equal(
+      tickToDisplayPriceWad({ ...USDC_OUTCOME_IS_CURRENCY0, tick: -283255 }),
+      500042240322764880n,
+    );
+    assert.equal(
+      tickToDisplayPriceWad({ ...USDC_COLLATERAL_IS_CURRENCY0, tick: 283255 }),
+      500042240322764880n,
+    );
+    assert.equal(
+      tickToDisplayPriceWad({ ...USDC_COLLATERAL_IS_CURRENCY0, tick: 283256 }),
+      499992241098655015n,
+    );
+    assert.equal(
+      tickToDisplayPriceWad({ ...MOCK_OUTCOME_IS_CURRENCY0, tick: -6932 }),
+      499990919207187760n,
+    );
+    assert.equal(
+      tickToDisplayPriceWad({ ...MOCK_COLLATERAL_IS_CURRENCY0, tick: 6931 }),
+      500040918299108479n,
+    );
+  });
+
+  it("is exact where the raw price is exactly representable", function () {
+    // Display price 1 with equal decimals is raw price 1, exactly tick 0.
+    assert.equal(tickToDisplayPriceWad({ ...MOCK_OUTCOME_IS_CURRENCY0, tick: 0 }), WAD);
+    assert.equal(tickToDisplayPriceWad({ ...MOCK_COLLATERAL_IS_CURRENCY0, tick: 0 }), WAD);
+  });
+
+  it("round-trips through displayPriceWadToTick as its inverse", function () {
+    for (const orientation of [
+      USDC_OUTCOME_IS_CURRENCY0,
+      USDC_COLLATERAL_IS_CURRENCY0,
+      MOCK_OUTCOME_IS_CURRENCY0,
+      MOCK_COLLATERAL_IS_CURRENCY0,
+    ]) {
+      for (const tick of [-283260, -6960, -60, 60, 6960, 283260]) {
+        const displayPriceWad = tickToDisplayPriceWad({ ...orientation, tick });
+        // Truncation in the display conversion can land the price a hair
+        // below the exact tick price, so the tick sits within one rounding
+        // step in either direction.
+        const down = displayPriceWadToTick({ ...orientation, displayPriceWad, rounding: "down" });
+        const up = displayPriceWadToTick({ ...orientation, displayPriceWad, rounding: "up" });
+        assert.ok(down <= tick && tick <= up + 1, `tick ${tick} escaped [${down}, ${up + 1}]`);
+      }
+    }
+  });
+
+  it("moves display price with tick according to the currency sort order", function () {
+    // Collateral per outcome token rises with tick when the outcome token is
+    // currency0 and falls with tick when it is currency1.
+    assert.ok(
+      tickToDisplayPriceWad({ ...MOCK_OUTCOME_IS_CURRENCY0, tick: 60 }) >
+        tickToDisplayPriceWad({ ...MOCK_OUTCOME_IS_CURRENCY0, tick: 0 }),
+    );
+    assert.ok(
+      tickToDisplayPriceWad({ ...MOCK_COLLATERAL_IS_CURRENCY0, tick: 60 }) <
+        tickToDisplayPriceWad({ ...MOCK_COLLATERAL_IS_CURRENCY0, tick: 0 }),
+    );
   });
 });
 
