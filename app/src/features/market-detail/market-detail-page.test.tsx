@@ -22,6 +22,12 @@ vi.mock("@/features/postgrad-ticket/postgrad-ticket", () => ({
   ),
 }));
 
+vi.mock("@/features/order-book/order-book-card", () => ({
+  OrderBookCard: ({ market }: { market: Market }) => (
+    <div>Order book for {market.id}</div>
+  ),
+}));
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -124,6 +130,18 @@ describe("MarketDetailPage", () => {
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
     ).toBeInTheDocument();
+  });
+
+  it("shows the order book only once the market graduated", () => {
+    const { rerender } = render(<MarketDetailPage market={marketFactory()} />);
+
+    expect(
+      screen.queryByText("Order book for eth-5000-august")
+    ).not.toBeInTheDocument();
+
+    rerender(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
+
+    expect(screen.getByText("Order book for eth-5000-august")).toBeInTheDocument();
   });
 
   it("shows the postgrad handoff without pools before the venue is wired", () => {
