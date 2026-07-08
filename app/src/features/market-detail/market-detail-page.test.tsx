@@ -93,6 +93,35 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("retires the pre-graduation UI once the market graduated", () => {
+    render(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
+
+    // The receipt ticket, waiting-receipt metrics, and graduation progress
+    // bar describe a receipt book that no longer accepts intents.
+    expect(
+      screen.queryByText("Receipt ticket for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Receipts waiting")).not.toBeInTheDocument();
+    expect(screen.queryByText("Matched liquidity")).not.toBeInTheDocument();
+    expect(screen.queryByText("GRADUATION")).not.toBeInTheDocument();
+    expect(screen.queryByText("READY TO GRADUATE")).not.toBeInTheDocument();
+    // The chart still shows the pregrad path, labeled as history.
+    expect(screen.getByText("Pre-graduation price history")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Virtual LMSR - implied probability")
+    ).not.toBeInTheDocument();
+  });
+
+  it("tells graduated visitors the handoff is pending before postgrad indexes", () => {
+    render(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
+
+    expect(screen.getByText("Post-graduation trading")).toBeInTheDocument();
+    expect(screen.getByText("Handoff pending")).toBeInTheDocument();
+    expect(
+      screen.getByText(/onchain handoff has not been indexed yet/i)
+    ).toBeInTheDocument();
+  });
+
   it("shows the postgrad handoff without pools before the venue is wired", () => {
     render(
       <MarketDetailPage
@@ -116,6 +145,8 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText("Postgrad handoff")).toBeInTheDocument();
     expect(screen.queryByText("YES pool")).not.toBeInTheDocument();
     expect(screen.getByText(/refunds at its exact path cost/i)).toBeInTheDocument();
+    expect(screen.getByText("Venue wiring in progress")).toBeInTheDocument();
+    expect(screen.getByText(/the bounded venue is not live yet/i)).toBeInTheDocument();
   });
 
   it("shows the live postgrad venue with pool ids once wired", () => {
@@ -160,6 +191,10 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText(`0x${"11".repeat(32)}`)).toBeInTheDocument();
     expect(
       screen.getByText(/trading continues on the bounded venue/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText("Venue live")).toBeInTheDocument();
+    expect(
+      screen.getByText(/outcome tokens trade on the bounded venue/i)
     ).toBeInTheDocument();
   });
 
