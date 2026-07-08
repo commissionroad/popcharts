@@ -218,16 +218,7 @@ export async function placeVenueSwap({
   venueConfig: PostgradVenueContractConfig;
   wallet: VenueSwapWallet;
 }): Promise<VenueSwapReceipt> {
-  const config = getPopChartsContractConfig();
-
-  if (!config) {
-    throw new Error("Venue contracts are not configured.");
-  }
-
-  if (wallet.activeChainId !== config.chainId) {
-    throw new Error(`Switch your wallet to chain ${config.chainId}.`);
-  }
-
+  const config = requireVenueChain(wallet);
   const zeroForOne = venueSwapDirection({
     action,
     outcomeIsCurrency0: pool.outcomeIsCurrency0,
@@ -235,20 +226,8 @@ export async function placeVenueSwap({
   const spendToken =
     action === "buy" ? config.collateralAddress : pool.outcomeTokenAddress;
   const spendLabel = action === "buy" ? "pUSD" : "outcome tokens";
-  const balance = await wallet.publicClient.readContract({
-    abi: erc20Abi,
-    address: spendToken,
-    functionName: "balanceOf",
-    args: [wallet.accountAddress],
-  });
 
-  if (balance < amountIn) {
-    throw new Error(
-      `Insufficient balance. You have ${formatTokenAmount(
-        balance
-      )} ${spendLabel}, but this order spends ${formatTokenAmount(amountIn)}.`
-    );
-  }
+  await ensureSpendBalance({ amountIn, spendLabel, spendToken, wallet });
 
   const bounds = (await wallet.publicClient.readContract({
     abi: poolTickBoundsAbi,
@@ -263,10 +242,10 @@ export async function placeVenueSwap({
     );
   }
 
-  await ensureRouterAllowance({
+  await ensureTokenAllowance({
     amountIn,
     onStep,
-    routerAddress: venueConfig.swapRouterAddress,
+    spender: venueConfig.swapRouterAddress,
     spendToken,
     wallet,
   });
@@ -335,16 +314,71 @@ export async function placeVenueSwap({
   };
 }
 
-async function ensureRouterAllowance({
+/**
+ * Resolves the base contract config and requires the wallet to be on its
+ * chain. Shared preamble for every venue transaction flow.
+ */
+export function requireVenueChain(wallet: VenueSwapWallet): PopChartsContractConfig {
+  const config = getPopChartsContractConfig();
+
+  if (!config) {
+    throw new Error("Venue contracts are not configured.");
+  }
+
+  if (wallet.activeChainId !== config.chainId) {
+    throw new Error(`Switch your wallet to chain ${config.chainId}.`);
+  }
+
+  return config;
+}
+
+/**
+ * Requires the wallet to hold at least `amountIn` of the token an order is
+ * about to spend, so the failure reads as a balance problem instead of a
+ * contract revert.
+ */
+export async function ensureSpendBalance({
   amountIn,
-  onStep,
-  routerAddress,
+  spendLabel,
   spendToken,
   wallet,
 }: {
   amountIn: bigint;
-  onStep: ((step: VenueSwapStep) => void) | undefined;
-  routerAddress: `0x${string}`;
+  spendLabel: string;
+  spendToken: `0x${string}`;
+  wallet: VenueSwapWallet;
+}) {
+  const balance = await wallet.publicClient.readContract({
+    abi: erc20Abi,
+    address: spendToken,
+    functionName: "balanceOf",
+    args: [wallet.accountAddress],
+  });
+
+  if (balance < amountIn) {
+    throw new Error(
+      `Insufficient balance. You have ${formatTokenAmount(
+        balance
+      )} ${spendLabel}, but this order spends ${formatTokenAmount(amountIn)}.`
+    );
+  }
+}
+
+/**
+ * Tops up `spender`'s ERC20 allowance on the spend token when it is short,
+ * reporting the approval step so tickets can show progress. Used for both the
+ * swap router and the order manager's token puller.
+ */
+export async function ensureTokenAllowance({
+  amountIn,
+  onStep,
+  spender,
+  spendToken,
+  wallet,
+}: {
+  amountIn: bigint;
+  onStep: ((step: "approving") => void) | undefined;
+  spender: `0x${string}`;
   spendToken: `0x${string}`;
   wallet: VenueSwapWallet;
 }) {
@@ -352,7 +386,7 @@ async function ensureRouterAllowance({
     abi: erc20Abi,
     address: spendToken,
     functionName: "allowance",
-    args: [wallet.accountAddress, routerAddress],
+    args: [wallet.accountAddress, spender],
   });
 
   if (allowance >= amountIn) {
@@ -366,7 +400,7 @@ async function ensureRouterAllowance({
     address: spendToken,
     chain: wallet.walletClient.chain,
     functionName: "approve",
-    args: [routerAddress, amountIn],
+    args: [spender, amountIn],
   });
 
   await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });

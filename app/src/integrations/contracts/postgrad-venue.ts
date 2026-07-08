@@ -8,6 +8,7 @@ import { encodeAbiParameters, getAddress, isAddress, keccak256, parseAbi } from 
 // @popcharts/protocol directly.
 export { COMPLETE_SET_PRICE_POLICY } from "@popcharts/protocol/complete-set-price-policy";
 export {
+  boundedPoolOrderManagerAbi,
   minimalV4SwapRouterAbi,
   poolTickBoundsAbi,
 } from "@popcharts/protocol/postgrad-venue";
@@ -36,15 +37,44 @@ export const poolManagerSwapEventAbi = parseAbi([
 ]);
 
 /**
+ * Minimal StateView surface used to read a pool's live slot0 before placing a
+ * maker order, so a limit that would cross the current tick is rejected
+ * before any wallet signature. Signature verified against the server's
+ * StateView read (server/src/api/services/postgrad-venue.ts) and
+ * @uniswap/v4-periphery StateView.sol.
+ */
+export const stateViewSlot0Abi = parseAbi([
+  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)",
+]);
+
+/**
+ * The order manager's token puller settles maker deposits through an
+ * allowance-transfer singleton (canonical Permit2 on public chains): it moves
+ * tokens using the allowance the maker granted to the order manager, so a
+ * limit order needs this grant in addition to the ERC20 approve on the puller.
+ * Signature verified against Uniswap's Permit2 IAllowanceTransfer and the
+ * protocol smoke flow (protocol/scripts/smoke-maker-order.ts). Local devchains
+ * substitute a MockTokenPuller that pulls straight through the ERC20 allowance
+ * and exposes neither function, so callers probe `allowance` and skip both.
+ */
+export const tokenPullerAllowanceAbi = parseAbi([
+  "function allowance(address user, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)",
+  "function approve(address token, address spender, uint160 amount, uint48 expiration)",
+]);
+
+/**
  * Venue contract addresses the postgrad trade ticket needs beyond the base
  * contract config: the swap router that executes fills, the tick-bounds
  * registry that anchors slippage limits, and (optionally) the v4 quoter for
- * exact quotes. All three arrive as NEXT_PUBLIC env vars written by the local
- * deploy scripts (scripts/shared/env/postgradEnv.ts).
+ * exact quotes, the maker order manager for limit orders, and the StateView
+ * lens for live pool ticks. All arrive as NEXT_PUBLIC env vars written by the
+ * local deploy scripts (scripts/shared/env/postgradEnv.ts).
  */
 export type PostgradVenueContractConfig = {
+  orderManagerAddress: `0x${string}` | null;
   poolTickBoundsAddress: `0x${string}`;
   quoterAddress: `0x${string}` | null;
+  stateViewAddress: `0x${string}` | null;
   swapRouterAddress: `0x${string}`;
 };
 
@@ -53,7 +83,8 @@ export type PostgradVenueContractConfig = {
  * the swap router or tick bounds registry is missing — without those the
  * ticket cannot place a bounded swap, so callers fall back to the mock
  * environment. A missing quoter only downgrades quotes to pool-price
- * estimates.
+ * estimates; a missing order manager only disables limit orders, and a
+ * missing StateView falls back to indexer-derived pool ticks.
  */
 export function getPostgradVenueContractConfig(): PostgradVenueContractConfig | null {
   const swapRouterAddress = parseAddress(
@@ -68,8 +99,14 @@ export function getPostgradVenueContractConfig(): PostgradVenueContractConfig | 
   }
 
   return {
+    orderManagerAddress: parseAddress(
+      process.env.NEXT_PUBLIC_POPCHARTS_ORDER_MANAGER_ADDRESS
+    ),
     poolTickBoundsAddress,
     quoterAddress: parseAddress(process.env.NEXT_PUBLIC_POPCHARTS_QUOTER_ADDRESS),
+    stateViewAddress: parseAddress(
+      process.env.NEXT_PUBLIC_POPCHARTS_STATE_VIEW_ADDRESS
+    ),
     swapRouterAddress,
   };
 }

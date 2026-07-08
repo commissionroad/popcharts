@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Market } from "@/domain/markets/types";
@@ -6,6 +6,8 @@ import { marketFactory } from "@/test/factories/markets";
 
 import type { VenueTradingEnvironment } from "./postgrad-swap-service";
 import { PostgradTicket, PostgradTradePanel } from "./postgrad-ticket";
+import { useLimitOrderState } from "./use-limit-order-state";
+import { useOpenOrdersPanelState } from "./use-open-orders-panel-state";
 import { usePostgradTicketState } from "./use-postgrad-ticket-state";
 
 vi.mock("./use-postgrad-ticket-state", async (importOriginal) => ({
@@ -13,8 +15,18 @@ vi.mock("./use-postgrad-ticket-state", async (importOriginal) => ({
   usePostgradTicketState: vi.fn(),
 }));
 
+vi.mock("./use-limit-order-state", () => ({
+  useLimitOrderState: vi.fn(),
+}));
+
+vi.mock("./use-open-orders-panel-state", () => ({
+  useOpenOrdersPanelState: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.mocked(usePostgradTicketState).mockReturnValue(ticketState());
+  vi.mocked(useLimitOrderState).mockReturnValue(limitState());
+  vi.mocked(useOpenOrdersPanelState).mockReturnValue(panelState());
 });
 
 afterEach(() => {
@@ -55,7 +67,7 @@ describe("PostgradTicket", () => {
     render(<PostgradTicket market={venueMarket()} />);
 
     expect(
-      screen.getByText("Wallet-signed market order on the bounded venue.")
+      screen.getByText("Wallet-signed order on the bounded venue.")
     ).toBeInTheDocument();
     expect(screen.getByText("Devchain")).toBeInTheDocument();
     expect(screen.getByText("Wallet balances")).toBeInTheDocument();
@@ -173,6 +185,135 @@ describe("PostgradTicket", () => {
     expect(screen.getByRole("button", { name: "OVER" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "UNDER" })).toBeInTheDocument();
   });
+
+  it("switches to the limit ticket and back through the order-type toggle", () => {
+    render(<PostgradTicket market={venueMarket()} />);
+
+    expect(screen.getByLabelText(/Collateral to spend/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limit" }));
+
+    expect(screen.getByLabelText(/Limit price/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Tokens to buy/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Collateral to spend/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Market" }));
+
+    expect(screen.getByLabelText(/Collateral to spend/)).toBeInTheDocument();
+  });
+});
+
+describe("PostgradTicket limit mode", () => {
+  function renderLimitTicket(market: Market = venueMarket()) {
+    render(<PostgradTicket market={market} />);
+    fireEvent.click(screen.getByRole("button", { name: "Limit" }));
+  }
+
+  it("drives price, size, side, and action changes through the limit hook", () => {
+    const state = limitState();
+    vi.mocked(useLimitOrderState).mockReturnValue(state);
+
+    renderLimitTicket();
+
+    fireEvent.change(screen.getByLabelText(/Limit price/), {
+      target: { value: "35" },
+    });
+    expect(state.updatePrice).toHaveBeenCalledWith("35");
+
+    fireEvent.change(screen.getByLabelText(/Tokens to buy/), {
+      target: { value: "200" },
+    });
+    expect(state.updateSize).toHaveBeenCalledWith("200");
+
+    fireEvent.click(screen.getByRole("button", { name: "NO" }));
+    expect(state.selectSide).toHaveBeenCalledWith("no");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sell" }));
+    expect(state.selectAction).toHaveBeenCalledWith("sell");
+  });
+
+  it("renders the preview, resting copy, and the place action", () => {
+    renderLimitTicket();
+
+    expect(screen.getByText("30.0c")).toBeInTheDocument();
+    expect(screen.getByText("You deposit")).toBeInTheDocument();
+    expect(screen.getByText("30 pUSD")).toBeInTheDocument();
+    expect(screen.getByText("If filled you receive")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Place limit order" })).toBeEnabled();
+    expect(screen.getByText(/rest on the venue's book/i)).toBeInTheDocument();
+  });
+
+  it("relabels the size field for sells", () => {
+    vi.mocked(useLimitOrderState).mockReturnValue(limitState({ action: "sell" }));
+
+    renderLimitTicket();
+
+    expect(screen.getByLabelText(/Tokens to sell/)).toBeInTheDocument();
+  });
+
+  it("renders the NO side with its outcome label on the size field", () => {
+    vi.mocked(useLimitOrderState).mockReturnValue(limitState({ side: "no" }));
+
+    renderLimitTicket();
+
+    // The size field's unit suffix reflects the NO outcome label, exercising
+    // the side="no" branch of the limit ticket's colors and labels.
+    expect(screen.getByText(/NO tok/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Place limit order" })
+    ).toBeInTheDocument();
+  });
+
+  it("shows the order step and submit error while placing", () => {
+    vi.mocked(useLimitOrderState).mockReturnValue(
+      limitState({
+        isPlacing: true,
+        orderStep: "placing",
+        submitError: "order manager unhappy",
+      })
+    );
+
+    renderLimitTicket();
+
+    expect(screen.getByText("order manager unhappy")).toBeInTheDocument();
+    expect(screen.getByText("Submitting limit order...")).toBeInTheDocument();
+  });
+
+  it("shows the resting-order confirmation", () => {
+    vi.mocked(useLimitOrderState).mockReturnValue(
+      limitState({
+        completedOrder: {
+          amountIn: 30n * 10n ** 18n,
+          direction: "bid",
+          orderId: 7,
+          priceCents: 30,
+          side: "yes",
+          sizeWad: 100n * 10n ** 18n,
+          transactionHash: `0x${"cc".repeat(32)}`,
+        },
+      })
+    );
+
+    renderLimitTicket();
+
+    expect(screen.getByText("Limit order placed")).toBeInTheDocument();
+    expect(screen.getByText("Buy 100 YES tokens at 30.0c")).toBeInTheDocument();
+    expect(screen.getByText(/order #7/)).toBeInTheDocument();
+  });
+
+  it("bumps the open-orders refresh when an order is placed", () => {
+    renderLimitTicket();
+
+    const options = vi.mocked(useLimitOrderState).mock.calls.at(-1)?.[1];
+
+    act(() => {
+      options?.onOrderPlaced?.();
+    });
+
+    // The panel-state hook re-renders with the bumped refresh key.
+    const lastPanelCall = vi.mocked(useOpenOrdersPanelState).mock.calls.at(-1);
+    expect(lastPanelCall?.[1]).toEqual({ refreshKey: 1 });
+  });
 });
 
 function ticketState(
@@ -213,6 +354,54 @@ function ticketState(
   };
 }
 
+function limitState(
+  overrides: Partial<ReturnType<typeof useLimitOrderState>> = {}
+): ReturnType<typeof useLimitOrderState> {
+  return {
+    action: "buy",
+    balances: { collateral: 1_000, error: null, loading: false, no: 0, yes: 0 },
+    completedOrder: null,
+    environment: contractEnvironment(),
+    isPlacing: false,
+    orderStep: null,
+    placeAction: { disabled: false, label: "Place limit order", onClick: vi.fn() },
+    priceFieldError: undefined,
+    priceInput: "30",
+    quote: {
+      depositWad: 30n * 10n ** 18n,
+      direction: "bid",
+      priceCents: 30,
+      sizeWad: 100n * 10n ** 18n,
+    },
+    side: "yes",
+    sizeFieldError: undefined,
+    sizeInput: "100",
+    submitError: null,
+    walletConnected: true,
+    selectAction: vi.fn(),
+    selectSide: vi.fn(),
+    updatePrice: vi.fn(),
+    updateSize: vi.fn(),
+    ...overrides,
+  };
+}
+
+function panelState(
+  overrides: Partial<ReturnType<typeof useOpenOrdersPanelState>> = {}
+): ReturnType<typeof useOpenOrdersPanelState> {
+  return {
+    cancelError: null,
+    cancelStep: null,
+    error: null,
+    loading: false,
+    ordersLoaded: true,
+    rows: [],
+    visible: false,
+    cancelOrder: vi.fn(),
+    ...overrides,
+  };
+}
+
 function contractEnvironment(): VenueTradingEnvironment {
   return {
     config: {
@@ -226,8 +415,10 @@ function contractEnvironment(): VenueTradingEnvironment {
     kind: "contract",
     venue: venueMarket().postgrad!.venue!,
     venueConfig: {
+      orderManagerAddress: "0x00000000000000000000000000000000000000f2",
       poolTickBoundsAddress: "0x00000000000000000000000000000000000000b2",
       quoterAddress: null,
+      stateViewAddress: null,
       swapRouterAddress: "0x00000000000000000000000000000000000000b1",
     },
   };

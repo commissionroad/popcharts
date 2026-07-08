@@ -10,8 +10,8 @@ import {
   computeVenuePoolId,
   getPostgradVenueContractConfig,
   poolManagerSwapEventAbi,
-  tickToSqrtPriceX96,
   type PostgradVenueContractConfig,
+  tickToSqrtPriceX96,
 } from "@/integrations/contracts/postgrad-venue";
 import { marketFactory } from "@/test/factories/markets";
 
@@ -54,8 +54,10 @@ const contractConfig: PopChartsContractConfig = {
 };
 
 const venueConfig: PostgradVenueContractConfig = {
+  orderManagerAddress: "0x00000000000000000000000000000000000000f2",
   poolTickBoundsAddress: "0x00000000000000000000000000000000000000b2",
   quoterAddress: "0x00000000000000000000000000000000000000b3",
+  stateViewAddress: null,
   swapRouterAddress: "0x00000000000000000000000000000000000000b1",
 };
 
