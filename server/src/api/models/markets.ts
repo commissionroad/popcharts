@@ -228,6 +228,12 @@ export const MarketAiReviewJobSchema = t.Object(
 /** One outcome-token pool on the bounded v4 venue. */
 export const MarketVenuePoolSchema = t.Object(
   {
+    /**
+     * Current pool price as a WAD decimal string (collateral paid per one
+     * outcome token), derived from the pool's slot0. Omitted while the pool
+     * is uninitialized and has no price yet.
+     */
+    displayPriceWad: t.Optional(t.String()),
     initialized: t.Boolean(),
     outcomeTokenAddress: t.String(),
     poolId: t.String(),

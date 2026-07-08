@@ -7,6 +7,7 @@
  */
 
 export interface MarketVenuePool {
+  displayPriceWad?: string;
   initialized: boolean;
   outcomeTokenAddress: string;
   poolId: string;

@@ -87,6 +87,11 @@ export type PricePathPoint = {
 
 /** One outcome-token pool on the bounded postgrad venue. */
 export type MarketVenuePool = {
+  /**
+   * Current pool price as a WAD decimal string (collateral per one outcome
+   * token). Absent while the pool is uninitialized.
+   */
+  displayPriceWad?: string;
   initialized: boolean;
   outcomeTokenAddress: string;
   poolId: string;

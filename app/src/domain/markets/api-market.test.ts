@@ -82,6 +82,55 @@ function apiMarketMetadata() {
   };
 }
 
+/**
+ * A postgrad handoff whose venue is live, with per-pool display prices that
+ * default to absent so uninitialized-price cases stay easy to express.
+ */
+function postgradWithVenue({
+  noDisplayPriceWad,
+  venue = true,
+  yesDisplayPriceWad,
+}: {
+  noDisplayPriceWad?: string;
+  venue?: boolean;
+  yesDisplayPriceWad?: string;
+}): NonNullable<ApiMarket["postgrad"]> {
+  return {
+    adapterAddress: "0x00000000000000000000000000000000000000ab",
+    completeSetCount: "2500000000000000000000",
+    finalizedAt: "2026-06-14T12:00:00.000Z",
+    marketAddress: "0x00000000000000000000000000000000000000cd",
+    refundTotal: "0",
+    retainedCostTotal: "2500000000000000000000",
+    transactionHash:
+      "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    ...(venue
+      ? {
+          venue: {
+            boundedHookAddress: "0x00000000000000000000000000000000000000f1",
+            live: true,
+            noPool: {
+              ...(noDisplayPriceWad ? { displayPriceWad: noDisplayPriceWad } : {}),
+              initialized: true,
+              outcomeTokenAddress: "0x00000000000000000000000000000000000000f3",
+              poolId: `0x${"22".repeat(32)}`,
+              whitelisted: true,
+            },
+            orderManagerAddress: "0x00000000000000000000000000000000000000f2",
+            poolManagerAddress: "0x00000000000000000000000000000000000000f0",
+            yesPool: {
+              ...(yesDisplayPriceWad ? { displayPriceWad: yesDisplayPriceWad } : {}),
+              initialized: true,
+              outcomeTokenAddress: "0x00000000000000000000000000000000000000f4",
+              poolId: `0x${"11".repeat(32)}`,
+              whitelisted: true,
+            },
+          },
+        }
+      : {}),
+  };
+}
+
 describe("pricePathFromReceipts", () => {
   it("starts at the opening price with no receipts", () => {
     expect(pricePathFromReceipts(market, [])).toEqual([
@@ -313,6 +362,111 @@ describe("apiMarketToMarket", () => {
     );
 
     expect(converted.postgrad?.venue).toEqual(venue);
+  });
+
+  it("prices pregrad markets from the replayed LMSR state", () => {
+    const converted = apiMarketToMarket(apiMarket());
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("prices graduated markets from the live venue pools without forcing the sum to 100", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: postgradWithVenue({
+          noDisplayPriceWad: "390000000000000000",
+          yesDisplayPriceWad: "620000000000000000",
+        }),
+        status: "graduated",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(62);
+    expect(converted.noPriceCents).toBe(39);
+    expect(converted.yesPriceCents + converted.noPriceCents).toBe(101);
+    expect(converted.pricePath.at(-1)).toBe(62);
+  });
+
+  it("keeps LMSR prices for graduated markets without a venue", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: postgradWithVenue({ venue: false }),
+        status: "graduated",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices while the venue is not live", () => {
+    const postgrad = postgradWithVenue({
+      noDisplayPriceWad: "390000000000000000",
+      yesDisplayPriceWad: "620000000000000000",
+    });
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: {
+          ...postgrad,
+          venue: { ...postgrad.venue!, live: false },
+        },
+        status: "graduated",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices while the venue pools are uninitialized", () => {
+    const postgrad = postgradWithVenue({});
+    const venue = postgrad.venue!;
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: {
+          ...postgrad,
+          venue: {
+            ...venue,
+            noPool: { ...venue.noPool, initialized: false },
+            yesPool: { ...venue.yesPool, initialized: false },
+          },
+        },
+        status: "graduated",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices when an initialized pool is missing its price", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: postgradWithVenue({
+          yesDisplayPriceWad: "620000000000000000",
+        }),
+        status: "graduated",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices for resolved markets even with a live venue", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        postgrad: postgradWithVenue({
+          noDisplayPriceWad: "390000000000000000",
+          yesDisplayPriceWad: "620000000000000000",
+        }),
+        status: "resolved",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
   });
 
   it("generates a category from the chain id when the market id is not numeric", () => {
