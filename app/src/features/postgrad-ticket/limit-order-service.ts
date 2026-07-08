@@ -29,6 +29,16 @@ import {
 
 const HOOK_DATA_NONE = "0x" as const;
 
+/**
+ * Explicit gas limit for the order-manager writes. A resting createOrder settles
+ * for ~350k gas (cancelOrder is cheaper), but wallets that fail to estimate fall
+ * back to a large default — on the venue chains that default (21M) exceeds the
+ * per-transaction gas cap of 2^24 (16,777,216), so the node rejects the tx at
+ * submit with a confusing "gas cap" error before it ever runs. Pinning the gas
+ * keeps the request well under the cap with ample headroom over real usage.
+ */
+const ORDER_MANAGER_GAS_LIMIT = 2_000_000n;
+
 /** Transaction-sequence stages of placing a maker order. */
 export type VenueLimitOrderStep = "approving" | "confirming" | "placing";
 
@@ -173,6 +183,7 @@ export async function placeVenueLimitOrder({
     address: orderManagerAddress,
     chain: wallet.walletClient.chain,
     functionName: "createOrder",
+    gas: ORDER_MANAGER_GAS_LIMIT,
     args: [
       {
         amountInMaximum,
@@ -248,6 +259,7 @@ export async function cancelVenueLimitOrder({
     address: orderManagerAddress,
     chain: wallet.walletClient.chain,
     functionName: "cancelOrder",
+    gas: ORDER_MANAGER_GAS_LIMIT,
     args: [pool.poolKey, orderId, HOOK_DATA_NONE],
   });
 
