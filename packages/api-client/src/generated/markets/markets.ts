@@ -6,13 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  ListMarketOrdersParams,
   ListMarketsParams,
   Market,
   MarketCreatedEventList,
   MarketList,
   MarketMetadata,
   MarketMetadataWrite,
+  MarketOrderBook,
   ReceiptPlacedEventList,
+  VenueOrderList,
 } from ".././models";
 
 /**
@@ -158,6 +161,125 @@ export const getMarket = async (
 
   const data: getMarketResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as getMarketResponse;
+};
+
+/**
+ * Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.
+ * @summary Get a market's venue order book
+ */
+export type getMarketOrderBookResponse200 = {
+  data: MarketOrderBook;
+  status: 200;
+};
+
+export type getMarketOrderBookResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type getMarketOrderBookResponseSuccess = getMarketOrderBookResponse200 & {
+  headers: Headers;
+};
+export type getMarketOrderBookResponseError = getMarketOrderBookResponse404 & {
+  headers: Headers;
+};
+
+export type getMarketOrderBookResponse =
+  | getMarketOrderBookResponseSuccess
+  | getMarketOrderBookResponseError;
+
+export const getGetMarketOrderBookUrl = (chainId: string, marketId: string) => {
+  return `/markets/${chainId}/${marketId}/orderbook`;
+};
+
+export const getMarketOrderBook = async (
+  chainId: string,
+  marketId: string,
+  options?: RequestInit
+): Promise<getMarketOrderBookResponse> => {
+  const res = await fetch(getGetMarketOrderBookUrl(chainId, marketId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getMarketOrderBookResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getMarketOrderBookResponse;
+};
+
+/**
+ * Returns the indexed bounded-venue maker orders one owner placed on a market's outcome pools, newest first. Only open orders are returned unless a status filter is provided; status=all includes every lifecycle state.
+ * @summary List a wallet's venue maker orders on one market
+ */
+export type listMarketOrdersResponse200 = {
+  data: VenueOrderList;
+  status: 200;
+};
+
+export type listMarketOrdersResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type listMarketOrdersResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type listMarketOrdersResponseSuccess = listMarketOrdersResponse200 & {
+  headers: Headers;
+};
+export type listMarketOrdersResponseError = (
+  | listMarketOrdersResponse400
+  | listMarketOrdersResponse404
+) & {
+  headers: Headers;
+};
+
+export type listMarketOrdersResponse =
+  | listMarketOrdersResponseSuccess
+  | listMarketOrdersResponseError;
+
+export const getListMarketOrdersUrl = (
+  chainId: string,
+  marketId: string,
+  params: ListMarketOrdersParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/markets/${chainId}/${marketId}/orders?${stringifiedParams}`
+    : `/markets/${chainId}/${marketId}/orders`;
+};
+
+export const listMarketOrders = async (
+  chainId: string,
+  marketId: string,
+  params: ListMarketOrdersParams,
+  options?: RequestInit
+): Promise<listMarketOrdersResponse> => {
+  const res = await fetch(getListMarketOrdersUrl(chainId, marketId, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMarketOrdersResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMarketOrdersResponse;
 };
 
 /**
