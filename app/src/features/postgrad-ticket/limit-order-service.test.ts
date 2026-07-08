@@ -286,6 +286,9 @@ describe("placeVenueLimitOrder", () => {
     ];
 
     expect(createCall?.address).toBe(ORDER_MANAGER);
+    // Gas is pinned under the venue chains' 2^24 per-tx cap so a wallet's
+    // over-cap estimate fallback cannot bounce the submit.
+    expect(createCall?.gas).toBe(2_000_000n);
     // YES is currency0, so a bid supplies collateral (currency1).
     expect(params.zeroForOne).toBe(false);
     expect(params.tickUpper - params.tickLower).toBe(60);
@@ -369,6 +372,7 @@ describe("cancelVenueLimitOrder", () => {
     expect(steps).toEqual(["cancelling", "confirming"]);
     expect(cancelCall?.functionName).toBe("cancelOrder");
     expect(cancelCall?.address).toBe(ORDER_MANAGER);
+    expect(cancelCall?.gas).toBe(2_000_000n);
     expect(cancelCall?.args?.[1]).toBe(9);
     expect(cancelCall?.args?.[2]).toBe("0x");
     expect(receipt.amount0).toBe(0n);
@@ -391,6 +395,7 @@ type WriteCall = {
   address: string;
   args: readonly unknown[];
   functionName: string;
+  gas?: bigint;
 };
 
 type MockClients = {
