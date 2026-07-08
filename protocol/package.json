@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./pregrad-manager": "./src/generated/pregrad-manager.ts",
-    "./postgrad-venue": "./src/generated/postgrad-venue.ts"
+    "./postgrad-venue": "./src/generated/postgrad-venue.ts",
+    "./complete-set-price-policy": "./scripts/shared/price/completeSetPricePolicy.ts",
+    "./tick-to-sqrt-price": "./scripts/shared/price/tickToSqrtPriceX96.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {

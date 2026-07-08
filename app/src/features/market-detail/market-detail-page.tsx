@@ -6,11 +6,11 @@ import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
-  marketSideLabel,
   type Market,
-  type MarketPostgradHandoff,
+  marketSideLabel,
   type PricePathPoint,
 } from "@/domain/markets/types";
+import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 
@@ -150,7 +150,7 @@ export function MarketDetailPage({
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
           {isGraduated ? (
-            <PostgradVenueCard postgrad={market.postgrad} />
+            <PostgradTradePanel market={market} />
           ) : (
             <>
               <ReceiptTicket market={market} />
@@ -227,48 +227,6 @@ function GraduatedMarketSummary({ market }: { market: Market }) {
           is prepared.
         </p>
       )}
-    </div>
-  );
-}
-
-/**
- * Aside card for a graduated market: says where trading lives now instead of
- * offering the retired pre-graduation receipt ticket. Deliberately holds no
- * trade affordances — the postgrad trade ticket ships separately.
- */
-function PostgradVenueCard({
-  postgrad,
-}: {
-  postgrad: MarketPostgradHandoff | undefined;
-}) {
-  const venue = postgrad?.venue;
-  const status = venue?.live
-    ? "Venue live"
-    : postgrad
-      ? "Venue wiring in progress"
-      : "Handoff pending";
-  const detail = venue?.live
-    ? "Outcome tokens trade on the bounded venue: swap through the pool manager or rest bounded maker orders with the order manager."
-    : postgrad
-      ? "Matched liquidity settled into complete sets in the postgrad market; the bounded venue is not live yet."
-      : "This market graduated, but its onchain handoff has not been indexed yet.";
-
-  return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
-      <div className="mb-3 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
-        <TrendingUp size={16} /> Post-graduation trading
-      </div>
-      <div
-        className="font-display text-xl font-black"
-        style={{
-          color: venue?.live ? "var(--status-graduated)" : "var(--text-primary)",
-        }}
-      >
-        {status}
-      </div>
-      <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-        {detail}
-      </p>
     </div>
   );
 }
