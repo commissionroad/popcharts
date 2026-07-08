@@ -16,6 +16,12 @@ vi.mock("@/features/receipt-ticket/receipt-ticket", () => ({
   ),
 }));
 
+vi.mock("@/features/postgrad-ticket/postgrad-ticket", () => ({
+  PostgradTradePanel: ({ market }: { market: Market }) => (
+    <div>Postgrad trade panel for {market.id}</div>
+  ),
+}));
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -112,13 +118,11 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("tells graduated visitors the handoff is pending before postgrad indexes", () => {
+  it("hands the graduated aside to the postgrad trade panel", () => {
     render(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
 
-    expect(screen.getByText("Post-graduation trading")).toBeInTheDocument();
-    expect(screen.getByText("Handoff pending")).toBeInTheDocument();
     expect(
-      screen.getByText(/onchain handoff has not been indexed yet/i)
+      screen.getByText("Postgrad trade panel for eth-5000-august")
     ).toBeInTheDocument();
   });
 
@@ -145,8 +149,6 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText("Postgrad handoff")).toBeInTheDocument();
     expect(screen.queryByText("YES pool")).not.toBeInTheDocument();
     expect(screen.getByText(/refunds at its exact path cost/i)).toBeInTheDocument();
-    expect(screen.getByText("Venue wiring in progress")).toBeInTheDocument();
-    expect(screen.getByText(/the bounded venue is not live yet/i)).toBeInTheDocument();
   });
 
   it("shows the live postgrad venue with pool ids once wired", () => {
@@ -191,10 +193,6 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText(`0x${"11".repeat(32)}`)).toBeInTheDocument();
     expect(
       screen.getByText(/trading continues on the bounded venue/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText("Venue live")).toBeInTheDocument();
-    expect(
-      screen.getByText(/outcome tokens trade on the bounded venue/i)
     ).toBeInTheDocument();
   });
 
