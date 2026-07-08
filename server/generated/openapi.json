@@ -1429,6 +1429,9 @@
           "whitelisted"
         ],
         "properties": {
+          "displayPriceWad": {
+            "type": "string"
+          },
           "initialized": {
             "type": "boolean"
           },

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
+import { displayPriceWadToSqrtPriceX96 } from "@popcharts/protocol";
+
 import {
   buildOutcomePoolKey,
   closingYesDisplayPriceWad,
   computePoolId,
+  serializeOutcomePool,
 } from "./postgrad-venue";
 
 const WAD = 10n ** 18n;
@@ -49,6 +52,82 @@ describe("computePoolId", () => {
       computePoolId({ ...key, tickSpacing: 10 }),
     );
     expect(computePoolId(key)).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+});
+
+/** Asserts a WAD decimal string is within 1000 wei of the expected price. */
+function expectWithinWad(actual: string | undefined, expected: bigint) {
+  expect(actual).toBeDefined();
+  const price = BigInt(actual ?? "0");
+  const delta = price > expected ? price - expected : expected - price;
+  expect(delta <= 1_000n).toBe(true);
+}
+
+describe("serializeOutcomePool", () => {
+  const pool = {
+    outcomeToken: HIGH_TOKEN,
+    poolId: `0x${"11".repeat(32)}` as const,
+    whitelisted: true,
+  };
+
+  it("recovers the display price a pool was initialized at", () => {
+    const orientation = {
+      collateralDecimals: 18,
+      outcomeDecimals: 18,
+      outcomeIsCurrency0: true,
+    };
+    const serialized = serializeOutcomePool({
+      ...pool,
+      collateralDecimals: orientation.collateralDecimals,
+      outcomeIsCurrency0: orientation.outcomeIsCurrency0,
+      sqrtPriceX96: displayPriceWadToSqrtPriceX96({
+        ...orientation,
+        displayPriceWad: 620_000_000_000_000_000n,
+      }),
+    });
+
+    expect(serialized.initialized).toBe(true);
+    expect(serialized.whitelisted).toBe(true);
+    expect(serialized.outcomeTokenAddress).toBe(HIGH_TOKEN.toLowerCase());
+    // The sqrt conversions truncate, so allow a sub-thousand-wei round trip.
+    expectWithinWad(serialized.displayPriceWad, 620_000_000_000_000_000n);
+  });
+
+  it("handles the inverted orientation and mixed token decimals", () => {
+    const orientation = {
+      collateralDecimals: 6,
+      outcomeDecimals: 18,
+      outcomeIsCurrency0: false,
+    };
+    const serialized = serializeOutcomePool({
+      ...pool,
+      collateralDecimals: orientation.collateralDecimals,
+      outcomeIsCurrency0: orientation.outcomeIsCurrency0,
+      sqrtPriceX96: displayPriceWadToSqrtPriceX96({
+        ...orientation,
+        displayPriceWad: 380_000_000_000_000_000n,
+      }),
+    });
+
+    expectWithinWad(serialized.displayPriceWad, 380_000_000_000_000_000n);
+  });
+
+  it("omits the display price for an uninitialized pool", () => {
+    const serialized = serializeOutcomePool({
+      ...pool,
+      collateralDecimals: 18,
+      outcomeIsCurrency0: true,
+      sqrtPriceX96: 0n,
+      whitelisted: false,
+    });
+
+    expect(serialized).toEqual({
+      initialized: false,
+      outcomeTokenAddress: HIGH_TOKEN.toLowerCase(),
+      poolId: pool.poolId,
+      whitelisted: false,
+    });
+    expect(serialized.displayPriceWad).toBeUndefined();
   });
 });
 

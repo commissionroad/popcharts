@@ -6,6 +6,7 @@ import {
   deriveEpsilonBoundTicks,
   displayPriceWadToSqrtPriceX96,
   poolTickBoundsAbi,
+  sqrtPriceX96ToDisplayPriceWad,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
@@ -353,7 +354,7 @@ export async function readPostgradMarketVenue({
   const publicClient = getVenuePublicClient();
 
   try {
-    const [yesToken, noToken] = await Promise.all([
+    const [yesToken, noToken, collateralDecimals] = await Promise.all([
       publicClient.readContract({
         abi: completeSetBinaryMarketAbi,
         address: postgradMarket,
@@ -364,15 +365,22 @@ export async function readPostgradMarketVenue({
         address: postgradMarket,
         functionName: "noToken",
       }),
+      publicClient.readContract({
+        abi: ERC20_DECIMALS_ABI,
+        address: collateral,
+        functionName: "decimals",
+      }),
     ]);
     const [yesPool, noPool] = await Promise.all([
       readOutcomePool({
         collateral,
+        collateralDecimals,
         outcomeToken: yesToken as `0x${string}`,
         publicClient,
       }),
       readOutcomePool({
         collateral,
+        collateralDecimals,
         outcomeToken: noToken as `0x${string}`,
         publicClient,
       }),
@@ -401,14 +409,19 @@ export async function readPostgradMarketVenue({
 
 async function readOutcomePool({
   collateral,
+  collateralDecimals,
   outcomeToken,
   publicClient,
 }: {
   collateral: `0x${string}`;
+  collateralDecimals: number;
   outcomeToken: `0x${string}`;
   publicClient: ReturnType<typeof createPublicClient>;
 }): Promise<MarketVenuePoolResponse> {
-  const { key } = buildOutcomePoolKey({ collateral, outcomeToken });
+  const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+    collateral,
+    outcomeToken,
+  });
   const poolId = computePoolId(key);
   const [slot0, whitelisted] = await Promise.all([
     publicClient.readContract({
@@ -425,8 +438,51 @@ async function readOutcomePool({
     }) as Promise<boolean>,
   ]);
 
+  return serializeOutcomePool({
+    collateralDecimals,
+    outcomeIsCurrency0,
+    outcomeToken,
+    poolId,
+    sqrtPriceX96: (slot0 as readonly [bigint, number, number, number])[0],
+    whitelisted,
+  });
+}
+
+/**
+ * Maps a pool's raw slot0 sqrt price to the venue pool response, converting
+ * it into the ADR 0009 WAD display price (collateral per one outcome token)
+ * for the pool's currency orientation. An uninitialized pool (sqrt price 0)
+ * has no price yet, so displayPriceWad is omitted.
+ */
+export function serializeOutcomePool({
+  collateralDecimals,
+  outcomeIsCurrency0,
+  outcomeToken,
+  poolId,
+  sqrtPriceX96,
+  whitelisted,
+}: {
+  collateralDecimals: number;
+  outcomeIsCurrency0: boolean;
+  outcomeToken: `0x${string}`;
+  poolId: `0x${string}`;
+  sqrtPriceX96: bigint;
+  whitelisted: boolean;
+}): MarketVenuePoolResponse {
+  const initialized = sqrtPriceX96 !== 0n;
+
   return {
-    initialized: (slot0 as readonly [bigint, number, number, number])[0] !== 0n,
+    ...(initialized
+      ? {
+          displayPriceWad: sqrtPriceX96ToDisplayPriceWad({
+            collateralDecimals,
+            outcomeDecimals: COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+            outcomeIsCurrency0,
+            sqrtPriceX96,
+          }).toString(),
+        }
+      : {}),
+    initialized,
     outcomeTokenAddress: outcomeToken.toLowerCase(),
     poolId,
     whitelisted,

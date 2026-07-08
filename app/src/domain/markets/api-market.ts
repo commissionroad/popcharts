@@ -40,8 +40,13 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     openingProbability,
     yesShares: wadToNumber(apiMarket.yesShares),
   });
-  const yesPriceCents = marginalPriceCents(currentState, "yes");
-  const noPriceCents = 100 - yesPriceCents;
+  const lmsrYesPriceCents = marginalPriceCents(currentState, "yes");
+  const venuePrices =
+    apiMarket.status === "graduated"
+      ? venuePriceCents(apiMarket.postgrad?.venue)
+      : null;
+  const yesPriceCents = venuePrices?.yesPriceCents ?? lmsrYesPriceCents;
+  const noPriceCents = venuePrices?.noPriceCents ?? 100 - lmsrYesPriceCents;
   const matchedMarketCap = wadToNumber(apiMarket.matchedMarketCap);
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
   const metadata = apiMarket.metadata;
@@ -83,6 +88,38 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     ...(resolutionCriteria ? { resolutionCriteria } : {}),
     ...(resolutionSources.length > 0 ? { resolutionSources } : {}),
     ...(resolutionUrl ? { resolutionUrl } : {}),
+  };
+}
+
+/**
+ * Headline YES/NO prices from a graduated market's live venue pools, read
+ * from each pool's current display price. YES and NO are independent pools,
+ * so the two prices are converted separately and deliberately not forced to
+ * sum to 100 — a small deviation is real venue state. Returns null while the
+ * venue is not live or either pool has no price yet, so callers can fall
+ * back to the frozen pregrad LMSR prices.
+ */
+function venuePriceCents(
+  venue: NonNullable<ApiMarket["postgrad"]>["venue"] | undefined
+): { noPriceCents: number; yesPriceCents: number } | null {
+  if (!venue?.live) {
+    return null;
+  }
+
+  const noPriceWad = venue.noPool.initialized
+    ? venue.noPool.displayPriceWad
+    : undefined;
+  const yesPriceWad = venue.yesPool.initialized
+    ? venue.yesPool.displayPriceWad
+    : undefined;
+
+  if (!noPriceWad || !yesPriceWad) {
+    return null;
+  }
+
+  return {
+    noPriceCents: wadToCents(noPriceWad),
+    yesPriceCents: wadToCents(yesPriceWad),
   };
 }
 
