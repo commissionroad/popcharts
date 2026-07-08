@@ -76,6 +76,51 @@ describe("createMarketsApiClient", () => {
     );
   });
 
+  it("fetches a market's venue order book", async () => {
+    const book = {
+      chainId: 5042002,
+      marketId: "7",
+      yes: {
+        asks: [],
+        bids: [],
+        outcomeTokenAddress: "0x0000000000000000000000000000000000000003",
+        poolId: `0x${"1f".repeat(32)}`,
+        side: "yes",
+      },
+    };
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse(book)
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    const orderBook = await client.getMarketOrderBook({
+      chainId: 5042002,
+      marketId: "7",
+    });
+
+    expect(orderBook).toEqual(book);
+    expect(String(firstFetchCall(fetcher)[0])).toBe(
+      "http://localhost:3001/markets/5042002/7/orderbook"
+    );
+  });
+
+  it("returns null when the order book targets a missing market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarketOrderBook({ chainId: 5042002, marketId: "404" })
+    ).resolves.toBeNull();
+  });
+
   it("requests graduation for an API market", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
       jsonResponse({

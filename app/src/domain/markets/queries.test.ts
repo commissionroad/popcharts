@@ -579,6 +579,7 @@ function createClient({
     }),
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
+    getMarketOrderBook: vi.fn(async () => null),
     getMarketReceipts: vi.fn(async () => receipts),
     getMarkets: vi.fn(async () => markets),
   };

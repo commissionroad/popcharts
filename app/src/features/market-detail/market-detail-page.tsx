@@ -10,6 +10,7 @@ import {
   marketSideLabel,
   type PricePathPoint,
 } from "@/domain/markets/types";
+import { OrderBookCard } from "@/features/order-book/order-book-card";
 import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
@@ -110,6 +111,8 @@ export function MarketDetailPage({
               yesLabel={marketSideLabel(market, "yes")}
             />
           </div>
+
+          {isGraduated ? <OrderBookCard market={market} /> : null}
 
           {isGraduated ? null : (
             <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
