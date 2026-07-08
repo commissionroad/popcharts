@@ -64,6 +64,7 @@ export function PostgradTicket({ market }: { market: Market }) {
     isSwapping,
     quote,
     quoteLoading,
+    quoteWarning,
     side,
     submitError,
     swapAction,
@@ -164,6 +165,12 @@ export function PostgradTicket({ market }: { market: Market }) {
         quoteLoading={quoteLoading}
         sideColor={sideColor}
       />
+
+      {quoteWarning ? (
+        <div className="rounded-[var(--radius-sm)] border border-[var(--status-graduating)] bg-[var(--pc-amber-wash)] p-3 text-[12px] leading-5 text-[var(--status-graduating)]">
+          {quoteWarning}
+        </div>
+      ) : null}
 
       {submitError ? (
         <div className="flex gap-2 rounded-[var(--radius-sm)] border border-[var(--no-border)] bg-[var(--no-bg)] p-3 text-[12px] leading-5 text-[var(--no)]">

@@ -163,9 +163,13 @@ describe("getVenueSwapErrorMessage", () => {
   });
 
   it("maps the raw error selector to the price-bound copy", () => {
+    // The quoter wraps the hook revert in carrier errors whose raw bytes
+    // embed the selector mid-string, without a 0x prefix.
     expect(
       getVenueSwapErrorMessage(
-        new Error(`call reverted with data ${POOL_TICK_OUT_OF_BOUNDS_SELECTOR}ffff`)
+        new Error(
+          `reverted with custom error 'UnexpectedRevertBytes("0x90bfb865aaaa${POOL_TICK_OUT_OF_BOUNDS_SELECTOR}ffff")'`
+        )
       )
     ).toBe(PRICE_BOUND_REACHED_MESSAGE);
   });

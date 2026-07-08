@@ -39,6 +39,8 @@ import {
   getMaxVenueTradeAmount,
   getVenueSwapAction,
   getVenueSwapErrorMessage,
+  isPriceBoundError,
+  PRICE_BOUND_QUOTE_WARNING,
 } from "./swap-action";
 
 export const venuePresetAmounts = ["50", "250", "1000", "Max"] as const;
@@ -47,6 +49,7 @@ const BALANCE_EPSILON = 0.000001;
 
 type QuoterReadState = {
   amountOut: bigint | null;
+  boundLimited: boolean;
   error: string | null;
   requestKey: string | null;
 };
@@ -73,6 +76,7 @@ export function usePostgradTicketState(market: Market) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [quoterState, setQuoterState] = useState<QuoterReadState>({
     amountOut: null,
+    boundLimited: false,
     error: null,
     requestKey: null,
   });
@@ -116,17 +120,38 @@ export function usePostgradTicketState(market: Market) {
     })
       .then((amountOut) => {
         if (isActive) {
-          setQuoterState({ amountOut, error: null, requestKey: quoterRequestKey });
-        }
-      })
-      .catch((error: unknown) => {
-        if (isActive) {
           setQuoterState({
-            amountOut: null,
-            error: getVenueSwapErrorMessage(error),
+            amountOut,
+            boundLimited: false,
+            error: null,
             requestKey: quoterRequestKey,
           });
         }
+      })
+      .catch((error: unknown) => {
+        if (!isActive) {
+          return;
+        }
+
+        // The quoter simulates without the band-edge price limit the real
+        // swap uses, so a PoolTickOutOfBounds revert means "bigger than the
+        // band can fill", not "cannot trade": fall back to the pool-price
+        // estimate and warn instead of blocking.
+        setQuoterState(
+          isPriceBoundError(error)
+            ? {
+                amountOut: null,
+                boundLimited: true,
+                error: null,
+                requestKey: quoterRequestKey,
+              }
+            : {
+                amountOut: null,
+                boundLimited: false,
+                error: getVenueSwapErrorMessage(error),
+                requestKey: quoterRequestKey,
+              }
+        );
       });
 
     return () => {
@@ -139,6 +164,7 @@ export function usePostgradTicketState(market: Market) {
       ? quoterState
       : null;
   const quoteError = quoterRead?.error ?? null;
+  const quoteWarning = quoterRead?.boundLimited ? PRICE_BOUND_QUOTE_WARNING : null;
   const quoterAmountOut = quoterRead?.amountOut ?? null;
   const quote: VenueSwapQuote | null =
     amountIn === null || quoteError !== null
@@ -336,6 +362,7 @@ export function usePostgradTicketState(market: Market) {
     isSwapping,
     quote,
     quoteLoading,
+    quoteWarning,
     side,
     submitError,
     swapAction,

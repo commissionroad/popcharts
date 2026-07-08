@@ -130,6 +130,19 @@ describe("PostgradTicket", () => {
     expect(screen.getByText("Approving router spend...")).toBeInTheDocument();
   });
 
+  it("shows the price-bound quote warning without blocking the action", () => {
+    vi.mocked(usePostgradTicketState).mockReturnValue(
+      ticketState({ quoteWarning: "Price bound reached: too big for the band." })
+    );
+
+    render(<PostgradTicket market={venueMarket()} />);
+
+    expect(
+      screen.getByText("Price bound reached: too big for the band.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buy YES tokens" })).toBeEnabled();
+  });
+
   it("shows the completed swap notice", () => {
     vi.mocked(usePostgradTicketState).mockReturnValue(
       ticketState({
@@ -185,6 +198,7 @@ function ticketState(
       source: "quoter",
     },
     quoteLoading: false,
+    quoteWarning: null,
     side: "yes",
     submitError: null,
     swapAction: { disabled: false, label: "Buy YES tokens", onClick: vi.fn() },

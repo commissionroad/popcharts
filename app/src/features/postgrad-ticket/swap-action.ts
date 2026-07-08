@@ -25,8 +25,32 @@ export type VenueSwapAction = {
 export const PRICE_BOUND_REACHED_MESSAGE =
   "Price bound reached: this order would push the pool past the venue's price band. Try a smaller amount.";
 
-/** Selector of PoolTickBounds.PoolTickOutOfBounds(bytes32,int24,int24,int24). */
-export const POOL_TICK_OUT_OF_BOUNDS_SELECTOR = "0x16996a81";
+/**
+ * Non-blocking notice shown when the quoter reports the order would cross the
+ * price band. The actual swap's price limit sits at the band edge, so the
+ * order still executes — it just stops early instead of reverting.
+ */
+export const PRICE_BOUND_QUOTE_WARNING =
+  "Price bound reached: this order is bigger than the pool can fill inside its price band. It will stop at the band edge and the unspent remainder stays in your wallet.";
+
+/**
+ * True when a swap or quote failure is the bounded hook's PoolTickOutOfBounds
+ * revert (by name or raw selector).
+ */
+export function isPriceBoundError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.message.includes("PoolTickOutOfBounds") ||
+      error.message.includes(POOL_TICK_OUT_OF_BOUNDS_SELECTOR))
+  );
+}
+
+/**
+ * Selector of PoolTickBounds.PoolTickOutOfBounds(bytes32,int24,int24,int24),
+ * without a 0x prefix: the quoter and pool manager wrap hook reverts in
+ * carrier errors whose raw bytes embed this selector mid-string.
+ */
+export const POOL_TICK_OUT_OF_BOUNDS_SELECTOR = "16996a81";
 
 /**
  * Derives the ticket's primary action from quote, wallet, and client state,
@@ -160,10 +184,7 @@ export function getVenueSwapErrorMessage(error: unknown) {
   return getErrorMessage(error, {
     fallback: "Could not place the order.",
     matcher: (swapError) =>
-      swapError.message.includes("PoolTickOutOfBounds") ||
-      swapError.message.includes(POOL_TICK_OUT_OF_BOUNDS_SELECTOR)
-        ? PRICE_BOUND_REACHED_MESSAGE
-        : undefined,
+      isPriceBoundError(swapError) ? PRICE_BOUND_REACHED_MESSAGE : undefined,
   });
 }
 

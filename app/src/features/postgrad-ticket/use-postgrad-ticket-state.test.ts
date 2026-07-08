@@ -23,7 +23,7 @@ import {
   type VenueSwapReceipt,
   type VenueTradingEnvironment,
 } from "./postgrad-swap-service";
-import { PRICE_BOUND_REACHED_MESSAGE } from "./swap-action";
+import { PRICE_BOUND_QUOTE_WARNING } from "./swap-action";
 import { usePostgradTicketState } from "./use-postgrad-ticket-state";
 
 vi.mock("next/navigation", () => ({
@@ -238,17 +238,30 @@ describe("usePostgradTicketState quoting", () => {
     expect(result.current.swapAction.label).toBe("Preview only - no venue connected");
   });
 
-  it("surfaces a quoter revert as the field error and blocks the action", async () => {
+  it("downgrades a price-bound quoter revert to an estimate with a warning", async () => {
     vi.mocked(quoteVenueSwap).mockRejectedValue(
       new Error("execution reverted: PoolTickOutOfBounds")
     );
     const { result } = renderTicket();
 
     await waitFor(() =>
-      expect(result.current.amountFieldError).toBe(PRICE_BOUND_REACHED_MESSAGE)
+      expect(result.current.quoteWarning).toBe(PRICE_BOUND_QUOTE_WARNING)
     );
 
+    // The real swap's limit pins at the band edge, so the order still runs.
+    expect(result.current.quote?.source).toBe("estimate");
+    expect(result.current.amountFieldError).toBeUndefined();
+    expect(result.current.swapAction.disabled).toBe(false);
+  });
+
+  it("surfaces other quoter failures as a blocking field error", async () => {
+    vi.mocked(quoteVenueSwap).mockRejectedValue(new Error("rpc down"));
+    const { result } = renderTicket();
+
+    await waitFor(() => expect(result.current.amountFieldError).toBe("rpc down"));
+
     expect(result.current.quote).toBeNull();
+    expect(result.current.quoteWarning).toBeNull();
     expect(result.current.swapAction.disabled).toBe(true);
   });
 

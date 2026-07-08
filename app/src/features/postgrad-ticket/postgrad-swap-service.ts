@@ -273,8 +273,15 @@ export async function placeVenueSwap({
 
   onStep?.("swapping");
   // A zeroForOne swap walks the price down toward the lower bound tick; the
-  // opposite direction walks it up toward the upper bound.
+  // opposite direction walks it up toward the upper bound. Moving down, a
+  // swap that stops exactly on the boundary's sqrt price settles at tick
+  // lowerBound - 1 (v4 tick semantics), which the hook rejects — so the down
+  // limit sits one wei inside the band, keeping a bound-stopped fill at the
+  // bound tick itself.
   const limitTick = zeroForOne ? bounds[1] : bounds[2];
+  const sqrtPriceLimitX96 = zeroForOne
+    ? tickToSqrtPriceX96(limitTick) + 1n
+    : tickToSqrtPriceX96(limitTick);
   const hash = await wallet.walletClient.writeContract({
     abi: minimalV4SwapRouterAbi,
     account: wallet.accountAddress,
@@ -285,7 +292,7 @@ export async function placeVenueSwap({
       pool.poolKey,
       {
         amountSpecified: -amountIn,
-        sqrtPriceLimitX96: tickToSqrtPriceX96(limitTick),
+        sqrtPriceLimitX96,
         zeroForOne,
       },
       wallet.accountAddress,

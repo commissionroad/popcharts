@@ -306,7 +306,9 @@ describe("placeVenueSwap", () => {
     ];
 
     expect(params.zeroForOne).toBe(true);
-    expect(params.sqrtPriceLimitX96).toBe(tickToSqrtPriceX96(-120));
+    // One wei above the boundary price so a bound-stopped swap settles at
+    // the bound tick instead of one below it.
+    expect(params.sqrtPriceLimitX96).toBe(tickToSqrtPriceX96(-120) + 1n);
     // Selling spends the outcome token, so the approval targets it.
     expect(writeCalls(clients)[0]?.address).toBe(getAddress(YES_TOKEN));
   });
