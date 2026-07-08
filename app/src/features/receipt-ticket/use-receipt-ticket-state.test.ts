@@ -353,7 +353,7 @@ describe("useReceiptTicketState test minting", () => {
 
     await act(async () => result.current.mintTestPusd());
 
-    expect(result.current.submitError).toBe("mint failed");
+    expect(result.current.submitError).toBe("Could not place receipt.");
     expect(result.current.isMinting).toBe(false);
   });
 

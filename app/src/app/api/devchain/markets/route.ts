@@ -11,6 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseSerializedProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
+import { DisplayableError, presentError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
 
 export async function POST(request: Request) {
@@ -149,7 +150,7 @@ async function getMarketCreationFee({
   });
 
   if (balance < fee) {
-    throw new Error(
+    throw new DisplayableError(
       `The devchain relay signer needs ${formatTokenAmount(
         fee
       )} native USDC to create this market. It has ${formatTokenAmount(
@@ -162,7 +163,11 @@ async function getMarketCreationFee({
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Could not create market.";
+  // Log the raw failure server-side; return only well-formed copy to the client.
+  return presentError(error, {
+    context: { operation: "api/devchain/markets" },
+    fallback: "Could not create market.",
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -174,8 +174,20 @@ describe("getVenueSwapErrorMessage", () => {
     ).toBe(PRICE_BOUND_REACHED_MESSAGE);
   });
 
-  it("passes other error messages through", () => {
-    expect(getVenueSwapErrorMessage(new Error("nope"))).toBe("nope");
+  it("returns the fallback for unrecognized errors instead of the raw message", () => {
+    expect(getVenueSwapErrorMessage(new Error("nope"))).toBe(
+      "Could not place the order."
+    );
+  });
+
+  it("maps the RPC gas-cap revert to shared friendly copy", () => {
+    expect(
+      getVenueSwapErrorMessage(
+        new Error("Transaction gas limit is 21000000 and exceeds transaction gas cap")
+      )
+    ).toBe(
+      "This transaction is too large for the network to accept right now. Try a smaller amount."
+    );
   });
 
   it("falls back for non-Error values", () => {

@@ -1,6 +1,7 @@
 import { getAddress, isAddress } from "viem";
 
 import type { ProtocolCreateMarketParams } from "@/domain/market-creation/types";
+import { DisplayableError } from "@/lib/error-handling";
 
 export type SerializedProtocolCreateMarketParams = {
   bypassAiResolution: boolean;
@@ -34,7 +35,7 @@ export function parseSerializedProtocolCreateMarketParams(
   value: unknown
 ): ProtocolCreateMarketParams {
   if (!isRecord(value)) {
-    throw new Error("Expected protocolParams object.");
+    throw new DisplayableError("Expected protocolParams object.");
   }
 
   return {
@@ -55,7 +56,7 @@ export function parseSerializedProtocolCreateMarketParams(
 
 function parseAddress(value: unknown, field: string): `0x${string}` {
   if (typeof value !== "string" || !isAddress(value)) {
-    throw new Error(`Invalid ${field}.`);
+    throw new DisplayableError(`Invalid ${field}.`);
   }
 
   return getAddress(value);
@@ -63,7 +64,7 @@ function parseAddress(value: unknown, field: string): `0x${string}` {
 
 function parseBytes32(value: unknown, field: string): `0x${string}` {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
-    throw new Error(`Invalid ${field}.`);
+    throw new DisplayableError(`Invalid ${field}.`);
   }
 
   return value as `0x${string}`;
@@ -71,7 +72,7 @@ function parseBytes32(value: unknown, field: string): `0x${string}` {
 
 function parseNonEmptyString(value: unknown, field: string) {
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Invalid ${field}.`);
+    throw new DisplayableError(`Invalid ${field}.`);
   }
 
   return value;
@@ -79,7 +80,7 @@ function parseNonEmptyString(value: unknown, field: string) {
 
 function parseBigInt(value: unknown, field: string) {
   if (typeof value !== "string" || !/^\d+$/.test(value)) {
-    throw new Error(`Invalid ${field}.`);
+    throw new DisplayableError(`Invalid ${field}.`);
   }
 
   return BigInt(value);
@@ -87,7 +88,7 @@ function parseBigInt(value: unknown, field: string) {
 
 function parseBoolean(value: unknown, field: string) {
   if (typeof value !== "boolean") {
-    throw new Error(`Invalid ${field}.`);
+    throw new DisplayableError(`Invalid ${field}.`);
   }
 
   return value;

@@ -135,7 +135,7 @@ describe("useOpenVenueOrders", () => {
     await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(4));
   });
 
-  it("surfaces HTTP failures as a readable error", async () => {
+  it("surfaces HTTP failures as generic copy (no raw status detail)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("nope", { status: 500 }))
@@ -144,7 +144,7 @@ describe("useOpenVenueOrders", () => {
     const { result } = renderHook(() => useOpenOrdersArgs());
 
     await waitFor(() =>
-      expect(result.current.error).toBe("Open orders request failed (500).")
+      expect(result.current.error).toBe("Could not load your open orders.")
     );
     expect(result.current.orders).toBeNull();
   });

@@ -84,15 +84,18 @@ describe("summarizeWallet", () => {
 });
 
 describe("getWalletErrorMessage", () => {
-  it("passes real error messages through", () => {
+  it("maps a wallet rejection to shared friendly copy", () => {
     expect(getWalletErrorMessage(new Error("User rejected signing."))).toBe(
-      "User rejected signing."
+      "Request cancelled in your wallet."
     );
   });
 
-  it("falls back for empty messages and non-Error values", () => {
+  it("returns the fallback for unrecognized, empty, and non-Error values", () => {
     const fallback = "Wallet action failed. Try again from your wallet.";
 
+    expect(getWalletErrorMessage(new Error("raw provider dump 0xdeadbeef"))).toBe(
+      fallback
+    );
     expect(getWalletErrorMessage(new Error(""))).toBe(fallback);
     expect(getWalletErrorMessage("boom")).toBe(fallback);
     expect(getWalletErrorMessage(undefined)).toBe(fallback);

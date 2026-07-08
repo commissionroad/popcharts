@@ -138,7 +138,7 @@ describe("POST /api/indexer/market-metadata", () => {
       expect(await response.text()).toBe("");
     });
 
-    it("reports upstream network failures", async () => {
+    it("hides raw upstream network failures behind generic copy", async () => {
       vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
       vi.stubGlobal(
         "fetch",
@@ -149,7 +149,7 @@ describe("POST /api/indexer/market-metadata", () => {
 
       const response = await POST(jsonRequest(proxyBody()));
 
-      await expectError(response, "Connection refused.");
+      await expectError(response, "Could not sync market metadata.");
     });
 
     it("reports generic copy for non-Error upstream failures", async () => {

@@ -17,6 +17,7 @@ import {
 import { venueTokenUnitsToNumber } from "@/domain/postgrad-trading/venue-trade";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { parseApiMarketAppId } from "@/lib/app-id";
+import { DisplayableError } from "@/lib/error-handling";
 
 import { getLimitOrderErrorMessage } from "./limit-order-action";
 import {
@@ -117,7 +118,7 @@ export function useOpenOrdersPanelState(
 
     try {
       if (!wallet.address || !publicClient || !walletClient) {
-        throw new Error("Connect a wallet before cancelling orders.");
+        throw new DisplayableError("Connect a wallet before cancelling orders.");
       }
 
       const cancelWallet: VenueSwapWallet = {

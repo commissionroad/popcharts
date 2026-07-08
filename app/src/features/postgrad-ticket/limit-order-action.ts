@@ -1,5 +1,5 @@
 import type { useWalletAccount } from "@/integrations/wallet/wallet-provider";
-import { getErrorMessage } from "@/lib/error-handling";
+import { presentError } from "@/lib/error-handling";
 
 import {
   LIMIT_PRICE_OUT_OF_BAND_MESSAGE,
@@ -53,7 +53,8 @@ const LIMIT_ORDER_ERROR_COPY: readonly {
  * message.
  */
 export function getLimitOrderErrorMessage(error: unknown) {
-  return getErrorMessage(error, {
+  return presentError(error, {
+    context: { operation: "limit-order" },
     fallback: "Could not place the order.",
     matcher: (orderError) => {
       if (isPriceBoundError(orderError)) {

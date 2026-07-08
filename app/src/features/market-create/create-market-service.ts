@@ -13,6 +13,7 @@ import {
 } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
+import { presentError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
 
 /**
@@ -336,9 +337,10 @@ async function persistMarketMetadata({
 
     return body?.error ?? "Market metadata could not be saved to the API.";
   } catch (error) {
-    return error instanceof Error
-      ? error.message
-      : "Market metadata could not be saved to the API.";
+    return presentError(error, {
+      context: { chainId, operation: "persist-market-metadata" },
+      fallback: "Market metadata could not be saved to the API.",
+    });
   }
 }
 

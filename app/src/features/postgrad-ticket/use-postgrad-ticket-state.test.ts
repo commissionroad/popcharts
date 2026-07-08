@@ -12,6 +12,7 @@ import { useVenueBalances } from "@/integrations/contracts/hooks/use-venue-balan
 import type { PostgradVenueContractConfig } from "@/integrations/contracts/postgrad-venue";
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { DisplayableError } from "@/lib/error-handling";
 import { marketFactory } from "@/test/factories/markets";
 
 import {
@@ -256,11 +257,13 @@ describe("usePostgradTicketState quoting", () => {
     expect(result.current.swapAction.disabled).toBe(false);
   });
 
-  it("surfaces other quoter failures as a blocking field error", async () => {
+  it("surfaces other quoter failures as a blocking field error with generic copy", async () => {
     vi.mocked(quoteVenueSwap).mockRejectedValue(new Error("rpc down"));
     const { result } = renderTicket();
 
-    await waitFor(() => expect(result.current.amountFieldError).toBe("rpc down"));
+    await waitFor(() =>
+      expect(result.current.amountFieldError).toBe("Could not place the order.")
+    );
 
     expect(result.current.quote).toBeNull();
     expect(result.current.quoteWarning).toBeNull();
@@ -312,7 +315,9 @@ describe("usePostgradTicketState quoting", () => {
 
   it("surfaces a broken pool key as the field error", () => {
     vi.mocked(buildVenuePoolContext).mockImplementation(() => {
-      throw new Error("The venue pool key no longer matches the indexed pool.");
+      throw new DisplayableError(
+        "The venue pool key no longer matches the indexed pool."
+      );
     });
     const { result } = renderTicket();
 
@@ -359,7 +364,7 @@ describe("usePostgradTicketState swap flow", () => {
       result.current.swapAction.onClick?.();
     });
 
-    expect(result.current.submitError).toBe("router unhappy");
+    expect(result.current.submitError).toBe("Could not place the order.");
     expect(result.current.completedSwap).toBeNull();
   });
 
@@ -418,7 +423,7 @@ describe("usePostgradTicketState minting", () => {
       void result.current.mintTestPusd();
     });
 
-    expect(result.current.submitError).toBe("faucet dry");
+    expect(result.current.submitError).toBe("Could not place the order.");
   });
 
   it("does nothing without a wallet address", async () => {

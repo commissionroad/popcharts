@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { Button } from "@/components/ui/button";
+import { logError } from "@/lib/error-logger";
 
 export default function Error({
   error,
@@ -9,6 +12,12 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    // Capture the uncaught render error; the user only ever sees the friendly
+    // copy below, never the raw error.
+    logError(error, { digest: error.digest, surface: "route-error-boundary" });
+  }, [error]);
+
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-7">
       <p className="font-mono text-xs tracking-[0.16em] text-[var(--accent)] uppercase">

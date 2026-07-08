@@ -203,31 +203,23 @@ describe("POST /api/market-review/submissions", () => {
 
       const response = await POST(jsonRequest(submission()));
 
-      await expectError(response, 400, "Market review webhook failed with 503.");
+      await expectError(response, 400, "Could not submit market for review.");
     });
 
-    it("rejects a webhook URL that does not parse", async () => {
+    it("hides a raw webhook URL config error behind generic copy", async () => {
       vi.stubEnv("POPCHARTS_MARKET_REVIEW_WEBHOOK_URL", "not a url");
 
       const response = await POST(jsonRequest(submission()));
 
-      await expectError(
-        response,
-        400,
-        "POPCHARTS_MARKET_REVIEW_WEBHOOK_URL must be an HTTP URL."
-      );
+      await expectError(response, 400, "Could not submit market for review.");
     });
 
-    it("rejects non-HTTP webhook protocols", async () => {
+    it("hides a non-HTTP webhook protocol config error behind generic copy", async () => {
       vi.stubEnv("POPCHARTS_MARKET_REVIEW_WEBHOOK_URL", "ftp://reviews.example.com");
 
       const response = await POST(jsonRequest(submission()));
 
-      await expectError(
-        response,
-        400,
-        "POPCHARTS_MARKET_REVIEW_WEBHOOK_URL must be an HTTP URL."
-      );
+      await expectError(response, 400, "Could not submit market for review.");
     });
   });
 

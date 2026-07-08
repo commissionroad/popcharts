@@ -6,6 +6,7 @@ import {
   parseSerializedProtocolCreateMarketParams,
   type SerializedProtocolCreateMarketParams,
 } from "@/integrations/contracts/protocol-params";
+import { presentError } from "@/lib/error-handling";
 
 type MarketReviewSubmissionRequest = {
   collateralSymbol: "pUSD";
@@ -278,5 +279,9 @@ function isMetadataHash(value: unknown): value is `0x${string}` {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Could not submit market for review.";
+  // Log the raw failure server-side; return only well-formed copy to the client.
+  return presentError(error, {
+    context: { operation: "api/market-review/submissions" },
+    fallback: "Could not submit market for review.",
+  });
 }

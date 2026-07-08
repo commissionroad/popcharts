@@ -56,7 +56,7 @@ describe("graduateMarketAction", () => {
     });
   });
 
-  it("surfaces force graduation failures", async () => {
+  it("returns generic copy (not the raw error) when forced graduation fails", async () => {
     mocks.requestDevMarketGraduation.mockRejectedValueOnce(
       new Error("Dev market graduation is disabled.")
     );
@@ -64,7 +64,7 @@ describe("graduateMarketAction", () => {
     const result = await forceGraduateMarketAction("31337:9");
 
     expect(result).toEqual({
-      message: "Dev market graduation is disabled.",
+      message: "Could not graduate this market.",
       status: "error",
     });
   });
@@ -91,7 +91,7 @@ describe("graduateMarketAction", () => {
     expect(mocks.requestMarketGraduation).not.toHaveBeenCalled();
   });
 
-  it("surfaces the graduation request's error message", async () => {
+  it("returns generic copy (not the raw error) when graduation fails", async () => {
     mocks.requestMarketGraduation.mockRejectedValueOnce(
       new Error("Market graduation requires a chain-prefixed market id.")
     );
@@ -99,7 +99,7 @@ describe("graduateMarketAction", () => {
     const result = await graduateMarketAction("legacy-id");
 
     expect(result).toEqual({
-      message: "Market graduation requires a chain-prefixed market id.",
+      message: "Could not graduate this market.",
       status: "error",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

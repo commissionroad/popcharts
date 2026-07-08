@@ -3,7 +3,7 @@ import type {
   VenueTradeAction,
 } from "@/domain/postgrad-trading/venue-trade";
 import type { useWalletAccount } from "@/integrations/wallet/wallet-provider";
-import { getErrorMessage } from "@/lib/error-handling";
+import { presentError } from "@/lib/error-handling";
 
 import type { VenueTradingEnvironment } from "./postgrad-swap-service";
 
@@ -210,7 +210,8 @@ export function getVenueWalletGate({
  * the friendly price-bound explanation instead of surfacing the raw error.
  */
 export function getVenueSwapErrorMessage(error: unknown) {
-  return getErrorMessage(error, {
+  return presentError(error, {
+    context: { operation: "venue-swap" },
     fallback: "Could not place the order.",
     matcher: (swapError) =>
       isPriceBoundError(swapError) ? PRICE_BOUND_REACHED_MESSAGE : undefined,

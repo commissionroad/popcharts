@@ -3,6 +3,8 @@
 import type { MarketOrderBook } from "@popcharts/api-client/models";
 import { useEffect, useState } from "react";
 
+import { presentError } from "@/lib/error-handling";
+
 export const ORDER_BOOK_POLL_INTERVAL_MS = 5_000;
 
 export type OrderBookLookup = {
@@ -107,5 +109,8 @@ async function fetchOrderBook(
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Order book request failed.";
+  return presentError(error, {
+    context: { operation: "load-order-book" },
+    fallback: "Order book request failed.",
+  });
 }

@@ -154,9 +154,21 @@ describe("getLimitOrderErrorMessage", () => {
     ).toBe(LIMIT_PRICE_OUT_OF_BAND_MESSAGE);
   });
 
-  it("passes ordinary errors through and falls back on non-errors", () => {
-    expect(getLimitOrderErrorMessage(new Error("rpc down"))).toBe("rpc down");
+  it("returns the fallback for unrecognized errors and non-errors", () => {
+    expect(getLimitOrderErrorMessage(new Error("rpc down"))).toBe(
+      "Could not place the order."
+    );
     expect(getLimitOrderErrorMessage("boom")).toBe("Could not place the order.");
+  });
+
+  it("maps the RPC gas-cap revert to shared friendly copy", () => {
+    expect(
+      getLimitOrderErrorMessage(
+        new Error("Transaction gas limit is 21000000 and exceeds transaction gas cap")
+      )
+    ).toBe(
+      "This transaction is too large for the network to accept right now. Try a smaller amount."
+    );
   });
 });
 

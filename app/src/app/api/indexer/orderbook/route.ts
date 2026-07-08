@@ -4,6 +4,7 @@ import {
   createMarketsApiClient,
   MarketsApiError,
 } from "@/integrations/indexer/markets-api";
+import { presentError } from "@/lib/error-handling";
 
 /**
  * Same-origin proxy for the indexer's venue order book endpoint, so the
@@ -49,7 +50,11 @@ export async function GET(request: Request) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Order book request failed.";
+  // Log the raw failure server-side; return only well-formed copy to the client.
+  return presentError(error, {
+    context: { operation: "api/indexer/orderbook" },
+    fallback: "Order book request failed.",
+  });
 }
 
 function readIndexerApiBaseUrl() {

@@ -129,16 +129,12 @@ describe("POST /api/devchain/markets", () => {
       expect(response.status).toBe(500);
     });
 
-    it("rejects a malformed private key", async () => {
+    it("hides the raw config error behind generic copy for a malformed private key", async () => {
       vi.stubEnv("POPCHARTS_DEVCHAIN_PRIVATE_KEY", "0x1234");
 
       const response = await POST(jsonRequest(requestBody()));
 
-      await expectError(
-        response,
-        400,
-        "POPCHARTS_DEVCHAIN_PRIVATE_KEY must be a 32-byte hex key."
-      );
+      await expectError(response, 400, "Could not create market.");
     });
 
     it("accepts a private key without the 0x prefix", async () => {
@@ -237,14 +233,14 @@ describe("POST /api/devchain/markets", () => {
       });
     });
 
-    it("reports transaction failures with their message", async () => {
+    it("hides raw transaction failures behind generic copy", async () => {
       clientState.writeContract = vi.fn(async () => {
         throw new Error("nonce too low");
       });
 
       const response = await POST(jsonRequest(requestBody()));
 
-      await expectError(response, 400, "nonce too low");
+      await expectError(response, 400, "Could not create market.");
     });
 
     it("reports generic copy for non-Error failures", async () => {

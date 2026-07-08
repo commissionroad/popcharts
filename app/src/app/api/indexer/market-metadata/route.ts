@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { MarketMetadata } from "@/domain/market-creation/types";
 import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
+import { presentError } from "@/lib/error-handling";
 
 type MetadataProxyRequest = {
   chainId: number;
@@ -207,5 +208,9 @@ function isMetadataHash(value: unknown): value is `0x${string}` {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Could not sync market metadata.";
+  // Log the raw failure server-side; return only well-formed copy to the client.
+  return presentError(error, {
+    context: { operation: "api/indexer/market-metadata" },
+    fallback: "Could not sync market metadata.",
+  });
 }
