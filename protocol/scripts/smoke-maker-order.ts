@@ -1,21 +1,13 @@
 import { relative, resolve } from "node:path";
 
 import hre, { network } from "hardhat";
-import {
-  formatUnits,
-  getAddress,
-  parseEventLogs,
-  type Abi,
-  type Address,
-  type Hex,
-  type PublicClient,
-} from "viem";
+import { formatUnits, getAddress, parseEventLogs, type Abi, type Address, type Hex } from "viem";
 
-import { LOCAL_DEVCHAIN } from "./shared/chain/localDevchain.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
+import { ensureTokenPullerBytecode } from "./shared/deployment/tokenPuller.js";
 import { writeJsonFile } from "./shared/json/jsonFile.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
@@ -213,7 +205,7 @@ async function main() {
   }
 
   const tokenPuller = getAddress((await orderManager.read.tokenPuller()) as Address);
-  const pullerMode = await prepareTokenPuller({
+  const pullerMode = await ensureTokenPullerBytecode({
     chainId,
     connection,
     publicClient,
@@ -352,50 +344,3 @@ async function main() {
 }
 
 await main();
-
-type SmokeConnection = {
-  viem: {
-    getTestClient(): Promise<{
-      setCode(parameters: { address: Address; bytecode: Hex }): Promise<void>;
-    }>;
-  };
-};
-
-// The order manager pulls maker input through an external ITokenPuller. On
-// real chains that is the canonical transfer-approval singleton and must
-// already exist; the throwaway local devchain is seeded with MockTokenPuller
-// bytecode instead, mirroring how deploy-venue-stack seeds the CREATE2
-// factory.
-async function prepareTokenPuller({
-  chainId,
-  connection,
-  publicClient,
-  tokenPuller,
-}: {
-  chainId: number;
-  connection: SmokeConnection;
-  publicClient: PublicClient;
-  tokenPuller: Address;
-}): Promise<"mockPuller" | "transferApproval"> {
-  const mockArtifact = await hre.artifacts.readArtifact("MockTokenPuller");
-  const mockRuntimeBytecode = (mockArtifact.deployedBytecode as Hex).toLowerCase();
-
-  const code = await publicClient.getCode({ address: tokenPuller });
-  if (code === undefined || code === "0x") {
-    if (chainId !== LOCAL_DEVCHAIN.chainId) {
-      throw new Error(
-        `Order-manager token puller ${tokenPuller} has no bytecode. The transfer-approval ` +
-          "singleton must exist before maker orders can settle input tokens.",
-      );
-    }
-    const testClient = await connection.viem.getTestClient();
-    await testClient.setCode({
-      address: tokenPuller,
-      bytecode: mockArtifact.deployedBytecode as Hex,
-    });
-    console.log(`Seeded MockTokenPuller bytecode at ${tokenPuller} on the local devchain.`);
-    return "mockPuller";
-  }
-
-  return code.toLowerCase() === mockRuntimeBytecode ? "mockPuller" : "transferApproval";
-}

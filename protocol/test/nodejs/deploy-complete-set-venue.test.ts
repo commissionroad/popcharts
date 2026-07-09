@@ -134,6 +134,11 @@ describe("complete-set venue deployment chain", async function () {
       postgrad.orderManagerAddress,
     );
     assert.equal(await orderManager.read.hookRole([postgrad.boundedHookAddress]), true);
+    assert.equal(
+      await hasBytecode(publicClient, (await orderManager.read.tokenPuller()) as Address),
+      true,
+      "order-manager token puller has no bytecode",
+    );
 
     const adapter = await viem.getContractAt(
       "CompleteSetPostgradAdapter",
