@@ -111,7 +111,7 @@ type DevMarketGraduateRow = {
   metadata: MarketMetadataRow | null;
 };
 
-type ChainGraduationResult =
+export type ChainGraduationResult =
   | {
       kind: "already_graduated";
     }
@@ -566,7 +566,17 @@ async function selectMarketForDevGraduate({
  * database projection is settled before the endpoint responds, regardless of
  * live-watcher latency.
  */
-async function graduateLocalMarketOnChain(
+/**
+ * Runs the server's manager-keyed on-chain graduation for one market:
+ * band-pass eligibility gate → startGraduation → clearing-root submission →
+ * finalize → per-receipt claims. Chain-agnostic despite the name — the
+ * challenge-window fast-forward is a no-op once the deadline has passed (the
+ * window defaults to 0, protocol ADR 0010). Consumed by both the dev endpoint
+ * and the public graduation failsafe. `force` (dev-only) first mints and places
+ * receipts to reach threshold; without it, a below-threshold market is reported
+ * and never touched on-chain.
+ */
+export async function graduateLocalMarketOnChain(
   marketId: bigint,
   force: boolean,
 ): Promise<ChainGraduationResult> {
