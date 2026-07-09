@@ -85,12 +85,13 @@ floor).** Rather than six fields, the essential asymmetry needs just two
 immutable per-market timestamps in `market_metadata`, plus an optional evidence
 window the model reads as guidance:
 
-- `no_not_before` (required) — earliest a **NO** (and a **draw**) verdict may be
-  submitted. This is the canonical deadline; it maps the existing
-  `resolution_time`. NO/draw are only certain once the window closes.
-- `yes_not_before` (optional; default = `no_not_before`) — earliest a **YES** may
-  be submitted. Set earlier than the deadline only for open-ended markets that
-  admit early YES.
+- `no_not_before` (the NO/draw gate) — earliest a **NO** (and a **draw**) verdict
+  may be submitted. NO/draw are only certain once the window closes. This is the
+  existing on-chain `markets.resolution_time`, **reused directly** — no redundant
+  column, no backfill; the runner already joins `markets`.
+- `yes_not_before` (new, nullable; default = `markets.resolution_time`) — earliest
+  a **YES** may be submitted. Set earlier than the deadline only for open-ended
+  markets that admit early YES.
 - `observation_window_start` / `observation_window_end` (optional) — the span
   during which an event "counts," passed to the model as evidence-scoping
   guidance (not a hard gate). Folds into `resolution_criteria` if unset.
@@ -202,20 +203,24 @@ guardrails): the runner never even calls the model before a market's per-outcome
 Mirror the review tables one-to-one. New Drizzle files under
 `server/src/db/schema/`, new migrations after the current head.
 
-**Temporal metadata (new columns on `market_metadata`).** `no_not_before`
-(timestamp, required — backfilled from the existing `resolution_time`),
-`yes_not_before` (timestamp, nullable, default = `no_not_before`),
-`observation_window_start` / `observation_window_end` (timestamp, nullable). These
-are immutable per market, set at creation, validated by AI review, and read by the
-runner's deterministic gate (see Temporal validity guardrails). They flow into the
-API market models (ADR 0009) and the create form (ADR 0013).
+**Temporal metadata.** The NO/draw gate reuses the existing on-chain
+`markets.resolution_time` (no new column, no backfill). Three **nullable** columns
+are added to `market_metadata`: `yes_not_before` (default = `resolution_time`),
+`observation_window_start`, `observation_window_end`. Keeping them nullable makes
+the migration purely additive. They are immutable per market, set at creation,
+validated by AI review, and read by the runner's deterministic gate (see Temporal
+validity guardrails); they flow into the API market models (ADR 0009) and the
+create form (ADR 0013).
 
 **`market_resolutions`** (append-only audit) — mirrors `market_ai_reviews`:
 `id`, `chain_id`, `market_id`, `metadata_hash`, `postgrad_market_address`
 (the child `CompleteSetBinaryMarket`), `provider`, `model_id`, `prompt_version`,
 `outcome`, `verdict`, `confidence`, `reasons jsonb`, `evidence jsonb`,
 `source_checks jsonb`, `hard_flags jsonb`, `resolved_at`, `created_at`. New
-enums `resolution_outcome`, `resolution_verdict`, reuse `ai_review_provider`.
+enums `resolution_outcome`, `resolution_verdict`, and a distinct
+`resolution_provider` — the same providers as review **plus `manual`** for
+operator-override / self-resolve rows, which is why it is not a reuse of
+`ai_review_provider`. `confidence` is nullable (null for `manual` rows).
 
 **`market_resolution_jobs`** (leased queue) — mirrors `market_ai_review_jobs`
 exactly, including `lease_until`, `locked_by`, `attempt_count`, `max_attempts`,
