@@ -7,6 +7,10 @@ export {
   watchMarketReviewEvents,
 } from "./market-review";
 export {
+  recoverOutcomeTokenTransferEvents,
+  watchOutcomeTokenTransferEvents,
+} from "./outcome-token-transfers";
+export {
   recoverReceiptPlacedEvents,
   watchReceiptPlacedEvents,
 } from "./receipt-placed";

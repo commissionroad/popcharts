@@ -8,11 +8,13 @@ import {
 import {
   recoverMarketCreatedEvents,
   recoverMarketReviewEvents,
+  recoverOutcomeTokenTransferEvents,
   recoverReceiptPlacedEvents,
   recoverSettlementEvents,
   recoverVenueOrderEvents,
   watchMarketCreatedEvents,
   watchMarketReviewEvents,
+  watchOutcomeTokenTransferEvents,
   watchReceiptPlacedEvents,
   watchSettlementEvents,
   watchVenueOrderEvents,
@@ -62,6 +64,7 @@ async function main() {
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
   const unwatchVenueOrders = watchVenueOrderEvents(client);
+  const unwatchOutcomeTokenTransfers = watchOutcomeTokenTransferEvents(client);
 
   markHealthy();
   console.log("\nIndexer is running and healthy");
@@ -88,6 +91,7 @@ async function main() {
     unwatchReceiptPlaced();
     unwatchSettlement();
     unwatchVenueOrders();
+    unwatchOutcomeTokenTransfers();
     console.log("Shutdown complete");
     process.exit(0);
   };
@@ -109,6 +113,9 @@ async function recoverMissedEvents(
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
   await recoverVenueOrderEvents(client, currentBlock, { quiet });
+  // Runs after settlement so newly finalized graduations are discoverable
+  // through venue_pools before the token transfer sweep.
+  await recoverOutcomeTokenTransferEvents(client, currentBlock, { quiet });
 }
 
 main().catch((error) => {

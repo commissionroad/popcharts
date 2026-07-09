@@ -5,6 +5,8 @@ export * from "./market-ai-reviews";
 export * from "./market-events";
 export * from "./market-metadata";
 export * from "./markets";
+export * from "./outcome-token-balances";
+export * from "./outcome-token-transfer-events";
 export * from "./venue-order-events";
 export * from "./venue-orders";
 export * from "./venue-pools";
