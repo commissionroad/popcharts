@@ -83,6 +83,7 @@ export type { ClearingPlan, ReceiptClaim } from "./clearing/receipt-claim-merkle
 export {
   apportion,
   computeBandPassClearing,
+  computeMatchedMarketCap,
   lmsrCost,
   SIDE_NO,
   SIDE_YES,

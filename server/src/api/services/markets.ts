@@ -16,7 +16,7 @@ import {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
-import { calculateMatchedMarketCap } from "./matched-market-cap";
+import { computeMatchedMarketCap } from "@popcharts/protocol";
 import { readPostgradMarketVenue } from "./postgrad-venue";
 
 const MARKET_LIST_LIMIT = 200;
@@ -78,12 +78,13 @@ export async function getMarkets({
   const liveMarkets = liveRows.map(({ market }) => market);
   const reviews = await getLatestAiReviews(liveMarkets);
   const postgrads = await getLatestPostgradInfos(liveMarkets);
+  const matchedCaps = await loadMatchedMarketCaps(liveMarkets);
 
   return liveRows.map(({ market, metadata }) =>
     serializeMarketRow(
       market,
       metadata,
-      calculateMatchedMarketCap(market),
+      matchedCaps.get(marketReviewKey(market.chainId, market.marketId)) ?? 0n,
       reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
       postgrads.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
     ),
@@ -150,10 +151,13 @@ export async function getMarketById(
     }
   }
 
+  const matchedCaps = await loadMatchedMarketCaps([row.market]);
+
   return serializeMarketRow(
     row.market,
     row.metadata,
-    calculateMatchedMarketCap(row.market),
+    matchedCaps.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
+      0n,
     reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
     postgrad,
@@ -513,6 +517,63 @@ async function getLatestAiReviews(markets: MarketRow[]) {
   }
 
   return reviews;
+}
+
+/**
+ * Computes the real band-pass matched market cap for each market from its
+ * indexed receipts — the sum of min(YES,NO coverage)·width across price bands.
+ * This is what graduates the market and drives the graduate button; it is always
+ * `<= min(totalYesShares, totalNoShares)` and strictly less when demand does not
+ * overlap in price. Batched over the whole page so the list endpoint issues one
+ * query, not one per market.
+ */
+async function loadMatchedMarketCaps(
+  markets: MarketRow[],
+): Promise<Map<string, bigint>> {
+  const caps = new Map<string, bigint>();
+  if (markets.length === 0) {
+    return caps;
+  }
+
+  const chainIds = unique(markets.map((market) => market.chainId));
+  const marketIds = unique(markets.map((market) => market.marketId));
+  const rows = await db
+    .select({
+      chainId: schema.receiptPlacedEvents.chainId,
+      marketId: schema.receiptPlacedEvents.marketId,
+      rHigh: schema.receiptPlacedEvents.rHigh,
+      rLow: schema.receiptPlacedEvents.rLow,
+      side: schema.receiptPlacedEvents.side,
+    })
+    .from(schema.receiptPlacedEvents)
+    .where(
+      and(
+        inArray(schema.receiptPlacedEvents.chainId, chainIds),
+        inArray(schema.receiptPlacedEvents.marketId, marketIds),
+      ),
+    );
+
+  const byMarket = new Map<
+    string,
+    Array<{ rHigh: bigint; rLow: bigint; side: number }>
+  >();
+  for (const row of rows) {
+    const key = marketReviewKey(row.chainId, row.marketId);
+    const list = byMarket.get(key) ?? [];
+    list.push({
+      rHigh: BigInt(row.rHigh),
+      rLow: BigInt(row.rLow),
+      side: row.side,
+    });
+    byMarket.set(key, list);
+  }
+
+  for (const market of markets) {
+    const key = marketReviewKey(market.chainId, market.marketId);
+    caps.set(key, computeMatchedMarketCap(byMarket.get(key) ?? []));
+  }
+
+  return caps;
 }
 
 function marketReviewKey(chainId: number, marketId: bigint) {
