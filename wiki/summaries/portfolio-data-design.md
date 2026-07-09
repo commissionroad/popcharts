@@ -4,12 +4,13 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-08
+updated: 2026-07-09
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
 
-Status: Proposed (2026-07-08). Replaces the localStorage-stub Portfolio page
+Status: **Implemented** (phases 1-5 landed 2026-07-09 as PRs #151-#154; the
+PnL follow-up, phase 6, remains open). Replaces the localStorage-stub Portfolio page
 with a database-backed view of a wallet's full lifecycle: pre-graduation
 receipts, each receipt's settlement result at graduation, and live
 post-graduation YES/NO positions plus open venue limit orders.
@@ -73,9 +74,11 @@ from "settled" and from "refunded" (refund-only markets settle via
 2. Server read model (portfolio models/service/route) — **landed as PR #152**
    together with phase 3.
 3. OpenAPI + orval client regen (same PR as 2, per server-openapi-sync).
-4. App polling hook reading the indexer directly (D4 as amended).
-5. UI rewire of `portfolio-page.tsx` (localStorage path dropped — DB only).
-6. Follow-up: PnL (swap cost capture + lot accounting).
+4. App polling hook reading the indexer directly (D4 as amended) —
+   **landed as PR #153**.
+5. UI rewire of `portfolio-page.tsx` (localStorage path dropped — DB only;
+   the smoke e2e now asserts the connect-wallet state) — **landed as PR #154**.
+6. Follow-up: PnL (swap cost capture + lot accounting) — open.
 
 ## Related pages
 

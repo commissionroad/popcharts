@@ -66,3 +66,9 @@ Pages: ~summaries/portfolio-data-design.md
 Notes: D4's proxy route dropped in implementation; hooks read the indexer
 directly (postgrad-hook precedent, base URL already NEXT_PUBLIC). Phase
 status updated (2+3 landed as PR #152).
+
+## [2026-07-09] ingest | portfolio data design — implemented (PRs #151-#154)
+Pages: ~summaries/portfolio-data-design.md
+Notes: all five phases landed overnight; doc status flipped to Implemented.
+Receipt band column became avg price (rLow/rHigh are LMSR path bounds, not
+probabilities). PnL follow-up (phase 6) remains the only open item.
