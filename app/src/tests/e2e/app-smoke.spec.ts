@@ -91,7 +91,8 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await expect(
     page.getByRole("heading", { name: "Receipts and backed positions" })
   ).toBeVisible();
-  await expect(
-    page.getByText("Will the Fed cut rates at the next meeting?")
-  ).toBeVisible();
+  // The portfolio is database-backed and keyed by the connected wallet, so
+  // the wallet-less smoke journey lands on the connect prompt; mock receipts
+  // placed on fixture markets deliberately no longer appear here.
+  await expect(page.getByText("No wallet connected")).toBeVisible();
 });
