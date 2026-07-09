@@ -50,6 +50,7 @@ contract PregradManagerTest is BaseTest {
       params.graduationThreshold,
       params.graduationDeadline,
       params.resolutionTime,
+      params.yesNotBefore,
       params.bypassAiResolution
     );
 
@@ -289,6 +290,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 1_250 * WAD,
         graduationDeadline: uint64(block.timestamp + 3 days),
         resolutionTime: uint64(block.timestamp + 30 days),
+        yesNotBefore: uint64(block.timestamp + 30 days),
         bypassAiResolution: false
       })
     );
@@ -304,6 +306,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 4_000 * WAD,
         graduationDeadline: uint64(block.timestamp + 14 days),
         resolutionTime: uint64(block.timestamp + 60 days),
+        yesNotBefore: uint64(block.timestamp + 60 days),
         bypassAiResolution: false
       })
     );
@@ -346,6 +349,7 @@ contract PregradManagerTest is BaseTest {
       params.graduationThreshold,
       params.graduationDeadline,
       params.resolutionTime,
+      params.yesNotBefore,
       params.bypassAiResolution
     );
     vm.expectEmit(true, true, true, true, address(manager));
@@ -537,6 +541,7 @@ contract PregradManagerTest is BaseTest {
       graduationThreshold: 2_500 * WAD,
       graduationDeadline: uint64(block.timestamp + 7 days),
       resolutionTime: uint64(block.timestamp + 14 days),
+      yesNotBefore: uint64(block.timestamp + 14 days),
       bypassAiResolution: false
     });
 
@@ -598,6 +603,20 @@ contract PregradManagerTest is BaseTest {
 
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
+    manager.createMarket(params);
+  }
+
+  function test_RevertsWhenYesNotBeforeOutsideWindow() public {
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
+
+    // At or before the graduation deadline is too early for the YES gate.
+    params.yesNotBefore = params.graduationDeadline;
+    vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
+    manager.createMarket(params);
+
+    // After the resolution deadline is too late.
+    params.yesNotBefore = params.resolutionTime + 1;
+    vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
     manager.createMarket(params);
   }
 
@@ -782,6 +801,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days),
+        yesNotBefore: uint64(block.timestamp + 14 days),
         bypassAiResolution: false
       })
     );
@@ -1504,6 +1524,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days),
+        yesNotBefore: uint64(block.timestamp + 14 days),
         bypassAiResolution: false
       });
   }

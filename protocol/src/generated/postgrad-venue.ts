@@ -1899,6 +1899,11 @@ export const completeSetBinaryMarketAbi = [
         name: "outcomeDecimals_",
         type: "uint8",
       },
+      {
+        internalType: "uint64",
+        name: "earliestResolutionTime_",
+        type: "uint64",
+      },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -2060,6 +2065,17 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     name: "SafeERC20FailedOperation",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "earliestResolutionTime",
+        type: "uint64",
+      },
+    ],
+    name: "TooEarlyToResolve",
     type: "error",
   },
   {
@@ -2361,6 +2377,19 @@ export const completeSetBinaryMarketAbi = [
         internalType: "contract IERC20",
         name: "",
         type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "earliestResolutionTime",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
       },
     ],
     stateMutability: "view",
@@ -3085,6 +3114,11 @@ export const completeSetPostgradAdapterAbi = [
         internalType: "uint256",
         name: "completeSetCount",
         type: "uint256",
+      },
+      {
+        internalType: "uint64",
+        name: "earliestResolutionTime",
+        type: "uint64",
       },
     ],
     name: "prepareMarket",

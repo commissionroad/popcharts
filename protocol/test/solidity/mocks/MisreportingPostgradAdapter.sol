@@ -25,7 +25,8 @@ contract MisreportingPostgradAdapter is IPostgradAdapter {
     address collateral,
     bytes32,
     uint256 retainedCollateral,
-    uint256 completeSetCount
+    uint256 completeSetCount,
+    uint64
   ) external returns (address postgradMarket, uint256 outcomeCapacity) {
     IERC20(collateral).safeTransferFrom(msg.sender, address(this), retainedCollateral);
     postgradMarket = address(this);

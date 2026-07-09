@@ -138,7 +138,8 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     address collateral,
     bytes32 metadataHash,
     uint256 retainedCollateral,
-    uint256 completeSetCount
+    uint256 completeSetCount,
+    uint64 earliestResolutionTime
   )
     external
     onlyPregradManager
@@ -171,7 +172,8 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
       resolver_: resolver,
       marketName_: _marketName(marketId),
       marketSymbol_: _marketSymbol(marketId),
-      outcomeDecimals_: outcomeDecimals
+      outcomeDecimals_: outcomeDecimals,
+      earliestResolutionTime_: earliestResolutionTime
     });
 
     preparedMarketAddress = address(market);

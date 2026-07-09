@@ -54,6 +54,8 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   error InvalidGraduationDeadline();
   /// @notice Reverts when the resolution deadline is not after the graduation deadline.
   error InvalidResolutionTime();
+  /// @notice Reverts when the early-YES gate is outside (graduationDeadline, resolutionTime].
+  error InvalidYesNotBefore();
   /// @notice Reverts when a market is created without a graduation threshold.
   error InvalidGraduationThreshold();
   /// @notice Reverts when a non-trusted creator uses an opening probability outside the public envelope.
@@ -181,6 +183,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @param graduationThreshold Minimum matched market cap required to graduate.
   /// @param graduationDeadline Timestamp by which the market must graduate or become refundable.
   /// @param resolutionTime Timestamp by which the postgrad market should resolve.
+  /// @param yesNotBefore Earliest timestamp a YES resolution may be submitted on-chain.
   /// @param bypassAiResolution True when a trusted creator opted out of AI-assisted resolution.
   event MarketCreated(
     uint256 indexed marketId,
@@ -193,6 +196,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     uint256 graduationThreshold,
     uint64 graduationDeadline,
     uint64 resolutionTime,
+    uint64 yesNotBefore,
     bool bypassAiResolution
   );
 
@@ -396,6 +400,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
       graduationThreshold: params.graduationThreshold,
       graduationDeadline: params.graduationDeadline,
       resolutionTime: params.resolutionTime,
+      yesNotBefore: params.yesNotBefore,
       bypassAiResolution: params.bypassAiResolution
     });
     market.state.status = MarketTypes.MarketStatus.UnderReview;
@@ -404,6 +409,21 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
       params.liquidityParameter
     );
 
+    _emitMarketCreated(marketId, params);
+
+    if (creationFee != 0) {
+      emit MarketCreationFeePaid(marketId, msg.sender, creationFee);
+    }
+  }
+
+  /// @notice Emits MarketCreated in a separate frame to keep createMarket within
+  /// the EVM stack limit.
+  /// @param marketId Newly assigned market ID.
+  /// @param params Market creation parameters supplied by the creator.
+  function _emitMarketCreated(
+    uint256 marketId,
+    MarketTypes.CreateMarketParams calldata params
+  ) private {
     emit MarketCreated(
       marketId,
       msg.sender,
@@ -415,12 +435,9 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
       params.graduationThreshold,
       params.graduationDeadline,
       params.resolutionTime,
+      params.yesNotBefore,
       params.bypassAiResolution
     );
-
-    if (creationFee != 0) {
-      emit MarketCreationFeePaid(marketId, msg.sender, creationFee);
-    }
   }
 
   /// @notice Approves an under-review market so it can accept pre-graduation receipts.
@@ -782,7 +799,8 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
         market.config.collateral,
         market.config.metadataHash,
         clearingRoot.retainedCostTotal,
-        clearingRoot.completeSetCount
+        clearingRoot.completeSetCount,
+        market.config.yesNotBefore
       );
     if (outcomeCapacity != clearingRoot.completeSetCount) {
       revert PostgradCapacityMismatch(clearingRoot.completeSetCount, outcomeCapacity);
@@ -946,6 +964,14 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     }
     if (params.resolutionTime <= params.graduationDeadline) {
       revert InvalidResolutionTime();
+    }
+    // Early-YES gate must sit strictly after graduation and no later than the
+    // resolution deadline. Equal to resolutionTime means no early YES.
+    if (
+      params.yesNotBefore <= params.graduationDeadline ||
+      params.yesNotBefore > params.resolutionTime
+    ) {
+      revert InvalidYesNotBefore();
     }
     if (params.graduationThreshold == 0) {
       revert InvalidGraduationThreshold();
