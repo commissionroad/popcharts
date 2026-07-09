@@ -1,5 +1,5 @@
 {
-  "id": "98a3d1e4-53fe-4544-bd75-e5a86a8e8dc0",
+  "id": "14281503-81a0-43d5-b566-3de204d7459e",
   "prevId": "0d4572c6-4a4a-4702-bcb6-2dfbf0762fb5",
   "version": "7",
   "dialect": "postgresql",
@@ -1919,12 +1919,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "yes_not_before": {
-          "name": "yes_not_before",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "observation_window_start": {
           "name": "observation_window_start",
           "type": "timestamp",
@@ -2540,6 +2534,12 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true
+        },
+        "yes_not_before": {
+          "name": "yes_not_before",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "bypass_ai_resolution": {
           "name": "bypass_ai_resolution",

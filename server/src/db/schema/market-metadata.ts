@@ -29,16 +29,12 @@ export const marketMetadata = pgTable(
       .default([])
       .notNull(),
     resolutionUrl: text("resolution_url"),
-    // Temporal validity guardrails (AI resolution, ADR 0012). The NO/draw gate
-    // — the earliest a NO or draw can be certain — is the existing on-chain
-    // markets.resolution_time; these columns add the rest of the per-market
-    // resolution window and are all nullable so the migration is additive.
-    //   - yesNotBefore: earliest a YES may resolve. Null defaults to the NO gate
-    //     (markets.resolution_time); set earlier only for open-ended markets
-    //     ("Will X happen in 2026?") that admit an early YES.
-    //   - observationWindow*: the span during which an event "counts", passed to
-    //     the resolver model as evidence-scoping guidance (not a hard gate).
-    yesNotBefore: timestamp("yes_not_before"),
+    // Observation window (AI resolution, ADR 0012): the span during which an
+    // event "counts", read by the resolver model as evidence-scoping guidance —
+    // not a hard gate. Part of the content-addressed metadata payload (v2), so
+    // it is hash-committed and AI-validated. Nullable/optional.
+    // (The enforced resolution gates live on-chain: no_not_before is
+    // markets.resolution_time and yes_not_before is markets.yes_not_before.)
     observationWindowStart: timestamp("observation_window_start"),
     observationWindowEnd: timestamp("observation_window_end"),
     outcomeYes: text("outcome_yes"),

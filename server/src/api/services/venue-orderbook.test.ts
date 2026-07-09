@@ -540,6 +540,7 @@ function createMarketRow(): MarketRow {
     openingProbabilityWad: WAD / 2n,
     receiptCount: 0n,
     resolutionTime: new Date("2026-08-01T00:00:00.000Z"),
+    yesNotBefore: null,
     status: "graduated",
     totalEscrowed: 0n,
     updatedAt: new Date("2026-06-23T12:01:00.000Z"),

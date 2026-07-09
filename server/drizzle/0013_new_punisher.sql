@@ -46,9 +46,9 @@ CREATE TABLE "market_resolutions" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "market_metadata" ADD COLUMN "yes_not_before" timestamp;--> statement-breakpoint
 ALTER TABLE "market_metadata" ADD COLUMN "observation_window_start" timestamp;--> statement-breakpoint
 ALTER TABLE "market_metadata" ADD COLUMN "observation_window_end" timestamp;--> statement-breakpoint
+ALTER TABLE "markets" ADD COLUMN "yes_not_before" timestamp;--> statement-breakpoint
 ALTER TABLE "market_resolution_jobs" ADD CONSTRAINT "market_resolution_jobs_resolution_id_market_resolutions_id_fk" FOREIGN KEY ("resolution_id") REFERENCES "public"."market_resolutions"("id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "market_resolution_jobs" ADD CONSTRAINT "market_resolution_jobs_market_fk" FOREIGN KEY ("chain_id","market_id","metadata_hash") REFERENCES "public"."markets"("chain_id","market_id","metadata_hash") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "market_resolution_jobs" ADD CONSTRAINT "market_resolution_jobs_metadata_fk" FOREIGN KEY ("chain_id","metadata_hash") REFERENCES "public"."market_metadata"("chain_id","metadata_hash") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
