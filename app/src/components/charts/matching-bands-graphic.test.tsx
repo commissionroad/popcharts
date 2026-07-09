@@ -119,6 +119,36 @@ describe("MatchingBandsGraphic", () => {
     expect(screen.queryByTestId("matching-band-tooltip")).not.toBeInTheDocument();
   });
 
+  it("ignores malformed match records when drawing links and counterpart labels", () => {
+    renderGraphic({
+      matches: [
+        ...matches,
+        {
+          id: "outside-active-band",
+          priceBand: { fromProbability: 85, toProbability: 90 },
+          receiptIds: ["y-early", "n-early"],
+        },
+        {
+          id: "missing-peer",
+          priceBand: { fromProbability: 42, toProbability: 48 },
+          receiptIds: ["y-early", "missing-receipt"],
+        },
+        {
+          id: "outside-peer-band",
+          priceBand: { fromProbability: 25, toProbability: 30 },
+          receiptIds: ["y-early", "n-early"],
+        },
+      ],
+    });
+
+    fireEvent.mouseEnter(screen.getByTestId("matching-band-y-early"));
+
+    const tooltip = screen.getByTestId("matching-band-tooltip");
+    expect(within(tooltip).getByText("Rain fades, Heat cap")).toBeInTheDocument();
+    expect(within(tooltip).queryByText(/missing-receipt/)).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("matching-band-link")).toHaveLength(2);
+  });
+
   it("reports unmatched bands without drawing links", () => {
     renderGraphic();
 
@@ -132,6 +162,29 @@ describe("MatchingBandsGraphic", () => {
     expect(tooltip.getAttribute("style")).toContain("translateX(calc(-100% - 10px))");
   });
 
+  it("handles zero-width receipt bands without reporting matched coverage", () => {
+    renderGraphic({
+      matches: [],
+      receipts: [
+        {
+          id: "zero-band",
+          label: "Zero-width receipt",
+          placedAtLabel: "10:10",
+          placedAtMs: 1,
+          priceBand: { fromProbability: 50, toProbability: 50 },
+          side: "yes",
+        },
+      ],
+    });
+
+    fireEvent.focus(screen.getByTestId("matching-band-zero-band"));
+
+    const tooltip = screen.getByTestId("matching-band-tooltip");
+    expect(within(tooltip).getByText("0%")).toBeInTheDocument();
+    expect(within(tooltip).getByText("unmatched")).toBeInTheDocument();
+    expect(within(tooltip).getByText("No matched band")).toBeInTheDocument();
+  });
+
   it("explains the color roles in the legend", () => {
     renderGraphic();
 
@@ -142,6 +195,14 @@ describe("MatchingBandsGraphic", () => {
   });
 });
 
-function renderGraphic() {
-  return render(<MatchingBandsGraphic matches={matches} receipts={receipts} />);
+function renderGraphic({
+  matches: matchFixture = matches,
+  receipts: receiptFixture = receipts,
+}: {
+  matches?: MatchingBandMatch[];
+  receipts?: MatchingBandReceipt[];
+} = {}) {
+  return render(
+    <MatchingBandsGraphic matches={matchFixture} receipts={receiptFixture} />
+  );
 }

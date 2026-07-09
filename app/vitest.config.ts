@@ -16,6 +16,9 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/**/*.test.{ts,tsx}",
+        // Storybook stories are fixture/demo surfaces; behavior is covered by
+        // the component tests and browser Storybook verification.
+        "src/**/*.stories.{ts,tsx}",
         "src/tests/**",
         "src/test/**",
         "src/**/fixtures.ts",

@@ -311,12 +311,28 @@ function buildAnatomyView({
       return [];
     }
 
+    const counterpartLabels = match.receiptIds.flatMap((receiptId) => {
+      if (receiptId === receipt.id) {
+        return [];
+      }
+
+      const counterpart = receiptById.get(receiptId);
+
+      if (!counterpart || !overlapPriceBand(counterpart.priceBand, match.priceBand)) {
+        return [];
+      }
+
+      return [counterpart.label];
+    });
+
+    if (counterpartLabels.length === 0) {
+      return [];
+    }
+
     return [
       {
         band: normalizeBand(overlap),
-        counterpartLabels: match.receiptIds
-          .filter((receiptId) => receiptId !== receipt.id)
-          .map((receiptId) => receiptById.get(receiptId)?.label ?? receiptId),
+        counterpartLabels,
       },
     ];
   });
@@ -331,11 +347,7 @@ function buildAnatomyView({
     ])
   ).sort((a, b) => a - b);
   const segments = breakpoints.slice(0, -1).flatMap((fromProbability, index) => {
-    const toProbability = breakpoints[index + 1];
-
-    if (toProbability === undefined || fromProbability >= toProbability) {
-      return [];
-    }
+    const toProbability = breakpoints[index + 1]!;
 
     const band = { fromProbability, toProbability };
     const labels = Array.from(
@@ -352,6 +364,7 @@ function buildAnatomyView({
         counterpartLabels: labels,
         id: `${labels.length > 0 ? "matched" : "refunded"}-${fromProbability}-${toProbability}`,
         matched: labels.length > 0,
+        /* v8 ignore next -- zero-length receipts produce no segments. */
         percentOfReceipt:
           receiptLength === 0 ? 0 : (bandLength(band) / receiptLength) * 100,
       },

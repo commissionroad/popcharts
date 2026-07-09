@@ -65,7 +65,9 @@ describe("MatchingBandsHeatmap", () => {
   it("shows cleared overlap details when hovering a matched cell", () => {
     renderHeatmap();
 
-    fireEvent.mouseEnter(screen.getByTestId("heatmap-cell-y-early-40"));
+    const cell = screen.getByTestId("heatmap-cell-y-early-40");
+
+    fireEvent.mouseEnter(cell);
 
     const tooltip = screen.getByTestId("heatmap-tooltip");
     expect(within(tooltip).getByText("Early climb")).toBeInTheDocument();
@@ -73,6 +75,9 @@ describe("MatchingBandsHeatmap", () => {
     expect(within(tooltip).getByText("Cleared overlap")).toBeInTheDocument();
     expect(within(tooltip).getByText("Rain fades")).toBeInTheDocument();
     expect(within(tooltip).getByText("$320")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(cell);
+    expect(screen.queryByTestId("heatmap-tooltip")).not.toBeInTheDocument();
   });
 
   it("shows receipt-path cells that do not clear", () => {
@@ -87,6 +92,35 @@ describe("MatchingBandsHeatmap", () => {
     expect(within(tooltip).getByText("No cleared overlap")).toBeInTheDocument();
   });
 
+  it("shows empty cells with no receipt path", () => {
+    renderHeatmap();
+
+    fireEvent.focus(screen.getByTestId("heatmap-cell-y-early-0"));
+
+    const tooltip = screen.getByTestId("heatmap-tooltip");
+    expect(within(tooltip).getByText("0c-10c")).toBeInTheDocument();
+    expect(within(tooltip).getByText("No path")).toBeInTheDocument();
+    expect(within(tooltip).getByText("No cleared overlap")).toBeInTheDocument();
+  });
+
+  it("falls back to receipt ids when match counterpart details are missing", () => {
+    renderHeatmap({
+      matches: [
+        ...matches,
+        {
+          id: "missing-counterpart",
+          priceBand: { fromProbability: 20, toProbability: 30 },
+          receiptIds: ["y-early", "missing-receipt"],
+        },
+      ],
+    });
+
+    fireEvent.focus(screen.getByTestId("heatmap-cell-y-early-20"));
+
+    const tooltip = screen.getByTestId("heatmap-tooltip");
+    expect(within(tooltip).getByText("missing-receipt")).toBeInTheDocument();
+  });
+
   it("explains the heatmap palette in the legend", () => {
     renderHeatmap();
 
@@ -97,6 +131,14 @@ describe("MatchingBandsHeatmap", () => {
   });
 });
 
-function renderHeatmap() {
-  return render(<MatchingBandsHeatmap matches={matches} receipts={receipts} />);
+function renderHeatmap({
+  matches: matchFixture = matches,
+  receipts: receiptFixture = receipts,
+}: {
+  matches?: MatchingBandMatch[];
+  receipts?: MatchingBandReceipt[];
+} = {}) {
+  return render(
+    <MatchingBandsHeatmap matches={matchFixture} receipts={receiptFixture} />
+  );
 }

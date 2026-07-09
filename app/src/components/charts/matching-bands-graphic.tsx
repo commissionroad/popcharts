@@ -83,7 +83,7 @@ export function MatchingBandsGraphic({
   const activeRow =
     activeReceiptId === null
       ? null
-      : (rows.find((row) => row.receipt.id === activeReceiptId) ?? null);
+      : rows.find((row) => row.receipt.id === activeReceiptId)!;
   const rowPlotHeight = rows.length * ROW_HEIGHT;
   const activeLinks = activeRow
     ? buildActiveLinks({ activeReceipt: activeRow.receipt, matches, orderedReceipts })
@@ -380,8 +380,13 @@ function buildReceiptView({
       }
 
       const overlap = overlapPriceBand(receiptBand, match.priceBand);
+      const counterpartLabels = getOverlappingCounterpartLabels({
+        match,
+        receipt,
+        receiptById,
+      });
 
-      return overlap ? [normalizeBand(overlap)] : [];
+      return overlap && counterpartLabels.length > 0 ? [normalizeBand(overlap)] : [];
     })
   );
   const matchedLength = matchedBands.reduce(
@@ -391,11 +396,17 @@ function buildReceiptView({
   const receiptLength = bandLength(receiptBand);
   const counterpartLabels = Array.from(
     new Set(
-      matches
-        .filter((match) => match.receiptIds.includes(receipt.id))
-        .flatMap((match) => match.receiptIds)
-        .filter((receiptId) => receiptId !== receipt.id)
-        .map((receiptId) => receiptById.get(receiptId)?.label ?? receiptId)
+      matches.flatMap((match) => {
+        if (!match.receiptIds.includes(receipt.id)) {
+          return [];
+        }
+
+        const overlap = overlapPriceBand(receiptBand, match.priceBand);
+
+        return overlap
+          ? getOverlappingCounterpartLabels({ match, receipt, receiptById })
+          : [];
+      })
     )
   );
 
@@ -407,6 +418,30 @@ function buildReceiptView({
     receipt,
     rowIndex,
   };
+}
+
+function getOverlappingCounterpartLabels({
+  match,
+  receipt,
+  receiptById,
+}: {
+  match: MatchingBandMatch;
+  receipt: MatchingBandReceipt;
+  receiptById: Map<string, MatchingBandReceipt>;
+}) {
+  return match.receiptIds.flatMap((receiptId) => {
+    if (receiptId === receipt.id) {
+      return [];
+    }
+
+    const counterpart = receiptById.get(receiptId);
+
+    if (!counterpart || !overlapPriceBand(counterpart.priceBand, match.priceBand)) {
+      return [];
+    }
+
+    return [counterpart.label];
+  });
 }
 
 function buildActiveLinks({
@@ -423,6 +458,7 @@ function buildActiveLinks({
   );
   const activeRowIndex = receiptIndex.get(activeReceipt.id);
 
+  /* v8 ignore next 3 -- activeReceipt is always selected from orderedReceipts. */
   if (activeRowIndex === undefined) {
     return [];
   }
