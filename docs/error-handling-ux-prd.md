@@ -16,9 +16,18 @@
 > returns verbatim; every other error collapses to the curated fallback and is
 > logged. A regression guardrail test (`src/lib/no-raw-error-render.guardrail.test.ts`)
 > fails CI if any product file reads a bare `error.message` / `.shortMessage` /
-> `String(error)` as a display value. All 1076 unit tests pass at 100% line
-> coverage. Residual risk: the gas-cap repro was verified through the real
-> formatter functions in unit tests, not against a live devchain.
+> `String(error)` as a display value. All unit tests pass at 100% line coverage.
+> Residual risk: the gas-cap repro was verified through the real formatter
+> functions in unit tests, not against a live devchain.
+
+> **Follow-up (dev override).** Added a developer escape hatch: a "Reveal raw
+> errors" toggle in the new top-bar dev menu (`src/features/dev-settings/`,
+> gated behind `NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED`). When on, `presentError`
+> returns the raw error text inline instead of curated copy, so developers can
+> debug without reading the console. It syncs to a module flag `presentError`
+> consults and persists in `localStorage`; it is inert in production because the
+> menu never mounts there. The same menu now hosts the market dev actions (Force
+> graduate / Close for refunds) that previously lived behind a per-market gear.
 
 ---
 

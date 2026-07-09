@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
+import { DevMenu } from "@/features/dev-settings/dev-menu";
+import { devToolsEnabled } from "@/features/dev-settings/dev-settings";
 import { WalletAccountButton } from "@/integrations/wallet/wallet-account-button";
 import { cn } from "@/lib/cn";
 
@@ -58,6 +60,7 @@ export function AppNav() {
               </Button>
             </div>
           ) : null}
+          {devToolsEnabled() ? <DevMenu /> : null}
           <WalletAccountButton />
         </div>
       </div>

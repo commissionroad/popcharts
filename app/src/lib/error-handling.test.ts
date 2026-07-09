@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DisplayableError, getErrorMessage, presentError } from "./error-handling";
+import {
+  DisplayableError,
+  getErrorMessage,
+  presentError,
+  setRevealRawErrors,
+} from "./error-handling";
 
 describe("getErrorMessage", () => {
   it("returns the fallback for non-Error values", () => {
@@ -143,5 +148,52 @@ describe("presentError", () => {
     });
 
     expect(message).toBe("matched copy");
+  });
+});
+
+describe("presentError with the dev reveal override", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setRevealRawErrors(false);
+  });
+
+  it("returns the raw error message instead of curated copy", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setRevealRawErrors(true);
+
+    const message = presentError(new Error("raw viem revert 0xdeadbeef"), {
+      fallback: "Could not do the thing.",
+      matcher: () => "matched copy",
+    });
+
+    expect(message).toBe("raw viem revert 0xdeadbeef");
+  });
+
+  it("falls back when a revealed error has an empty message", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setRevealRawErrors(true);
+
+    expect(presentError(new Error(""), { fallback: "Could not do the thing." })).toBe(
+      "Could not do the thing."
+    );
+  });
+
+  it("stringifies a revealed non-Error throw", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setRevealRawErrors(true);
+
+    expect(presentError("just a string", { fallback: "Could not do the thing." })).toBe(
+      "just a string"
+    );
+  });
+
+  it("returns to curated copy once the override is turned back off", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setRevealRawErrors(true);
+    setRevealRawErrors(false);
+
+    expect(
+      presentError(new Error("raw detail"), { fallback: "Could not do the thing." })
+    ).toBe("Could not do the thing.");
   });
 });

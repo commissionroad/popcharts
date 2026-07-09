@@ -120,17 +120,42 @@ export function getErrorMessage(
   return matchKnownErrorCopy(error) ?? fallback;
 }
 
+let revealRawErrors = false;
+
+/**
+ * Dev-only override. When enabled, `presentError` returns the raw error text
+ * inline instead of curated copy — useful for debugging. Off by default and
+ * only ever turned on by the dev-tools menu (which is itself gated behind
+ * `NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED`), so production users never see raw
+ * errors. `getErrorMessage` is unaffected; only the logging entry point honors
+ * it.
+ */
+export function setRevealRawErrors(next: boolean) {
+  revealRawErrors = next;
+}
+
 /**
  * The sanctioned way to turn a caught error into copy for the user: logs the
  * real error (with context) via `logError`, then returns the safe message from
  * `getErrorMessage`. Using this at every catch site keeps "what we capture" and
  * "what the user sees" from drifting apart.
+ *
+ * With the dev reveal override on, returns the raw error text instead so
+ * developers can read the underlying failure.
  */
 export function presentError(
   error: unknown,
   { context, fallback, matcher }: PresentErrorOptions
 ): string {
   logError(error, context);
+
+  if (revealRawErrors) {
+    if (error instanceof Error) {
+      return error.message || fallback;
+    }
+
+    return String(error);
+  }
 
   // Avoid passing `matcher: undefined` explicitly (exactOptionalPropertyTypes).
   return getErrorMessage(error, matcher ? { fallback, matcher } : { fallback });
