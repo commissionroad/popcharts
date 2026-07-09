@@ -38,9 +38,9 @@ Product surface:
 
 - [ ] Cursor pagination that removes the hardcoded `MARKET_LIST_LIMIT = 200`.
 - [ ] Market search and category/status filtering.
-- [ ] Portfolio endpoints: receipts, claims, and postgrad positions by owner
+- [x] Portfolio endpoints: receipts, claims, and postgrad positions by owner
       address.
-- [ ] Postgrad market surface (markets, trades, positions) once indexing
+- [x] Postgrad market surface (markets, trades, positions) once indexing
       lands (ADR 0010).
 - [ ] Resolution status surface once resolution lands (ADR 0012).
 

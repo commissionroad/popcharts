@@ -30,7 +30,7 @@ Continuous integration (unblocks early, cheap to do first):
 
 - [ ] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
       service container.
-- [ ] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
+- [x] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
 - [ ] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with
       the heuristic provider.
 
