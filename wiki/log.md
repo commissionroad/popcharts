@@ -80,3 +80,17 @@ dev — it read NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL, which the local stack
 never sets (only the server-side POPCHARTS_INDEXER_API_URL). use-order-book.ts
 uses the same-origin proxy /api/indexer/orderbook for exactly this reason.
 PR #159 restores the proxy pattern for portfolio. D4 reverted to its original.
+
+## [2026-07-09] ingest | repo ADR renumber — monorepo cleanup 0007 → 0016
+Pages: +summaries/root-adr-0016-monorepo-architecture-cleanup-program.md
+(renamed from root-adr-0007-...), ~summaries/root-adr-0007-track-verticals-with-progress-adrs.md,
+~summaries/root-adr-index-conventions.md, ~summaries/root-adr-0006-server-runtime-and-indexer.md,
+~summaries/architecture.md, ~concepts/monorepo-architecture.md, ~concepts/creation-fee-custody.md,
+~entities/pregrad-manager.md, ~entities/postgrad-v4-venue.md, ~entities/postgrad-adapter.md,
+~entities/creation-fee-vault.md, ~index.md
+Notes: The duplicate repo ADR 0007 (monorepo cleanup program) was renumbered to
+0016 in docs/adr/ and added to the README index; the canonical 0007 remains
+track-verticals. Updated all wiki source-path and summary-slug references,
+converted the two "numbering collision" callouts into "renumbered/resolved"
+notes, and added the 0016 row to the ADR index table. No content drift beyond
+the number; collision is resolved, not merely flagged.

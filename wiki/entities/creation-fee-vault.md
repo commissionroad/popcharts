@@ -3,7 +3,7 @@ type: entity
 title: CreationFeeVault
 description: Abstract base contract holding creation-fee custody mechanics, extracted from PregradManager (cleanup program C1); policy stays in the manager.
 sources:
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
 updated: 2026-07-07
 ---

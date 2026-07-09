@@ -12,7 +12,7 @@ updated: 2026-07-07
 `docs/architecture.md` is the normative description of the workspace
 dependency graph, the import rules that keep it acyclic, where generated code
 lives, and duplication that is deliberate. It records the state restored by
-ADR 0007 (monorepo architecture cleanup program); the server runtime shape is
+ADR 0016 (monorepo architecture cleanup program); the server runtime shape is
 decided in ADR 0006. Its self-imposed rule: when code and the document
 disagree, fix one of them in the same PR.
 
@@ -75,7 +75,7 @@ Every generated artifact is committed and guarded by a `--check` twin wired
 into CI: `protocol metadata:check` (in `protocol typecheck`),
 `server openapi:check` (in `server:check`), and `packages/api-client
 api:check` (in `app:check`, which also triggers on spec and api-client
-changes — ADR 0007 item A5). Pattern: hand-written code never crosses a
+changes — ADR 0016 item A5). Pattern: hand-written code never crosses a
 workspace boundary; a generator does, and its check keeps the output honest.
 
 ## Intentional duplication — do not deduplicate
