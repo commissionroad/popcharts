@@ -80,21 +80,34 @@ carry resolution rules + an eligibility time and a "too early" outcome; Trueo ha
 an immutable earliest-resolve field and prefers *cancel* over a forced YES/NO
 when a market lacks clear expiry, sources, or objective criteria.
 
-**The model (kept deliberately minimal — two off-chain gates + one on-chain
-floor).** Rather than six fields, the essential asymmetry needs just two
-immutable per-market timestamps in `market_metadata`, plus an optional evidence
-window the model reads as guidance:
+**The model (two per-outcome gates + optional guidance).** The essential
+asymmetry needs just two per-market timestamps, each placed in its *authoritative*
+home rather than duplicated:
 
 - `no_not_before` (the NO/draw gate) — earliest a **NO** (and a **draw**) verdict
-  may be submitted. NO/draw are only certain once the window closes. This is the
-  existing on-chain `markets.resolution_time`, **reused directly** — no redundant
-  column, no backfill; the runner already joins `markets`.
-- `yes_not_before` (new, nullable; default = `markets.resolution_time`) — earliest
-  a **YES** may be submitted. Set earlier than the deadline only for open-ended
-  markets that admit early YES.
-- `observation_window_start` / `observation_window_end` (optional) — the span
-  during which an event "counts," passed to the model as evidence-scoping
-  guidance (not a hard gate). Folds into `resolution_criteria` if unset.
+  may be submitted. This **is** the existing on-chain market parameter
+  `markets.resolution_time` (a `createMarket` arg carried in the `MarketCreated`
+  event, with the on-chain invariant `resolutionTime > graduationDeadline`). It is
+  the single source of truth for the deadline; the runner reads it directly — a
+  second column would be a weaker duplicate.
+- `yes_not_before` (the early-YES gate) — earliest a **YES** may be submitted; set
+  earlier than the deadline only for open-ended markets that admit an early YES.
+  This is a genuinely new gate we want **enforced on-chain**, so it becomes a
+  **new on-chain market parameter**: a `createMarket` arg, carried in
+  `MarketCreated`, plumbed through graduation into the postgrad market as its
+  `earliestResolutionTime`, and indexed into `markets.yes_not_before`. When unset,
+  it defaults to `resolution_time` (no early YES). On-chain invariant:
+  `graduationDeadline < yes_not_before ≤ resolutionTime`.
+- `observation_window_start` / `observation_window_end` (optional guidance) — the
+  span during which an event "counts," read by the model as evidence-scoping
+  guidance, not a hard gate. Nothing enforces it, so it lives in the
+  content-addressed metadata payload (**bumped to version 2**) alongside
+  `resolutionCriteria`/`resolutionSources`, making it tamper-evident and
+  AI-validated. Indexed into `market_metadata.observation_window_*`.
+
+Placement rationale: the two *enforced* gates are on-chain parameters (single
+source of truth, and the floor guard below can trust them); the *guidance* field
+is hash-committed metadata. Nothing is a loose, unpopulated DB column.
 
 This subsumes codex's `observationStartTime` / `observationEndTime` /
 `earliestResolutionTime` / `noEarlierThan` into two enforced gates plus optional
@@ -122,21 +135,23 @@ exactly the escape hatch it exists for.
    `too_early` re-queues escalate to `manual_review` once `now > no_not_before +
    grace` (or after N cycles), so an indefinitely-postponed event reaches an
    operator instead of looping forever — the operator then cancels or waits.
-4. **On-chain floor guard (minimal contract change).** Add an immutable
-   `earliestResolutionTime` to `CompleteSetBinaryMarket` and make `resolve(side)`
-   revert before it. `cancel()` stays ungated. The floor = the earliest any
-   legitimate resolve could occur (`min(yes_not_before, no_not_before)` =
-   `yes_not_before`). This is the backstop that holds *even if the resolver key
-   is compromised or the runner is buggy* — the highest-stakes automation in the
-   system deserves one. It closes ADR 0008's open on-chain-gating item and must
-   be plumbed from pregrad metadata through `CompleteSetPostgradAdapter` into the
-   child market's constructor at graduation (a protocol slice, human-reviewed per
-   the funds-holding-contract rule).
+4. **On-chain floor guard (contract change).** `CompleteSetBinaryMarket` gets an
+   immutable `earliestResolutionTime`, and `resolve(side)` reverts before it;
+   `cancel()` stays ungated. The floor = the market's `yes_not_before` (the
+   earliest any legitimate resolve could occur). Because `yes_not_before` is
+   itself a new on-chain `createMarket` parameter (above), the value flows purely
+   on-chain: `createMarket` → `MarketCreated` → graduation plumbs it through
+   `CompleteSetPostgradAdapter` into the child market's constructor. This is the
+   backstop that holds *even if the resolver key is compromised or the runner is
+   buggy* — the highest-stakes automation in the system deserves one — and it
+   closes ADR 0008's open on-chain-gating item.
 5. **Operator delay/override (§9).** Unchanged — the 24h Arc window still sits on
    top of a confident, in-window verdict.
 
-Layers 1–3 and 5 are off-chain and land with this vertical; layer 4 is a small,
-separate protocol PR (§14, slice 0).
+Layers 2–3 and 5 are off-chain and land with the resolution vertical; layer 1's
+review-policy check is off-chain too. Layer 4 — plus the `yes_not_before`
+parameter it depends on — is the protocol slice (§14, slice 0), human-reviewed
+per the funds-holding-contract rule.
 
 ## 4. Architecture — parallels to AI review
 
@@ -203,14 +218,21 @@ guardrails): the runner never even calls the model before a market's per-outcome
 Mirror the review tables one-to-one. New Drizzle files under
 `server/src/db/schema/`, new migrations after the current head.
 
-**Temporal metadata.** The NO/draw gate reuses the existing on-chain
-`markets.resolution_time` (no new column, no backfill). Three **nullable** columns
-are added to `market_metadata`: `yes_not_before` (default = `resolution_time`),
-`observation_window_start`, `observation_window_end`. Keeping them nullable makes
-the migration purely additive. They are immutable per market, set at creation,
-validated by AI review, and read by the runner's deterministic gate (see Temporal
-validity guardrails); they flow into the API market models (ADR 0009) and the
-create form (ADR 0013).
+**Temporal columns.** Each gate lives in its authoritative home (see Temporal
+validity guardrails), so the DB additions are:
+
+- `markets.yes_not_before` (timestamp, nullable) — indexed from the new
+  `MarketCreated` event field. Null = no early YES (defaults to
+  `resolution_time`). Its source is the on-chain parameter, so it is populated by
+  the indexer's `market-created` handler once the protocol slice lands.
+- `market_metadata.observation_window_start` / `observation_window_end` (timestamp,
+  nullable) — from the metadata payload v2, persisted by the indexer's
+  metadata-from-payload path.
+- `no_not_before` is **not a new column** — it is `markets.resolution_time`, the
+  authoritative on-chain deadline.
+
+All additive and nullable; the runner reads `resolution_time` +
+`yes_not_before` from `markets` (which it already joins).
 
 **`market_resolutions`** (append-only audit) — mirrors `market_ai_reviews`:
 `id`, `chain_id`, `market_id`, `metadata_hash`, `postgrad_market_address`
@@ -227,10 +249,11 @@ exactly, including `lease_until`, `locked_by`, `attempt_count`, `max_attempts`,
 `run_after`, `priority`, `last_error`, `resolution_id` FK, and the **partial
 unique active-job index** on `(chain_id, market_id, metadata_hash) WHERE status
 IN ('queued','running','retryable_failed')`. Add one column the review queue
-doesn't need: `not_before` = the market's `yes_not_before` (the earliest the
-market could legitimately resolve *at all* — a job is not enqueued/claimable
-before it; the runner then applies the per-outcome gate when mapping the verdict,
-§7). New enums `resolution_job_status`, `resolution_job_trigger`.
+doesn't need: `not_before` = the market's `yes_not_before` (falling back to
+`resolution_time` when unset) — the earliest the market could legitimately resolve
+*at all*; a job is not enqueued/claimable before it, and the runner then applies
+the per-outcome gate when mapping the verdict (§7). New enums
+`resolution_job_status`, `resolution_job_trigger`.
 
 ## 7. Runner lifecycle
 
@@ -381,26 +404,33 @@ watcher, `markets.status = resolved`). A second seeded market before its
 4. **Trusted-creator self-resolve — included in the first build** (slice 6),
    behind the cloned env-flag auth seam (§11), swappable to shared operator auth
    when it lands.
-5. **Temporal validity guardrails — adopted.** Per-outcome `yes_not_before` /
-   `no_not_before` gates + optional observation window in metadata; `too_early`
-   model outcome; enforcement in creation/review, the runner's deterministic
-   gate, and a minimal on-chain floor guard on `resolve` (not `cancel`). See the
-   Temporal validity guardrails section.
+5. **Temporal validity guardrails — adopted, with on-chain gates.**
+   `no_not_before` = the existing on-chain `resolution_time` (single source of
+   truth). `yes_not_before` is a **new on-chain `createMarket` parameter**
+   (plumbed through graduation into the postgrad market and enforced by the
+   `resolve` floor guard), not a loose DB column. Observation window is guidance
+   in the **metadata payload v2**. Plus the `too_early` model outcome and the
+   runner's deterministic gate. See the Temporal validity guardrails section.
 
 ## 14. Implementation slices (maps to the ADR 0012 checklist)
 
-0. **On-chain floor guard (protocol, human-reviewed).** Immutable
-   `earliestResolutionTime` on `CompleteSetBinaryMarket`; `resolve` reverts before
-   it, `cancel` ungated; plumb the timestamp through `CompleteSetPostgradAdapter`
-   from pregrad metadata at graduation. Closes ADR 0008's open on-chain-gating
-   item. Touches a funds-holding contract → human review, not autonomous merge.
-   Independent of the off-chain slices; can land in parallel.
-1. **Schema + temporal metadata** — `market_resolutions` +
-   `market_resolution_jobs` + migrations, and the `yes_not_before` /
-   `no_not_before` / observation-window columns on `market_metadata`.
-2. **Creation + review guardrails** — capture the temporal fields in the create
-   flow (ADR 0013) and enforce clear expiry/source/timing in the review policy
-   (ADR 0011), so malformed markets never reach the resolver.
+0. **On-chain resolution window + floor guard (protocol, human-reviewed).** Add
+   `yesNotBefore` as a `createMarket` parameter and `MarketCreated` event field
+   (invariant `graduationDeadline < yesNotBefore ≤ resolutionTime`); plumb it
+   through `CompleteSetPostgradAdapter` into `CompleteSetBinaryMarket` as an
+   immutable `earliestResolutionTime`; make `resolve(side)` revert before it
+   (`cancel` ungated). Closes ADR 0008's open on-chain-gating item. Touches a
+   funds-holding contract → human review, not autonomous merge. The off-chain
+   slices can proceed against seeded data ahead of it, but the guard and the
+   `yes_not_before` value depend on it.
+1. **Schema** — `market_resolutions` + `market_resolution_jobs` + migrations;
+   `markets.yes_not_before` (nullable, indexed from the event once slice 0 lands)
+   and `market_metadata.observation_window_*` (nullable, from payload v2). No
+   `no_not_before` column — that is `markets.resolution_time`.
+2. **Creation + review guardrails** — metadata payload v2 (observation window);
+   wire `yesNotBefore` into the create flow (ADR 0013), index it into
+   `markets.yes_not_before`, and enforce clear expiry/source/timing in the review
+   policy (ADR 0011) so malformed markets never reach the resolver.
 3. **Service** — provider registry, policy/prompt (incl. the `too_early`
    outcome), `resolution-parsing`, `POST /resolutions/market`, reuse `safe-web`.
 4. **Runner** — discovery (`yes_not_before` gate) + claim/lease + per-outcome
