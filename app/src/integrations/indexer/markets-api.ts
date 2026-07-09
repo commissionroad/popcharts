@@ -20,12 +20,15 @@ import type {
   MarketCreatedEvent,
   MarketMetadata,
   MarketOrderBook,
+  Portfolio,
   ReceiptPlacedEvent,
 } from "@popcharts/api-client/models";
+import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
 export type ApiMarketOrderBook = MarketOrderBook;
+export type ApiPortfolio = Portfolio;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
 export type ListMarketsParams = GeneratedListMarketsParams;
@@ -55,6 +58,10 @@ export type MarketsApiClient = {
   getMarketOrderBook: (lookup: MarketApiLookup) => Promise<ApiMarketOrderBook | null>;
   getMarketReceipts: (lookup: MarketApiLookup) => Promise<ApiReceiptPlacedEvent[]>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
+  getPortfolio: (args: {
+    chainId: number | string;
+    owner: string;
+  }) => Promise<ApiPortfolio | null>;
 };
 
 export class MarketsApiError extends Error {
@@ -197,6 +204,15 @@ export function createMarketsApiClient({
       );
 
       return response ?? [];
+    },
+    getPortfolio({ chainId, owner }) {
+      return requestJson<ApiPortfolio>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getGetPortfolioUrl(encodeURIComponent(String(chainId)), { owner })
+        )
+      );
     },
   };
 }

@@ -121,6 +121,41 @@ describe("createMarketsApiClient", () => {
     ).resolves.toBeNull();
   });
 
+  it("fetches a wallet's portfolio for the requested chain and owner", async () => {
+    const portfolio = {
+      chainId: 5042002,
+      openOrders: [],
+      owner: "0x1111111111111111111111111111111111111111",
+      positions: [],
+      receipts: [],
+      summary: {
+        claimableReceiptCount: 0,
+        lockedCollateral: "0",
+        openOrderCount: 0,
+        openReceiptCount: 0,
+        positionCount: 0,
+        totalPositionValueWad: "0",
+      },
+    };
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse(portfolio)
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    const result = await client.getPortfolio({
+      chainId: 5042002,
+      owner: "0x1111111111111111111111111111111111111111",
+    });
+
+    expect(result).toEqual(portfolio);
+    expect(String(firstFetchCall(fetcher)[0])).toBe(
+      "http://localhost:3001/portfolio/5042002?owner=0x1111111111111111111111111111111111111111"
+    );
+  });
+
   it("requests graduation for an API market", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
       jsonResponse({

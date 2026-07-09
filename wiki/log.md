@@ -72,3 +72,11 @@ Pages: ~summaries/portfolio-data-design.md
 Notes: all five phases landed overnight; doc status flipped to Implemented.
 Receipt band column became avg price (rLow/rHigh are LMSR path bounds, not
 probabilities). PnL follow-up (phase 6) remains the only open item.
+
+## [2026-07-09] ingest | portfolio D4 fix — same-origin proxy (PR #159)
+Pages: ~summaries/portfolio-data-design.md
+Notes: the direct-browser-read hook (shipped #153/#154) was broken in local
+dev — it read NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL, which the local stack
+never sets (only the server-side POPCHARTS_INDEXER_API_URL). use-order-book.ts
+uses the same-origin proxy /api/indexer/orderbook for exactly this reason.
+PR #159 restores the proxy pattern for portfolio. D4 reverted to its original.
