@@ -56,6 +56,12 @@ export const markets = pgTable(
     graduationThreshold: uint256("graduation_threshold").notNull(),
     graduationTime: timestamp("graduation_time").notNull(),
     resolutionTime: timestamp("resolution_time").notNull(),
+    // Early-YES resolution gate (AI resolution, ADR 0012): the earliest a YES may
+    // resolve, a new on-chain createMarket parameter indexed from MarketCreated.
+    // Null = no early YES (defaults to resolutionTime). resolutionTime itself is
+    // the NO/draw gate (no_not_before). On-chain invariant:
+    // graduationDeadline < yesNotBefore <= resolutionTime.
+    yesNotBefore: timestamp("yes_not_before"),
     bypassAiResolution: boolean("bypass_ai_resolution")
       .default(false)
       .notNull(),

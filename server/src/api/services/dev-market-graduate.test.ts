@@ -335,6 +335,7 @@ function createMarketRow(overrides: Partial<MarketRow> = {}): MarketRow {
     openingProbabilityWad: WAD / 2n,
     receiptCount: 2n,
     resolutionTime: new Date("2026-07-22T15:00:00.000Z"),
+    yesNotBefore: null,
     status: "bootstrap",
     totalEscrowed: 125n * WAD,
     updatedAt: new Date("2026-06-22T15:00:00.000Z"),
