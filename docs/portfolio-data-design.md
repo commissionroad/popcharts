@@ -1,8 +1,8 @@
 # Portfolio Data Design
 
-Status: Proposed
+Status: Implemented (phases 1-5; PnL follow-up open)
 
-Date: 2026-07-08
+Date: 2026-07-08 (implemented 2026-07-09: PRs #151 indexer, #152 API+client, #153 hook, #154 UI)
 
 ## Context
 
