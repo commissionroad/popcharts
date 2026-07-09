@@ -35,7 +35,7 @@ describe("closePregradMarketAction", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/markets/31337:9");
   });
 
-  it("surfaces the close request's error message", async () => {
+  it("returns generic copy (not the raw error) when the close request fails", async () => {
     mocks.requestPregradMarketCloseForRefund.mockRejectedValueOnce(
       new Error("Dev market close requires API-backed market data.")
     );
@@ -43,7 +43,7 @@ describe("closePregradMarketAction", () => {
     const result = await closePregradMarketAction("31337:9");
 
     expect(result).toEqual({
-      message: "Dev market close requires API-backed market data.",
+      message: "Could not close this market for refunds.",
       status: "error",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

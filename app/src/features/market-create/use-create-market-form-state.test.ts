@@ -246,7 +246,9 @@ describe("useCreateMarketFormState review submission", () => {
       await result.current.handleSubmitForReview();
     });
 
-    expect(result.current.submitError).toBe("Reviewer queue is unavailable.");
+    expect(result.current.submitError).toBe(
+      "The review service could not submit this market."
+    );
     expect(result.current.stage).toBe("edit");
     expect(result.current.isSubmittingForReview).toBe(false);
   });
@@ -294,7 +296,7 @@ describe("useCreateMarketFormState creation", () => {
     expect(result.current.stage).toBe("edit");
   });
 
-  it("surfaces creation failures with a fallback for non-Errors", async () => {
+  it("returns generic copy (not the raw error) for creation failures", async () => {
     vi.mocked(createMarket).mockRejectedValue(new Error("Relay unavailable."));
     const { result } = renderForm();
 
@@ -303,7 +305,9 @@ describe("useCreateMarketFormState creation", () => {
       await result.current.handleCreate();
     });
 
-    expect(result.current.submitError).toBe("Relay unavailable.");
+    expect(result.current.submitError).toBe(
+      "The creation service could not create this market."
+    );
 
     vi.mocked(createMarket).mockRejectedValue("offline");
     await act(async () => {

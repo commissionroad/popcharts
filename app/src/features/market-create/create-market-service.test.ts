@@ -187,7 +187,7 @@ describe("createMarket", () => {
       );
     });
 
-    it("reports network failures during the metadata sync", async () => {
+    it("reports generic copy (not the raw error) when the metadata sync throws", async () => {
       devchain("server");
       stubFetch({
         "/api/devchain/markets": () =>
@@ -199,7 +199,9 @@ describe("createMarket", () => {
 
       const market = await createMarket(validDraft());
 
-      expect(market.metadataSyncError).toBe("Network unreachable.");
+      expect(market.metadataSyncError).toBe(
+        "Market metadata could not be saved to the API."
+      );
     });
 
     it("reports generic copy when the sync fails with a non-Error value", async () => {

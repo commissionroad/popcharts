@@ -70,7 +70,7 @@ describe("GET /api/indexer/orderbook", () => {
     expect(await errorOf(response)).toBe("Order book not found.");
   });
 
-  it("maps upstream failures to 502 with the indexer's message", async () => {
+  it("maps upstream failures to 502 with generic copy (no raw indexer message)", async () => {
     vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
     stubUpstream(
       new Response(JSON.stringify({ message: "indexer melted" }), { status: 500 })
@@ -79,12 +79,10 @@ describe("GET /api/indexer/orderbook", () => {
     const response = await GET(orderBookRequest());
 
     expect(response.status).toBe(502);
-    expect(await errorOf(response)).toBe(
-      "Markets API request failed (500): indexer melted"
-    );
+    expect(await errorOf(response)).toBe("Order book request failed.");
   });
 
-  it("maps unexpected network failures to 500", async () => {
+  it("maps unexpected network failures to 500 with generic copy", async () => {
     vi.stubEnv("POPCHARTS_INDEXER_API_URL", "http://indexer:3011");
     vi.stubGlobal(
       "fetch",
@@ -96,7 +94,7 @@ describe("GET /api/indexer/orderbook", () => {
     const response = await GET(orderBookRequest());
 
     expect(response.status).toBe(500);
-    expect(await errorOf(response)).toBe("connection refused");
+    expect(await errorOf(response)).toBe("Order book request failed.");
   });
 
   it("falls back to a generic message for thrown non-Error values", async () => {

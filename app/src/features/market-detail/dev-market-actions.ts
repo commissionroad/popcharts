@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requestPregradMarketCloseForRefund } from "@/domain/markets/queries";
+import { presentError } from "@/lib/error-handling";
 
 export type ClosePregradMarketActionResult =
   | {
@@ -28,10 +29,10 @@ export async function closePregradMarketAction(
     };
   } catch (error) {
     return {
-      message:
-        error instanceof Error
-          ? error.message
-          : "Could not close this market for refunds.",
+      message: presentError(error, {
+        context: { marketId, operation: "close-pregrad-market" },
+        fallback: "Could not close this market for refunds.",
+      }),
       status: "error",
     };
   }

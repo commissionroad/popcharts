@@ -5,7 +5,7 @@ import {
   type ReceiptQuotePreview,
 } from "@/domain/pregrad-trading/receipt-quote";
 import type { useWalletAccount } from "@/integrations/wallet/wallet-provider";
-import { getErrorMessage } from "@/lib/error-handling";
+import { presentError } from "@/lib/error-handling";
 
 import type { TradingEnvironment } from "./place-receipt-service";
 
@@ -165,7 +165,8 @@ export function getReceiptAction({
  * stale-devchain explanation instead of surfacing the raw error.
  */
 export function getReceiptPlacementErrorMessage(error: unknown) {
-  return getErrorMessage(error, {
+  return presentError(error, {
+    context: { operation: "receipt-placement" },
     fallback: "Could not place receipt.",
     matcher: (placementError) =>
       placementError.message.includes("MarketDoesNotExist") ||

@@ -9,6 +9,7 @@ import { useVenueBalances } from "@/integrations/contracts/hooks/use-venue-balan
 import type { PostgradVenueContractConfig } from "@/integrations/contracts/postgrad-venue";
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { DisplayableError } from "@/lib/error-handling";
 import { marketFactory } from "@/test/factories/markets";
 
 import {
@@ -274,7 +275,9 @@ describe("useLimitOrderState form state", () => {
 
   it("surfaces a broken pool key as the size field error", () => {
     vi.mocked(buildVenuePoolContext).mockImplementation(() => {
-      throw new Error("The venue pool key no longer matches the indexed pool.");
+      throw new DisplayableError(
+        "The venue pool key no longer matches the indexed pool."
+      );
     });
     const { result } = renderTicket();
 

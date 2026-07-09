@@ -6,6 +6,7 @@ import {
   requestDevMarketGraduation,
   requestMarketGraduation,
 } from "@/domain/markets/queries";
+import { presentError } from "@/lib/error-handling";
 
 export type GraduateMarketActionResult =
   | {
@@ -37,8 +38,10 @@ export async function forceGraduateMarketAction(
     };
   } catch (error) {
     return {
-      message:
-        error instanceof Error ? error.message : "Could not graduate this market.",
+      message: presentError(error, {
+        context: { marketId, operation: "force-graduate-market" },
+        fallback: "Could not graduate this market.",
+      }),
       status: "error",
     };
   }
@@ -66,8 +69,10 @@ export async function graduateMarketAction(
     };
   } catch (error) {
     return {
-      message:
-        error instanceof Error ? error.message : "Could not graduate this market.",
+      message: presentError(error, {
+        context: { marketId, operation: "graduate-market" },
+        fallback: "Could not graduate this market.",
+      }),
       status: "error",
     };
   }

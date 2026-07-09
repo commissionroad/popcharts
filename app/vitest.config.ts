@@ -33,6 +33,7 @@ export default defineConfig({
         "src/app/loading.tsx",
         "src/app/not-found.tsx",
         "src/app/error.tsx",
+        "src/app/global-error.tsx",
         // Third-party provider wiring (Privy/wagmi); no meaningful unit seam.
         "src/integrations/wallet/wallet-provider.tsx",
         "src/integrations/wallet/privy-wallet-provider.tsx",

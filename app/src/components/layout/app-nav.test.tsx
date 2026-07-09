@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
 
@@ -16,6 +16,15 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/integrations/wallet/wallet-provider", () => ({
   useWalletAccount: () => walletState(),
 }));
+
+// The dev menu pulls in server actions; the nav only decides whether to mount it.
+vi.mock("@/features/dev-settings/dev-menu", () => ({
+  DevMenu: () => <div data-testid="dev-menu" />,
+}));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("AppNav", () => {
   it("marks Discover current on the home page and offers market creation", () => {
@@ -82,6 +91,21 @@ describe("AppNav", () => {
       "href",
       "/"
     );
+  });
+
+  it("hides the dev menu unless dev tools are enabled", () => {
+    pathnameMock.mockReturnValue("/");
+    render(<AppNav />);
+
+    expect(screen.queryByTestId("dev-menu")).not.toBeInTheDocument();
+  });
+
+  it("mounts the dev menu when dev tools are enabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED", "true");
+    pathnameMock.mockReturnValue("/");
+    render(<AppNav />);
+
+    expect(screen.getByTestId("dev-menu")).toBeInTheDocument();
   });
 });
 

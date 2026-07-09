@@ -25,7 +25,7 @@ import {
 } from "@/integrations/contracts/config";
 import { useTrustedCreatorStatus } from "@/integrations/contracts/hooks/use-trusted-creator-status";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
-import { getErrorMessage } from "@/lib/error-handling";
+import { presentError } from "@/lib/error-handling";
 
 import {
   createMarket,
@@ -280,13 +280,15 @@ export function useCreateMarketFormState(initialNow: string) {
 }
 
 function getCreateMarketErrorMessage(error: unknown) {
-  return getErrorMessage(error, {
+  return presentError(error, {
+    context: { operation: "create-market" },
     fallback: "The creation service could not create this market.",
   });
 }
 
 function getReviewSubmissionErrorMessage(error: unknown) {
-  return getErrorMessage(error, {
+  return presentError(error, {
+    context: { operation: "submit-market-review" },
     fallback: "The review service could not submit this market.",
   });
 }

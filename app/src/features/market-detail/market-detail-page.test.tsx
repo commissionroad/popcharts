@@ -54,9 +54,6 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText("Receipts waiting")).toBeInTheDocument();
     expect(screen.getByText("Matched liquidity")).toBeInTheDocument();
     expect(screen.queryByText("AI review")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Market settings" })
-    ).not.toBeInTheDocument();
   });
 
   it("renders the AI review card when the market has one", () => {
@@ -257,14 +254,6 @@ describe("MarketDetailPage", () => {
     expect(
       screen.queryByRole("button", { name: "Graduate market" })
     ).not.toBeInTheDocument();
-  });
-
-  it("shows the dev settings menu when dev tools are enabled", () => {
-    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED", "true");
-
-    render(<MarketDetailPage market={marketFactory()} />);
-
-    expect(screen.getByRole("button", { name: "Market settings" })).toBeInTheDocument();
   });
 });
 

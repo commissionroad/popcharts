@@ -18,7 +18,6 @@ import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 import { AiReviewCard } from "./ai-review-card";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
-import { MarketDevSettings } from "./market-dev-settings";
 
 export function MarketDetailPage({
   market,
@@ -39,13 +38,6 @@ export function MarketDetailPage({
     market.graduationTargetUsd > 0 &&
     market.matchedUsd >= market.graduationTargetUsd &&
     isApiBackedMarket(market);
-  const canClosePregradForRefund =
-    market.status === "bootstrap" && isApiBackedMarket(market);
-  // Force graduation mints whatever liquidity the threshold still needs, so
-  // dev settings offer it for any market still on the pregrad side.
-  const canForceGraduate =
-    (market.status === "bootstrap" || market.status === "graduating") &&
-    isApiBackedMarket(market);
 
   return (
     <div>
@@ -64,13 +56,6 @@ export function MarketDetailPage({
             </span>
             <div className="flex items-center gap-2">
               <StatusPill status={market.status} />
-              {devSettingsAvailable() ? (
-                <MarketDevSettings
-                  canClosePregrad={canClosePregradForRefund}
-                  canForceGraduate={canForceGraduate}
-                  marketId={market.id}
-                />
-              ) : null}
             </div>
           </div>
 
@@ -260,8 +245,4 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
 
 function isApiBackedMarket(market: Market) {
   return market.chainId !== undefined && market.id.includes(":");
-}
-
-function devSettingsAvailable() {
-  return process.env.NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED === "true";
 }

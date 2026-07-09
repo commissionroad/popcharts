@@ -18,6 +18,7 @@ import {
   v4QuoterAbi,
   type VenuePoolKey,
 } from "@/integrations/contracts/postgrad-venue";
+import { DisplayableError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
 
 /**
@@ -126,7 +127,7 @@ export function buildVenuePoolContext({
   const poolId = computeVenuePoolId(key);
 
   if (poolId.toLowerCase() !== pool.poolId.toLowerCase()) {
-    throw new Error(
+    throw new DisplayableError(
       "The venue pool key no longer matches the indexed pool. Refresh the page; if this persists, the deployed venue and app configuration have drifted."
     );
   }

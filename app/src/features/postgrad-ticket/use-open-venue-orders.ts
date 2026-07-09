@@ -7,6 +7,8 @@ import {
 import type { MarketOrderBook, VenueOrder } from "@popcharts/api-client/models";
 import { useCallback, useEffect, useState } from "react";
 
+import { presentError } from "@/lib/error-handling";
+
 /** Poll cadence for the open-orders panel while it is mounted and visible. */
 export const OPEN_ORDERS_POLL_INTERVAL_MS = 8_000;
 
@@ -99,10 +101,10 @@ export function useOpenVenueOrders({
         if (isActive) {
           setResult({
             ...EMPTY_RESULT,
-            error:
-              error instanceof Error && error.message
-                ? error.message
-                : "Could not load your open orders.",
+            error: presentError(error, {
+              context: { chainId, marketId, operation: "load-open-orders" },
+              fallback: "Could not load your open orders.",
+            }),
             requestKey,
           });
         }

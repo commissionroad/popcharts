@@ -204,9 +204,15 @@ describe("getReceiptPlacementErrorMessage", () => {
     );
   });
 
-  it("passes other error messages through unchanged", () => {
+  it("returns the fallback for unrecognized errors instead of the raw message", () => {
+    expect(getReceiptPlacementErrorMessage(new Error("some raw rpc dump"))).toBe(
+      "Could not place receipt."
+    );
+  });
+
+  it("maps a wallet rejection to shared friendly copy", () => {
     expect(getReceiptPlacementErrorMessage(new Error("User rejected request."))).toBe(
-      "User rejected request."
+      "Request cancelled in your wallet."
     );
   });
 });

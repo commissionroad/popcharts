@@ -95,7 +95,7 @@ describe("useOrderBook", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("reports a non-ok response as an error with the status code", async () => {
+  it("reports a non-ok response as a generic error (no raw status detail)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("nope", { status: 502 }))
@@ -104,7 +104,7 @@ describe("useOrderBook", () => {
     const { result } = renderHook(() => useOrderBook(lookup()));
 
     await flushAsync();
-    expect(result.current.error).toBe("Order book request failed (502).");
+    expect(result.current.error).toBe("Order book request failed.");
     expect(result.current.book).toBeNull();
     expect(result.current.loading).toBe(false);
   });
@@ -139,7 +139,7 @@ describe("useOrderBook", () => {
     });
 
     expect(result.current.book).toEqual(bookPayload());
-    expect(result.current.error).toBe("Order book request failed (500).");
+    expect(result.current.error).toBe("Order book request failed.");
   });
 
   it("clears the poll interval and ignores in-flight results after unmount", async () => {
