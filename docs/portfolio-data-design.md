@@ -182,19 +182,23 @@ Reuse the exact pattern of `getMarketVenueOrders`: lowercase the address, valida
 connected wallet address comes from wagmi/Privy at runtime. Public read data;
 consistent with every other owner-scoped read.
 
-### D4. Fetch pattern: same-origin proxy route + client polling hook
+### D4. Fetch pattern: direct indexer read + client polling hook
 
 Portfolio is per-connected-wallet and must live-update (orders fill, markets
 graduate), so it is client-side, not an RSC. Follow the established client
 transport:
 
-- Add a proxy route `app/src/app/api/indexer/portfolio/route.ts` (copy
-  `app/src/app/api/indexer/orderbook/route.ts`) so the indexer base URL stays
-  server-side.
 - Write `app/src/features/portfolio/use-portfolio.ts` as a `"use client"` hook in
   the `useEffect` + `useState` + visibility-aware polling style of
   `use-open-venue-orders.ts` / `use-order-book.ts`, keyed on the connected `owner`.
   Do **not** introduce react-query — it is not the house style for app data.
+- The hook reads the indexer **directly** via
+  `NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL` + the generated `getGetPortfolioUrl`
+  helper, exactly like the postgrad hooks. *(Amended 2026-07-08: the original
+  draft called for a same-origin proxy route, but the orderbook proxy it
+  pointed at is dead code — every live polling hook reads the indexer
+  directly, and the base URL is already browser-exposed as a NEXT_PUBLIC var,
+  so a proxy would add a hop and a second code path for no secrecy gain.)*
 
 ### D5. Current position *value* in v1; true PnL deferred
 
@@ -340,9 +344,10 @@ per `CONTEXT.md`: pre-graduation buys are receipts/priced intents, not fills.
 3. **Codegen + client.** Regenerate OpenAPI + api-client; add wrapper method to
    `markets-api.ts` (or a new `portfolio-api.ts`) and a `domain/portfolio/queries.ts`
    with the env-driven base URL + fixtures fallback.
-4. **Client hook + proxy route.** `use-portfolio.ts` + `api/indexer/portfolio/route.ts`
-   in the visibility-aware polling style; keyed on an address (the connected wallet
-   by default, but the endpoint works for any address).
+4. **Client hook.** `use-portfolio.ts` in the visibility-aware polling style,
+   reading the indexer directly via the generated URL helper (D4 as amended);
+   keyed on an address (the connected wallet by default, but the endpoint works
+   for any address).
 5. **UI rewire.** Replace localStorage source in `portfolio-page.tsx`; add the
    positions/orders section (held/committed/owned + current value); real summary
    cards (replacing the hardcoded "Backed positions" `0`); settled-receipt rendering.
