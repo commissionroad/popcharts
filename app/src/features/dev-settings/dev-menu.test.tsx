@@ -129,6 +129,36 @@ describe("DevMenu", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows pUSD mint errors", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        result: {
+          message: "Could not get pUSD.",
+          status: "error",
+        },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByText("Could not get pUSD.")).toBeInTheDocument();
+  });
+
+  it("shows the pUSD mint pending state", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        action: { disabled: true, label: "Getting pUSD", onClick: undefined },
+        isMinting: true,
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByRole("button", { name: /Getting pUSD/ })).toBeDisabled();
+  });
+
   it("hydrates the reveal toggle from persisted storage on mount", () => {
     window.localStorage.setItem(STORAGE_KEY, "true");
     render(<DevMenu />);

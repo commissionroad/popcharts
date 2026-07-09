@@ -1,6 +1,7 @@
 export const TEST_PUSD_MINTED_EVENT = "popcharts:test-pusd-minted";
 
 export function dispatchTestPusdMinted() {
+  /* v8 ignore next 3 -- SSR guard; unreachable under the jsdom test env. */
   if (typeof window === "undefined") {
     return;
   }
@@ -9,6 +10,7 @@ export function dispatchTestPusdMinted() {
 }
 
 export function subscribeToTestPusdMinted(onMinted: () => void) {
+  /* v8 ignore next 3 -- SSR guard; unreachable under the jsdom test env. */
   if (typeof window === "undefined") {
     return () => undefined;
   }

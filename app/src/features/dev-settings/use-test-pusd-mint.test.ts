@@ -99,6 +99,21 @@ describe("useTestPusdMint", () => {
     expect(mintLocalCollateral).not.toHaveBeenCalled();
   });
 
+  it("offers wallet linking after sign-in when no wallet is connected", () => {
+    const connectOrCreateWallet = vi.fn();
+    vi.mocked(useWalletAccount).mockReturnValue(
+      walletState({ address: null, connectOrCreateWallet })
+    );
+    const { result } = renderHook(() => useTestPusdMint());
+
+    expect(result.current.action.label).toBe("Create or link wallet");
+
+    act(() => result.current.action.onClick?.());
+
+    expect(connectOrCreateWallet).toHaveBeenCalledTimes(1);
+    expect(mintLocalCollateral).not.toHaveBeenCalled();
+  });
+
   it("switches to the configured chain before minting", () => {
     const switchChain = vi.fn(async () => undefined);
     vi.mocked(useWalletAccount).mockReturnValue(
@@ -114,6 +129,53 @@ describe("useTestPusdMint", () => {
     expect(mintLocalCollateral).not.toHaveBeenCalled();
   });
 
+  it("shows the pending switch label while a chain switch is running", () => {
+    vi.mocked(useWalletAccount).mockReturnValue(
+      walletState({
+        activeChainId: 1,
+        isSupportedChain: false,
+        pendingAction: "switch-chain:31337",
+      })
+    );
+    const { result } = renderHook(() => useTestPusdMint());
+
+    expect(result.current.action).toMatchObject({
+      disabled: true,
+      label: "Switch to Hardhat Local",
+    });
+  });
+
+  it("reports disabled and not-ready wallet states", () => {
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ enabled: false }));
+    const disabled = renderHook(() => useTestPusdMint());
+
+    expect(disabled.result.current.action).toMatchObject({
+      disabled: true,
+      label: "Wallet unavailable",
+    });
+
+    disabled.unmount();
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ ready: false }));
+    const preparing = renderHook(() => useTestPusdMint());
+
+    expect(preparing.result.current.action).toMatchObject({
+      disabled: true,
+      label: "Preparing wallet",
+    });
+  });
+
+  it("waits for wallet clients before enabling the mint", () => {
+    vi.mocked(useWalletClient).mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useWalletClient>);
+    const { result } = renderHook(() => useTestPusdMint());
+
+    expect(result.current.action).toMatchObject({
+      disabled: true,
+      label: "Preparing wallet client",
+    });
+  });
+
   it("disables the action when local pUSD minting is unavailable", () => {
     vi.mocked(canMintLocalCollateral).mockReturnValue(false);
     const { result } = renderHook(() => useTestPusdMint());
@@ -121,6 +183,41 @@ describe("useTestPusdMint", () => {
     expect(result.current.action).toMatchObject({
       disabled: true,
       label: "Local pUSD unavailable",
+    });
+  });
+
+  it("disables the action when contract config is missing", () => {
+    vi.mocked(getPopChartsContractConfig).mockReturnValue(null);
+    const { result } = renderHook(() => useTestPusdMint());
+
+    expect(result.current.action).toMatchObject({
+      disabled: true,
+      label: "Local pUSD unavailable",
+    });
+    expect(canMintLocalCollateral).not.toHaveBeenCalled();
+  });
+
+  it("disables the action while a mint is in flight", async () => {
+    let finishMint: (() => void) | undefined;
+    vi.mocked(mintLocalCollateral).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishMint = resolve;
+        })
+    );
+    const { result } = renderHook(() => useTestPusdMint());
+
+    act(() => {
+      void result.current.action.onClick?.();
+    });
+
+    expect(result.current.action).toMatchObject({
+      disabled: true,
+      label: "Getting pUSD",
+    });
+
+    await act(async () => {
+      finishMint?.();
     });
   });
 

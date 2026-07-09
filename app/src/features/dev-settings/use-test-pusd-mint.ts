@@ -45,6 +45,7 @@ export function useTestPusdMint(): {
   const canMint = config !== null && canMintLocalCollateral(config);
 
   async function runMint() {
+    /* v8 ignore next 3 -- defensive: the mint action disables onClick whenever these are missing */
     if (!config || !wallet.address || !publicClient || !walletClient) {
       return;
     }
