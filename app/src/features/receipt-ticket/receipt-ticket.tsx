@@ -5,7 +5,7 @@ import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { type Market,marketSideLabel } from "@/domain/markets/types";
+import { type Market, marketSideLabel } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 
 import { getMaxPresetAmount } from "./receipt-action";
