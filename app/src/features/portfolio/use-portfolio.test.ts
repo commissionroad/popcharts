@@ -7,13 +7,11 @@ import { PORTFOLIO_POLL_INTERVAL_MS, usePortfolio } from "./use-portfolio";
 const OWNER = "0x1111111111111111111111111111111111111111";
 
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013");
   stubFetch(emptyPortfolio());
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -34,26 +32,7 @@ describe("usePortfolio", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("stays disabled without an indexer base URL", () => {
-    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "");
-
-    const { result } = renderHook(() => usePortfolioArgs());
-
-    expect(result.current.portfolio).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("stays disabled when the indexer URL env var is absent", () => {
-    vi.unstubAllEnvs();
-    delete process.env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL;
-
-    const { result } = renderHook(() => usePortfolioArgs());
-
-    expect(result.current.portfolio).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("reads the wallet's portfolio from the indexer", async () => {
+  it("reads the wallet's portfolio through the same-origin proxy", async () => {
     const { result } = renderHook(() => usePortfolioArgs());
 
     expect(result.current.loading).toBe(true);
@@ -65,7 +44,7 @@ describe("usePortfolio", () => {
     expect(result.current.loading).toBe(false);
 
     const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
-    expect(requested).toEqual([`http://127.0.0.1:3013/portfolio/31337?owner=${OWNER}`]);
+    expect(requested).toEqual([`/api/indexer/portfolio?chainId=31337&owner=${OWNER}`]);
   });
 
   it("re-reads when refresh() is called and keeps the previous payload", async () => {
@@ -135,17 +114,6 @@ describe("usePortfolio", () => {
     );
   });
 
-  it("joins paths onto a base URL that already ends in a slash", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013/");
-
-    const { result } = renderHook(() => usePortfolioArgs());
-
-    await waitFor(() => expect(result.current.portfolio).not.toBeNull());
-
-    const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
-    expect(requested).toEqual([`http://127.0.0.1:3013/portfolio/31337?owner=${OWNER}`]);
-  });
-
   it("tears down cleanly when unmounted before the first read settles", () => {
     const { unmount } = renderHook(() => usePortfolioArgs());
 
@@ -187,7 +155,7 @@ function stubFetch(portfolio: Portfolio) {
     vi.fn(async (input: URL | string) => {
       const url = String(input);
 
-      if (url.includes("/portfolio/")) {
+      if (url.includes("/api/indexer/portfolio")) {
         return Response.json(portfolio);
       }
 
