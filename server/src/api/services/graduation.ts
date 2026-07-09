@@ -6,6 +6,7 @@ import type {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
+import type { ChainGraduationResult } from "./dev-market-graduate";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import { serializeMarketRow } from "./markets";
 
@@ -182,23 +183,37 @@ export function evaluateGraduationReadiness({
   };
 }
 
+/** Injectable seams: the on-chain settlement, and the market lookup for tests. */
+export type RequestMarketGraduationDependencies = {
+  selectMarket?: (
+    chainId: number,
+    marketId: bigint,
+  ) => Promise<GraduationMarketRow | null>;
+  settleGraduationOnChain: (
+    marketId: bigint,
+    force: boolean,
+  ) => Promise<ChainGraduationResult>;
+};
+
 /**
- * Reports a market's graduation state and summary for the graduation endpoint.
- * Read-only by design — it validates identifiers, computes readiness, and
- * serializes the result, leaving all state changes to the on-chain flow.
+ * The public graduation failsafe. For a market that looks eligible it runs the
+ * server's manager-keyed on-chain settlement (band-pass clearing, never a
+ * liquidity top-up), so anyone can kick off a graduation the keeper missed.
+ * Safe to expose unauthenticated: the settlement re-checks band-pass eligibility
+ * from real receipts before `startGraduation` and relies on the contract's
+ * conservation checks; a below-threshold or wrong-status market is reported, not
+ * touched. `startGraduation` itself is manager-only, so the caller can only ask
+ * — the server performs the privileged steps with its own key.
  */
-export async function requestMarketGraduation({
-  chainId,
-  marketId,
-}: {
-  chainId: number;
-  marketId: string;
-}): Promise<MarketGraduationResult> {
+export async function requestMarketGraduation(
+  { chainId, marketId }: { chainId: number; marketId: string },
+  {
+    selectMarket = selectMarketForGraduation,
+    settleGraduationOnChain,
+  }: RequestMarketGraduationDependencies,
+): Promise<MarketGraduationResult> {
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-    return {
-      kind: "invalid_market_id",
-      message: "Invalid chain id.",
-    };
+    return { kind: "invalid_market_id", message: "Invalid chain id." };
   }
 
   let parsedMarketId: bigint;
@@ -206,25 +221,141 @@ export async function requestMarketGraduation({
   try {
     parsedMarketId = BigInt(marketId);
   } catch {
-    return {
-      kind: "invalid_market_id",
-      message: "Invalid market id.",
-    };
+    return { kind: "invalid_market_id", message: "Invalid market id." };
   }
 
-  const row = await selectMarketForGraduation(chainId, parsedMarketId);
+  const row = await selectMarket(chainId, parsedMarketId);
 
   if (!row) {
-    return {
-      kind: "not_found",
-      message: "Market not found.",
-    };
+    return { kind: "not_found", message: "Market not found." };
   }
 
   const matchedMarketCap = calculateMatchedMarketCap(row.market);
+  const readiness = evaluateGraduationReadiness({
+    graduationThreshold: row.market.graduationThreshold,
+    matchedMarketCap,
+    status: row.market.status,
+  });
+
+  if (readiness.kind === "already_graduated") {
+    return graduatedResult(row, matchedMarketCap);
+  }
+
+  // Only "looks eligible" or mid-graduation markets are worth a chain round
+  // trip. The display cap over-counts matched liquidity (it is min(totalYes,
+  // totalNo), an upper bound on the true band-pass cap), so a cap below
+  // threshold is authoritatively below threshold — report it without touching
+  // the chain.
+  const shouldSettle =
+    readiness.reason === "onchain_settlement_required" ||
+    readiness.reason === "clearing_pending";
+
+  if (!shouldSettle) {
+    return ineligibleResult(
+      row,
+      matchedMarketCap,
+      readiness.message,
+      readiness.reason,
+    );
+  }
+
+  const outcome = await settleGraduationOnChain(parsedMarketId, false);
+  return mapChainOutcome({
+    chainId,
+    displayMatchedCap: matchedMarketCap,
+    marketId: parsedMarketId,
+    outcome,
+    row,
+    selectMarket,
+  });
+}
+
+/** Maps the on-chain settlement outcome onto the API's graduation result. */
+async function mapChainOutcome({
+  chainId,
+  displayMatchedCap,
+  marketId,
+  outcome,
+  row,
+  selectMarket,
+}: {
+  chainId: number;
+  displayMatchedCap: bigint;
+  marketId: bigint;
+  outcome: ChainGraduationResult;
+  row: GraduationMarketRow;
+  selectMarket: (
+    chainId: number,
+    marketId: bigint,
+  ) => Promise<GraduationMarketRow | null>;
+}): Promise<MarketGraduationResult> {
+  switch (outcome.kind) {
+    case "graduated": {
+      const fresh = (await selectMarket(chainId, marketId)) ?? row;
+      return graduatedResult(fresh, outcome.finalized.matchedMarketCap);
+    }
+    case "already_graduated": {
+      const fresh = (await selectMarket(chainId, marketId)) ?? row;
+      return graduatedResult(fresh, calculateMatchedMarketCap(fresh.market));
+    }
+    case "below_threshold":
+      return ineligibleResult(
+        row,
+        outcome.matchedMarketCap,
+        "Matched liquidity is below this market's graduation threshold.",
+        "below_threshold",
+      );
+    case "past_deadline":
+      return ineligibleResult(
+        row,
+        displayMatchedCap,
+        "Market passed its graduation deadline and can only be refunded.",
+        "wrong_status",
+      );
+    case "wrong_status":
+      return ineligibleResult(
+        row,
+        displayMatchedCap,
+        "Market is not in a graduatable state for onchain settlement.",
+        "wrong_status",
+      );
+  }
+}
+
+function graduatedResult(
+  row: GraduationMarketRow,
+  matchedMarketCap: bigint,
+): MarketGraduationResult {
   const graduatedAt =
     row.market.status === "graduated" ? row.market.updatedAt : new Date();
-  const summary = serializeGraduationSummary(
+  return {
+    kind: "graduated",
+    market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
+    summary: graduationSummaryFor(row, matchedMarketCap, graduatedAt),
+  };
+}
+
+function ineligibleResult(
+  row: GraduationMarketRow,
+  matchedMarketCap: bigint,
+  message: string,
+  reason: GraduationIneligibleReason,
+): MarketGraduationResult {
+  return {
+    kind: "ineligible",
+    market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
+    message,
+    reason,
+    summary: graduationSummaryFor(row, matchedMarketCap, new Date()),
+  };
+}
+
+function graduationSummaryFor(
+  row: GraduationMarketRow,
+  matchedMarketCap: bigint,
+  graduatedAt: Date,
+): GraduationSummaryResponse {
+  return serializeGraduationSummary(
     buildGraduationSummary({
       graduatedAt,
       graduationThreshold: row.market.graduationThreshold,
@@ -233,27 +364,6 @@ export async function requestMarketGraduation({
       totalEscrowed: row.market.totalEscrowed,
     }),
   );
-  const readiness = evaluateGraduationReadiness({
-    graduationThreshold: row.market.graduationThreshold,
-    matchedMarketCap,
-    status: row.market.status,
-  });
-
-  if (readiness.kind === "already_graduated") {
-    return {
-      kind: "graduated",
-      market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
-      summary,
-    };
-  }
-
-  return {
-    kind: "ineligible",
-    market: serializeMarketRow(row.market, row.metadata, matchedMarketCap),
-    message: readiness.message,
-    reason: readiness.reason,
-    summary,
-  };
 }
 
 async function selectMarketForGraduation(

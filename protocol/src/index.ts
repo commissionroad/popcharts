@@ -73,3 +73,19 @@ export type {
   CompleteSetMarketPool,
   CompleteSetMarketPoolKey,
 } from "../scripts/shared/market/readCompleteSetMarketManifest.js";
+
+export {
+  buildClaimMerkleTree,
+  hashReceiptClaim,
+  RECEIPT_CLAIM_TYPEHASH,
+} from "./clearing/receipt-claim-merkle.js";
+export type { ClearingPlan, ReceiptClaim } from "./clearing/receipt-claim-merkle.js";
+export {
+  apportion,
+  computeBandPassClearing,
+  lmsrCost,
+  SIDE_NO,
+  SIDE_YES,
+  yesBandCost,
+} from "./clearing/band-pass-clearing.js";
+export type { BandPassClearingResult, ClearingReceipt } from "./clearing/band-pass-clearing.js";

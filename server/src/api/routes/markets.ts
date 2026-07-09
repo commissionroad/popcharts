@@ -49,7 +49,10 @@ import {
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
-import { graduateDevMarket } from "src/api/services/dev-market-graduate";
+import {
+  graduateDevMarket,
+  graduateLocalMarketOnChain,
+} from "src/api/services/dev-market-graduate";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -555,10 +558,13 @@ export const marketRoutes = marketRoutesWithDevTools
   .post(
     "/markets/:chainId/:marketId/graduate",
     async ({ params, set }) => {
-      const result = await requestMarketGraduation({
-        chainId: Number.parseInt(params.chainId, 10),
-        marketId: params.marketId,
-      });
+      const result = await requestMarketGraduation(
+        {
+          chainId: Number.parseInt(params.chainId, 10),
+          marketId: params.marketId,
+        },
+        { settleGraduationOnChain: graduateLocalMarketOnChain },
+      );
 
       if (result.kind === "graduated") {
         return {
@@ -597,7 +603,7 @@ export const marketRoutes = marketRoutesWithDevTools
         operationId: "graduateMarket",
         summary: "Request market graduation",
         description:
-          "Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.",
+          "Public graduation failsafe for a market the keeper has not settled. For a market that reaches its threshold, the server runs the manager-keyed on-chain settlement — band-pass clearing, Merkle-root submission, finalize — and never tops up liquidity. Safe unauthenticated: eligibility is re-checked from real receipts before startGraduation and the contract enforces conservation. Below-threshold or wrong-status markets are reported (409), not touched.",
         tags: ["Graduation"],
       },
     },
