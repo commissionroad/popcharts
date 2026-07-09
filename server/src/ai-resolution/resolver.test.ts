@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { aiResolutionConfig } from "./config";
 import { deriveVerdict, resolveMarket } from "./resolver";
@@ -15,6 +15,11 @@ function request(criteria: string): MarketResolutionRequest {
 }
 
 const NOW = 1_780_000_000_000;
+
+const realFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
 
 describe("deriveVerdict", () => {
   it("re-queues a too_early outcome", () => {
@@ -96,16 +101,19 @@ describe("resolveMarket (heuristic provider)", () => {
     expect(result.verdict).toBe("cancel_draw");
   });
 
-  it("fail-safes to manual_review when the provider is not implemented", async () => {
+  it("fail-safes to manual_review when the provider throws", async () => {
+    globalThis.fetch = (() =>
+      Promise.reject(new Error("network down"))) as unknown as typeof fetch;
+
     const result = await resolveMarket({
       config: aiResolutionConfig,
       nowMs: NOW,
       request: {
         metadata: {
           question: "Did it happen?",
-          resolutionCriteria: "[heuristic-outcome: yes]",
+          resolutionCriteria: "Resolve from the official source.",
         },
-        options: { provider: "ollama" },
+        options: { internetAccess: "off", provider: "ollama" },
       },
     });
 
