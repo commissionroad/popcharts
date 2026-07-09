@@ -5,6 +5,7 @@ import {
   type AiResolutionConfig,
   type ResolutionModelProviderName,
 } from "./config";
+import { collectEvidence } from "./evidence";
 import { runHeuristicResolution } from "./heuristics";
 import { getResolutionProvider } from "./providers/registry";
 import { filterSourceChecksByEvidence } from "./resolution-parsing";
@@ -39,9 +40,14 @@ export async function resolveMarket({
   let finding: ResolutionFindingWithEvidence;
   try {
     const provider = getResolutionProvider(providerName);
+    // Providers that cannot browse (Ollama) get evidence pre-collected through
+    // the SSRF-guarded safe-web path; browsing providers collect their own.
+    const evidence = provider.capabilities.requiresPreCollectedEvidence
+      ? await collectEvidence({ config, request })
+      : [];
     finding = await provider.resolve({
       config,
-      evidence: [],
+      evidence,
       heuristic,
       model: request.options?.model,
       nowMs,
