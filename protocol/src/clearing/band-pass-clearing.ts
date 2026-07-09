@@ -280,7 +280,7 @@ export function apportion(
     if (remainder === 0n) break;
     const headroom = caps[i]! - result[i]!;
     const give = headroom < remainder ? headroom : remainder;
-    result[i] += give;
+    result[i] = result[i]! + give;
     remainder -= give;
   }
   if (remainder !== 0n) {

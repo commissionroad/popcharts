@@ -79,10 +79,7 @@ export {
   hashReceiptClaim,
   RECEIPT_CLAIM_TYPEHASH,
 } from "./clearing/receipt-claim-merkle.js";
-export type {
-  ClearingPlan,
-  ReceiptClaim,
-} from "./clearing/receipt-claim-merkle.js";
+export type { ClearingPlan, ReceiptClaim } from "./clearing/receipt-claim-merkle.js";
 export {
   apportion,
   computeBandPassClearing,
@@ -91,7 +88,4 @@ export {
   SIDE_YES,
   yesBandCost,
 } from "./clearing/band-pass-clearing.js";
-export type {
-  BandPassClearingResult,
-  ClearingReceipt,
-} from "./clearing/band-pass-clearing.js";
+export type { BandPassClearingResult, ClearingReceipt } from "./clearing/band-pass-clearing.js";
