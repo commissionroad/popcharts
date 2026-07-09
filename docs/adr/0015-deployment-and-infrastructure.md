@@ -42,8 +42,10 @@ Cloud stack (Arc Testnet staging):
       run-task step.
 - [ ] ECS services for API, indexer, AI review service + runner, clearing
       keeper, and resolution service + runner (`enableServices=true`).
-- [ ] Secrets populated: RPC HTTP/WSS URLs, `ANTHROPIC_API_KEY`,
-      review-manager and resolver keys, operator auth credentials.
+- [ ] Secrets populated: RPC HTTP/WSS URLs, `ANTHROPIC_API_KEY`, and the
+      server signer keys (review-manager, resolver, graduation-manager). No
+      API operator-auth credentials exist — operator actions are local-only
+      (ADR 0009).
 - [ ] Monitoring: CloudWatch dashboards and alarms on ALB 5xx, ECS restarts,
       RDS health, indexer cursor lag, and review/resolution queue depth
       (metrics from ADRs 0010/0011/0012).

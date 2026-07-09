@@ -1,13 +1,13 @@
 ---
 type: concept
 title: AI-assisted resolution
-description: The planned post-graduation outcome pipeline — a resolution service + leased runner deciding resolve/cancel from public evidence, with abstention and operator override; unbuilt.
+description: The planned post-graduation outcome pipeline — a resolution service + leased runner deciding resolve/cancel from public evidence, with abstention and a local (not API) operator override; unbuilt.
 sources:
   - docs/adr/0012-ai-assisted-resolution.md
   - docs/adr/0011-ai-review-service-hardening.md
   - documents/whitepaper_v3.pdf
   - documents/whitepaper_v0_1.pdf
-updated: 2026-07-07
+updated: 2026-07-09
 ---
 
 # AI-assisted resolution
@@ -27,9 +27,10 @@ resolver key).
   graduated markets. Market metadata already carries `resolutionCriteria`,
   `resolutionSources`, `resolutionTime`.
 - Safety valves: abstention threshold (low confidence → manual review) and an
-  operator delay/override window — both conservative on testnet. Shares the
-  once-only operator-auth mechanism and hardened safe-web evidence path with
-  review (root ADRs 0009/0011).
+  operator delay/override window — both conservative on testnet. The override
+  is a local admin action against the chain and job queue (a keyed admin
+  panel), never an API endpoint (root ADR 0009). Shares the hardened safe-web
+  evidence path with review (root ADR 0011).
 - Coupled open item: `bypassAiResolution` semantics (trusted creators
   self-resolve?) must be designed with the resolver entry points
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).

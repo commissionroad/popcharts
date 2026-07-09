@@ -72,7 +72,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0006](summaries/root-adr-0006-server-runtime-and-indexer.md) — Bun + Elysia + Drizzle server, viem indexer
 - [ADR 0007](summaries/root-adr-0007-track-verticals-with-progress-adrs.md) — checklist-bearing vertical ADRs 0008–0015; defines milestones M1–M5
 - [ADR 0008](summaries/root-adr-0008-protocol-functionality-completion.md) — finish protocol: keeper, resolution hooks, unhappy paths (all open)
-- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — operator auth, rate limits, lifecycle API surface (all open)
+- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — dev/admin endpoints out of prod, rate limits, real graduation trigger, lifecycle API surface (all open)
 - [ADR 0010](summaries/root-adr-0010-indexer-maturity.md) — reorgs, confirmation depth, failover, postgrad indexing (all open)
 - [ADR 0011](summaries/root-adr-0011-ai-review-service-hardening.md) — harden AI review for unattended operation (all open)
 - [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (all open)

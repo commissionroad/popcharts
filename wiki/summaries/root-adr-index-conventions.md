@@ -22,10 +22,10 @@ All listed ADRs carry status **Accepted**:
 | 0006 | Use Bun and Elysia for the server and indexer package. |
 | 0007 | Track product verticals with progress ADRs and milestones M1–M5. |
 | 0008 | Complete protocol functionality (clearing keeper, resolution hooks, postgrad handoff) before any deployment. |
-| 0009 | Harden the API (operator auth, rate limits) and grow its lifecycle surface (search, portfolio, postgrad). |
+| 0009 | Keep dev/admin endpoints out of production, add rate limits + a real graduation trigger, and grow the API's lifecycle surface (search, portfolio, postgrad). Operator actions never go through the API. |
 | 0010 | Bring the indexer to testnet grade (reorgs, leasing, RPC failover) and index the postgrad lifecycle. |
 | 0011 | Harden AI review for unattended operation (auth, safe evidence fetching, validation, metrics). |
-| 0012 | Build AI-assisted resolution as a sibling of AI review, with abstention and operator override. |
+| 0012 | Build AI-assisted resolution as a sibling of AI review, with abstention and a local (not API) operator override. |
 | 0013 | Complete the app across the full market lifecycle (Google sign-in, postgrad trading, unhappy paths). |
 | 0014 | Prove the full market lifespan, happy and unhappy, with an automated E2E suite. |
 | 0015 | Own all CI and deployment work; deploy the protocol to Arc Testnet as the final step. |

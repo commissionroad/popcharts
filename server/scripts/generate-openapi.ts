@@ -1,7 +1,15 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { app } from "../src/api/index";
+// Pin the spec to the local network so it captures the FULL API surface,
+// including the local-only dev/admin endpoints that `src/api/routes/markets.ts`
+// mounts only when `config.name === "local"`. Deployed servers exclude those
+// endpoints at runtime; the committed spec keeps them so the app's dev-tools
+// api-client is generated against them. The default network is arcTestnet, so
+// without this pin the spec (and client) would drop the dev/admin operations.
+// Dynamic import so the env is set before `src/config` resolves the network.
+process.env.NETWORK ??= "local";
+const { app } = await import("../src/api/index");
 
 /**
  * Exports the API's OpenAPI spec to `server/generated/openapi.json`.

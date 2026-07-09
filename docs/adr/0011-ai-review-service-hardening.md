@@ -14,11 +14,13 @@ Ollama, Anthropic with native web search/fetch), retries use exponential
 backoff, and a smoke test covers the loop. See
 `docs/ai-review-runner-design.md` and `docs/ai-review-next-phase.md`.
 
-Remaining gaps are hardening, not architecture: the manual-review override is
-gated by an env flag instead of operator auth, evidence fetching does not
+Remaining gaps are hardening, not architecture: evidence fetching does not
 block private IPs or bound redirects, prompt-version bumps are manual with no
 re-review policy, model output parsing has minimal validation, and the
-service emits logs but no metrics.
+service emits logs but no metrics. The manual re-review path is an operator
+action; it is a dev-only API endpoint today and does not belong in the
+production API at all (see ADR 0009) — the fix is to keep it out of production
+builds, not to authenticate it.
 
 ## Decision
 
@@ -30,8 +32,10 @@ against Arc Testnet. The service keeps its single-call review shape
 
 Security:
 
-- [ ] Operator authentication on the manual re-review path, shared with the
-      API admin auth (ADR 0009).
+- [ ] Manual re-review is an operator action: perform it locally against the
+      chain and job queue (a local admin panel with the operator keys), and
+      exclude the `/admin/*` re-review endpoint from production builds (ADR
+      0009). It is not an authenticated API surface.
 - [x] Evidence fetching hardening in `safe-web.ts`: block private/loopback
       IPs, cap redirects, validate content types, bound response sizes.
 - [x] Review-manager key handling documented: the key that signs
@@ -46,7 +50,8 @@ Robustness:
       already-reviewed and in-flight markets when
       `AI_REVIEW_PROMPT_VERSION` changes.
 - [ ] Stuck-job recovery: expired leases are reclaimed and a terminal-failure
-      path notifies operators (surface in the admin API).
+      path notifies operators (surface in the local admin panel, not the
+      deployed API).
 
 Observability:
 
@@ -64,13 +69,15 @@ Product feedback:
 
 The review service and runner can run unattended for a week of bot-generated
 market submissions (mixed approvable, rejectable, and malformed) with every
-market reaching a terminal review state, no stuck jobs, and no privileged
-action possible without operator auth.
+market reaching a terminal review state and no stuck jobs. No operator action
+(including manual re-review) is reachable through the deployed API; operators
+act locally against the chain and job queue.
 
 ## Consequences
 
-- Sharing operator auth with the API couples this ADR to ADR 0009; land the
-  auth mechanism once, in the server package, and consume it here.
+- Manual re-review lives in the local admin panel, not the API, so this ADR no
+  longer couples to a shared API auth mechanism (ADR 0009). The re-review
+  `/admin/*` endpoint stays a dev-only tool, excluded from production builds.
 - Hardened evidence fetching may reject sources that previously passed;
   verdicts can shift between prompt versions, which is why the version is
   persisted per review.
