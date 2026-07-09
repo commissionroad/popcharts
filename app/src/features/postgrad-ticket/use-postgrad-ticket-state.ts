@@ -17,10 +17,7 @@ import {
   venueTokenUnitsToNumber,
   type VenueTradeAction,
 } from "@/domain/postgrad-trading/venue-trade";
-import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
-} from "@/features/receipt-ticket/place-receipt-service";
+import { subscribeToTestPusdMinted } from "@/features/dev-settings/test-pusd-events";
 import { formatPresetAmount } from "@/features/receipt-ticket/receipt-ticket-format";
 import { useVenueBalances } from "@/integrations/contracts/hooks/use-venue-balances";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
@@ -44,7 +41,6 @@ import {
 } from "./swap-action";
 
 export const venuePresetAmounts = ["50", "250", "1000", "Max"] as const;
-const TEST_MINT_AMOUNT_USD = 10_000;
 const BALANCE_EPSILON = 0.000001;
 
 type QuoterReadState = {
@@ -69,8 +65,7 @@ export function usePostgradTicketState(market: Market) {
   const [side, setSide] = useState<MarketSide>("yes");
   const [action, setAction] = useState<VenueTradeAction>("buy");
   const [isSwapping, setIsSwapping] = useState(false);
-  const [isMinting, setIsMinting] = useState(false);
-  const [swapStep, setSwapStep] = useState<VenueSwapStep | "minting" | null>(null);
+  const [swapStep, setSwapStep] = useState<VenueSwapStep | null>(null);
   const [completedSwap, setCompletedSwap] = useState<VenueSwapReceipt | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -213,13 +208,6 @@ export function usePostgradTicketState(market: Market) {
       : null;
   const amountFieldError =
     amountError ?? insufficientBalanceMessage ?? quoteError ?? poolError ?? undefined;
-  const canMintTestPusd =
-    contract !== null &&
-    Boolean(wallet.address) &&
-    wallet.isSupportedChain &&
-    publicClient !== undefined &&
-    walletClient !== undefined &&
-    canMintLocalCollateral(contract.config);
   const swapAction = getVenueSwapAction({
     action,
     amountError: amountError ?? quoteError ?? poolError,
@@ -233,6 +221,11 @@ export function usePostgradTicketState(market: Market) {
     wallet,
     walletClientReady: Boolean(walletClient),
   });
+
+  useEffect(
+    () => subscribeToTestPusdMinted(() => setRefreshKey((value) => value + 1)),
+    []
+  );
 
   function updateAmount(value: string) {
     setAmount(value.replace(/[^0-9.]/g, ""));
@@ -266,36 +259,6 @@ export function usePostgradTicketState(market: Market) {
         })
       )
     );
-  }
-
-  async function mintTestPusd() {
-    if (!contract || !wallet.address || !publicClient || !walletClient) {
-      return;
-    }
-
-    setIsMinting(true);
-    setSwapStep("minting");
-    setCompletedSwap(null);
-    setSubmitError(null);
-
-    try {
-      await mintLocalCollateral({
-        amountUsd: TEST_MINT_AMOUNT_USD,
-        config: contract.config,
-        wallet: {
-          accountAddress: wallet.address as `0x${string}`,
-          activeChainId: wallet.activeChainId,
-          publicClient,
-          walletClient,
-        },
-      });
-      setRefreshKey((value) => value + 1);
-    } catch (error) {
-      setSubmitError(getVenueSwapErrorMessage(error));
-    } finally {
-      setIsMinting(false);
-      setSwapStep(null);
-    }
   }
 
   async function handleSwap() {
@@ -355,10 +318,8 @@ export function usePostgradTicketState(market: Market) {
       no: noBalance,
       yes: yesBalance,
     },
-    canMintTestPusd,
     completedSwap,
     environment,
-    isMinting,
     isSwapping,
     quote,
     quoteLoading,
@@ -368,7 +329,6 @@ export function usePostgradTicketState(market: Market) {
     swapAction,
     swapStep,
     walletConnected: Boolean(wallet.address),
-    mintTestPusd,
     selectAction,
     selectPresetAmount,
     selectSide,

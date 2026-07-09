@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   forceGraduateMarketAction: vi.fn(),
   pathname: vi.fn((): string => "/"),
   refresh: vi.fn(),
+  useTestPusdMint: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -25,6 +26,10 @@ vi.mock("@/features/market-detail/graduation-actions", () => ({
   forceGraduateMarketAction: mocks.forceGraduateMarketAction,
 }));
 
+vi.mock("./use-test-pusd-mint", () => ({
+  useTestPusdMint: mocks.useTestPusdMint,
+}));
+
 const STORAGE_KEY = "popcharts:dev:reveal-raw-errors:v1";
 
 beforeEach(() => {
@@ -32,6 +37,7 @@ beforeEach(() => {
   mocks.forceGraduateMarketAction.mockReset();
   mocks.refresh.mockReset();
   mocks.pathname.mockReturnValue("/");
+  mocks.useTestPusdMint.mockReturnValue(testPusdMintState());
 });
 
 afterEach(() => {
@@ -58,6 +64,7 @@ describe("DevMenu", () => {
     expect(
       screen.getByRole("button", { name: /Close for refunds/ })
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Get pUSD/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Dev tools" }));
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
@@ -89,6 +96,37 @@ describe("DevMenu", () => {
 
     expect(toggle).toHaveAttribute("aria-checked", "false");
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("false");
+  });
+
+  it("runs the pUSD mint action from the wallet section", () => {
+    const onClick = vi.fn();
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({ action: { disabled: false, label: "Get pUSD", onClick } })
+    );
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Get pUSD/ }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the pUSD mint result", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        result: {
+          message: "Added 10,000 test pUSD to your wallet.",
+          status: "success",
+        },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(
+      screen.getByText("Added 10,000 test pUSD to your wallet.")
+    ).toBeInTheDocument();
   });
 
   it("hydrates the reveal toggle from persisted storage on mount", () => {
@@ -181,3 +219,16 @@ describe("DevMenu", () => {
     expect(screen.getByRole("button", { name: /Force graduate/ })).not.toBeDisabled();
   });
 });
+
+function testPusdMintState(
+  overrides: Partial<
+    ReturnType<typeof import("./use-test-pusd-mint").useTestPusdMint>
+  > = {}
+): ReturnType<typeof import("./use-test-pusd-mint").useTestPusdMint> {
+  return {
+    action: { disabled: false, label: "Get pUSD", onClick: vi.fn() },
+    isMinting: false,
+    result: null,
+    ...overrides,
+  };
+}

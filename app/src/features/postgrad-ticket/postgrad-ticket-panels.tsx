@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleDollarSign, Loader2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import type { VenueSwapQuote } from "@/domain/postgrad-trading/venue-trade";
 import { venueTokenUnitsToNumber } from "@/domain/postgrad-trading/venue-trade";
@@ -17,15 +17,11 @@ import type { LimitOrderQuote } from "./use-limit-order-state";
 
 /**
  * Shows the connected wallet's collateral and outcome-token balances for the
- * devchain ticket and, when the local collateral faucet is available, a
- * mint-test-pUSD button.
+ * devchain ticket.
  */
 export function VenueBalancesPanel({
   balances,
-  canMint,
-  isMinting,
   noLabel,
-  onMint,
   walletConnected,
   yesLabel,
 }: {
@@ -36,10 +32,7 @@ export function VenueBalancesPanel({
     no: number | null;
     yes: number | null;
   };
-  canMint: boolean;
-  isMinting: boolean;
   noLabel: string;
-  onMint: () => void;
   walletConnected: boolean;
   yesLabel: string;
 }) {
@@ -73,21 +66,6 @@ export function VenueBalancesPanel({
         <div className="font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase">
           Wallet balances
         </div>
-        {canMint ? (
-          <button
-            className="focus-ring inline-flex h-8 shrink-0 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 font-mono text-[11px] font-bold text-[var(--text-secondary)] transition-colors hover:border-[var(--pc-cyan)] hover:text-[var(--pc-cyan)] disabled:pointer-events-none disabled:opacity-50"
-            disabled={isMinting}
-            onClick={onMint}
-            type="button"
-          >
-            {isMinting ? (
-              <Loader2 className="animate-spin" size={13} />
-            ) : (
-              <CircleDollarSign size={13} />
-            )}
-            Mint test pUSD
-          </button>
-        ) : null}
       </div>
       {rows.map((row) => (
         <div className="flex justify-between gap-4 text-[13px]" key={row.label}>

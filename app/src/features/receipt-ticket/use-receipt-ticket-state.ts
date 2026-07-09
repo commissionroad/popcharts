@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { usePublicClient, useWalletClient } from "wagmi";
 
@@ -14,13 +14,12 @@ import {
   type PlacedPregradReceipt,
 } from "@/domain/pregrad-trading/receipt-quote";
 import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
+import { subscribeToTestPusdMinted } from "@/features/dev-settings/test-pusd-events";
 import { useContractMarketStatus } from "@/integrations/contracts/hooks/use-contract-market-status";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { formatUsd } from "@/lib/format";
 
 import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
   placePregradReceipt,
   type PlaceReceiptWallet,
   type ReceiptPlacementStep,
@@ -35,7 +34,6 @@ import { recordPlacedReceipt } from "./receipt-storage";
 import { formatPresetAmount } from "./receipt-ticket-format";
 
 export const presetAmounts = ["50", "250", "1000", "Max"] as const;
-const TEST_MINT_AMOUNT_USD = 10_000;
 
 /**
  * The receipt ticket's state machine: form state (side, budget), the live
@@ -50,7 +48,6 @@ export function useReceiptTicketState(market: Market) {
   const [amount, setAmount] = useState("250");
   const [side, setSide] = useState<MarketSide>("yes");
   const [isPlacing, setIsPlacing] = useState(false);
-  const [isMinting, setIsMinting] = useState(false);
   const [placementStep, setPlacementStep] = useState<ReceiptPlacementStep | null>(null);
   const [placedReceipt, setPlacedReceipt] = useState<PlacedPregradReceipt | null>(null);
   const [statusRefreshKey, setStatusRefreshKey] = useState(0);
@@ -106,13 +103,6 @@ export function useReceiptTicketState(market: Market) {
     market.status === "bootstrap"
       ? (amountError ?? insufficientBalanceMessage ?? undefined)
       : undefined;
-  const canMintTestPusd =
-    contractConfig !== null &&
-    Boolean(wallet.address) &&
-    wallet.isSupportedChain &&
-    publicClient !== undefined &&
-    walletClient !== undefined &&
-    canMintLocalCollateral(contractConfig);
   const receiptAction = getReceiptAction({
     amountError,
     contractMarketMissing,
@@ -127,6 +117,11 @@ export function useReceiptTicketState(market: Market) {
     wallet,
     walletClientReady: Boolean(walletClient),
   });
+
+  useEffect(
+    () => subscribeToTestPusdMinted(() => setStatusRefreshKey((value) => value + 1)),
+    []
+  );
 
   function updateAmount(value: string) {
     setAmount(value.replace(/[^0-9.]/g, ""));
@@ -147,42 +142,6 @@ export function useReceiptTicketState(market: Market) {
     }
 
     updateAmount(formatPresetAmount(getMaxPresetAmount(balanceUsd)));
-  }
-
-  async function mintTestPusd() {
-    if (
-      environment.kind !== "contract" ||
-      !wallet.address ||
-      !publicClient ||
-      !walletClient
-    ) {
-      return;
-    }
-
-    setIsMinting(true);
-    setPlacementStep(null);
-    setPlacedReceipt(null);
-    setSubmitError(null);
-
-    try {
-      await mintLocalCollateral({
-        amountUsd: TEST_MINT_AMOUNT_USD,
-        config: environment.config,
-        onStep: setPlacementStep,
-        wallet: {
-          accountAddress: wallet.address as `0x${string}`,
-          activeChainId: wallet.activeChainId,
-          publicClient,
-          walletClient,
-        },
-      });
-      setStatusRefreshKey((value) => value + 1);
-    } catch (error) {
-      setSubmitError(getReceiptPlacementErrorMessage(error));
-    } finally {
-      setIsMinting(false);
-      setPlacementStep(null);
-    }
   }
 
   async function handlePlaceReceipt() {
@@ -238,11 +197,9 @@ export function useReceiptTicketState(market: Market) {
     amount,
     amountFieldError,
     balanceUsd,
-    canMintTestPusd,
     contractMarketMissing,
     contractStatus,
     environment,
-    isMinting,
     isPlacing,
     placedReceipt,
     placementStep,
@@ -251,7 +208,6 @@ export function useReceiptTicketState(market: Market) {
     side,
     submitError,
     walletConnected: Boolean(wallet.address),
-    mintTestPusd,
     selectPresetAmount,
     selectSide,
     updateAmount,

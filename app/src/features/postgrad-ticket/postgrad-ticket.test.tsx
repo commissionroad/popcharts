@@ -324,10 +324,8 @@ function ticketState(
     amount: "250",
     amountFieldError: undefined,
     balances: { collateral: 1_000, error: null, loading: false, no: 0, yes: 0 },
-    canMintTestPusd: true,
     completedSwap: null,
     environment: contractEnvironment(),
-    isMinting: false,
     isSwapping: false,
     quote: {
       action: "buy",
@@ -345,7 +343,6 @@ function ticketState(
     swapAction: { disabled: false, label: "Buy YES tokens", onClick: vi.fn() },
     swapStep: null,
     walletConnected: true,
-    mintTestPusd: vi.fn(),
     selectAction: vi.fn(),
     selectPresetAmount: vi.fn(),
     selectSide: vi.fn(),

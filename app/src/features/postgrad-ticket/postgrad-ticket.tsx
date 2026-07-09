@@ -112,10 +112,8 @@ function MarketOrderTicket({
     amount,
     amountFieldError,
     balances,
-    canMintTestPusd,
     completedSwap,
     environment,
-    isMinting,
     isSwapping,
     quote,
     quoteLoading,
@@ -125,7 +123,6 @@ function MarketOrderTicket({
     swapAction,
     swapStep,
     walletConnected,
-    mintTestPusd,
     selectAction,
     selectPresetAmount,
     selectSide,
@@ -181,10 +178,7 @@ function MarketOrderTicket({
       {environment.kind === "contract" ? (
         <VenueBalancesPanel
           balances={balances}
-          canMint={canMintTestPusd}
-          isMinting={isMinting}
           noLabel={noLabel}
-          onMint={mintTestPusd}
           walletConnected={walletConnected}
           yesLabel={yesLabel}
         />

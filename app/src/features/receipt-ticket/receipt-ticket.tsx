@@ -5,7 +5,7 @@ import { Loader2, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { marketSideLabel, type Market } from "@/domain/markets/types";
+import { type Market,marketSideLabel } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 
 import { getMaxPresetAmount } from "./receipt-action";
@@ -41,11 +41,9 @@ export function ReceiptTicket({ market }: { market: Market }) {
     amount,
     amountFieldError,
     balanceUsd,
-    canMintTestPusd,
     contractMarketMissing,
     contractStatus,
     environment,
-    isMinting,
     isPlacing,
     placedReceipt,
     placementStep,
@@ -54,7 +52,6 @@ export function ReceiptTicket({ market }: { market: Market }) {
     side,
     submitError,
     walletConnected,
-    mintTestPusd,
     selectPresetAmount,
     selectSide,
     updateAmount,
@@ -128,11 +125,8 @@ export function ReceiptTicket({ market }: { market: Market }) {
       {environment.kind === "contract" ? (
         <CollateralBalancePanel
           balanceUsd={balanceUsd}
-          canMint={canMintTestPusd}
           error={contractStatus.error}
           isLoading={contractStatus.loading}
-          isMinting={isMinting}
-          onMint={mintTestPusd}
           walletConnected={walletConnected}
         />
       ) : null}

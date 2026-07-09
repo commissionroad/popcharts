@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import type {
   PlacedPregradReceipt,
@@ -27,24 +27,10 @@ describe("CollateralBalancePanel", () => {
     expect(screen.getByText("Connect wallet")).toBeInTheDocument();
   });
 
-  it("offers the faucet and mints on click", () => {
-    const onMint = vi.fn();
+  it("keeps pUSD minting out of the balance panel", () => {
+    render(balancePanel());
 
-    render(balancePanel({ canMint: true, onMint }));
-
-    const mint = screen.getByRole("button", { name: /Mint test pUSD/ });
-
-    expect(mint).toBeEnabled();
-
-    fireEvent.click(mint);
-
-    expect(onMint).toHaveBeenCalledTimes(1);
-  });
-
-  it("disables the faucet while a mint is in flight", () => {
-    render(balancePanel({ canMint: true, isMinting: true }));
-
-    expect(screen.getByRole("button", { name: /Mint test pUSD/ })).toBeDisabled();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
 
@@ -106,11 +92,8 @@ function balancePanel(
   return (
     <CollateralBalancePanel
       balanceUsd={1_250}
-      canMint={false}
       error={null}
       isLoading={false}
-      isMinting={false}
-      onMint={vi.fn()}
       walletConnected
       {...overrides}
     />
