@@ -1,19 +1,41 @@
 "use client";
 
-import { ReceiptText, WalletCards } from "lucide-react";
+import type {
+  PortfolioOpenOrder,
+  PortfolioPosition,
+  PortfolioReceipt,
+} from "@popcharts/api-client/models";
+import { Layers, ReceiptText, WalletCards } from "lucide-react";
 import Link from "next/link";
 
 import { MetricCard } from "@/components/ui/metric-card";
-import type { PlacedPregradReceipt } from "@/domain/pregrad-trading/receipt-quote";
-import { useStoredReceipts } from "@/features/receipt-ticket/receipt-storage";
-import { formatPercent, formatUsd, formatUsdWhole } from "@/lib/format";
+import { wadPriceToCents } from "@/domain/postgrad-trading/limit-order";
+import { wadToNumber } from "@/domain/tokens/wad";
+import { configuredPopChartsChainId } from "@/integrations/contracts/config";
+import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { apiMarketAppId } from "@/lib/app-id";
+import {
+  formatCents,
+  formatDateTime,
+  formatTokenAmount,
+  formatUsd,
+  formatUsdWhole,
+} from "@/lib/format";
 
+import { usePortfolio } from "./use-portfolio";
+
+/**
+ * Database-backed portfolio: the connected wallet's pre-graduation receipts
+ * (with their settlement results once markets graduate), graduated YES/NO
+ * positions, and open venue orders — all read from the indexer, cross-market
+ * and cross-device. Writes (claims, order cancels) stay on each market page.
+ */
 export function PortfolioPage() {
-  const receipts = useStoredReceipts();
-  const lockedCollateral = receipts.reduce(
-    (total, receipt) => total + receipt.collateralUsd,
-    0
-  );
+  const wallet = useWalletAccount();
+  const { error, loading, portfolio } = usePortfolio({
+    chainId: configuredPopChartsChainId,
+    owner: wallet.address,
+  });
 
   return (
     <div>
@@ -30,92 +52,337 @@ export function PortfolioPage() {
         </p>
       </div>
 
+      {wallet.address ? (
+        <ConnectedPortfolio error={error} loading={loading} portfolio={portfolio} />
+      ) : (
+        <NoticeCard
+          body="Connect a wallet to see your receipts, graduated positions, and open orders across every market."
+          title="No wallet connected"
+        />
+      )}
+    </div>
+  );
+}
+
+function ConnectedPortfolio({
+  error,
+  loading,
+  portfolio,
+}: {
+  error: string | null;
+  loading: boolean;
+  portfolio: ReturnType<typeof usePortfolio>["portfolio"];
+}) {
+  if (error) {
+    return <NoticeCard body={error} title="Portfolio unavailable" />;
+  }
+
+  if (loading || !portfolio) {
+    return (
+      <NoticeCard
+        body="Reading your receipts, positions, and open orders from the indexer."
+        title="Loading portfolio"
+      />
+    );
+  }
+
+  return (
+    <>
       <div className="mb-5 grid gap-4 md:grid-cols-3">
         <MetricCard
           icon={<ReceiptText size={20} />}
           label="Open receipts"
           tone="var(--pc-cyan)"
-          value={receipts.length.toLocaleString()}
+          value={portfolio.summary.openReceiptCount.toLocaleString("en-US")}
         />
         <MetricCard
           icon={<WalletCards size={20} />}
           label="Locked collateral"
           tone="var(--status-graduating)"
-          value={formatUsdWhole(lockedCollateral)}
+          value={formatUsdWhole(
+            wadToNumber(BigInt(portfolio.summary.lockedCollateral))
+          )}
         />
-        <MetricCard label="Backed positions" tone="var(--yes)" value="0" />
+        <MetricCard
+          icon={<Layers size={20} />}
+          label="Backed positions"
+          tone="var(--yes)"
+          value={portfolio.summary.positionCount.toLocaleString("en-US")}
+        />
       </div>
 
-      {receipts.length > 0 ? <ReceiptTable receipts={receipts} /> : <EmptyReceipts />}
-    </div>
+      <div className="flex flex-col gap-5">
+        {portfolio.receipts.length > 0 ? (
+          <ReceiptTable receipts={portfolio.receipts} />
+        ) : (
+          <NoticeCard
+            body="Place a pre-graduation receipt from any bootstrap market and it will appear here while it waits for graduation clearing."
+            title="No receipts"
+          />
+        )}
+
+        {portfolio.positions.length > 0 ? (
+          <PositionTable positions={portfolio.positions} />
+        ) : (
+          <NoticeCard
+            body="Graduated YES/NO outcome tokens you hold — or have resting in venue orders — will appear here once a market you backed graduates."
+            title="No backed positions"
+          />
+        )}
+
+        {portfolio.openOrders.length > 0 ? (
+          <OpenOrderTable orders={portfolio.openOrders} />
+        ) : null}
+      </div>
+    </>
   );
 }
 
-function ReceiptTable({ receipts }: { receipts: PlacedPregradReceipt[] }) {
+function ReceiptTable({ receipts }: { receipts: PortfolioReceipt[] }) {
   return (
     <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)]">
-      <div className="hidden grid-cols-[1.4fr_0.4fr_0.5fr_0.7fr] gap-3 border-b border-[var(--border-soft)] px-5 py-3 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
+      <SectionHeader title="Receipts" />
+      <div className="hidden grid-cols-[1.4fr_0.4fr_0.5fr_0.9fr] gap-3 border-b border-[var(--border-soft)] px-5 py-3 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
         <span>Market</span>
         <span>Side</span>
-        <span>Band</span>
+        <span>Avg price</span>
         <span>Status</span>
       </div>
       {receipts.map((receipt) => (
-        <ReceiptRow key={receipt.id} receipt={receipt} />
+        <ReceiptRow key={receipt.receiptId} receipt={receipt} />
       ))}
     </section>
   );
 }
 
-function ReceiptRow({ receipt }: { receipt: PlacedPregradReceipt }) {
+function ReceiptRow({ receipt }: { receipt: PortfolioReceipt }) {
+  const cost = wadToNumber(BigInt(receipt.cost));
+  const shares = wadToNumber(BigInt(receipt.shares));
+
   return (
-    <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.5fr_0.7fr]">
+    <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.5fr_0.9fr]">
       <span>
-        <Link
-          className="block text-[var(--text-primary)] transition-opacity hover:opacity-75"
-          href={`/markets/${encodeURIComponent(receipt.marketId)}`}
-        >
-          {receipt.marketQuestion}
-        </Link>
+        <MarketLink marketId={receipt.marketId} question={receipt.marketQuestion} />
         <span className="font-mono text-xs text-[var(--text-muted)]">
-          {formatUsd(receipt.collateralUsd)} receipt - #{receipt.receiptId}
+          {formatUsd(cost)} receipt - #{receipt.receiptId}
         </span>
       </span>
-      <span
-        className="font-mono font-bold"
-        style={{ color: receipt.side === "yes" ? "var(--yes)" : "var(--no)" }}
-      >
-        {receipt.side.toUpperCase()}
+      <SideLabel side={receipt.side} />
+      <span className="font-mono text-[var(--text-secondary)]">
+        {shares > 0 ? formatCents((cost / shares) * 100) : "-"}
+      </span>
+      <ReceiptStatus receipt={receipt} />
+    </div>
+  );
+}
+
+/**
+ * Receipt lifecycle copy. Settled receipts show what the receipt became —
+ * outcome tokens plus any refunded remainder — instead of a perpetual
+ * "waiting" state; claims themselves happen on the market page.
+ */
+function ReceiptStatus({ receipt }: { receipt: PortfolioReceipt }) {
+  if (receipt.status === "settled" && receipt.settlement) {
+    const refund = BigInt(receipt.settlement.refund);
+
+    return (
+      <span className="text-[var(--text-secondary)]">
+        Settled
+        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
+          {formatTokenAmount(BigInt(receipt.settlement.retainedShares ?? "0"))}{" "}
+          {receipt.side.toUpperCase()} tokens
+          {refund > 0n ? ` + ${formatUsd(wadToNumber(refund))} refunded` : ""}
+        </span>
+      </span>
+    );
+  }
+
+  if (receipt.status === "refunded" && receipt.settlement) {
+    return (
+      <span className="text-[var(--text-secondary)]">
+        Refunded
+        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
+          {formatUsd(wadToNumber(BigInt(receipt.settlement.refund)))} returned
+        </span>
+      </span>
+    );
+  }
+
+  if (receipt.status === "claimable") {
+    return (
+      <span className="text-[var(--text-secondary)]">
+        Graduated
+        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
+          Ready to claim on the market page
+        </span>
+      </span>
+    );
+  }
+
+  if (receipt.status === "refund_claimable") {
+    return (
+      <span className="text-[var(--text-secondary)]">
+        Refund available
+        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
+          Claim on the market page
+        </span>
+      </span>
+    );
+  }
+
+  return <span className="text-[var(--text-secondary)]">Waiting for graduation</span>;
+}
+
+function PositionTable({ positions }: { positions: PortfolioPosition[] }) {
+  return (
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)]">
+      <SectionHeader title="Backed positions" />
+      <div className="hidden grid-cols-[1.4fr_0.4fr_0.5fr_0.5fr_0.5fr_0.6fr] gap-3 border-b border-[var(--border-soft)] px-5 py-3 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
+        <span>Market</span>
+        <span>Side</span>
+        <span>Held</span>
+        <span>In orders</span>
+        <span>Owned</span>
+        <span>Value</span>
+      </div>
+      {positions.map((position) => (
+        <PositionRow
+          key={`${position.marketId}:${position.side}`}
+          position={position}
+        />
+      ))}
+    </section>
+  );
+}
+
+function PositionRow({ position }: { position: PortfolioPosition }) {
+  return (
+    <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.5fr_0.5fr_0.5fr_0.6fr]">
+      <span>
+        <MarketLink marketId={position.marketId} question={position.marketQuestion} />
+        {position.avgCostWad ? (
+          <span className="font-mono text-xs text-[var(--text-muted)]">
+            avg cost {formatCents(wadPriceToCents(BigInt(position.avgCostWad)))}
+          </span>
+        ) : null}
+      </span>
+      <SideLabel side={position.side} />
+      <span className="font-mono text-[var(--text-secondary)]">
+        {formatTokenAmount(BigInt(position.heldBalance))}
       </span>
       <span className="font-mono text-[var(--text-secondary)]">
-        {formatPercent(receipt.priceBand.fromProbability)}-
-        {formatPercent(receipt.priceBand.toProbability)}
+        {formatTokenAmount(BigInt(position.committedInOrders))}
+      </span>
+      <span className="font-mono font-bold text-[var(--text-primary)]">
+        {formatTokenAmount(BigInt(position.ownedTotal))}
       </span>
       <span className="text-[var(--text-secondary)]">
-        Waiting for graduation
-        {receipt.transactionHash ? (
+        {position.currentValueWad
+          ? formatUsd(wadToNumber(BigInt(position.currentValueWad)))
+          : "-"}
+        {position.poolPriceWad ? (
           <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-            On-chain receipt
+            at {formatCents(wadPriceToCents(BigInt(position.poolPriceWad)))}
           </span>
-        ) : (
-          <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-            Mock receipt
-          </span>
-        )}
+        ) : null}
       </span>
     </div>
   );
 }
 
-function EmptyReceipts() {
+function OpenOrderTable({ orders }: { orders: PortfolioOpenOrder[] }) {
+  return (
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)]">
+      <SectionHeader title="Open orders" />
+      <div className="hidden grid-cols-[1.4fr_0.4fr_0.6fr_0.5fr_0.7fr] gap-3 border-b border-[var(--border-soft)] px-5 py-3 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
+        <span>Market</span>
+        <span>Side</span>
+        <span>Order</span>
+        <span>Remaining</span>
+        <span>Placed</span>
+      </div>
+      {orders.map((openOrder) => (
+        <OpenOrderRow
+          key={`${openOrder.order.poolId}:${openOrder.order.orderId}`}
+          openOrder={openOrder}
+        />
+      ))}
+    </section>
+  );
+}
+
+function OpenOrderRow({ openOrder }: { openOrder: PortfolioOpenOrder }) {
+  const { order } = openOrder;
+
+  return (
+    <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.6fr_0.5fr_0.7fr]">
+      <span>
+        <MarketLink marketId={openOrder.marketId} question={openOrder.marketQuestion} />
+        <span className="font-mono text-xs text-[var(--text-muted)]">
+          Manage on the market page
+        </span>
+      </span>
+      <SideLabel side={order.side} />
+      <span className="font-mono text-[var(--text-secondary)]">
+        {order.direction === "ask" ? "Sell" : "Buy"} at{" "}
+        {formatCents(wadPriceToCents(BigInt(order.priceWad)))}
+      </span>
+      <span className="font-mono text-[var(--text-secondary)]">
+        {formatTokenAmount(BigInt(order.remainingSizeWad))}
+      </span>
+      <span className="text-[var(--text-secondary)]">
+        {formatDateTime(order.createdBlockTimestamp)}
+      </span>
+    </div>
+  );
+}
+
+function MarketLink({
+  marketId,
+  question,
+}: {
+  marketId: string;
+  question: string | undefined;
+}) {
+  const appId = apiMarketAppId({ chainId: configuredPopChartsChainId, marketId });
+
+  return (
+    <Link
+      className="block text-[var(--text-primary)] transition-opacity hover:opacity-75"
+      href={`/markets/${encodeURIComponent(appId)}`}
+    >
+      {question ?? `Market #${marketId}`}
+    </Link>
+  );
+}
+
+function SideLabel({ side }: { side: "yes" | "no" }) {
+  return (
+    <span
+      className="font-mono font-bold"
+      style={{ color: side === "yes" ? "var(--yes)" : "var(--no)" }}
+    >
+      {side.toUpperCase()}
+    </span>
+  );
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="border-b border-[var(--border-soft)] px-5 py-3">
+      <h2 className="font-display text-lg font-black">{title}</h2>
+    </div>
+  );
+}
+
+function NoticeCard({ body, title }: { body: string; title: string }) {
   return (
     <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6">
       <div className="font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-        No open receipts
+        {title}
       </div>
       <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">
-        Place a pre-graduation receipt from any bootstrap market and it will appear here
-        while it waits for graduation clearing.
+        {body}
       </p>
     </section>
   );
