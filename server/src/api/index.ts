@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 
 import { config } from "src/config";
 import { marketRoutes } from "./routes/markets";
+import { portfolioRoutes } from "./routes/portfolio";
 import { systemRoutes } from "./routes/system";
 
 export const app = new Elysia()
@@ -20,7 +21,8 @@ export const app = new Elysia()
     }),
   )
   .use(systemRoutes)
-  .use(marketRoutes);
+  .use(marketRoutes)
+  .use(portfolioRoutes);
 
 if (import.meta.main) {
   app.listen(config.apiPort);

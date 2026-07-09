@@ -782,6 +782,56 @@
           }
         }
       }
+    },
+    "/portfolio/{chainId}": {
+      "get": {
+        "operationId": "getPortfolio",
+        "summary": "Get a wallet's full portfolio",
+        "description": "Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), and open venue maker orders. Public owner-scoped read; no authentication.",
+        "tags": [
+          "Portfolio"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2106,6 +2156,228 @@
           "yes",
           "no"
         ]
+      },
+      "Portfolio": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "openOrders",
+          "owner",
+          "positions",
+          "receipts",
+          "summary"
+        ],
+        "properties": {
+          "chainId": {
+            "type": "number"
+          },
+          "openOrders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioOpenOrder"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPosition"
+            }
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioReceipt"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PortfolioSummary"
+          }
+        }
+      },
+      "PortfolioOpenOrder": {
+        "type": "object",
+        "required": [
+          "marketId",
+          "order"
+        ],
+        "properties": {
+          "marketId": {
+            "type": "string"
+          },
+          "marketQuestion": {
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/VenueOrder"
+          }
+        }
+      },
+      "PortfolioPosition": {
+        "type": "object",
+        "required": [
+          "committedInOrders",
+          "heldBalance",
+          "marketId",
+          "outcomeToken",
+          "ownedTotal",
+          "side"
+        ],
+        "properties": {
+          "avgCostWad": {
+            "type": "string"
+          },
+          "committedInOrders": {
+            "type": "string"
+          },
+          "currentValueWad": {
+            "type": "string"
+          },
+          "graduationShares": {
+            "type": "string"
+          },
+          "heldBalance": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "marketQuestion": {
+            "type": "string"
+          },
+          "outcomeToken": {
+            "type": "string"
+          },
+          "ownedTotal": {
+            "type": "string"
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "poolPriceWad": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/VenuePoolSide"
+          }
+        }
+      },
+      "PortfolioReceipt": {
+        "type": "object",
+        "required": [
+          "cost",
+          "marketId",
+          "marketStatus",
+          "placedAt",
+          "priceBandHigh",
+          "priceBandLow",
+          "receiptId",
+          "shares",
+          "side",
+          "status"
+        ],
+        "properties": {
+          "cost": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "marketQuestion": {
+            "type": "string"
+          },
+          "marketStatus": {
+            "$ref": "#/components/schemas/MarketStatus"
+          },
+          "placedAt": {
+            "type": "string"
+          },
+          "priceBandHigh": {
+            "type": "string"
+          },
+          "priceBandLow": {
+            "type": "string"
+          },
+          "receiptId": {
+            "type": "string"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/PortfolioReceiptSettlement"
+          },
+          "shares": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/VenuePoolSide"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PortfolioReceiptStatus"
+          }
+        }
+      },
+      "PortfolioReceiptSettlement": {
+        "type": "object",
+        "required": [
+          "claimedAt",
+          "refund"
+        ],
+        "properties": {
+          "claimedAt": {
+            "type": "string"
+          },
+          "refund": {
+            "type": "string"
+          },
+          "retainedCost": {
+            "type": "string"
+          },
+          "retainedShares": {
+            "type": "string"
+          }
+        }
+      },
+      "PortfolioReceiptStatus": {
+        "type": "string",
+        "enum": [
+          "awaiting_graduation",
+          "claimable",
+          "refund_claimable",
+          "settled",
+          "refunded"
+        ]
+      },
+      "PortfolioSummary": {
+        "type": "object",
+        "required": [
+          "claimableReceiptCount",
+          "lockedCollateral",
+          "openOrderCount",
+          "openReceiptCount",
+          "positionCount",
+          "totalPositionValueWad"
+        ],
+        "properties": {
+          "claimableReceiptCount": {
+            "type": "number"
+          },
+          "lockedCollateral": {
+            "type": "string"
+          },
+          "openOrderCount": {
+            "type": "number"
+          },
+          "openReceiptCount": {
+            "type": "number"
+          },
+          "positionCount": {
+            "type": "number"
+          },
+          "totalPositionValueWad": {
+            "type": "string"
+          }
+        }
       }
     }
   }
