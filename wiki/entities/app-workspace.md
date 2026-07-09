@@ -10,7 +10,8 @@ sources:
   - app/docs/adr/0005-code-quality-and-dependency-policy.md
   - docs/architecture.md
   - docs/adr/0013-app-feature-completion.md
-updated: 2026-07-07
+  - docs/portfolio-data-design.md
+updated: 2026-07-08
 ---
 
 # app/ workspace
@@ -48,10 +49,15 @@ interactive client islands), route tree at `app/src/app`.
 ## Status
 
 Pregrad journey is polished (discovery, market detail with AI evidence,
-create flow, receipts, portfolio); everything post-graduation is missing —
-tracked in [root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md)
-(14 open items). CI gates on every app PR: lint, typecheck, unit,
-e2e-smoke ([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md)).
+create flow, receipts); the graduated-market trading surface landed 2026-07-08
+(market/limit tickets, depth ladder, open-orders panel). The portfolio page is
+the remaining localStorage stub — being replaced per the
+[portfolio data design](../summaries/portfolio-data-design.md) with a
+DB-backed view (receipts ⋈ settlement, YES/NO positions, open orders; mock
+localStorage receipts dropped). Remaining post-graduation items tracked in
+[root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md). CI
+gates on every app PR: lint, typecheck, unit, e2e-smoke
+([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md)).
 
 ## Related pages
 
