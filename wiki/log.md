@@ -60,3 +60,9 @@ is now superseded by the dynamic-address outcome-token Transfer watcher
 (PR #151, first non-singleton watcher). Held-vs-committed distinction (order
 pulls move tokens to the pool manager) is the doc's main correctness trap.
 PnL deferred: Transfer indexing keeps quantities, not per-swap cost.
+
+## [2026-07-08] ingest | portfolio data design D4 amendment — direct indexer reads
+Pages: ~summaries/portfolio-data-design.md
+Notes: D4's proxy route dropped in implementation; hooks read the indexer
+directly (postgrad-hook precedent, base URL already NEXT_PUBLIC). Phase
+status updated (2+3 landed as PR #152).
