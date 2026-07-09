@@ -7,7 +7,7 @@ sources:
   - docs/ai-review-next-phase.md
   - docs/adr/0011-ai-review-service-hardening.md
   - server/README.md
-updated: 2026-07-07
+updated: 2026-07-09
 ---
 
 # AI review service and runner
@@ -51,8 +51,9 @@ never silent approval.
 Working end to end locally (`just server-ai-review-smoke`, heuristic on
 127.0.0.1:3002). All hardening open per
 [root ADR 0011](../summaries/root-adr-0011-ai-review-service-hardening.md):
-operator auth, safe-web hardening, strict output validation,
-`AI_REVIEW_PROMPT_VERSION` policy, stuck-job recovery, metrics.
+safe-web hardening, strict output validation,
+`AI_REVIEW_PROMPT_VERSION` policy, stuck-job recovery, metrics. (Manual
+re-review is a local operator action, not an API endpoint.)
 
 ## Related pages
 

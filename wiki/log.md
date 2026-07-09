@@ -94,3 +94,23 @@ track-verticals. Updated all wiki source-path and summary-slug references,
 converted the two "numbering collision" callouts into "renumbered/resolved"
 notes, and added the 0016 row to the ADR index table. No content drift beyond
 the number; collision is resolved, not merely flagged.
+
+## [2026-07-09] ingest | operator-access model correction (ADRs 0009/0011/0012/0015)
+Pages: ~summaries/root-adr-0009-server-api-hardening.md,
+~summaries/root-adr-0011-ai-review-service-hardening.md,
+~summaries/root-adr-0012-ai-assisted-resolution.md,
+~summaries/root-adr-0015-deployment-and-infrastructure.md,
+~summaries/root-adr-index-conventions.md, ~concepts/ai-assisted-resolution.md,
+~entities/ai-review-service.md, ~index.md
+Notes: Source ADRs 0009/0011/0012 (and 0015 secrets) were corrected to a new
+operator-access model: the `/admin/*` and `/dev/*` endpoints are dev-only and
+must be excluded from production builds (not env-flag-gated); operator actions
+(manual re-review, resolution override, key-signed transitions) are performed
+locally against the chain, never through the deployed API — so there is no API
+operator-auth to build. ADR 0009 also reframes the manual graduation endpoint
+as the one real public write: a trigger into the server's manager-keyed
+graduation process (start → off-chain band-pass clearing → Merkle root →
+finalize), because on-chain startGraduation is manager-only and the sweep
+cannot fit in one transaction (protocol ADR 0006). Left the ai-review design-doc
+and server-README summaries unchanged — they faithfully describe their (still
+unchanged) source docs, which still document the current dev/admin endpoint.
