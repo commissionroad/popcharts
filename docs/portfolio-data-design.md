@@ -50,9 +50,9 @@ graduates, and live post-graduation YES/NO positions and open orders.
   wallet address, passed as a query parameter, exactly like the existing
   `orders?owner=` endpoint. Read-only public data; no signature required.
 - No new on-chain contracts or changes to the clearing algorithm.
-- No realized-PnL accounting or tax lots in v1. We surface cost basis where it is
-  directly available from settlement data; full PnL is a follow-up (see Open
-  Questions).
+- No realized-PnL accounting or tax lots in v1. v1 shows **current position value**
+  (quantity × live pool price — tier 2 in D5); value-minus-cost PnL is a follow-up
+  because per-swap cost is not indexed (see D5 and Open Questions).
 - No writes. Order placement and cancellation stay on the per-market ticket where
   they already live.
 
@@ -196,16 +196,42 @@ transport:
   `use-open-venue-orders.ts` / `use-order-book.ts`, keyed on the connected `owner`.
   Do **not** introduce react-query — it is not the house style for app data.
 
-### D5. Cost basis in v1, PnL deferred
+### D5. Current position *value* in v1; true PnL deferred
 
-Settlement gives a real average fill per settled receipt
-(`retainedCost / retainedShares`), so cost basis for graduation-derived positions
-is cheap to show. Live mark-to-market PnL additionally needs the current pool price
-(`displayPriceWad`) and — to attribute cost correctly after post-graduation
-trading — a per-trade cost we do not compute (the `Transfer` index gives quantities,
-not the collateral paid per swap). So v1 shows **quantity and cost basis**; a
-"current value / PnL" column is a follow-up gated on a pool-price source plus
-per-swap cost capture.
+"How am I doing?" splits into three tiers of increasing cost. **v1 targets tier 2
+(current value); tier 3 (PnL) is deferred.**
+
+**Tier 1 — quantity (free).** `heldBalance` / `committedInOrders` / `ownedTotal`
+straight from the balances table + `venue_orders` (D1). No price, no cost.
+
+**Tier 2 — current value (cheap; v1 target).** `ownedTotal × current pool price`.
+The price is already derivable server-side: the order-book service reads the live
+pool `sqrtPriceX96` and converts via `sqrtPriceX96ToDisplayPriceWad`
+(`server/src/api/services/venue-orderbook.ts`). Cost of this tier is one **live pool
+read per position** (a read fan-out over the wallet's graduated markets), reused
+from the order-book path — not a per-swap history. It needs **no cost basis**, so it
+sidesteps the whole tier-3 problem. Two things to get right:
+
+- *Decimals.* Collateral is 6-decimal; outcome tokens are 18-decimal. `qty × price`
+  must reconcile scales or it is wrong by ~12 orders of magnitude. Use the existing
+  WAD conversion helpers; do not hand-roll.
+- *Latency.* If the live-read fan-out is too slow for many positions, snapshot the
+  latest pool price into the DB (e.g. a `pool_price` column updated by the indexer)
+  and read it from there — a later optimization, not a v1 requirement.
+
+**Tier 3 — true PnL (deferred).** Value *minus what you paid*. Blocked not by price
+but by **cost basis**, which the `Transfer`-only index deliberately discards (it
+keeps quantities, not the collateral paid). Cost is in the DB for two acquisition
+paths — graduation claims (`retainedCost / retainedShares`) and the wallet's own
+limit-order fills (`venue_order_events.amount0/amount1`) — but **not for
+market-order swaps**. Capturing that is fiddly: a v4 `Swap` event is emitted by the
+PoolManager with the swap router as caller, not the user's EOA, so it can't be
+attributed to a wallet directly; the realistic route is to **pair the two `Transfer`
+legs in the same transaction** (collateral out from the owner, outcome token in to
+the owner) to reconstruct price paid. On top of that, PnL needs **lot accounting**
+(average-cost or FIFO) to split cost across tokens still held vs. sold, plus
+realized PnL on disposals. That is real net-new work beyond the balances table and
+is out of scope for v1.
 
 ## Proposed data model (new tables)
 
@@ -252,13 +278,16 @@ emits named client models:
   `graduated_receipt_claimed_events`/`refunded_receipt_claimed_events` on
   `(chainId, owner, receiptId)`.
 - `PortfolioPosition` — per graduated market/side: `marketId`, `marketQuestion`,
-  `side`, `outcomeToken`, `poolId`, and the ownership breakdown:
+  `side`, `outcomeToken`, `poolId`. Ownership breakdown:
   `heldBalance` (from `outcome_token_balances`), `committedInOrders` (sum of the
   outcome-token input still locked in the wallet's open `venue_orders`), and
-  `ownedTotal` (`held + committed`). Provenance fields `graduationShares` (sum of
-  `retainedShares` from claims) and `avgCostWad` (derived from `retainedCost`) come
-  from the settlement join. All computed **server-side** from the DB — no client
-  `balanceOf` needed.
+  `ownedTotal` (`held + committed`) — all from the DB. Tier-2 value (D5):
+  `poolPriceWad` (live pool read via the order-book path, `Optional` — omitted when
+  the pool is uninitialized) and `currentValue` (`ownedTotal × poolPriceWad`,
+  decimal-reconciled). Provenance fields `graduationShares` (sum of `retainedShares`
+  from claims) and `avgCostWad` (derived from `retainedCost`) come from the
+  settlement join. No client `balanceOf` needed. No PnL field in v1 (tier 3,
+  deferred).
 - `PortfolioOpenOrder` — a resting venue limit order (bounded v4 liquidity
   position): the existing `VenueOrder` shape plus `marketId` / `marketQuestion` for
   cross-market display; cross-market query over `venue_orders` filtered by `owner` +
@@ -303,9 +332,11 @@ per `CONTEXT.md`: pre-graduation buys are receipts/priced intents, not fills.
    load-bearing phase — everything downstream reads it.
 2. **Server read model.** `portfolio.ts` models + service + route; owner-scoped
    Drizzle joins over `receipt_placed_events`, the settlement tables, `venue_orders`,
-   `venue_pools`, `markets`, and the new `outcome_token_balances`. Unit tests
-   (owner validation, receipt↔settlement join, held+committed aggregation,
-   cross-market rollup).
+   `venue_pools`, `markets`, and the new `outcome_token_balances`. Compute tier-2
+   `currentValue` by reusing the order-book path's live pool-price read
+   (`ownedTotal × poolPriceWad`, decimal-reconciled; D5). Unit tests (owner
+   validation, receipt↔settlement join, held+committed aggregation, value math incl.
+   6-vs-18-decimal scaling and uninitialized-pool omission, cross-market rollup).
 3. **Codegen + client.** Regenerate OpenAPI + api-client; add wrapper method to
    `markets-api.ts` (or a new `portfolio-api.ts`) and a `domain/portfolio/queries.ts`
    with the env-driven base URL + fixtures fallback.
@@ -313,11 +344,13 @@ per `CONTEXT.md`: pre-graduation buys are receipts/priced intents, not fills.
    in the visibility-aware polling style; keyed on an address (the connected wallet
    by default, but the endpoint works for any address).
 5. **UI rewire.** Replace localStorage source in `portfolio-page.tsx`; add the
-   positions/orders section; real summary cards; settled-receipt rendering.
+   positions/orders section (held/committed/owned + current value); real summary
+   cards (replacing the hardcoded "Backed positions" `0`); settled-receipt rendering.
    100% line coverage is enforced (`app/AGENTS.md`); include the unhappy paths
    (no wallet, empty portfolio, API error, market mid-graduation).
-6. **(Follow-up) Value / PnL column.** Add a pool-price source and per-swap cost
-   capture to turn held quantities into current value and realized/unrealized PnL.
+6. **(Follow-up) PnL.** Capture per-swap cost by pairing the collateral/outcome
+   `Transfer` legs within each swap tx, add lot accounting (avg-cost or FIFO), and
+   surface realized/unrealized PnL on top of the tier-2 value already shipped (D5).
 
 ## Risks and open questions
 
