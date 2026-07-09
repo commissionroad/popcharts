@@ -11,10 +11,10 @@ updated: 2026-07-07
 
 **Status: Accepted.** Dated 2026-07-06.
 
-> **Numbering collision:** a second file also numbered 0007 exists —
-> `docs/adr/0007-monorepo-architecture-cleanup-program.md`
-> ([summary](root-adr-0007-monorepo-architecture-cleanup-program.md)). The
-> `docs/adr/README.md` index lists only this track-verticals ADR under 0007.
+> **Note:** this is the canonical ADR 0007. A second file was originally filed
+> under 0007 (the monorepo cleanup program); it was renumbered to **0016** on
+> 2026-07-09 ([summary](root-adr-0016-monorepo-architecture-cleanup-program.md)),
+> so the number is no longer shared.
 
 ## Context
 

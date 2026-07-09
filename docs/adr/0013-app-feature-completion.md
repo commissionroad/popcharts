@@ -43,7 +43,7 @@ Graduation:
 
 Postgrad trading:
 
-- [ ] Market detail switches to postgrad mode after graduation: YES/NO
+- [x] Market detail switches to postgrad mode after graduation: YES/NO
       prices from the v4 venue, trade ticket for outcome tokens
       (approve/buy/sell against `BoundedPoolOrderManager`).
 - [ ] Portfolio shows postgrad positions and P&L alongside pregrad receipts.
@@ -56,7 +56,7 @@ Unhappy paths:
       (from ADR 0011) and what the creator can change before resubmitting.
 - [ ] Refund flows surfaced wherever a market lands in `refunded`/closed
       states, not only behind dev tools.
-- [ ] Receipt states communicate the full range of outcomes (matched,
+- [x] Receipt states communicate the full range of outcomes (matched,
       partially matched, refunded) after clearing.
 
 Small features:

@@ -48,7 +48,7 @@ ABI was declared in the server pending protocol-exported ABIs.
 - Add a generated API client once frontend integration begins.
 
 (Several of these later landed via the monorepo cleanup program — see
-[root-adr-0007-monorepo-architecture-cleanup-program](root-adr-0007-monorepo-architecture-cleanup-program.md),
+[root-adr-0016-monorepo-architecture-cleanup-program](root-adr-0016-monorepo-architecture-cleanup-program.md),
 Track A.)
 
 ## Update: market metadata discovery

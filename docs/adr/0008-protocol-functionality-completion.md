@@ -50,10 +50,10 @@ Resolution hooks:
 
 Postgrad handoff:
 
-- [ ] Integration tests proving `GraduationFinalized` funding and per-receipt
+- [x] Integration tests proving `GraduationFinalized` funding and per-receipt
       claims through `CompleteSetPostgradAdapter` under each clearing
       outcome.
-- [ ] Verify the v4 venue path (pool creation, bounded ticks, maker/taker
+- [x] Verify the v4 venue path (pool creation, bounded ticks, maker/taker
       flow) against a graduated market end to end on the devchain.
 - [ ] Resolve the open question of Uniswap v4 availability on Arc Testnet
       (deploy our own PoolManager vs. depend on a canonical one) and record
@@ -61,10 +61,10 @@ Postgrad handoff:
 
 Unhappy paths:
 
-- [ ] Contract tests for rejected markets, refund-only graduations, claims
+- [x] Contract tests for rejected markets, refund-only graduations, claims
       after `MarketRefundsAvailable`, challenge-window expiry, and
       fee-on-transfer collateral (`MockFeeCollateral`).
-- [ ] Confirm receipt escrow accounting is exact (no dust, no stranded
+- [x] Confirm receipt escrow accounting is exact (no dust, no stranded
       collateral) across every terminal market status.
 
 ## Exit Criteria

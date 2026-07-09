@@ -32,15 +32,15 @@ Security:
 
 - [ ] Operator authentication on the manual re-review path, shared with the
       API admin auth (ADR 0009).
-- [ ] Evidence fetching hardening in `safe-web.ts`: block private/loopback
+- [x] Evidence fetching hardening in `safe-web.ts`: block private/loopback
       IPs, cap redirects, validate content types, bound response sizes.
-- [ ] Review-manager key handling documented: the key that signs
+- [x] Review-manager key handling documented: the key that signs
       `approveMarket`/`rejectMarket` is loaded from configuration, never
       logged, and rotatable without schema changes.
 
 Robustness:
 
-- [ ] Strict model-output validation with a defined fallback verdict
+- [x] Strict model-output validation with a defined fallback verdict
       (`manual_review`) on malformed responses.
 - [ ] Decide and implement the prompt-version policy: what happens to
       already-reviewed and in-flight markets when
