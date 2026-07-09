@@ -117,7 +117,10 @@ exactly the escape hatch it exists for.
 3. **Model structured `too_early`.** Add `too_early` to the outcome union. Even
    past a gate, the model can judge the event unconcluded (e.g. a match went to
    extra time, results not yet official) → the runner **re-queues with backoff**
-   (`run_after` bump), it is *not* a failure and *not* a resolution.
+   (`run_after` bump), it is *not* a failure and *not* a resolution. **Bounded:**
+   `too_early` re-queues escalate to `manual_review` once `now > no_not_before +
+   grace` (or after N cycles), so an indefinitely-postponed event reaches an
+   operator instead of looping forever — the operator then cancels or waits.
 4. **On-chain floor guard (minimal contract change).** Add an immutable
    `earliestResolutionTime` to `CompleteSetBinaryMarket` and make `resolve(side)`
    revert before it. `cancel()` stays ungated. The floor = the earliest any
