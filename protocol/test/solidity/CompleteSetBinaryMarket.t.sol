@@ -57,6 +57,7 @@ contract CompleteSetBinaryMarketTest is BaseTest {
       address(0),
       resolver,
       18,
+      uint64(block.timestamp),
       uint64(block.timestamp)
     );
 
@@ -67,6 +68,7 @@ contract CompleteSetBinaryMarketTest is BaseTest {
       retainedMinter,
       address(0),
       18,
+      uint64(block.timestamp),
       uint64(block.timestamp)
     );
 
@@ -92,20 +94,21 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     yesToken.burnFrom(trader, 1 * WAD);
   }
 
-  function test_ResolveRevertsBeforeEarliestResolutionTime() public {
-    uint64 earliest = uint64(block.timestamp + 1 days);
+  function test_ResolveRevertsBeforeYesNotBefore() public {
+    uint64 yesGate = uint64(block.timestamp + 1 days);
     CompleteSetBinaryMarket gatedMarket = _deployMarketWithConfig(
       address(collateral),
       address(this),
       retainedMinter,
       resolver,
       18,
-      earliest
+      yesGate,
+      yesGate
     );
 
     vm.prank(resolver);
     vm.expectRevert(
-      abi.encodeWithSelector(CompleteSetBinaryMarket.TooEarlyToResolve.selector, earliest)
+      abi.encodeWithSelector(CompleteSetBinaryMarket.TooEarlyToResolve.selector, yesGate)
     );
     gatedMarket.resolve(MarketTypes.Side.Yes);
 
@@ -115,18 +118,46 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     assertEq(uint8(gatedMarket.status()), uint8(CompleteSetBinaryMarket.Status.Cancelled));
   }
 
-  function test_ResolveSucceedsAtEarliestResolutionTime() public {
-    uint64 earliest = uint64(block.timestamp + 1 days);
+  function test_ResolveYesSucceedsAtYesNotBefore() public {
+    uint64 yesGate = uint64(block.timestamp + 1 days);
     CompleteSetBinaryMarket gatedMarket = _deployMarketWithConfig(
       address(collateral),
       address(this),
       retainedMinter,
       resolver,
       18,
-      earliest
+      yesGate,
+      yesGate
     );
 
-    vm.warp(earliest);
+    vm.warp(yesGate);
+    vm.prank(resolver);
+    gatedMarket.resolve(MarketTypes.Side.Yes);
+    assertEq(uint8(gatedMarket.status()), uint8(CompleteSetBinaryMarket.Status.Resolved));
+  }
+
+  function test_ResolveNoGatedUntilNoNotBefore() public {
+    uint64 yesGate = uint64(block.timestamp + 1 days);
+    uint64 noGate = uint64(block.timestamp + 2 days);
+    CompleteSetBinaryMarket gatedMarket = _deployMarketWithConfig(
+      address(collateral),
+      address(this),
+      retainedMinter,
+      resolver,
+      18,
+      yesGate,
+      noGate
+    );
+
+    // Past the YES gate but before the NO gate: NO must still revert...
+    vm.warp(yesGate);
+    vm.prank(resolver);
+    vm.expectRevert(
+      abi.encodeWithSelector(CompleteSetBinaryMarket.TooEarlyToResolve.selector, noGate)
+    );
+    gatedMarket.resolve(MarketTypes.Side.No);
+
+    // ...while YES is already permitted at the same instant.
     vm.prank(resolver);
     gatedMarket.resolve(MarketTypes.Side.Yes);
     assertEq(uint8(gatedMarket.status()), uint8(CompleteSetBinaryMarket.Status.Resolved));
@@ -565,6 +596,7 @@ contract CompleteSetBinaryMarketTest is BaseTest {
         retainedMinter,
         resolver,
         outcomeDecimals,
+        uint64(block.timestamp),
         uint64(block.timestamp)
       );
   }
@@ -575,7 +607,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     address retainedMinter_,
     address resolver_,
     uint8 outcomeDecimals,
-    uint64 earliestResolutionTime
+    uint64 yesNotBefore,
+    uint64 noNotBefore
   ) private returns (CompleteSetBinaryMarket) {
     return
       new CompleteSetBinaryMarket({
@@ -586,7 +619,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
         marketName_: "Pop Charts Test",
         marketSymbol_: "PCT",
         outcomeDecimals_: outcomeDecimals,
-        earliestResolutionTime_: earliestResolutionTime
+        yesNotBefore_: yesNotBefore,
+        noNotBefore_: noNotBefore
       });
   }
 

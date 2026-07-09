@@ -1901,7 +1901,12 @@ export const completeSetBinaryMarketAbi = [
       },
       {
         internalType: "uint64",
-        name: "earliestResolutionTime_",
+        name: "yesNotBefore_",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "noNotBefore_",
         type: "uint64",
       },
     ],
@@ -2071,7 +2076,7 @@ export const completeSetBinaryMarketAbi = [
     inputs: [
       {
         internalType: "uint64",
-        name: "earliestResolutionTime",
+        name: "notBefore",
         type: "uint64",
       },
     ],
@@ -2383,19 +2388,6 @@ export const completeSetBinaryMarketAbi = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "earliestResolutionTime",
-    outputs: [
-      {
-        internalType: "uint64",
-        name: "",
-        type: "uint64",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
@@ -2478,6 +2470,19 @@ export const completeSetBinaryMarketAbi = [
     name: "mintRetainedSide",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "noNotBefore",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -2666,6 +2671,19 @@ export const completeSetBinaryMarketAbi = [
         internalType: "enum MarketTypes.Side",
         name: "",
         type: "uint8",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "yesNotBefore",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
       },
     ],
     stateMutability: "view",
@@ -3117,7 +3135,12 @@ export const completeSetPostgradAdapterAbi = [
       },
       {
         internalType: "uint64",
-        name: "earliestResolutionTime",
+        name: "yesNotBefore",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "noNotBefore",
         type: "uint64",
       },
     ],

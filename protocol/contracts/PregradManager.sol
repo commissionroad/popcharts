@@ -800,7 +800,8 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
         market.config.metadataHash,
         clearingRoot.retainedCostTotal,
         clearingRoot.completeSetCount,
-        market.config.yesNotBefore
+        market.config.yesNotBefore,
+        market.config.resolutionTime
       );
     if (outcomeCapacity != clearingRoot.completeSetCount) {
       revert PostgradCapacityMismatch(clearingRoot.completeSetCount, outcomeCapacity);
