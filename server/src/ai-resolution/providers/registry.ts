@@ -4,18 +4,20 @@ import type {
 } from "../config";
 import type { ConfigValidationResult } from "../types";
 import { heuristicProvider } from "./heuristic";
+import { ollamaProvider } from "./ollama";
 import type { ResolutionProvider } from "./types";
 
 /**
- * Registry of implemented resolution providers. The heuristic backend ships
- * first (it drives local dev, tests, and the smoke); the `ollama` and
- * `anthropic` model backends land next and slot in here, at which point this
- * becomes a total `satisfies Record<ResolutionModelProviderName, ...>`.
+ * Registry of implemented resolution providers. The heuristic and local Ollama
+ * backends ship first; the `anthropic` model backend lands next and slots in
+ * here, at which point this becomes a total
+ * `satisfies Record<ResolutionModelProviderName, ...>`.
  */
 export const resolutionProviders: Partial<
   Record<ResolutionModelProviderName, ResolutionProvider>
 > = {
   heuristic: heuristicProvider,
+  ollama: ollamaProvider,
 };
 
 export function getResolutionProvider(
