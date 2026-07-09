@@ -57,6 +57,44 @@ type WorkingClaim = {
 };
 
 /**
+ * The band-pass matched market cap for a receipt book: the sum over price bands
+ * of min(YES, NO coverage)·width. This is the real graduation cap — always
+ * `<= min(totalYesShares, totalNoShares)`, and strictly less whenever demand
+ * does not overlap in price. Needs only the receipt intervals and sides (no
+ * liquidity parameter, no cost split), so it is cheap enough to compute on read
+ * for display and eligibility. Agrees with `computeBandPassClearing(...)`'s
+ * `matchedMarketCap` (see the clearing tests).
+ */
+export function computeMatchedMarketCap(
+  receipts: Array<{ rHigh: bigint; rLow: bigint; side: number }>,
+): bigint {
+  if (receipts.length === 0) return 0n;
+
+  const boundaries = [...new Set(receipts.flatMap((r) => [r.rLow, r.rHigh]))].sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+
+  let matched = 0n;
+  for (let i = 0; i < boundaries.length - 1; i += 1) {
+    const low = boundaries[i]!;
+    const high = boundaries[i + 1]!;
+    const width = high - low;
+    if (width <= 0n) continue;
+
+    let yes = 0n;
+    let no = 0n;
+    for (const r of receipts) {
+      if (r.rLow <= low && r.rHigh >= high) {
+        if (r.side === SIDE_YES) yes += 1n;
+        else no += 1n;
+      }
+    }
+    matched += (yes < no ? yes : no) * width;
+  }
+  return matched;
+}
+
+/**
  * Computes the band-pass clearing plan for a frozen receipt book. Returns the
  * per-receipt claims, the conserved totals, and whether the market graduates.
  * Throws on inconsistent input (empty book, width != shares) or a failed

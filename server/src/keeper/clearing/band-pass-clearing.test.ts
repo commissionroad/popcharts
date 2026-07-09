@@ -4,6 +4,7 @@ import { calculateMatchedMarketCap } from "src/api/services/matched-market-cap";
 
 import {
   computeBandPassClearing,
+  computeMatchedMarketCap,
   SIDE_NO,
   SIDE_YES,
   yesBandCost,
@@ -89,6 +90,10 @@ describe("computeBandPassClearing — whitepaper Example A", () => {
     expect(plan.graduates).toBe(true);
     // Matched cap is Noah's fully-overlapped NO interval = width(30→40).
     expect(plan.matchedMarketCap).toBe(r40 - r30);
+    // The lightweight matched-cap sweep agrees with the full clearing plan.
+    expect(computeMatchedMarketCap([alice, noah, bea])).toBe(
+      plan.matchedMarketCap,
+    );
     // Cross-check the whitepaper's independently derived 44.1833.
     expect(
       absDiff(plan.matchedMarketCap, 4418n * CENT + 33n * (CENT / 100n)),
@@ -175,6 +180,7 @@ describe("computeBandPassClearing — the eligibility bug the sweep fixes", () =
 
     // The real sweep: nothing matches, no graduation, full refunds.
     expect(plan.matchedMarketCap).toBe(0n);
+    expect(computeMatchedMarketCap([yesReceipt, noReceipt])).toBe(0n);
     expect(plan.graduates).toBe(false);
     expect(plan.refundTotal).toBe(plan.totalEscrowed);
     for (const claim of plan.claims) expect(claim.retainedShares).toBe(0n);
@@ -236,6 +242,7 @@ describe("computeBandPassClearing — invariants over random books", () => {
         plan.totalEscrowed,
       );
       expect(plan.matchedMarketCap).toBeGreaterThanOrEqual(0n);
+      expect(computeMatchedMarketCap(book)).toBe(plan.matchedMarketCap);
 
       let yes = 0n;
       let no = 0n;
