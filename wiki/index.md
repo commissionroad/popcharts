@@ -89,6 +89,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [AI review runner design](summaries/ai-review-runner-design.md) — the durable-job runner bridging projections to the review service
 - [AI review next phase](summaries/ai-review-next-phase.md) — provider triad, service split rationale, AWS shape, injection defenses
 - [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline (has stale org/lockfile references)
+- [Portfolio data design](summaries/portfolio-data-design.md) — DB-backed Portfolio spec: Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1
 
 ## Summaries — app, server, infra, designkit
 

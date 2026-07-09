@@ -7,8 +7,9 @@ sources:
   - docs/adr/0010-indexer-maturity.md
   - docs/ai-review-runner-design.md
   - protocol/docs/postgrad-contract-metadata.md
+  - docs/portfolio-data-design.md
   - infra/README.md
-updated: 2026-07-07
+updated: 2026-07-08
 ---
 
 # Indexer
@@ -38,11 +39,25 @@ metadata hash from `MarketCreated` and persists `market_metadata`.
   RPC work and race the cursor); health file `/tmp/popcharts-indexer-healthy`;
   RPC via WSS from Secrets Manager.
 
-## Open maturity work ([root ADR 0010](../summaries/root-adr-0010-indexer-maturity.md), all 8 items open)
+## Postgrad coverage (closing)
+
+Graduated markets no longer fully "go dark": the
+`BoundedPoolOrderManager` maker-order lifecycle indexes into
+`venue_order_events`/`venue_orders` (+ derived `venue_pools` mapping), and the
+[portfolio data design](../summaries/portfolio-data-design.md) adds a
+**dynamic-address ERC-20 `Transfer` watcher** over each graduated market's
+outcome tokens (landed, PR #151): tokens discovered from `venue_pools`, one
+cursor per token address, late discoveries backfilled from their market's
+graduation block, live subscription rebuilt on a discovery interval. It
+projects per-wallet `outcome_token_balances`; raw v4 `Swap` events remain
+deliberately unindexed (every swap surfaces as a Transfer).
+
+## Open maturity work ([root ADR 0010](../summaries/root-adr-0010-indexer-maturity.md))
 
 Reorg handling (block hashes + rewind), configurable confirmation depth, RPC
-failover, DB-backed leasing, cursor-lag metrics, and postgrad event coverage —
-graduated markets currently "go dark."
+failover, DB-backed leasing, cursor-lag metrics remain open. Balance
+projections raise the stakes on reorg handling: an orphaned Transfer leaves a
+wrong balance, not just a stale log row.
 
 ## Related pages
 

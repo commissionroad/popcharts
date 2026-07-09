@@ -50,3 +50,13 @@ manager-submitted and the timeout had no dispute mechanism behind it. The
 `challengeDeadline` plumbing (events, indexer, API) is kept so a real window
 is a parameter change later. Same PR lands the dev graduation flow + postgrad
 venue wiring the ADR unblocks.
+
+## [2026-07-08] ingest | portfolio data design — DB-backed portfolio spec
+Pages: +summaries/portfolio-data-design.md, ~entities/indexer.md,
+~entities/server-workspace.md, ~entities/app-workspace.md, ~index.md
+Notes: replaces the localStorage portfolio stub. Indexer page's "graduated
+markets go dark" claim was stale (venue-order indexing landed 2026-07-08) and
+is now superseded by the dynamic-address outcome-token Transfer watcher
+(PR #151, first non-singleton watcher). Held-vs-committed distinction (order
+pulls move tokens to the pool manager) is the doc's main correctness trap.
+PnL deferred: Transfer indexing keeps quantities, not per-swap cost.

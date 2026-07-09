@@ -8,7 +8,8 @@ sources:
   - docs/adr/0009-server-api-hardening.md
   - docs/architecture.md
   - docs/ai-review-runner-design.md
-updated: 2026-07-07
+  - docs/portfolio-data-design.md
+updated: 2026-07-08
 ---
 
 # server/ workspace
@@ -41,10 +42,14 @@ Tables: `markets` (keyed chain_id+market_id, starts `under_review`),
 ## Hardening gaps (all open, [root ADR 0009](../summaries/root-adr-0009-server-api-hardening.md))
 
 Admin/dev endpoints gated only by env flags (`POPCHARTS_ADMIN_REVIEW_ENABLED`,
-`POPCHARTS_DEV_TOOLS_ENABLED`); no rate limiting; no portfolio/postgrad/search
-endpoints; planned user auth is likely SIWE-style wallet signatures. Operator
-auth is meant to land once, in the server package, shared by review/resolution
-admin surfaces (root ADRs 0009/0011/0012).
+`POPCHARTS_DEV_TOOLS_ENABLED`); no rate limiting; no search endpoint; planned
+user auth is likely SIWE-style wallet signatures. Operator auth is meant to
+land once, in the server package, shared by review/resolution admin surfaces
+(root ADRs 0009/0011/0012). The portfolio gap is being closed by the
+[portfolio data design](../summaries/portfolio-data-design.md): one aggregate
+`GET /portfolio/:chainId?owner=` (unauthenticated owner-scoped read, same
+pattern as `orders?owner=`) over receipts ⋈ settlement, per-wallet
+`outcome_token_balances`, and open `venue_orders`.
 
 ## Related pages
 
