@@ -8,7 +8,7 @@ import {
   SIDE_YES,
   yesBandCost,
   type ClearingReceipt,
-} from "./band-pass-clearing";
+} from "@popcharts/protocol";
 
 const WAD = 10n ** 18n;
 const B = 100n * WAD; // liquidity parameter b = 100

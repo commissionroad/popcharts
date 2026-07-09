@@ -43,12 +43,15 @@ import {
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 
 import {
-  buildDevClearingPlan,
+  computeBandPassClearing,
   hashReceiptClaim,
-  type DevClearingPlan,
-  type DevClearingReceipt,
-  type DevReceiptClaim,
-} from "./dev-graduation-clearing";
+  SIDE_NO,
+  SIDE_YES,
+  type BandPassClearingResult,
+  type ClearingPlan,
+  type ClearingReceipt,
+  type ReceiptClaim,
+} from "@popcharts/protocol";
 import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
 import { ensureDevBackstopLiquidity } from "@popcharts/protocol";
 
@@ -659,20 +662,23 @@ async function graduateLocalMarketOnChain(
       });
     } else {
       // Without force this flow settles only markets that already earned
-      // graduation: the same eligibility the keeper and the graduate button
-      // check before asking for settlement.
-      const matchedMarketCap = calculateMatchedMarketCap({
-        noShares: state.noShares,
-        yesShares: state.yesShares,
-      });
+      // graduation. Eligibility is the real band-pass matched cap over the
+      // current book — the sum of min(YES,NO) coverage across price bands — not
+      // min(totalYes,totalNo), which overstates it whenever demand does not
+      // overlap in price and would graduate a lopsided book that clears to zero.
+      const preview = clearReceipts(
+        await collectMarketReceipts(publicClient, marketId),
+        marketConfig.graduationThreshold,
+        marketConfig.liquidityParameter,
+      );
 
       if (
-        matchedMarketCap < marketConfig.graduationThreshold ||
-        state.totalEscrowed < marketConfig.graduationThreshold
+        !preview ||
+        preview.matchedMarketCap < marketConfig.graduationThreshold
       ) {
         return {
           kind: "below_threshold",
-          matchedMarketCap,
+          matchedMarketCap: preview?.matchedMarketCap ?? 0n,
           threshold: marketConfig.graduationThreshold,
         };
       }
@@ -687,20 +693,21 @@ async function graduateLocalMarketOnChain(
     functionName: "getClearingRoot",
     args: [marketId],
   });
-  let plan: DevClearingPlan | null = null;
+  let plan: ClearingPlan | null = null;
 
   if (clearingRoot.merkleRoot === ZERO_HASH) {
-    plan = buildDevClearingPlan({
-      graduationThreshold: marketConfig.graduationThreshold,
+    plan = clearReceipts(
       receipts,
-    });
-    state = await readState();
-
-    if (plan.totalEscrowed !== state.totalEscrowed) {
+      marketConfig.graduationThreshold,
+      marketConfig.liquidityParameter,
+    );
+    if (!plan) {
       throw new Error(
-        `Receipt log escrow ${plan.totalEscrowed} does not match the on-chain snapshot ${state.totalEscrowed}; refusing to submit a clearing root.`,
+        `Market ${marketId} is graduating with no receipts to clear.`,
       );
     }
+    state = await readState();
+    verifyReconstructedBookMatchesSnapshot(receipts, plan, state);
 
     await assertLeafHashMatchesContract(publicClient, plan.claims[0]!);
     await write("submitClearingRoot", [
@@ -722,11 +729,15 @@ async function graduateLocalMarketOnChain(
   } else {
     // Resuming a previous run: only claim receipts when the stored root was
     // produced by this same plan, otherwise our proofs would not verify.
-    const rebuilt = buildDevClearingPlan({
-      graduationThreshold: marketConfig.graduationThreshold,
+    const rebuilt = clearReceipts(
       receipts,
-    });
-    plan = rebuilt.merkleRoot === clearingRoot.merkleRoot ? rebuilt : null;
+      marketConfig.graduationThreshold,
+      marketConfig.liquidityParameter,
+    );
+    plan =
+      rebuilt && rebuilt.merkleRoot === clearingRoot.merkleRoot
+        ? rebuilt
+        : null;
   }
 
   await fastForwardLocalRpc(publicClient, clearingRoot.challengeDeadline);
@@ -895,11 +906,76 @@ async function fundDevCollateral({
   }
 }
 
+/**
+ * Runs the real band-pass sweep over a reconstructed receipt book. Returns null
+ * for an empty book (nothing to clear).
+ */
+function clearReceipts(
+  receipts: ClearingReceipt[],
+  graduationThreshold: bigint,
+  liquidityParameter: bigint,
+): BandPassClearingResult | null {
+  if (receipts.length === 0) {
+    return null;
+  }
+  return computeBandPassClearing({
+    graduationThreshold,
+    liquidityParameter,
+    receipts,
+  });
+}
+
+/**
+ * Confirms the receipt book reconstructed from logs matches the frozen on-chain
+ * accounting the clearing root is validated against. The GraduationStarted
+ * snapshot commits to receiptCount, totalEscrowed, yesShares, and noShares; we
+ * re-derive each from the reconstructed receipts and refuse to submit on any
+ * mismatch (a stale read, or a book that changed after the freeze).
+ */
+function verifyReconstructedBookMatchesSnapshot(
+  receipts: ClearingReceipt[],
+  plan: ClearingPlan,
+  state: {
+    noShares: bigint;
+    receiptCount: bigint;
+    totalEscrowed: bigint;
+    yesShares: bigint;
+  },
+): void {
+  const yesShares = receipts
+    .filter((r) => r.side === SIDE_YES)
+    .reduce((sum, r) => sum + r.shares, 0n);
+  const noShares = receipts
+    .filter((r) => r.side === SIDE_NO)
+    .reduce((sum, r) => sum + r.shares, 0n);
+
+  const mismatches: string[] = [];
+  if (plan.totalEscrowed !== state.totalEscrowed) {
+    mismatches.push(`escrow ${plan.totalEscrowed} != ${state.totalEscrowed}`);
+  }
+  if (BigInt(receipts.length) !== state.receiptCount) {
+    mismatches.push(`receiptCount ${receipts.length} != ${state.receiptCount}`);
+  }
+  if (yesShares !== state.yesShares) {
+    mismatches.push(`yesShares ${yesShares} != ${state.yesShares}`);
+  }
+  if (noShares !== state.noShares) {
+    mismatches.push(`noShares ${noShares} != ${state.noShares}`);
+  }
+
+  if (mismatches.length > 0) {
+    throw new Error(
+      `Reconstructed book does not match the frozen on-chain snapshot ` +
+        `(${mismatches.join("; ")}); refusing to submit a clearing root.`,
+    );
+  }
+}
+
 /** Reads every ReceiptPlaced log for a market from the local chain. */
 async function collectMarketReceipts(
   publicClient: ReturnType<typeof createPublicClient>,
   marketId: bigint,
-): Promise<DevClearingReceipt[]> {
+): Promise<ClearingReceipt[]> {
   const logs = await publicClient.getLogs({
     address: config.contracts.pregradManager,
     event: RECEIPT_PLACED_EVENT,
@@ -913,6 +989,9 @@ async function collectMarketReceipts(
     marketId: log.args.marketId!,
     owner: log.args.owner!,
     receiptId: log.args.receiptId!,
+    rHigh: log.args.rHigh!,
+    rLow: log.args.rLow!,
+    sequence: log.args.sequence!,
     shares: log.args.shares!,
     side: log.args.side!,
   }));
@@ -924,7 +1003,7 @@ async function collectMarketReceipts(
  */
 async function assertLeafHashMatchesContract(
   publicClient: ReturnType<typeof createPublicClient>,
-  claim: DevReceiptClaim,
+  claim: ReceiptClaim,
 ) {
   const contractLeaf = await publicClient.readContract({
     abi: PREGRAD_DEV_GRADUATE_ABI,

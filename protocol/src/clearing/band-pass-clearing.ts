@@ -1,9 +1,9 @@
 import {
   buildClaimMerkleTree,
   hashReceiptClaim,
-  type DevClearingPlan,
-  type DevReceiptClaim,
-} from "src/api/services/dev-graduation-clearing";
+  type ClearingPlan,
+  type ReceiptClaim,
+} from "./receipt-claim-merkle.js";
 
 /**
  * Band-pass graduation clearing (whitepaper v4 §6).
@@ -43,7 +43,7 @@ export type ClearingReceipt = {
   side: number;
 };
 
-export type BandPassClearingResult = DevClearingPlan & {
+export type BandPassClearingResult = ClearingPlan & {
   /** Whether matched market cap reached the graduation threshold. */
   graduates: boolean;
 };
@@ -96,9 +96,9 @@ export function computeBandPassClearing({
   // Boundary set: every distinct interval endpoint. Because it contains every
   // endpoint, each band lies fully inside or fully outside each receipt — there
   // is no partial-coverage case to reason about.
-  const boundaries = [
-    ...new Set(receipts.flatMap((r) => [r.rLow, r.rHigh])),
-  ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const boundaries = [...new Set(receipts.flatMap((r) => [r.rLow, r.rHigh]))].sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
 
   let matchedMarketCap = 0n;
 
@@ -143,7 +143,7 @@ export function computeBandPassClearing({
     w.retainedCost = retainedCosts[i]!;
   });
 
-  const claims: DevReceiptClaim[] = working.map((w) => ({
+  const claims: ReceiptClaim[] = working.map((w) => ({
     marketId: w.receipt.marketId,
     owner: w.receipt.owner,
     receiptId: w.receipt.receiptId,
@@ -177,15 +177,8 @@ export function computeBandPassClearing({
   };
 }
 
-function covers(
-  w: WorkingClaim,
-  side: number,
-  low: bigint,
-  high: bigint,
-): boolean {
-  return (
-    w.receipt.side === side && w.receipt.rLow <= low && w.receipt.rHigh >= high
-  );
+function covers(w: WorkingClaim, side: number, low: bigint, high: bigint): boolean {
+  return w.receipt.side === side && w.receipt.rLow <= low && w.receipt.rHigh >= high;
 }
 
 /**
@@ -310,11 +303,7 @@ export function lmsrCost(path: bigint, liquidityParameter: bigint): bigint {
 }
 
 /** LMSR cost of moving YES across [low, high]: C(high) − C(low), in WAD. */
-export function yesBandCost(
-  low: bigint,
-  high: bigint,
-  liquidityParameter: bigint,
-): bigint {
+export function yesBandCost(low: bigint, high: bigint, liquidityParameter: bigint): bigint {
   return lmsrCost(high, liquidityParameter) - lmsrCost(low, liquidityParameter);
 }
 
@@ -331,7 +320,7 @@ function assertInvariants({
   totalEscrowed,
   working,
 }: {
-  claims: DevReceiptClaim[];
+  claims: ReceiptClaim[];
   completeSetCount: bigint;
   matchedMarketCap: bigint;
   refundTotal: bigint;
@@ -348,10 +337,8 @@ function assertInvariants({
   let noShares = 0n;
 
   for (const claim of claims) {
-    if (claim.refund < 0n)
-      fail(`negative refund on receipt ${claim.receiptId}`);
-    if (claim.retainedCost < 0n)
-      fail(`negative retained cost on receipt ${claim.receiptId}`);
+    if (claim.refund < 0n) fail(`negative refund on receipt ${claim.receiptId}`);
+    if (claim.retainedCost < 0n) fail(`negative retained cost on receipt ${claim.receiptId}`);
     if (claim.retainedCost > claim.retainedShares)
       fail(`retainedCost > retainedShares on receipt ${claim.receiptId}`);
     if (claim.side === SIDE_YES) yesShares += claim.retainedShares;
@@ -366,20 +353,13 @@ function assertInvariants({
   }
 
   if (retainedCostTotal !== matchedMarketCap)
-    fail(
-      `retainedCostTotal ${retainedCostTotal} != matchedMarketCap ${matchedMarketCap}`,
-    );
-  if (completeSetCount !== matchedMarketCap)
-    fail("completeSetCount != matchedMarketCap");
-  if (retainedCostTotal + refundTotal !== totalEscrowed)
-    fail("retained + refund != totalEscrowed");
+    fail(`retainedCostTotal ${retainedCostTotal} != matchedMarketCap ${matchedMarketCap}`);
+  if (completeSetCount !== matchedMarketCap) fail("completeSetCount != matchedMarketCap");
+  if (retainedCostTotal + refundTotal !== totalEscrowed) fail("retained + refund != totalEscrowed");
   if (refundSum !== refundTotal) fail("leaf refunds != refundTotal");
   if (yesShares !== noShares)
-    fail(
-      `retained YES ${yesShares} != retained NO ${noShares} (complete-set imbalance)`,
-    );
-  if (yesShares !== completeSetCount)
-    fail("retained shares per side != completeSetCount");
+    fail(`retained YES ${yesShares} != retained NO ${noShares} (complete-set imbalance)`);
+  if (yesShares !== completeSetCount) fail("retained shares per side != completeSetCount");
 }
 
 function minBig(a: bigint, b: bigint): bigint {
