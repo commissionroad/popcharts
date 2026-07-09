@@ -18,6 +18,7 @@ import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
 import { AiReviewCard } from "./ai-review-card";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
+import { MarketPositionPanel } from "./market-position-panel";
 
 export function MarketDetailPage({
   market,
@@ -137,6 +138,7 @@ export function MarketDetailPage({
         </section>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
+          <MarketPositionPanel market={market} />
           {isGraduated ? (
             <PostgradTradePanel market={market} />
           ) : (
