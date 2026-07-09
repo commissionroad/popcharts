@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import type { VenueSwapQuote } from "@/domain/postgrad-trading/venue-trade";
 
@@ -20,10 +20,7 @@ describe("VenueBalancesPanel", () => {
     render(
       <VenueBalancesPanel
         balances={{ collateral: 1_200, error: null, loading: false, no: 3, yes: 60 }}
-        canMint
-        isMinting={false}
         noLabel="NO"
-        onMint={vi.fn()}
         walletConnected
         yesLabel="YES"
       />
@@ -35,57 +32,7 @@ describe("VenueBalancesPanel", () => {
     expect(screen.getByText("60.00 tok")).toBeInTheDocument();
     expect(screen.getByText("NO tokens")).toBeInTheDocument();
     expect(screen.getByText("3.00 tok")).toBeInTheDocument();
-  });
-
-  it("mints test pUSD from the faucet button", () => {
-    const onMint = vi.fn();
-    render(
-      <VenueBalancesPanel
-        balances={{ collateral: 0, error: null, loading: false, no: 0, yes: 0 }}
-        canMint
-        isMinting={false}
-        noLabel="NO"
-        onMint={onMint}
-        walletConnected
-        yesLabel="YES"
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Mint test pUSD/ }));
-
-    expect(onMint).toHaveBeenCalledTimes(1);
-  });
-
-  it("disables the faucet while minting and hides it when unavailable", () => {
-    const { rerender } = render(
-      <VenueBalancesPanel
-        balances={{ collateral: 0, error: null, loading: false, no: 0, yes: 0 }}
-        canMint
-        isMinting
-        noLabel="NO"
-        onMint={vi.fn()}
-        walletConnected
-        yesLabel="YES"
-      />
-    );
-
-    expect(screen.getByRole("button", { name: /Mint test pUSD/ })).toBeDisabled();
-
-    rerender(
-      <VenueBalancesPanel
-        balances={{ collateral: 0, error: null, loading: false, no: 0, yes: 0 }}
-        canMint={false}
-        isMinting={false}
-        noLabel="NO"
-        onMint={vi.fn()}
-        walletConnected
-        yesLabel="YES"
-      />
-    );
-
-    expect(
-      screen.queryByRole("button", { name: /Mint test pUSD/ })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
 

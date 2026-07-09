@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Market } from "@/domain/markets/types";
 import type { PlacedPregradReceipt } from "@/domain/pregrad-trading/receipt-quote";
+import { TEST_PUSD_MINTED_EVENT } from "@/features/dev-settings/test-pusd-events";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { useContractMarketStatus } from "@/integrations/contracts/hooks/use-contract-market-status";
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
@@ -10,8 +11,6 @@ import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { marketFactory } from "@/test/factories/markets";
 
 import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
   placePregradReceipt,
   resolveTradingEnvironment,
   type TradingEnvironment,
@@ -37,8 +36,6 @@ vi.mock("@/integrations/contracts/hooks/use-contract-market-status", () => ({
 
 vi.mock("./place-receipt-service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./place-receipt-service")>()),
-  canMintLocalCollateral: vi.fn(() => true),
-  mintLocalCollateral: vi.fn(async () => undefined),
   placePregradReceipt: vi.fn(),
   resolveTradingEnvironment: vi.fn(),
 }));
@@ -324,46 +321,22 @@ describe("useReceiptTicketState placement", () => {
   });
 });
 
-describe("useReceiptTicketState test minting", () => {
-  it("offers minting only when the local chain is mintable", () => {
-    expect(renderTicket().result.current.canMintTestPusd).toBe(true);
-
-    vi.mocked(canMintLocalCollateral).mockReturnValue(false);
-    expect(renderTicket().result.current.canMintTestPusd).toBe(false);
-  });
-
-  it("mints test pUSD and refreshes the contract status", async () => {
+describe("useReceiptTicketState balance refresh", () => {
+  it("refreshes the contract status after the dev menu mints pUSD", () => {
     const { result } = renderTicket();
 
-    await act(async () => result.current.mintTestPusd());
-
-    expect(mintLocalCollateral).toHaveBeenCalledWith(
-      expect.objectContaining({ amountUsd: 10_000, config: contractConfig })
-    );
     expect(result.current.submitError).toBeNull();
-    // The refresh key bump re-invokes the contract status hook.
+    expect(vi.mocked(useContractMarketStatus).mock.calls.at(-1)?.[0]?.refreshKey).toBe(
+      0
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event(TEST_PUSD_MINTED_EVENT));
+    });
+
     expect(vi.mocked(useContractMarketStatus).mock.calls.at(-1)?.[0]?.refreshKey).toBe(
       1
     );
-  });
-
-  it("reports mint failures", async () => {
-    vi.mocked(mintLocalCollateral).mockRejectedValue(new Error("mint failed"));
-    const { result } = renderTicket();
-
-    await act(async () => result.current.mintTestPusd());
-
-    expect(result.current.submitError).toBe("Could not place receipt.");
-    expect(result.current.isMinting).toBe(false);
-  });
-
-  it("skips minting in the mock environment", async () => {
-    vi.mocked(resolveTradingEnvironment).mockReturnValue({ kind: "mock" });
-    const { result } = renderTicket();
-
-    await act(async () => result.current.mintTestPusd());
-
-    expect(mintLocalCollateral).not.toHaveBeenCalled();
   });
 });
 

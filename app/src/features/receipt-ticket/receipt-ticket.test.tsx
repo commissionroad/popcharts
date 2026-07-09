@@ -88,19 +88,6 @@ describe("ReceiptTicket", () => {
     );
   });
 
-  it("mints test pUSD from the faucet", () => {
-    const state = stubState({
-      canMintTestPusd: true,
-      environment: { kind: "contract" },
-    });
-
-    render(<ReceiptTicket market={bootstrapMarket()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Mint test pUSD/ }));
-
-    expect(state.mintTestPusd).toHaveBeenCalledTimes(1);
-  });
-
   it("shows the amount validation error", () => {
     stubState({ amountFieldError: "Enter a collateral amount." });
 
@@ -184,11 +171,9 @@ type TicketState = {
   amount: string;
   amountFieldError: string | null;
   balanceUsd: number | null;
-  canMintTestPusd: boolean;
   contractMarketMissing: boolean;
   contractStatus: { error: string | null; loading: boolean };
   environment: { kind: "contract" | "mock" };
-  isMinting: boolean;
   isPlacing: boolean;
   placedReceipt: PlacedPregradReceipt | null;
   placementStep: string | null;
@@ -201,7 +186,6 @@ type TicketState = {
   side: "yes" | "no";
   submitError: string | null;
   walletConnected: boolean;
-  mintTestPusd: ReturnType<typeof vi.fn>;
   selectPresetAmount: ReturnType<typeof vi.fn>;
   selectSide: ReturnType<typeof vi.fn>;
   updateAmount: ReturnType<typeof vi.fn>;
@@ -216,11 +200,9 @@ function stubState(overrides: Partial<TicketState> = {}): TicketState {
     amount: "100",
     amountFieldError: null,
     balanceUsd: null,
-    canMintTestPusd: false,
     contractMarketMissing: false,
     contractStatus: { error: null, loading: false },
     environment: { kind: "mock" },
-    isMinting: false,
     isPlacing: false,
     placedReceipt: null,
     placementStep: null,
@@ -233,7 +215,6 @@ function stubState(overrides: Partial<TicketState> = {}): TicketState {
     side: "yes",
     submitError: null,
     walletConnected: true,
-    mintTestPusd: vi.fn(),
     selectPresetAmount: vi.fn(),
     selectSide: vi.fn(),
     updateAmount: vi.fn(),

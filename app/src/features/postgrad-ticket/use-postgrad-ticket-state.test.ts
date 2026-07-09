@@ -3,10 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePublicClient, useWalletClient } from "wagmi";
 
 import type { Market } from "@/domain/markets/types";
-import {
-  canMintLocalCollateral,
-  mintLocalCollateral,
-} from "@/features/receipt-ticket/place-receipt-service";
+import { TEST_PUSD_MINTED_EVENT } from "@/features/dev-settings/test-pusd-events";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { useVenueBalances } from "@/integrations/contracts/hooks/use-venue-balances";
 import type { PostgradVenueContractConfig } from "@/integrations/contracts/postgrad-venue";
@@ -44,14 +41,6 @@ vi.mock("@/integrations/contracts/hooks/use-venue-balances", () => ({
   useVenueBalances: vi.fn(),
 }));
 
-vi.mock("@/features/receipt-ticket/place-receipt-service", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/features/receipt-ticket/place-receipt-service")
-  >()),
-  canMintLocalCollateral: vi.fn(() => true),
-  mintLocalCollateral: vi.fn(async () => undefined),
-}));
-
 vi.mock("./postgrad-swap-service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./postgrad-swap-service")>()),
   buildVenuePoolContext: vi.fn(),
@@ -87,8 +76,6 @@ beforeEach(() => {
   vi.mocked(useWalletClient).mockReturnValue({
     data: { kind: "wallet-client" },
   } as unknown as ReturnType<typeof useWalletClient>);
-  vi.mocked(canMintLocalCollateral).mockReturnValue(true);
-  vi.mocked(mintLocalCollateral).mockResolvedValue(undefined);
   vi.mocked(resolveVenueTradingEnvironment).mockReturnValue(contractEnvironment());
   vi.mocked(buildVenuePoolContext).mockImplementation(({ side }) =>
     poolContext(side === "yes")
@@ -399,49 +386,18 @@ describe("usePostgradTicketState swap flow", () => {
   });
 });
 
-describe("usePostgradTicketState minting", () => {
-  it("mints test pUSD and refreshes balances", async () => {
+describe("usePostgradTicketState balance refresh", () => {
+  it("refreshes balances after the dev menu mints pUSD", () => {
     const { result } = renderTicket();
 
-    expect(result.current.canMintTestPusd).toBe(true);
+    expect(result.current.submitError).toBeNull();
+    expect(vi.mocked(useVenueBalances).mock.calls.at(-1)?.[0]?.refreshKey).toBe(0);
 
-    await act(async () => {
-      void result.current.mintTestPusd();
+    act(() => {
+      window.dispatchEvent(new Event(TEST_PUSD_MINTED_EVENT));
     });
 
-    expect(mintLocalCollateral).toHaveBeenCalledWith(
-      expect.objectContaining({ amountUsd: 10_000, config: contractConfig })
-    );
-    expect(result.current.isMinting).toBe(false);
-  });
-
-  it("reports mint failures through the submit error", async () => {
-    vi.mocked(mintLocalCollateral).mockRejectedValue(new Error("faucet dry"));
-    const { result } = renderTicket();
-
-    await act(async () => {
-      void result.current.mintTestPusd();
-    });
-
-    expect(result.current.submitError).toBe("Could not place the order.");
-  });
-
-  it("does nothing without a wallet address", async () => {
-    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: null }));
-    const { result } = renderTicket();
-
-    await act(async () => {
-      void result.current.mintTestPusd();
-    });
-
-    expect(mintLocalCollateral).not.toHaveBeenCalled();
-  });
-
-  it("hides the faucet outside local chains", () => {
-    vi.mocked(canMintLocalCollateral).mockReturnValue(false);
-    const { result } = renderTicket();
-
-    expect(result.current.canMintTestPusd).toBe(false);
+    expect(vi.mocked(useVenueBalances).mock.calls.at(-1)?.[0]?.refreshKey).toBe(1);
   });
 });
 
