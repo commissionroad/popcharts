@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   CircleDollarSign,
   GraduationCap,
   LoaderCircle,
@@ -16,6 +17,7 @@ import {
   type ClosePregradMarketActionResult,
 } from "@/features/market-detail/dev-market-actions";
 import { forceGraduateMarketAction } from "@/features/market-detail/graduation-actions";
+import { forceResolveMarketAction } from "@/features/market-detail/resolution-actions";
 import { cn } from "@/lib/cn";
 
 import { readRevealRawErrors, setRevealRawErrorsSetting } from "./dev-settings";
@@ -210,6 +212,50 @@ export function DevMenu() {
               variant="secondary"
             >
               {isPending ? "Working" : "Close for refunds"}
+            </Button>
+
+            <Button
+              className="mt-2 w-full"
+              disabled={isPending || marketId === null}
+              leftIcon={
+                isPending ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <CheckCircle2 aria-hidden="true" size={17} />
+                )
+              }
+              onClick={
+                marketId !== null
+                  ? () =>
+                      runMarketAction(() => forceResolveMarketAction(marketId, "yes"))
+                  : undefined
+              }
+              size="sm"
+              variant="secondary"
+            >
+              {isPending ? "Working" : "Resolve YES"}
+            </Button>
+
+            <Button
+              className="mt-2 w-full border-[var(--danger)] text-[var(--text-primary)] hover:border-[var(--danger)]"
+              disabled={isPending || marketId === null}
+              leftIcon={
+                isPending ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <XCircle aria-hidden="true" size={17} />
+                )
+              }
+              onClick={
+                marketId !== null
+                  ? () =>
+                      runMarketAction(() => forceResolveMarketAction(marketId, "no"))
+                  : undefined
+              }
+              size="sm"
+              variant="secondary"
+            >
+              {isPending ? "Working" : "Resolve NO"}
             </Button>
 
             {marketId === null ? (
