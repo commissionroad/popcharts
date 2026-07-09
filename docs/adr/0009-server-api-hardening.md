@@ -40,11 +40,13 @@ production builds entirely. Deploying the API is ADR 0015.
 
 Security and auth:
 
-- [ ] Exclude the dev/admin testing endpoints (`/admin/*`, `/dev/*`) from
+- [x] Exclude the dev/admin testing endpoints (`/admin/*`, `/dev/*`) from
       production builds entirely — not merely env-flag-gated, since a
       misconfigured flag would expose them. Operator-level actions run locally
       against the chain with the operator keys (a local admin panel), never
-      through the deployed API (see ADR 0011, ADR 0012).
+      through the deployed API (see ADR 0011, ADR 0012). *(Routes mounted only
+      when `config.name === "local"`; deployed networks register 15 routes with
+      zero `/admin`+`/dev`, local registers all 18.)*
 - [ ] Rate limiting on public endpoints.
 - [ ] Request IDs / correlation logging across API, indexer, and runners.
 - [ ] Decide and document the auth model for user-scoped read endpoints

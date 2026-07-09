@@ -1,5 +1,7 @@
 import { Elysia, t } from "elysia";
 
+import { config } from "src/config";
+
 import {
   AiReviewEvidenceSchema,
   AiReviewJobStatusSchema,
@@ -69,7 +71,7 @@ import {
  * generated client gets stable, human-named models (see
  * `src/api/models/markets.ts` and `scripts/generate-openapi.ts`).
  */
-export const marketRoutes = new Elysia({ prefix: "" })
+const marketRoutesBase = new Elysia({ prefix: "" })
   .model({
     AiReviewEvidence: AiReviewEvidenceSchema,
     AiReviewJobStatus: AiReviewJobStatusSchema,
@@ -180,198 +182,214 @@ export const marketRoutes = new Elysia({ prefix: "" })
         tags: ["Markets"],
       },
     },
-  )
-  .post(
-    "/admin/markets/:chainId/:marketId/review",
-    async ({ body, params, set }) => {
-      const result = await requestManualMarketReview({
-        body: body ?? undefined,
-        chainId: Number.parseInt(params.chainId, 10),
-        marketId: params.marketId,
-      });
+  );
 
-      if (result.kind === "enqueued") {
-        set.status = 201;
-        return {
-          job: result.job,
-          status: "enqueued" as const,
-        };
-      }
+// Dev/admin endpoints are development-testing tools that must not exist in
+// production. They are mounted only on the local network, so on any deployed
+// network they are not registered at all (a 404) — not merely env-flag-gated,
+// which a misconfiguration could flip on. Operator actions run locally against
+// the chain, never through the deployed API (repo ADR 0009). The OpenAPI spec
+// is generated under the local network, so the committed spec still describes
+// them for the app's dev-tools client.
+const marketRoutesWithDevTools =
+  config.name === "local"
+    ? marketRoutesBase
+        .post(
+          "/admin/markets/:chainId/:marketId/review",
+          async ({ body, params, set }) => {
+            const result = await requestManualMarketReview({
+              body: body ?? undefined,
+              chainId: Number.parseInt(params.chainId, 10),
+              marketId: params.marketId,
+            });
 
-      if (result.kind === "existing_active_job") {
-        return {
-          job: result.job,
-          message: result.message,
-          status: "already_queued" as const,
-        };
-      }
+            if (result.kind === "enqueued") {
+              set.status = 201;
+              return {
+                job: result.job,
+                status: "enqueued" as const,
+              };
+            }
 
-      if (result.kind === "already_reviewed") {
-        set.status = 409;
-        return {
-          aiReview: result.aiReview,
-          message: result.message,
-          status: "already_reviewed" as const,
-        };
-      }
+            if (result.kind === "existing_active_job") {
+              return {
+                job: result.job,
+                message: result.message,
+                status: "already_queued" as const,
+              };
+            }
 
-      if (result.kind === "ineligible") {
-        set.status = 409;
-        return {
-          ...(result.marketStatus ? { marketStatus: result.marketStatus } : {}),
-          message: result.message,
-          reason: result.reason,
-          status: "ineligible" as const,
-        };
-      }
+            if (result.kind === "already_reviewed") {
+              set.status = 409;
+              return {
+                aiReview: result.aiReview,
+                message: result.message,
+                status: "already_reviewed" as const,
+              };
+            }
 
-      if (result.kind === "admin_disabled") {
-        set.status = 404;
-        return "Not found";
-      }
+            if (result.kind === "ineligible") {
+              set.status = 409;
+              return {
+                ...(result.marketStatus
+                  ? { marketStatus: result.marketStatus }
+                  : {}),
+                message: result.message,
+                reason: result.reason,
+                status: "ineligible" as const,
+              };
+            }
 
-      set.status = result.kind === "invalid_market_id" ? 400 : 404;
-      return result.message;
-    },
-    {
-      body: t.Optional(ManualAiReviewRequestSchema),
-      params: t.Object({
-        chainId: t.String(),
-        marketId: t.String(),
-      }),
-      response: {
-        200: "ManualAiReviewExistingJob",
-        201: "ManualAiReviewEnqueued",
-        400: t.String(),
-        404: t.String(),
-        409: "ManualAiReviewConflict",
-      },
-      detail: {
-        operationId: "requestManualAiReview",
-        summary: "Admin-only enqueue market AI review",
-        description:
-          "Disabled unless POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
-        tags: ["Administration"],
-      },
-    },
-  )
-  .post(
-    "/dev/markets/:chainId/:marketId/close",
-    async ({ params, set }) => {
-      const result = await closePregradMarketForRefund({
-        chainId: Number.parseInt(params.chainId, 10),
-        marketId: params.marketId,
-      });
+            if (result.kind === "admin_disabled") {
+              set.status = 404;
+              return "Not found";
+            }
 
-      if (result.kind === "closed") {
-        return {
-          market: result.market,
-          refundAvailable: result.refundAvailable,
-          status: "refunded" as const,
-          ...(result.transactionHash
-            ? { transactionHash: result.transactionHash }
-            : {}),
-        };
-      }
+            set.status = result.kind === "invalid_market_id" ? 400 : 404;
+            return result.message;
+          },
+          {
+            body: t.Optional(ManualAiReviewRequestSchema),
+            params: t.Object({
+              chainId: t.String(),
+              marketId: t.String(),
+            }),
+            response: {
+              200: "ManualAiReviewExistingJob",
+              201: "ManualAiReviewEnqueued",
+              400: t.String(),
+              404: t.String(),
+              409: "ManualAiReviewConflict",
+            },
+            detail: {
+              operationId: "requestManualAiReview",
+              summary: "Admin-only enqueue market AI review",
+              description:
+                "Local-network development tool: not registered on deployed networks at all (operator actions run locally against the chain, not via the API — repo ADR 0009). On local it additionally requires POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
+              tags: ["Administration"],
+            },
+          },
+        )
+        .post(
+          "/dev/markets/:chainId/:marketId/close",
+          async ({ params, set }) => {
+            const result = await closePregradMarketForRefund({
+              chainId: Number.parseInt(params.chainId, 10),
+              marketId: params.marketId,
+            });
 
-      if (result.kind === "ineligible") {
-        set.status = 409;
-        return {
-          market: result.market,
-          message: result.message,
-          reason: result.reason,
-          status: "ineligible" as const,
-        };
-      }
+            if (result.kind === "closed") {
+              return {
+                market: result.market,
+                refundAvailable: result.refundAvailable,
+                status: "refunded" as const,
+                ...(result.transactionHash
+                  ? { transactionHash: result.transactionHash }
+                  : {}),
+              };
+            }
 
-      if (result.kind === "dev_disabled") {
-        set.status = 404;
-        return "Not found";
-      }
+            if (result.kind === "ineligible") {
+              set.status = 409;
+              return {
+                market: result.market,
+                message: result.message,
+                reason: result.reason,
+                status: "ineligible" as const,
+              };
+            }
 
-      set.status = result.kind === "invalid_market_id" ? 400 : 404;
-      return result.message;
-    },
-    {
-      params: t.Object({
-        chainId: t.String(),
-        marketId: t.String(),
-      }),
-      response: {
-        200: "DevMarketCloseResponse",
-        400: t.String(),
-        404: t.String(),
-        409: "DevMarketCloseIneligible",
-      },
-      detail: {
-        operationId: "closeDevMarket",
-        summary: "Dev-only close pre-grad market for refunds",
-        description:
-          "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
-        tags: ["Development"],
-      },
-    },
-  )
-  .post(
-    "/dev/markets/:chainId/:marketId/graduate",
-    async ({ params, query, set }) => {
-      const result = await graduateDevMarket({
-        chainId: Number.parseInt(params.chainId, 10),
-        force: query.force === "true",
-        marketId: params.marketId,
-      });
+            if (result.kind === "dev_disabled") {
+              set.status = 404;
+              return "Not found";
+            }
 
-      if (result.kind === "graduated") {
-        return {
-          market: result.market,
-          postgrad: result.postgrad,
-          status: "graduated" as const,
-          summary: result.summary,
-          transactionHashes: result.transactionHashes,
-        };
-      }
+            set.status = result.kind === "invalid_market_id" ? 400 : 404;
+            return result.message;
+          },
+          {
+            params: t.Object({
+              chainId: t.String(),
+              marketId: t.String(),
+            }),
+            response: {
+              200: "DevMarketCloseResponse",
+              400: t.String(),
+              404: t.String(),
+              409: "DevMarketCloseIneligible",
+            },
+            detail: {
+              operationId: "closeDevMarket",
+              summary: "Dev-only close pre-grad market for refunds",
+              description:
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+              tags: ["Development"],
+            },
+          },
+        )
+        .post(
+          "/dev/markets/:chainId/:marketId/graduate",
+          async ({ params, query, set }) => {
+            const result = await graduateDevMarket({
+              chainId: Number.parseInt(params.chainId, 10),
+              force: query.force === "true",
+              marketId: params.marketId,
+            });
 
-      if (result.kind === "ineligible") {
-        set.status = 409;
-        return {
-          market: result.market,
-          message: result.message,
-          reason: result.reason,
-          status: "ineligible" as const,
-        };
-      }
+            if (result.kind === "graduated") {
+              return {
+                market: result.market,
+                postgrad: result.postgrad,
+                status: "graduated" as const,
+                summary: result.summary,
+                transactionHashes: result.transactionHashes,
+              };
+            }
 
-      if (result.kind === "dev_disabled") {
-        set.status = 404;
-        return "Not found";
-      }
+            if (result.kind === "ineligible") {
+              set.status = 409;
+              return {
+                market: result.market,
+                message: result.message,
+                reason: result.reason,
+                status: "ineligible" as const,
+              };
+            }
 
-      set.status = result.kind === "invalid_market_id" ? 400 : 404;
-      return result.message;
-    },
-    {
-      params: t.Object({
-        chainId: t.String(),
-        marketId: t.String(),
-      }),
-      query: t.Object({
-        force: t.Optional(t.String()),
-      }),
-      response: {
-        200: "DevMarketGraduateResponse",
-        400: t.String(),
-        404: t.String(),
-        409: "DevMarketGraduateIneligible",
-      },
-      detail: {
-        operationId: "graduateDevMarket",
-        summary: "Dev-only graduate a pre-grad market end to end",
-        description:
-          "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
-        tags: ["Development"],
-      },
-    },
-  )
+            if (result.kind === "dev_disabled") {
+              set.status = 404;
+              return "Not found";
+            }
+
+            set.status = result.kind === "invalid_market_id" ? 400 : 404;
+            return result.message;
+          },
+          {
+            params: t.Object({
+              chainId: t.String(),
+              marketId: t.String(),
+            }),
+            query: t.Object({
+              force: t.Optional(t.String()),
+            }),
+            response: {
+              200: "DevMarketGraduateResponse",
+              400: t.String(),
+              404: t.String(),
+              409: "DevMarketGraduateIneligible",
+            },
+            detail: {
+              operationId: "graduateDevMarket",
+              summary: "Dev-only graduate a pre-grad market end to end",
+              description:
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
+              tags: ["Development"],
+            },
+          },
+        )
+    : marketRoutesBase;
+
+export const marketRoutes = marketRoutesWithDevTools
   .get(
     "/markets/:chainId/:marketId",
     async ({ params, set }) => {
