@@ -4,14 +4,14 @@ title: Monorepo architecture
 description: Acyclic workspace graph with coupling only via @popcharts/protocol, committed generated artifacts, or the network — plus the intentional-duplication doctrine.
 sources:
   - docs/architecture.md
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - docs/adr/0006-server-runtime-and-indexer.md
 updated: 2026-07-07
 ---
 
 # Monorepo architecture
 
-Certified healthy 2026-07-06 by the [cleanup program audit](../summaries/root-adr-0007-monorepo-architecture-cleanup-program.md):
+Certified healthy 2026-07-06 by the [cleanup program audit](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md):
 the debt was file-level, not structural.
 
 ## The contract

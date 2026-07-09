@@ -3,7 +3,7 @@
 This document describes the workspace dependency graph, the import rules that
 keep it acyclic, where generated code lives, and the duplication that is
 intentional. It records the state restored by
-[ADR 0007](adr/0007-monorepo-architecture-cleanup-program.md); the server
+[ADR 0016](adr/0016-monorepo-architecture-cleanup-program.md); the server
 runtime shape is decided in
 [ADR 0006](adr/0006-server-runtime-and-indexer.md). When code and this
 document disagree, fix one of them in the same PR.
@@ -120,7 +120,7 @@ stale relative to its source:
 | -------------------- | --------------- | ---------- | -------------- |
 | `protocol/src/generated/*.ts` | Compiled contract artifacts | `protocol build` (runs `export-contract-metadata.ts`) | `protocol metadata:check` (`export-contract-metadata.ts --check`), wired into `protocol typecheck`, so `pnpm run protocol:check` and Protocol CI enforce it |
 | `server/generated/openapi.json` | Elysia route schemas | `server openapi:generate` | `server openapi:check` (regenerate-and-diff plus spec validation), wired into `pnpm run server:check` and Server CI |
-| `packages/api-client/src/generated/` | `server/generated/openapi.json` | `pnpm --dir packages/api-client api:generate` (orval, deterministic from the committed spec) | `packages/api-client api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` and `packages/api-client/**` changes (ADR 0007 item A5). |
+| `packages/api-client/src/generated/` | `server/generated/openapi.json` | `pnpm --dir packages/api-client api:generate` (orval, deterministic from the committed spec) | `packages/api-client api:check` regenerates into a scratch directory and fails on any difference; wired into `app:check` and App CI, which also triggers on `server/generated/openapi.json` and `packages/api-client/**` changes (ADR 0016 item A5). |
 
 The pattern is uniform: hand-written code never crosses a workspace boundary;
 a generator does, and a `--check` twin keeps the committed output honest.
