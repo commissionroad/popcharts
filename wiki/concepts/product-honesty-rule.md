@@ -33,3 +33,9 @@ The mechanism backing: whitepaper v4 §8's fill-outcome bounds (four terminal
 states, loss capped at retained cost, no socialized loss) are what make the
 honest copy also the accurate copy — see
 [graduation clearing](graduation-clearing.md).
+
+The failure surface has its own honesty-and-safety contract: the UI must never
+leak raw mechanism/infra internals (viem/RPC errors, contract layout) any more
+than it may imply a guaranteed fill. Error presentation is safe-by-default and
+CI-guarded — see the
+[error-handling UX PRD](../summaries/error-handling-ux-prd.md).

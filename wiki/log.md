@@ -72,3 +72,37 @@ Pages: ~summaries/portfolio-data-design.md
 Notes: all five phases landed overnight; doc status flipped to Implemented.
 Receipt band column became avg price (rLow/rHigh are LMSR path bounds, not
 probabilities). PnL follow-up (phase 6) remains the only open item.
+
+## [2026-07-09] lint | first periodic lint (window: since 2026-07-07 bootstrap)
+Pages: +summaries/error-handling-ux-prd.md, ~entities/app-workspace.md,
+~concepts/product-honesty-rule.md, ~index.md
+Organic ingestion since bootstrap (first lint, so window = bootstrap→now):
+**8/9 doc-changing PRs self-ingested.** Missed: docs/error-handling-ux-prd.md
+(new design doc, added PR #150, never given a wiki page) — ingested by this
+lint. Self-ingested in their own PR: protocol ADR 0006/0010 (#91),
+component-inventory chart rework (#138) and pending-bar (#139),
+portfolio-data-design add/reframe (#149), hook (#153), implemented (#155).
+Two edge cases counted as ingested: #140's a11y component-inventory edit
+reached the wiki via the next merge rather than its own PR; #129's ADR-0007
+D1+D1a checkbox tick needed no wiki change (already ticked at bootstrap).
+Findings:
+- Staleness: none. Every page's `updated:` >= newest git date of its sources
+  (checked all 82 content pages). No orphaned summaries (no source deleted).
+- Integrity: clean. Zero broken internal links, zero pages missing from
+  index.md, zero orphans (every content page has an inbound link or index row).
+- ADR drift: root-adr-0007 cleanup-program checklist matches the live ADR
+  exactly — C2/C4/C5/C6 open, D3 deferred-by-design, E7 stale-checkbox-but-
+  landed, all already annotated. No drift.
+- New raw source found and ingested: docs/error-handling-ux-prd.md (safe-by-
+  default error presentation; the one coverage gap).
+Bootstrap follow-ups resolved:
+- Whitepaper golden tests exist (protocol/test/solidity/LmsrMath.t.sol +
+  nodejs/display-price-conversion.test.ts golden fixtures). Resolved.
+- app MarketStatus vs ADR 0003's five-value ladder: NOT drift — the wiki
+  already records the full eight-value app union (under_review/cancelled/
+  rejected included) in concepts/market-lifecycle.md and the app-adr-0003
+  summary. ADR 0003 is design intent; the app is deliberately ahead. Resolved.
+- operator-auth concept page: still unbuilt (root ADR 0009 all-open); defer.
+Follow-ups for next lint: watch error-handling PRD open questions (logging
+vendor, API error codes) for a resolving ADR; re-check whether app MarketStatus
+grows further past ADR 0003.
