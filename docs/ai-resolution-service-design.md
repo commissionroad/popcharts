@@ -52,12 +52,87 @@ Two facts that shape the runner:
    `CompleteSetPostgradAdapter` (`:131`) and passed to every child market
    (`:171`). One key resolves all postgrad markets from that adapter — exactly
    analogous to the review-manager key, so custody is a solved shape (§10).
-2. **There is no on-chain `resolutionTime` gate.** `resolve`/`cancel` only
-   require `Status.Trading`. The deadline lives in market metadata
+2. **There is no on-chain `resolutionTime` gate today.** `resolve`/`cancel` only
+   require `Status.Trading`; the timing data lives in market metadata
    (`markets.resolution_time`, `market_metadata.resolution_criteria` /
-   `resolution_sources` / `resolution_url`) and is enforced **off-chain by the
-   runner**. (ADR 0008 lists on-chain post-`resolutionTime` gating as a
-   separate, still-open item; this design does not depend on it landing.)
+   `resolution_sources` / `resolution_url`). A single "resolution time" is not
+   enough for AI resolution — see **Temporal validity guardrails** below, which
+   defines the window model, the off-chain runner gates, and a minimal on-chain
+   floor guard (which closes ADR 0008's open "post-`resolutionTime` gating"
+   item).
+
+## Temporal validity guardrails (resolution windows)
+
+**Why a single `resolutionTime` is insufficient.** An AI resolver relying on one
+"resolve after" timestamp will make timing errors on two common market shapes:
+
+- **Fixed-event markets** ("Will Team A beat Team B on 2026-03-01?"): the outcome
+  is only knowable *after* the event concludes. Resolving during the match — or
+  treating a postponed match as a loss — is wrong.
+- **Open-ended markets** ("Will X happen in 2026?"): **YES** is knowable the
+  moment X happens (possibly months early), but **NO** cannot be confirmed until
+  the whole window has elapsed. A symmetric single deadline forces you to either
+  block early YES or allow premature NO.
+
+The core requirement is therefore a **per-outcome earliest-resolution time**, not
+one deadline. Precedent (from prior research, unverified here): Polymarket/UMA
+carry resolution rules + an eligibility time and a "too early" outcome; Trueo has
+an immutable earliest-resolve field and prefers *cancel* over a forced YES/NO
+when a market lacks clear expiry, sources, or objective criteria.
+
+**The model (kept deliberately minimal — two off-chain gates + one on-chain
+floor).** Rather than six fields, the essential asymmetry needs just two
+immutable per-market timestamps in `market_metadata`, plus an optional evidence
+window the model reads as guidance:
+
+- `no_not_before` (required) — earliest a **NO** (and a **draw**) verdict may be
+  submitted. This is the canonical deadline; it maps the existing
+  `resolution_time`. NO/draw are only certain once the window closes.
+- `yes_not_before` (optional; default = `no_not_before`) — earliest a **YES** may
+  be submitted. Set earlier than the deadline only for open-ended markets that
+  admit early YES.
+- `observation_window_start` / `observation_window_end` (optional) — the span
+  during which an event "counts," passed to the model as evidence-scoping
+  guidance (not a hard gate). Folds into `resolution_criteria` if unset.
+
+This subsumes codex's `observationStartTime` / `observationEndTime` /
+`earliestResolutionTime` / `noEarlierThan` into two enforced gates plus optional
+guidance — same coverage, less surface to get wrong or leave half-populated.
+
+**`cancel()` is deliberately *not* time-gated.** A postponed match or abandoned
+acquisition may need cancellation *before* the deadline, and cancel is
+operator-only anyway (draws always park, §5). Gating cancel on a floor would trap
+exactly the escape hatch it exists for.
+
+**Enforcement in layers (defense in depth, cheapest first):**
+
+1. **Creation + AI review (ADR 0011/0013).** A market must declare a deadline
+   (`no_not_before`), credible public sources, and objective criteria. Review
+   *rejects or flags* markets lacking clear expiry/source/timing — bad markets
+   never reach the resolver. This extends the review policy and the create form's
+   metadata (ADR 0009 schema, ADR 0013 UI).
+2. **Runner deterministic gate.** Before spending any model call, the runner
+   refuses to consider a YES before `yes_not_before` or a NO/draw before
+   `no_not_before`. Pure timestamp arithmetic, no model, no gas.
+3. **Model structured `too_early`.** Add `too_early` to the outcome union. Even
+   past a gate, the model can judge the event unconcluded (e.g. a match went to
+   extra time, results not yet official) → the runner **re-queues with backoff**
+   (`run_after` bump), it is *not* a failure and *not* a resolution.
+4. **On-chain floor guard (minimal contract change).** Add an immutable
+   `earliestResolutionTime` to `CompleteSetBinaryMarket` and make `resolve(side)`
+   revert before it. `cancel()` stays ungated. The floor = the earliest any
+   legitimate resolve could occur (`min(yes_not_before, no_not_before)` =
+   `yes_not_before`). This is the backstop that holds *even if the resolver key
+   is compromised or the runner is buggy* — the highest-stakes automation in the
+   system deserves one. It closes ADR 0008's open on-chain-gating item and must
+   be plumbed from pregrad metadata through `CompleteSetPostgradAdapter` into the
+   child market's constructor at graduation (a protocol slice, human-reviewed per
+   the funds-holding-contract rule).
+5. **Operator delay/override (§9).** Unchanged — the 24h Arc window still sits on
+   top of a confident, in-window verdict.
+
+Layers 1–3 and 5 are off-chain and land with this vertical; layer 4 is a small,
+separate protocol PR (§14, slice 0).
 
 ## 4. Architecture — parallels to AI review
 
@@ -89,8 +164,9 @@ the append-only-audit vs mutable-queue two-table split.
 
 ```ts
 // server/src/ai-resolution/types.ts
-type ResolutionOutcome = "yes" | "no" | "draw" | "abstain";
-type ResolutionVerdict = "resolve_yes" | "resolve_no" | "cancel_draw" | "manual_review";
+type ResolutionOutcome = "yes" | "no" | "draw" | "too_early" | "abstain";
+type ResolutionVerdict =
+  | "resolve_yes" | "resolve_no" | "cancel_draw" | "requeue_too_early" | "manual_review";
 
 interface ResolutionResult {
   outcome: ResolutionOutcome;      // model/heuristic determination
@@ -109,15 +185,27 @@ only when `outcome ∈ {yes,no}` **and** `confidence ≥ ABSTENTION_THRESHOLD`
 A `draw` outcome **always parks** for an operator regardless of confidence —
 draws are rare and high-blast-radius (both sides redeem at half), so `cancel()`
 is only ever issued through the operator override / self-resolve path, never
-auto-submitted. `outcome === "abstain"`, low confidence, and no-evidence all
-park as `manual_review` (persisted, no on-chain write). As in review, a
-service/model error **fail-safe downgrades to `manual_review`** — an outage
-never resolves a market.
+auto-submitted. A `too_early` outcome **re-queues with backoff** (bump
+`run_after`) — it is neither a failure nor a resolution; the event simply has not
+concluded. `outcome === "abstain"`, low confidence, and no-evidence all park as
+`manual_review` (persisted, no on-chain write). As in review, a service/model
+error **fail-safe downgrades to `manual_review`** — an outage never resolves a
+market. All of this sits behind the deterministic time gates (Temporal validity
+guardrails): the runner never even calls the model before a market's per-outcome
+`*_not_before`.
 
 ## 6. Data model
 
 Mirror the review tables one-to-one. New Drizzle files under
 `server/src/db/schema/`, new migrations after the current head.
+
+**Temporal metadata (new columns on `market_metadata`).** `no_not_before`
+(timestamp, required — backfilled from the existing `resolution_time`),
+`yes_not_before` (timestamp, nullable, default = `no_not_before`),
+`observation_window_start` / `observation_window_end` (timestamp, nullable). These
+are immutable per market, set at creation, validated by AI review, and read by the
+runner's deterministic gate (see Temporal validity guardrails). They flow into the
+API market models (ADR 0009) and the create form (ADR 0013).
 
 **`market_resolutions`** (append-only audit) — mirrors `market_ai_reviews`:
 `id`, `chain_id`, `market_id`, `metadata_hash`, `postgrad_market_address`
@@ -131,9 +219,10 @@ exactly, including `lease_until`, `locked_by`, `attempt_count`, `max_attempts`,
 `run_after`, `priority`, `last_error`, `resolution_id` FK, and the **partial
 unique active-job index** on `(chain_id, market_id, metadata_hash) WHERE status
 IN ('queued','running','retryable_failed')`. Add one column the review queue
-doesn't need: `not_before` = the market's `resolution_time` (a job is not
-claimable before its deadline — see §7). New enums `resolution_job_status`,
-`resolution_job_trigger`.
+doesn't need: `not_before` = the market's `yes_not_before` (the earliest the
+market could legitimately resolve *at all* — a job is not enqueued/claimable
+before it; the runner then applies the per-outcome gate when mapping the verdict,
+§7). New enums `resolution_job_status`, `resolution_job_trigger`.
 
 ## 7. Runner lifecycle
 
@@ -141,10 +230,10 @@ Clone `ai-review-runner/index.ts`'s `while (!stopRequested)` loop
 (enqueue → claim → process → sleep, SIGINT/SIGTERM drains).
 
 **Discovery / enqueue.** Select markets in status `graduated` whose
-`resolution_time <= now`, that have no active resolution job and no prior
-terminal resolution, joined to metadata. This is the resolution analogue of
-`enqueueEligibleMarketReviewJobs`; the `resolution_time <= now` predicate is the
-off-chain deadline gate.
+`yes_not_before <= now`, that have no active resolution job and no prior terminal
+resolution, joined to metadata. This is the resolution analogue of
+`enqueueEligibleMarketReviewJobs`; `yes_not_before <= now` is the earliest-any-
+outcome gate (Temporal validity guardrails).
 
 **Claim / lease.** Identical to review: single transaction, `FOR UPDATE SKIP
 LOCKED`, bump `attempt_count`, set `lease_until = now + leaseMs`, `locked_by =
@@ -153,9 +242,13 @@ reclaim.
 
 **Process.** Build the request from metadata (`resolution_criteria`,
 `resolution_sources`, `resolution_url`, the question text), call the service,
-map `verdict` → action:
-- `resolve_yes` / `resolve_no` (confident, evidence-backed) → on-chain
-  `resolve(side)`, withheld behind the delay window (§9)
+apply the per-outcome time gate, then map `verdict` → action:
+- `resolve_yes` (confident, evidence-backed, `now ≥ yes_not_before`) /
+  `resolve_no` (…, `now ≥ no_not_before`) → on-chain `resolve(side)`, withheld
+  behind the delay window (§9). A YES/NO that arrives before its gate is treated
+  as `too_early` (defensive — the enqueue gate should already prevent it).
+- `requeue_too_early` → bump `run_after` and re-queue; no audit-terminal, no
+  on-chain action.
 - `cancel_draw` / `manual_review` → persist audit + park job as `succeeded` with
   no on-chain action. A parked draw carries a `cancel()` recommendation for the
   operator; `cancel()` is only ever submitted via the override / self-resolve
@@ -263,10 +356,11 @@ probe on `/ready`, `success_exit_codes: [130,143]`, env via new
 that currently has no resolution runner.
 
 **Smoke** — `ai-resolution-runner/smoke.ts` mirrors the review smoke: seed a
-`graduated` market past `resolution_time` with heuristic-known outcome, run one
-cycle, assert one job succeeded, an audit row exists, and the child market
-reached `Resolved` on-chain (and, with the indexer watcher, `markets.status =
-resolved`).
+`graduated` market past both `yes_not_before` and `no_not_before` with a
+heuristic-known outcome, run one cycle, assert one job succeeded, an audit row
+exists, and the child market reached `Resolved` on-chain (and, with the indexer
+watcher, `markets.status = resolved`). A second seeded market before its
+`no_not_before` asserts the deterministic gate parks a NO as `too_early`.
 
 ## 13. Decisions (resolved 2026-07-09)
 
@@ -276,26 +370,46 @@ resolved`).
    verdicts wait this long (overridable) before on-chain submission.
 3. **Draws — always manual.** A `draw` verdict never auto-cancels; it always
    parks for an operator to confirm `cancel()`.
-4. **Trusted-creator self-resolve — included in the first build** (slice 5),
+4. **Trusted-creator self-resolve — included in the first build** (slice 6),
    behind the cloned env-flag auth seam (§11), swappable to shared operator auth
    when it lands.
+5. **Temporal validity guardrails — adopted.** Per-outcome `yes_not_before` /
+   `no_not_before` gates + optional observation window in metadata; `too_early`
+   model outcome; enforcement in creation/review, the runner's deterministic
+   gate, and a minimal on-chain floor guard on `resolve` (not `cancel`). See the
+   Temporal validity guardrails section.
 
 ## 14. Implementation slices (maps to the ADR 0012 checklist)
 
-1. **Schema** — `market_resolutions` + `market_resolution_jobs` + migrations.
-2. **Service** — provider registry, policy/prompt, `resolution-parsing`,
-   `POST /resolutions/market`, reuse `safe-web`.
-3. **Runner** — discovery (deadline-gated) + claim/lease + process +
-   `chain-resolution` guarded submission + delay-window re-queue.
-4. **Indexer watcher** — `MarketResolved`/`MarketCancelled` → `markets.status`
+0. **On-chain floor guard (protocol, human-reviewed).** Immutable
+   `earliestResolutionTime` on `CompleteSetBinaryMarket`; `resolve` reverts before
+   it, `cancel` ungated; plumb the timestamp through `CompleteSetPostgradAdapter`
+   from pregrad metadata at graduation. Closes ADR 0008's open on-chain-gating
+   item. Touches a funds-holding contract → human review, not autonomous merge.
+   Independent of the off-chain slices; can land in parallel.
+1. **Schema + temporal metadata** — `market_resolutions` +
+   `market_resolution_jobs` + migrations, and the `yes_not_before` /
+   `no_not_before` / observation-window columns on `market_metadata`.
+2. **Creation + review guardrails** — capture the temporal fields in the create
+   flow (ADR 0013) and enforce clear expiry/source/timing in the review policy
+   (ADR 0011), so malformed markets never reach the resolver.
+3. **Service** — provider registry, policy/prompt (incl. the `too_early`
+   outcome), `resolution-parsing`, `POST /resolutions/market`, reuse `safe-web`.
+4. **Runner** — discovery (`yes_not_before` gate) + claim/lease + per-outcome
+   time gate + `chain-resolution` guarded submission + delay-window re-queue +
+   `too_early` re-queue.
+5. **Indexer watcher** — `MarketResolved`/`MarketCancelled` → `markets.status`
    (coordinated with ADR 0010).
-5. **Operator override + trusted-creator self-resolve** — `admin-resolution`
+6. **Operator override + trusted-creator self-resolve** — `admin-resolution`
    (approve/reject/replace a pending verdict) and the self-resolve endpoint for
    `bypassAiResolution` markets, both behind the cloned env-flag auth seam (§11).
-6. **Orchestration + smoke** — control-plane processes, env builders, heuristic
+7. **Orchestration + smoke** — control-plane processes, env builders, heuristic
    smoke; extend the E2E lifecycle (ADR 0014) through resolution + redemption.
 
 Each slice is a PR that ticks its ADR 0012 box in the same PR (per the ADR 0007
-process). Slices 1–3 are the critical path; 4 unblocks the app's resolved/redeem
-views; 5 ships behind the env-flag auth seam and swaps to shared operator auth
-(ADR 0009/0011) when it lands.
+process). Critical path is 1 → 3 → 4 (schema, service, runner), which can be
+proven end to end against seeded temporal metadata before slice 2 wires the
+create form. Slice 0 (on-chain guard) runs in parallel on the protocol side;
+slice 5 unblocks the app's resolved/redeem views; slice 6 ships behind the
+env-flag auth seam and swaps to shared operator auth (ADR 0009/0011) when it
+lands.
