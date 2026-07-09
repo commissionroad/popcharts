@@ -13,6 +13,11 @@ import { parseSmokeMarket } from "../shared/deployments/smokeMarket.ts";
 import { readEnvFile } from "../shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "../shared/env/resolveIndexerApiBaseUrl.ts";
 import { parseLabeledJson } from "../shared/json/parseLabeledJson.ts";
+import {
+  extractGeneratedMarketOptionKeyFromQuestion,
+  filterUnusedGeneratedMarketOptions,
+  generatedMarketOptionKey,
+} from "../shared/localMarket/generatedMarketOptions.ts";
 
 // A LOCAL_CHAIN_SMOKE_MARKET line as protocol/scripts/create-local-market.ts
 // emits it (recorded from a real run, surrounded by typical pnpm/Hardhat
@@ -132,6 +137,78 @@ describe("resolveIndexerApiBaseUrl", function () {
       "http://127.0.0.1:4001",
     );
     assert.equal(resolveIndexerApiBaseUrl(undefined, {}), "http://127.0.0.1:3001");
+  });
+});
+
+describe("generated local market option de-duping", function () {
+  const subjects = {
+    crypto: [
+      { key: "bitcoin", symbol: "BTC" },
+      { key: "ethereum", symbol: "ETH" },
+    ],
+    weather: [
+      { city: "NYC", key: "KNYC" },
+      { city: "San Francisco", key: "KSFO" },
+    ],
+  } as const;
+
+  it("recognizes generated crypto and weather questions as stable option keys", function () {
+    assert.equal(
+      extractGeneratedMarketOptionKeyFromQuestion(
+        "Will BTC/USD be higher than $63,000 at 2026-07-07T17:00:00Z?",
+        subjects,
+      ),
+      generatedMarketOptionKey("crypto", "bitcoin", "higher"),
+    );
+
+    assert.equal(
+      extractGeneratedMarketOptionKeyFromQuestion(
+        "Will the max San Francisco METAR temperature be lower than 67°F by 2026-07-07T17:00:00Z?",
+        subjects,
+      ),
+      generatedMarketOptionKey("weather", "KSFO", "lower"),
+    );
+
+    assert.equal(
+      extractGeneratedMarketOptionKeyFromQuestion(
+        "Will a hand-written market render?",
+        subjects,
+      ),
+      null,
+    );
+  });
+
+  it("removes used options until every option has been exhausted", function () {
+    const options = [
+      { key: generatedMarketOptionKey("crypto", "bitcoin", "higher") },
+      { key: generatedMarketOptionKey("crypto", "bitcoin", "lower") },
+    ] as const;
+
+    assert.deepEqual(
+      filterUnusedGeneratedMarketOptions(
+        options,
+        new Set([generatedMarketOptionKey("crypto", "bitcoin", "higher")]),
+      ),
+      {
+        exhausted: false,
+        options: [options[1]],
+        totalCount: 2,
+        unusedCount: 1,
+      },
+    );
+
+    assert.deepEqual(
+      filterUnusedGeneratedMarketOptions(
+        options,
+        new Set(options.map((option) => option.key)),
+      ),
+      {
+        exhausted: true,
+        options,
+        totalCount: 2,
+        unusedCount: 0,
+      },
+    );
   });
 });
 
