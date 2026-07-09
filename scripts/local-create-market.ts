@@ -13,6 +13,13 @@ import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
+import {
+  extractGeneratedMarketOptionKeyFromQuestion,
+  filterUnusedGeneratedMarketOptions,
+  generatedMarketDirections,
+  generatedMarketOptionKey,
+  type GeneratedMarketDirection,
+} from "./shared/localMarket/generatedMarketOptions.ts";
 import { protocolDir, repoRoot } from "./shared/paths.ts";
 
 /**
@@ -48,6 +55,22 @@ type WeatherStation = {
   readonly name: string;
   readonly stationId: string;
 };
+
+type CryptoMarketOption = {
+  readonly asset: DigitalAsset;
+  readonly direction: GeneratedMarketDirection;
+  readonly key: string;
+  readonly kind: "crypto";
+};
+
+type WeatherMarketOption = {
+  readonly direction: GeneratedMarketDirection;
+  readonly key: string;
+  readonly kind: "weather";
+  readonly station: WeatherStation;
+};
+
+type GeneratedMarketOption = CryptoMarketOption | WeatherMarketOption;
 
 type MarketMetadata = {
   readonly category: string;
@@ -118,6 +141,7 @@ const weatherStations: readonly WeatherStation[] = [
 ];
 const defaultRpcHttpUrl = "http://127.0.0.1:8545";
 const hardhatLocalChainId = "0x7a69";
+const hardhatLocalChainNumber = 31337;
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
@@ -137,7 +161,7 @@ async function main(): Promise<void> {
   }
 
   if (options.preview) {
-    const generatedMarket = await buildGeneratedMarket(options.kind);
+    const generatedMarket = await buildGeneratedMarket(options.kind, new Set());
     console.log(
       JSON.stringify(
         {
@@ -164,7 +188,15 @@ async function main(): Promise<void> {
   await validateLocalDeployment(commandEnv, envFile);
   ensureDependenciesInstalled();
 
-  const generatedMarket = await buildGeneratedMarket(options.kind);
+  const apiBaseUrl = resolveIndexerApiBaseUrl(options.apiBaseUrl, commandEnv);
+  const usedOptionKeys = await readExistingGeneratedMarketOptions({
+    apiBaseUrl,
+    chainId: hardhatLocalChainNumber,
+  });
+  const generatedMarket = await buildGeneratedMarket(
+    options.kind,
+    usedOptionKeys,
+  );
 
   commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
     generatedMarket.metadata,
@@ -198,8 +230,6 @@ async function main(): Promise<void> {
     },
   );
   const market = parseSmokeMarket(output.stdout);
-
-  const apiBaseUrl = resolveIndexerApiBaseUrl(options.apiBaseUrl, commandEnv);
 
   try {
     await persistMarketMetadata({
@@ -366,21 +396,38 @@ function isGeneratedMarketKind(value: string): value is GeneratedMarketKind {
 
 async function buildGeneratedMarket(
   kind: GeneratedMarketKind | "random",
+  usedOptionKeys: ReadonlySet<string>,
 ): Promise<GeneratedMarket> {
-  const kinds = kind === "random" ? shuffle([...generatedMarketKinds]) : [kind];
+  const allOptions = buildGeneratedMarketOptions(kind);
+  const filteredOptions = filterUnusedGeneratedMarketOptions(
+    allOptions,
+    usedOptionKeys,
+  );
   const errors: string[] = [];
 
-  for (const nextKind of kinds) {
+  if (filteredOptions.exhausted) {
+    console.log(
+      `[local-create-market] all ${filteredOptions.totalCount} ` +
+        `${formatOptionScope(kind)} option(s) already exist; allowing a duplicate`,
+    );
+  } else if (filteredOptions.unusedCount < filteredOptions.totalCount) {
+    console.log(
+      `[local-create-market] choosing from ${filteredOptions.unusedCount}/` +
+        `${filteredOptions.totalCount} unused ${formatOptionScope(kind)} option(s)`,
+    );
+  }
+
+  for (const option of shuffle([...filteredOptions.options])) {
     try {
-      if (nextKind === "crypto") {
-        return await buildCryptoMarket();
+      if (option.kind === "crypto") {
+        return await buildCryptoMarket(option);
       }
 
-      if (nextKind === "weather") {
-        return await buildWeatherMarket();
+      if (option.kind === "weather") {
+        return await buildWeatherMarket(option);
       }
     } catch (error) {
-      errors.push(`${nextKind}: ${getErrorMessage(error)}`);
+      errors.push(`${option.key}: ${getErrorMessage(error)}`);
     }
   }
 
@@ -389,11 +436,50 @@ async function buildGeneratedMarket(
   );
 }
 
-async function buildCryptoMarket(): Promise<GeneratedMarket> {
+function buildGeneratedMarketOptions(
+  kind: GeneratedMarketKind | "random",
+): readonly GeneratedMarketOption[] {
+  const options: GeneratedMarketOption[] = [];
+
+  if (kind === "random" || kind === "crypto") {
+    for (const asset of digitalAssets) {
+      for (const direction of generatedMarketDirections) {
+        options.push({
+          asset,
+          direction,
+          key: generatedMarketOptionKey("crypto", asset.id, direction),
+          kind: "crypto",
+        });
+      }
+    }
+  }
+
+  if (kind === "random" || kind === "weather") {
+    for (const station of weatherStations) {
+      for (const direction of generatedMarketDirections) {
+        options.push({
+          direction,
+          key: generatedMarketOptionKey("weather", station.stationId, direction),
+          kind: "weather",
+          station,
+        });
+      }
+    }
+  }
+
+  return options;
+}
+
+function formatOptionScope(kind: GeneratedMarketKind | "random"): string {
+  return kind === "random" ? "generated" : kind;
+}
+
+async function buildCryptoMarket(
+  option: CryptoMarketOption,
+): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const direction = choose(["higher", "lower"] as const);
-  const asset = choose(digitalAssets);
+  const { asset, direction } = option;
   const prices = await fetchJson(spotPriceSourceUrl);
   const price = readSpotPrice(prices, asset.id);
   const threshold = formatUsd(price);
@@ -424,11 +510,12 @@ async function buildCryptoMarket(): Promise<GeneratedMarket> {
   };
 }
 
-async function buildWeatherMarket(): Promise<GeneratedMarket> {
+async function buildWeatherMarket(
+  option: WeatherMarketOption,
+): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const direction = choose(["higher", "lower"] as const);
-  const station = choose(weatherStations);
+  const { direction, station } = option;
   const forecast = await fetchForecastWindow(station, now, resolutionAt);
   const threshold = Math.round(forecast.highFahrenheit);
   const observationUrl = buildObservationUrl(station.stationId);
@@ -460,6 +547,98 @@ async function buildWeatherMarket(): Promise<GeneratedMarket> {
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
   };
+}
+
+async function readExistingGeneratedMarketOptions({
+  apiBaseUrl,
+  chainId,
+}: {
+  readonly apiBaseUrl: string;
+  readonly chainId: number;
+}): Promise<ReadonlySet<string>> {
+  try {
+    const markets = await fetchIndexedMarkets({ apiBaseUrl, chainId });
+    const optionKeys = new Set<string>();
+    const subjects = {
+      crypto: digitalAssets.map((asset) => ({
+        key: asset.id,
+        symbol: asset.symbol,
+      })),
+      weather: weatherStations.map((station) => ({
+        city: station.city,
+        key: station.stationId,
+      })),
+    };
+
+    for (const market of markets) {
+      const question = readIndexedMarketQuestion(market);
+      const optionKey = question
+        ? extractGeneratedMarketOptionKeyFromQuestion(question, subjects)
+        : null;
+
+      if (optionKey) {
+        optionKeys.add(optionKey);
+      }
+    }
+
+    if (optionKeys.size > 0) {
+      console.log(
+        `[local-create-market] found ${optionKeys.size} generated option(s) ` +
+          "already represented in existing markets",
+      );
+    }
+
+    return optionKeys;
+  } catch (error) {
+    console.warn(
+      `[local-create-market] could not check existing markets for duplicates: ` +
+        getErrorMessage(error),
+    );
+    return new Set();
+  }
+}
+
+async function fetchIndexedMarkets({
+  apiBaseUrl,
+  chainId,
+}: {
+  readonly apiBaseUrl: string;
+  readonly chainId: number;
+}): Promise<readonly unknown[]> {
+  const url = new URL("markets", ensureTrailingSlash(apiBaseUrl));
+  url.searchParams.set("chainId", String(chainId));
+
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(sourceTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `GET ${response.url} returned ${response.status}${
+        body ? `: ${body.slice(0, 240)}` : ""
+      }`,
+    );
+  }
+
+  const body = await response.json();
+
+  if (!Array.isArray(body)) {
+    throw new Error(`GET ${response.url} did not return a market list.`);
+  }
+
+  return body;
+}
+
+function readIndexedMarketQuestion(market: unknown): string | null {
+  if (!isRecord(market) || !isRecord(market.metadata)) {
+    return null;
+  }
+
+  return typeof market.metadata.question === "string"
+    ? market.metadata.question
+    : null;
 }
 
 async function fetchForecastWindow(
@@ -706,10 +885,6 @@ function formatUsd(value: number): string {
     minimumFractionDigits: value >= 100 ? 0 : 2,
     style: "currency",
   }).format(value);
-}
-
-function choose<T>(values: readonly T[]): T {
-  return values[Math.floor(Math.random() * values.length)];
 }
 
 function shuffle<T>(values: T[]): T[] {
