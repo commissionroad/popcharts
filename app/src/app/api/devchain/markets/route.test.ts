@@ -60,6 +60,7 @@ const protocolParams: ProtocolCreateMarketParams = {
   metadataHash: `0x${"ab".repeat(32)}`,
   openingProbabilityWad: WAD / 2n,
   resolutionTime: 1_785_628_800n,
+  yesNotBefore: 1_785_628_800n,
 };
 
 beforeEach(() => {
@@ -285,6 +286,7 @@ function marketCreatedLog() {
         { name: "graduationThreshold", type: "uint256" },
         { name: "graduationDeadline", type: "uint64" },
         { name: "resolutionTime", type: "uint64" },
+        { name: "yesNotBefore", type: "uint64" },
         { name: "bypassAiResolution", type: "bool" },
       ],
       [
@@ -294,6 +296,7 @@ function marketCreatedLog() {
         5_000n * WAD,
         100n * WAD,
         1n,
+        2n,
         2n,
         false,
       ]

@@ -135,6 +135,9 @@ export function buildProtocolCreateMarketParams(
     metadata: metadataPayload,
     openingProbabilityWad: percentageToWad(draft.openingProbability),
     resolutionTime: dateTimeLocalToUnixSeconds(draft.resolutionTime),
+    // No early-YES UI yet: the YES gate defaults to the resolution deadline.
+    // A dedicated control can lower this per market later (ADR 0012 slice 2).
+    yesNotBefore: dateTimeLocalToUnixSeconds(draft.resolutionTime),
   };
 }
 

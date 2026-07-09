@@ -17,6 +17,7 @@ const params: ProtocolCreateMarketParams = {
   metadataHash: `0x${"ab".repeat(32)}`,
   openingProbabilityWad: 500_000_000_000_000_000n,
   resolutionTime: 1_785_628_800n,
+  yesNotBefore: 1_785_628_800n,
 };
 
 describe("serializeProtocolCreateMarketParams", () => {
@@ -33,6 +34,7 @@ describe("serializeProtocolCreateMarketParams", () => {
       metadataHash: params.metadataHash,
       openingProbabilityWad: "500000000000000000",
       resolutionTime: "1785628800",
+      yesNotBefore: "1785628800",
     });
   });
 

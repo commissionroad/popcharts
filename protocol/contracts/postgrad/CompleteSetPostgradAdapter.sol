@@ -138,7 +138,9 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     address collateral,
     bytes32 metadataHash,
     uint256 retainedCollateral,
-    uint256 completeSetCount
+    uint256 completeSetCount,
+    uint64 yesNotBefore,
+    uint64 noNotBefore
   )
     external
     onlyPregradManager
@@ -164,15 +166,12 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     IERC20 collateralToken = IERC20(collateral);
     _transferRetainedCollateralIn(collateralToken, retainedCollateral);
 
-    CompleteSetBinaryMarket market = new CompleteSetBinaryMarket({
-      collateralToken_: collateral,
-      owner_: owner(),
-      retainedMinter_: address(this),
-      resolver_: resolver,
-      marketName_: _marketName(marketId),
-      marketSymbol_: _marketSymbol(marketId),
-      outcomeDecimals_: outcomeDecimals
-    });
+    CompleteSetBinaryMarket market = _deployChildMarket(
+      marketId,
+      collateral,
+      yesNotBefore,
+      noNotBefore
+    );
 
     preparedMarketAddress = address(market);
     collateralToken.forceApprove(preparedMarketAddress, retainedCollateral);
@@ -199,6 +198,28 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
       retainedCollateral,
       completeSetCount
     );
+  }
+
+  /// @notice Deploys a child market in its own frame to keep prepareMarket within
+  /// the EVM stack limit.
+  function _deployChildMarket(
+    uint256 marketId,
+    address collateral,
+    uint64 yesNotBefore,
+    uint64 noNotBefore
+  ) private returns (CompleteSetBinaryMarket) {
+    return
+      new CompleteSetBinaryMarket({
+        collateralToken_: collateral,
+        owner_: owner(),
+        retainedMinter_: address(this),
+        resolver_: resolver,
+        marketName_: _marketName(marketId),
+        marketSymbol_: _marketSymbol(marketId),
+        outcomeDecimals_: outcomeDecimals,
+        yesNotBefore_: yesNotBefore,
+        noNotBefore_: noNotBefore
+      });
   }
 
   /// @inheritdoc IPostgradAdapter

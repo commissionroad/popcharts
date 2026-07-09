@@ -135,16 +135,20 @@ exactly the escape hatch it exists for.
    `too_early` re-queues escalate to `manual_review` once `now > no_not_before +
    grace` (or after N cycles), so an indefinitely-postponed event reaches an
    operator instead of looping forever — the operator then cancels or waits.
-4. **On-chain floor guard (contract change).** `CompleteSetBinaryMarket` gets an
-   immutable `earliestResolutionTime`, and `resolve(side)` reverts before it;
-   `cancel()` stays ungated. The floor = the market's `yes_not_before` (the
-   earliest any legitimate resolve could occur). Because `yes_not_before` is
-   itself a new on-chain `createMarket` parameter (above), the value flows purely
-   on-chain: `createMarket` → `MarketCreated` → graduation plumbs it through
-   `CompleteSetPostgradAdapter` into the child market's constructor. This is the
-   backstop that holds *even if the resolver key is compromised or the runner is
-   buggy* — the highest-stakes automation in the system deserves one — and it
-   closes ADR 0008's open on-chain-gating item.
+4. **On-chain per-outcome guard (contract change).** `CompleteSetBinaryMarket`
+   gets two immutables, `yesNotBefore` and `noNotBefore`; `resolve(side)` reverts
+   (`TooEarlyToResolve`) before the side's gate — YES before `yesNotBefore`, NO
+   before `noNotBefore` (= the market's `resolutionTime`). `cancel()` stays
+   ungated (postponement escape hatch). The per-outcome gate — not a single floor
+   — is what actually enforces the asymmetry on-chain: without it, a compromised
+   resolver key could submit a premature NO between `yesNotBefore` and the true
+   deadline, and the 24h operator delay wouldn't help (a direct `resolve` call
+   bypasses the runner and the delay). Both values flow purely on-chain:
+   `createMarket` → `MarketCreated` → graduation plumbs `yesNotBefore` and
+   `resolutionTime` through `CompleteSetPostgradAdapter` into the child market's
+   constructor. This is the backstop that holds *even if the resolver key is
+   compromised or the runner is buggy*, and it closes ADR 0008's open
+   on-chain-gating item.
 5. **Operator delay/override (§9).** Unchanged — the 24h Arc window still sits on
    top of a confident, in-window verdict.
 
@@ -414,13 +418,14 @@ watcher, `markets.status = resolved`). A second seeded market before its
 
 ## 14. Implementation slices (maps to the ADR 0012 checklist)
 
-0. **On-chain resolution window + floor guard (protocol, human-reviewed).** Add
-   `yesNotBefore` as a `createMarket` parameter and `MarketCreated` event field
-   (invariant `graduationDeadline < yesNotBefore ≤ resolutionTime`); plumb it
-   through `CompleteSetPostgradAdapter` into `CompleteSetBinaryMarket` as an
-   immutable `earliestResolutionTime`; make `resolve(side)` revert before it
-   (`cancel` ungated). Closes ADR 0008's open on-chain-gating item. Touches a
-   funds-holding contract → human review, not autonomous merge. The off-chain
+0. **On-chain resolution window + per-outcome guard (protocol, human-reviewed).**
+   Add `yesNotBefore` as a `createMarket` parameter and `MarketCreated` event
+   field (invariant `graduationDeadline < yesNotBefore ≤ resolutionTime`); plumb
+   both `yesNotBefore` and `resolutionTime` through `CompleteSetPostgradAdapter`
+   into `CompleteSetBinaryMarket` as immutables `yesNotBefore` / `noNotBefore`;
+   make `resolve(YES)` revert before `yesNotBefore` and `resolve(NO)` before
+   `noNotBefore` (`cancel` ungated). Closes ADR 0008's open on-chain-gating item.
+   Touches a funds-holding contract → human review, not autonomous merge. The off-chain
    slices can proceed against seeded data ahead of it, but the guard and the
    `yes_not_before` value depend on it.
 1. **Schema** — `market_resolutions` + `market_resolution_jobs` + migrations;
