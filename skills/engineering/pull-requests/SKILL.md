@@ -59,14 +59,22 @@ a screenshot of the changed state.
 Landing a PR is not done until the branches are cleaned up and the local main
 checkout is current. The repo does not auto-delete branches on merge.
 
-- Merge with `gh pr merge --merge --delete-branch` (this repo uses merge
-  commits). If the remote branch survived, delete it:
-  `git push origin --delete <branch>`.
+- Prefer `scripts/land` (the `/land` command). It merges, deletes the remote
+  branch, removes the feature worktree, deletes the local branch, and verifies
+  all of that — the manual steps below are only for when you cannot use it.
+- Do NOT rely on `gh pr merge --delete-branch` to remove the *local* branch:
+  `gh` must switch off the branch to delete it, and from a linked worktree it
+  cannot (`main` is checked out elsewhere), so the remote is deleted while the
+  local branch silently survives. Merge, then delete the local branch yourself.
 - Delete the local branch. If it is checked out in a worktree, remove the
   worktree first (`git worktree remove <path>` — never `--force`; a refusal
   means uncommitted work that must be looked at, not discarded), then
   `git branch -d <branch>`. From inside the worktree itself, `git checkout
   --detach` before `git branch -d`.
+- The harness creates each worktree on a throwaway `claude/<name>` branch; a
+  session usually lands a *different* feature branch, so the scratch branch is
+  merged into main only as an ancestor and never has its own PR. `land` won't
+  catch these — sweep them with `git branch --merged origin/main`.
 - Sweep other fully-merged branches while you are here
   (`git branch --merged origin/main`), using the same non-forcing commands.
   Leave unmerged branches and other agents' in-flight worktrees alone.

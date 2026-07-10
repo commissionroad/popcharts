@@ -1,3 +1,17 @@
+# Pop Charts — Agent Instructions
+
+This repo's platform- and agent-agnostic instructions (skills, `/land` and
+other personal commands, workspace gates, wiki and naming rules) live in
+`AGENTS.md`, shared with every agent that reads this codebase. Load them:
+
+@AGENTS.md
+
+Everything below is Opus-specific tuning layered on top of that shared system —
+not a replacement for it. When the two touch the same topic, `AGENTS.md`
+governs the repo mechanics and this manual governs how to think.
+
+---
+
 # Operating Manual
 
 *How to work in this repo — and everywhere else. Not a rulebook to satisfy; a way of working to inhabit.*
