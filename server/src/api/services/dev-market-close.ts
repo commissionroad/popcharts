@@ -1,32 +1,15 @@
-import { parseAbi, type Hash } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { type Hash } from "viem";
 
 import type {
   DevMarketCloseIneligibleReason,
   MarketResponse,
 } from "src/api/models/markets";
-import {
-  createReadOnlyClient,
-  createWalletClient,
-} from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import {
-  fastForwardLocalRpc,
-  getLatestBlockTimestamp,
-  readDevPrivateKey,
-} from "./local-dev-chain";
+import { markPregradMarketRefundableOnChain } from "./pregrad-refund";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import { serializeMarketRow } from "./markets";
-
-const PREGRAD_MARKET_STATUS_ACTIVE = 0;
-const PREGRAD_MARKET_STATUS_REFUNDED = 4;
-const PREGRAD_DEV_CLOSE_ABI = parseAbi([
-  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution))",
-  "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
-  "function markRefundable(uint256 marketId)",
-]);
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
@@ -286,64 +269,37 @@ async function markMarketRefunded({
   return updatedMarket ?? null;
 }
 
+/**
+ * Fast-forwards the local chain to the market's graduation deadline and opens
+ * refunds on-chain, reusing the shared markRefundable driver. The dev close
+ * tool closes bootstrap markets before they reach their deadline, so it always
+ * jumps the clock first; the projection mirror stays here in markMarketRefunded.
+ */
 async function closeLocalMarketOnChain(
   marketId: bigint,
 ): Promise<ChainCloseResult> {
-  const publicClient = createReadOnlyClient();
-  const state = (await publicClient.readContract({
-    abi: PREGRAD_DEV_CLOSE_ABI,
-    address: config.contracts.pregradManager,
-    functionName: "getMarketState",
-    args: [marketId],
-  })) as { status: number };
+  const result = await markPregradMarketRefundableOnChain(marketId, {
+    fastForwardToDeadline: true,
+  });
 
-  if (state.status === PREGRAD_MARKET_STATUS_REFUNDED) {
+  if (result.kind === "already_refunded") {
     return {
-      blockTimestamp: await getLatestBlockTimestamp(publicClient),
+      blockTimestamp: result.blockTimestamp,
       kind: "already_refunded",
     };
   }
 
-  if (state.status !== PREGRAD_MARKET_STATUS_ACTIVE) {
+  if (result.kind === "wrong_status") {
     return {
       kind: "wrong_status",
-      status: state.status,
+      status: result.status,
     };
   }
 
-  const marketConfig = (await publicClient.readContract({
-    abi: PREGRAD_DEV_CLOSE_ABI,
-    address: config.contracts.pregradManager,
-    functionName: "getMarketConfig",
-    args: [marketId],
-  })) as { graduationDeadline: bigint };
-
-  await fastForwardLocalRpc(publicClient, marketConfig.graduationDeadline);
-
-  const account = privateKeyToAccount(readDevPrivateKey());
-  const walletClient = createWalletClient(account);
-  const transactionHash = await walletClient.writeContract({
-    abi: PREGRAD_DEV_CLOSE_ABI,
-    address: config.contracts.pregradManager,
-    functionName: "markRefundable",
-    args: [marketId],
-  });
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: transactionHash,
-  });
-
-  if (receipt.status !== "success") {
-    throw new Error(`markRefundable transaction failed: ${transactionHash}`);
-  }
-
-  const block = await publicClient.getBlock({
-    blockNumber: receipt.blockNumber,
-  });
-
   return {
-    blockTimestamp: new Date(Number(block.timestamp) * 1000),
+    blockTimestamp: result.blockTimestamp,
     kind: "closed",
-    transactionHash,
+    transactionHash: result.transactionHash,
   };
 }
 

@@ -117,8 +117,8 @@ function scheduleGraduationPass(market: TrackedPregradMarket, reason: string) {
   }
   void scheduler.schedule(market.key, () =>
     runGraduationPass({ market }).then((outcome) => {
-      if (outcome === "graduated") {
-        // Track the fresh venue (and stop watching the pregrad side)
+      if (outcome === "graduated" || outcome === "refunded") {
+        // Track the fresh venue (or drop the now-refunded pregrad market)
         // without waiting for the next discovery interval.
         void refreshDiscovery();
       }

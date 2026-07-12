@@ -14,6 +14,7 @@ import {
 
 import { graduateDevMarket } from "src/api/services/dev-market-graduate";
 import { createVenueContractWriter } from "src/api/services/postgrad-venue";
+import { refundPregradMarket } from "src/api/services/pregrad-refund";
 import { config } from "src/config";
 
 import type { TrackedMarket, TrackedPregradMarket } from "./discovery";
@@ -177,17 +178,22 @@ const RESOLVE_DEFERRED_ABI = [
  * One graduation pass for one pregrad market: asks the dev graduation flow to
  * settle it without force, so a market below its threshold is a cheap
  * "below_threshold" no-op and an eligible one settles end to end (clearing
- * root, finalize, claims, venue wiring, liquidity seed). The flow is
- * idempotent and resumable, so a pass racing the graduate button only heals
- * whatever the other left unfinished.
+ * root, finalize, claims, venue wiring, liquidity seed). A market that reached
+ * its graduation deadline without ever matching enough liquidity can no longer
+ * graduate (the contract blocks startGraduation past the deadline), so the pass
+ * opens full escrow refunds on-chain via markRefundable — the automated
+ * no-match/full-refund outcome. The flow is idempotent and resumable, so a pass
+ * racing the graduate button only heals whatever the other left unfinished.
  */
 export async function runGraduationPass({
   graduate = graduateDevMarket,
+  refund = refundPregradMarket,
   market,
 }: {
   graduate?: typeof graduateDevMarket;
   market: TrackedPregradMarket;
-}): Promise<"graduated" | "skipped"> {
+  refund?: typeof refundPregradMarket;
+}): Promise<"graduated" | "refunded" | "skipped"> {
   const result = await graduate({
     chainId: market.chainId,
     force: false,
@@ -207,6 +213,26 @@ export async function runGraduationPass({
   }
 
   if (result.kind === "ineligible" && result.reason === "below_threshold") {
+    return "skipped";
+  }
+
+  // Past its deadline and still not graduated: the market never matched enough
+  // liquidity and never will, so settle the no-match outcome by opening full
+  // refunds instead of leaving escrow stranded.
+  if (result.kind === "ineligible" && result.reason === "past_deadline") {
+    const refundOutcome = await refund({
+      chainId: market.chainId,
+      marketId: market.marketId,
+    });
+
+    if (refundOutcome === "refunded") {
+      console.log(
+        `[Keeper] ${market.label}: no match by graduation deadline; ` +
+          `opened full refunds.`,
+      );
+      return "refunded";
+    }
+
     return "skipped";
   }
 

@@ -32,13 +32,23 @@ decision (protocol ADR 0007) remain deferred.
 
 Clearing:
 
-- [ ] Extract the band-pass clearing computation from protocol scripts into a
-      runnable keeper/service that watches `GraduationStarted`, computes the
-      clearing root deterministically, and submits `ClearingRootSubmitted`.
-- [ ] Golden tests pinning keeper output to worked examples from whitepaper
+- [x] Extract the band-pass clearing computation from protocol scripts into a
+      runnable keeper/service that computes the clearing root deterministically
+      and submits `ClearingRootSubmitted` (`@popcharts/protocol`
+      `computeBandPassClearing`, driven by the keeper's graduation pass).
+- [x] Golden tests pinning keeper output to worked examples from whitepaper
       v4.
-- [ ] Keeper handles the full outcome space: full match, partial match with
-      refunds, and no-match/full-refund markets.
+- [x] Keeper handles the full outcome space: full match, partial match with
+      refunds, and no-match/full-refund markets (the last opens full escrow
+      refunds via `markRefundable` automatically at the graduation deadline).
+
+  Note: the graduation service is poll-based — the keeper's graduation pass
+  drives eligibility, clearing, and the no-match refund off the market
+  projection and a `ReceiptPlaced`-triggered check, not a dedicated
+  `GraduationStarted` event-watcher. The automated keeper (including the
+  auto-refund) is currently gated to the local network with dev tools enabled;
+  no-match refunds otherwise rely on the permissionless on-chain `markRefundable`
+  plus the `MarketRefundsAvailable` indexer watcher.
 
 Resolution hooks:
 
