@@ -6,13 +6,16 @@ import {
   buildGraduatedReceiptClaimedRecord,
   buildGraduationFinalizedRecord,
   buildGraduationStartedRecord,
+  buildMarketCancelledRecord,
   buildMarketRefundsAvailableRecord,
   buildRefundedReceiptClaimedRecord,
   persistGraduationStartedRecord,
+  persistMarketCancelledRecord,
   type ClearingRootSubmittedLog,
   type GraduatedReceiptClaimedLog,
   type GraduationFinalizedLog,
   type GraduationStartedLog,
+  type MarketCancelledLog,
   type MarketRefundsAvailableLog,
   type RefundedReceiptClaimedLog,
 } from "./settlement";
@@ -127,6 +130,10 @@ describe("settlement event record builders", () => {
       marketId: 7n,
       totalEscrowed: 25n,
     }) as MarketRefundsAvailableLog;
+    const cancelledLog = baseLog({
+      marketId: 7n,
+      totalEscrowed: 25n,
+    }) as MarketCancelledLog;
     const graduatedClaimLog = baseLog({
       marketId: 7n,
       owner: "0x00000000000000000000000000000000000000DD",
@@ -149,6 +156,14 @@ describe("settlement event record builders", () => {
         config,
         contractId,
         log: refundsAvailableLog,
+      }),
+    ).toMatchObject({ marketId: 7n, totalEscrowed: 25n });
+    expect(
+      buildMarketCancelledRecord({
+        blockTimestamp,
+        config,
+        contractId,
+        log: cancelledLog,
       }),
     ).toMatchObject({ marketId: 7n, totalEscrowed: 25n });
     expect(
@@ -252,6 +267,57 @@ describe("persistGraduationStartedRecord", () => {
   });
 });
 
+describe("persistMarketCancelledRecord", () => {
+  const record = buildMarketCancelledRecord({
+    blockTimestamp,
+    config,
+    contractId,
+    log: baseLog({
+      marketId: 7n,
+      totalEscrowed: 25n,
+    }) as MarketCancelledLog,
+  });
+
+  it("throws MarketNotIndexedError when the event lands before MarketCreated", async () => {
+    // Rolls back the whole transaction, so the event row is not committed and
+    // a later replay is not skipped by the onConflictDoNothing dedup.
+    const { dbc } = fakeSettlementDb({
+      insertedRows: [{ id: 1 }],
+      updatedRows: [],
+    });
+
+    await expect(
+      persistMarketCancelledRecord(record, dbc),
+    ).rejects.toBeInstanceOf(MarketNotIndexedError);
+  });
+
+  it("skips the projection for a duplicate event row", async () => {
+    const { dbc, updateCalls } = fakeSettlementDb({
+      insertedRows: [],
+      updatedRows: [],
+    });
+
+    await persistMarketCancelledRecord(record, dbc);
+
+    expect(updateCalls()).toBe(0);
+  });
+
+  it("flips the market status to cancelled when both rows exist", async () => {
+    const { dbc, setPayloads, updateCalls } = fakeSettlementDb({
+      insertedRows: [{ id: 1 }],
+      updatedRows: [{ id: 1 }],
+    });
+
+    await persistMarketCancelledRecord(record, dbc);
+
+    expect(updateCalls()).toBe(1);
+    expect(setPayloads()[0]).toMatchObject({
+      status: "cancelled",
+      totalEscrowed: 25n,
+    });
+  });
+});
+
 function baseLog(args: Record<string, unknown>) {
   return {
     args,
@@ -275,6 +341,7 @@ function fakeSettlementDb({
   updatedRows: Array<{ id: number }>;
 }) {
   let updateCallCount = 0;
+  const setPayloads: Array<Record<string, unknown>> = [];
   const tx = {
     insert: () => ({
       values: () => ({
@@ -286,11 +353,14 @@ function fakeSettlementDb({
     update: () => {
       updateCallCount += 1;
       return {
-        set: () => ({
-          where: () => ({
-            returning: async () => updatedRows,
-          }),
-        }),
+        set: (payload: Record<string, unknown>) => {
+          setPayloads.push(payload);
+          return {
+            where: () => ({
+              returning: async () => updatedRows,
+            }),
+          };
+        },
       };
     },
   };
@@ -299,5 +369,9 @@ function fakeSettlementDb({
       callback(tx),
   } as unknown as Parameters<typeof persistGraduationStartedRecord>[1];
 
-  return { dbc, updateCalls: () => updateCallCount };
+  return {
+    dbc,
+    setPayloads: () => setPayloads,
+    updateCalls: () => updateCallCount,
+  };
 }

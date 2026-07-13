@@ -7,18 +7,21 @@ import {
   buildGraduatedReceiptClaimedRecord,
   buildGraduationFinalizedRecord,
   buildGraduationStartedRecord,
+  buildMarketCancelledRecord,
   buildMarketRefundsAvailableRecord,
   buildRefundedReceiptClaimedRecord,
   persistClearingRootSubmittedRecord,
   persistGraduatedReceiptClaimedRecord,
   persistGraduationFinalizedRecord,
   persistGraduationStartedRecord,
+  persistMarketCancelledRecord,
   persistMarketRefundsAvailableRecord,
   persistRefundedReceiptClaimedRecord,
   type ClearingRootSubmittedLog,
   type GraduatedReceiptClaimedLog,
   type GraduationFinalizedLog,
   type GraduationStartedLog,
+  type MarketCancelledLog,
   type MarketRefundsAvailableLog,
   type RefundedReceiptClaimedLog,
 } from "src/indexer/handlers/settlement";
@@ -43,6 +46,9 @@ const GRADUATION_FINALIZED_EVENT = parseAbiItem(
 const MARKET_REFUNDS_AVAILABLE_EVENT = parseAbiItem(
   "event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed)",
 );
+const MARKET_CANCELLED_EVENT = parseAbiItem(
+  "event MarketCancelled(uint256 indexed marketId, uint256 totalEscrowed)",
+);
 const GRADUATED_RECEIPT_CLAIMED_EVENT = parseAbiItem(
   "event GraduatedReceiptClaimed(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund)",
 );
@@ -62,6 +68,7 @@ type SettlementEventDefinition<TLog> = {
     | "ClearingRootSubmitted"
     | "GraduationFinalized"
     | "MarketRefundsAvailable"
+    | "MarketCancelled"
     | "GraduatedReceiptClaimed"
     | "RefundedReceiptClaimed";
   label: string;
@@ -96,6 +103,13 @@ const SETTLEMENT_EVENTS = [
     eventName: "MarketRefundsAvailable",
     label: "MarketRefundsAvailable",
     process: processMarketRefundsAvailableEvent,
+  },
+  {
+    cursorName: "MarketCancelled",
+    event: MARKET_CANCELLED_EVENT as AbiEvent,
+    eventName: "MarketCancelled",
+    label: "MarketCancelled",
+    process: processMarketCancelledEvent,
   },
   {
     cursorName: "GraduatedReceiptClaimed",
@@ -235,6 +249,32 @@ export async function processMarketRefundsAvailableEvent(
   await updateLastProcessedBlock(
     config.contracts.pregradManager,
     "MarketRefundsAvailable",
+    record.blockNumber,
+  );
+}
+
+export async function processMarketCancelledEvent(
+  client: BlockchainClient,
+  log: MarketCancelledLog,
+) {
+  const marketId = log.args.marketId?.toString() ?? "unknown";
+  console.log(`[MarketCancelled] marketId=${marketId}`);
+
+  const contractId = await pregradManagerContractId();
+  const blockTimestamp = await getBlockTimestamp(client, log.blockNumber!);
+  const record = buildMarketCancelledRecord({
+    blockTimestamp,
+    config,
+    contractId,
+    log,
+  });
+
+  await retryUntilMarketIndexed(() => persistMarketCancelledRecord(record), {
+    label: "MarketCancelled",
+  });
+  await updateLastProcessedBlock(
+    config.contracts.pregradManager,
+    "MarketCancelled",
     record.blockNumber,
   );
 }
