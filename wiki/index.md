@@ -92,6 +92,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Clearing keeper design](summaries/clearing-keeper-design.md) — the ADR 0008 design: band-pass sweep, largest-remainder rounding, snapshotHash verification, three-outcome decision logic, golden tests
 - [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline (has stale org/lockfile references)
 - [Portfolio data design](summaries/portfolio-data-design.md) — DB-backed Portfolio spec: Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1
+- [Error-handling UX PRD](summaries/error-handling-ux-prd.md) — safe-by-default error presentation: invert getErrorMessage → presentError, always-log sink, DisplayableError allow-list, CI guardrail against raw error.message renders
 
 ## Summaries — app, server, infra, designkit
 

@@ -11,6 +11,7 @@ sources:
   - docs/architecture.md
   - docs/adr/0013-app-feature-completion.md
   - docs/portfolio-data-design.md
+  - docs/error-handling-ux-prd.md
 updated: 2026-07-13
 ---
 
@@ -57,7 +58,13 @@ DB-backed view (receipts ⋈ settlement, YES/NO positions, open orders; mock
 localStorage receipts dropped). Remaining post-graduation items tracked in
 [root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md). CI
 gates on every app PR: lint, typecheck, unit, e2e-smoke
-([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md)).
+([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md)) plus a
+guardrail test that fails on any raw `error.message` render — error presentation
+is safe-by-default via `presentError` + an always-log sink
+([error-handling UX PRD](../summaries/error-handling-ux-prd.md), implemented
+2026-07-08). A top-bar dev menu (`src/features/dev-settings/`, gated behind
+`NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED`) can re-reveal raw errors and hosts the
+Force-graduate / Close-for-refunds dev actions.
 
 ## Related pages
 
