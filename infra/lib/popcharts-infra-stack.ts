@@ -16,6 +16,7 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
   domainName?: string;
   enableApiService: boolean;
   enableIndexerService: boolean;
+  enableResolutionService: boolean;
   network: NetworkId;
   pregradManagerAddress: string;
   pregradManagerDeployBlock: string;
@@ -25,6 +26,7 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
 const DATABASE_NAME = "popcharts";
 const DATABASE_USER = "popcharts";
 const CONTAINER_PORT = 3000;
+const RESOLUTION_CONTAINER_PORT = 3004;
 
 export class PopChartsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: PopChartsInfraStackProps) {
@@ -289,7 +291,121 @@ export class PopChartsInfraStack extends cdk.Stack {
       secrets: databaseSecrets,
     });
 
-    if (props.enableApiService || props.enableIndexerService) {
+    // AI-assisted resolution (ADR 0012). The service and runner are co-located in
+    // one task so the runner reaches the stateless service over loopback,
+    // avoiding service discovery for an internal-only HTTP dependency.
+    const resolverKeySecret = new secretsmanager.Secret(this, "ResolverKeySecret", {
+      description: `Resolver private key for Pop Charts ${props.stage} ${props.network}`,
+      removalPolicy: isProduction
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+      secretName: `/popcharts/${props.stage}/${props.network}/resolver-private-key`,
+    });
+
+    const anthropicApiKeySecret = new secretsmanager.Secret(
+      this,
+      "AnthropicApiKeySecret",
+      {
+        description: `Anthropic API key for Pop Charts ${props.stage} ${props.network}`,
+        removalPolicy: isProduction
+          ? cdk.RemovalPolicy.RETAIN
+          : cdk.RemovalPolicy.DESTROY,
+        secretName: `/popcharts/${props.stage}/${props.network}/anthropic-api-key`,
+      },
+    );
+
+    const resolutionLogGroup = new logs.LogGroup(this, "ResolutionLogGroup", {
+      logGroupName: `/ecs/${namePrefix}-resolution`,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      retention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const resolutionTaskDefinition = new ecs.FargateTaskDefinition(
+      this,
+      "ResolutionTaskDefinition",
+      {
+        cpu: 256,
+        memoryLimitMiB: 512,
+        runtimePlatform: {
+          cpuArchitecture: ecs.CpuArchitecture.X86_64,
+          operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+        },
+      },
+    );
+
+    const resolutionServiceContainer = resolutionTaskDefinition.addContainer(
+      "resolution-service",
+      {
+        command: ["bun", "/app/dist/ai-resolution/server.js"],
+        environment: {
+          ...commonEnvironment,
+          AI_RESOLUTION_PORT: String(RESOLUTION_CONTAINER_PORT),
+        },
+        essential: true,
+        healthCheck: {
+          command: [
+            "CMD-SHELL",
+            `bun --eval "fetch('http://localhost:${RESOLUTION_CONTAINER_PORT}/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"`,
+          ],
+          interval: cdk.Duration.seconds(30),
+          retries: 3,
+          startPeriod: cdk.Duration.seconds(60),
+          timeout: cdk.Duration.seconds(5),
+        },
+        image,
+        logging: ecs.LogDrivers.awsLogs({
+          logGroup: resolutionLogGroup,
+          streamPrefix: "resolution-service",
+        }),
+        portMappings: [
+          {
+            containerPort: RESOLUTION_CONTAINER_PORT,
+            protocol: ecs.Protocol.TCP,
+          },
+        ],
+        secrets: {
+          ...databaseSecrets,
+          ANTHROPIC_API_KEY:
+            ecs.Secret.fromSecretsManager(anthropicApiKeySecret),
+          RPC_WSS_URL: ecs.Secret.fromSecretsManager(rpcWssSecret),
+        },
+      },
+    );
+
+    const resolutionRunnerContainer = resolutionTaskDefinition.addContainer(
+      "resolution-runner",
+      {
+        command: ["bun", "/app/dist/ai-resolution-runner/index.js"],
+        environment: {
+          ...commonEnvironment,
+          AI_RESOLUTION_SERVICE_URL: `http://127.0.0.1:${RESOLUTION_CONTAINER_PORT}`,
+        },
+        essential: true,
+        image,
+        logging: ecs.LogDrivers.awsLogs({
+          logGroup: resolutionLogGroup,
+          streamPrefix: "resolution-runner",
+        }),
+        secrets: {
+          ...databaseSecrets,
+          POPCHARTS_RESOLVER_PRIVATE_KEY:
+            ecs.Secret.fromSecretsManager(resolverKeySecret),
+          RPC_WSS_URL: ecs.Secret.fromSecretsManager(rpcWssSecret),
+        },
+      },
+    );
+
+    // The runner only starts once the co-located service reports healthy.
+    resolutionRunnerContainer.addContainerDependencies({
+      condition: ecs.ContainerDependencyCondition.HEALTHY,
+      container: resolutionServiceContainer,
+    });
+
+    if (
+      props.enableApiService ||
+      props.enableIndexerService ||
+      props.enableResolutionService
+    ) {
       this.createServices({
         apiTaskDefinition,
         certificateArn: props.certificateArn,
@@ -297,9 +413,11 @@ export class PopChartsInfraStack extends cdk.Stack {
         domainName: props.domainName,
         enableApiService: props.enableApiService,
         enableIndexerService: props.enableIndexerService,
+        enableResolutionService: props.enableResolutionService,
         indexerTaskDefinition,
         isProduction,
         namePrefix,
+        resolutionTaskDefinition,
         serviceSecurityGroup,
         vpc,
       });
@@ -339,9 +457,11 @@ export class PopChartsInfraStack extends cdk.Stack {
     domainName,
     enableApiService,
     enableIndexerService,
+    enableResolutionService,
     indexerTaskDefinition,
     isProduction,
     namePrefix,
+    resolutionTaskDefinition,
     serviceSecurityGroup,
     vpc,
   }: {
@@ -351,9 +471,11 @@ export class PopChartsInfraStack extends cdk.Stack {
     domainName?: string;
     enableApiService: boolean;
     enableIndexerService: boolean;
+    enableResolutionService: boolean;
     indexerTaskDefinition: ecs.FargateTaskDefinition;
     isProduction: boolean;
     namePrefix: string;
+    resolutionTaskDefinition: ecs.FargateTaskDefinition;
     serviceSecurityGroup: ec2.SecurityGroup;
     vpc: ec2.Vpc;
   }) {
@@ -442,6 +564,23 @@ export class PopChartsInfraStack extends cdk.Stack {
         enableExecuteCommand: true,
         securityGroups: [serviceSecurityGroup],
         taskDefinition: indexerTaskDefinition,
+        vpcSubnets: {
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        },
+      });
+    }
+
+    if (enableResolutionService) {
+      new ecs.FargateService(this, "ResolutionService", {
+        assignPublicIp: false,
+        circuitBreaker: {
+          rollback: true,
+        },
+        cluster,
+        desiredCount: 1,
+        enableExecuteCommand: true,
+        securityGroups: [serviceSecurityGroup],
+        taskDefinition: resolutionTaskDefinition,
         vpcSubnets: {
           subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
         },
