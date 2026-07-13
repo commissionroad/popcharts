@@ -30,7 +30,7 @@ Continuous integration (unblocks early, cheap to do first):
 
 - [ ] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
       service container.
-- [ ] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
+- [x] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
 - [ ] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with
       the heuristic provider.
 
@@ -42,8 +42,10 @@ Cloud stack (Arc Testnet staging):
       run-task step.
 - [ ] ECS services for API, indexer, AI review service + runner, clearing
       keeper, and resolution service + runner (`enableServices=true`).
-- [ ] Secrets populated: RPC HTTP/WSS URLs, `ANTHROPIC_API_KEY`,
-      review-manager and resolver keys, operator auth credentials.
+- [ ] Secrets populated: RPC HTTP/WSS URLs, `ANTHROPIC_API_KEY`, and the
+      server signer keys (review-manager, resolver, graduation-manager). No
+      API operator-auth credentials exist — operator actions are local-only
+      (ADR 0009).
 - [ ] Monitoring: CloudWatch dashboards and alarms on ALB 5xx, ECS restarts,
       RDS health, indexer cursor lag, and review/resolution queue depth
       (metrics from ADRs 0010/0011/0012).

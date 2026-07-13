@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0010 — Indexer maturity
-description: Vertical ADR to bring the indexer to Arc-Testnet grade (reorg handling, confirmation depth, RPC failover, leasing, lag metrics) and index the postgrad lifecycle; all eight items open.
+description: Vertical ADR to bring the indexer to Arc-Testnet grade (reorg handling, confirmation depth, RPC failover, leasing, lag metrics) and index the postgrad lifecycle; 1 of 8 done as of the 2026-07-09 reconcile (v4 venue trading watchers).
 sources:
   - docs/adr/0010-indexer-maturity.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Repo ADR 0010: Indexer Maturity
@@ -26,7 +26,7 @@ coverage of postgrad venue events — graduated markets go dark to the database.
 Bring the indexer to Arc-Testnet grade and extend it over the postgrad
 lifecycle. Running it anywhere is ADR 0015.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (1 of 8 done as of the 2026-07-09 checklist reconcile)
 
 Chain robustness:
 
@@ -48,7 +48,7 @@ Postgrad coverage:
 - [ ] Watchers and schema for `CompleteSetPostgradAdapter` and
   `CompleteSetBinaryMarket` events (market creation, mint/merge/redeem,
   resolution, cancellation).
-- [ ] Watchers and schema for v4 venue trading events
+- [x] Watchers and schema for v4 venue trading events
   (`BoundedPoolOrderManager` order placement and fills) so postgrad prices and
   volume are servable.
 - [ ] Resolution events feed the `markets` projection so status reaches

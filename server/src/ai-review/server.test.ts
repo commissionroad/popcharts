@@ -10,6 +10,7 @@ const baseConfig: AiReviewConfig = {
   anthropicMaxWebSearches: 1,
   anthropicModel: "claude-sonnet-4-6",
   anthropicWebFetchMaxContentTokens: 1_000,
+  fallbackApprove: false,
   fetchSearchResults: false,
   internetAccess: "search",
   maxFetchBytes: 10_000,

@@ -8,6 +8,7 @@ import { DevMenu } from "./dev-menu";
 const mocks = vi.hoisted(() => ({
   closePregradMarketAction: vi.fn(),
   forceGraduateMarketAction: vi.fn(),
+  forceResolveMarketAction: vi.fn(),
   pathname: vi.fn((): string => "/"),
   refresh: vi.fn(),
   useTestPusdMint: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock("@/features/market-detail/graduation-actions", () => ({
   forceGraduateMarketAction: mocks.forceGraduateMarketAction,
 }));
 
+vi.mock("@/features/market-detail/resolution-actions", () => ({
+  forceResolveMarketAction: mocks.forceResolveMarketAction,
+}));
+
 vi.mock("./use-test-pusd-mint", () => ({
   useTestPusdMint: mocks.useTestPusdMint,
 }));
@@ -35,6 +40,7 @@ const STORAGE_KEY = "popcharts:dev:reveal-raw-errors:v1";
 beforeEach(() => {
   mocks.closePregradMarketAction.mockReset();
   mocks.forceGraduateMarketAction.mockReset();
+  mocks.forceResolveMarketAction.mockReset();
   mocks.refresh.mockReset();
   mocks.pathname.mockReturnValue("/");
   mocks.useTestPusdMint.mockReturnValue(testPusdMintState());
@@ -61,6 +67,8 @@ describe("DevMenu", () => {
       screen.getByRole("switch", { name: /Reveal raw errors/ })
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Force graduate/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Resolve YES/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Resolve NO/ })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Close for refunds/ })
     ).toBeInTheDocument();
@@ -76,6 +84,8 @@ describe("DevMenu", () => {
     open();
 
     expect(screen.getByRole("button", { name: /Force graduate/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Resolve YES/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Resolve NO/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Close for refunds/ })).toBeDisabled();
     expect(screen.getByText("Open a market to use these.")).toBeInTheDocument();
   });
@@ -201,6 +211,37 @@ describe("DevMenu", () => {
 
     expect(await screen.findByText("Closed for refunds.")).toBeInTheDocument();
     expect(mocks.closePregradMarketAction).toHaveBeenCalledWith("31337:9");
+  });
+
+  it("force resolves the current market as YES", async () => {
+    mocks.pathname.mockReturnValue("/markets/31337%3A9");
+    mocks.forceResolveMarketAction.mockResolvedValueOnce({
+      message: "Resolved YES onchain.",
+      status: "success",
+    });
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Resolve YES/ }));
+
+    expect(await screen.findByText("Resolved YES onchain.")).toBeInTheDocument();
+    expect(mocks.forceResolveMarketAction).toHaveBeenCalledWith("31337:9", "yes");
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  });
+
+  it("force resolves the current market as NO", async () => {
+    mocks.pathname.mockReturnValue("/markets/31337%3A9/graduation");
+    mocks.forceResolveMarketAction.mockResolvedValueOnce({
+      message: "Resolved NO onchain.",
+      status: "success",
+    });
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Resolve NO/ }));
+
+    expect(await screen.findByText("Resolved NO onchain.")).toBeInTheDocument();
+    expect(mocks.forceResolveMarketAction).toHaveBeenCalledWith("31337:9", "no");
   });
 
   it("reports action errors without refreshing", async () => {

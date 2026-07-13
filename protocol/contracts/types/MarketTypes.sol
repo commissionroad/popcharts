@@ -53,6 +53,11 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice Earliest timestamp a YES resolution may be submitted on-chain.
+    /// Must satisfy graduationDeadline < yesNotBefore <= resolutionTime. Set
+    /// earlier than resolutionTime only for open-ended markets that admit an
+    /// early YES; equal to resolutionTime means no early YES.
+    uint64 yesNotBefore;
     /// @notice True when a trusted creator opts out of AI-assisted resolution.
     bool bypassAiResolution;
   }
@@ -76,6 +81,11 @@ library MarketTypes {
     uint64 graduationDeadline;
     /// @notice Unix timestamp by which the postgrad market should resolve.
     uint64 resolutionTime;
+    /// @notice Earliest timestamp a YES resolution may be submitted on-chain.
+    /// Must satisfy graduationDeadline < yesNotBefore <= resolutionTime. Set
+    /// earlier than resolutionTime only for open-ended markets that admit an
+    /// early YES; equal to resolutionTime means no early YES.
+    uint64 yesNotBefore;
     /// @notice True when a trusted creator opts out of AI-assisted resolution.
     bool bypassAiResolution;
   }

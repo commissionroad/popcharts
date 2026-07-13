@@ -80,3 +80,137 @@ dev — it read NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL, which the local stack
 never sets (only the server-side POPCHARTS_INDEXER_API_URL). use-order-book.ts
 uses the same-origin proxy /api/indexer/orderbook for exactly this reason.
 PR #159 restores the proxy pattern for portfolio. D4 reverted to its original.
+
+## [2026-07-09] ingest | repo ADR renumber — monorepo cleanup 0007 → 0016
+Pages: +summaries/root-adr-0016-monorepo-architecture-cleanup-program.md
+(renamed from root-adr-0007-...), ~summaries/root-adr-0007-track-verticals-with-progress-adrs.md,
+~summaries/root-adr-index-conventions.md, ~summaries/root-adr-0006-server-runtime-and-indexer.md,
+~summaries/architecture.md, ~concepts/monorepo-architecture.md, ~concepts/creation-fee-custody.md,
+~entities/pregrad-manager.md, ~entities/postgrad-v4-venue.md, ~entities/postgrad-adapter.md,
+~entities/creation-fee-vault.md, ~index.md
+Notes: The duplicate repo ADR 0007 (monorepo cleanup program) was renumbered to
+0016 in docs/adr/ and added to the README index; the canonical 0007 remains
+track-verticals. Updated all wiki source-path and summary-slug references,
+converted the two "numbering collision" callouts into "renumbered/resolved"
+notes, and added the 0016 row to the ADR index table. No content drift beyond
+the number; collision is resolved, not merely flagged.
+
+## [2026-07-09] ingest | operator-access model correction (ADRs 0009/0011/0012/0015)
+Pages: ~summaries/root-adr-0009-server-api-hardening.md,
+~summaries/root-adr-0011-ai-review-service-hardening.md,
+~summaries/root-adr-0012-ai-assisted-resolution.md,
+~summaries/root-adr-0015-deployment-and-infrastructure.md,
+~summaries/root-adr-index-conventions.md, ~concepts/ai-assisted-resolution.md,
+~entities/ai-review-service.md, ~index.md
+Notes: Source ADRs 0009/0011/0012 (and 0015 secrets) were corrected to a new
+operator-access model: the `/admin/*` and `/dev/*` endpoints are dev-only and
+must be excluded from production builds (not env-flag-gated); operator actions
+(manual re-review, resolution override, key-signed transitions) are performed
+locally against the chain, never through the deployed API — so there is no API
+operator-auth to build. ADR 0009 also reframes the manual graduation endpoint
+as the one real public write: a trigger into the server's manager-keyed
+graduation process (start → off-chain band-pass clearing → Merkle root →
+finalize), because on-chain startGraduation is manager-only and the sweep
+cannot fit in one transaction (protocol ADR 0006). Left the ai-review design-doc
+and server-README summaries unchanged — they faithfully describe their (still
+unchanged) source docs, which still document the current dev/admin endpoint.
+
+## [2026-07-09] lint | first periodic lint (window: since 2026-07-07 bootstrap)
+Pages: +summaries/error-handling-ux-prd.md, ~entities/app-workspace.md,
+~concepts/product-honesty-rule.md, ~index.md
+Organic ingestion since bootstrap (first lint, so window = bootstrap→now):
+**8/9 doc-changing PRs self-ingested.** Missed: docs/error-handling-ux-prd.md
+(new design doc, added PR #150, never given a wiki page) — ingested by this
+lint. Self-ingested in their own PR: protocol ADR 0006/0010 (#91),
+component-inventory chart rework (#138) and pending-bar (#139),
+portfolio-data-design add/reframe (#149), hook (#153), implemented (#155).
+Two edge cases counted as ingested: #140's a11y component-inventory edit
+reached the wiki via the next merge rather than its own PR; #129's ADR-0007
+D1+D1a checkbox tick needed no wiki change (already ticked at bootstrap).
+Findings:
+- Staleness: none. Every page's `updated:` >= newest git date of its sources
+  (checked all 82 content pages). No orphaned summaries (no source deleted).
+- Integrity: clean. Zero broken internal links, zero pages missing from
+  index.md, zero orphans (every content page has an inbound link or index row).
+- ADR drift: root-adr-0007 cleanup-program checklist matches the live ADR
+  exactly — C2/C4/C5/C6 open, D3 deferred-by-design, E7 stale-checkbox-but-
+  landed, all already annotated. No drift.
+- New raw source found and ingested: docs/error-handling-ux-prd.md (safe-by-
+  default error presentation; the one coverage gap).
+Bootstrap follow-ups resolved:
+- Whitepaper golden tests exist (protocol/test/solidity/LmsrMath.t.sol +
+  nodejs/display-price-conversion.test.ts golden fixtures). Resolved.
+- app MarketStatus vs ADR 0003's five-value ladder: NOT drift — the wiki
+  already records the full eight-value app union (under_review/cancelled/
+  rejected included) in concepts/market-lifecycle.md and the app-adr-0003
+  summary. ADR 0003 is design intent; the app is deliberately ahead. Resolved.
+- operator-auth concept page: still unbuilt (root ADR 0009 all-open); defer.
+Follow-ups for next lint: watch error-handling PRD open questions (logging
+vendor, API error codes) for a resolving ADR; re-check whether app MarketStatus
+grows further past ADR 0003.
+
+## [2026-07-13] lint | first periodic lint reconcile — 2 missed design docs + checklist drift across 6 vertical ADRs
+Pages: +summaries/ai-resolution-service-design.md,
++summaries/clearing-keeper-design.md, ~concepts/ai-assisted-resolution.md,
+~entities/clearing-keeper.md, ~concepts/graduation-clearing.md,
+~concepts/deployment-and-infrastructure.md, ~overview.md,
+~summaries/root-adr-0008-protocol-functionality-completion.md,
+~summaries/root-adr-0009-server-api-hardening.md,
+~summaries/root-adr-0010-indexer-maturity.md,
+~summaries/root-adr-0011-ai-review-service-hardening.md,
+~summaries/root-adr-0013-app-feature-completion.md,
+~summaries/root-adr-0015-deployment-and-infrastructure.md, ~index.md;
+date-only bumps (content already reconciled, `updated:` never touched by the
+07-09 renumber/operator-access ingests): ~summaries/architecture.md,
+~concepts/{creation-fee-custody,monorepo-architecture,local-dev-orchestration,market-lifecycle}.md,
+~entities/{creation-fee-vault,postgrad-adapter,pregrad-manager,protocol-workspace,server-workspace,indexer,app-workspace}.md.
+
+Organic ingestion since last lint (window 2026-07-09 post-PR#156 → 2026-07-13,
+5 doc-change units): **2/5 self-ingested.** Self-ingested in their own PR: the
+0007→0016 renumber (#170, 13 wiki files) and the operator-access correction
+(#171, 9 wiki files). Missed: (a) `docs/ai-resolution-service-design.md` — the
+ADR 0012 service/runner design (#165/#166), no wiki page; (b)
+`docs/clearing-keeper-design.md` — the ADR 0008 clearing design (#172), no wiki
+page; (c) commit 7335233 "Reconcile vertical ADR checklists against a code
+audit" — re-ticked 0008/0009/0010/0011/0013/0015 with 0 wiki files touched. The
+07-09 design sprint shipped design docs and checkbox reconciles without the
+per-session ingest.
+
+Findings and fixes:
+- **New docs ingested:** two summary pages created and cross-linked into the AI
+  resolution concept, clearing-keeper entity, and graduation-clearing concept.
+  ai-resolution adds the per-outcome temporal gates (`yes_not_before` new
+  on-chain param, `no_not_before` = `resolution_time`), `too_early` outcome +
+  on-chain floor guard, 0.85/24h safety valves, draws-always-manual, and
+  self-resolve in the first build — superseding the concept's old single-
+  `resolutionTime` framing. clearing-keeper documents the band-pass sweep,
+  largest-remainder rounding (whitepaper open question 3), snapshotHash
+  verification, and the "root is unbound at submit" trap.
+- **Checklist drift (real content):** 6 vertical-ADR summaries had `[ ]` boxes
+  the 07-09 code-audit reconcile flipped to `[x]`. Reconciled tick-state,
+  headings, descriptions, and index annotations. Hidden-drift catch: 0009/0011
+  summaries were already dated 2026-07-09 (bumped by the *later* operator-access
+  ingest) yet still carried unticked boxes from the *earlier* same-day reconcile
+  — a date-based scan alone would have missed them.
+- **Status drift:** clearing keeper and AI resolution were labelled "not
+  built/unbuilt" in the keeper entity, graduation-clearing concept, and
+  overview; both now have accepted designs and landing implementations (PRs
+  #172/#176 keeper sweep; resolution runner on-chain transition/config/client).
+  Flagged that ADR 0012's doc checklist still reads all-open while its code has
+  begun landing — code ahead of the checklist, not silently re-ticked (raw docs
+  are never edited by the wiki).
+- **Integrity:** 0 broken internal links; 0 orphans (both new pages linked from
+  index + a concept/entity); staleness clean after fixes. `whitepaper_v3.pdf`
+  and `app-adr-readme.md` were scan false-positives (multi-line frontmatter /
+  `app/docs` substring), not real gaps.
+- **Note for the human:** PR #156 ("Wiki lint 2026-07-09") is still OPEN and
+  unmerged; it ingests `docs/error-handling-ux-prd.md` (not touched here to
+  avoid duplication). This PR is additive and branched from origin/main, so both
+  append log.md and index.md — merge #156 first, or take-both on the trivial
+  conflict.
+
+Follow-ups for next lint: once ADR 0012 items are ticked in the doc, reconcile
+the resolution concept/summary build-status claims against the code; re-verify
+Server CI checkbox (ADR 0015) against `.github/workflows/`; carry the whitepaper
+Example A/B golden-test check forward (now referenced by the new clearing-keeper
+design summary — confirm the fixture landed).

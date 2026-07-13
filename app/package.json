@@ -7,6 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
@@ -18,8 +20,6 @@
     "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "storybook": "storybook dev -p 6006 --no-open",
-    "build-storybook": "storybook build",
     "prepare": "husky"
   },
   "dependencies": {
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@storybook/react-vite": "^10.5.0",
+    "@storybook/nextjs": "^10.4.6",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -57,10 +57,11 @@
     "lint-staged": "^17.0.7",
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "storybook": "^10.5.0",
+    "storybook": "^10.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "webpack": "5.108.4"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write"

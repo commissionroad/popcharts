@@ -253,6 +253,36 @@ describe("createMarketsApiClient", () => {
     expect(String(input)).toBe("http://localhost:3001/dev/markets/5042002/7/close");
   });
 
+  it("requests a dev-only resolution for an API market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        market: { ...apiMarket, status: "resolved" },
+        status: "resolved",
+        transactionHash:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        winningSide: "no",
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001/",
+      fetcher,
+    });
+
+    const result = await client.resolveDevMarket({
+      chainId: 5042002,
+      marketId: "7",
+      side: "no",
+    });
+
+    const [input, init] = firstFetchCall(fetcher);
+
+    expect(result.status).toBe("resolved");
+    expect(init?.method).toBe("POST");
+    expect(String(input)).toBe(
+      "http://localhost:3001/dev/markets/5042002/7/resolve/no"
+    );
+  });
+
   it("surfaces graduation ineligibility messages", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () =>
@@ -465,6 +495,24 @@ describe("createMarketsApiClient", () => {
       client.closePregradMarket({ chainId: 5042002, marketId: "7" })
     ).rejects.toMatchObject({
       message: "Dev market close is disabled or unavailable.",
+      name: "MarketsApiError",
+      status: 404,
+    });
+  });
+
+  it("raises a 404 error when the dev resolution endpoint is unavailable", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.resolveDevMarket({ chainId: 5042002, marketId: "7", side: "yes" })
+    ).rejects.toMatchObject({
+      message: "Dev market resolution is disabled or unavailable.",
       name: "MarketsApiError",
       status: 404,
     });

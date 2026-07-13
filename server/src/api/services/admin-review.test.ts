@@ -211,6 +211,7 @@ function createMarketRow(overrides: Partial<MarketRow> = {}): MarketRow {
     openingProbabilityWad: 500_000_000_000_000_000n,
     receiptCount: 0n,
     resolutionTime: new Date("2026-08-01T00:00:00.000Z"),
+    yesNotBefore: null,
     status: "under_review",
     totalEscrowed: 0n,
     updatedAt: new Date("2026-06-23T12:00:00.000Z"),
@@ -236,6 +237,8 @@ function createMetadataRow(overrides: Partial<MetadataRow> = {}): MetadataRow {
       "YES if NASA publishes an official new launch date before 2027.",
     resolutionSources: ["Official NASA announcements"],
     resolutionUrl: "https://www.nasa.gov/",
+    observationWindowStart: null,
+    observationWindowEnd: null,
     updatedAt: new Date("2026-06-23T12:00:00.000Z"),
     ...overrides,
   };

@@ -42,7 +42,7 @@ Postgrad coverage:
 - [ ] Watchers and schema for `CompleteSetPostgradAdapter` and
       `CompleteSetBinaryMarket` events (market creation, mint/merge/redeem,
       resolution, cancellation).
-- [ ] Watchers and schema for v4 venue trading events
+- [x] Watchers and schema for v4 venue trading events
       (`BoundedPoolOrderManager` order placement and fills) so postgrad
       prices and volume are servable.
 - [ ] Resolution events feed the `markets` projection so status reaches

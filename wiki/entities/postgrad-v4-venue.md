@@ -29,7 +29,7 @@ PoolManager, StateView, V4Quoter, plus the contracts below under
 - **BoundedPoolOrderManager** — turns maker orders into one-sided v4
   liquidity; order create/cancel/fill/requeue/partial/deferred-execution
   events feed the indexer. At 1,273 lines it has open decompositions C4/C5/C6
-  in the [cleanup program](../summaries/root-adr-0007-monorepo-architecture-cleanup-program.md).
+  in the [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md).
 - **PoolTickBounds** — inclusive tick bounds per pool; testnet defaults tick
   spacing 60, fee 3000; display prices clamp to [0.001, 0.999].
 - **MinimalV4SwapRouter** — taker swaps.

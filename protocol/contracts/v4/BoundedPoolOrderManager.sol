@@ -19,18 +19,7 @@ import {IBoundedPoolOrderManager} from "./interfaces/IBoundedPoolOrderManager.so
 import {OrderBook} from "./libraries/OrderBook.sol";
 import {OrderValidation} from "./libraries/OrderValidation.sol";
 import {PackedOrderId, PackedOrderIdLibrary} from "./libraries/PackedOrderId.sol";
-
-/// @title ITokenPuller
-/// @author Pop Charts
-/// @notice Minimal interface for external ERC20 allowance-transfer helpers.
-interface ITokenPuller {
-  /// @notice Transfers approved ERC20 tokens from an owner to a recipient.
-  /// @param from Token owner.
-  /// @param to Token recipient.
-  /// @param amount Token amount.
-  /// @param token ERC20 token address.
-  function transferFrom(address from, address to, uint160 amount, address token) external;
-}
+import {ITokenPuller, V4DeltaSettlement} from "./libraries/V4DeltaSettlement.sol";
 
 /// @title BoundedPoolOrderManager
 /// @author Pop Charts
@@ -168,24 +157,11 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   /// @param caller Account attempting cancellation.
   /// @param owner Order owner.
   error UnauthorizedOrderOwner(address caller, address owner);
-  /// @notice Reverts when a native currency pool is passed to this ERC20-only manager.
-  error NativeCurrencyUnsupported();
   /// @notice Reverts when a pool manager callback comes from the wrong caller.
   error UnauthorizedUnlockCallback();
   /// @notice Reverts when an unknown unlock action is decoded.
   /// @param action Unknown action discriminator.
   error UnsupportedUnlockAction(uint8 action);
-  /// @notice Reverts when the pool consumes more input than the maker allowed.
-  /// @param actual Actual consumed amount.
-  /// @param maximum Maximum allowed amount.
-  error AmountExceedsMaximum(uint256 actual, uint256 maximum);
-  /// @notice Reverts when an amount is too large for the token-puller interface.
-  /// @param amount Amount that cannot fit the token-puller call.
-  error PullAmountTooLarge(uint256 amount);
-  /// @notice Reverts when a liquidity operation returns an unexpected negative settlement delta.
-  /// @param amount0 Currency0 delta.
-  /// @param amount1 Currency1 delta.
-  error UnexpectedNegativeDelta(int128 amount0, int128 amount1);
 
   /// @notice Emitted when a pool whitelist flag changes.
   /// @param poolId Pool whose flag changed.
@@ -691,7 +667,9 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       callbackData.hookData
     );
 
-    uint256 amountIn = _settleOrderInput(
+    uint256 amountIn = V4DeltaSettlement.settleOrderInput(
+      poolManager,
+      tokenPuller,
       callbackData.key,
       callbackData.owner,
       callbackData.zeroForOne,
@@ -713,7 +691,8 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       callbackData.hookData
     );
 
-    (uint256 amount0, uint256 amount1) = _takePositiveDeltas(
+    (uint256 amount0, uint256 amount1) = V4DeltaSettlement.takePositiveDeltas(
+      poolManager,
       callbackData.key,
       callbackData.owner,
       delta
@@ -888,7 +867,12 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       _positionSalt(orderId),
       ""
     );
-    (uint256 amount0, uint256 amount1) = _takePositiveDeltas(key, order.owner, delta);
+    (uint256 amount0, uint256 amount1) = V4DeltaSettlement.takePositiveDeltas(
+      poolManager,
+      key,
+      order.owner,
+      delta
+    );
 
     delete _orders[poolId][orderId];
     emit OrderFilled(poolId, orderId, order.owner, amount0, amount1);
@@ -974,7 +958,12 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       removedDelta
     );
     if (result.remainingLiquidity == 0) {
-      (result.amount0, result.amount1) = _takePositiveDeltas(key, order.owner, removedDelta);
+      (result.amount0, result.amount1) = V4DeltaSettlement.takePositiveDeltas(
+        poolManager,
+        key,
+        order.owner,
+        removedDelta
+      );
       return result;
     }
 
@@ -986,8 +975,9 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       _positionSalt(orderId),
       ""
     );
-    _validatePartialAddDelta(order.zeroForOne, addedDelta);
-    (result.amount0, result.amount1) = _takePositiveNetDeltas(
+    V4DeltaSettlement.validatePartialAddDelta(order.zeroForOne, addedDelta);
+    (result.amount0, result.amount1) = V4DeltaSettlement.takePositiveNetDeltas(
+      poolManager,
       key,
       order.owner,
       removedDelta,
@@ -1063,44 +1053,14 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     }
 
     uint256 remainingInputAmount =
-      zeroForOne ? _positiveDeltaAmount0(removedDelta) : _positiveDeltaAmount1(removedDelta);
+      zeroForOne
+        ? V4DeltaSettlement.positiveDeltaAmount0(removedDelta)
+        : V4DeltaSettlement.positiveDeltaAmount1(removedDelta);
     if (remainingInputAmount == 0) {
       return 0;
     }
 
     return _liquidityForAmount(zeroForOne, tickLower, tickUpper, remainingInputAmount);
-  }
-
-  function _positiveDeltaAmount0(BalanceDelta delta) private pure returns (uint256 amount) {
-    int128 amount0 = delta.amount0();
-    int128 amount1 = delta.amount1();
-    if (amount0 < 0 || amount1 < 0) {
-      revert UnexpectedNegativeDelta(amount0, amount1);
-    }
-
-    return uint256(uint128(amount0));
-  }
-
-  function _positiveDeltaAmount1(BalanceDelta delta) private pure returns (uint256 amount) {
-    int128 amount0 = delta.amount0();
-    int128 amount1 = delta.amount1();
-    if (amount0 < 0 || amount1 < 0) {
-      revert UnexpectedNegativeDelta(amount0, amount1);
-    }
-
-    return uint256(uint128(amount1));
-  }
-
-  function _validatePartialAddDelta(bool zeroForOne, BalanceDelta delta) private pure {
-    int128 amount0 = delta.amount0();
-    int128 amount1 = delta.amount1();
-    if (zeroForOne) {
-      if (amount0 > 0 || amount1 != 0) {
-        revert UnexpectedNegativeDelta(amount0, amount1);
-      }
-    } else if (amount1 > 0 || amount0 != 0) {
-      revert UnexpectedNegativeDelta(amount0, amount1);
-    }
   }
 
   function _modifyLiquidity(
@@ -1121,95 +1081,6 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       }),
       hookData
     );
-  }
-
-  function _settleOrderInput(
-    PoolKey memory key,
-    address owner,
-    bool zeroForOne,
-    uint256 amountInMaximum,
-    BalanceDelta delta
-  ) private returns (uint256 amountIn) {
-    int128 amount0 = delta.amount0();
-    int128 amount1 = delta.amount1();
-    if (zeroForOne) {
-      if (amount0 >= 0 || amount1 != 0) {
-        revert UnexpectedNegativeDelta(amount0, amount1);
-      }
-      amountIn = uint256(uint128(-amount0));
-      _settle(key.currency0, owner, amountIn);
-    } else {
-      if (amount1 >= 0 || amount0 != 0) {
-        revert UnexpectedNegativeDelta(amount0, amount1);
-      }
-      amountIn = uint256(uint128(-amount1));
-      _settle(key.currency1, owner, amountIn);
-    }
-
-    if (amountIn > amountInMaximum) {
-      revert AmountExceedsMaximum(amountIn, amountInMaximum);
-    }
-  }
-
-  function _takePositiveDeltas(
-    PoolKey memory key,
-    address recipient,
-    BalanceDelta delta
-  ) private returns (uint256 amount0, uint256 amount1) {
-    int128 delta0 = delta.amount0();
-    int128 delta1 = delta.amount1();
-    if (delta0 < 0 || delta1 < 0) {
-      revert UnexpectedNegativeDelta(delta0, delta1);
-    }
-
-    if (delta0 > 0) {
-      amount0 = uint256(uint128(delta0));
-      poolManager.take(key.currency0, recipient, amount0);
-    }
-    if (delta1 > 0) {
-      amount1 = uint256(uint128(delta1));
-      poolManager.take(key.currency1, recipient, amount1);
-    }
-  }
-
-  function _takePositiveNetDeltas(
-    PoolKey memory key,
-    address recipient,
-    BalanceDelta removedDelta,
-    BalanceDelta addedDelta
-  ) private returns (uint256 amount0, uint256 amount1) {
-    int128 delta0 = removedDelta.amount0() + addedDelta.amount0();
-    int128 delta1 = removedDelta.amount1() + addedDelta.amount1();
-    if (delta0 < 0 || delta1 < 0) {
-      revert UnexpectedNegativeDelta(delta0, delta1);
-    }
-
-    if (delta0 > 0) {
-      amount0 = uint256(uint128(delta0));
-      poolManager.take(key.currency0, recipient, amount0);
-    }
-    if (delta1 > 0) {
-      amount1 = uint256(uint128(delta1));
-      poolManager.take(key.currency1, recipient, amount1);
-    }
-  }
-
-  function _settle(Currency currency, address owner, uint256 amount) private {
-    if (currency.isAddressZero()) {
-      revert NativeCurrencyUnsupported();
-    }
-    if (amount > type(uint160).max) {
-      revert PullAmountTooLarge(amount);
-    }
-
-    poolManager.sync(currency);
-    tokenPuller.transferFrom(
-      owner,
-      address(poolManager),
-      uint160(amount),
-      Currency.unwrap(currency)
-    );
-    poolManager.settle();
   }
 
   function _validatePoolForOrders(PoolId poolId, PoolKey calldata key) private view {

@@ -10,11 +10,13 @@ import type {
   DevMarketCloseResponse,
   DevMarketGraduateIneligible,
   DevMarketGraduateResponse,
+  DevMarketResolveIneligible,
+  DevMarketResolveResponse,
   GraduateDevMarketParams,
 } from ".././models";
 
 /**
- * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.
  * @summary Dev-only close pre-grad market for refunds
  */
 export type closeDevMarketResponse200 = {
@@ -73,7 +75,71 @@ export const closeDevMarket = async (
 };
 
 /**
- * Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.
+ * @summary Dev-only force resolve a postgrad market
+ */
+export type resolveDevMarketResponse200 = {
+  data: DevMarketResolveResponse;
+  status: 200;
+};
+
+export type resolveDevMarketResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type resolveDevMarketResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type resolveDevMarketResponse409 = {
+  data: DevMarketResolveIneligible;
+  status: 409;
+};
+
+export type resolveDevMarketResponseSuccess = resolveDevMarketResponse200 & {
+  headers: Headers;
+};
+export type resolveDevMarketResponseError = (
+  | resolveDevMarketResponse400
+  | resolveDevMarketResponse404
+  | resolveDevMarketResponse409
+) & {
+  headers: Headers;
+};
+
+export type resolveDevMarketResponse =
+  | resolveDevMarketResponseSuccess
+  | resolveDevMarketResponseError;
+
+export const getResolveDevMarketUrl = (
+  chainId: string,
+  marketId: string,
+  side: string
+) => {
+  return `/dev/markets/${chainId}/${marketId}/resolve/${side}`;
+};
+
+export const resolveDevMarket = async (
+  chainId: string,
+  marketId: string,
+  side: string,
+  options?: RequestInit
+): Promise<resolveDevMarketResponse> => {
+  const res = await fetch(getResolveDevMarketUrl(chainId, marketId, side), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: resolveDevMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as resolveDevMarketResponse;
+};
+
+/**
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.
  * @summary Dev-only graduate a pre-grad market end to end
  */
 export type graduateDevMarketResponse200 = {

@@ -1,22 +1,21 @@
 ---
 type: summary
-title: Repo ADR 0007 (duplicate number) — Monorepo architecture cleanup program
+title: Repo ADR 0016 — Monorepo architecture cleanup program
 description: Tracked cleanup program of ~30 one-concern PRs across six tracks; Tracks A/B/D/E/F executed 2026-07-06..07, Track C (contract decomposition) open pending human review.
 sources:
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
-updated: 2026-07-07
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
+updated: 2026-07-09
 ---
 
-# Repo ADR 0007: Monorepo Architecture Cleanup Program
+# Repo ADR 0016: Monorepo Architecture Cleanup Program
 
 **Status: Accepted — Tracks A/B/D/E/F executed 2026-07-06..07; Track C open
 (human review required).** Dated 2026-07-06.
 
-> **Numbering collision:** this file shares number 0007 with
-> `docs/adr/0007-track-verticals-with-progress-adrs.md`
-> ([summary](root-adr-0007-track-verticals-with-progress-adrs.md)), and it is
-> absent from the `docs/adr/README.md` index, which lists only the
-> track-verticals ADR under 0007.
+> **Renumbered:** originally filed as a second "0007" (colliding with
+> `docs/adr/0007-track-verticals-with-progress-adrs.md`), this cleanup program
+> was renumbered to **0016** on 2026-07-09 and added to the `docs/adr/README.md`
+> index. It sits outside the M1–M5 launch milestone chain.
 
 ## Context
 

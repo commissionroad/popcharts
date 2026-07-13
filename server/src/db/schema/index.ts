@@ -4,6 +4,8 @@ export * from "./market-ai-review-jobs";
 export * from "./market-ai-reviews";
 export * from "./market-events";
 export * from "./market-metadata";
+export * from "./market-resolution-jobs";
+export * from "./market-resolutions";
 export * from "./markets";
 export * from "./outcome-token-balances";
 export * from "./outcome-token-transfer-events";

@@ -51,6 +51,7 @@ export type ProtocolCreateMarketParams = {
   metadata: string;
   openingProbabilityWad: bigint;
   resolutionTime: bigint;
+  yesNotBefore: bigint;
 };
 
 export type CreateMarketPreview = {

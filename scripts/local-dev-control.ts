@@ -4,6 +4,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv.ts";
+import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
+import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutionEndpoint.ts";
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
@@ -60,6 +63,7 @@ const appPort = process.env.LOCAL_APP_PORT ?? "3000";
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const appBaseUrl = `http://127.0.0.1:${appPort}`;
 const aiReviewBaseUrl = localAiReviewBaseUrl;
+const aiResolutionBaseUrl = localAiResolutionBaseUrl;
 
 const processComposeConfigDir = resolve(
   repoRoot,
@@ -82,6 +86,9 @@ const internalCommands = new Set([
   "keeper",
   "postgres-ready",
   "prepare-database",
+  "resolution-ready",
+  "resolution-runner",
+  "resolution-service",
   "review-ready",
   "review-runner",
   "review-service",
@@ -181,6 +188,10 @@ async function runInternal(name: string): Promise<void> {
     await runReviewService();
   } else if (name === "review-runner") {
     await runReviewRunner();
+  } else if (name === "resolution-service") {
+    await runResolutionService();
+  } else if (name === "resolution-runner") {
+    await runResolutionRunner();
   } else if (name === "api") {
     await runApi();
   } else if (name === "indexer") {
@@ -195,6 +206,8 @@ async function runInternal(name: string): Promise<void> {
     process.exit((await isRpcReady(rpcHttpUrl)) ? 0 : 1);
   } else if (name === "review-ready") {
     process.exit((await probeUrl(`${aiReviewBaseUrl}/ready`)) ? 0 : 1);
+  } else if (name === "resolution-ready") {
+    process.exit((await probeUrl(`${aiResolutionBaseUrl}/ready`)) ? 0 : 1);
   } else if (name === "api-ready") {
     process.exit((await probeUrl(`${apiBaseUrl}/health`)) ? 0 : 1);
   } else if (name === "indexer-ready") {
@@ -223,8 +236,12 @@ Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=heuristic
-  LOCAL_AI_REVIEW_INTERNET_ACCESS=off
+  LOCAL_AI_REVIEW_PROVIDER=ollama
+  LOCAL_AI_REVIEW_INTERNET_ACCESS=search
+  LOCAL_AI_REVIEW_FALLBACK_APPROVE=true
+  LOCAL_AI_RESOLUTION_PORT=3004
+  LOCAL_AI_RESOLUTION_PROVIDER=heuristic
+  LOCAL_AI_RESOLUTION_INTERNET_ACCESS=off
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
 }
 
@@ -296,7 +313,9 @@ async function chain(): Promise<void> {
       await sleep(1_000);
     }
 
-    throw new Error(`Existing Hardhat RPC at ${rpcHttpUrl} stopped responding.`);
+    throw new Error(
+      `Existing Hardhat RPC at ${rpcHttpUrl} stopped responding.`,
+    );
   }
 
   await inherit("pnpm", [
@@ -324,7 +343,12 @@ async function deployContracts(): Promise<void> {
   // The postgrad venue rides the same fresh chain so graduated markets can
   // wire straight into live v4 pools: venue stack, bounded-order contracts,
   // and one demo complete-set market that proves the venue trades.
-  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"]);
+  await run("venue", "pnpm", [
+    "--dir",
+    "protocol",
+    "run",
+    "local:deploy-venue",
+  ]);
   await run(
     "postgrad",
     "pnpm",
@@ -390,6 +414,29 @@ async function runReviewRunner(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review-runner"], {
     env: buildAiReviewRunnerEnv(readGeneratedServerEnv()),
   });
+}
+
+async function runResolutionService(): Promise<void> {
+  await inherit("bun", ["run", "--cwd", "server", "start:ai-resolution"], {
+    env: buildAiResolutionEnv(buildLocalServerEnv()),
+  });
+}
+
+async function runResolutionRunner(): Promise<void> {
+  // Like the review runner, the resolution runner submits on-chain transactions
+  // (resolve/cancel to the postgrad market), so it needs the generated env from
+  // deploy-contracts rather than the blank pre-deploy addresses.
+  await waitFor(
+    "generated server env from deploy-contracts",
+    () => existsSync(localChainEnvFile),
+    { logLabel: LOG_LABEL, timeoutMs: 600_000 },
+  );
+
+  await inherit(
+    "bun",
+    ["run", "--cwd", "server", "start:ai-resolution-runner"],
+    { env: buildAiResolutionRunnerEnv(readGeneratedServerEnv()) },
+  );
 }
 
 async function runApi(): Promise<void> {

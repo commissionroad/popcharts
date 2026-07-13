@@ -72,9 +72,15 @@ evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only
 provided resolution source URLs, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
 
 From the repository root, `just local-dev` starts the full local app stack plus
-the AI Review service and runner in heuristic mode. Use `just local-ai-review`
-when you only want local Postgres plus the review service and runner, without
-the app, API, indexer, or local chain.
+the AI Review service and runner on the Ollama provider (the real agent-based
+path). If the Ollama runtime is not running, reviews degrade to the
+deterministic heuristic; the orchestrator sets `AI_REVIEW_FALLBACK_APPROVE=true`
+so a clean market still approves locally instead of parking in `manual_review`.
+That flag is off by default everywhere else, so production never auto-approves
+when the model is unavailable — it downgrades an `approve` to `manual_review`
+(hard-flag rejects from the heuristic gate are always final). Use
+`just local-ai-review` when you only want local Postgres plus the review service
+and runner, without the app, API, indexer, or local chain.
 
 For Claude web-search review:
 

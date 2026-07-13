@@ -17,6 +17,7 @@ export type MarketCreatedLog = Log & {
     metadataHash?: `0x${string}`;
     openingProbabilityWad?: bigint;
     resolutionTime?: bigint;
+    yesNotBefore?: bigint;
   };
 };
 
@@ -67,12 +68,14 @@ export function buildMarketCreatedRecords({
     log.args.resolutionTime,
     "resolutionTime",
   );
+  const yesNotBeforeUnix = requireValue(log.args.yesNotBefore, "yesNotBefore");
   const bypassAiResolution = requireValue(
     log.args.bypassAiResolution,
     "bypassAiResolution",
   );
   const graduationTime = unixSecondsToDate(graduationTimeUnix);
   const resolutionTime = unixSecondsToDate(resolutionTimeUnix);
+  const yesNotBefore = unixSecondsToDate(yesNotBeforeUnix);
 
   return {
     event: {
@@ -113,6 +116,7 @@ export function buildMarketCreatedRecords({
       metadataHash,
       openingProbabilityWad,
       resolutionTime,
+      yesNotBefore,
       status: "under_review",
     },
   };

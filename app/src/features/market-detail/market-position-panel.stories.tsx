@@ -3,7 +3,7 @@ import type {
   PortfolioPosition,
   PortfolioReceipt,
 } from "@popcharts/api-client/models";
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/nextjs";
 
 import type { Market } from "@/domain/markets/types";
 import { marketFactory } from "@/test/factories/markets";
@@ -98,8 +98,19 @@ function withPreview(value: PanelPreview): Decorator {
   };
 }
 
+/** Frames the panel in the dark, narrow trading aside it renders inside. */
+const DarkAside: Decorator = (Story) => (
+  <div style={{ background: "var(--color-page-bg)", padding: 24 }}>
+    <div style={{ width: 340 }}>
+      <Story />
+    </div>
+  </div>
+);
+
 const meta = {
   component: MarketPositionPanel,
+  decorators: [DarkAside],
+  parameters: { layout: "fullscreen" },
   title: "Market detail/Your position panel",
 } satisfies Meta<typeof MarketPositionPanel>;
 
