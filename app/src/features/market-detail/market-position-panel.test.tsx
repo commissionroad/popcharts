@@ -173,8 +173,53 @@ describe("MarketPositionPanel pre-graduation receipts", () => {
     expect(screen.getAllByText("$60.00")).toHaveLength(2);
     // 60 cost / 100 shares = 60c average; the zero-share receipt omits it.
     expect(screen.getByText("· 60c avg")).toBeInTheDocument();
-    expect(screen.getByText("· Waiting for graduation")).toBeInTheDocument();
-    expect(screen.getByText("· Ready to claim")).toBeInTheDocument();
+    // The shared settlement renderer replaces the bare status label.
+    expect(screen.getByText("Waiting for graduation")).toBeInTheDocument();
+    expect(screen.getByText("Graduated")).toBeInTheDocument();
+    expect(screen.getByText("Ready to claim on the market page")).toBeInTheDocument();
+  });
+
+  it("shows the settlement result for settled, refunded, and cancelled receipts", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [],
+        receipts: [
+          receiptFixture({
+            receiptId: "21",
+            settlement: {
+              claimedAt: "2026-07-08T00:00:00.000Z",
+              refund: (25n * WAD).toString(),
+              retainedCost: (35n * WAD).toString(),
+              retainedShares: (58n * WAD).toString(),
+            },
+            status: "settled",
+          }),
+          receiptFixture({
+            receiptId: "22",
+            settlement: {
+              claimedAt: "2026-07-08T00:00:00.000Z",
+              refund: (60n * WAD).toString(),
+            },
+            side: "no",
+            status: "refunded",
+          }),
+          receiptFixture({ receiptId: "23", status: "refund_claimable" }),
+        ],
+      }),
+      refresh: vi.fn(),
+    });
+
+    // A cancelled market still surfaces its receipts (it is not "graduated").
+    render(<MarketPositionPanel market={bootstrapMarket({ status: "cancelled" })} />);
+
+    expect(screen.getByText("Settled")).toBeInTheDocument();
+    expect(screen.getByText("58.00 YES tokens + $25.00 refunded")).toBeInTheDocument();
+    expect(screen.getByText("Refunded")).toBeInTheDocument();
+    expect(screen.getByText("$60.00 returned")).toBeInTheDocument();
+    expect(screen.getByText("Refund available")).toBeInTheDocument();
+    expect(screen.getByText("Claim on the market page")).toBeInTheDocument();
   });
 });
 

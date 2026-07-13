@@ -177,3 +177,82 @@ export const PreGraduationReceipts: Story = {
     }),
   ],
 };
+
+/**
+ * After clearing, each receipt shows what it became: a partially-filled receipt
+ * keeps some tokens and refunds the rest, a fully-filled one keeps all its
+ * tokens with no refund, and a still-unclaimed graduated receipt points at the
+ * market page. Rendered on a resolved market, which surfaces receipts rather
+ * than positions.
+ */
+export const SettledReceipts: Story = {
+  args: { market: graduatedMarket({ status: "resolved" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            receiptId: "21",
+            settlement: {
+              claimedAt: "2026-07-08T00:00:00.000Z",
+              refund: (25n * WAD).toString(),
+              retainedCost: (35n * WAD).toString(),
+              retainedShares: (58n * WAD).toString(),
+            },
+            status: "settled",
+          }),
+          receipt({
+            cost: (40n * WAD).toString(),
+            receiptId: "22",
+            settlement: {
+              claimedAt: "2026-07-08T00:00:00.000Z",
+              refund: "0",
+              retainedCost: (40n * WAD).toString(),
+              retainedShares: (66n * WAD).toString(),
+            },
+            shares: (66n * WAD).toString(),
+            side: "no",
+            status: "settled",
+          }),
+          receipt({ receiptId: "23", status: "claimable" }),
+        ],
+      }),
+    }),
+  ],
+};
+
+/**
+ * A refunded or cancelled market returns collateral: a claimed refund shows the
+ * amount returned, while an unclaimed one (how the indexer projects a cancelled
+ * market) points at the market page to claim.
+ */
+export const RefundedReceipts: Story = {
+  args: { market: graduatedMarket({ status: "cancelled" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            receiptId: "31",
+            settlement: {
+              claimedAt: "2026-07-08T00:00:00.000Z",
+              refund: (60n * WAD).toString(),
+            },
+            status: "refunded",
+          }),
+          receipt({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            shares: (40n * WAD).toString(),
+            side: "no",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+    }),
+  ],
+};
