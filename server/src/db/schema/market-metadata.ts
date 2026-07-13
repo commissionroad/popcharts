@@ -29,6 +29,14 @@ export const marketMetadata = pgTable(
       .default([])
       .notNull(),
     resolutionUrl: text("resolution_url"),
+    // Observation window (AI resolution, ADR 0012): the span during which an
+    // event "counts", read by the resolver model as evidence-scoping guidance —
+    // not a hard gate. Part of the content-addressed metadata payload (v2), so
+    // it is hash-committed and AI-validated. Nullable/optional.
+    // (The enforced resolution gates live on-chain: no_not_before is
+    // markets.resolution_time and yes_not_before is markets.yes_not_before.)
+    observationWindowStart: timestamp("observation_window_start"),
+    observationWindowEnd: timestamp("observation_window_end"),
     outcomeYes: text("outcome_yes"),
     outcomeNo: text("outcome_no"),
     metadataCreatedAt: text("metadata_created_at").notNull(),

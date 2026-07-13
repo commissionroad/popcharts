@@ -13,6 +13,7 @@ export type SerializedProtocolCreateMarketParams = {
   metadata: string;
   openingProbabilityWad: string;
   resolutionTime: string;
+  yesNotBefore: string;
 };
 
 export function serializeProtocolCreateMarketParams(
@@ -28,6 +29,7 @@ export function serializeProtocolCreateMarketParams(
     metadata: params.metadata,
     openingProbabilityWad: params.openingProbabilityWad.toString(),
     resolutionTime: params.resolutionTime.toString(),
+    yesNotBefore: params.yesNotBefore.toString(),
   };
 }
 
@@ -51,6 +53,7 @@ export function parseSerializedProtocolCreateMarketParams(
       "openingProbabilityWad"
     ),
     resolutionTime: parseBigInt(value.resolutionTime, "resolutionTime"),
+    yesNotBefore: parseBigInt(value.yesNotBefore, "yesNotBefore"),
   };
 }
 

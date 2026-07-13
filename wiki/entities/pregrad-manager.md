@@ -7,7 +7,7 @@ sources:
   - protocol/docs/adr/0006-use-optimistic-offchain-graduation-clearing.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - protocol/README.md
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
 updated: 2026-07-07
 ---
@@ -56,7 +56,7 @@ and is fully replaced.
 - `isReviewManager` / `isGraduationManager` both resolve to the owner in v1
   ([protocol ADR 0009](../summaries/protocol-adr-0009-complete-set-testnet-policy.md)).
 - Was the repo's largest contract (1,365 lines); C2 of the
-  [cleanup program](../summaries/root-adr-0007-monorepo-architecture-cleanup-program.md)
+  [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md)
   (ReceiptBook extraction) is still open.
 - `bypassAiResolution` travels through creation but has no finalized semantics
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).

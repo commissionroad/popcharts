@@ -75,6 +75,8 @@ export async function createLocalMarket(args: CreateLocalMarketArgs): Promise<Ma
         graduationThreshold: 2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        // No early YES for local markets: the YES gate equals the deadline.
+        yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
     ],

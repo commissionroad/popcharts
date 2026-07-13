@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0012 — AI-assisted resolution
-description: Vertical ADR to build resolution as a sibling of AI review — service + leased runner deciding resolve/cancel from public evidence, with abstention to manual review and operator override; all ten items open.
+description: Vertical ADR to build resolution as a sibling of AI review — service + leased runner deciding resolve/cancel from public evidence, with abstention to manual review and a local (not API) operator override; all ten items open.
 sources:
   - docs/adr/0012-ai-assisted-resolution.md
-updated: 2026-07-07
+updated: 2026-07-09
 ---
 
 # Repo ADR 0012: AI-Assisted Resolution
@@ -55,8 +55,9 @@ Implementation:
   `graduated`, claims jobs, calls the service, persists verdicts.
 - [ ] On-chain submission: `resolve`/`cancel` transactions with the review
   runner's guarded-transition pattern.
-- [ ] Operator override path (approve/reject/replace a pending verdict) behind
-  the shared operator auth.
+- [ ] Operator override (approve/reject/replace a pending verdict) as a local
+  admin action against the chain and resolution job queue — a keyed admin
+  panel, never an authenticated API endpoint (ADR 0009).
 - [ ] Smoke test: seed a graduated market with known-outcome metadata, run one
   cycle, assert on-chain resolution and DB audit row.
 

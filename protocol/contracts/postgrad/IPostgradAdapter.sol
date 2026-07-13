@@ -13,6 +13,10 @@ interface IPostgradAdapter {
   /// @param metadataHash Hash of market metadata and resolution rules.
   /// @param retainedCollateral Collateral amount retained for the postgrad market.
   /// @param completeSetCount Outcome-token capacity represented by retained collateral.
+  /// @param yesNotBefore Earliest timestamp a YES resolution may be submitted
+  ///   on-chain (the pregrad market's yesNotBefore gate).
+  /// @param noNotBefore Earliest timestamp a NO resolution may be submitted
+  ///   on-chain (the pregrad market's resolutionTime deadline).
   /// @return postgradMarket Address of the prepared postgrad market.
   /// @return outcomeCapacity Outcome-token capacity actually funded in the prepared
   ///   market. Callers must not trust preparation silently: PregradManager reverts
@@ -22,7 +26,9 @@ interface IPostgradAdapter {
     address collateral,
     bytes32 metadataHash,
     uint256 retainedCollateral,
-    uint256 completeSetCount
+    uint256 completeSetCount,
+    uint64 yesNotBefore,
+    uint64 noNotBefore
   ) external returns (address postgradMarket, uint256 outcomeCapacity);
 
   /// @notice Mints retained postgrad outcome tokens to a finalized receipt owner.

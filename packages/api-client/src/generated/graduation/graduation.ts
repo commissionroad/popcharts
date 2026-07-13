@@ -8,7 +8,7 @@
 import type { GraduationIneligible, GraduationResponse } from ".././models";
 
 /**
- * Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.
+ * Public graduation failsafe for a market the keeper has not settled. For a market that reaches its threshold, the server runs the manager-keyed on-chain settlement — band-pass clearing, Merkle-root submission, finalize — and never tops up liquidity. Safe unauthenticated: eligibility is re-checked from real receipts before startGraduation and the contract enforces conservation. Below-threshold or wrong-status markets are reported (409), not touched.
  * @summary Request market graduation
  */
 export type graduateMarketResponse200 = {

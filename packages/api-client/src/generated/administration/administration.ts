@@ -15,7 +15,7 @@ import type {
 } from ".././models";
 
 /**
- * Disabled unless POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.
+ * Local-network development tool: not registered on deployed networks at all (operator actions run locally against the chain, not via the API — repo ADR 0009). On local it additionally requires POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.
  * @summary Admin-only enqueue market AI review
  */
 export type requestManualAiReviewResponse200 = {

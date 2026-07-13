@@ -164,7 +164,7 @@
       "post": {
         "operationId": "requestManualAiReview",
         "summary": "Admin-only enqueue market AI review",
-        "description": "Disabled unless POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
+        "description": "Local-network development tool: not registered on deployed networks at all (operator actions run locally against the chain, not via the API — repo ADR 0009). On local it additionally requires POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
         "tags": [
           "Administration"
         ],
@@ -309,7 +309,7 @@
       "post": {
         "operationId": "closeDevMarket",
         "summary": "Dev-only close pre-grad market for refunds",
-        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+        "description": "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
         "tags": [
           "Development"
         ],
@@ -379,7 +379,7 @@
       "post": {
         "operationId": "resolveDevMarket",
         "summary": "Dev-only force resolve a postgrad market",
-        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.",
+        "description": "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.",
         "tags": [
           "Development"
         ],
@@ -457,7 +457,7 @@
       "post": {
         "operationId": "graduateDevMarket",
         "summary": "Dev-only graduate a pre-grad market end to end",
-        "description": "Development-only endpoint. Enabled only when POPCHARTS_DEV_TOOLS_ENABLED=true and NETWORK=local. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
+        "description": "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
         "tags": [
           "Development"
         ],
@@ -795,7 +795,7 @@
       "post": {
         "operationId": "graduateMarket",
         "summary": "Request market graduation",
-        "description": "Checks whether an indexed market is eligible for onchain graduation or already finalized. The server does not mark markets graduated; that status is indexed from PregradManager settlement events.",
+        "description": "Public graduation failsafe for a market the keeper has not settled. For a market that reaches its threshold, the server runs the manager-keyed on-chain settlement — band-pass clearing, Merkle-root submission, finalize — and never tops up liquidity. Safe unauthenticated: eligibility is re-checked from real receipts before startGraduation and the contract enforces conservation. Below-threshold or wrong-status markets are reported (409), not touched.",
         "tags": [
           "Graduation"
         ],

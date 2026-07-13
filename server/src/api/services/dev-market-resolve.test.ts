@@ -253,6 +253,7 @@ function createMarketRow(overrides: Partial<MarketRow> = {}): MarketRow {
     status: "graduated",
     totalEscrowed: 125n * WAD,
     updatedAt: new Date("2026-06-22T15:00:00.000Z"),
+    yesNotBefore: null,
     yesShares: 25n * WAD,
     ...overrides,
   };

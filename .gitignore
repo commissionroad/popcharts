@@ -20,6 +20,7 @@ build/
 dist/
 coverage/
 playwright-report/
+.playwright-cli/
 test-results/
 *.tsbuildinfo
 

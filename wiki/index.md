@@ -70,16 +70,16 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 
 - [ADR conventions](summaries/root-adr-index-conventions.md) — the progress-ADR process and milestones M1–M5
 - [ADR 0006](summaries/root-adr-0006-server-runtime-and-indexer.md) — Bun + Elysia + Drizzle server, viem indexer
-- [ADR 0007 (cleanup)](summaries/root-adr-0007-monorepo-architecture-cleanup-program.md) — ~30-PR cleanup program; Track C still open (duplicate number!)
-- [ADR 0007 (verticals)](summaries/root-adr-0007-track-verticals-with-progress-adrs.md) — checklist-bearing vertical ADRs 0008–0015 (duplicate number!)
+- [ADR 0007](summaries/root-adr-0007-track-verticals-with-progress-adrs.md) — checklist-bearing vertical ADRs 0008–0015; defines milestones M1–M5
 - [ADR 0008](summaries/root-adr-0008-protocol-functionality-completion.md) — finish protocol: keeper, resolution hooks, unhappy paths (all open)
-- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — operator auth, rate limits, lifecycle API surface (all open)
+- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — dev/admin endpoints out of prod, rate limits, real graduation trigger, lifecycle API surface (all open)
 - [ADR 0010](summaries/root-adr-0010-indexer-maturity.md) — reorgs, confirmation depth, failover, postgrad indexing (all open)
 - [ADR 0011](summaries/root-adr-0011-ai-review-service-hardening.md) — harden AI review for unattended operation (all open)
 - [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (all open)
 - [ADR 0013](summaries/root-adr-0013-app-feature-completion.md) — app across the full lifecycle incl. postgrad UX (all open)
 - [ADR 0014](summaries/root-adr-0014-full-lifecycle-e2e-testing.md) — the every-terminal-state e2e suite; acceptance gate for M1–M4 (all open)
 - [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (all open)
+- [ADR 0016 (cleanup)](summaries/root-adr-0016-monorepo-architecture-cleanup-program.md) — ~30-PR monorepo cleanup program; Track C still open (outside the M1–M5 chain)
 
 ## Summaries — root docs
 

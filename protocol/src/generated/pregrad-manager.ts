@@ -325,6 +325,11 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "InvalidYesNotBefore",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -1013,6 +1018,12 @@ export const pregradManagerAbi = [
       },
       {
         indexed: false,
+        internalType: "uint64",
+        name: "yesNotBefore",
+        type: "uint64",
+      },
+      {
+        indexed: false,
         internalType: "bool",
         name: "bypassAiResolution",
         type: "bool",
@@ -1515,6 +1526,11 @@ export const pregradManagerAbi = [
             type: "uint64",
           },
           {
+            internalType: "uint64",
+            name: "yesNotBefore",
+            type: "uint64",
+          },
+          {
             internalType: "bool",
             name: "bypassAiResolution",
             type: "bool",
@@ -1670,6 +1686,11 @@ export const pregradManagerAbi = [
           {
             internalType: "uint64",
             name: "resolutionTime",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "yesNotBefore",
             type: "uint64",
           },
           {

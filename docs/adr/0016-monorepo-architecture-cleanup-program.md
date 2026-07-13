@@ -1,4 +1,4 @@
-# ADR 0007: Monorepo Architecture Cleanup Program
+# ADR 0016: Monorepo Architecture Cleanup Program
 
 Status: Accepted — Tracks A/B/D/E/F executed 2026-07-06..07; Track C open (human review required)
 

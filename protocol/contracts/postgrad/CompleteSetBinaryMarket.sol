@@ -56,6 +56,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @notice Reverts when an account is not allowed to resolve or cancel the market.
   /// @param account Unauthorized account.
   error UnauthorizedResolver(address account);
+  /// @notice Reverts when resolve() is called before the earliest resolution time.
+  /// @param notBefore Earliest timestamp the attempted resolution is permitted.
+  error TooEarlyToResolve(uint64 notBefore);
   /// @notice Reverts when a function is called in the wrong market status.
   /// @param actual Current market status.
   /// @param expected Required market status.
@@ -160,6 +163,14 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   address public immutable retainedMinter;
   /// @notice Authorized account for resolution or cancellation in this testnet slice.
   address public immutable resolver;
+  /// @notice Earliest timestamp a YES resolution may be submitted (the pregrad
+  /// yesNotBefore gate). `cancel` is intentionally not gated, so postponed or
+  /// abandoned markets can still be cancelled before this time.
+  uint64 public immutable yesNotBefore;
+  /// @notice Earliest timestamp a NO resolution may be submitted (the pregrad
+  /// resolutionTime deadline). NO is only certain once the full window elapses,
+  /// so it is gated no earlier than YES; `cancel` remains ungated.
+  uint64 public immutable noNotBefore;
   /// @notice Current lifecycle status for this post-graduation market.
   Status public status;
 
@@ -173,6 +184,8 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @param marketName_ Human-readable market name prefix for outcome token names.
   /// @param marketSymbol_ Short market symbol prefix for outcome token symbols.
   /// @param outcomeDecimals_ Decimal precision for YES and NO outcome tokens.
+  /// @param yesNotBefore_ Earliest timestamp a YES resolution may be submitted.
+  /// @param noNotBefore_ Earliest timestamp a NO resolution may be submitted.
   constructor(
     address collateralToken_,
     address owner_,
@@ -180,7 +193,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     address resolver_,
     string memory marketName_,
     string memory marketSymbol_,
-    uint8 outcomeDecimals_
+    uint8 outcomeDecimals_,
+    uint64 yesNotBefore_,
+    uint64 noNotBefore_
   ) Ownable(owner_) {
     if (collateralToken_ == address(0)) {
       revert InvalidCollateral();
@@ -205,6 +220,8 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     outcomeDecimals = outcomeDecimals_;
     retainedMinter = retainedMinter_;
     resolver = resolver_;
+    yesNotBefore = yesNotBefore_;
+    noNotBefore = noNotBefore_;
     yesToken = new OutcomeToken(
       string.concat(marketName_, " YES"),
       string.concat(marketSymbol_, "YES"),
@@ -336,6 +353,12 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @param side Winning outcome side.
   function resolve(MarketTypes.Side side) external onlyResolver {
     _requireStatus(Status.Trading);
+    // YES may resolve from yesNotBefore; NO is only certain at the later
+    // resolutionTime deadline (noNotBefore). cancel() stays ungated.
+    uint64 notBefore = side == MarketTypes.Side.Yes ? yesNotBefore : noNotBefore;
+    if (block.timestamp < notBefore) {
+      revert TooEarlyToResolve(notBefore);
+    }
     _winningSide = side;
     status = Status.Resolved;
     _requireResolvedSolvent(collateralToken.balanceOf(address(this)));
