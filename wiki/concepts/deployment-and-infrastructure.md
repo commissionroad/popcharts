@@ -7,7 +7,7 @@ sources:
   - infra/README.md
   - docs/deployment/vercel.md
   - protocol/deployments/README.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Deployment and infrastructure
@@ -36,8 +36,10 @@ Two-phase deploy via `enableServices` flags; one-off Drizzle migration
 Fargate task; secrets at `/popcharts/<stage>/<network>/rpc-wss-url`; API
 autoscaling, indexer pinned to 1; prod = 2 NAT, Multi-AZ, deletion
 protection. Planned additions: review service/runner,
-[clearing keeper](../entities/clearing-keeper.md), resolution service as ECS
-services with Secrets Manager keys. **Staleness**: `infra/README.md` still
+[clearing keeper](../entities/clearing-keeper.md), resolution service + runner
+as ECS services with Secrets Manager keys — the **server signer keys only**
+(review-manager, resolver, graduation-manager); there is no API operator-auth
+credential, operator actions are local-only ([root ADR 0009](../summaries/root-adr-0009-server-api-hardening.md)). **Staleness**: `infra/README.md` still
 targets Base/Base Sepolia (84532/8453), predating the Arc move.
 
 ## Protocol

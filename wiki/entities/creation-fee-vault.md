@@ -5,7 +5,7 @@ description: Abstract base contract holding creation-fee custody mechanics, extr
 sources:
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # CreationFeeVault

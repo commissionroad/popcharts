@@ -6,7 +6,7 @@ sources:
   - docs/architecture.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - docs/adr/0006-server-runtime-and-indexer.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Monorepo architecture

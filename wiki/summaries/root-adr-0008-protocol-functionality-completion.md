@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0008 — Protocol functionality completion
-description: Vertical ADR to finish protocol code (clearing keeper, resolution hooks, postgrad handoff, unhappy paths) before any deployment; all nine checklist items open as of 2026-07-07.
+description: Vertical ADR to finish protocol code (clearing keeper, resolution hooks, postgrad handoff, unhappy paths) before any deployment; 4 of 10 items done as of the 2026-07-09 checklist reconcile (postgrad handoff + unhappy-path tests), clearing keeper and resolver entry points still open.
 sources:
   - docs/adr/0008-protocol-functionality-completion.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Repo ADR 0008: Protocol Functionality Completion
@@ -35,7 +35,7 @@ optimistic-clearing trust model as is. Deployment is ADR 0015. Deferred: a
 security audit, bonded challenges/fraud proofs, and the mainnet
 CTF-compatibility decision (protocol ADR 0007).
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (4 of 10 done as of the 2026-07-09 checklist reconcile)
 
 Clearing:
 
@@ -56,19 +56,19 @@ Resolution hooks:
 
 Postgrad handoff:
 
-- [ ] Integration tests proving `GraduationFinalized` funding and per-receipt
+- [x] Integration tests proving `GraduationFinalized` funding and per-receipt
   claims through `CompleteSetPostgradAdapter` under each clearing outcome.
-- [ ] Verify the v4 venue path (pool creation, bounded ticks, maker/taker
+- [x] Verify the v4 venue path (pool creation, bounded ticks, maker/taker
   flow) against a graduated market end to end on the devchain.
 - [ ] Resolve Uniswap v4 availability on Arc Testnet (deploy our own
   PoolManager vs. canonical) and record the answer as a protocol ADR.
 
 Unhappy paths:
 
-- [ ] Contract tests for rejected markets, refund-only graduations, claims
+- [x] Contract tests for rejected markets, refund-only graduations, claims
   after `MarketRefundsAvailable`, challenge-window expiry, fee-on-transfer
   collateral (`MockFeeCollateral`).
-- [ ] Confirm receipt escrow accounting is exact (no dust, no stranded
+- [x] Confirm receipt escrow accounting is exact (no dust, no stranded
   collateral) across every terminal market status.
 
 ## Exit criteria

@@ -6,7 +6,7 @@ sources:
   - documents/whitepaper_v4.pdf
   - docs/architecture.md
   - docs/adr/0007-track-verticals-with-progress-adrs.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Pop Charts overview
@@ -42,15 +42,19 @@ Full ladder: [market lifecycle](concepts/market-lifecycle.md).
 [designkit/](entities/designkit.md)), with `infra/` (AWS CDK) and local
 stacks orchestrated by `just` ([local dev](concepts/local-dev-orchestration.md)).
 
-## Where things stand (2026-07-07)
+## Where things stand (2026-07-13)
 
 - **Working locally end to end**: pregrad loop (create → review → receipts →
   graduation clearing → claims) on the [devchain](entities/devchain.md);
   postgrad venue smoke flows; AI review runner cycle.
-- **Built but not integrated**: postgrad venue ↔ server/app.
-- **Not built**: [clearing keeper](entities/clearing-keeper.md), AI
-  resolution, postgrad UX, indexer reorg-hardening, all deployment
-  ([nothing is deployed](concepts/deployment-and-infrastructure.md)).
+- **Landing now**: the [clearing keeper](entities/clearing-keeper.md)'s real
+  band-pass sweep (design accepted, replacing the greedy dev placeholder) and
+  [AI resolution](concepts/ai-assisted-resolution.md) (service/runner design
+  accepted, on-chain transition + config + client beginning to land); postgrad
+  UX is partway in (market-detail postgrad mode, portfolio/postgrad API
+  surface, and the v4-venue indexer watchers all ticked 2026-07-09).
+- **Not built**: indexer reorg-hardening, resolver-key/operator flows end to
+  end, and all deployment ([nothing is deployed](concepts/deployment-and-infrastructure.md)).
 - The road to [Arc Testnet](entities/arc-testnet.md) launch is tracked in
   vertical progress ADRs 0008–0015 (milestones M1–M5) — see
   [the conventions summary](summaries/root-adr-index-conventions.md).

@@ -6,7 +6,7 @@ sources:
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Creation-fee custody

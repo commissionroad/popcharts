@@ -7,7 +7,7 @@ sources:
   - docs/devchain.md
   - docs/architecture.md
   - server/README.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Local dev orchestration

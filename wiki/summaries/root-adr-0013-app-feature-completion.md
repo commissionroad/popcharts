@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0013 — App feature completion
-description: Vertical ADR to complete the app across the full market lifecycle — Google sign-in verification, graduation UX, postgrad trading/redemption, unhappy-path surfaces, search and polish; all fourteen items open.
+description: Vertical ADR to complete the app across the full market lifecycle — Google sign-in verification, graduation UX, postgrad trading/redemption, unhappy-path surfaces, search and polish; 2 of 14 done as of the 2026-07-09 reconcile (postgrad-mode market detail, receipt-state copy).
 sources:
   - docs/adr/0013-app-feature-completion.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Repo ADR 0013: App Feature Completion
@@ -31,7 +31,7 @@ Complete the app across the full market lifecycle, consuming the API and
 service surfaces from ADRs 0009–0012 as they land. Fixture fallback stays for
 local development, but every flow must work with fixtures disabled.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (2 of 14 done as of the 2026-07-09 checklist reconcile)
 
 Auth:
 
@@ -50,7 +50,7 @@ Graduation:
 
 Postgrad trading:
 
-- [ ] Market detail switches to postgrad mode after graduation: YES/NO prices
+- [x] Market detail switches to postgrad mode after graduation: YES/NO prices
   from the v4 venue, trade ticket for outcome tokens (approve/buy/sell against
   `BoundedPoolOrderManager`).
 - [ ] Portfolio shows postgrad positions and P&L alongside pregrad receipts.
@@ -63,7 +63,7 @@ Unhappy paths:
   ADR 0011) and what the creator can change before resubmitting.
 - [ ] Refund flows surfaced wherever a market lands in `refunded`/closed
   states, not only behind dev tools.
-- [ ] Receipt states communicate the full range of outcomes (matched,
+- [x] Receipt states communicate the full range of outcomes (matched,
   partially matched, refunded) after clearing.
 
 Small features:

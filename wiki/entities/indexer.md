@@ -9,7 +9,7 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - docs/portfolio-data-design.md
   - infra/README.md
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 
 # Indexer

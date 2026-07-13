@@ -8,7 +8,7 @@ sources:
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - protocol/docs/postgrad-contract-metadata.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # CompleteSetPostgradAdapter

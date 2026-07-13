@@ -4,7 +4,7 @@ title: Repo ADR 0009 — Server API hardening
 description: Vertical ADR to keep dev/admin endpoints out of production, add rate limiting, make the graduation trigger real, and grow the lifecycle product surface (search, pagination, portfolio, postgrad) of the read-only Elysia API. Operator actions are never exposed via the API.
 sources:
   - docs/adr/0009-server-api-hardening.md
-updated: 2026-07-09
+updated: 2026-07-13
 ---
 
 # Repo ADR 0009: Server API Hardening
@@ -38,7 +38,7 @@ threshold-eligible market (protocol ADR 0006). Operator actions are never
 exposed via the API, and the dev/admin testing endpoints are excluded from
 production builds. Deploying the API is ADR 0015.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (3 of 12 done as of the 2026-07-09 checklist reconcile)
 
 Security and auth:
 
@@ -66,8 +66,8 @@ Product surface:
 
 - [ ] Cursor pagination removing the hardcoded `MARKET_LIST_LIMIT = 200`.
 - [ ] Market search and category/status filtering.
-- [ ] Portfolio endpoints: receipts, claims, postgrad positions by owner.
-- [ ] Postgrad market surface (markets, trades, positions) once indexing
+- [x] Portfolio endpoints: receipts, claims, postgrad positions by owner.
+- [x] Postgrad market surface (markets, trades, positions) once indexing
   lands (ADR 0010).
 - [ ] Resolution status surface once resolution lands (ADR 0012).
 
