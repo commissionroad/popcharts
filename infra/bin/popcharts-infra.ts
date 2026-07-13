@@ -9,6 +9,11 @@ const stage = readStringContext(app, "stage", "staging");
 const network = readNetworkContext(app, "network", "baseSepolia");
 const enableApiService = readBooleanContext(app, "enableApiService", false);
 const enableIndexerService = readBooleanContext(app, "enableIndexerService", false);
+const enableResolutionService = readBooleanContext(
+  app,
+  "enableResolutionService",
+  false,
+);
 const enableServices = readBooleanContext(app, "enableServices", false);
 
 new PopChartsInfraStack(app, `popcharts-${stage}`, {
@@ -16,6 +21,7 @@ new PopChartsInfraStack(app, `popcharts-${stage}`, {
   domainName: readOptionalStringContext(app, "domainName"),
   enableApiService: enableServices || enableApiService,
   enableIndexerService: enableServices || enableIndexerService,
+  enableResolutionService: enableServices || enableResolutionService,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION ?? "us-east-1",
