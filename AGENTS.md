@@ -19,6 +19,10 @@
   names, branch names, or deployment artifacts. Use descriptive mechanism names
   instead. Third-party names are allowed only when needed for source attribution,
   citations, or historical research context.
+- Money paper trail: every value transfer (fills, refunds, claims, redemptions)
+  MUST leave an immutable, receipt-linked DB record sourced from an on-chain
+  event — never inferred, never dropped. See the invariant in
+  `docs/portfolio-data-design.md` for the pattern and the existing tables.
 
 # Personal Commands
 
