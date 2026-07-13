@@ -20,6 +20,15 @@ export type AiReviewConfig = {
   anthropicMaxWebSearches: number;
   anthropicModel: string;
   anthropicWebFetchMaxContentTokens: number;
+  /**
+   * When the selected model provider is unavailable, keep the deterministic
+   * heuristic verdict as-is instead of downgrading its `approve` to
+   * `manual_review`. Off by default so production never auto-approves on a
+   * model outage; the local-dev orchestrator turns it on so local testing is
+   * not blocked when Ollama is not running. Hard-flag rejects are unaffected —
+   * the heuristic gate still rejects harmful markets regardless of this flag.
+   */
+  fallbackApprove: boolean;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
   maxFetchBytes: number;
@@ -58,6 +67,7 @@ export const aiReviewConfig: AiReviewConfig = {
     "AI_REVIEW_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS",
     12_000,
   ),
+  fallbackApprove: readBoolean("AI_REVIEW_FALLBACK_APPROVE", false),
   fetchSearchResults: readBoolean("AI_REVIEW_FETCH_SEARCH_RESULTS", false),
   internetAccess: readInternetAccessMode(
     process.env.AI_REVIEW_INTERNET_ACCESS ?? "search",
