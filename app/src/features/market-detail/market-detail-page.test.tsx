@@ -28,6 +28,12 @@ vi.mock("@/features/order-book/order-book-card", () => ({
   ),
 }));
 
+vi.mock("./market-position-panel", () => ({
+  MarketPositionPanel: ({ market }: { market: Market }) => (
+    <div>Position panel for {market.id}</div>
+  ),
+}));
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -127,6 +133,16 @@ describe("MarketDetailPage", () => {
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
     ).toBeInTheDocument();
+  });
+
+  it("surfaces the user's position panel in the aside for either lifecycle", () => {
+    const { rerender } = render(<MarketDetailPage market={marketFactory()} />);
+
+    expect(screen.getByText("Position panel for eth-5000-august")).toBeInTheDocument();
+
+    rerender(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
+
+    expect(screen.getByText("Position panel for eth-5000-august")).toBeInTheDocument();
   });
 
   it("shows the order book only once the market graduated", () => {

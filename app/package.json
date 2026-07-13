@@ -60,7 +60,8 @@
     "storybook": "^10.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "webpack": "5.108.4"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write"
