@@ -1375,6 +1375,73 @@ contract PregradManagerTest is BaseTest {
     manager.claimRefundedReceipt(receiptId);
   }
 
+  function test_CancelMarketBeforeDeadlineOpensRefundsOnce() public {
+    address buyer = makeAddr("cancel-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.No,
+      100 * WAD
+    );
+
+    // The moderation kill switch works while Active with no deadline warp —
+    // unlike markRefundable it is not gated on the graduation deadline.
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.MarketCancelled(marketId, quote.cost);
+    manager.cancelMarket(marketId);
+
+    assertEq(
+      uint8(manager.getMarketState(marketId).status),
+      uint8(MarketTypes.MarketStatus.Cancelled)
+    );
+
+    // Full escrow refunds through the shared claim path, exactly once.
+    uint256 balanceBefore = collateral.balanceOf(buyer);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
+    manager.claimRefundedReceipt(receiptId);
+
+    MarketTypes.Receipt memory receipt = manager.getReceipt(receiptId);
+    MarketTypes.MarketState memory state = manager.getMarketState(marketId);
+    assertFalse(receipt.active);
+    assertEq(state.totalEscrowed, 0);
+    assertEq(collateral.balanceOf(buyer), balanceBefore + quote.cost);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, receiptId)
+    );
+    manager.claimRefundedReceipt(receiptId);
+  }
+
+  function test_CancelMarketRevertsForNonOwner() public {
+    uint256 marketId = _createDefaultMarket();
+    address notOwner = makeAddr("not-owner");
+
+    vm.prank(notOwner);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+    manager.cancelMarket(marketId);
+  }
+
+  function test_CancelMarketRevertsWhenNotActive() public {
+    uint256 marketId = _createDefaultMarket();
+    manager.cancelMarket(marketId);
+
+    // Cancelled is terminal: a second cancel (or any non-Active status) reverts,
+    // so a market can never be double-cancelled or cancelled after settling.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Cancelled,
+        MarketTypes.MarketStatus.Active
+      )
+    );
+    manager.cancelMarket(marketId);
+  }
+
   function test_HashReceiptClaimIsDeterministic() public view {
     MarketTypes.ReceiptClaim memory claim = MarketTypes.ReceiptClaim({
       marketId: 1,
