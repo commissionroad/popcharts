@@ -963,6 +963,25 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
       {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalEscrowed",
+        type: "uint256",
+      },
+    ],
+    name: "MarketCancelled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
         indexed: true,
         internalType: "address",
         name: "creator",
@@ -1383,6 +1402,19 @@ export const pregradManagerAbi = [
       },
     ],
     name: "approveMarket",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "cancelMarket",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

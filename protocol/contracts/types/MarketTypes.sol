@@ -14,6 +14,18 @@ library MarketTypes {
   }
 
   /// @notice Lifecycle status for a market managed by the pregrad singleton.
+  /// @notice One-way market lifecycle. Every status-changing function in
+  ///         `PregradManager` guards on a specific *pre-terminal* status
+  ///         (approve/reject require UnderReview; startGraduation, markRefundable,
+  ///         and cancelMarket require Active; finalizeGraduation requires
+  ///         Graduating). Consequently the terminal statuses — Graduated,
+  ///         Refunded, Cancelled, Rejected — can NEVER transition again: no
+  ///         function accepts them as a precursor. Once a market is refunded or
+  ///         cancelled it is final; only per-receipt refund claims remain, and
+  ///         those flip `receipt.active`, never the market status. Any new
+  ///         status-changing function MUST preserve this — do not accept a
+  ///         terminal status as a precursor. (Covered by
+  ///         `test_RefundedMarketStatusIsTerminal`.)
   enum MarketStatus {
     /// @notice The market accepts locked pre-graduation receipts priced by virtual LMSR.
     Active,
@@ -21,17 +33,17 @@ library MarketTypes {
     Frozen,
     /// @notice The receipt book is locked while the offchain clearing service computes graduation.
     Graduating,
-    /// @notice Clearing finalized and matched receipt segments can claim postgrad outcome tokens.
+    /// @notice Terminal. Clearing finalized and matched receipt segments can claim postgrad outcome tokens.
     Graduated,
-    /// @notice The market did not graduate and receipt escrow is refundable.
+    /// @notice Terminal. The market did not graduate and full receipt escrow is refundable — status never changes again.
     Refunded,
     /// @notice The postgrad outcome has been resolved.
     Resolved,
-    /// @notice The market was cancelled before normal graduation or resolution.
+    /// @notice Terminal. The market was cancelled (moderation) and full receipt escrow is refundable — status never changes again.
     Cancelled,
     /// @notice The market is awaiting review and does not accept receipts.
     UnderReview,
-    /// @notice The market failed review and remains closed to receipt placement.
+    /// @notice Terminal. The market failed review and remains closed to receipt placement.
     Rejected
   }
 
