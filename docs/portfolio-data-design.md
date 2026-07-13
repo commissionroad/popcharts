@@ -108,6 +108,31 @@ currently surfaced nowhere.**
 | User/account identity | none — keyed by lowercased `0x` address | none needed |
 | Cost basis / PnL | not stored anywhere | derive partial from settlement |
 
+## Invariant: persist a money paper trail
+
+Every value transfer in the system MUST leave an immutable, receipt-linked
+record in the DB, sourced from an on-chain event — never inferred, never
+dropped. This is a hard rule for any money-touching feature: graduation
+clearing, refunds, cancellation, resolution redemption, and postgrad trades.
+
+Today it is realized by append-only event tables mirrored 1:1 from chain:
+
+- `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
+  `retainedCost`, and the **partial refund** (`refund`). This is the record that
+  a graduated receipt was filled and how much, if any, was returned.
+- `refunded_receipt_claimed_events` — per receipt: the **full refund** on a
+  refunded (missed-deadline) or cancelled market.
+- `market_refunds_available_events` / `market_cancelled_events` — the
+  market-level events that open refunds.
+
+Because refunds are pull-based, a per-receipt record appears when money actually
+moves (the claim), not when it becomes owed. The owed amount is always
+recoverable from chain (the receipt cost plus the clearing root), so the DB
+trail is "money that moved" — the correct thing to persist. If we later need a
+single canonical per-receipt settlement row (owed + paid + claimed-at) for
+reporting or audits, materialize it as a projection **over** these event tables;
+the events remain the source of truth.
+
 ## Key decisions
 
 ### D1. Store token balances in the DB by indexing outcome-token `Transfer` events
