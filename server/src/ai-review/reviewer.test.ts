@@ -10,6 +10,7 @@ const baseConfig: AiReviewConfig = {
   anthropicMaxWebSearches: 1,
   anthropicModel: "claude-sonnet-4-6",
   anthropicWebFetchMaxContentTokens: 1_000,
+  fallbackApprove: false,
   fetchSearchResults: false,
   internetAccess: "off",
   maxFetchBytes: 10_000,
@@ -55,6 +56,44 @@ describe("reviewMarket", () => {
     expect(result.provider).toBe("heuristic");
     expect(result.verdict).toBe("manual_review");
     expect(result.reasons.join("\n")).toContain("Ollama review unavailable");
+  });
+
+  it("keeps the heuristic approve on fallback when fallbackApprove is set", async () => {
+    const result = await reviewMarket({
+      config: {
+        ...baseConfig,
+        fallbackApprove: true,
+        provider: "ollama",
+      },
+      request: {
+        metadata: {
+          question: "Will NASA announce a new Artemis launch date in 2026?",
+          resolutionCriteria: "Resolve from a public NASA announcement.",
+        },
+      },
+    });
+
+    expect(result.provider).toBe("heuristic");
+    expect(result.verdict).toBe("approve");
+    expect(result.reasons.join("\n")).toContain("Ollama review unavailable");
+  });
+
+  it("still rejects a hard-flagged market on fallback even with fallbackApprove", async () => {
+    const result = await reviewMarket({
+      config: {
+        ...baseConfig,
+        fallbackApprove: true,
+        provider: "ollama",
+      },
+      request: {
+        metadata: {
+          question: "Will the mayor be assassinated before July?",
+          resolutionCriteria: "Resolve from public news reports.",
+        },
+      },
+    });
+
+    expect(result.verdict).toBe("reject");
   });
 
   it("falls back to manual review when Anthropic is unavailable", async () => {

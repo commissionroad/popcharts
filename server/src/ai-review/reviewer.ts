@@ -64,6 +64,7 @@ export async function reviewMarket({
     });
   } catch (error) {
     return modelUnavailableReview({
+      allowHeuristicApprove: config.fallbackApprove,
       error,
       evidence,
       heuristic,
@@ -92,11 +93,13 @@ function buildReviewResult({
 }
 
 function modelUnavailableReview({
+  allowHeuristicApprove = false,
   error,
   evidence = [],
   heuristic,
   providerName,
 }: {
+  allowHeuristicApprove?: boolean;
   error: unknown;
   evidence?: ReviewResult["evidence"];
   heuristic: ReturnType<typeof runHeuristicPolicy>;
@@ -118,8 +121,14 @@ function modelUnavailableReview({
       disputeRisk: Math.max(heuristic.scores.disputeRisk, 4),
     },
     sourceChecks: heuristic.sourceChecks,
+    // A hard-flag reject is always final. Otherwise the model outage normally
+    // downgrades the heuristic's `approve` to `manual_review` so production
+    // never auto-approves without a model; local dev opts out via
+    // `fallbackApprove` so a clean market is not blocked when Ollama is down.
     verdict:
-      heuristic.verdict === "approve" ? "manual_review" : heuristic.verdict,
+      allowHeuristicApprove || heuristic.verdict !== "approve"
+        ? heuristic.verdict
+        : "manual_review",
   };
 }
 
