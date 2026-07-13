@@ -225,8 +225,8 @@ export const SettledReceipts: Story = {
 
 /**
  * A refunded or cancelled market returns collateral: a claimed refund shows the
- * amount returned, while an unclaimed one (how the indexer projects a cancelled
- * market) points at the market page to claim.
+ * amount returned, while an unclaimed one shows the refund amount and a working
+ * Claim button (idle) that pulls the escrowed cost with the connected wallet.
  */
 export const RefundedReceipts: Story = {
   args: { market: graduatedMarket({ status: "cancelled" }) },
@@ -253,6 +253,104 @@ export const RefundedReceipts: Story = {
           }),
         ],
       }),
+    }),
+  ],
+};
+
+/** A single claimable receipt with the amount and an idle Claim button. */
+export const RefundClaimIdle: Story = {
+  args: { market: graduatedMarket({ status: "cancelled" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            shares: (40n * WAD).toString(),
+            side: "no",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+    }),
+  ],
+};
+
+/** Mid-claim: the button reads "Claiming refund…" and is out of action. */
+export const RefundClaimPending: Story = {
+  args: { market: graduatedMarket({ status: "cancelled" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            shares: (40n * WAD).toString(),
+            side: "no",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+      refundClaim: { status: "pending" },
+    }),
+  ],
+};
+
+/**
+ * A confirmed claim before the indexer has projected the `refunded` row: the
+ * button locks to "Refund claimed" so the still-`refund_claimable` receipt
+ * cannot be claimed twice.
+ */
+export const RefundClaimSuccess: Story = {
+  args: { market: graduatedMarket({ status: "cancelled" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            shares: (40n * WAD).toString(),
+            side: "no",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+      refundClaim: { status: "success" },
+    }),
+  ],
+};
+
+/** A failed claim keeps the idle button and surfaces the error beneath it. */
+export const RefundClaimError: Story = {
+  args: { market: graduatedMarket({ status: "cancelled" }) },
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        receipts: [
+          receipt({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            shares: (40n * WAD).toString(),
+            side: "no",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+      refundClaim: {
+        error: "Could not claim your refund.",
+        status: "error",
+      },
     }),
   ],
 };

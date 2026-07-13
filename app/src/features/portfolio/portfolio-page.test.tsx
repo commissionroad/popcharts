@@ -168,7 +168,8 @@ describe("PortfolioPage receipts", () => {
     expect(screen.getByText("Waiting for graduation")).toBeInTheDocument();
     expect(screen.getByText("Graduated")).toBeInTheDocument();
     expect(screen.getByText("Ready to claim on the market page")).toBeInTheDocument();
-    expect(screen.getByText("Refund available")).toBeInTheDocument();
+    // A full refund shows its amount and keeps the market-page pointer.
+    expect(screen.getByText("$60.00 refund available")).toBeInTheDocument();
     expect(screen.getByText("Claim on the market page")).toBeInTheDocument();
     expect(screen.getByText("Settled")).toBeInTheDocument();
     expect(screen.getByText("58.00 YES tokens + $25.00 refunded")).toBeInTheDocument();

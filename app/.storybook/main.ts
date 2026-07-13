@@ -25,7 +25,7 @@ const config: StorybookConfig = {
     webpackConfig.plugins ??= [];
     webpackConfig.plugins.push(
       new webpack.NormalModuleReplacementPlugin(
-        /^@\/(features\/portfolio\/use-portfolio|integrations\/wallet\/wallet-provider)$/,
+        /^@\/(features\/portfolio\/use-portfolio|integrations\/wallet\/wallet-provider|integrations\/contracts\/hooks\/use-refund-claim)$/,
         mock("./mocks/panel-hooks.ts")
       )
     );
