@@ -1,15 +1,12 @@
 "use client";
 
-import type {
-  PortfolioPosition,
-  PortfolioReceipt,
-  PortfolioReceiptStatus,
-} from "@popcharts/api-client/models";
+import type { PortfolioPosition, PortfolioReceipt } from "@popcharts/api-client/models";
 import Link from "next/link";
 
 import { type Market, marketSideLabel } from "@/domain/markets/types";
 import { wadPriceToCents } from "@/domain/postgrad-trading/limit-order";
 import { wadToNumber } from "@/domain/tokens/wad";
+import { ReceiptSettlement } from "@/features/portfolio/receipt-settlement";
 import { usePortfolio } from "@/features/portfolio/use-portfolio";
 import { configuredPopChartsChainId } from "@/integrations/contracts/config";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
@@ -144,14 +141,6 @@ function PositionRow({
   );
 }
 
-const RECEIPT_STATUS_LABEL: Record<PortfolioReceiptStatus, string> = {
-  awaiting_graduation: "Waiting for graduation",
-  claimable: "Ready to claim",
-  refund_claimable: "Refund available",
-  refunded: "Refunded",
-  settled: "Settled",
-};
-
 function ReceiptRow({
   market,
   receipt,
@@ -173,7 +162,9 @@ function ReceiptRow({
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] text-[var(--text-muted)]">
         <span>{formatTokenAmount(BigInt(receipt.shares))} tok</span>
         {shares > 0 ? <span>· {formatCents((cost / shares) * 100)} avg</span> : null}
-        <span>· {RECEIPT_STATUS_LABEL[receipt.status]}</span>
+      </div>
+      <div className="mt-1 text-[11px]">
+        <ReceiptSettlement receipt={receipt} />
       </div>
     </div>
   );

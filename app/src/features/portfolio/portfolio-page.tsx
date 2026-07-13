@@ -11,6 +11,7 @@ import Link from "next/link";
 import { MetricCard } from "@/components/ui/metric-card";
 import { wadPriceToCents } from "@/domain/postgrad-trading/limit-order";
 import { wadToNumber } from "@/domain/tokens/wad";
+import { usePortfolio } from "@/features/portfolio/use-portfolio";
 import { configuredPopChartsChainId } from "@/integrations/contracts/config";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { apiMarketAppId } from "@/lib/app-id";
@@ -22,7 +23,7 @@ import {
   formatUsdWhole,
 } from "@/lib/format";
 
-import { usePortfolio } from "./use-portfolio";
+import { ReceiptSettlement } from "./receipt-settlement";
 
 /**
  * Database-backed portfolio: the connected wallet's pre-graduation receipts
@@ -171,66 +172,9 @@ function ReceiptRow({ receipt }: { receipt: PortfolioReceipt }) {
       <span className="font-mono text-[var(--text-secondary)]">
         {shares > 0 ? formatCents((cost / shares) * 100) : "-"}
       </span>
-      <ReceiptStatus receipt={receipt} />
+      <ReceiptSettlement receipt={receipt} />
     </div>
   );
-}
-
-/**
- * Receipt lifecycle copy. Settled receipts show what the receipt became —
- * outcome tokens plus any refunded remainder — instead of a perpetual
- * "waiting" state; claims themselves happen on the market page.
- */
-function ReceiptStatus({ receipt }: { receipt: PortfolioReceipt }) {
-  if (receipt.status === "settled" && receipt.settlement) {
-    const refund = BigInt(receipt.settlement.refund);
-
-    return (
-      <span className="text-[var(--text-secondary)]">
-        Settled
-        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-          {formatTokenAmount(BigInt(receipt.settlement.retainedShares ?? "0"))}{" "}
-          {receipt.side.toUpperCase()} tokens
-          {refund > 0n ? ` + ${formatUsd(wadToNumber(refund))} refunded` : ""}
-        </span>
-      </span>
-    );
-  }
-
-  if (receipt.status === "refunded" && receipt.settlement) {
-    return (
-      <span className="text-[var(--text-secondary)]">
-        Refunded
-        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-          {formatUsd(wadToNumber(BigInt(receipt.settlement.refund)))} returned
-        </span>
-      </span>
-    );
-  }
-
-  if (receipt.status === "claimable") {
-    return (
-      <span className="text-[var(--text-secondary)]">
-        Graduated
-        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-          Ready to claim on the market page
-        </span>
-      </span>
-    );
-  }
-
-  if (receipt.status === "refund_claimable") {
-    return (
-      <span className="text-[var(--text-secondary)]">
-        Refund available
-        <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-          Claim on the market page
-        </span>
-      </span>
-    );
-  }
-
-  return <span className="text-[var(--text-secondary)]">Waiting for graduation</span>;
 }
 
 function PositionTable({ positions }: { positions: PortfolioPosition[] }) {
