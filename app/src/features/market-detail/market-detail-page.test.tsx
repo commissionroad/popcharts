@@ -138,15 +138,11 @@ describe("MarketDetailPage", () => {
   it("surfaces the user's position panel in the aside for either lifecycle", () => {
     const { rerender } = render(<MarketDetailPage market={marketFactory()} />);
 
-    expect(
-      screen.getByText("Position panel for eth-5000-august")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Position panel for eth-5000-august")).toBeInTheDocument();
 
     rerender(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
 
-    expect(
-      screen.getByText("Position panel for eth-5000-august")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Position panel for eth-5000-august")).toBeInTheDocument();
   });
 
   it("shows the order book only once the market graduated", () => {

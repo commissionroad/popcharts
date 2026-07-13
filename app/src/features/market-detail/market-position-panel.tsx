@@ -96,7 +96,9 @@ function TotalValue({ positions }: { positions: PortfolioPosition[] }) {
     return null;
   }
 
-  return <span className="font-display tabular text-lg font-black">{formatUsd(total)}</span>;
+  return (
+    <span className="font-display tabular text-lg font-black">{formatUsd(total)}</span>
+  );
 }
 
 function PositionRow({
@@ -111,7 +113,10 @@ function PositionRow({
   return (
     <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2.5">
       <div className="flex items-baseline justify-between gap-2">
-        <SideLabel label={marketSideLabel(market, position.side)} side={position.side} />
+        <SideLabel
+          label={marketSideLabel(market, position.side)}
+          side={position.side}
+        />
         <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
           {position.currentValueWad
             ? formatUsd(wadToNumber(BigInt(position.currentValueWad)))
@@ -124,7 +129,9 @@ function PositionRow({
           <span>· avg {formatCents(wadPriceToCents(BigInt(position.avgCostWad)))}</span>
         ) : null}
         {position.poolPriceWad ? (
-          <span>· now {formatCents(wadPriceToCents(BigInt(position.poolPriceWad)))}</span>
+          <span>
+            · now {formatCents(wadPriceToCents(BigInt(position.poolPriceWad)))}
+          </span>
         ) : null}
       </div>
       {committed > 0n ? (

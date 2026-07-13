@@ -197,7 +197,9 @@ function portfolioFixture(overrides: Partial<Portfolio> = {}): Portfolio {
   };
 }
 
-function positionFixture(overrides: Partial<PortfolioPosition> = {}): PortfolioPosition {
+function positionFixture(
+  overrides: Partial<PortfolioPosition> = {}
+): PortfolioPosition {
   return {
     avgCostWad: ((WAD * 55n) / 100n).toString(),
     committedInOrders: (100n * WAD).toString(),
