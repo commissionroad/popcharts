@@ -12,7 +12,7 @@ sources:
   - docs/adr/0013-app-feature-completion.md
   - docs/portfolio-data-design.md
   - docs/error-handling-ux-prd.md
-updated: 2026-07-09
+updated: 2026-07-13
 ---
 
 # app/ workspace

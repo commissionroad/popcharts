@@ -1,7 +1,6 @@
 "use client";
 
 import type { Portfolio } from "@popcharts/api-client/models";
-import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 import { useCallback, useEffect, useState } from "react";
 
 import { presentError } from "@/lib/error-handling";
@@ -35,8 +34,13 @@ const EMPTY_RESULT: PortfolioReadResult = {
  * orders). Orders fill and markets graduate while the page is open, so the
  * hook re-reads on a modest interval while the tab is visible (hidden tabs
  * skip the fetch but keep the schedule) and immediately after `refresh()`.
- * Returns a disabled state until the chain id, owner, and indexer URL are all
- * available — the page renders its connect-wallet empty state from that.
+ * Returns a disabled state until an owner is available — the page renders its
+ * connect-wallet empty state from that.
+ *
+ * Reads go through the same-origin `/api/indexer/portfolio` proxy (like the
+ * order book), so the indexer base URL stays server-side: local dev only
+ * exposes `POPCHARTS_INDEXER_API_URL`, not the `NEXT_PUBLIC_` variant, so a
+ * direct browser fetch would have no URL to call.
  */
 export function usePortfolio({
   chainId,
@@ -52,13 +56,12 @@ export function usePortfolio({
     ...EMPTY_RESULT,
     requestKey: null,
   });
-  const baseUrl = readIndexerApiBaseUrl();
   const requestKey =
-    baseUrl && chainId !== null && owner ? [chainId, owner, pollTick].join(":") : null;
+    chainId !== null && owner ? [chainId, owner, pollTick].join(":") : null;
   const refresh = useCallback(() => setPollTick((value) => value + 1), []);
 
   useEffect(() => {
-    if (!requestKey || !baseUrl || chainId === null || !owner) {
+    if (!requestKey || chainId === null || !owner) {
       return;
     }
 
@@ -78,7 +81,7 @@ export function usePortfolio({
       }, PORTFOLIO_POLL_INTERVAL_MS);
     };
 
-    readPortfolio({ baseUrl, chainId, owner })
+    readPortfolio({ chainId, owner })
       .then((read) => {
         if (isActive) {
           setResult({ ...read, requestKey });
@@ -109,7 +112,7 @@ export function usePortfolio({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [baseUrl, chainId, owner, requestKey]);
+  }, [chainId, owner, requestKey]);
 
   if (requestKey === null) {
     return { ...EMPTY_RESULT, loading: false, refresh };
@@ -127,17 +130,26 @@ export function usePortfolio({
   };
 }
 
-async function readPortfolio({
-  baseUrl,
+export function portfolioRequestPath({
   chainId,
   owner,
 }: {
-  baseUrl: string;
+  chainId: number;
+  owner: string;
+}) {
+  const params = new URLSearchParams({ chainId: String(chainId), owner });
+
+  return `/api/indexer/portfolio?${params.toString()}`;
+}
+
+async function readPortfolio({
+  chainId,
+  owner,
+}: {
   chainId: number;
   owner: string;
 }): Promise<PortfolioReadResult> {
-  const url = buildIndexerUrl(baseUrl, getGetPortfolioUrl(String(chainId), { owner }));
-  const response = await fetch(url, {
+  const response = await fetch(portfolioRequestPath({ chainId, owner }), {
     cache: "no-store",
     headers: { accept: "application/json" },
   });
@@ -147,19 +159,4 @@ async function readPortfolio({
   }
 
   return { error: null, portfolio: (await response.json()) as Portfolio };
-}
-
-function buildIndexerUrl(baseUrl: string, path: string) {
-  return new URL(
-    path.replace(/^\//, ""),
-    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
-  );
-}
-
-/**
- * The indexer API base URL exposed to the browser. Read at call time so tests
- * can stub the env var.
- */
-function readIndexerApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ?? null;
 }

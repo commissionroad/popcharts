@@ -45,12 +45,14 @@ DB and is surfaced nowhere.
   (new `server/src/api/routes/portfolio.ts`).
 - **D3 — wallet identity = lowercased query param**, validated
   `^0x[0-9a-f]{40}$`, no auth; same pattern as `orders?owner=`.
-- **D4 — client transport (amended 2026-07-08):** visibility-aware polling
-  hook (`use-portfolio.ts`) reading the indexer **directly** via
-  `NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL` + the generated URL helper, like
-  the postgrad hooks; the originally drafted same-origin proxy route was
-  dropped (the orderbook proxy it copied is dead code and the base URL is
-  already browser-exposed). Explicitly no react-query.
+- **D4 — client transport:** visibility-aware polling hook
+  (`use-portfolio.ts`) fetching the **same-origin proxy** route
+  `/api/indexer/portfolio` (like `use-order-book.ts`), so the indexer base URL
+  stays server-side. Explicitly no react-query. *(A 2026-07-08 draft wrongly
+  switched this to a direct browser read via
+  `NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL`, believing the orderbook proxy was
+  dead code; it is not, and local dev never sets the browser var, so the page
+  never loaded. Reverted to the proxy in PR #159.)*
 - **D5 — three value tiers.** v1 ships tier 2, **current value** =
   owned quantity × live pool price (reusing the order-book path's
   `sqrtPriceX96` read); tier 3 **true PnL is deferred** because per-swap cost
@@ -74,8 +76,8 @@ from "settled" and from "refunded" (refund-only markets settle via
 2. Server read model (portfolio models/service/route) — **landed as PR #152**
    together with phase 3.
 3. OpenAPI + orval client regen (same PR as 2, per server-openapi-sync).
-4. App polling hook reading the indexer directly (D4 as amended) —
-   **landed as PR #153**.
+4. App polling hook — **landed as PR #153** (shipped reading the browser var
+   directly; fixed to use the same-origin proxy in PR #159, D4).
 5. UI rewire of `portfolio-page.tsx` (localStorage path dropped — DB only;
    the smoke e2e now asserts the connect-wallet state) — **landed as PR #154**.
 6. Follow-up: PnL (swap cost capture + lot accounting) — open.

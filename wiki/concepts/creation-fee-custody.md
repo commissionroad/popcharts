@@ -4,9 +4,9 @@ title: Creation-fee custody
 description: Market-creation fees (1e18 native, waived for trusted creators) held by the CreationFeeVault base — custody split from policy, and kept outside the receipt-escrow identity.
 sources:
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Creation-fee custody

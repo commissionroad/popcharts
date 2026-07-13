@@ -7,6 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MockFeeCollateral} from "../../contracts/mocks/MockFeeCollateral.sol";
 import {CreationFeeVault} from "../../contracts/CreationFeeVault.sol";
 import {PregradManager} from "../../contracts/PregradManager.sol";
+import {ReceiptBook} from "../../contracts/ReceiptBook.sol";
 import {LmsrMath} from "../../contracts/libraries/LmsrMath.sol";
 import {CompleteSetBinaryMarket} from "../../contracts/postgrad/CompleteSetBinaryMarket.sol";
 import {CompleteSetPostgradAdapter} from "../../contracts/postgrad/CompleteSetPostgradAdapter.sol";
@@ -50,6 +51,7 @@ contract PregradManagerTest is BaseTest {
       params.graduationThreshold,
       params.graduationDeadline,
       params.resolutionTime,
+      params.yesNotBefore,
       params.bypassAiResolution
     );
 
@@ -289,6 +291,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 1_250 * WAD,
         graduationDeadline: uint64(block.timestamp + 3 days),
         resolutionTime: uint64(block.timestamp + 30 days),
+        yesNotBefore: uint64(block.timestamp + 30 days),
         bypassAiResolution: false
       })
     );
@@ -304,6 +307,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 4_000 * WAD,
         graduationDeadline: uint64(block.timestamp + 14 days),
         resolutionTime: uint64(block.timestamp + 60 days),
+        yesNotBefore: uint64(block.timestamp + 60 days),
         bypassAiResolution: false
       })
     );
@@ -346,6 +350,7 @@ contract PregradManagerTest is BaseTest {
       params.graduationThreshold,
       params.graduationDeadline,
       params.resolutionTime,
+      params.yesNotBefore,
       params.bypassAiResolution
     );
     vm.expectEmit(true, true, true, true, address(manager));
@@ -410,7 +415,7 @@ contract PregradManagerTest is BaseTest {
     assertEq(quote.rHigh, int256(shares));
 
     vm.expectEmit(true, true, true, true, address(manager));
-    emit PregradManager.ReceiptPlaced(
+    emit ReceiptBook.ReceiptPlaced(
       1,
       marketId,
       buyer,
@@ -523,7 +528,7 @@ contract PregradManagerTest is BaseTest {
     vm.expectRevert(abi.encodeWithSelector(PregradManager.MarketDoesNotExist.selector, 1));
     manager.getMarketConfig(1);
 
-    vm.expectRevert(abi.encodeWithSelector(PregradManager.ReceiptDoesNotExist.selector, 1));
+    vm.expectRevert(abi.encodeWithSelector(ReceiptBook.ReceiptDoesNotExist.selector, 1));
     manager.getReceipt(1);
   }
 
@@ -537,6 +542,7 @@ contract PregradManagerTest is BaseTest {
       graduationThreshold: 2_500 * WAD,
       graduationDeadline: uint64(block.timestamp + 7 days),
       resolutionTime: uint64(block.timestamp + 14 days),
+      yesNotBefore: uint64(block.timestamp + 14 days),
       bypassAiResolution: false
     });
 
@@ -598,6 +604,20 @@ contract PregradManagerTest is BaseTest {
 
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
+    manager.createMarket(params);
+  }
+
+  function test_RevertsWhenYesNotBeforeOutsideWindow() public {
+    MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
+
+    // At or before the graduation deadline is too early for the YES gate.
+    params.yesNotBefore = params.graduationDeadline;
+    vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
+    manager.createMarket(params);
+
+    // After the resolution deadline is too late.
+    params.yesNotBefore = params.resolutionTime + 1;
+    vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
     manager.createMarket(params);
   }
 
@@ -733,10 +753,10 @@ contract PregradManagerTest is BaseTest {
 
     params.marketId = marketId;
     params.shares = 0;
-    vm.expectRevert(PregradManager.InvalidShares.selector);
+    vm.expectRevert(ReceiptBook.InvalidShares.selector);
     manager.placeReceipt(params);
 
-    vm.expectRevert(PregradManager.InvalidShares.selector);
+    vm.expectRevert(ReceiptBook.InvalidShares.selector);
     manager.quoteReceipt(marketId, MarketTypes.Side.Yes, 0);
 
     params.shares = shares;
@@ -782,6 +802,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days),
+        yesNotBefore: uint64(block.timestamp + 14 days),
         bypassAiResolution: false
       })
     );
@@ -1278,7 +1299,7 @@ contract PregradManagerTest is BaseTest {
     manager.claimGraduatedReceipt(fixture.claim, proof);
 
     vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, fixture.receiptId)
+      abi.encodeWithSelector(ReceiptBook.ReceiptAlreadyClaimed.selector, fixture.receiptId)
     );
     manager.claimGraduatedReceipt(fixture.claim, proof);
   }
@@ -1350,9 +1371,7 @@ contract PregradManagerTest is BaseTest {
     assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost);
     assertEq(collateral.balanceOf(address(manager)), 0);
 
-    vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, receiptId)
-    );
+    vm.expectRevert(abi.encodeWithSelector(ReceiptBook.ReceiptAlreadyClaimed.selector, receiptId));
     manager.claimRefundedReceipt(receiptId);
   }
 
@@ -1504,6 +1523,7 @@ contract PregradManagerTest is BaseTest {
         graduationThreshold: 2_500 * WAD,
         graduationDeadline: uint64(block.timestamp + 7 days),
         resolutionTime: uint64(block.timestamp + 14 days),
+        yesNotBefore: uint64(block.timestamp + 14 days),
         bypassAiResolution: false
       });
   }

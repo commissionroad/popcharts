@@ -22,6 +22,7 @@ type MarketConfig = {
   graduationThreshold: bigint;
   graduationDeadline: bigint;
   resolutionTime: bigint;
+  yesNotBefore: bigint;
   bypassAiResolution: boolean;
 };
 
@@ -98,6 +99,7 @@ describe("PregradManager", async function () {
           graduationThreshold: 2_500n * WAD,
           graduationDeadline,
           resolutionTime,
+          yesNotBefore: resolutionTime,
           bypassAiResolution: false,
         },
       ]),
@@ -113,6 +115,7 @@ describe("PregradManager", async function () {
         5_000n * WAD,
         2_500n * WAD,
         graduationDeadline,
+        resolutionTime,
         resolutionTime,
         false,
       ],
@@ -167,6 +170,7 @@ describe("PregradManager", async function () {
           graduationThreshold: 1_250n * WAD,
           graduationDeadline: firstGraduationDeadline,
           resolutionTime: firstResolutionTime,
+          yesNotBefore: firstResolutionTime,
           bypassAiResolution: false,
         },
       ],
@@ -184,6 +188,7 @@ describe("PregradManager", async function () {
           graduationThreshold: 4_000n * WAD,
           graduationDeadline: secondGraduationDeadline,
           resolutionTime: secondResolutionTime,
+          yesNotBefore: secondResolutionTime,
           bypassAiResolution: false,
         },
       ],
@@ -231,6 +236,7 @@ describe("PregradManager", async function () {
             graduationThreshold: 2_500n * WAD,
             graduationDeadline,
             resolutionTime,
+            yesNotBefore: resolutionTime,
             bypassAiResolution: false,
           },
         ],
@@ -256,6 +262,7 @@ describe("PregradManager", async function () {
             graduationThreshold: 2_500n * WAD,
             graduationDeadline,
             resolutionTime,
+            yesNotBefore: resolutionTime,
             bypassAiResolution: false,
           },
         ],
@@ -302,6 +309,7 @@ describe("PregradManager", async function () {
         graduationThreshold: 2_500n * WAD,
         graduationDeadline,
         resolutionTime,
+        yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
     ]);
@@ -395,6 +403,7 @@ describe("PregradManager", async function () {
         graduationThreshold: matchedMarketCap,
         graduationDeadline,
         resolutionTime,
+        yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
     ]);

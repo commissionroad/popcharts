@@ -182,23 +182,27 @@ Reuse the exact pattern of `getMarketVenueOrders`: lowercase the address, valida
 connected wallet address comes from wagmi/Privy at runtime. Public read data;
 consistent with every other owner-scoped read.
 
-### D4. Fetch pattern: direct indexer read + client polling hook
+### D4. Fetch pattern: same-origin proxy route + client polling hook
 
 Portfolio is per-connected-wallet and must live-update (orders fill, markets
 graduate), so it is client-side, not an RSC. Follow the established client
 transport:
 
+- Add a proxy route `app/src/app/api/indexer/portfolio/route.ts` (copy
+  `app/src/app/api/indexer/orderbook/route.ts`) so the indexer base URL stays
+  server-side.
 - Write `app/src/features/portfolio/use-portfolio.ts` as a `"use client"` hook in
   the `useEffect` + `useState` + visibility-aware polling style of
-  `use-open-venue-orders.ts` / `use-order-book.ts`, keyed on the connected `owner`.
-  Do **not** introduce react-query — it is not the house style for app data.
-- The hook reads the indexer **directly** via
-  `NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL` + the generated `getGetPortfolioUrl`
-  helper, exactly like the postgrad hooks. *(Amended 2026-07-08: the original
-  draft called for a same-origin proxy route, but the orderbook proxy it
-  pointed at is dead code — every live polling hook reads the indexer
-  directly, and the base URL is already browser-exposed as a NEXT_PUBLIC var,
-  so a proxy would add a hop and a second code path for no secrecy gain.)*
+  `use-order-book.ts`, keyed on the connected `owner`, fetching the same-origin
+  proxy path. Do **not** introduce react-query — it is not the house style.
+
+*(A 2026-07-08 draft briefly amended this to a direct browser read via
+`NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL`, on the mistaken belief that the
+orderbook proxy was dead code. It is not — `use-order-book.ts` fetches it, and
+local dev only exposes the server-side `POPCHARTS_INDEXER_API_URL`, so a direct
+browser read has no URL and the page never loads. Reverted to the proxy in
+PR #159; the direct-read hook shipped broken in #153/#154 and was live for
+one morning.)*
 
 ### D5. Current position *value* in v1; true PnL deferred
 

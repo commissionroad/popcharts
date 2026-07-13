@@ -8,8 +8,10 @@ import { DevMenu } from "./dev-menu";
 const mocks = vi.hoisted(() => ({
   closePregradMarketAction: vi.fn(),
   forceGraduateMarketAction: vi.fn(),
+  forceResolveMarketAction: vi.fn(),
   pathname: vi.fn((): string => "/"),
   refresh: vi.fn(),
+  useTestPusdMint: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -25,13 +27,23 @@ vi.mock("@/features/market-detail/graduation-actions", () => ({
   forceGraduateMarketAction: mocks.forceGraduateMarketAction,
 }));
 
+vi.mock("@/features/market-detail/resolution-actions", () => ({
+  forceResolveMarketAction: mocks.forceResolveMarketAction,
+}));
+
+vi.mock("./use-test-pusd-mint", () => ({
+  useTestPusdMint: mocks.useTestPusdMint,
+}));
+
 const STORAGE_KEY = "popcharts:dev:reveal-raw-errors:v1";
 
 beforeEach(() => {
   mocks.closePregradMarketAction.mockReset();
   mocks.forceGraduateMarketAction.mockReset();
+  mocks.forceResolveMarketAction.mockReset();
   mocks.refresh.mockReset();
   mocks.pathname.mockReturnValue("/");
+  mocks.useTestPusdMint.mockReturnValue(testPusdMintState());
 });
 
 afterEach(() => {
@@ -55,9 +67,12 @@ describe("DevMenu", () => {
       screen.getByRole("switch", { name: /Reveal raw errors/ })
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Force graduate/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Resolve YES/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Resolve NO/ })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Close for refunds/ })
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Get pUSD/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Dev tools" }));
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
@@ -69,6 +84,8 @@ describe("DevMenu", () => {
     open();
 
     expect(screen.getByRole("button", { name: /Force graduate/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Resolve YES/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Resolve NO/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Close for refunds/ })).toBeDisabled();
     expect(screen.getByText("Open a market to use these.")).toBeInTheDocument();
   });
@@ -89,6 +106,67 @@ describe("DevMenu", () => {
 
     expect(toggle).toHaveAttribute("aria-checked", "false");
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("false");
+  });
+
+  it("runs the pUSD mint action from the wallet section", () => {
+    const onClick = vi.fn();
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({ action: { disabled: false, label: "Get pUSD", onClick } })
+    );
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Get pUSD/ }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the pUSD mint result", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        result: {
+          message: "Added 10,000 test pUSD to your wallet.",
+          status: "success",
+        },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(
+      screen.getByText("Added 10,000 test pUSD to your wallet.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows pUSD mint errors", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        result: {
+          message: "Could not get pUSD.",
+          status: "error",
+        },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByText("Could not get pUSD.")).toBeInTheDocument();
+  });
+
+  it("shows the pUSD mint pending state", () => {
+    mocks.useTestPusdMint.mockReturnValue(
+      testPusdMintState({
+        action: { disabled: true, label: "Getting pUSD", onClick: undefined },
+        isMinting: true,
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByRole("button", { name: /Getting pUSD/ })).toBeDisabled();
   });
 
   it("hydrates the reveal toggle from persisted storage on mount", () => {
@@ -133,6 +211,37 @@ describe("DevMenu", () => {
 
     expect(await screen.findByText("Closed for refunds.")).toBeInTheDocument();
     expect(mocks.closePregradMarketAction).toHaveBeenCalledWith("31337:9");
+  });
+
+  it("force resolves the current market as YES", async () => {
+    mocks.pathname.mockReturnValue("/markets/31337%3A9");
+    mocks.forceResolveMarketAction.mockResolvedValueOnce({
+      message: "Resolved YES onchain.",
+      status: "success",
+    });
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Resolve YES/ }));
+
+    expect(await screen.findByText("Resolved YES onchain.")).toBeInTheDocument();
+    expect(mocks.forceResolveMarketAction).toHaveBeenCalledWith("31337:9", "yes");
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  });
+
+  it("force resolves the current market as NO", async () => {
+    mocks.pathname.mockReturnValue("/markets/31337%3A9/graduation");
+    mocks.forceResolveMarketAction.mockResolvedValueOnce({
+      message: "Resolved NO onchain.",
+      status: "success",
+    });
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Resolve NO/ }));
+
+    expect(await screen.findByText("Resolved NO onchain.")).toBeInTheDocument();
+    expect(mocks.forceResolveMarketAction).toHaveBeenCalledWith("31337:9", "no");
   });
 
   it("reports action errors without refreshing", async () => {
@@ -181,3 +290,16 @@ describe("DevMenu", () => {
     expect(screen.getByRole("button", { name: /Force graduate/ })).not.toBeDisabled();
   });
 });
+
+function testPusdMintState(
+  overrides: Partial<
+    ReturnType<typeof import("./use-test-pusd-mint").useTestPusdMint>
+  > = {}
+): ReturnType<typeof import("./use-test-pusd-mint").useTestPusdMint> {
+  return {
+    action: { disabled: false, label: "Get pUSD", onClick: vi.fn() },
+    isMinting: false,
+    result: null,
+    ...overrides,
+  };
+}

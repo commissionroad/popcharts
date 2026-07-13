@@ -1899,6 +1899,16 @@ export const completeSetBinaryMarketAbi = [
         name: "outcomeDecimals_",
         type: "uint8",
       },
+      {
+        internalType: "uint64",
+        name: "yesNotBefore_",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "noNotBefore_",
+        type: "uint64",
+      },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -2060,6 +2070,17 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     name: "SafeERC20FailedOperation",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "notBefore",
+        type: "uint64",
+      },
+    ],
+    name: "TooEarlyToResolve",
     type: "error",
   },
   {
@@ -2453,6 +2474,19 @@ export const completeSetBinaryMarketAbi = [
   },
   {
     inputs: [],
+    name: "noNotBefore",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "noToken",
     outputs: [
       {
@@ -2637,6 +2671,19 @@ export const completeSetBinaryMarketAbi = [
         internalType: "enum MarketTypes.Side",
         name: "",
         type: "uint8",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "yesNotBefore",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
       },
     ],
     stateMutability: "view",
@@ -3085,6 +3132,16 @@ export const completeSetPostgradAdapterAbi = [
         internalType: "uint256",
         name: "completeSetCount",
         type: "uint256",
+      },
+      {
+        internalType: "uint64",
+        name: "yesNotBefore",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "noNotBefore",
+        type: "uint64",
       },
     ],
     name: "prepareMarket",

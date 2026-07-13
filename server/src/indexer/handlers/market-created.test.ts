@@ -22,6 +22,7 @@ describe("buildMarketCreatedRecords", () => {
           "0x1111111111111111111111111111111111111111111111111111111111111111",
         openingProbabilityWad: 500_000_000_000_000_000n,
         resolutionTime: 1_781_000_000n,
+        yesNotBefore: 1_780_500_000n,
       },
       blockNumber: 123n,
       logIndex: 4,
@@ -59,6 +60,7 @@ describe("buildMarketCreatedRecords", () => {
       marketId: 7n,
       metadataHash:
         "0x1111111111111111111111111111111111111111111111111111111111111111",
+      yesNotBefore: new Date(1_780_500_000 * 1000),
       status: "under_review",
     });
     expect(records.event.graduationTime.toISOString()).toBe(

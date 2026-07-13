@@ -48,8 +48,11 @@ Implementation:
       `graduated`, claims jobs, calls the service, persists verdicts.
 - [ ] On-chain submission: `resolve`/`cancel` transactions with the same
       guarded-transition pattern the review runner uses.
-- [ ] Operator override path (approve/reject/replace a pending verdict)
-      behind the shared operator auth.
+- [ ] Operator override (approve/reject/replace a pending verdict) as a
+      local admin action against the chain and resolution job queue — a local
+      admin panel holding the resolver key, never an authenticated API
+      endpoint (see ADR 0009). The deployed API does not expose resolution
+      overrides.
 - [ ] Smoke test: seed a graduated market with known-outcome metadata, run
       one cycle, assert on-chain resolution and DB audit row.
 
@@ -58,7 +61,8 @@ Implementation:
 On the devchain, a graduated market whose `resolutionTime` has passed reaches
 `resolved` (or `cancelled` for a draw) with a persisted, evidence-backed
 verdict and no manual steps; an ambiguous market instead parks in manual
-review and can be resolved by an operator action.
+review and can be resolved by a local operator action (a keyed admin panel
+against the chain and job queue, not an API call).
 
 ## Consequences
 

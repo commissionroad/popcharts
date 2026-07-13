@@ -1,6 +1,7 @@
 import {
   getCloseDevMarketUrl,
   getGraduateDevMarketUrl,
+  getResolveDevMarketUrl,
 } from "@popcharts/api-client/development";
 import { getGraduateMarketUrl } from "@popcharts/api-client/graduation";
 import {
@@ -13,6 +14,7 @@ import {
 import type {
   DevMarketCloseResponse,
   DevMarketGraduateResponse,
+  DevMarketResolveResponse,
   GraduationResponse,
   GraduationSummary,
   ListMarketsParams as GeneratedListMarketsParams,
@@ -20,12 +22,15 @@ import type {
   MarketCreatedEvent,
   MarketMetadata,
   MarketOrderBook,
+  Portfolio,
   ReceiptPlacedEvent,
 } from "@popcharts/api-client/models";
+import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
 export type ApiMarketOrderBook = MarketOrderBook;
+export type ApiPortfolio = Portfolio;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
 export type ListMarketsParams = GeneratedListMarketsParams;
@@ -33,6 +38,7 @@ export type ApiGraduationSummary = GraduationSummary;
 export type ApiGraduationResponse = GraduationResponse;
 export type ApiDevMarketCloseResponse = DevMarketCloseResponse;
 export type ApiDevMarketGraduateResponse = DevMarketGraduateResponse;
+export type ApiDevMarketResolveResponse = DevMarketResolveResponse;
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -50,11 +56,18 @@ export type MarketsApiClient = {
     lookup: MarketApiLookup & { force?: boolean }
   ) => Promise<ApiDevMarketGraduateResponse>;
   graduateMarket: (lookup: MarketApiLookup) => Promise<ApiGraduationResponse>;
+  resolveDevMarket: (
+    lookup: MarketApiLookup & { side: "yes" | "no" }
+  ) => Promise<ApiDevMarketResolveResponse>;
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
   getMarketOrderBook: (lookup: MarketApiLookup) => Promise<ApiMarketOrderBook | null>;
   getMarketReceipts: (lookup: MarketApiLookup) => Promise<ApiReceiptPlacedEvent[]>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
+  getPortfolio: (args: {
+    chainId: number | string;
+    owner: string;
+  }) => Promise<ApiPortfolio | null>;
 };
 
 export class MarketsApiError extends Error {
@@ -138,6 +151,29 @@ export function createMarketsApiClient({
 
       return response;
     },
+    async resolveDevMarket({ chainId, marketId, side }) {
+      const response = await requestJson<ApiDevMarketResolveResponse>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getResolveDevMarketUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId),
+            side
+          )
+        ),
+        { method: "POST" }
+      );
+
+      if (!response) {
+        throw new MarketsApiError(
+          "Dev market resolution is disabled or unavailable.",
+          404
+        );
+      }
+
+      return response;
+    },
     getMarket({ chainId, marketId }) {
       return requestJson<ApiMarket>(
         fetcher,
@@ -197,6 +233,15 @@ export function createMarketsApiClient({
       );
 
       return response ?? [];
+    },
+    getPortfolio({ chainId, owner }) {
+      return requestJson<ApiPortfolio>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getGetPortfolioUrl(encodeURIComponent(String(chainId)), { owner })
+        )
+      );
     },
   };
 }

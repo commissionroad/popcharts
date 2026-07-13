@@ -1,6 +1,13 @@
 "use client";
 
-import { GraduationCap, LoaderCircle, Settings, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleDollarSign,
+  GraduationCap,
+  LoaderCircle,
+  Settings,
+  XCircle,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
@@ -10,9 +17,11 @@ import {
   type ClosePregradMarketActionResult,
 } from "@/features/market-detail/dev-market-actions";
 import { forceGraduateMarketAction } from "@/features/market-detail/graduation-actions";
+import { forceResolveMarketAction } from "@/features/market-detail/resolution-actions";
 import { cn } from "@/lib/cn";
 
 import { readRevealRawErrors, setRevealRawErrorsSetting } from "./dev-settings";
+import { useTestPusdMint } from "./use-test-pusd-mint";
 
 /**
  * Parses the market id out of a `/markets/:id` (or `/markets/:id/graduation`)
@@ -48,6 +57,7 @@ export function DevMenu() {
   const [revealErrors, setRevealErrors] = useState(() => readRevealRawErrors());
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ClosePregradMarketActionResult | null>(null);
+  const testPusdMint = useTestPusdMint();
 
   // Keep the flag `presentError` reads (and the persisted value) in step with
   // the toggle, including the initial hydrated value.
@@ -83,7 +93,7 @@ export function DevMenu() {
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-40 mt-2 w-[min(300px,calc(100vw-2rem))] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-card)] p-3 shadow-[var(--shadow-tile)]">
+        <div className="fixed top-[58px] right-4 z-40 w-[min(300px,calc(100vw-2rem))] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-card)] p-3 shadow-[var(--shadow-tile)] sm:absolute sm:top-auto sm:right-0 sm:mt-2">
           <p className="px-2 pb-2 font-mono text-[11px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
             Dev tools
           </p>
@@ -119,6 +129,43 @@ export function DevMenu() {
               />
             </span>
           </button>
+
+          <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
+            <p className="px-2 pb-2 font-mono text-[11px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
+              Wallet
+            </p>
+
+            <Button
+              className="w-full"
+              disabled={testPusdMint.action.disabled}
+              leftIcon={
+                testPusdMint.isMinting ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <CircleDollarSign aria-hidden="true" size={17} />
+                )
+              }
+              onClick={testPusdMint.action.onClick}
+              size="sm"
+              variant="secondary"
+            >
+              {testPusdMint.action.label}
+            </Button>
+
+            {testPusdMint.result ? (
+              <p
+                className="mt-2 text-center font-mono text-[11px] leading-5"
+                style={{
+                  color:
+                    testPusdMint.result.status === "success"
+                      ? "var(--pc-cyan)"
+                      : "var(--accent)",
+                }}
+              >
+                {testPusdMint.result.message}
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
             <p className="px-2 pb-2 font-mono text-[11px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
@@ -165,6 +212,50 @@ export function DevMenu() {
               variant="secondary"
             >
               {isPending ? "Working" : "Close for refunds"}
+            </Button>
+
+            <Button
+              className="mt-2 w-full"
+              disabled={isPending || marketId === null}
+              leftIcon={
+                isPending ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <CheckCircle2 aria-hidden="true" size={17} />
+                )
+              }
+              onClick={
+                marketId !== null
+                  ? () =>
+                      runMarketAction(() => forceResolveMarketAction(marketId, "yes"))
+                  : undefined
+              }
+              size="sm"
+              variant="secondary"
+            >
+              {isPending ? "Working" : "Resolve YES"}
+            </Button>
+
+            <Button
+              className="mt-2 w-full border-[var(--danger)] text-[var(--text-primary)] hover:border-[var(--danger)]"
+              disabled={isPending || marketId === null}
+              leftIcon={
+                isPending ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <XCircle aria-hidden="true" size={17} />
+                )
+              }
+              onClick={
+                marketId !== null
+                  ? () =>
+                      runMarketAction(() => forceResolveMarketAction(marketId, "no"))
+                  : undefined
+              }
+              size="sm"
+              variant="secondary"
+            >
+              {isPending ? "Working" : "Resolve NO"}
             </Button>
 
             {marketId === null ? (

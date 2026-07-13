@@ -7,8 +7,8 @@ sources:
   - protocol/docs/adr/0007-handoff-to-ctf-style-postgrad-market.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - protocol/docs/postgrad-contract-metadata.md
-  - docs/adr/0007-monorepo-architecture-cleanup-program.md
-updated: 2026-07-07
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
+updated: 2026-07-13
 ---
 
 # CompleteSetPostgradAdapter

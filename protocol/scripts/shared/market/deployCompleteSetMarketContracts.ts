@@ -135,6 +135,8 @@ export async function deployCompleteSetBinaryMarket({
           { type: "string" },
           { type: "string" },
           { type: "uint8" },
+          { type: "uint64" },
+          { type: "uint64" },
         ],
         [
           collateralAddress,
@@ -144,6 +146,9 @@ export async function deployCompleteSetBinaryMarket({
           marketName,
           marketSymbol,
           COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+          // Standalone venue-test market: resolution-time gates disabled (0).
+          0n,
+          0n,
         ],
       ),
     ]),

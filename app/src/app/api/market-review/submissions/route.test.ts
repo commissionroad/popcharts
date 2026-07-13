@@ -17,6 +17,7 @@ const protocolParams: ProtocolCreateMarketParams = {
   metadataHash: METADATA_HASH,
   openingProbabilityWad: 500_000_000_000_000_000n,
   resolutionTime: 1_785_628_800n,
+  yesNotBefore: 1_785_628_800n,
 };
 
 afterEach(() => {

@@ -8,7 +8,7 @@ sources:
   - protocol/CONSTITUTION.md
   - protocol/CONTEXT.md
   - docs/adr/0008-protocol-functionality-completion.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Graduation clearing
@@ -57,8 +57,10 @@ claims. Anyone may freeze an eligible market.
 ## Status
 
 Math verified by whitepaper golden examples (A and B, v4 §9); onchain path
-implemented in [PregradManager](../entities/pregrad-manager.md); the
-automating [clearing keeper](../entities/clearing-keeper.md) is unbuilt (all
-[root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)
-items open). UI surfaces exist (GraduationBar, BandStrip) but BandStrip still
-renders static demo bands.
+implemented in [PregradManager](../entities/pregrad-manager.md); the automating
+[clearing keeper](../entities/clearing-keeper.md) now has an accepted
+[design](../summaries/clearing-keeper-design.md) and the real band-pass sweep is
+replacing the greedy dev placeholder ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)
+postgrad-handoff and unhappy-path test items ticked 2026-07-09; clearing-keeper
+extraction items still open). UI surfaces exist (GraduationBar, BandStrip) but
+BandStrip still renders static demo bands.

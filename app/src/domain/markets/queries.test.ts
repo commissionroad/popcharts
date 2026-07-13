@@ -12,6 +12,7 @@ import {
   getMarketReceipts,
   getMarkets,
   requestDevMarketGraduation,
+  requestDevMarketResolution,
   requestMarketGraduation,
   requestPregradMarketCloseForRefund,
 } from "./queries";
@@ -307,6 +308,30 @@ describe("market queries", () => {
     expect(result.status).toBe("refunded");
   });
 
+  it("requests a dev resolution by chain-prefixed app id", async () => {
+    const client = createClient({
+      devResolution: {
+        market: { ...apiMarket, status: "resolved" },
+        status: "resolved",
+        transactionHash:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        winningSide: "yes",
+      },
+    });
+
+    const result = await requestDevMarketResolution("5042002:7", "yes", {
+      client,
+      source: "api",
+    });
+
+    expect(client.resolveDevMarket).toHaveBeenCalledWith({
+      chainId: 5042002,
+      marketId: "7",
+      side: "yes",
+    });
+    expect(result.status).toBe("resolved");
+  });
+
   it("returns undefined when an api-source market is missing", async () => {
     const client = createClient({ market: null });
 
@@ -396,6 +421,24 @@ describe("market queries", () => {
     await expect(
       requestPregradMarketCloseForRefund("7", { client, source: "api" })
     ).rejects.toThrowError("Dev market close requires a chain-prefixed market id.");
+  });
+
+  it("rejects dev resolution requests for fixture-backed markets", async () => {
+    await expect(
+      requestDevMarketResolution("eth-5000-august", "yes", {
+        source: "fixtures",
+      })
+    ).rejects.toThrowError("Dev market resolution requires API-backed market data.");
+  });
+
+  it("rejects dev resolution requests without a chain-scoped id", async () => {
+    const client = createClient();
+
+    await expect(
+      requestDevMarketResolution("7", "no", { client, source: "api" })
+    ).rejects.toThrowError(
+      "Dev market resolution requires a chain-prefixed market id."
+    );
   });
 
   it("passes the force flag through to the dev graduation client", async () => {
@@ -543,6 +586,7 @@ describe("market queries", () => {
 function createClient({
   close,
   devGraduation,
+  devResolution,
   graduation,
   market = null,
   markets = [],
@@ -550,6 +594,7 @@ function createClient({
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   devGraduation?: Awaited<ReturnType<MarketsApiClient["graduateDevMarket"]>>;
+  devResolution?: Awaited<ReturnType<MarketsApiClient["resolveDevMarket"]>>;
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
@@ -577,11 +622,19 @@ function createClient({
 
       return graduation;
     }),
+    resolveDevMarket: vi.fn(async () => {
+      if (!devResolution) {
+        throw new Error("Missing dev resolution fixture.");
+      }
+
+      return devResolution;
+    }),
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
     getMarketOrderBook: vi.fn(async () => null),
     getMarketReceipts: vi.fn(async () => receipts),
     getMarkets: vi.fn(async () => markets),
+    getPortfolio: vi.fn(async () => null),
   };
 }
 
