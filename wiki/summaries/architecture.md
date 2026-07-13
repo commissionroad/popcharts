@@ -4,7 +4,7 @@ title: Monorepo Architecture (docs/architecture.md)
 description: Workspace map, acyclic dependency graph, committed-generated-code freshness gates, and the two intentional duplications (MarketStatus, LMSR math).
 sources:
   - docs/architecture.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Monorepo Architecture

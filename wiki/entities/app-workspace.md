@@ -11,7 +11,7 @@ sources:
   - docs/architecture.md
   - docs/adr/0013-app-feature-completion.md
   - docs/portfolio-data-design.md
-updated: 2026-07-08
+updated: 2026-07-13
 ---
 
 # app/ workspace

@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0015 — Deployment and infrastructure
-description: Vertical ADR owning all CI and deployment — per-package CI, AWS CDK stack, ECS services, monitoring, and the Arc Testnet protocol deployment as the final step of milestone M5; all thirteen items open.
+description: Vertical ADR owning all CI and deployment — per-package CI, AWS CDK stack, ECS services, monitoring, and the Arc Testnet protocol deployment as the final step of milestone M5; 1 of 13 done as of the 2026-07-09 reconcile (Protocol CI), secrets corrected to signer-keys-only (no API operator-auth).
 sources:
   - docs/adr/0015-deployment-and-infrastructure.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # Repo ADR 0015: Deployment And Infrastructure
@@ -30,13 +30,13 @@ Own all CI and deployment work in this vertical: CI for every package,
 containerization and cloud deployment of server-side services, operational
 monitoring, and — last — the protocol deployment to Arc Testnet.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (1 of 13 done as of the 2026-07-09 checklist reconcile)
 
 Continuous integration (unblocks early, cheap to do first):
 
 - [ ] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
   service container.
-- [ ] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
+- [x] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
 - [ ] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with the
   heuristic provider.
 
@@ -85,11 +85,11 @@ CTF-compatibility decision).
 
 ## Staleness note
 
-The CI items may lag reality: the monorepo cleanup program's Progress Log
-(2026-07-07) references an existing required "Server CI" (running
-`openapi:check`) and an "App CI" with path filters, suggesting some CI
-checkboxes here are stale-unticked. Verify against `.github/workflows/` when
-updating this vertical.
+The 2026-07-09 reconcile ticked Protocol CI. Server CI may still lag reality:
+the monorepo cleanup program's Progress Log references an existing required
+"Server CI" (running `openapi:check`) and an "App CI" with path filters, so the
+Server CI checkbox here may be stale-unticked. Verify against
+`.github/workflows/` when updating this vertical.
 
 ## Related pages
 

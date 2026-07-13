@@ -9,7 +9,7 @@ sources:
   - protocol/docs/adr/0004-pin-solidity-compiler-to-0-8-28.md
   - protocol/docs/CODE_GUIDELINES.md
   - docs/architecture.md
-updated: 2026-07-07
+updated: 2026-07-13
 ---
 
 # protocol/ workspace

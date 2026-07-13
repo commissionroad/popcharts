@@ -114,3 +114,69 @@ finalize), because on-chain startGraduation is manager-only and the sweep
 cannot fit in one transaction (protocol ADR 0006). Left the ai-review design-doc
 and server-README summaries unchanged — they faithfully describe their (still
 unchanged) source docs, which still document the current dev/admin endpoint.
+
+## [2026-07-13] lint | first periodic lint reconcile — 2 missed design docs + checklist drift across 6 vertical ADRs
+Pages: +summaries/ai-resolution-service-design.md,
++summaries/clearing-keeper-design.md, ~concepts/ai-assisted-resolution.md,
+~entities/clearing-keeper.md, ~concepts/graduation-clearing.md,
+~concepts/deployment-and-infrastructure.md, ~overview.md,
+~summaries/root-adr-0008-protocol-functionality-completion.md,
+~summaries/root-adr-0009-server-api-hardening.md,
+~summaries/root-adr-0010-indexer-maturity.md,
+~summaries/root-adr-0011-ai-review-service-hardening.md,
+~summaries/root-adr-0013-app-feature-completion.md,
+~summaries/root-adr-0015-deployment-and-infrastructure.md, ~index.md;
+date-only bumps (content already reconciled, `updated:` never touched by the
+07-09 renumber/operator-access ingests): ~summaries/architecture.md,
+~concepts/{creation-fee-custody,monorepo-architecture,local-dev-orchestration,market-lifecycle}.md,
+~entities/{creation-fee-vault,postgrad-adapter,pregrad-manager,protocol-workspace,server-workspace,indexer,app-workspace}.md.
+
+Organic ingestion since last lint (window 2026-07-09 post-PR#156 → 2026-07-13,
+5 doc-change units): **2/5 self-ingested.** Self-ingested in their own PR: the
+0007→0016 renumber (#170, 13 wiki files) and the operator-access correction
+(#171, 9 wiki files). Missed: (a) `docs/ai-resolution-service-design.md` — the
+ADR 0012 service/runner design (#165/#166), no wiki page; (b)
+`docs/clearing-keeper-design.md` — the ADR 0008 clearing design (#172), no wiki
+page; (c) commit 7335233 "Reconcile vertical ADR checklists against a code
+audit" — re-ticked 0008/0009/0010/0011/0013/0015 with 0 wiki files touched. The
+07-09 design sprint shipped design docs and checkbox reconciles without the
+per-session ingest.
+
+Findings and fixes:
+- **New docs ingested:** two summary pages created and cross-linked into the AI
+  resolution concept, clearing-keeper entity, and graduation-clearing concept.
+  ai-resolution adds the per-outcome temporal gates (`yes_not_before` new
+  on-chain param, `no_not_before` = `resolution_time`), `too_early` outcome +
+  on-chain floor guard, 0.85/24h safety valves, draws-always-manual, and
+  self-resolve in the first build — superseding the concept's old single-
+  `resolutionTime` framing. clearing-keeper documents the band-pass sweep,
+  largest-remainder rounding (whitepaper open question 3), snapshotHash
+  verification, and the "root is unbound at submit" trap.
+- **Checklist drift (real content):** 6 vertical-ADR summaries had `[ ]` boxes
+  the 07-09 code-audit reconcile flipped to `[x]`. Reconciled tick-state,
+  headings, descriptions, and index annotations. Hidden-drift catch: 0009/0011
+  summaries were already dated 2026-07-09 (bumped by the *later* operator-access
+  ingest) yet still carried unticked boxes from the *earlier* same-day reconcile
+  — a date-based scan alone would have missed them.
+- **Status drift:** clearing keeper and AI resolution were labelled "not
+  built/unbuilt" in the keeper entity, graduation-clearing concept, and
+  overview; both now have accepted designs and landing implementations (PRs
+  #172/#176 keeper sweep; resolution runner on-chain transition/config/client).
+  Flagged that ADR 0012's doc checklist still reads all-open while its code has
+  begun landing — code ahead of the checklist, not silently re-ticked (raw docs
+  are never edited by the wiki).
+- **Integrity:** 0 broken internal links; 0 orphans (both new pages linked from
+  index + a concept/entity); staleness clean after fixes. `whitepaper_v3.pdf`
+  and `app-adr-readme.md` were scan false-positives (multi-line frontmatter /
+  `app/docs` substring), not real gaps.
+- **Note for the human:** PR #156 ("Wiki lint 2026-07-09") is still OPEN and
+  unmerged; it ingests `docs/error-handling-ux-prd.md` (not touched here to
+  avoid duplication). This PR is additive and branched from origin/main, so both
+  append log.md and index.md — merge #156 first, or take-both on the trivial
+  conflict.
+
+Follow-ups for next lint: once ADR 0012 items are ticked in the doc, reconcile
+the resolution concept/summary build-status claims against the code; re-verify
+Server CI checkbox (ADR 0015) against `.github/workflows/`; carry the whitepaper
+Example A/B golden-test check forward (now referenced by the new clearing-keeper
+design summary — confirm the fixture landed).

@@ -4,7 +4,7 @@ title: Repo ADR 0011 — AI review service hardening
 description: Vertical ADR to harden the working AI review loop for unattended operation — safe evidence fetching, strict output validation, prompt-version policy, metrics, stuck-job recovery. Manual re-review is a local operator action, not an authenticated API endpoint.
 sources:
   - docs/adr/0011-ai-review-service-hardening.md
-updated: 2026-07-09
+updated: 2026-07-13
 ---
 
 # Repo ADR 0011: AI Review Service Hardening
@@ -35,22 +35,22 @@ Harden the existing review service and runner for unattended operation against
 Arc Testnet. The service keeps its single-call review shape (multi-turn
 research stays deferred). Deployment is ADR 0015.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (3 of 8 done as of the 2026-07-09 checklist reconcile)
 
 Security:
 
 - [ ] Manual re-review is an operator action: run it locally against the chain
   and job queue (a keyed admin panel), and exclude the `/admin/*` re-review
   endpoint from production builds (ADR 0009). Not an authenticated API surface.
-- [ ] Evidence fetching hardening in `safe-web.ts`: block private/loopback
+- [x] Evidence fetching hardening in `safe-web.ts`: block private/loopback
   IPs, cap redirects, validate content types, bound response sizes.
-- [ ] Review-manager key handling documented: the key signing
+- [x] Review-manager key handling documented: the key signing
   `approveMarket`/`rejectMarket` is loaded from configuration, never logged,
   rotatable without schema changes.
 
 Robustness:
 
-- [ ] Strict model-output validation with a defined fallback verdict
+- [x] Strict model-output validation with a defined fallback verdict
   (`manual_review`) on malformed responses.
 - [ ] Decide and implement the prompt-version policy: what happens to
   already-reviewed and in-flight markets when `AI_REVIEW_PROMPT_VERSION`

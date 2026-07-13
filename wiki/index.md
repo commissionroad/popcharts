@@ -12,7 +12,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Complete sets](concepts/complete-sets.md) — mint/merge/redeem economics, the solvency invariant, and the ERC20-vs-CTF tokenization decision
 - [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v4 as source of truth, and which repo vocabulary traces to superseded drafts
 - [Creation-fee custody](concepts/creation-fee-custody.md) — the fee policy, the vault/policy split, and the whitepaper's explicit-fee constraint
-- [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the planned outcome pipeline (unbuilt) and its provenance caveats
+- [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the post-graduation outcome pipeline (design accepted, build underway), per-outcome temporal gates, and provenance caveats
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
 - [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel + AWS CDK + Arc, all M5, nothing deployed
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
@@ -26,7 +26,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Postgrad adapter](entities/postgrad-adapter.md) — the graduation handoff trust boundary
 - [Postgrad v4 venue](entities/postgrad-v4-venue.md) — bounded hook, order manager, tick bounds, swap router
 - [CreationFeeVault](entities/creation-fee-vault.md) — creation-fee custody base contract
-- [Clearing keeper](entities/clearing-keeper.md) — planned band-pass clearing automation (not built)
+- [Clearing keeper](entities/clearing-keeper.md) — band-pass clearing automation (design accepted, real sweep replacing the dev placeholder)
 - [protocol/ workspace](entities/protocol-workspace.md) — Hardhat 3 Solidity workspace and generated-metadata pipeline
 - [app/ workspace](entities/app-workspace.md) — Next.js frontend, domain-first layout, Privy auth
 - [server/ workspace](entities/server-workspace.md) — Bun/Elysia API, DB, and AI review processes
@@ -71,14 +71,14 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR conventions](summaries/root-adr-index-conventions.md) — the progress-ADR process and milestones M1–M5
 - [ADR 0006](summaries/root-adr-0006-server-runtime-and-indexer.md) — Bun + Elysia + Drizzle server, viem indexer
 - [ADR 0007](summaries/root-adr-0007-track-verticals-with-progress-adrs.md) — checklist-bearing vertical ADRs 0008–0015; defines milestones M1–M5
-- [ADR 0008](summaries/root-adr-0008-protocol-functionality-completion.md) — finish protocol: keeper, resolution hooks, unhappy paths (all open)
-- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — dev/admin endpoints out of prod, rate limits, real graduation trigger, lifecycle API surface (all open)
-- [ADR 0010](summaries/root-adr-0010-indexer-maturity.md) — reorgs, confirmation depth, failover, postgrad indexing (all open)
-- [ADR 0011](summaries/root-adr-0011-ai-review-service-hardening.md) — harden AI review for unattended operation (all open)
-- [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (all open)
-- [ADR 0013](summaries/root-adr-0013-app-feature-completion.md) — app across the full lifecycle incl. postgrad UX (all open)
+- [ADR 0008](summaries/root-adr-0008-protocol-functionality-completion.md) — finish protocol: keeper, resolution hooks, unhappy paths (4/10; keeper + resolver entry points open)
+- [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — dev/admin endpoints out of prod, rate limits, real graduation trigger, lifecycle API surface (3/12)
+- [ADR 0010](summaries/root-adr-0010-indexer-maturity.md) — reorgs, confirmation depth, failover, postgrad indexing (1/8; v4 venue watchers done)
+- [ADR 0011](summaries/root-adr-0011-ai-review-service-hardening.md) — harden AI review for unattended operation (3/8)
+- [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (checklist all open; detailed design accepted, build underway)
+- [ADR 0013](summaries/root-adr-0013-app-feature-completion.md) — app across the full lifecycle incl. postgrad UX (2/14; postgrad-mode detail + receipt states done)
 - [ADR 0014](summaries/root-adr-0014-full-lifecycle-e2e-testing.md) — the every-terminal-state e2e suite; acceptance gate for M1–M4 (all open)
-- [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (all open)
+- [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (1/13; Protocol CI done)
 - [ADR 0016 (cleanup)](summaries/root-adr-0016-monorepo-architecture-cleanup-program.md) — ~30-PR monorepo cleanup program; Track C still open (outside the M1–M5 chain)
 
 ## Summaries — root docs
@@ -88,6 +88,8 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Devchain](summaries/devchain.md) — local e2e flow, postgrad local deploy, Arc config
 - [AI review runner design](summaries/ai-review-runner-design.md) — the durable-job runner bridging projections to the review service
 - [AI review next phase](summaries/ai-review-next-phase.md) — provider triad, service split rationale, AWS shape, injection defenses
+- [AI resolution service & runner design](summaries/ai-resolution-service-design.md) — the ADR 0012 design: resolution as a sibling of review, per-outcome temporal gates, on-chain floor guard, 0.85/24h safety valves
+- [Clearing keeper design](summaries/clearing-keeper-design.md) — the ADR 0008 design: band-pass sweep, largest-remainder rounding, snapshotHash verification, three-outcome decision logic, golden tests
 - [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline (has stale org/lockfile references)
 - [Portfolio data design](summaries/portfolio-data-design.md) — DB-backed Portfolio spec: Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1
 
