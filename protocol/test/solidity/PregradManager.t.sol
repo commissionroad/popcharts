@@ -1442,6 +1442,36 @@ contract PregradManagerTest is BaseTest {
     manager.cancelMarket(marketId);
   }
 
+  function test_RefundedMarketStatusIsTerminal() public {
+    address buyer = makeAddr("terminal-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    _placeReceiptAs(buyer, marketId, MarketTypes.Side.No, 100 * WAD);
+    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
+    vm.warp(config.graduationDeadline);
+    manager.markRefundable(marketId);
+
+    // Every status-changing entry point reverts on a Refunded market — on its
+    // status guard or its access guard — so the status can never change again.
+    // (submitClearingRoot/finalizeGraduation require Graduating, which is
+    // unreachable because startGraduation itself reverts here.)
+    vm.expectRevert();
+    manager.approveMarket(marketId);
+    vm.expectRevert();
+    manager.rejectMarket(marketId);
+    vm.expectRevert();
+    manager.startGraduation(marketId);
+    vm.expectRevert();
+    manager.markRefundable(marketId);
+    vm.expectRevert();
+    manager.cancelMarket(marketId);
+
+    assertEq(
+      uint8(manager.getMarketState(marketId).status),
+      uint8(MarketTypes.MarketStatus.Refunded)
+    );
+  }
+
   function test_HashReceiptClaimIsDeterministic() public view {
     MarketTypes.ReceiptClaim memory claim = MarketTypes.ReceiptClaim({
       marketId: 1,
