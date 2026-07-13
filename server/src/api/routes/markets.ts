@@ -15,6 +15,9 @@ import {
   DevMarketCloseResponseSchema,
   DevMarketGraduateIneligibleSchema,
   DevMarketGraduateResponseSchema,
+  DevMarketResolveIneligibleSchema,
+  DevMarketResolveResponseSchema,
+  DevMarketResolveSideSchema,
   GraduationIneligibleSchema,
   GraduationResponseSchema,
   GraduationSummarySchema,
@@ -53,6 +56,7 @@ import {
   graduateDevMarket,
   graduateLocalMarketOnChain,
 } from "src/api/services/dev-market-graduate";
+import { resolveDevMarket } from "src/api/services/dev-market-resolve";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -88,6 +92,9 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     DevMarketCloseResponse: DevMarketCloseResponseSchema,
     DevMarketGraduateIneligible: DevMarketGraduateIneligibleSchema,
     DevMarketGraduateResponse: DevMarketGraduateResponseSchema,
+    DevMarketResolveIneligible: DevMarketResolveIneligibleSchema,
+    DevMarketResolveResponse: DevMarketResolveResponseSchema,
+    DevMarketResolveSide: DevMarketResolveSideSchema,
     GraduationIneligible: GraduationIneligibleSchema,
     GraduationResponse: GraduationResponseSchema,
     GraduationSummary: GraduationSummarySchema,
@@ -326,6 +333,69 @@ const marketRoutesWithDevTools =
               summary: "Dev-only close pre-grad market for refunds",
               description:
                 "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+              tags: ["Development"],
+            },
+          },
+        )
+        .post(
+          "/dev/markets/:chainId/:marketId/resolve/:side",
+          async ({ params, set }) => {
+            const result = await resolveDevMarket({
+              chainId: Number.parseInt(params.chainId, 10),
+              marketId: params.marketId,
+              side: params.side,
+            });
+
+            if (result.kind === "resolved") {
+              return {
+                market: result.market,
+                status: "resolved" as const,
+                ...(result.transactionHash
+                  ? { transactionHash: result.transactionHash }
+                  : {}),
+                winningSide: result.winningSide,
+              };
+            }
+
+            if (result.kind === "ineligible") {
+              set.status = 409;
+              return {
+                market: result.market,
+                message: result.message,
+                reason: result.reason,
+                status: "ineligible" as const,
+              };
+            }
+
+            if (result.kind === "dev_disabled") {
+              set.status = 404;
+              return "Not found";
+            }
+
+            set.status =
+              result.kind === "invalid_market_id" ||
+              result.kind === "invalid_side"
+                ? 400
+                : 404;
+            return result.message;
+          },
+          {
+            params: t.Object({
+              chainId: t.String(),
+              marketId: t.String(),
+              side: t.String(),
+            }),
+            response: {
+              200: "DevMarketResolveResponse",
+              400: t.String(),
+              404: t.String(),
+              409: "DevMarketResolveIneligible",
+            },
+            detail: {
+              operationId: "resolveDevMarket",
+              summary: "Dev-only force resolve a postgrad market",
+              description:
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.",
               tags: ["Development"],
             },
           },

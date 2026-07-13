@@ -10,6 +10,8 @@ import type {
   DevMarketCloseResponse,
   DevMarketGraduateIneligible,
   DevMarketGraduateResponse,
+  DevMarketResolveIneligible,
+  DevMarketResolveResponse,
   GraduateDevMarketParams,
 } from ".././models";
 
@@ -70,6 +72,70 @@ export const closeDevMarket = async (
 
   const data: closeDevMarketResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as closeDevMarketResponse;
+};
+
+/**
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.
+ * @summary Dev-only force resolve a postgrad market
+ */
+export type resolveDevMarketResponse200 = {
+  data: DevMarketResolveResponse;
+  status: 200;
+};
+
+export type resolveDevMarketResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type resolveDevMarketResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type resolveDevMarketResponse409 = {
+  data: DevMarketResolveIneligible;
+  status: 409;
+};
+
+export type resolveDevMarketResponseSuccess = resolveDevMarketResponse200 & {
+  headers: Headers;
+};
+export type resolveDevMarketResponseError = (
+  | resolveDevMarketResponse400
+  | resolveDevMarketResponse404
+  | resolveDevMarketResponse409
+) & {
+  headers: Headers;
+};
+
+export type resolveDevMarketResponse =
+  | resolveDevMarketResponseSuccess
+  | resolveDevMarketResponseError;
+
+export const getResolveDevMarketUrl = (
+  chainId: string,
+  marketId: string,
+  side: string
+) => {
+  return `/dev/markets/${chainId}/${marketId}/resolve/${side}`;
+};
+
+export const resolveDevMarket = async (
+  chainId: string,
+  marketId: string,
+  side: string,
+  options?: RequestInit
+): Promise<resolveDevMarketResponse> => {
+  const res = await fetch(getResolveDevMarketUrl(chainId, marketId, side), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: resolveDevMarketResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as resolveDevMarketResponse;
 };
 
 /**

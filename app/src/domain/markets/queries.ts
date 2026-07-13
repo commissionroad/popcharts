@@ -11,6 +11,7 @@ import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
+export type DevMarketResolutionSide = "yes" | "no";
 
 export type MarketQueryOptions = {
   apiBaseUrl?: string;
@@ -146,6 +147,29 @@ export async function requestPregradMarketCloseForRefund(
   }
 
   return config.client.closePregradMarket(lookup);
+}
+
+export async function requestDevMarketResolution(
+  id: string,
+  side: DevMarketResolutionSide,
+  options: MarketQueryOptions = {}
+) {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    throw new Error("Dev market resolution requires API-backed market data.");
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    throw new Error("Dev market resolution requires a chain-prefixed market id.");
+  }
+
+  return config.client.resolveDevMarket({
+    ...lookup,
+    side,
+  });
 }
 
 function resolveMarketLookup(

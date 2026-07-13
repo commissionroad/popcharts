@@ -49,6 +49,9 @@ export type DevMarketGraduateIneligibleReason =
   | "chain_status"
   | "past_deadline"
   | "wrong_status";
+export type DevMarketResolveSide = "yes" | "no";
+export type DevMarketResolveIneligibleReason =
+  "already_resolved" | "chain_status" | "postgrad_missing" | "wrong_status";
 export type ManualAiReviewIneligibleReason =
   "missing_metadata" | "wrong_status";
 
@@ -260,6 +263,14 @@ export const VenuePoolSideSchema = t.Union(
   [t.Literal("yes"), t.Literal("no")],
   {
     $id: "VenuePoolSide",
+  },
+);
+
+/** Binary side accepted by the dev-only force resolve endpoint. */
+export const DevMarketResolveSideSchema = t.Union(
+  [t.Literal("yes"), t.Literal("no")],
+  {
+    $id: "DevMarketResolveSide",
   },
 );
 
@@ -562,6 +573,33 @@ export const DevMarketGraduateIneligibleSchema = t.Object(
     status: t.Literal("ineligible"),
   },
   { $id: "DevMarketGraduateIneligible" },
+);
+
+/** Result of a dev-only postgrad market resolution. */
+export const DevMarketResolveResponseSchema = t.Object(
+  {
+    market: t.Ref(MarketSchema),
+    status: t.Literal("resolved"),
+    transactionHash: t.Optional(t.String()),
+    winningSide: t.Ref(DevMarketResolveSideSchema),
+  },
+  { $id: "DevMarketResolveResponse" },
+);
+
+/** Dev-only resolution refusal, with the reason. */
+export const DevMarketResolveIneligibleSchema = t.Object(
+  {
+    message: t.String(),
+    market: t.Ref(MarketSchema),
+    reason: t.Union([
+      t.Literal("already_resolved"),
+      t.Literal("chain_status"),
+      t.Literal("postgrad_missing"),
+      t.Literal("wrong_status"),
+    ]),
+    status: t.Literal("ineligible"),
+  },
+  { $id: "DevMarketResolveIneligible" },
 );
 
 /** Operator request to enqueue a manual AI review. */

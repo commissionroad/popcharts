@@ -375,6 +375,84 @@
         }
       }
     },
+    "/dev/markets/{chainId}/{marketId}/resolve/{side}": {
+      "post": {
+        "operationId": "resolveDevMarket",
+        "summary": "Dev-only force resolve a postgrad market",
+        "description": "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.",
+        "tags": [
+          "Development"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "side",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketResolveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketResolveIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dev/markets/{chainId}/{marketId}/graduate": {
       "post": {
         "operationId": "graduateDevMarket",
@@ -1134,6 +1212,70 @@
             }
           }
         }
+      },
+      "DevMarketResolveIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "already_resolved",
+              "chain_status",
+              "postgrad_missing",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "DevMarketResolveResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "status",
+          "winningSide"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "resolved"
+            ]
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "winningSide": {
+            "$ref": "#/components/schemas/DevMarketResolveSide"
+          }
+        }
+      },
+      "DevMarketResolveSide": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ]
       },
       "GraduationIneligible": {
         "type": "object",
