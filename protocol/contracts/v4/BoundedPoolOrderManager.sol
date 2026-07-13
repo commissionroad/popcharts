@@ -19,6 +19,8 @@ import {IBoundedPoolOrderManager} from "./interfaces/IBoundedPoolOrderManager.so
 import {OrderBook} from "./libraries/OrderBook.sol";
 import {OrderValidation} from "./libraries/OrderValidation.sol";
 import {PackedOrderId, PackedOrderIdLibrary} from "./libraries/PackedOrderId.sol";
+import {DeferredExecutionStore} from "./libraries/DeferredExecutionStore.sol";
+import {PartialFillMath} from "./libraries/PartialFillMath.sol";
 import {ITokenPuller, V4DeltaSettlement} from "./libraries/V4DeltaSettlement.sol";
 
 /// @title BoundedPoolOrderManager
@@ -28,6 +30,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   using CurrencyLibrary for Currency;
   using OrderBook for OrderBook.Book;
   using PackedOrderIdLibrary for PackedOrderId;
+  using DeferredExecutionStore for DeferredExecutionStore.Store;
   using StateLibrary for IPoolManager;
 
   /// @notice Maker order represented as one-sided v4 pool liquidity.
@@ -46,24 +49,6 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     int24 indexedTick;
     uint128 liquidity;
     bool enablePartialFill;
-  }
-
-  /// @notice Deferred crossed-order batch awaiting resolver execution.
-  /// @param pending Whether the batch is still waiting for resolver work.
-  /// @param key Pool key for the deferred batch.
-  /// @param fromTick Pool tick observed before the original movement.
-  /// @param toTick Pool tick observed after the original movement.
-  /// @param sqrtPriceX96 Pool square-root price after the original movement.
-  /// @param nextOrderIndex Next deferred order index to process.
-  /// @param orderIds Crossed order IDs not processed in the immediate batch.
-  struct DeferredExecution {
-    bool pending;
-    PoolKey key;
-    int24 fromTick;
-    int24 toTick;
-    uint160 sqrtPriceX96;
-    uint256 nextOrderIndex;
-    PackedOrderId[] orderIds;
   }
 
   /// @notice Parameters for creating one maker order.
@@ -253,19 +238,6 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
   /// @param orderId Per-pool order ID.
   /// @param thresholdTick Tick where the order remains indexed.
   event OrderRequeued(PoolId indexed poolId, uint32 indexed orderId, int24 thresholdTick);
-  /// @notice Emitted when crossed orders are deferred for resolver work.
-  /// @param executionId Deferred execution ID.
-  /// @param poolId Pool containing the deferred orders.
-  /// @param fromTick Pool tick before the original movement.
-  /// @param toTick Pool tick after the original movement.
-  /// @param orderCount Number of order IDs stored for resolver work.
-  event DeferredExecutionStored(
-    bytes32 indexed executionId,
-    PoolId indexed poolId,
-    int24 fromTick,
-    int24 toTick,
-    uint256 orderCount
-  );
   /// @notice Emitted when a resolver processes a deferred execution batch.
   /// @param executionId Deferred execution ID.
   /// @param poolId Pool containing the deferred orders.
@@ -296,9 +268,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
 
   mapping(PoolId => OrderBook.Book) private _orderBooks;
   mapping(PoolId => mapping(uint32 => Order)) private _orders;
-  mapping(bytes32 => DeferredExecution) private _deferredExecutions;
-
-  uint256 private _deferredExecutionNonce;
+  DeferredExecutionStore.Store private _deferredExecutions;
 
   /// @notice Records the pool manager, token-puller, and owner.
   /// @param poolManager_ v4 pool manager.
@@ -376,7 +346,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     PoolId poolId = params.key.toId();
     _validateCreateOrder(params, poolId);
 
-    liquidity = _liquidityForAmount(
+    liquidity = PartialFillMath.liquidityForAmount(
       params.zeroForOne,
       params.tickLower,
       params.tickUpper,
@@ -447,7 +417,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     uint128 liquidity,
     uint256 amountIn
   ) private {
-    int24 indexedTick = _initialIndexedTick(
+    int24 indexedTick = PartialFillMath.initialIndexedTick(
       params.zeroForOne,
       params.tickLower,
       params.tickUpper,
@@ -548,7 +518,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       maximumExecutionCount
     );
     if (processedCount < crossedOrderIds.length) {
-      _storeDeferredExecution(
+      _deferredExecutions.store(
         key,
         poolId,
         fromTick,
@@ -572,7 +542,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     if (msg.sender != owner() && !resolverRole[msg.sender]) {
       revert UnauthorizedResolver(msg.sender);
     }
-    if (!_deferredExecutions[executionId].pending) {
+    if (!_deferredExecutions.isPending(executionId)) {
       revert DeferredExecutionNotFound(executionId);
     }
 
@@ -625,7 +595,9 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       uint256 remainingOrderCount
     )
   {
-    DeferredExecution storage execution = _deferredExecutions[executionId];
+    DeferredExecutionStore.DeferredExecution storage execution = _deferredExecutions.at(
+      executionId
+    );
     orderCount = execution.orderIds.length;
     nextOrderIndex = execution.nextOrderIndex;
     pending = execution.pending;
@@ -705,7 +677,9 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       data,
       (ResolveDeferredExecutionCallbackData)
     );
-    DeferredExecution storage execution = _deferredExecutions[callbackData.executionId];
+    DeferredExecutionStore.DeferredExecution storage execution = _deferredExecutions.at(
+      callbackData.executionId
+    );
     if (!execution.pending) {
       revert DeferredExecutionNotFound(callbackData.executionId);
     }
@@ -719,7 +693,12 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       executionCount = remainingOrderCount;
     }
 
-    int24 adjustedToTick = _adjustedDeferredToTick(poolId, execution.fromTick, execution.toTick);
+    int24 adjustedToTick = DeferredExecutionStore.adjustedToTick(
+      poolManager,
+      poolId,
+      execution.fromTick,
+      execution.toTick
+    );
     for (uint256 i = 0; i < executionCount; ++i) {
       PackedOrderId orderId = execution.orderIds[execution.nextOrderIndex];
       _processOrderId(key, poolId, execution.fromTick, adjustedToTick, orderId);
@@ -728,7 +707,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
 
     bool complete = execution.nextOrderIndex == orderCount;
     if (complete) {
-      delete _deferredExecutions[callbackData.executionId];
+      _deferredExecutions.remove(callbackData.executionId);
     }
 
     emit DeferredExecutionResolved(callbackData.executionId, poolId, executionCount, complete);
@@ -793,64 +772,11 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     emit OrderRequeued(poolId, orderId, order.indexedTick);
   }
 
-  function _storeDeferredExecution(
-    PoolKey memory key,
-    PoolId poolId,
-    int24 fromTick,
-    int24 toTick,
-    uint160 sqrtPriceX96,
-    PackedOrderId[] memory orderIds,
-    uint256 startIndex
-  ) private returns (bytes32 executionId) {
-    uint256 orderCount = orderIds.length - startIndex;
-    ++_deferredExecutionNonce;
-    executionId = keccak256(
-      abi.encode(
-        block.chainid,
-        address(this),
-        poolId,
-        fromTick,
-        toTick,
-        sqrtPriceX96,
-        orderCount,
-        _deferredExecutionNonce
-      )
-    );
-
-    DeferredExecution storage execution = _deferredExecutions[executionId];
-    execution.pending = true;
-    execution.key = key;
-    execution.fromTick = fromTick;
-    execution.toTick = toTick;
-    execution.sqrtPriceX96 = sqrtPriceX96;
-    for (uint256 i = startIndex; i < orderIds.length; ++i) {
-      execution.orderIds.push(orderIds[i]);
-    }
-
-    emit DeferredExecutionStored(executionId, poolId, fromTick, toTick, orderCount);
-  }
-
   function _executionLimit(uint256 requestedExecutionCount) private view returns (uint256 limit) {
     limit = maximumExecutionCount;
     if (requestedExecutionCount != 0 && requestedExecutionCount < limit) {
       return requestedExecutionCount;
     }
-  }
-
-  function _adjustedDeferredToTick(
-    PoolId poolId,
-    int24 fromTick,
-    int24 toTick
-  ) private view returns (int24 adjustedToTick) {
-    (, int24 currentTick, , ) = poolManager.getSlot0(poolId);
-    if (toTick > fromTick) {
-      return currentTick <= fromTick ? fromTick : currentTick;
-    }
-    if (toTick < fromTick) {
-      return currentTick >= fromTick ? fromTick : currentTick;
-    }
-
-    return toTick;
   }
 
   function _executeOrder(
@@ -876,19 +802,6 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
 
     delete _orders[poolId][orderId];
     emit OrderFilled(poolId, orderId, order.owner, amount0, amount1);
-  }
-
-  function _initialIndexedTick(
-    bool zeroForOne,
-    int24 tickLower,
-    int24 tickUpper,
-    bool enablePartialFill
-  ) private pure returns (int24 indexedTick) {
-    if (enablePartialFill) {
-      return OrderValidation.partialThresholdTick(zeroForOne, tickLower, tickUpper);
-    }
-
-    return OrderValidation.thresholdTick(zeroForOne, tickLower, tickUpper);
   }
 
   function _executePartialOrder(
@@ -945,13 +858,15 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
       _positionSalt(orderId),
       ""
     );
-    (result.tickLower, result.tickUpper, result.indexedTick) = _remainingPartialRange(
+    (result.tickLower, result.tickUpper, result.indexedTick) = PartialFillMath.remainingRange(
       key.tickSpacing,
-      order,
+      order.zeroForOne,
+      order.tickLower,
+      order.tickUpper,
       toTick
     );
 
-    result.remainingLiquidity = _remainingPartialLiquidity(
+    result.remainingLiquidity = PartialFillMath.remainingLiquidity(
       order.zeroForOne,
       result.tickLower,
       result.tickUpper,
@@ -999,70 +914,6 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     _orderBooks[poolId].insert(result.indexedTick, packedOrderId);
   }
 
-  function _remainingPartialRange(
-    int24 tickSpacing,
-    Order memory order,
-    int24 toTick
-  ) private pure returns (int24 tickLower, int24 tickUpper, int24 indexedTick) {
-    if (order.zeroForOne) {
-      tickLower = _ceilToSpacing(toTick, tickSpacing);
-      if (tickLower < order.tickLower) {
-        tickLower = order.tickLower;
-      }
-      tickUpper = order.tickUpper;
-      if (tickLower >= tickUpper) {
-        return (tickUpper, tickUpper, tickUpper);
-      }
-
-      indexedTick = tickLower;
-      if (toTick == tickLower) {
-        indexedTick = tickLower + tickSpacing;
-      }
-      if (indexedTick > tickUpper) {
-        indexedTick = tickUpper;
-      }
-      return (tickLower, tickUpper, indexedTick);
-    }
-
-    tickLower = order.tickLower;
-    tickUpper = _floorToSpacing(toTick, tickSpacing);
-    if (tickUpper > order.tickUpper) {
-      tickUpper = order.tickUpper;
-    }
-    if (tickUpper <= tickLower) {
-      return (tickLower, tickLower, tickLower);
-    }
-
-    indexedTick = tickUpper;
-    if (toTick == tickUpper) {
-      indexedTick = tickUpper - tickSpacing;
-    }
-    if (indexedTick < tickLower) {
-      indexedTick = tickLower;
-    }
-  }
-
-  function _remainingPartialLiquidity(
-    bool zeroForOne,
-    int24 tickLower,
-    int24 tickUpper,
-    BalanceDelta removedDelta
-  ) private pure returns (uint128 remainingLiquidity) {
-    if (tickLower >= tickUpper) {
-      return 0;
-    }
-
-    uint256 remainingInputAmount =
-      zeroForOne
-        ? V4DeltaSettlement.positiveDeltaAmount0(removedDelta)
-        : V4DeltaSettlement.positiveDeltaAmount1(removedDelta);
-    if (remainingInputAmount == 0) {
-      return 0;
-    }
-
-    return _liquidityForAmount(zeroForOne, tickLower, tickUpper, remainingInputAmount);
-  }
-
   function _modifyLiquidity(
     PoolKey memory key,
     int24 tickLower,
@@ -1099,46 +950,7 @@ contract BoundedPoolOrderManager is Ownable, IUnlockCallback, IBoundedPoolOrderM
     }
   }
 
-  function _liquidityForAmount(
-    bool zeroForOne,
-    int24 tickLower,
-    int24 tickUpper,
-    uint256 amount
-  ) private pure returns (uint128 liquidity) {
-    uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
-    uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
-    if (zeroForOne) {
-      return LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
-    }
-
-    return LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceUpper, amount);
-  }
-
   function _positionSalt(uint32 orderId) private pure returns (bytes32) {
     return bytes32(uint256(orderId));
-  }
-
-  function _ceilToSpacing(int24 tick, int24 tickSpacing) private pure returns (int24) {
-    int24 floorTick = _floorToSpacing(tick, tickSpacing);
-    if (floorTick == tick) {
-      return floorTick;
-    }
-
-    return floorTick + tickSpacing;
-  }
-
-  function _floorToSpacing(int24 tick, int24 tickSpacing) private pure returns (int24) {
-    if (tickSpacing <= 0) {
-      revert OrderValidation.InvalidTickSpacing(tickSpacing);
-    }
-
-    int256 tickValue = int256(tick);
-    int256 spacingValue = int256(tickSpacing);
-    int256 quotient = tickValue / spacingValue;
-    if (tickValue < 0 && tickValue % spacingValue != 0) {
-      --quotient;
-    }
-
-    return int24(quotient * spacingValue);
   }
 }

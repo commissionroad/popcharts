@@ -26,6 +26,7 @@ import {
   BoundedPoolOrderManager,
   ITokenPuller
 } from "../../contracts/v4/BoundedPoolOrderManager.sol";
+import {DeferredExecutionStore} from "../../contracts/v4/libraries/DeferredExecutionStore.sol";
 import {IBoundedPoolOrderManager} from "../../contracts/v4/interfaces/IBoundedPoolOrderManager.sol";
 import {MinimalV4SwapRouter} from "../../contracts/v4/MinimalV4SwapRouter.sol";
 import {PoolTickBounds} from "../../contracts/v4/PoolTickBounds.sol";
@@ -473,7 +474,7 @@ contract BoundedPoolOrderManagerTest is Test {
       Vm.Log memory entry = entries[i - 1];
       if (
         entry.topics.length > 1 &&
-        entry.topics[0] == BoundedPoolOrderManager.DeferredExecutionStored.selector
+        entry.topics[0] == DeferredExecutionStore.DeferredExecutionStored.selector
       ) {
         return entry.topics[1];
       }
