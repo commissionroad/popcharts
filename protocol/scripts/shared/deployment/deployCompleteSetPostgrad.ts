@@ -4,6 +4,7 @@ import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } fr
 
 import { mineHookSalt } from "../contract/mineHookSalt.js";
 import { hasBytecode } from "./deterministicFactory.js";
+import { ensureTokenPullerBytecode } from "./tokenPuller.js";
 
 // Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
 // requires its deployment address to encode: beforeSwap (1 << 7) and
@@ -49,6 +50,13 @@ export async function deployCompleteSetPostgradContracts(
 ): Promise<PostgradVenueContracts> {
   const { connection, deployerAddress, walletClient } = args;
   const publicClient = await connection.viem.getPublicClient();
+  const tokenPullerMode = await ensureTokenPullerBytecode({
+    chainId: await publicClient.getChainId(),
+    connection,
+    publicClient,
+    tokenPuller: args.transferApproval,
+  });
+  console.log(`Order-manager token puller ready at ${args.transferApproval} (${tokenPullerMode}).`);
 
   const poolTickBounds = await connection.viem.deployContract("PoolTickBounds", [deployerAddress]);
   const poolTickBoundsAddress = getAddress(poolTickBounds.address);
