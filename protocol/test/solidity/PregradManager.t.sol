@@ -1410,9 +1410,7 @@ contract PregradManagerTest is BaseTest {
     assertEq(collateral.balanceOf(buyer), balanceBefore + quote.cost);
     assertEq(collateral.balanceOf(address(manager)), 0);
 
-    vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.ReceiptAlreadyClaimed.selector, receiptId)
-    );
+    vm.expectRevert(abi.encodeWithSelector(ReceiptBook.ReceiptAlreadyClaimed.selector, receiptId));
     manager.claimRefundedReceipt(receiptId);
   }
 
