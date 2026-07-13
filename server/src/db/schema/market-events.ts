@@ -236,6 +236,32 @@ export const marketRefundsAvailableEvents = pgTable(
   ],
 );
 
+/** MarketCancelled logs — owner cancelled an inappropriate market, full refunds. */
+export const marketCancelledEvents = pgTable(
+  "market_cancelled_events",
+  {
+    id: serial("id").primaryKey(),
+    chainId: integer("chain_id").notNull(),
+    contractId: integer("contract_id")
+      .notNull()
+      .references(() => contracts.id),
+    blockNumber: bigint("block_number", { mode: "bigint" }).notNull(),
+    blockTimestamp: timestamp("block_timestamp").notNull(),
+    transactionHash: text("transaction_hash").notNull(),
+    logIndex: integer("log_index").notNull(),
+    marketId: bigint("market_id", { mode: "bigint" }).notNull(),
+    totalEscrowed: uint256("total_escrowed").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("market_cancelled_events_chain_tx_log_idx").on(
+      table.chainId,
+      table.transactionHash,
+      table.logIndex,
+    ),
+  ],
+);
+
 /**
  * GraduatedReceiptClaimed logs — per-receipt settlement claims, additionally
  * unique per (chain, receipt) because a receipt can only be claimed once.
