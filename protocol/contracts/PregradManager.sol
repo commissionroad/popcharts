@@ -9,12 +9,13 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IPostgradAdapter} from "./postgrad/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
 import {CreationFeeVault} from "./CreationFeeVault.sol";
+import {ReceiptBook} from "./ReceiptBook.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
 /// @title PregradManager
 /// @author Pop Charts
 /// @notice Singleton manager for all Pop Charts pre-graduation markets.
-contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
+contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBook {
   using SafeERC20 for IERC20;
 
   /// @notice Longest clearing challenge window the owner may configure.
@@ -78,8 +79,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   error MarketCreationPaused();
   /// @notice Reverts when owner configuration targets the zero account.
   error InvalidTrustedCreator();
-  /// @notice Reverts when a receipt is placed or quoted with zero shares.
-  error InvalidShares();
   /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
   /// @param cost Current quoted receipt cost.
   /// @param maxCost Maximum cost accepted by the buyer.
@@ -91,9 +90,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @notice Reverts when a market-scoped operation references an unknown market.
   /// @param marketId Market ID that does not exist.
   error MarketDoesNotExist(uint256 marketId);
-  /// @notice Reverts when a receipt-scoped operation references an unknown receipt.
-  /// @param receiptId Receipt ID that does not exist.
-  error ReceiptDoesNotExist(uint256 receiptId);
   /// @notice Reverts when a market operation is attempted in the wrong lifecycle status.
   /// @param marketId Market whose status failed the guard.
   /// @param actual Current market status.
@@ -111,9 +107,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @param marketId Market whose graduation deadline has not passed.
   /// @param graduationDeadline Market graduation deadline.
   error MarketBeforeGraduationDeadline(uint256 marketId, uint64 graduationDeadline);
-  /// @notice Reverts when the per-market receipt sequence cannot fit in uint64.
-  /// @param receiptCount Receipt count that would overflow the stored sequence type.
-  error ReceiptCountOverflow(uint256 receiptCount);
   /// @notice Reverts when an account is not allowed to manage graduation.
   /// @param account Unauthorized account.
   error UnauthorizedGraduationManager(address account);
@@ -162,9 +155,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   error InvalidPostgradAdapter();
   /// @notice The adapter reported an outcome capacity that does not match the clearing root.
   error PostgradCapacityMismatch(uint256 expected, uint256 actual);
-  /// @notice Reverts when a receipt has already been settled.
-  /// @param receiptId Receipt that is no longer active.
-  error ReceiptAlreadyClaimed(uint256 receiptId);
   /// @notice Reverts when a receipt claim does not match the stored receipt.
   /// @param receiptId Receipt whose claim payload is invalid.
   error InvalidReceiptClaim(uint256 receiptId);
@@ -223,28 +213,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @param previousPeriod Challenge period replaced by this update.
   /// @param newPeriod Challenge period applied to future clearing root submissions.
   event ClearingChallengePeriodUpdated(uint64 previousPeriod, uint64 newPeriod);
-
-  /// @notice Emitted when a locked pre-graduation receipt is placed.
-  /// @param receiptId Canonical receipt ID.
-  /// @param marketId Market that owns the receipt.
-  /// @param owner Account that owns the receipt.
-  /// @param side YES or NO side purchased by the receipt.
-  /// @param shares Provisional share quantity swept by the receipt.
-  /// @param cost Collateral transferred into escrow for the receipt.
-  /// @param rLow Lower bound of the LMSR path interval traversed by the receipt.
-  /// @param rHigh Upper bound of the LMSR path interval traversed by the receipt.
-  /// @param sequence Per-market receipt sequence.
-  event ReceiptPlaced(
-    uint256 indexed receiptId,
-    uint256 indexed marketId,
-    address indexed owner,
-    MarketTypes.Side side,
-    uint256 shares,
-    uint256 cost,
-    int256 rLow,
-    int256 rHigh,
-    uint64 sequence
-  );
 
   /// @notice Emitted when the manager locks a market's receipt book for offchain clearing.
   /// @param marketId Market entering the Graduating lifecycle state.
@@ -344,9 +312,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   );
 
   uint256 private _nextMarketId = 1;
-  uint256 private _nextReceiptId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
-  mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
   mapping(uint256 marketId => address) private _postgradAdapters;
   mapping(address account => bool trusted) private _trustedCreators;
@@ -515,22 +481,10 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     return _nextMarketId;
   }
 
-  /// @notice Returns the next receipt ID that will be assigned.
-  /// @return Next receipt ID.
-  function nextReceiptId() external view returns (uint256) {
-    return _nextReceiptId;
-  }
-
   /// @notice Returns the total number of markets created.
   /// @return Number of markets created by this manager.
   function marketCount() external view returns (uint256) {
     return _nextMarketId - 1;
-  }
-
-  /// @notice Returns the total number of receipts created.
-  /// @return Number of receipts created by this manager.
-  function totalReceiptCount() external view returns (uint256) {
-    return _nextReceiptId - 1;
   }
 
   /// @notice Returns whether `marketId` exists.
@@ -538,13 +492,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @return True if the market exists.
   function marketExists(uint256 marketId) public view returns (bool) {
     return marketId != 0 && marketId < _nextMarketId;
-  }
-
-  /// @notice Returns whether `receiptId` exists.
-  /// @param receiptId Receipt ID to check.
-  /// @return True if the receipt exists.
-  function receiptExists(uint256 receiptId) public view returns (bool) {
-    return receiptId != 0 && receiptId < _nextReceiptId;
   }
 
   /// @notice Returns immutable market configuration.
@@ -563,14 +510,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   function getMarketState(uint256 marketId) external view returns (MarketTypes.MarketState memory) {
     _requireMarketExists(marketId);
     return _markets[marketId].state;
-  }
-
-  /// @notice Returns a stored locked receipt.
-  /// @param receiptId Receipt ID to read.
-  /// @return Locked receipt record.
-  function getReceipt(uint256 receiptId) external view returns (MarketTypes.Receipt memory) {
-    _requireReceiptExists(receiptId);
-    return _receipts[receiptId];
   }
 
   /// @notice Returns whether `account` can review markets.
@@ -682,8 +621,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
       revert CostExceedsLimit(quote.cost, params.maxCost);
     }
 
-    receiptId = _nextReceiptId;
-    ++_nextReceiptId;
+    receiptId = _allocateReceiptId();
 
     uint64 sequence = _storeReceipt(receiptId, market, params, quote);
 
@@ -839,7 +777,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
 
     MarketTypes.MarketRecord storage market = _markets[claim.marketId];
     _requireGraduatedMarket(claim.marketId, market);
-    MarketTypes.Receipt storage receipt = _receipts[claim.receiptId];
+    MarketTypes.Receipt storage receipt = _receiptAt(claim.receiptId);
     _validateReceiptClaim(claim, receipt);
     _verifyReceiptClaim(claim, proof, _requireClearingRoot(claim.marketId));
 
@@ -889,7 +827,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   function claimRefundedReceipt(uint256 receiptId) external nonReentrant {
     _requireReceiptExists(receiptId);
 
-    MarketTypes.Receipt storage receipt = _receipts[receiptId];
+    MarketTypes.Receipt storage receipt = _receiptAt(receiptId);
     MarketTypes.MarketRecord storage market = _markets[receipt.marketId];
     _requireRefundedMarket(receipt.marketId, market);
     _requireActiveReceipt(receiptId, receipt);
@@ -924,17 +862,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
       market.state.noShares += params.shares;
     }
 
-    _receipts[receiptId] = MarketTypes.Receipt({
-      marketId: params.marketId,
-      owner: msg.sender,
-      side: params.side,
-      shares: params.shares,
-      cost: quote.cost,
-      rLow: quote.rLow,
-      rHigh: quote.rHigh,
-      sequence: sequence,
-      active: true
-    });
+    _insertReceipt(receiptId, msg.sender, params, quote, sequence);
   }
 
   /// @notice Validates immutable market creation inputs.
@@ -1071,14 +999,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
         shares,
         market.config.liquidityParameter
       );
-  }
-
-  /// @notice Validates that a receipt quote or placement has nonzero shares.
-  /// @param shares Provisional share quantity to validate.
-  function _validateReceiptShares(uint256 shares) private pure {
-    if (shares == 0) {
-      revert InvalidShares();
-    }
   }
 
   /// @notice Validates an optimistic clearing root against a graduating market.
@@ -1278,14 +1198,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     }
   }
 
-  /// @notice Requires a receipt ID to exist.
-  /// @param receiptId Receipt ID to check.
-  function _requireReceiptExists(uint256 receiptId) private view {
-    if (!receiptExists(receiptId)) {
-      revert ReceiptDoesNotExist(receiptId);
-    }
-  }
-
   /// @notice Requires a clearing root to be present for a market.
   /// @param marketId Market ID to check.
   /// @return clearingRoot Stored clearing root.
@@ -1296,30 +1208,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     if (clearingRoot.merkleRoot == bytes32(0)) {
       revert ClearingRootMissing(marketId);
     }
-  }
-
-  /// @notice Requires a receipt to still be unsettled.
-  /// @param receiptId Receipt ID to check.
-  /// @param receipt Receipt storage record being guarded.
-  function _requireActiveReceipt(
-    uint256 receiptId,
-    MarketTypes.Receipt storage receipt
-  ) private view {
-    if (!receipt.active) {
-      revert ReceiptAlreadyClaimed(receiptId);
-    }
-  }
-
-  /// @notice Computes the next uint64 per-market receipt sequence.
-  /// @param receiptCount Current per-market receipt count.
-  /// @return Next per-market receipt sequence.
-  function _nextReceiptSequence(uint256 receiptCount) private pure returns (uint64) {
-    uint256 nextSequence = receiptCount + 1;
-    if (nextSequence > type(uint64).max) {
-      revert ReceiptCountOverflow(nextSequence);
-    }
-
-    return uint64(nextSequence);
   }
 
   /// @notice Computes the hash for a market's graduation snapshot.
