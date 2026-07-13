@@ -108,6 +108,12 @@ local-market-health:
 local-market-smoke *args:
     pnpm run local:market-smoke -- {{args}}
 
+# Emergency operator kill switch: cancel an Active market and open full refunds.
+# Accepts a bare marketId ("9") or the composite "chainId:marketId" copied from
+# the market detail URL ("31337:9").
+cancel-market marketId:
+    POPCHARTS_CANCEL_MARKET_ID="{{marketId}}" pnpm run local:cancel-market
+
 scripts-check:
     pnpm run scripts:check
 
