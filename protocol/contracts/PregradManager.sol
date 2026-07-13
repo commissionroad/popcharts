@@ -297,6 +297,11 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
   /// @param totalEscrowed Escrow available for future refund claims.
   event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed);
 
+  /// @notice Emitted when an owner cancels an active market for moderation and opens full refunds.
+  /// @param marketId Market that was cancelled.
+  /// @param totalEscrowed Escrow available for future refund claims.
+  event MarketCancelled(uint256 indexed marketId, uint256 totalEscrowed);
+
   /// @notice Emitted when an accepted clearing root becomes the final graduation settlement.
   /// @param marketId Market whose clearing root was finalized.
   /// @param postgradAdapter Adapter that prepared the postgrad market.
@@ -884,14 +889,33 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     emit MarketRefundsAvailable(marketId, market.state.totalEscrowed);
   }
 
-  /// @notice Refunds a receipt from a market that missed graduation.
+  /// @notice Cancels an active market for content moderation and opens full refunds.
+  /// @dev Owner-only kill switch for an inappropriate market that already went
+  ///      Active with bettor escrow. Unlike `markRefundable` it is not gated on
+  ///      the graduation deadline, so a live market can be stopped immediately.
+  ///      Refunds flow through the same `claimRefundedReceipt` path; the distinct
+  ///      Cancelled status separates "removed by moderation" from "missed
+  ///      deadline". See protocol ADR 0011.
+  /// @param marketId Market to cancel.
+  function cancelMarket(uint256 marketId) external onlyOwner {
+    _requireMarketExists(marketId);
+
+    MarketTypes.MarketRecord storage market = _markets[marketId];
+    _requireActiveMarket(marketId, market);
+
+    market.state.status = MarketTypes.MarketStatus.Cancelled;
+
+    emit MarketCancelled(marketId, market.state.totalEscrowed);
+  }
+
+  /// @notice Refunds a receipt from a market that missed graduation or was cancelled.
   /// @param receiptId Receipt whose full escrowed cost should be returned.
   function claimRefundedReceipt(uint256 receiptId) external nonReentrant {
     _requireReceiptExists(receiptId);
 
     MarketTypes.Receipt storage receipt = _receipts[receiptId];
     MarketTypes.MarketRecord storage market = _markets[receipt.marketId];
-    _requireRefundedMarket(receipt.marketId, market);
+    _requireRefundClaimableMarket(receipt.marketId, market);
     _requireActiveReceipt(receiptId, receipt);
 
     receipt.active = false;
@@ -1209,15 +1233,20 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault {
     }
   }
 
-  /// @notice Requires a market to be in Refunded status.
+  /// @notice Requires a market to be refund-claimable: Refunded (missed
+  ///         deadline) or Cancelled (removed by moderation). Both open full
+  ///         receipt refunds through the same claim path (protocol ADR 0011).
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
-  function _requireRefundedMarket(
+  function _requireRefundClaimableMarket(
     uint256 marketId,
     MarketTypes.MarketRecord storage market
   ) private view {
-    if (market.state.status != MarketTypes.MarketStatus.Refunded) {
-      revert InvalidMarketStatus(marketId, market.state.status, MarketTypes.MarketStatus.Refunded);
+    MarketTypes.MarketStatus status = market.state.status;
+    if (
+      status != MarketTypes.MarketStatus.Refunded && status != MarketTypes.MarketStatus.Cancelled
+    ) {
+      revert InvalidMarketStatus(marketId, status, MarketTypes.MarketStatus.Refunded);
     }
   }
 
