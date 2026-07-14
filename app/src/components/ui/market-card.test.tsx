@@ -6,17 +6,17 @@ import { marketFactory } from "@/test/factories/markets";
 import { MarketCard } from "./market-card";
 
 describe("MarketCard", () => {
-  it("links the question to the market page with an encoded id", () => {
+  it("links the entire card to the market page with an encoded id", () => {
     render(
       <MarketCard
         market={marketFactory({ id: "eth/5000", question: "Will ETH flip $5,000?" })}
       />
     );
 
-    expect(screen.getByRole("link", { name: "Will ETH flip $5,000?" })).toHaveAttribute(
-      "href",
-      "/markets/eth%2F5000"
-    );
+    const cardLink = screen.getByRole("link", { name: "Will ETH flip $5,000?" });
+
+    expect(cardLink).toHaveAttribute("href", "/markets/eth%2F5000");
+    expect(cardLink).toHaveClass("absolute", "inset-0");
   });
 
   it("shows the category, status, prices, volume, and liquidity", () => {
