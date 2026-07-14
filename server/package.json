@@ -31,7 +31,7 @@
     "start:indexer": "bun run src/indexer/index.ts",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "test:integration": "bun test int.test",
+    "test:integration": "bun run src/test-support/require-int-db-url.ts && bun test int.test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
