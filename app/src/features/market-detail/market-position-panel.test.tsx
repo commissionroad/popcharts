@@ -149,6 +149,14 @@ describe("MarketPositionPanel graduated positions", () => {
     // No priced position means no headline total.
     expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
   });
+
+  it("shows positions instead of receipts once the market resolves", () => {
+    render(<MarketPositionPanel market={graduatedMarket({ status: "resolved" })} />);
+
+    expect(screen.getByText("Your position")).toBeInTheDocument();
+    expect(screen.getByText("140 tok")).toBeInTheDocument();
+    expect(screen.queryByText("Your receipts")).not.toBeInTheDocument();
+  });
 });
 
 describe("MarketPositionPanel pre-graduation receipts", () => {

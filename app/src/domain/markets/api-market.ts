@@ -15,6 +15,7 @@ import type {
   Market,
   MarketCategory,
   MarketPostgradHandoff,
+  MarketResolution,
   MarketStatus,
   PricePathPoint,
 } from "./types";
@@ -45,8 +46,21 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     apiMarket.status === "graduated"
       ? venuePriceCents(apiMarket.postgrad?.venue)
       : null;
-  const yesPriceCents = venuePrices?.yesPriceCents ?? lmsrYesPriceCents;
-  const noPriceCents = venuePrices?.noPriceCents ?? 100 - lmsrYesPriceCents;
+  // A resolved market's prices are settled facts, not quotes: the winning
+  // side is worth exactly one collateral unit and the losing side nothing.
+  const resolvedPrices =
+    apiMarket.status === "resolved" && apiMarket.resolution?.winningSide
+      ? {
+          noPriceCents: apiMarket.resolution.winningSide === "no" ? 100 : 0,
+          yesPriceCents: apiMarket.resolution.winningSide === "yes" ? 100 : 0,
+        }
+      : null;
+  const yesPriceCents =
+    resolvedPrices?.yesPriceCents ?? venuePrices?.yesPriceCents ?? lmsrYesPriceCents;
+  const noPriceCents =
+    resolvedPrices?.noPriceCents ??
+    venuePrices?.noPriceCents ??
+    100 - lmsrYesPriceCents;
   const matchedMarketCap = wadToNumber(apiMarket.matchedMarketCap);
   const totalEscrowed = wadToNumber(apiMarket.totalEscrowed);
   const metadata = apiMarket.metadata;
@@ -88,6 +102,9 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     ...(apiMarket.postgrad
       ? { postgrad: apiPostgradToHandoff(apiMarket.postgrad) }
       : {}),
+    ...(apiMarket.resolution
+      ? { resolution: apiResolutionToResolution(apiMarket.resolution) }
+      : {}),
     ...(resolutionCriteria ? { resolutionCriteria } : {}),
     ...(resolutionSources.length > 0 ? { resolutionSources } : {}),
     ...(resolutionUrl ? { resolutionUrl } : {}),
@@ -123,6 +140,17 @@ function venuePriceCents(
   return {
     noPriceCents: wadToCents(noPriceWad),
     yesPriceCents: wadToCents(yesPriceWad),
+  };
+}
+
+function apiResolutionToResolution(
+  resolution: NonNullable<ApiMarket["resolution"]>
+): MarketResolution {
+  return {
+    kind: resolution.kind,
+    postgradMarket: resolution.postgradMarket,
+    resolvedAt: resolution.resolvedAt,
+    ...(resolution.winningSide ? { winningSide: resolution.winningSide } : {}),
   };
 }
 

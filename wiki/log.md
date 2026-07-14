@@ -369,3 +369,11 @@ invariant chosen as the first integration cargo over route breadth. Track C
 renamed "nightly full-fidelity tier" and broadened from scheduling existing
 smokes to growing new full-stack scenarios. Floor measured on unit tier
 only.
+
+## [2026-07-14] ingest | portfolio-data-design — postgrad_redemption_events added to paper-trail tables
+Pages: ~summaries/portfolio-data-design.md
+Notes: The claim-winnings build (resolution redemption UI) added the
+postgrad_redemption_events table indexing Redeemed/CancelledRedeemed from
+graduated CompleteSetBinaryMarkets — the first concrete realization of the
+invariant's "resolution redemption" clause. Doc bullet and summary updated;
+index line unchanged (already mentions the invariant).

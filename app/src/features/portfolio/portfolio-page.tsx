@@ -23,17 +23,20 @@ import {
   formatUsdWhole,
 } from "@/lib/format";
 
+import { PositionClaim } from "./position-claim";
 import { ReceiptSettlement } from "./receipt-settlement";
 
 /**
  * Database-backed portfolio: the connected wallet's pre-graduation receipts
  * (with their settlement results once markets graduate), graduated YES/NO
  * positions, and open venue orders — all read from the indexer, cross-market
- * and cross-device. Writes (claims, order cancels) stay on each market page.
+ * and cross-device. Most writes (refund claims, order cancels) stay on each
+ * market page; the one exception is redeeming a resolved market's winnings,
+ * which is offered directly on the position row as well as the market page.
  */
 export function PortfolioPage() {
   const wallet = useWalletAccount();
-  const { error, loading, portfolio } = usePortfolio({
+  const { error, loading, portfolio, refresh } = usePortfolio({
     chainId: configuredPopChartsChainId,
     owner: wallet.address,
   });
@@ -54,7 +57,12 @@ export function PortfolioPage() {
       </div>
 
       {wallet.address ? (
-        <ConnectedPortfolio error={error} loading={loading} portfolio={portfolio} />
+        <ConnectedPortfolio
+          error={error}
+          loading={loading}
+          onClaimed={refresh}
+          portfolio={portfolio}
+        />
       ) : (
         <NoticeCard
           body="Connect a wallet to see your receipts, graduated positions, and open orders across every market."
@@ -68,10 +76,12 @@ export function PortfolioPage() {
 function ConnectedPortfolio({
   error,
   loading,
+  onClaimed,
   portfolio,
 }: {
   error: string | null;
   loading: boolean;
+  onClaimed: () => void;
   portfolio: ReturnType<typeof usePortfolio>["portfolio"];
 }) {
   if (error) {
@@ -123,7 +133,7 @@ function ConnectedPortfolio({
         )}
 
         {portfolio.positions.length > 0 ? (
-          <PositionTable positions={portfolio.positions} />
+          <PositionTable onClaimed={onClaimed} positions={portfolio.positions} />
         ) : (
           <NoticeCard
             body="Graduated YES/NO outcome tokens you hold — or have resting in venue orders — will appear here once a market you backed graduates."
@@ -177,7 +187,13 @@ function ReceiptRow({ receipt }: { receipt: PortfolioReceipt }) {
   );
 }
 
-function PositionTable({ positions }: { positions: PortfolioPosition[] }) {
+function PositionTable({
+  onClaimed,
+  positions,
+}: {
+  onClaimed: () => void;
+  positions: PortfolioPosition[];
+}) {
   return (
     <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)]">
       <SectionHeader title="Backed positions" />
@@ -192,6 +208,7 @@ function PositionTable({ positions }: { positions: PortfolioPosition[] }) {
       {positions.map((position) => (
         <PositionRow
           key={`${position.marketId}:${position.side}`}
+          onClaimed={onClaimed}
           position={position}
         />
       ))}
@@ -199,7 +216,13 @@ function PositionTable({ positions }: { positions: PortfolioPosition[] }) {
   );
 }
 
-function PositionRow({ position }: { position: PortfolioPosition }) {
+function PositionRow({
+  onClaimed,
+  position,
+}: {
+  onClaimed: () => void;
+  position: PortfolioPosition;
+}) {
   return (
     <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.5fr_0.5fr_0.5fr_0.6fr]">
       <span>
@@ -220,15 +243,18 @@ function PositionRow({ position }: { position: PortfolioPosition }) {
       <span className="font-mono font-bold text-[var(--text-primary)]">
         {formatTokenAmount(BigInt(position.ownedTotal))}
       </span>
-      <span className="text-[var(--text-secondary)]">
-        {position.currentValueWad
-          ? formatUsd(wadToNumber(BigInt(position.currentValueWad)))
-          : "-"}
-        {position.poolPriceWad ? (
-          <span className="block font-mono text-[11px] text-[var(--text-muted)]">
-            at {formatCents(wadPriceToCents(BigInt(position.poolPriceWad)))}
-          </span>
-        ) : null}
+      <span className="flex flex-col items-start gap-1.5 text-[var(--text-secondary)]">
+        <span>
+          {position.currentValueWad
+            ? formatUsd(wadToNumber(BigInt(position.currentValueWad)))
+            : "-"}
+          {position.poolPriceWad ? (
+            <span className="block font-mono text-[11px] text-[var(--text-muted)]">
+              at {formatCents(wadPriceToCents(BigInt(position.poolPriceWad)))}
+            </span>
+          ) : null}
+        </span>
+        <PositionClaim onClaimed={onClaimed} position={position} />
       </span>
     </div>
   );

@@ -5,6 +5,8 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
+import type { MarketStatus } from "./marketStatus";
+import type { MarketResolution } from "./marketResolution";
 import type { VenuePoolSide } from "./venuePoolSide";
 
 export interface PortfolioPosition {
@@ -15,9 +17,11 @@ export interface PortfolioPosition {
   heldBalance: string;
   marketId: string;
   marketQuestion?: string;
+  marketStatus?: MarketStatus;
   outcomeToken: string;
   ownedTotal: string;
   poolId?: string;
   poolPriceWad?: string;
+  resolution?: MarketResolution;
   side: VenuePoolSide;
 }

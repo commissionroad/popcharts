@@ -43,7 +43,9 @@ export function MarketPositionPanel({ market }: { market: Market }) {
     return null;
   }
 
-  const graduated = market.status === "graduated";
+  // Graduated and resolved markets both live in outcome-token positions; the
+  // receipt view only applies while the receipt book is still the market.
+  const graduated = market.status === "graduated" || market.status === "resolved";
   const positions = graduated
     ? portfolio.positions.filter((position) => position.marketId === marketId)
     : [];

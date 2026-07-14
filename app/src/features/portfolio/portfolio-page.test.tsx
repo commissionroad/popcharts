@@ -4,7 +4,7 @@ import type {
   PortfolioPosition,
   PortfolioReceipt,
 } from "@popcharts/api-client/models";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configuredPopChartsChainId } from "@/integrations/contracts/config";
@@ -13,11 +13,16 @@ import { PortfolioPage } from "./portfolio-page";
 
 const usePortfolio = vi.hoisted(() => vi.fn());
 const useWalletAccount = vi.hoisted(() => vi.fn());
+const useRedemption = vi.hoisted(() => vi.fn());
 
 vi.mock("./use-portfolio", () => ({ usePortfolio }));
 
 vi.mock("@/integrations/wallet/wallet-provider", () => ({
   useWalletAccount,
+}));
+
+vi.mock("@/integrations/contracts/hooks/use-redemption", () => ({
+  useRedemption,
 }));
 
 const OWNER = "0x1111111111111111111111111111111111111111";
@@ -32,6 +37,13 @@ beforeEach(() => {
     loading: false,
     portfolio: portfolioFixture(),
     refresh: vi.fn(),
+  });
+  useRedemption.mockReset();
+  useRedemption.mockReturnValue({
+    error: null,
+    redeem: vi.fn(),
+    result: null,
+    status: "idle",
   });
 });
 
@@ -274,6 +286,62 @@ describe("PortfolioPage positions", () => {
     expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
     expect(screen.queryByText(/avg cost/)).not.toBeInTheDocument();
   });
+
+  it("claims a resolved winning-side held balance from the value column", () => {
+    const redeem = vi.fn();
+    useRedemption.mockReturnValue({
+      error: null,
+      redeem,
+      result: null,
+      status: "idle",
+    });
+    const refresh = vi.fn();
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [
+          positionFixture({
+            marketStatus: "resolved",
+            resolution: resolutionFixture(),
+          }),
+        ],
+      }),
+      refresh,
+    });
+
+    render(<PortfolioPage />);
+
+    expect(useRedemption).toHaveBeenCalledWith({ onRedeemed: refresh });
+    fireEvent.click(screen.getByRole("button", { name: "Claim $40.00" }));
+    expect(redeem).toHaveBeenCalledWith({
+      amount: 40n * WAD,
+      marketAddress: "0x2222222222222222222222222222222222222222",
+      side: "yes",
+    });
+  });
+
+  it.each([
+    [
+      "losing-side",
+      positionFixture({
+        marketStatus: "resolved",
+        resolution: resolutionFixture({ winningSide: "no" }),
+      }),
+    ],
+    ["graduated", positionFixture({ marketStatus: "graduated" })],
+  ])("does not offer a claim for a %s position", (_reason, position) => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({ positions: [position] }),
+      refresh: vi.fn(),
+    });
+
+    render(<PortfolioPage />);
+
+    expect(screen.queryByRole("button", { name: /^Claim \$/ })).not.toBeInTheDocument();
+  });
 });
 
 describe("PortfolioPage open orders", () => {
@@ -367,6 +435,19 @@ function positionFixture(overrides: Partial<PortfolioPosition>): PortfolioPositi
     poolId: `0x${"aa".repeat(32)}`,
     poolPriceWad: ((WAD * 60n) / 100n).toString(),
     side: "yes",
+    ...overrides,
+  };
+}
+
+function resolutionFixture(
+  overrides: Partial<NonNullable<PortfolioPosition["resolution"]>> = {}
+): NonNullable<PortfolioPosition["resolution"]> {
+  return {
+    kind: "resolved",
+    postgradMarket: "0x2222222222222222222222222222222222222222",
+    resolvedAt: "2026-07-14T00:00:00.000Z",
+    transactionHash: `0x${"dd".repeat(32)}`,
+    winningSide: "yes",
     ...overrides,
   };
 }

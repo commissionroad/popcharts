@@ -1,6 +1,7 @@
 import { t, type Static } from "elysia";
 
 import {
+  MarketResolutionSchema,
   MarketStatusSchema,
   VenueOrderSchema,
   VenuePoolSideSchema,
@@ -80,6 +81,9 @@ export const PortfolioReceiptSchema = t.Object(
  * are omitted while the pool is uninitialized or the venue read fails.
  * `graduationShares` / `avgCostWad` are provenance from settled receipts and
  * cover only graduation-derived tokens, not later venue trades.
+ * `marketStatus` is present whenever the market row is known; `resolution`
+ * accompanies a resolved/cancelled market so clients can offer the redeem
+ * write (on `resolution.postgradMarket`) without a second market read.
  */
 export const PortfolioPositionSchema = t.Object(
   {
@@ -90,10 +94,12 @@ export const PortfolioPositionSchema = t.Object(
     heldBalance: t.String(),
     marketId: t.String(),
     marketQuestion: t.Optional(t.String()),
+    marketStatus: t.Optional(t.Ref(MarketStatusSchema)),
     outcomeToken: t.String(),
     ownedTotal: t.String(),
     poolId: t.Optional(t.String()),
     poolPriceWad: t.Optional(t.String()),
+    resolution: t.Optional(t.Ref(MarketResolutionSchema)),
     side: t.Ref(VenuePoolSideSchema),
   },
   { $id: "PortfolioPosition" },

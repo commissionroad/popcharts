@@ -28,6 +28,18 @@ vi.mock("@/features/order-book/order-book-card", () => ({
   ),
 }));
 
+vi.mock("@/features/postgrad-ticket/open-orders-panel", () => ({
+  OpenOrdersPanel: ({ market }: { market: Market }) => (
+    <div>Open orders panel for {market.id}</div>
+  ),
+}));
+
+vi.mock("./claim-winnings-panel", () => ({
+  ClaimWinningsPanel: ({ market }: { market: Market }) => (
+    <div>Claim winnings panel for {market.id}</div>
+  ),
+}));
+
 vi.mock("./market-position-panel", () => ({
   MarketPositionPanel: ({ market }: { market: Market }) => (
     <div>Position panel for {market.id}</div>
@@ -160,6 +172,88 @@ describe("MarketDetailPage", () => {
 
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
+    ).toBeInTheDocument();
+  });
+
+  it("retires trading UI and offers claims and order cancellation once resolved", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+            winningSide: "yes",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getByText("Resolved - YES wins")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Winning YES tokens redeem 1:1 for collateral/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Claim winnings panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Open orders panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Postgrad trade panel for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Receipt ticket for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("GRADUATION")).not.toBeInTheDocument();
+    expect(screen.queryByText("Receipt book settled")).not.toBeInTheDocument();
+  });
+
+  it("summarizes a resolved market before its winner and timestamp index", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getAllByText("Resolved")).toHaveLength(2);
+    expect(screen.getByText("This market has resolved on-chain.")).toBeInTheDocument();
+  });
+
+  it("names NO as the winner and YES as out of the money", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+            winningSide: "no",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getByText("Resolved - NO wins")).toBeInTheDocument();
+    expect(
+      screen.getByText(/YES tokens finished out of the money/)
     ).toBeInTheDocument();
   });
 

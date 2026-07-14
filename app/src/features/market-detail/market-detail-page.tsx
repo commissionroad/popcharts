@@ -11,13 +11,15 @@ import {
   type PricePathPoint,
 } from "@/domain/markets/types";
 import { OrderBookCard } from "@/features/order-book/order-book-card";
+import { OpenOrdersPanel } from "@/features/postgrad-ticket/open-orders-panel";
 import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
-import { formatB, formatPercent, formatUsdCompact } from "@/lib/format";
+import { formatB, formatDateTime, formatPercent, formatUsdCompact } from "@/lib/format";
 
 import { AiReviewCard } from "./ai-review-card";
 import { AiReviewProgressCard } from "./ai-review-progress-card";
 import { AiReviewRefresh } from "./ai-review-refresh";
+import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
 import { MarketPositionPanel } from "./market-position-panel";
@@ -33,6 +35,10 @@ export function MarketDetailPage({
   // Once a market graduates the receipt book is history: the page leads with
   // the graduation outcome and drops the pre-graduation progress/trading UI.
   const isGraduated = market.status === "graduated";
+  // Once it resolves, trading is history too: the page leads with the outcome
+  // and the aside becomes the claim surface instead of a trade ticket.
+  const isResolved = market.status === "resolved";
+  const settled = isGraduated || isResolved;
   // The graduate button is the manual fallback for a market that earned
   // graduation but was not yet picked up by the keeper — it never forces
   // liquidity, so it only shows once the threshold is met.
@@ -90,11 +96,12 @@ export function MarketDetailPage({
             </div>
           </div>
 
+          {isResolved ? <ResolvedMarketSummary market={market} /> : null}
           {isGraduated ? <GraduatedMarketSummary market={market} /> : null}
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
             <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-              {isGraduated
+              {settled
                 ? "Pre-graduation price history"
                 : "Virtual LMSR - implied probability"}
             </div>
@@ -107,7 +114,7 @@ export function MarketDetailPage({
 
           {isGraduated ? <OrderBookCard market={market} /> : null}
 
-          {isGraduated ? null : (
+          {settled ? null : (
             <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
               <GraduationBar
                 matchedUsd={market.matchedUsd}
@@ -152,7 +159,14 @@ export function MarketDetailPage({
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
           <MarketPositionPanel market={market} />
-          {isGraduated ? (
+          {isResolved ? (
+            <>
+              <ClaimWinningsPanel market={market} />
+              {/* Tokens resting in ask orders cannot redeem until the order
+                  is cancelled, so the cancel surface stays available. */}
+              <OpenOrdersPanel market={market} orderType="market" refreshKey={0} />
+            </>
+          ) : isGraduated ? (
             <PostgradTradePanel market={market} />
           ) : (
             <>
@@ -173,6 +187,37 @@ export function MarketDetailPage({
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The headline outcome of a resolved market: which side won, when, and what
+ * that means for holders. Winning tokens redeem 1:1 from the claim panel in
+ * the aside; a resolution without a recorded winning side (not yet indexed)
+ * degrades to the resolution date alone rather than guessing a winner.
+ */
+function ResolvedMarketSummary({ market }: { market: Market }) {
+  const winningSide = market.resolution?.winningSide;
+  const resolvedAt = market.resolution?.resolvedAt;
+
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-5">
+      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--status-graduated)] uppercase">
+        <BadgeCheck size={16} />
+        {winningSide
+          ? `Resolved - ${marketSideLabel(market, winningSide)} wins`
+          : "Resolved"}
+      </div>
+      <p className="max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
+        {winningSide
+          ? `Winning ${marketSideLabel(market, winningSide)} tokens redeem 1:1 for collateral; ${marketSideLabel(
+              market,
+              winningSide === "yes" ? "no" : "yes"
+            )} tokens finished out of the money.`
+          : "This market has resolved on-chain."}
+        {resolvedAt ? ` Resolved ${formatDateTime(resolvedAt)}.` : ""}
+      </p>
     </div>
   );
 }

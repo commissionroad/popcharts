@@ -9,6 +9,7 @@ import { encodeAbiParameters, getAddress, isAddress, keccak256, parseAbi } from 
 export { COMPLETE_SET_PRICE_POLICY } from "@popcharts/protocol/complete-set-price-policy";
 export {
   boundedPoolOrderManagerAbi,
+  completeSetBinaryMarketAbi,
   minimalV4SwapRouterAbi,
   poolTickBoundsAbi,
 } from "@popcharts/protocol/postgrad-venue";
