@@ -94,7 +94,10 @@ export async function enqueueEligibleMarketResolutionJobs({
     .where(
       and(
         eq(schema.markets.status, "graduated"),
-        sql`coalesce(${schema.markets.yesNotBefore}, ${schema.markets.resolutionTime}) <= ${now}`,
+        // Serialize the timestamp: raw sql fragments bypass drizzle's column
+        // mapping, and the postgres-js driver crashes on a bare Date param
+        // (jobs.int.test.ts is the regression guard).
+        sql`coalesce(${schema.markets.yesNotBefore}, ${schema.markets.resolutionTime}) <= ${now.toISOString()}`,
         noActiveResolutionJobForCurrentMarket(),
         noResolutionForCurrentMarket(),
       ),
