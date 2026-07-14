@@ -3,12 +3,9 @@
 import { Loader2, TriangleAlert, X } from "lucide-react";
 
 import type { Market } from "@/domain/markets/types";
+import { formatCentsTenths } from "@/lib/format";
 
-import {
-  formatLimitOrderStep,
-  formatVenuePriceCents,
-  formatVenueTokens,
-} from "./postgrad-ticket-format";
+import { formatLimitOrderStep, formatVenueTokens } from "./postgrad-ticket-format";
 import {
   type OpenOrderRow,
   useOpenOrdersPanelState,
@@ -113,7 +110,7 @@ function OpenOrderRowItem({
             {row.sideLabel}
           </span>
           <span className="font-mono text-[var(--text-secondary)]">
-            @ {formatVenuePriceCents(row.priceCents)}
+            @ {formatCentsTenths(row.priceCents)}
           </span>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] text-[var(--text-muted)]">
@@ -130,7 +127,7 @@ function OpenOrderRowItem({
         </div>
       </div>
       <button
-        aria-label={`Cancel ${directionLabel.toLowerCase()} order at ${formatVenuePriceCents(row.priceCents)}`}
+        aria-label={`Cancel ${directionLabel.toLowerCase()} order at ${formatCentsTenths(row.priceCents)}`}
         className="focus-ring inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-2.5 font-mono text-[11px] font-bold text-[var(--text-secondary)] transition-colors hover:border-[var(--no)] hover:text-[var(--no)] disabled:pointer-events-none disabled:opacity-50"
         disabled={row.cancelling}
         onClick={onCancel}

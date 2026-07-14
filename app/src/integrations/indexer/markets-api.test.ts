@@ -396,6 +396,44 @@ describe("createMarketsApiClient", () => {
     );
   });
 
+  it("fetches a wallet's venue orders on a market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse([
+        {
+          amountIn: "30000000000000000000",
+          createdBlockTimestamp: "2026-07-08T00:00:00.000Z",
+          createdTransactionHash: `0x${"cc".repeat(32)}`,
+          direction: "bid",
+          orderId: 9,
+          owner: "0x0000000000000000000000000000000000000003",
+          poolId: `0x${"11".repeat(32)}`,
+          priceWad: "300000000000000000",
+          remainingSizeWad: "100000000000000000000",
+          side: "yes",
+          sizeWad: "100000000000000000000",
+          status: "open",
+          tickLower: -12120,
+          tickUpper: -12060,
+        },
+      ])
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    const orders = await client.listMarketOrders({
+      chainId: 5042002,
+      marketId: "7",
+      owner: "0x0000000000000000000000000000000000000003",
+    });
+
+    expect(orders).toHaveLength(1);
+    expect(String(firstFetchCall(fetcher)[0])).toBe(
+      "http://localhost:3001/markets/5042002/7/orders?owner=0x0000000000000000000000000000000000000003"
+    );
+  });
+
   it("returns empty lists when list endpoints 404", async () => {
     const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
       async () => new Response("Not found", { status: 404 })
@@ -411,6 +449,13 @@ describe("createMarketsApiClient", () => {
     ).resolves.toEqual([]);
     await expect(
       client.getMarketReceipts({ chainId: 5042002, marketId: "7" })
+    ).resolves.toEqual([]);
+    await expect(
+      client.listMarketOrders({
+        chainId: 5042002,
+        marketId: "7",
+        owner: "0x0000000000000000000000000000000000000003",
+      })
     ).resolves.toEqual([]);
   });
 

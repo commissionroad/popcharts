@@ -4,6 +4,7 @@ import {
   formatAddress,
   formatB,
   formatCents,
+  formatCentsTenths,
   formatDateTime,
   formatPercent,
   formatTokenAmount,
@@ -87,6 +88,18 @@ describe("market number formatting", () => {
     expect(formatCents(63.7)).toBe("64c");
     expect(formatCents(0.4)).toBe("0c");
     expect(formatCents(0)).toBe("0c");
+  });
+
+  it("rounds tenth-of-a-cent prices to whole cents when they land there", () => {
+    expect(formatCentsTenths(64)).toBe("64c");
+    expect(formatCentsTenths(0)).toBe("0c");
+    expect(formatCentsTenths(63.98)).toBe("64c");
+  });
+
+  it("keeps one decimal for prices between whole cents", () => {
+    expect(formatCentsTenths(63.5)).toBe("63.5c");
+    expect(formatCentsTenths(12.3499)).toBe("12.3c");
+    expect(formatCentsTenths(61.84)).toBe("61.8c");
   });
 
   it("rounds probabilities to whole percentages", () => {

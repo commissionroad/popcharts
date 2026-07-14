@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
-import { formatLadderCents, formatLadderShares } from "./order-book-format";
+import { formatCentsTenths } from "@/lib/format";
+
+import { formatLadderShares } from "./order-book-format";
 import type { OrderBookLevelView, OrderBookPoolView } from "./order-book-model";
 
 /**
@@ -105,7 +107,7 @@ function LadderRow({
           half === "ask" ? "text-[var(--no)]" : "text-[var(--yes)]"
         }`}
       >
-        {formatLadderCents(level.priceCents)}
+        {formatCentsTenths(level.priceCents)}
       </td>
       <td className="px-2 py-1.5 text-right text-[var(--text-primary)]">
         {formatLadderShares(level.sizeShares)}
@@ -122,10 +124,10 @@ function LadderRow({
 
 function SpreadRow({ pool }: { pool: OrderBookPoolView }) {
   const parts = [
-    pool.spreadCents === null ? null : `Spread ${formatLadderCents(pool.spreadCents)}`,
+    pool.spreadCents === null ? null : `Spread ${formatCentsTenths(pool.spreadCents)}`,
     pool.marketPriceCents === null
       ? null
-      : `Pool price ${formatLadderCents(pool.marketPriceCents)}`,
+      : `Pool price ${formatCentsTenths(pool.marketPriceCents)}`,
   ].filter((part) => part !== null);
 
   return (

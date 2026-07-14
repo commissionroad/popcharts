@@ -1,9 +1,5 @@
 "use client";
 
-import {
-  getGetMarketOrderBookUrl,
-  getListMarketOrdersUrl,
-} from "@popcharts/api-client/markets";
 import type { MarketOrderBook, VenueOrder } from "@popcharts/api-client/models";
 import { useCallback, useEffect, useState } from "react";
 
@@ -43,7 +39,13 @@ const EMPTY_RESULT: OrdersReadResult = {
  * panel re-reads on a modest interval while the tab is visible (hidden tabs
  * skip the fetch but keep the schedule) and re-reads immediately after
  * `refresh()` or a `refreshKey` bump. Returns a disabled state until the
- * chain id, market id, owner, and indexer URL are all available.
+ * chain id, market id, and owner are all available.
+ *
+ * Reads go through the same-origin `/api/indexer/venue-orders` and
+ * `/api/indexer/orderbook` proxies (like the portfolio page), so the indexer
+ * base URL stays server-side: local dev only exposes
+ * `POPCHARTS_INDEXER_API_URL`, not the `NEXT_PUBLIC_` variant, so a direct
+ * browser fetch would have no URL to call.
  */
 export function useOpenVenueOrders({
   chainId,
@@ -63,15 +65,14 @@ export function useOpenVenueOrders({
     ...EMPTY_RESULT,
     requestKey: null,
   });
-  const baseUrl = readIndexerApiBaseUrl();
   const requestKey =
-    baseUrl && chainId !== null && marketId && owner
+    chainId !== null && marketId && owner
       ? [chainId, marketId, owner, refreshKey, pollTick].join(":")
       : null;
   const refresh = useCallback(() => setPollTick((value) => value + 1), []);
 
   useEffect(() => {
-    if (!requestKey || !baseUrl || chainId === null || !marketId || !owner) {
+    if (!requestKey || chainId === null || !marketId || !owner) {
       return;
     }
 
@@ -91,7 +92,7 @@ export function useOpenVenueOrders({
       }, OPEN_ORDERS_POLL_INTERVAL_MS);
     };
 
-    readOpenVenueOrders({ baseUrl, chainId, marketId, owner })
+    readOpenVenueOrders({ chainId, marketId, owner })
       .then((read) => {
         if (isActive) {
           setResult({ ...read, requestKey });
@@ -122,7 +123,7 @@ export function useOpenVenueOrders({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [baseUrl, chainId, marketId, owner, requestKey]);
+  }, [chainId, marketId, owner, requestKey]);
 
   if (requestKey === null) {
     return { ...EMPTY_RESULT, loading: false, refresh };
@@ -141,27 +142,40 @@ export function useOpenVenueOrders({
   };
 }
 
-async function readOpenVenueOrders({
-  baseUrl,
+export function venueOrdersRequestPath({
   chainId,
   marketId,
   owner,
 }: {
-  baseUrl: string;
+  chainId: number;
+  marketId: string;
+  owner: string;
+}) {
+  const params = new URLSearchParams({
+    chainId: String(chainId),
+    marketId,
+    owner,
+  });
+
+  return `/api/indexer/venue-orders?${params.toString()}`;
+}
+
+async function readOpenVenueOrders({
+  chainId,
+  marketId,
+  owner,
+}: {
   chainId: number;
   marketId: string;
   owner: string;
 }): Promise<OrdersReadResult> {
+  const bookParams = new URLSearchParams({
+    chainId: String(chainId),
+    marketId,
+  });
   const [orders, book] = await Promise.all([
-    fetchJson<VenueOrder[]>(
-      buildIndexerUrl(
-        baseUrl,
-        getListMarketOrdersUrl(String(chainId), marketId, { owner })
-      )
-    ),
-    fetchJson<MarketOrderBook>(
-      buildIndexerUrl(baseUrl, getGetMarketOrderBookUrl(String(chainId), marketId))
-    ),
+    fetchJson<VenueOrder[]>(venueOrdersRequestPath({ chainId, marketId, owner })),
+    fetchJson<MarketOrderBook>(`/api/indexer/orderbook?${bookParams.toString()}`),
   ]);
   const poolPricesWad: Record<string, string> = {};
 
@@ -174,8 +188,8 @@ async function readOpenVenueOrders({
   return { error: null, orders, poolPricesWad };
 }
 
-async function fetchJson<T>(url: URL): Promise<T> {
-  const response = await fetch(url, {
+async function fetchJson<T>(path: string): Promise<T> {
+  const response = await fetch(path, {
     cache: "no-store",
     headers: { accept: "application/json" },
   });
@@ -185,19 +199,4 @@ async function fetchJson<T>(url: URL): Promise<T> {
   }
 
   return response.json() as Promise<T>;
-}
-
-function buildIndexerUrl(baseUrl: string, path: string) {
-  return new URL(
-    path.replace(/^\//, ""),
-    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
-  );
-}
-
-/**
- * The indexer API base URL exposed to the browser. Read at call time so tests
- * can stub the env var.
- */
-function readIndexerApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ?? null;
 }

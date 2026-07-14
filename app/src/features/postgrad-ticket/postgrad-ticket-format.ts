@@ -72,15 +72,6 @@ export function formatVenueBalance({
 }
 
 /**
- * Formats a venue price in cents with one decimal ("61.8c") — venue fills
- * settle at exact pool prices, so whole-cent rounding would hide real price
- * movement between the pool price and the effective fill price.
- */
-export function formatVenuePriceCents(value: number) {
-  return `${value.toFixed(1)}c`;
-}
-
-/**
  * Formats an outcome-token amount: whole tokens from 1,000 up, two decimals
  * below that.
  */

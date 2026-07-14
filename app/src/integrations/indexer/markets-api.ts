@@ -8,6 +8,7 @@ import {
   getGetMarketOrderBookUrl,
   getGetMarketUrl,
   getListMarketEventsUrl,
+  getListMarketOrdersUrl,
   getListMarketReceiptsUrl,
   getListMarketsUrl,
 } from "@popcharts/api-client/markets";
@@ -24,6 +25,7 @@ import type {
   MarketOrderBook,
   Portfolio,
   ReceiptPlacedEvent,
+  VenueOrder,
 } from "@popcharts/api-client/models";
 import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 
@@ -33,6 +35,7 @@ export type ApiMarketOrderBook = MarketOrderBook;
 export type ApiPortfolio = Portfolio;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
+export type ApiVenueOrder = VenueOrder;
 export type ListMarketsParams = GeneratedListMarketsParams;
 export type ApiGraduationSummary = GraduationSummary;
 export type ApiGraduationResponse = GraduationResponse;
@@ -68,6 +71,9 @@ export type MarketsApiClient = {
     chainId: number | string;
     owner: string;
   }) => Promise<ApiPortfolio | null>;
+  listMarketOrders: (
+    lookup: MarketApiLookup & { owner: string }
+  ) => Promise<ApiVenueOrder[]>;
 };
 
 export class MarketsApiError extends Error {
@@ -242,6 +248,21 @@ export function createMarketsApiClient({
           getGetPortfolioUrl(encodeURIComponent(String(chainId)), { owner })
         )
       );
+    },
+    async listMarketOrders({ chainId, marketId, owner }) {
+      const response = await requestJson<ApiVenueOrder[]>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getListMarketOrdersUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId),
+            { owner }
+          )
+        )
+      );
+
+      return response ?? [];
     },
   };
 }

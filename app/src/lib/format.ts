@@ -52,6 +52,19 @@ export function formatCents(value: number) {
 }
 
 /**
+ * Formats a price in cents rounded to tenths of a cent, in the house "64c"
+ * style but keeping one decimal when the value lands between whole cents
+ * ("63.5c"). Used where whole-cent rounding would hide real price movement:
+ * order-book ladder ticks and venue prices, which settle at exact pool
+ * prices.
+ */
+export function formatCentsTenths(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}c`;
+}
+
+/**
  * Formats a probability value as a whole percentage ("64%").
  */
 export function formatPercent(value: number) {

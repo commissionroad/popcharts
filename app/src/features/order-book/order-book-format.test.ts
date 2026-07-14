@@ -1,22 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatLadderCents, formatLadderShares } from "./order-book-format";
-
-describe("formatLadderCents", () => {
-  it("formats whole-cent prices without a decimal", () => {
-    expect(formatLadderCents(64)).toBe("64c");
-    expect(formatLadderCents(0)).toBe("0c");
-  });
-
-  it("keeps one decimal for sub-cent tick edges", () => {
-    expect(formatLadderCents(63.5)).toBe("63.5c");
-    expect(formatLadderCents(12.3499)).toBe("12.3c");
-  });
-
-  it("drops a decimal that rounds back to a whole cent", () => {
-    expect(formatLadderCents(63.98)).toBe("64c");
-  });
-});
+import { formatLadderShares } from "./order-book-format";
 
 describe("formatLadderShares", () => {
   it("shows whole shares with separators at 100 and above", () => {
