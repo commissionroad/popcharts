@@ -4,7 +4,7 @@ title: Repo ADR 0015 — Deployment and infrastructure
 description: Vertical ADR owning all CI and deployment — per-package CI, AWS CDK stack, ECS services, monitoring, and the Arc Testnet protocol deployment as the final step of milestone M5; 1 of 13 done as of the 2026-07-09 reconcile (Protocol CI), secrets corrected to signer-keys-only (no API operator-auth).
 sources:
   - docs/adr/0015-deployment-and-infrastructure.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Repo ADR 0015: Deployment And Infrastructure
@@ -35,7 +35,11 @@ monitoring, and — last — the protocol deployment to Arc Testnet.
 Continuous integration (unblocks early, cheap to do first):
 
 - [ ] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
-  service container.
+  service container. **Partially real, and the open box is honest** (verified
+  2026-07-14, closing an earlier lint question): `.github/workflows/server-ci.yml`
+  exists and runs format-check, lint, typecheck, `openapi:check`, and
+  `test:coverage` behind a paths filter — but it has **no Postgres service
+  container**, which is the part of this item that is actually missing.
 - [x] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
 - [ ] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with the
   heuristic provider.
@@ -83,13 +87,17 @@ Testnet economics (no audit, mock-or-test collateral); a mainnet milestone
 gets its own ADR (audit, fraud proofs, reorg-grade guarantees, the
 CTF-compatibility decision).
 
-## Staleness note
+## Staleness note — resolved 2026-07-14
 
-The 2026-07-09 reconcile ticked Protocol CI. Server CI may still lag reality:
-the monorepo cleanup program's Progress Log references an existing required
-"Server CI" (running `openapi:check`) and an "App CI" with path filters, so the
-Server CI checkbox here may be stale-unticked. Verify against
-`.github/workflows/` when updating this vertical.
+An earlier lint suspected the Server CI checkbox was **stale-unticked**, because
+the cleanup program's Progress Log references a required "Server CI" running
+`openapi:check`. Checked against `.github/workflows/`: all three workflows exist
+(`app-ci.yml`, `protocol-ci.yml`, `server-ci.yml`), and Server CI does run
+format-check, lint, typecheck, `openapi:check`, and `test:coverage` behind a
+paths filter. But it has **no Postgres service container**, and "tests against a
+Postgres service container" is what this item asks for — so the unticked box is
+correct, not stale. The gap is narrower than "no Server CI": it is the Postgres
+service, and the ADR item could be split to say so.
 
 ## Related pages
 

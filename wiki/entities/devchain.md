@@ -7,7 +7,7 @@ sources:
   - README.md
   - server/README.md
   - docs/adr/0007-track-verticals-with-progress-adrs.md
-updated: 2026-07-07
+updated: 2026-07-14
 ---
 
 # Devchain

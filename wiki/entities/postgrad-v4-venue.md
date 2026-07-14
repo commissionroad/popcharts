@@ -7,7 +7,8 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - protocol/docs/adr/0008-use-complete-set-erc20-v4-markets-on-arc-testnet.md
   - protocol/deployments/README.md
-updated: 2026-07-07
+  - docs/adr/0016-monorepo-architecture-cleanup-program.md
+updated: 2026-07-14
 ---
 
 # Postgrad v4 venue
@@ -28,8 +29,23 @@ PoolManager, StateView, V4Quoter, plus the contracts below under
   postgrad manifest). Emits tick-observation events for price history.
 - **BoundedPoolOrderManager** — turns maker orders into one-sided v4
   liquidity; order create/cancel/fill/requeue/partial/deferred-execution
-  events feed the indexer. At 1,273 lines it has open decompositions C4/C5/C6
-  in the [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md).
+  events feed the indexer. Decomposed from 1,273 to ~925 lines by the
+  [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md)
+  (C4/C5/C6, closed 2026-07-13), all ABI-identical:
+  - **`V4DeltaSettlement`** (C5) — stateless internal library holding the
+    balance-delta settlement plumbing, positive-delta readers, partial-add
+    validation, four settlement errors, and the `ITokenPuller` interface. The
+    manager passes its immutables in explicitly.
+  - **`DeferredExecutionStore`** (C4) — storage-struct library for
+    deferred-execution *storage* (nonce-scoped IDs, store/at/isPending/remove,
+    `DeferredExecutionStored`, resolver target-tick clamp), plus
+    **`PartialFillMath`** for the pure partial-fill math. The resolver *loop*
+    deliberately stayed in the manager — moving it would hand a library the
+    manager's full state.
+  - **C6** found no production contract converts display prices (that is a
+    scripts/app concern), so instead of an on-chain `PriceConversion` library it
+    anchored the **TypeScript TickMath ports** against canonical v4-core TickMath
+    with a parity suite. Test-only; zero production-contract diff.
 - **PoolTickBounds** — inclusive tick bounds per pool; testnet defaults tick
   spacing 60, fee 3000; display prices clamp to [0.001, 0.999].
 - **MinimalV4SwapRouter** — taker swaps.

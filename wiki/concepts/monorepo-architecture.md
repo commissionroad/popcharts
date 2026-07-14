@@ -6,7 +6,7 @@ sources:
   - docs/architecture.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - docs/adr/0006-server-runtime-and-indexer.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Monorepo architecture
@@ -45,5 +45,14 @@ the debt was file-level, not structural.
 The root README still describes nested `app/`/`protocol/` lockfiles;
 `docs/architecture.md` (post-ADR-0007) records the single root lockfile —
 README is behind, and the Vercel install recipe for `rootDirectory: app`
-deserves verification. Cleanup Tracks A/B/D/E/F executed 2026-07-06..07;
-Track C (contract decomposition) remains open pending human review.
+deserves verification.
+
+The [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md)
+itself is **complete** as of 2026-07-13: Tracks A/B/D/E/F ran autonomously
+2026-07-06..07, and Track C (decomposition of the fund-holding contracts) closed
+2026-07-07..13 under per-item human review. Every contract extraction was proven
+behavior-preserving by a zero-diff metadata regeneration; the two god files that
+motivated the program came down from 1,365 → ~1,090 (`PregradManager.sol`) and
+1,273 → ~925 lines (`BoundedPoolOrderManager.sol`). Two checkboxes still read
+`[ ]` in the raw ADR (D3, E7) and both are intentional rather than outstanding —
+see the summary.

@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0008 — Protocol functionality completion
-description: Vertical ADR to finish protocol code (clearing keeper, resolution hooks, postgrad handoff, unhappy paths) before any deployment; 4 of 10 items done as of the 2026-07-09 checklist reconcile (postgrad handoff + unhappy-path tests), clearing keeper and resolver entry points still open.
+description: Vertical ADR to finish protocol code (clearing keeper, resolution hooks, postgrad handoff, unhappy paths) before any deployment; 7 of 10 done as of 2026-07-13 — the whole clearing block is now closed (keeper, golden tests, full outcome space incl. auto-refund), resolution hooks and Arc v4 availability still open.
 sources:
   - docs/adr/0008-protocol-functionality-completion.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Repo ADR 0008: Protocol Functionality Completion
@@ -35,16 +35,33 @@ optimistic-clearing trust model as is. Deployment is ADR 0015. Deferred: a
 security audit, bonded challenges/fraud proofs, and the mainnet
 CTF-compatibility decision (protocol ADR 0007).
 
-## Progress (4 of 10 done as of the 2026-07-09 checklist reconcile)
+## Progress (7 of 10 done as of 2026-07-13)
 
-Clearing:
+Clearing — **the whole block closed 2026-07-13**:
 
-- [ ] Extract band-pass clearing from protocol scripts into a runnable
-  keeper/service: watch `GraduationStarted`, compute the clearing root
-  deterministically, submit `ClearingRootSubmitted`.
-- [ ] Golden tests pinning keeper output to worked examples from whitepaper v4.
-- [ ] Keeper handles the full outcome space: full match, partial match with
-  refunds, no-match/full-refund.
+- [x] Extract band-pass clearing from protocol scripts into a runnable
+  keeper/service that computes the clearing root deterministically and submits
+  `ClearingRootSubmitted` — `computeBandPassClearing` in `@popcharts/protocol`,
+  driven by the keeper's graduation pass.
+- [x] Golden tests pinning keeper output to worked examples from whitepaper v4 —
+  landed in `server/src/keeper/clearing/band-pass-clearing.test.ts` (whitepaper
+  **Example A** pinned line by line, plus conservation/balance invariants over
+  2,000 random books and an order-independence check).
+- [x] Keeper handles the full outcome space: full match, partial match with
+  refunds, and no-match/full-refund — the last now opens full escrow refunds via
+  `markRefundable` **automatically at the graduation deadline**.
+
+Two caveats the ADR states explicitly and the wiki should not round off:
+
+1. **The graduation service is poll-based, not event-driven.** The keeper's
+   graduation pass drives eligibility, clearing, and the no-match refund off the
+   market projection plus a `ReceiptPlaced`-triggered check — there is no
+   dedicated `GraduationStarted` watcher, despite the original item text.
+2. **The automated keeper (auto-refund included) is currently gated to the local
+   network with dev tools enabled.** In every other environment, no-match refunds
+   still depend on the permissionless on-chain `markRefundable` plus the
+   `MarketRefundsAvailable` indexer watcher. The item is ticked for the
+   mechanism, not for unattended production operation.
 
 Resolution hooks:
 

@@ -214,3 +214,81 @@ the resolution concept/summary build-status claims against the code; re-verify
 Server CI checkbox (ADR 0015) against `.github/workflows/`; carry the whitepaper
 Example A/B golden-test check forward (now referenced by the new clearing-keeper
 design summary — confirm the fixture landed).
+## [2026-07-14] lint | new protocol ADR 0011 ingested; ADR 0008 + 0016 checklist drift; AI review default flipped to Ollama
+Pages: +summaries/protocol-adr-0011-admin-market-cancellation.md,
+~summaries/root-adr-0008-protocol-functionality-completion.md,
+~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md,
+~summaries/portfolio-data-design.md, ~summaries/server-readme.md,
+~summaries/root-readme.md, ~summaries/root-adr-0015-deployment-and-infrastructure.md,
+~summaries/error-handling-ux-prd.md, ~entities/pregrad-manager.md,
+~entities/clearing-keeper.md, ~entities/postgrad-v4-venue.md,
+~entities/ai-review-service.md, ~entities/indexer.md, ~entities/devchain.md,
+~entities/server-workspace.md, ~concepts/market-lifecycle.md,
+~concepts/graduation-clearing.md, ~concepts/monorepo-architecture.md,
+~concepts/testing-strategy.md, ~index.md.
+
+Organic ingestion since last lint (window 2026-07-13 post-#182 → 2026-07-14,
+5 prose doc-change units): **0/5 self-ingested.** Missed: (a)
+`protocol/docs/adr/0011-admin-market-cancellation.md` — brand-new ADR, no wiki
+page (#186); (b) `docs/adr/0016` — four Track-C ticks (#132/#184/#190 + C6) and
+a status flip to "fully executed"; (c) `docs/adr/0008` — three clearing ticks
+plus the auto-refund/poll-based note (#177); (d) `docs/portfolio-data-design.md`
+— the new money-paper-trail invariant (also promoted into `AGENTS.md`); (e)
+`server/README.md` + `README.md` — AI review default flipped to Ollama (#183).
+Every one of these shipped with zero wiki files touched. (Screenshot-only
+changes under `app/docs/screenshots/` are excluded from the count — binary
+assets with no prose to summarize.) The per-session ingest rule in `AGENTS.md`
+is not being followed by feature sessions; two lints running, two dry spells.
+
+Findings and fixes:
+- **New source ingested:** protocol ADR 0011, the owner-only `cancelMarket`
+  moderation kill switch. Before it, a live market holding real escrow had no
+  way to be stopped — `rejectMarket` only works pre-escrow, `markRefundable`
+  only at the deadline, and `MarketStatus.Cancelled` was an enum value no
+  function ever assigned while the portfolio already rendered `cancelled` as
+  `refund_claimable` (a projection with no on-chain path behind it). The refund
+  path is *reused*, not duplicated: the claim guard widens to "Refunded or
+  Cancelled", so double-refund safety is inherited rather than re-argued.
+- **Doc/code drift flagged, not fixed:** ADR 0011 still reads *Proposed* while
+  its code is on `main` (contract, event, widened guard, `market_cancelled_events`
+  + watcher). Noted on the page; the wiki never edits raw sources.
+- **Checklist drift (real content), the same hidden-drift class the last lint
+  warned about:** ADR 0008 went 4/10 → 7/10 (whole clearing block) and ADR 0016
+  went to fully-executed, both on 2026-07-13 — the *same date* the last lint
+  stamped its pages, so a date-based staleness scan reports them clean. Only a
+  tick-count diff against the raw ADRs catches it. Reconciled both, plus the
+  downstream keeper/venue/architecture pages that called this work "open".
+- **Two caveats the ticks hide, now recorded loudly:** the clearing keeper is
+  **poll-based**, not a `GraduationStarted` watcher, and the automated keeper
+  (auto-refund included) is **gated to the local network** — elsewhere no-match
+  refunds still depend on permissionless `markRefundable`. "Ticked" ≠ "runs
+  unattended in production".
+- **AI review default is now Ollama, not heuristic.** The security-relevant part
+  is the asymmetric fallback: locally `AI_REVIEW_FALLBACK_APPROVE=true` lets a
+  clean market auto-approve when the model is down, but that flag is off
+  everywhere else (an `approve` downgrades to `manual_review`), and hard-flag
+  rejects are always final. The fallback can lose an approval, never a rejection.
+- **Integrity:** 2 broken links fixed in `summaries/error-handling-ux-prd.md`
+  (pointed at `root-adr-0007-monorepo-architecture-cleanup-program.md`, dead
+  since the 0007→0016 renumber; PR #156 was written pre-renumber and merged
+  after it). 0 orphans, 0 pages missing from index, no dangling sources.
+- **Carried-forward follow-ups, both resolved:** (1) *Server CI checkbox (ADR
+  0015)* — **not** stale-unticked. `server-ci.yml` exists and runs
+  format/lint/typecheck/`openapi:check`/`test:coverage`, but has **no Postgres
+  service container**, which is precisely what the item asks for; the open box is
+  honest and the real gap is narrower than "no Server CI". (2) *Whitepaper
+  golden-test fixture* — it landed, but not where `protocol/docs/TESTING.md`
+  implies: it is in `server/src/keeper/clearing/band-pass-clearing.test.ts` (the
+  keeper is what it pins), with **Example A** reproduced line by line plus
+  invariants over 2,000 random books. **Example B is not separately pinned.**
+- **Also corrected:** the indexer watches **eleven** PregradManager events, not
+  nine (`MarketCancelled` + the two receipt-claim events); `ai-review-service.md`
+  still called resolution "unbuilt" (its design is accepted and landing).
+- **ADR 0012 remains 0/10 ticked** — no reconcile needed; the concept pages'
+  "design accepted, build underway" framing still matches.
+
+Follow-ups for next lint: watch whether ADR 0011's status flips from Proposed
+now that its code has landed; check whether the clearing keeper gets ungated
+beyond the local network (that would change several status claims); consider
+whether whitepaper Example B deserves its own golden test if the clearing math is
+touched again; ADR 0012 tick-state vs the resolution code that is landing.

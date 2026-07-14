@@ -8,7 +8,7 @@ sources:
   - protocol/CONSTITUTION.md
   - protocol/CONTEXT.md
   - docs/adr/0008-protocol-functionality-completion.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Graduation clearing
@@ -58,9 +58,20 @@ claims. Anyone may freeze an eligible market.
 
 Math verified by whitepaper golden examples (A and B, v4 §9); onchain path
 implemented in [PregradManager](../entities/pregrad-manager.md); the automating
-[clearing keeper](../entities/clearing-keeper.md) now has an accepted
-[design](../summaries/clearing-keeper-design.md) and the real band-pass sweep is
-replacing the greedy dev placeholder ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)
-postgrad-handoff and unhappy-path test items ticked 2026-07-09; clearing-keeper
-extraction items still open). UI surfaces exist (GraduationBar, BandStrip) but
-BandStrip still renders static demo bands.
+[clearing keeper](../entities/clearing-keeper.md) is **built** — its whole
+clearing block in
+[root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)
+closed on 2026-07-13 (runnable keeper, whitepaper Example A pinned as a golden
+test, full outcome space including automatic `markRefundable` for no-match
+markets at the deadline). Two caveats carry: the keeper is **poll-based**, not a
+`GraduationStarted` watcher, and the automated pass is still **gated to the local
+network** with dev tools enabled — elsewhere, no-match refunds rely on the
+permissionless on-chain `markRefundable` plus the `MarketRefundsAvailable`
+watcher.
+
+A market can also leave this path entirely: an operator can
+[cancel an Active market](../summaries/protocol-adr-0011-admin-market-cancellation.md)
+for content moderation, which refunds all escrow and never clears.
+
+UI surfaces exist (GraduationBar, BandStrip) but BandStrip still renders static
+demo bands.

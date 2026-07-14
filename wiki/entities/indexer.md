@@ -9,17 +9,28 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - docs/portfolio-data-design.md
   - infra/README.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Indexer
 
-`server/src/indexer/` — pure chain ingestion. Watches all nine
+`server/src/indexer/` — pure chain ingestion. Watches all eleven
 [PregradManager](pregrad-manager.md) event types (creation, review, receipt,
 settlement — including `GraduationStarted`, `ClearingRootSubmitted`,
-`GraduationFinalized`, `MarketRefundsAvailable`) with idempotent cursor-based
-recovery (dedupe on tx hash + log index). Verifies the canonical JSON
-metadata hash from `MarketCreated` and persists `market_metadata`.
+`GraduationFinalized`, `MarketRefundsAvailable`, the two receipt-claim events,
+and `MarketCancelled` from the
+[moderation kill switch](../summaries/protocol-adr-0011-admin-market-cancellation.md))
+with idempotent cursor-based recovery (dedupe on tx hash + log index). Verifies
+the canonical JSON metadata hash from `MarketCreated` and persists
+`market_metadata`.
+
+The claim and cancellation events are not incidental: they are the
+**[money paper trail](../summaries/portfolio-data-design.md)** — every value
+transfer must leave an immutable, receipt-linked DB row sourced from an on-chain
+event, never inferred. `graduated_receipt_claimed_events`,
+`refunded_receipt_claimed_events`, `market_refunds_available_events`, and
+`market_cancelled_events` are append-only mirrors of chain, and any settlement
+view is a projection *over* them.
 
 ## Design constraints
 

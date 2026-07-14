@@ -8,7 +8,8 @@ sources:
   - docs/ai-review-runner-design.md
   - app/docs/adr/0003-domain-first-module-layout.md
   - docs/adr/0007-track-verticals-with-progress-adrs.md
-updated: 2026-07-13
+  - protocol/docs/adr/0011-admin-market-cancellation.md
+updated: 2026-07-14
 ---
 
 # Market lifecycle
@@ -39,11 +40,26 @@ in **three vocabularies with three masters** (do not unify — see
   → adapter handoff. `graduationDeadline` is a deadline, not an earliest
   time; passing it while Active makes the market **Refunded** (full,
   unconditional refund).
+- **Active → Cancelled (moderation kill switch)**: owner-only
+  `PregradManager.cancelMarket` halts a live market whose content turns out to be
+  policy-violating and opens full escrow refunds through the same
+  `claimRefundedReceipt` path. Added 2026-07-11 by
+  [protocol ADR 0011](../summaries/protocol-adr-0011-admin-market-cancellation.md);
+  before it, a live market holding real money had **no** kill switch —
+  `rejectMarket` only works pre-escrow and `markRefundable` only at the deadline.
+  It is an operator action with the operator key, never an API endpoint.
 - **Postgrad**: Trading → Resolved (winner redeems) or Cancelled (draw,
   half-value redemption). Resolution is post-graduation truth — never to be
   conflated with graduation (`app/src/domain/resolution/` is an intentional
-  placeholder). Nothing decides outcomes yet; see
+  placeholder). Decision logic is designed and landing; see
   [AI-assisted resolution](ai-assisted-resolution.md).
+
+> **"Cancelled" is two different things.** Pre-graduation, `Cancelled` is a
+> *moderator removal* on `PregradManager` (escrow refunded in full, distinct from
+> `Refunded`, which means "missed the deadline"). Post-graduation, cancellation
+> is a *draw* on `CompleteSetBinaryMarket` (half-value redemption), a separate
+> contract with its own surface. The API union exposes one `cancelled` string;
+> which one it means depends on where the market is in the ladder.
 
 The lifecycle is the organizing frame for all vertical ADRs: protocol drives
 transitions (0008), indexer/API project them (0010/0009), AI services gate

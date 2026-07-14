@@ -1,13 +1,13 @@
 ---
 type: entity
 title: AI review service and runner
-description: Stateless moderation/knowability HTTP service with pluggable providers (heuristic/ollama/anthropic) plus a DB-leasing runner that gates market entry — working end to end locally.
+description: Stateless moderation/knowability HTTP service with pluggable providers (ollama by default locally, heuristic fallback, anthropic) plus a DB-leasing runner that gates market entry — working end to end locally.
 sources:
   - docs/ai-review-runner-design.md
   - docs/ai-review-next-phase.md
   - docs/adr/0011-ai-review-service-hardening.md
   - server/README.md
-updated: 2026-07-09
+updated: 2026-07-14
 ---
 
 # AI review service and runner
@@ -15,7 +15,8 @@ updated: 2026-07-09
 Reviews newly created markets (moderation + public-knowability) before they
 open for trading. This gates market **creation** — distinct from
 post-graduation [AI-assisted resolution](../concepts/ai-assisted-resolution.md),
-which is unbuilt and will mirror this architecture.
+whose design is accepted and whose build is underway as a sibling of this
+architecture.
 
 ## Three-process architecture
 
@@ -41,6 +42,21 @@ by `AI_REVIEW_ANTHROPIC_MAX_WEB_*`). `AI_REVIEW_INTERNET_ACCESS=off|provided_url
 restricts evidence. Response parsing (verdict/score clamping) is a single
 shared module — a deliberate security control (cleanup program B1).
 
+**Local default is `ollama`, not `heuristic`** (changed 2026-07-13): `just
+local-dev` now starts the real agent-based path. The fallback semantics are the
+security-relevant part, and they are asymmetric by design:
+
+- If the Ollama runtime is not running, reviews degrade to the deterministic
+  heuristic.
+- **Locally only**, the orchestrator sets `AI_REVIEW_FALLBACK_APPROVE=true` so a
+  clean market still auto-approves instead of parking in `manual_review` and
+  blocking test flows.
+- That flag is **off by default everywhere else**, so production never
+  auto-approves when the model is unavailable — an `approve` downgrades to
+  `manual_review`.
+- Hard-flag rejects from the heuristic gate are always final, in every mode: the
+  fallback can lose an approval, never a rejection.
+
 Security posture: deterministic hard-blocks before model/web access; all
 market text and fetched content treated as untrusted (prompt-injection
 refusal rules); per-request provider failure degrades to `manual_review`,
@@ -48,7 +64,7 @@ never silent approval.
 
 ## Status
 
-Working end to end locally (`just server-ai-review-smoke`, heuristic on
+Working end to end locally (`just server-ai-review-smoke`, service on
 127.0.0.1:3002). All hardening open per
 [root ADR 0011](../summaries/root-adr-0011-ai-review-service-hardening.md):
 safe-web hardening, strict output validation,
