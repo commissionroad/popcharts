@@ -21,7 +21,7 @@ import { selectPostgradInfo, serializeMarketRow } from "./markets";
 const POSTGRAD_MARKET_STATUS_TRADING = 0;
 const POSTGRAD_MARKET_STATUS_RESOLVED = 1;
 
-const POSTGRAD_DEV_RESOLVE_ABI = parseAbi([
+export const POSTGRAD_DEV_RESOLVE_ABI = parseAbi([
   "function status() view returns (uint8)",
   "function winningSide() view returns (uint8)",
   "function resolve(uint8 side)",

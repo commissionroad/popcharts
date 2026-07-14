@@ -84,8 +84,8 @@ const PREGRAD_MARKET_STATUS_GRADUATED = 3;
 const ZERO_HASH = `0x${"0".repeat(64)}` as const;
 const MAX_TOPUP_ROUNDS = 6;
 
-const PREGRAD_DEV_GRADUATE_ABI = parseAbi([
-  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution))",
+export const PREGRAD_DEV_GRADUATE_ABI = parseAbi([
+  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution))",
   "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
   "function getClearingRoot(uint256 marketId) view returns ((bytes32 merkleRoot, address submitter, bytes32 snapshotHash, uint64 submittedAt, uint64 challengeDeadline, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount))",
   "function hashReceiptClaim((uint256 marketId, uint256 receiptId, address owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund) claim) pure returns (bytes32)",
