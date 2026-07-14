@@ -1,5 +1,14 @@
 # popcharts
 
+[![App coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcommissionroad%2Fpopcharts%2Fci-metrics%2Fbadges%2Fapp.json)](https://github.com/commissionroad/popcharts/blob/ci-metrics/TRENDS.md)
+[![Server coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcommissionroad%2Fpopcharts%2Fci-metrics%2Fbadges%2Fserver.json)](https://github.com/commissionroad/popcharts/blob/ci-metrics/TRENDS.md)
+[![Protocol Solidity coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcommissionroad%2Fpopcharts%2Fci-metrics%2Fbadges%2Fprotocol-solidity.json)](https://github.com/commissionroad/popcharts/blob/ci-metrics/TRENDS.md)
+
+Coverage figures use workspace-own denominators and update on every push to
+main; trends and baselines live on the CI-owned
+[`ci-metrics`](https://github.com/commissionroad/popcharts/tree/ci-metrics)
+branch (ADR 0017).
+
 ## Quickstart
 
 Use [`mise`](https://mise.jdx.dev/) to install the repo's pinned command-line
