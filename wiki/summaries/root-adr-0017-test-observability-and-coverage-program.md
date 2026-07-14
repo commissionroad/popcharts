@@ -11,7 +11,9 @@ updated: 2026-07-14
 
 **Status: Accepted (2026-07-14). Standalone tracked program (like
 [ADR 0016](root-adr-0016-monorepo-architecture-cleanup-program.md)), not part
-of the M1–M5 launch milestone chain. All checkboxes open at acceptance.**
+of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
+core pipeline; the flake report and Playwright retry surfacing followed the
+same day); Tracks B–G open.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -47,14 +49,16 @@ Flake signal = a rerun that passes on an unchanged head SHA, aggregated
 weekly into `FLAKES.md` — report-only for now; auto-issue filing deferred
 until the history proves a threshold meaningful (revisit 2026-07-28). The
 reporting workflow treats PR artifacts strictly as data (never executes PR
-code); its logic is typed scripts under `scripts/ci/` with seam tests.
+code); its logic is typed entry scripts at `scripts/ci-*.ts` over pure
+modules in `scripts/shared/{coverage-report,flake-report}/`, gated by the
+seam tests in `scripts/test/` (protocol CI's `scripts:check`).
 
 ## Tracks
 
-- **A — Coverage visibility**: the mechanism above (comment, trend, badges,
-  flake report, retry surfacing). Ships with the protocol figure covering
-  Solidity contracts only; the protocol TS figure is a Track G exit
-  criterion.
+- **A — Coverage visibility** (**complete 2026-07-14**): the mechanism
+  above (comment, trend, badges, flake report, retry surfacing). Ships with
+  the protocol figure covering Solidity contracts only; the protocol TS
+  figure is a Track G exit criterion.
 - **B — Server floor**: bun coverage floor at the measured baseline,
   ratcheted; route-layer tests via Elysia `app.handle()`; real-SQL strategy
   (candidate PGlite) for `src/db/`.
