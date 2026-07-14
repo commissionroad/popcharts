@@ -26,4 +26,5 @@ public CDNs, matching the designkit's documented approach.
 The site is deployed to the `popcharts-landing` project in the
 CommissionRoad hosting team, with `popcharts.xyz` as its production domain.
 Any redeploy uploads these three files as-is (no build). See
-`docs/deployment/go-live-dns.md` for the domain/DNS runbook.
+`docs/deployment/go-live-dns.md` for the domain/DNS runbook and the current
+go-live state.

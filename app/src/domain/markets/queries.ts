@@ -22,6 +22,15 @@ export type MarketQueryOptions = {
   source?: MarketDataSource;
 };
 
+/**
+ * True when market reads would come from the bundled fixtures rather than a
+ * live indexer. The public UI must label fixture-backed markets as sample
+ * data — they look like real markets but carry no live volume.
+ */
+export function usesFixtureMarkets(options: MarketQueryOptions = {}) {
+  return !resolveMarketQueryConfig(options).useApi;
+}
+
 export async function getMarketById(id: string, options: MarketQueryOptions = {}) {
   const config = resolveMarketQueryConfig(options);
 

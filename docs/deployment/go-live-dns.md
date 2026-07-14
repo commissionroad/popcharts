@@ -2,18 +2,23 @@
 
 Runbook for putting the landing page on `popcharts.xyz` and the app on
 `app.popcharts.xyz`. Written 2026-07-14, when the landing page first went
-live. Current state at that date:
+live; updated the same day after the dashboard steps were completed. State:
 
 - **Live**: `popcharts-landing` hosting project (static site from
   `landing/`), production deployment at
-  `https://popcharts-landing.vercel.app`.
-- **Not yet live**: the `app/` Next.js project (see "App project" below) and
-  both custom domains.
+  `https://popcharts-landing.vercel.app`; `popcharts-app` (Next.js from
+  `app/` via the GitHub integration), production deployment at
+  `https://popcharts-app.vercel.app`.
+- **Attached, pending DNS**: `popcharts.xyz` → `popcharts-landing`,
+  `app.popcharts.xyz` → `popcharts-app` (steps 1–2 below are done; they
+  show "Invalid Configuration" until step 3 propagates).
 
-The remaining steps need dashboard/registrar access and take a few minutes
-total. Agent sessions generally cannot perform them: the registrar
-(Namecheap) is outside the sandbox network egress policy, and the hosting
-MCP toolset has no domain-management or git-integration endpoints.
+The hands-on steps take a few minutes; nameserver changes can take up to
+48 hours to propagate globally (usually far less). Cloud agent sessions
+generally cannot perform them: the registrar (Namecheap) is outside the
+sandbox network egress policy, and the hosting MCP toolset has no
+domain-management or git-integration endpoints. A local session driving the
+user's browser can.
 
 ## 1. App project (Vercel dashboard)
 
@@ -27,8 +32,10 @@ integration (deploys on push to `main`, previews on PRs):
 3. No env vars are required for a first deploy: with no
    `NEXT_PUBLIC_PRIVY_APP_ID` the wallet integration disables itself, and
    the market data source defaults to mock fixtures (verified by a clean
-   local `pnpm --dir app build` with an empty env). Real chain/indexer env
-   comes later with the backend (root ADR 0015, milestone M5).
+   local `pnpm --dir app build` with an empty env). The discovery page
+   labels fixture-backed markets with a sample-data banner, so the public
+   deploy never implies live volume. Real chain/indexer env comes later
+   with the backend (root ADR 0015, milestone M5).
 
 ## 2. Custom domains (Vercel dashboard)
 

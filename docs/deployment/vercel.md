@@ -16,10 +16,11 @@ Deployment itself is owned by Vercel, so no `VERCEL_TOKEN`,
 
 ## Project Settings
 
-The Vercel project is linked to:
+The Vercel project is `popcharts-app` in the `commissionroads-projects`
+team, linked to:
 
 ```txt
-sentilesdal/popcharts
+commissionroad/popcharts
 ```
 
 The local project link lives in `app/.vercel/project.json`. Keep `.vercel/`
@@ -29,8 +30,8 @@ To recreate the Vercel setup from a logged-in local CLI:
 
 ```bash
 cd app
-vercel link --yes --scope sentilesdals-projects --project popcharts
-vercel git connect git@github.com:sentilesdal/popcharts.git --scope sentilesdals-projects
+vercel link --yes --scope commissionroads-projects --project popcharts-app
+vercel git connect git@github.com:commissionroad/popcharts.git --scope commissionroads-projects
 ```
 
 Set or confirm the project root directory:
