@@ -20,19 +20,6 @@ let dbc: typeof productionDb;
 let teardownDb: () => Promise<void>;
 
 beforeAll(async () => {
-  process.env.NETWORK = "arcTestnet";
-  process.env.ARC_TESTNET_RPC_HTTP_URL = "http://127.0.0.1:1";
-  process.env.ARC_TESTNET_BOUNDED_HOOK_ADDRESS =
-    "0x0000000000000000000000000000000000000101";
-  process.env.ARC_TESTNET_ORDER_MANAGER_ADDRESS =
-    "0x0000000000000000000000000000000000000102";
-  process.env.ARC_TESTNET_POOL_MANAGER_ADDRESS =
-    "0x0000000000000000000000000000000000000103";
-  process.env.ARC_TESTNET_POOL_TICK_BOUNDS_ADDRESS =
-    "0x0000000000000000000000000000000000000104";
-  process.env.ARC_TESTNET_STATE_VIEW_ADDRESS =
-    "0x0000000000000000000000000000000000000105";
-
   ({ dbc, teardown: teardownDb } = await createPgliteDb());
   setDbForTesting(dbc);
 

@@ -50,6 +50,10 @@ function withEnv(values: Record<string, string>, task: () => void) {
     "NETWORK",
     "RPC_HTTP_URL",
     "RPC_WSS_URL",
+    // Cleared so the hermetic test-setup.ts preload (which pins these to a
+    // dead endpoint) doesn't shadow the defaults these tests probe.
+    "ARC_TESTNET_RPC_HTTP_URL",
+    "ARC_TESTNET_RPC_WSS_URL",
     ...Object.keys(values),
   ];
   const previous = new Map(keys.map((key) => [key, process.env[key]]));

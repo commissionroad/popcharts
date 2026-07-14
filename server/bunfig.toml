@@ -1,4 +1,7 @@
 [test]
+# Hermetic test env — pins network config to dead endpoints before any
+# module loads (see test-setup.ts).
+preload = ["./test-setup.ts"]
 coverageSkipTestFiles = true
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
