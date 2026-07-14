@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "workspaces": {
+    "app": {
+      "commit": "cc0c130fcb2ba157d7aa450bdd4f5f0aefcf8cfe",
+      "updatedAt": "2026-07-14T16:22:30Z",
+      "summary": {
+        "files": 107,
+        "lines": {
+          "hit": 2746,
+          "found": 2746,
+          "pct": 100
+        },
+        "functions": {
+          "hit": 804,
+          "found": 807,
+          "pct": 99.63
+        },
+        "branches": {
+          "hit": 2586,
+          "found": 2591,
+          "pct": 99.81
+        }
+      }
+    },
+    "protocol-solidity": {
+      "commit": "cc0c130fcb2ba157d7aa450bdd4f5f0aefcf8cfe",
+      "updatedAt": "2026-07-14T16:22:30Z",
+      "summary": {
+        "files": 19,
+        "lines": {
+          "hit": 1417,
+          "found": 1538,
+          "pct": 92.13
+        },
+        "functions": {
+          "hit": 0,
+          "found": 0,
+          "pct": null
+        },
+        "branches": {
+          "hit": 0,
+          "found": 0,
+          "pct": null
+        }
+      }
+    },
+    "server": {
+      "commit": "cc0c130fcb2ba157d7aa450bdd4f5f0aefcf8cfe",
+      "updatedAt": "2026-07-14T16:22:30Z",
+      "summary": {
+        "files": 94,
+        "lines": {
+          "hit": 6309,
+          "found": 10564,
+          "pct": 59.72
+        },
+        "functions": {
+          "hit": 376,
+          "found": 565,
+          "pct": 66.55
+        },
+        "branches": {
+          "hit": 0,
+          "found": 0,
+          "pct": null
+        }
+      }
+    }
+  }
+}
