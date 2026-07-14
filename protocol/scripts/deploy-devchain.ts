@@ -11,6 +11,7 @@ import { loadHardhatDeployableArtifact } from "./shared/artifact/loadHardhatDepl
 import { defineEvmChain } from "./shared/chain/defineEvmChain.js";
 import { runScript } from "./shared/cli/runScript.js";
 import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract.js";
+import { updateDevchainEnvBlock } from "./shared/env/updateDevchainEnvBlock.js";
 import { writeJsonFile } from "./shared/json/jsonFile.js";
 import { createViemClients } from "./shared/viem/createViemClients.js";
 
@@ -18,8 +19,6 @@ const DEFAULT_RPC_URL = "http://127.0.0.1:8545";
 // Hardhat's well-known dev account #0; only ever used against a local node.
 const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const APP_ENV_START = "# BEGIN POPCHARTS DEVCHAIN";
-const APP_ENV_END = "# END POPCHARTS DEVCHAIN";
 const HARDHAT_LOCAL_CHAIN_ID = 31337;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -156,29 +155,21 @@ async function writeAppEnvBlock(
   privateKey: Hex,
 ): Promise<void> {
   const existing = await readOptionalFile(path);
-  const block = [
-    APP_ENV_START,
-    "NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=local",
-    "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain",
-    "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=server",
-    `NEXT_PUBLIC_POPCHARTS_CHAIN_ID=${deployment.chainId}`,
-    `NEXT_PUBLIC_POPCHARTS_RPC_URL=${deployment.rpcUrl}`,
-    `NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=${deployment.contracts.pregradManager.address}`,
-    `NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=${deployment.contracts.collateral.address}`,
-    "NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN=true",
-    "POPCHARTS_DEVCHAIN_ENABLED=true",
-    `POPCHARTS_DEVCHAIN_PRIVATE_KEY=${privateKey}`,
-    APP_ENV_END,
-    "",
-  ].join("\n");
-
-  const pattern = new RegExp(
-    `${escapeRegExp(APP_ENV_START)}[\\s\\S]*?${escapeRegExp(APP_ENV_END)}\\n?`,
-    "m",
-  );
-  const next = pattern.test(existing)
-    ? existing.replace(pattern, block)
-    : `${existing.trimEnd()}${existing.trim() ? "\n\n" : ""}${block}`;
+  const next = updateDevchainEnvBlock({
+    entries: [
+      "NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=local",
+      "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain",
+      "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER=server",
+      `NEXT_PUBLIC_POPCHARTS_CHAIN_ID=${deployment.chainId}`,
+      `NEXT_PUBLIC_POPCHARTS_RPC_URL=${deployment.rpcUrl}`,
+      `NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=${deployment.contracts.pregradManager.address}`,
+      `NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=${deployment.contracts.collateral.address}`,
+      "NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN=true",
+      "POPCHARTS_DEVCHAIN_ENABLED=true",
+      `POPCHARTS_DEVCHAIN_PRIVATE_KEY=${privateKey}`,
+    ],
+    existing,
+  });
 
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, next);
@@ -194,8 +185,4 @@ async function readOptionalFile(path: string): Promise<string> {
 
     throw error;
   }
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
