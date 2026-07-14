@@ -3,3 +3,4 @@
 {"ts":"2026-07-14T16:22:30Z","workspace":"server","commit":"cc0c130fcb2ba157d7aa450bdd4f5f0aefcf8cfe","linesPct":59.72,"linesHit":6309,"linesFound":10564,"functionsPct":66.55,"branchesPct":null}
 {"ts":"2026-07-14T16:29:09.987Z","workspace":"protocol-solidity","commit":"d01f1720afd89c5c7d4f945009ee59bf01a341e9","linesPct":92.13,"linesHit":1417,"linesFound":1538,"functionsPct":null,"branchesPct":null}
 {"ts":"2026-07-14T16:59:01.405Z","workspace":"app","commit":"772b499a44a162c8a8fa045df4fc0fdd6b84b097","linesPct":100,"linesHit":2770,"linesFound":2770,"functionsPct":99.51,"branchesPct":99.73}
+{"ts":"2026-07-14T17:11:58.415Z","workspace":"protocol-solidity","commit":"b41258c8085de75e1d2a00f021b474d8ea9ce4d0","linesPct":92.13,"linesHit":1417,"linesFound":1538,"functionsPct":null,"branchesPct":null}
