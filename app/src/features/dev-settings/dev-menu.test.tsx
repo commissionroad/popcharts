@@ -78,6 +78,25 @@ describe("DevMenu", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
+  it("closes the menu when clicking outside it", () => {
+    render(<DevMenu />);
+    open();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("keeps the menu open when interacting inside it", () => {
+    render(<DevMenu />);
+    open();
+
+    const toggle = screen.getByRole("switch", { name: /Reveal raw errors/ });
+    fireEvent.pointerDown(toggle);
+
+    expect(toggle).toBeInTheDocument();
+  });
+
   it("disables the market actions off a market page", () => {
     mocks.pathname.mockReturnValue("/portfolio");
     render(<DevMenu />);

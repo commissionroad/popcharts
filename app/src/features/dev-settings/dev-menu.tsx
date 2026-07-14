@@ -9,7 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +57,28 @@ export function DevMenu() {
   const [revealErrors, setRevealErrors] = useState(() => readRevealRawErrors());
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ClosePregradMarketActionResult | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const testPusdMint = useTestPusdMint();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
 
   // Keep the flag `presentError` reads (and the persisted value) in step with
   // the toggle, including the initial hydrated value.
@@ -80,7 +101,7 @@ export function DevMenu() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         aria-expanded={isOpen}
         aria-label="Dev tools"
