@@ -70,12 +70,17 @@ uploaded and never read, coverage floors only in the app (server ~60% lines
 unenforced; v4 order libraries 62–70% and only transitively tested), all
 integration smokes manual-only, no flake tracking. ADR 0017 is the tracked
 fix: a CI-written `ci-metrics` branch feeding sticky PR coverage-delta
-comments, a trend log, README badges, and a weekly flake report (Track A);
-then enforcement along the risk gradient — server coverage floor + route/db
-tests (B), a nightly scheduled smoke tier (C, the harness skeleton for ADR
-0014), dedicated v4-library tests and a `StdInvariant` escrow-conservation
-harness (D), an infra `cdk synth` gate (E), and the band-pass invariant-test
-timeout fix (F).
+comments, a trend log, README badges, and a weekly flake report (Track A —
+informational only, never a required check); then enforcement along the
+risk gradient — server coverage floor + route/db tests (B), a nightly
+scheduled smoke tier (C, the harness skeleton for ADR 0014), dedicated
+v4-library tests, a `StdInvariant` escrow-conservation harness and the
+Solidity floor (D), an infra `cdk synth` gate (E), the band-pass
+invariant-test timeout fix (F), and the protocol TS SDK move out of
+`scripts/shared` into `protocol/src/` with its own figure and floor (G).
+Coverage figures use workspace-own denominators (`app/src`, `server/src`,
+protocol Solidity + protocol TS) with ratcheted floors for each; flake
+tracking is report-only until its history justifies alerting.
 
 ## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
 

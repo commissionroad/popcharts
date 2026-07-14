@@ -9,7 +9,8 @@ sources:
   - protocol/docs/adr/0004-pin-solidity-compiler-to-0-8-28.md
   - protocol/docs/CODE_GUIDELINES.md
   - docs/architecture.md
-updated: 2026-07-13
+  - docs/adr/0017-test-observability-and-coverage-program.md
+updated: 2026-07-14
 ---
 
 # protocol/ workspace
@@ -54,6 +55,18 @@ records the intentional duplications).
 typecheck` (build before typecheck). Verification bundle before handoff:
 see [protocol testing](../summaries/protocol-testing.md). Deployments registry:
 `protocol/deployments/protocol.json` ([README summary](../summaries/protocol-deployments-readme.md)).
+
+## Package export surface (ADR 0017 Track G, open)
+
+The workspace doubles as the `@popcharts/protocol` TS package. Its
+`exports` map is the consumer allowlist (bare specifier + four declared
+subpaths; server and app use nothing else), but the public barrel
+`protocol/src/index.ts` currently re-exports ~25 symbols from
+`protocol/scripts/shared/{price,market}` — SDK implementation living in
+the scripts tree. [ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md)
+Track G moves those modules into `protocol/src/` (`src/price/`,
+`src/market/`), makes `scripts/` import from `src/` only (lint-guarded),
+and gives protocol TS its own coverage figure and floor.
 
 ## Related pages
 
