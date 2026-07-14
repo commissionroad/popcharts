@@ -14,7 +14,7 @@ document disagree, fix one of them in the same PR.
 | --------- | ---- |
 | `app/` | The Next.js frontend. Routes (`src/app/`) compose feature components (`src/features/`) and shared components (`src/components/`); pure business logic lives in `src/domain/`; external-system adapters (contracts, indexer API client, wallet) live in `src/integrations/`; generic helpers in `src/lib/`; design tokens in `src/design-system/`. |
 | `packages/` | Shared workspace packages. `packages/api-client/` (`@popcharts/api-client`) owns the orval-generated fetch client + models for the server API (`src/generated/`, committed), the orval config that produces it, and its freshness gate (`api:check`). |
-| `server/` | The Bun + Elysia read API (`src/api/`), the viem event indexer (`src/indexer/`), the AI review service and runner (`src/ai-review/`, `src/ai-review-runner/`), Drizzle/PostgreSQL persistence (`src/db/`), shared viem client factories (`src/blockchain/`), and config (`src/config/`). |
+| `server/` | The Bun + Elysia read API (`src/api/`), the viem event indexer (`src/indexer/`), the AI review and AI resolution services and runners (`src/ai-review/`, `src/ai-review-runner/`, `src/ai-resolution/`, `src/ai-resolution-runner/`), the complete-set keeper (`src/keeper/`), Drizzle/PostgreSQL persistence (`src/db/`), shared viem client factories (`src/blockchain/`), and config (`src/config/`). |
 | `protocol/` | Solidity contracts (`contracts/`), Hardhat deployment and operations scripts (`scripts/`), the contract-metadata export pipeline, and protocol tests (`test/solidity/`, `test/nodejs/`). |
 | `scripts/` | Root-level local-dev orchestration (`local-dev.ts`, `local-chain-smoke.ts`, `run-local-chain-e2e.ts`, …) plus their `scripts/shared/` helpers. These spawn workspace commands as child processes; they are glue, not a library. |
 | `infra/` | AWS CDK stacks deploying the API and indexer to ECS Fargate with RDS PostgreSQL (see `infra/README.md`). Self-contained; imports no workspace source. |
@@ -26,7 +26,9 @@ Tooling note: `app`, `protocol`, and `packages/*` are true pnpm workspace
 members — one root `pnpm install`, one root `pnpm-lock.yaml` (no nested pnpm
 lockfiles).
 The server stays outside the workspace and installs with Bun (`bun.lock`);
-it produces artifacts for the others but imports nothing from them. Shared
+it consumes `@popcharts/protocol` via a `file:../protocol` dependency (price
+and tick helpers, venue ABIs, clearing math, manifest types) — server CI's
+path filter includes `protocol/**` for exactly this reason. Shared
 strictness flags live in the root `tsconfig.base.json`; shared Prettier
 options in the root `.prettierrc.json`.
 
@@ -44,6 +46,9 @@ protocol/src/generated/{pregrad-manager,postgrad-venue}.ts  (committed)
   │  Next transpiles it via `transpilePackages`)
   ▼
 app/src/integrations/contracts/pregrad-manager.ts  (re-export shim)
+  │  (the same package is consumed by server/ via file:../protocol —
+  │   keeper, venue services, and the indexer import its price/tick
+  │   helpers, venue ABIs, and manifest types)
 
 server/src/api (Elysia route schemas, TypeBox)
   │  server/scripts/generate-openapi.ts  (`openapi:generate` / `openapi:check`)
@@ -60,14 +65,16 @@ app/src/integrations/indexer/markets-api.ts  (hand-written adapter)
 
 The remaining edges:
 
-- **server → chain**: the indexer and API read chain state over RPC with viem.
-  All clients come from the factories in `server/src/blockchain/client.ts`
-  (`createBlockchainClient`, `createReadOnlyClient`, `createWalletClient`).
-  The server declares minimal inline `parseAbi`/`parseAbiItem` fragments for
-  exactly the events and functions it touches (e.g.
-  `src/indexer/watchers/market-created.ts`,
-  `src/ai-review-runner/chain-review.ts`); it does not import protocol
-  artifacts.
+- **server → chain**: the indexer, API, keeper, and runners read chain state
+  over RPC with viem. All clients come from the factories in
+  `server/src/blockchain/client.ts` (`createBlockchainClient`,
+  `createReadOnlyClient`, `createWalletClient`).
+- **server → protocol**: the server depends on `@popcharts/protocol`
+  (`file:../protocol`) for venue ABIs, price/tick helpers, clearing math, and
+  manifest types (keeper, venue services, `indexer/utils/venue-pool-registry`).
+  Pregrad indexer watchers still declare minimal inline `parseAbi` fragments
+  for the events they watch (e.g. `src/indexer/watchers/market-created.ts`).
+  Server CI's path filter includes `protocol/**` to track this edge.
 - **app → server at runtime**: HTTP calls through the generated fetch client
   in `@popcharts/api-client`, wrapped by the hand-written adapter
   `app/src/integrations/indexer/markets-api.ts`.
@@ -82,16 +89,20 @@ The remaining edges:
 ## Import rules (the acyclic contract)
 
 - `protocol/` imports nothing from any other workspace.
-- `server/` never imports protocol source or artifacts. Chain knowledge
-  enters the server only as inline viem ABI fragments plus addresses from
-  config/env. It never imports app code.
-- `app/` never imports server source. Protocol code enters the app only
-  through the `@popcharts/protocol` package (its generated contract metadata
-  exports), imported solely by the re-export shims under
-  `app/src/integrations/contracts/` — feature code never imports the package
-  directly. Server-derived code enters the app only through the
-  `@popcharts/api-client` package (the committed orval output listed above),
-  imported solely by the adapter under `app/src/integrations/indexer/`.
+- `server/` may import `@popcharts/protocol` (it does, via `file:../protocol`)
+  but never app code or root scripts. Addresses come from config/env.
+- `app/` never imports server source. Protocol code enters the app two ways,
+  both enforced by ESLint `no-restricted-imports`: contract ABIs/metadata via
+  the re-export shims under `app/src/integrations/contracts/`, and — a
+  deliberate, blessed exception — the pure price-policy and tick-math
+  constants imported directly by `app/src/domain/postgrad-trading/` (they are
+  domain truth with no chain, wallet, or React dependence; routing them
+  through `integrations/` would invert layering). Server-derived code enters
+  the app only through the `@popcharts/api-client` package: **value** imports
+  live solely in the adapter under `app/src/integrations/indexer/` (and the
+  `domain/markets` mapping seam); **type-only** imports of generated models
+  are permitted in feature code as a pragmatic middle ground until a feature
+  earns its own domain mapping seam.
 - Within the app (per `app/AGENTS.md`):
   - `src/domain/` is pure TypeScript: no React, Next.js, browser APIs, wallet
     SDKs, or UI component imports. Importing `src/lib/` (pure helpers) is

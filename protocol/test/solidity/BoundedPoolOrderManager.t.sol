@@ -4,6 +4,12 @@ pragma solidity ^0.8.26;
 
 // solhint-disable use-natspec
 
+// NOTE: this suite deliberately does NOT inherit test/solidity/BaseTest.sol.
+// The v4 dependency family pins solc 0.8.26 while BaseTest pulls in the
+// 0.8.28 PregradManager/MockCollateral fixtures, and the fixtures share
+// nothing with this suite (V4TestERC20, pool manager stack). Re-evaluated
+// and kept during the 2026-07-14 repo health audit.
+
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {PoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol";

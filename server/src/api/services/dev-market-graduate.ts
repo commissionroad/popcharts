@@ -1,3 +1,8 @@
+// DEBT GUARD (2026-07-14 repo health audit): at ~1,100+ lines this is the
+// largest file in the server, mixing graduation orchestration, venue wiring,
+// liquidity seeding, and settlement mirroring. It is tolerated as-is because
+// it is a dev-only harness excluded from production builds. Split it the
+// moment any part of it is imported by a non-dev code path.
 import {
   createPublicClient,
   createWalletClient,
