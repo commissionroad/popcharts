@@ -126,26 +126,63 @@ summaries `ci-metrics` holds.
 
 **Track B — Server coverage floor and the untested layers.**
 
-- [ ] Set a bun coverage floor at the current measured baseline; ratchet
-      upward as coverage lands (mirroring the app's ratchet convention)
-- [ ] Route-layer tests via `app.handle()` against the Elysia apps (no
-      listening server), covering `src/api/routes/`
-- [ ] A real-SQL strategy for `src/db/` (candidate: PGlite) replacing
-      hand-rolled fake executors where the SQL itself is the risk
-- [ ] Decide and document what stays fake-executor tested vs real-SQL
-      tested
+Substrate decision (2026-07-14 grill): two tiers, not one. Unit tests use
+in-process PGlite (real Postgres-dialect SQL, zero setup, no Docker) so
+DB-real unit coverage stays fast and expansive; everything above unit —
+integration, e2e, smoke — uses a real Postgres. DB-boundary integration
+tests run **per PR** inside the `Check server` job via a `services:
+postgres` container; they are colocated as `*.int.test.ts`, excluded from
+the unit run, and must stay deterministic since they gate merges. The
+placement rule for future tests: needs only Postgres → per-PR integration;
+needs a chain or a second service → nightly (Track C). The boundary rule
+for test style: real-SQL tests for code whose risk is the SQL (the db
+layer, persistence with conflict/transaction semantics — the money paper
+trail); fake executors stay for pure projection/serialization logic. The
+coverage floor is measured on the unit tier only.
 
-**Track C — Scheduled integration tier.**
+Sequenced checklist (one PR each):
+
+- [ ] Floor first: align bun's own denominator with the workspace-own
+      definition (`coveragePathIgnorePatterns` for `../protocol`) and set
+      `coverageThreshold` at the measured baseline; ratchet upward
+      manually as coverage lands (app convention — never-regress, no
+      mandated target)
+- [ ] PGlite spike: one persistence-function test file against
+      drizzle-orm's PGlite adapter under `bun test`; go/no-go for the
+      unit substrate (fallback: the service container everywhere)
+- [ ] Money paper-trail integration suite as the container's first cargo:
+      drive the settlement/refunds/claims handler family twice with the
+      same event against real Postgres and assert exactly-once
+      persistence, receipt linkage, and that the
+      `ensure-local-unique-constraints` DDL holds — converting the
+      paper-trail invariant (docs/portfolio-data-design.md) from prose
+      into a merge gate
+- [ ] Make the `src/db/client.ts` import-time singleton injectable, then
+      route-layer tests via `app.handle()` against the Elysia apps (no
+      listening server), covering `src/api/routes/`
+- [ ] Document the fake-executor vs real-SQL boundary where the test
+      helpers live
+
+**Track C — Nightly full-fidelity tier.**
+
+Scope broadened by the 2026-07-14 grill: not just scheduling the existing
+smokes but deliberately growing the above-unit tier, which the audit found
+lacking. Everything here runs against real services (docker-compose
+Postgres, devchain) — full fidelity by definition. Tests that need only
+Postgres belong in Track B's per-PR integration step instead; what lands
+here is anything needing a chain or a second service.
 
 - [ ] Nightly workflow: docker-compose Postgres + devchain, then
       `local-smoke`, `local-market-smoke`, `devchain-e2e`,
       `server-ai-review-smoke`
 - [ ] Failures append to the flake report and notify (issue or existing
       channel)
+- [ ] Grow the tier: new full-stack scenarios beyond the existing smokes,
+      prioritized by lifecycle risk (candidates: graduation clearing
+      against a seeded book, refund path, postgrad venue handoff)
 
-This track only schedules the smokes that already exist. The full-lifecycle
-suite (every terminal state, unhappy paths) remains ADR 0014's scope; this
-nightly job is its natural harness skeleton.
+The full-lifecycle suite (every terminal state, unhappy paths) remains ADR
+0014's scope; this nightly job is its natural harness skeleton.
 
 **Track D — Protocol value-path coverage.**
 
