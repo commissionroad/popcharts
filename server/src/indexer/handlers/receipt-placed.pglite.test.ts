@@ -138,6 +138,12 @@ describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
     );
     // The transaction must not leave the event behind: a committed event
     // would make the dedup skip the counter updates on a later replay.
-    expect(await eventCount()).toBe(1);
+    const orphanRows = await dbc
+      .select({ id: schema.receiptPlacedEvents.id })
+      .from(schema.receiptPlacedEvents)
+      .where(
+        eq(schema.receiptPlacedEvents.transactionHash, orphan.transactionHash),
+      );
+    expect(orphanRows).toHaveLength(0);
   });
 });
