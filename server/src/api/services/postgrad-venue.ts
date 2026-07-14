@@ -10,20 +10,17 @@ import {
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
-import {
-  createPublicClient,
-  createWalletClient,
-  encodeAbiParameters,
-  http,
-  keccak256,
-  parseAbi,
-  type Hash,
-} from "viem";
+import { encodeAbiParameters, keccak256, parseAbi, type Hash } from "viem";
 
 import type {
   MarketVenuePoolResponse,
   MarketVenueResponse,
 } from "src/api/models/markets";
+import {
+  createReadOnlyClient,
+  type BlockchainClient,
+  type BlockchainWalletClient,
+} from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
 
 /**
@@ -154,8 +151,8 @@ export function closingYesDisplayPriceWad({
 }
 
 type VenueClients = {
-  publicClient: ReturnType<typeof createPublicClient>;
-  walletClient: ReturnType<typeof createWalletClient>;
+  publicClient: BlockchainClient;
+  walletClient: BlockchainWalletClient;
 };
 
 type WiredPool = {
@@ -416,7 +413,7 @@ async function readOutcomePool({
   collateral: `0x${string}`;
   collateralDecimals: number;
   outcomeToken: `0x${string}`;
-  publicClient: ReturnType<typeof createPublicClient>;
+  publicClient: BlockchainClient;
 }): Promise<MarketVenuePoolResponse> {
   const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
     collateral,
@@ -573,7 +570,7 @@ export async function buildGraduatedMarketManifest({
 }: {
   collateral: `0x${string}`;
   postgradMarket: `0x${string}`;
-  publicClient?: ReturnType<typeof createPublicClient>;
+  publicClient?: BlockchainClient;
 }): Promise<CompleteSetMarketManifestData> {
   const [yesToken, noToken, resolver, collateralDecimals] = await Promise.all([
     publicClient.readContract({
@@ -646,7 +643,7 @@ export async function buildGraduatedMarketManifest({
  * the protocol's shared venue helpers accept, pinning account and chain.
  */
 export function createVenueContractWriter(
-  walletClient: ReturnType<typeof createWalletClient>,
+  walletClient: BlockchainWalletClient,
 ) {
   return {
     writeContract: (parameters: {
@@ -657,7 +654,7 @@ export function createVenueContractWriter(
     }) =>
       walletClient.writeContract({
         abi: parameters.abi as [],
-        account: walletClient.account!,
+        account: walletClient.account,
         address: parameters.address,
         args: parameters.args as [],
         chain: config.chain,
@@ -666,13 +663,10 @@ export function createVenueContractWriter(
   };
 }
 
-let venuePublicClient: ReturnType<typeof createPublicClient> | null = null;
+let venuePublicClient: BlockchainClient | null = null;
 
 function getVenuePublicClient() {
-  venuePublicClient ??= createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  venuePublicClient ??= createReadOnlyClient();
 
   return venuePublicClient;
 }

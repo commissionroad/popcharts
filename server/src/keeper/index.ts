@@ -1,13 +1,12 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbiItem,
-} from "viem";
+import { parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { readDevPrivateKey } from "src/api/services/local-dev-chain";
 import { postgradVenueConfigured } from "src/api/services/postgrad-venue";
+import {
+  createReadOnlyClient,
+  createWalletClient,
+} from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
 
 import {
@@ -71,15 +70,10 @@ if (
   process.exit(1);
 }
 
-const publicClient = createPublicClient({
-  chain: config.chain,
-  transport: http(config.rpcHttpUrl),
-});
-const walletClient = createWalletClient({
-  account: privateKeyToAccount(readDevPrivateKey()),
-  chain: config.chain,
-  transport: http(config.rpcHttpUrl),
-});
+const publicClient = createReadOnlyClient();
+const walletClient = createWalletClient(
+  privateKeyToAccount(readDevPrivateKey()),
+);
 const clients = { publicClient, walletClient };
 const scheduler = createSingleFlightScheduler({
   onError: (key, error) => {

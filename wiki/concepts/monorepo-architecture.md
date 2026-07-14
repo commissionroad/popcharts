@@ -53,6 +53,7 @@ itself is **complete** as of 2026-07-13: Tracks A/B/D/E/F ran autonomously
 2026-07-07..13 under per-item human review. Every contract extraction was proven
 behavior-preserving by a zero-diff metadata regeneration; the two god files that
 motivated the program came down from 1,365 → ~1,090 (`PregradManager.sol`) and
-1,273 → ~925 lines (`BoundedPoolOrderManager.sol`). Two checkboxes still read
-`[ ]` in the raw ADR (D3, E7) and both are intentional rather than outstanding —
-see the summary.
+1,273 → ~925 lines (`BoundedPoolOrderManager.sol`). One checkbox still reads
+`[x]` everywhere — the once-stale E7 box (landed as PR #111) was re-ticked in the 2026-07-14 bookkeeping pass;
+the long-deferred D3 settlement-handler split executed 2026-07-14 after its
+trigger fired — see the summary.

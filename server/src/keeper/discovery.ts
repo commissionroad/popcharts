@@ -1,7 +1,7 @@
 import type { CompleteSetMarketManifestData } from "@popcharts/protocol";
-import type { createPublicClient } from "viem";
 
 import { buildGraduatedMarketManifest } from "src/api/services/postgrad-venue";
+import type { BlockchainClient } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
@@ -64,7 +64,7 @@ export async function discoverPregradMarkets(): Promise<
 export async function discoverTrackedMarkets({
   publicClient,
 }: {
-  publicClient: ReturnType<typeof createPublicClient>;
+  publicClient: BlockchainClient;
 }): Promise<TrackedMarket[]> {
   const tracked = new Map<string, TrackedMarket>();
 
@@ -124,7 +124,7 @@ async function selectGraduatedMarkets() {
  * arrives through the env written by the local deploy flow.
  */
 async function discoverDemoMarket(
-  publicClient: ReturnType<typeof createPublicClient>,
+  publicClient: BlockchainClient,
 ): Promise<TrackedMarket | null> {
   const marketAddress =
     process.env.LOCAL_COMPLETE_SET_MARKET_ADDRESS ??

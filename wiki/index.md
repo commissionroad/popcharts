@@ -80,7 +80,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0013](summaries/root-adr-0013-app-feature-completion.md) — app across the full lifecycle incl. postgrad UX (2/14; postgrad-mode detail + receipt states done)
 - [ADR 0014](summaries/root-adr-0014-full-lifecycle-e2e-testing.md) — the every-terminal-state e2e suite; acceptance gate for M1–M4 (all open)
 - [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (1/13; Protocol CI done)
-- [ADR 0016 (cleanup)](summaries/root-adr-0016-monorepo-architecture-cleanup-program.md) — ~30-PR monorepo cleanup program; complete 2026-07-13, Track C closed under human review (outside the M1–M5 chain)
+- [ADR 0016 (cleanup)](summaries/root-adr-0016-monorepo-architecture-cleanup-program.md) — Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review; the one deferred item (D3 settlement-handler split) fired its trigger and was executed 2026-07-14.
 
 ## Summaries — root docs
 
