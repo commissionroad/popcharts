@@ -14,7 +14,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Creation-fee custody](concepts/creation-fee-custody.md) — the fee policy, the vault/policy split, and the whitepaper's explicit-fee constraint
 - [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the post-graduation outcome pipeline (design accepted, build underway), per-outcome temporal gates, and provenance caveats
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
-- [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel + AWS CDK + Arc, all M5, nothing deployed
+- [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel frontend live (2026-07-14); AWS CDK backend + Arc protocol still M5
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
 - [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks
 - [Product honesty rule](concepts/product-honesty-rule.md) — the tested never-imply-a-guaranteed-fill copy contract
@@ -92,7 +92,8 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [AI review next phase](summaries/ai-review-next-phase.md) — provider triad, service split rationale, AWS shape, injection defenses
 - [AI resolution service & runner design](summaries/ai-resolution-service-design.md) — the ADR 0012 design: resolution as a sibling of review, per-outcome temporal gates, on-chain floor guard, 0.85/24h safety valves
 - [Clearing keeper design](summaries/clearing-keeper-design.md) — the ADR 0008 design: band-pass sweep, largest-remainder rounding, snapshotHash verification, three-outcome decision logic, golden tests
-- [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline (has stale org/lockfile references)
+- [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline: popcharts-app project, GitHub integration, root `app`
+- [Go-live DNS runbook](summaries/deployment-go-live-dns.md) — popcharts.xyz / app.popcharts.xyz domains, Namecheap nameserver delegation, go-live state ledger
 - [Portfolio data design](summaries/portfolio-data-design.md) — DB-backed Portfolio spec: Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; home of the repo-wide money-paper-trail invariant
 - [Error-handling UX PRD](summaries/error-handling-ux-prd.md) — safe-by-default error presentation: invert getErrorMessage → presentError, always-log sink, DisplayableError allow-list, CI guardrail against raw error.message renders
 
