@@ -11,6 +11,10 @@ export {
   watchOutcomeTokenTransferEvents,
 } from "./outcome-token-transfers";
 export {
+  recoverPostgradResolutionEvents,
+  watchPostgradResolutionEvents,
+} from "./postgrad-resolution";
+export {
   recoverReceiptPlacedEvents,
   watchReceiptPlacedEvents,
 } from "./receipt-placed";
