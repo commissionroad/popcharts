@@ -37,7 +37,7 @@ Run a tracked program to make test health visible and enforce it where it
 protects value transfer, following the ADR 0016 model: one concern per PR,
 checklist updated in the same PR as the work.
 
-Two scoping decisions:
+Scoping decisions (the last four from the 2026-07-14 grill session):
 
 - **In-repo tooling only.** No external coverage vendor (Codecov,
   Coveralls). The mechanisms below are a few small workflow jobs and a
@@ -46,6 +46,23 @@ Two scoping decisions:
 - **Observability first, then floors.** Visibility (Track A) lands before
   new enforcement (Tracks B, D) so ratchets are set against numbers everyone
   can see.
+- **Informational, not gating.** The observability workflow never blocks a
+  merge and is not a required check. Enforcement lives inside each
+  workspace's existing required CI job as a ratcheted floor, where it fails
+  fast and reproduces locally. A `workflow_run`-based gate would duplicate
+  that with worse ergonomics, and a flaky reporter must never be able to
+  block merges.
+- **Workspace-own denominators.** A reported coverage figure counts only
+  the workspace's own sources: `app/src/**`, `server/src/**`, and protocol
+  as two figures — Solidity contracts, and protocol TS (`protocol/src/**`,
+  excluding `generated/`). Files a suite exercises from another workspace
+  (e.g. protocol helpers imported by server tests, ~10 points of swing in
+  the server number) are attributed to their home workspace only. This is
+  what makes a delta mean something about *this* PR and keeps floors
+  honest.
+- **Every workspace gets a floor**, set at its measured baseline and
+  ratcheted upward as coverage lands: app (exists today), server (Track B),
+  protocol Solidity (Track D), protocol TS (Track G).
 
 ### Mechanism: the `ci-metrics` branch
 
@@ -61,9 +78,16 @@ the three CI workflows:
 - **PR completions:** download that run's coverage artifact, compare
   per-workspace lines/branches against the main baseline read from
   `ci-metrics`, and upsert a single sticky PR comment (marker-based) with a
-  table: workspace, lines %, delta vs main, plus Playwright
-  flaked-on-retry count when the app smoke ran. Workspaces skipped by path
-  filters are omitted.
+  table: workspace, lines %, delta vs main (with the baseline commit SHA),
+  plus Playwright flaked-on-retry count when the app smoke ran. Workspaces
+  skipped by path filters are omitted — which also makes baseline staleness
+  a non-issue: a workspace's baseline only lags on pushes the path filter
+  asserts didn't touch that workspace's coverage inputs.
+
+Security posture: the reporting workflow runs with write permissions on the
+base repo, so it treats PR artifacts strictly as data — it never checks out
+or executes PR code. Reporting logic lives as typed scripts under
+`scripts/ci/` with seam tests, gated by the existing `scripts:check`.
 - **Main-push completions:** append the trend row, regenerate badge JSON
   and `TRENDS.md`, and push to `ci-metrics`.
 
@@ -78,6 +102,10 @@ Flake tracking is two-sided:
 - The Playwright JSON report's retry data feeds the PR comment, so an e2e
   spec that only passed on retry is visible at review time.
 
+Flake tracking ships **report-only**: no auto-issue filing until the report
+has enough history to prove an alert threshold meaningful (candidate: flake
+rate >5% over 7 days; revisit scheduled for 2026-07-28).
+
 ### Tracks
 
 **Track A — Coverage visibility (the mechanism above).**
@@ -90,6 +118,11 @@ Flake tracking is two-sided:
 - [ ] Weekly flake report (`FLAKES.md`): failure rate and pass-on-rerun
       rate per workflow
 - [ ] Playwright retry data surfaced in the PR comment
+
+Track A ships with the protocol figure covering Solidity contracts only
+(what hardhat's coverage emits today); the protocol TS figure plugs in as a
+Track G exit criterion. The plumbing is generic — it reports whatever
+summaries `ci-metrics` holds.
 
 **Track B — Server coverage floor and the untested layers.**
 
@@ -120,6 +153,8 @@ nightly job is its natural harness skeleton.
       `OrderValidation`
 - [ ] A `StdInvariant` harness over `BoundedPoolOrderManager` asserting
       escrow conservation across randomized order/fill/cancel sequences
+- [ ] Protocol Solidity coverage floor at the measured baseline (~92%
+      lines), ratcheted
 
 **Track E — Infra check gate.**
 
@@ -134,14 +169,40 @@ track adds only a correctness gate.
 - [ ] Explicit timeout (or reduced default book count with the full run
       behind an env flag) for the band-pass clearing invariant test
 
+**Track G — Protocol TS SDK surface.**
+
+Added after the 2026-07-14 grill session. The protocol package's public
+barrel (`protocol/src/index.ts`) re-exports ~25 symbols from
+`protocol/scripts/shared/{price,market}` — the TS SDK's implementation
+partially lives in the scripts tree, next to deploy/ops tooling. Consumers
+are already clean (server imports only the bare `@popcharts/protocol`
+specifier; app uses only declared subpath exports, enforced by the
+`exports` allowlist), but the boundary hole is inside the package: a
+`scripts/shared` change silently alters the shipped app bundle and server
+behavior, and those modules' coverage is attributed to no enforced figure.
+
+- [ ] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
+      into `protocol/src/` (e.g. `src/price/`, `src/market/`); `scripts/`
+      imports from `src/`, never the reverse
+- [ ] Import-lint guard: `protocol/src/**` must not import from
+      `protocol/scripts/**` (same pattern as the indexer boundary guards)
+- [ ] `exports` map unchanged as the consumer allowlist
+- [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
+      `generated/`) added to the PR comment, trend, and badges, with a
+      floor at the measured baseline
+
 ### Exit criteria
 
 - A PR touching any tested workspace shows its coverage delta without the
   author doing anything.
 - Coverage trend and flake rate for main are readable in-repo at any time.
-- Server and protocol coverage cannot silently regress (floors in place).
+- No workspace's coverage can silently regress: ratcheted floors exist for
+  app, server, protocol Solidity, and protocol TS, each over its own
+  sources only.
 - The v4 order libraries have dedicated tests and an escrow-conservation
   invariant suite.
+- The protocol package's public TS surface lives entirely under
+  `protocol/src/`, with the src→scripts import direction lint-enforced.
 - `infra/` cannot merge in a state that fails `cdk synth`.
 
 ## Consequences

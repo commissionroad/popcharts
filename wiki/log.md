@@ -332,3 +332,17 @@ workflow exists) — flagged during the audit, not fixed in this ingest.
 
 Pages: ~summaries/root-readme.md, ~summaries/server-readme.md, ~summaries/ai-review-runner-design.md, ~summaries/root-adr-0011-ai-review-service-hardening.md, ~entities/ai-review-service.md, ~index.md
 Notes: Provider latency no longer becomes a completed local heuristic approval. The durable runner keeps transient failures pending with bounded five/six/ten-minute model/request/lease limits; public reads expose pending/complete/attention states, the detail page refreshes active work, and completed reviews persist a rationale for every score.
+
+## [2026-07-14] ingest | repo ADR 0017 — grill-session amendments (same-day)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md, ~entities/protocol-workspace.md, ~index.md
+Notes: Grill session on Track A produced four new scoping rules
+(informational-only reporting — never a required check; workspace-own
+coverage denominators with protocol split into Solidity + TS figures;
+ratcheted floors for every workspace; flake tracking report-only with a
+2026-07-28 revisit) and a new Track G: move the TS SDK modules out of
+protocol/scripts/shared/{price,market} into protocol/src with a
+src-must-not-import-scripts lint guard. Notable audit fact folded in:
+consumers were already clean (server imports only the bare specifier; the
+exports map is the allowlist) — the boundary hole was the package's own
+barrel. Track A ships with protocol = Solidity figure only; the TS figure
+is a Track G exit criterion.
