@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pop Charts — Bake your own odds</title>
+<meta name="description" content="Pop Charts is a prediction-market launchpad. Spin up a binary market with zero startup liquidity — it prices from the first trade and graduates into fully-backed YES/NO tokens when real demand shows up.">
+<meta property="og:title" content="Pop Charts — Bake your own odds">
+<meta property="og:description" content="Spin up a binary prediction market in minutes with zero startup liquidity. Solvent by construction.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://popcharts.xyz">
+<link rel="icon" type="image/svg+xml" href="./assets/pop-charts-glyph.svg">
+<link rel="stylesheet" href="./styles.css">
+<style>
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--pc-ink);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--layout-max);margin:0 auto;padding:0 var(--layout-gutter)}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:var(--tracking-wider);text-transform:uppercase;color:var(--accent)}
+  .disp{font-family:var(--font-display);font-weight:800;letter-spacing:var(--tracking-tight);line-height:1.0}
+  .mag{color:var(--pc-magenta)}.cy{color:var(--pc-cyan)}.li{color:var(--pc-lime)}.am{color:var(--pc-amber)}.vi{color:var(--pc-violet)}
+  .lucide{width:1em;height:1em;stroke-width:1.75}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:20;background:rgba(8,8,10,.72);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .wm{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+  .nav-links{display:flex;gap:28px;align-items:center;font-size:14px;color:var(--text-secondary)}
+  .nav-links a:hover{color:var(--text-primary)}
+  .btn{font-family:var(--font-display);font-weight:800;border:1px solid transparent;border-radius:var(--radius-md);cursor:pointer;display:inline-flex;align-items:center;gap:9px;white-space:nowrap;transition:transform var(--duration-fast) var(--ease-default),border-color var(--duration-fast)}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary{background:var(--accent);color:var(--accent-content);box-shadow:var(--glow-magenta);padding:13px 20px;font-size:15px}
+  .btn-secondary{background:transparent;color:var(--text-primary);border-color:var(--border-strong);padding:13px 20px;font-size:15px}
+  .btn-secondary:hover{border-color:var(--pc-cyan)}
+  .btn-sm{padding:10px 16px;font-size:14px}
+
+  /* hero */
+  .hero{position:relative;text-align:center;padding:92px 0 72px;overflow:hidden}
+  .hero-glow{position:absolute;top:-120px;left:50%;transform:translateX(-50%);width:680px;height:520px;background:radial-gradient(circle, rgba(255,46,151,.16), transparent 64%);pointer-events:none}
+  .hero h1{font-size:78px;margin:24px 0 0}
+  .hero p.sub{font-size:20px;color:var(--text-secondary);max-width:600px;margin:22px auto 0;line-height:1.5}
+  .hero-cta{display:flex;gap:14px;justify-content:center;margin-top:34px}
+  .hero-note{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:20px}
+
+  /* marquee */
+  .marq-wrap{overflow:hidden;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);background:#0B0B0E;padding:18px 0}
+  .marq{display:flex;width:max-content;animation:pc-marq var(--duration-marquee) linear infinite;font-family:var(--font-display);font-weight:800;font-size:24px;white-space:nowrap}
+  @keyframes pc-marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .marq span{padding:0 24px}
+  @media (prefers-reduced-motion:reduce){.marq{animation:none}}
+
+  /* section */
+  section.blk{padding:96px 0}
+  .sec-head{max-width:680px}
+  .sec-head h2{font-size:42px;margin:14px 0 0}
+  .sec-head p{font-size:17px;color:var(--text-secondary);line-height:1.55;margin:18px 0 0}
+
+  /* value props */
+  .vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px}
+  .vcard{background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:30px;transition:border-color var(--duration-fast)}
+  .vcard:hover{border-color:var(--border-strong)}
+  .vicon{width:46px;height:46px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:20px;border:1px solid var(--border)}
+  .vcard h3{font-family:var(--font-display);font-weight:700;font-size:20px;margin:0 0 10px}
+  .vcard p{font-size:14px;color:var(--text-secondary);line-height:1.55;margin:0}
+
+  /* stages */
+  .stages{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:48px;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+  .stage{padding:32px;border-right:1px solid var(--border);position:relative}
+  .stage:last-child{border-right:none}
+  .stage .num{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);letter-spacing:.1em}
+  .stage h3{font-family:var(--font-display);font-weight:800;font-size:24px;margin:14px 0 10px}
+  .stage p{font-size:14px;color:var(--text-secondary);line-height:1.55;margin:0}
+  .stage .tag{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:18px;padding:5px 11px;border-radius:var(--radius-pill);border:1px solid currentColor}
+
+  /* sample markets */
+  .mkgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+  .mk{background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;display:flex;flex-direction:column;gap:16px;transition:transform var(--duration-fast),border-color var(--duration-fast)}
+  .mk:hover{transform:translateY(-3px);border-color:var(--border-strong)}
+  .mk-top{display:flex;justify-content:space-between;align-items:center}
+  .chip{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:1px solid currentColor;border-radius:var(--radius-pill);padding:3px 9px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor;border-radius:var(--radius-pill);padding:3px 9px}
+  .pdot{width:6px;height:6px;border-radius:999px;background:currentColor;animation:pc-pulse 1.8s ease-in-out infinite}
+  @keyframes pc-pulse{0%,100%{opacity:.45}50%{opacity:1}}
+  .mk-q{font-family:var(--font-display);font-weight:700;font-size:18px;line-height:1.2;min-height:65px}
+  .mk-row{display:flex;gap:10px}
+  .oc{flex:1;display:flex;flex-direction:column;gap:2px;background:var(--surface-raised);border-radius:var(--radius-md);padding:11px 13px}
+  .oc .l{font-family:var(--font-mono);font-size:11px;font-weight:700}
+  .oc .p{font-family:var(--font-display);font-weight:800;font-size:22px;font-variant-numeric:tabular-nums}
+  .oc.yes{border:1px solid var(--yes-border)}.oc.yes .l,.oc.yes .p{color:var(--yes)}
+  .oc.no{border:1px solid var(--no-border)}.oc.no .l,.oc.no .p{color:var(--no)}
+  .mk-foot{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);border-top:1px solid var(--border-soft);padding-top:12px}
+
+  /* honesty band */
+  .honest{background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:48px;display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center;margin-top:24px}
+  .honest h2{font-family:var(--font-display);font-weight:800;font-size:34px;margin:14px 0 16px;line-height:1.08}
+  .honest p{font-size:15px;color:var(--text-secondary);line-height:1.6;margin:0}
+  .truth{display:flex;flex-direction:column;gap:12px}
+  .truth .t{display:flex;gap:13px;align-items:flex-start;font-size:14px;color:var(--text-secondary);line-height:1.5}
+  .truth .t .lucide{color:var(--pc-magenta);flex:none;margin-top:2px;font-size:18px}
+
+  /* cta */
+  .cta{position:relative;text-align:center;padding:104px 0;overflow:hidden}
+  .cta-glow{position:absolute;bottom:-160px;left:50%;transform:translateX(-50%);width:760px;height:520px;background:radial-gradient(circle, rgba(255,46,151,.14), transparent 64%);pointer-events:none}
+  .cta h2{font-family:var(--font-display);font-weight:800;font-size:56px;letter-spacing:var(--tracking-tight);margin:18px 0 0}
+  .cta-actions{display:flex;gap:14px;justify-content:center;margin-top:30px}
+
+  /* footer */
+  footer{border-top:1px solid var(--border-soft);padding:40px 0}
+  .foot-in{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  .foot-links{display:flex;gap:24px;font-size:13px;color:var(--text-secondary)}
+  .foot-mono{font-family:var(--font-mono);font-size:12px;color:var(--text-muted)}
+
+  @media (max-width:920px){
+    .vgrid,.stages,.mkgrid{grid-template-columns:1fr}
+    .stage{border-right:none;border-bottom:1px solid var(--border)}
+    .honest{grid-template-columns:1fr;padding:32px}
+    .hero h1{font-size:52px}.cta h2{font-size:38px}.sec-head h2{font-size:32px}
+    .nav-links{display:none}
+  }
+</style>
+</head>
+<body>
+  <nav>
+    <div class="wrap nav-in">
+      <div class="brand">
+        <img src="./assets/pop-charts-glyph.svg" width="34" height="34" alt="">
+        <span class="wm">Pop<span class="mag">Charts</span></span>
+      </div>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#markets">Markets</a>
+        <a href="#why">Why no-liquidity</a>
+        <a href="https://app.popcharts.xyz" class="btn btn-secondary btn-sm">Open app</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-glow"></div>
+    <div class="wrap">
+      <img src="./assets/pop-charts-glyph.svg" width="116" height="116" alt="" style="filter:drop-shadow(0 0 26px rgba(255,46,151,.28))">
+      <div class="eyebrow" style="margin-top:22px">Prediction market launchpad</div>
+      <h1 class="disp">Bake your<br>own <span class="mag">odds.</span></h1>
+      <p class="sub">Spin up a binary prediction market in minutes — with <strong style="color:var(--text-primary)">zero startup liquidity</strong>. It prices from the first trade and graduates into fully-backed YES/NO tokens when real demand shows up.</p>
+      <div class="hero-cta">
+        <a href="https://app.popcharts.xyz/create" class="btn btn-primary"><i data-lucide="rocket" class="lucide"></i> Pop a market</a>
+        <a href="https://app.popcharts.xyz" class="btn btn-secondary">Browse markets</a>
+      </div>
+      <div class="hero-note">No subsidy · No seeded bankroll · Solvent by construction</div>
+    </div>
+  </header>
+
+  <!-- MARQUEE -->
+  <div class="marq-wrap">
+    <div class="marq">
+      <span>Pop off.</span><span class="mag">◆</span><span>Zero liquidity. Full send.</span><span class="cy">◆</span><span>Bake a market.</span><span class="li">◆</span><span>Top the charts.</span><span class="am">◆</span><span>Fresh out the toaster.</span><span class="vi">◆</span>
+      <span>Pop off.</span><span class="mag">◆</span><span>Zero liquidity. Full send.</span><span class="cy">◆</span><span>Bake a market.</span><span class="li">◆</span><span>Top the charts.</span><span class="am">◆</span><span>Fresh out the toaster.</span><span class="vi">◆</span>
+    </div>
+  </div>
+
+  <!-- WHY / VALUE PROP -->
+  <section class="blk" id="why">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">Why no-liquidity launch</div>
+        <h2 class="disp">A market needs a price<br>before it has liquidity.</h2>
+        <p>Subsidized market makers fix this for a handful of flagship markets and break on the long tail. Pop Charts removes the subsidy entirely — the curve is virtual, every bet is an escrowed intent, and collateral only ever backs claims it can actually pay.</p>
+      </div>
+      <div class="vgrid">
+        <div class="vcard">
+          <div class="vicon" style="color:var(--pc-cyan)"><i data-lucide="cpu" class="lucide"></i></div>
+          <h3>Prices from trade one</h3>
+          <p>A virtual LMSR quotes a smooth probability from the very first bet. The liquidity parameter <span style="font-family:var(--font-mono);color:var(--pc-cyan)">b</span> shapes how gently the price moves — backed by no bankroll.</p>
+        </div>
+        <div class="vcard">
+          <div class="vicon" style="color:var(--pc-magenta)"><i data-lucide="wallet" class="lucide"></i></div>
+          <h3>Zero capital to launch</h3>
+          <p>No treasury, no seeded inventory, no LP risk before demand is proven. Anyone can open a market at any prior — a 5% longshot or an 80% near-consensus.</p>
+        </div>
+        <div class="vcard">
+          <div class="vicon" style="color:var(--pc-lime)"><i data-lucide="shield-check" class="lucide"></i></div>
+          <h3>Solvent by construction</h3>
+          <p>Band-pass graduation only mints claims where YES and NO demand actually met. Locked collateral provably equals the maximum payout it backs. No bad debt, ever.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS / STAGES -->
+  <section class="blk" id="how" style="background:#0B0B0E;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft)">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">How it works</div>
+        <h2 class="disp">Three stages, one curve.</h2>
+        <p>The virtual curve is scaffolding: it exists to discover a price and gather committed demand, then retires itself the moment the market deserves a real order book.</p>
+      </div>
+      <div class="stages">
+        <div class="stage">
+          <div class="num">STAGE 01</div>
+          <h3>Bootstrap</h3>
+          <p>A virtual LMSR prices intents. Every pre-graduation bet is a <strong style="color:var(--text-primary)">receipt</strong> — the exact band of the price curve it traversed, escrowed and append-only. No subsidy, no final fills.</p>
+          <span class="tag" style="color:var(--status-bootstrap)"><i data-lucide="activity" class="lucide"></i> Virtual LMSR live</span>
+        </div>
+        <div class="stage">
+          <div class="num">STAGE 02</div>
+          <h3>Graduation</h3>
+          <p>Band-pass clearing passes exactly the price bands crossed by both sides in opposite directions. Matched segments mint complete sets; every unmatched segment is refunded at the exact path cost paid.</p>
+          <span class="tag" style="color:var(--status-graduating)"><i data-lucide="git-merge" class="lucide"></i> Band-pass clearing</span>
+        </div>
+        <div class="stage">
+          <div class="num">STAGE 03</div>
+          <h3>Standard market</h3>
+          <p>Fully-collateralized YES/NO tokens trade on an ordinary CTF-style venue. The discovered demand is handed into real prediction-market infrastructure — fully backed.</p>
+          <span class="tag" style="color:var(--status-graduated)"><i data-lucide="badge-check" class="lucide"></i> Cleared to CTF</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLE MARKETS -->
+  <section class="blk" id="markets">
+    <div class="wrap">
+      <div class="sec-head" style="display:flex;justify-content:space-between;align-items:flex-end;max-width:none">
+        <div style="max-width:560px">
+          <div class="eyebrow">Preview</div>
+          <h2 class="disp">Markets popping off.</h2>
+          <p style="font-size:15px;color:var(--text-muted);margin:14px 0 0">Sample markets — the launchpad is warming up.</p>
+        </div>
+        <a href="https://app.popcharts.xyz" class="btn btn-secondary btn-sm">See all <i data-lucide="arrow-up-right" class="lucide"></i></a>
+      </div>
+      <div class="mkgrid">
+        <div class="mk">
+          <div class="mk-top"><span class="chip cy">Crypto</span><span class="pill" style="color:var(--status-graduating)"><span class="pdot"></span>Graduating</span></div>
+          <div class="mk-q">Will ETH flip $5,000 before August?</div>
+          <div class="mk-row"><div class="oc yes"><span class="l">YES</span><span class="p">64¢</span></div><div class="oc no"><span class="l">NO</span><span class="p">36¢</span></div></div>
+          <div class="mk-foot"><span>Vol $482.3K</span><span>b = 5,000</span></div>
+        </div>
+        <div class="mk">
+          <div class="mk-top"><span class="chip vi">Politics</span><span class="pill" style="color:var(--status-bootstrap)"><span class="pdot"></span>Bootstrap</span></div>
+          <div class="mk-q">Will the Fed cut rates at the next meeting?</div>
+          <div class="mk-row"><div class="oc yes"><span class="l">YES</span><span class="p">41¢</span></div><div class="oc no"><span class="l">NO</span><span class="p">59¢</span></div></div>
+          <div class="mk-foot"><span>Vol $96.7K</span><span>b = 3,000</span></div>
+        </div>
+        <div class="mk">
+          <div class="mk-top"><span class="chip li">Sports</span><span class="pill" style="color:var(--status-bootstrap)"><span class="pdot"></span>Bootstrap</span></div>
+          <div class="mk-q">Will an underdog win the next major final?</div>
+          <div class="mk-row"><div class="oc yes"><span class="l">YES</span><span class="p">22¢</span></div><div class="oc no"><span class="l">NO</span><span class="p">78¢</span></div></div>
+          <div class="mk-foot"><span>Vol $54.1K</span><span>b = 2,500</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HONESTY -->
+  <section class="blk" style="padding-top:0">
+    <div class="wrap">
+      <div class="honest">
+        <div>
+          <div class="eyebrow">The honest part</div>
+          <h2>The tradeoffs are<br>explicit, not hidden.</h2>
+          <p>Every other launch mechanism hides its risk in a subsidy or a virtual reserve. We state ours plainly — because a receipt only means something if the rules are real.</p>
+        </div>
+        <div class="truth">
+          <div class="t"><i data-lucide="lock" class="lucide"></i><span>Pre-graduation capital is locked until the market clears, cancels, or expires.</span></div>
+          <div class="t"><i data-lucide="git-pull-request-draft" class="lucide"></i><span>Fills are partial and never guaranteed — a receipt is a priced intent, not a token.</span></div>
+          <div class="t"><i data-lucide="rotate-ccw" class="lucide"></i><span>Your worst case is a full refund at the exact path cost you paid. Nothing is kept without the collateral to back it.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="cta-glow"></div>
+    <div class="wrap">
+      <div class="eyebrow">Ready when you are</div>
+      <h2 class="disp">No liquidity?<br><span class="mag">No problem.</span></h2>
+      <div class="cta-actions">
+        <a href="https://app.popcharts.xyz" class="btn btn-primary"><i data-lucide="rocket" class="lucide"></i> Open the app</a>
+      </div>
+      <div class="hero-note">Be first to bake a market when the launchpad opens.</div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap foot-in">
+      <div class="brand">
+        <img src="./assets/pop-charts-glyph.svg" width="30" height="30" alt="">
+        <span class="wm" style="font-size:18px;font-family:var(--font-display);font-weight:700">Pop<span class="mag">Charts</span></span>
+      </div>
+      <div class="foot-links">
+        <a href="https://app.popcharts.xyz">Open app</a>
+      </div>
+      <div class="foot-mono">Bake your own odds · © 2026</div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
