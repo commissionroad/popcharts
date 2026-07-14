@@ -7,26 +7,59 @@ import {
 } from "src/config/database";
 import * as schema from "./schema";
 
-const connectionString = getDatabaseConnectionString();
-const requireSsl = requiresDatabaseSsl(connectionString);
+type Db = ReturnType<typeof createDb>;
 
-const client = postgres(connectionString, {
-  ssl: requireSsl ? "require" : false,
+let activeClient: ReturnType<typeof postgres> | null = null;
+let activeDb: Db | null = null;
+
+function ambientDb(): Db {
+  if (!activeDb) {
+    const connectionString = getDatabaseConnectionString();
+    activeClient = postgres(connectionString, {
+      ssl: requiresDatabaseSsl(connectionString) ? "require" : false,
+    });
+    activeDb = drizzle(activeClient, { schema });
+  }
+  return activeDb;
+}
+
+/**
+ * The process-wide Drizzle database handle, resolved lazily from environment
+ * config on first use (ADR 0017 Track B: lazy so tests can inject a
+ * substitute before any connection exists). Import this everywhere instead
+ * of opening new connections.
+ */
+export const db: Db = new Proxy({} as Db, {
+  get(_target, prop) {
+    const target = ambientDb();
+    const value = Reflect.get(target as object, prop, target);
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(target)
+      : value;
+  },
+  has(_target, prop) {
+    return Reflect.has(ambientDb() as object, prop);
+  },
 });
 
 /**
- * The process-wide Drizzle database handle, connected from environment config
- * at module load with SSL enforced automatically for managed hosts. Import
- * this everywhere instead of opening new connections.
+ * Replaces the handle behind `db` — test-support only. Pass null to restore
+ * the ambient environment-configured database on next use.
  */
-export const db = drizzle(client, { schema });
+export function setDbForTesting(override: Db | null) {
+  activeDb = override;
+}
 
 /**
  * Closes the shared connection pool (5s drain timeout) so scripts and tests
  * using `db` can exit instead of hanging on open sockets.
  */
 export async function closeDb() {
-  await client.end({ timeout: 5 });
+  if (activeClient) {
+    await activeClient.end({ timeout: 5 });
+    activeClient = null;
+    activeDb = null;
+  }
 }
 
 /**

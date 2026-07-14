@@ -13,8 +13,8 @@ updated: 2026-07-14
 [ADR 0016](root-adr-0016-monorepo-architecture-cleanup-program.md)), not part
 of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
 core pipeline; the flake report and Playwright retry surfacing followed the
-same day); Track F (invariant-test timeout) completed 2026-07-14;
-Tracks B/C/D/E/G open.**
+same day); Track F (invariant-test timeout) and Track B (server floor +
+untested layers, five items) completed 2026-07-14; Tracks C/D/E/G open.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -80,8 +80,12 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   database per file via `server/src/test-support/int-db.ts`,
   `*.int.test.ts` self-skip without POPCHARTS_INT_DB_URL; found-not-fixed:
   claim handlers don't require the referenced receipt row to exist), then `db` singleton
-  injectability + `app.handle()` route tests. Fake executors stay for pure
-  projection/serialization logic.
+  injectability + `app.handle()` route tests (**landed 2026-07-14**: lazy
+  proxy in client.ts + setDbForTesting; route tests for system/markets/
+  portfolio run on PGlite in the unit tier; boundary documented in
+  `server/src/test-support/README.md`). Fake executors stay for pure
+  projection/serialization logic. **Track B complete 2026-07-14** — floor
+  ratcheted twice on the way (70.09→74.52→76.73 functions).
 - **C — Nightly full-fidelity tier** (scope broadened by the grill): the
   nightly run of the existing smokes (`local-smoke`, `local-market-smoke`,
   `devchain-e2e`, `server-ai-review-smoke`) plus deliberate growth of new

@@ -409,3 +409,14 @@ functions: exactly-once replay, receipt/market linkage, rollback on
 missing market. Found, not fixed: claim persistence requires the market
 row but not the referenced receipt row (task chip filed). Unit suite and
 coverage floor untouched by all this — int tests skip without the env.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B complete (items 4+5: injectable db, route tests, boundary doc)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: src/db/client.ts `db` is now a lazy Proxy (function-binding get,
+setDbForTesting override; no connection until first query, so route tests
+inject PGlite before anything connects). app.handle() route tests cover
+system/markets/portfolio with exact-serialization assertions; portfolio
+asserts the chain-unreachable degraded shape. Test-substrate boundary rule
+documented in server/src/test-support/README.md. Floor ratcheted to
+function 0.7672 / line 0.7666. Whole Track B checklist closed same-day as
+the grill that designed it.

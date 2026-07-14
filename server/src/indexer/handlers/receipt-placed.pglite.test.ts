@@ -4,13 +4,11 @@
 // Runs in-process with no Docker/Postgres; part of the plain unit suite.
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
-import { PGlite } from "@electric-sql/pglite";
 import { count, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { pushSchema } from "drizzle-kit/api";
 
 import * as schema from "src/db/schema";
 import type { db as productionDb } from "src/db/client";
+import { createPgliteDb } from "src/test-support/pglite-db";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 import {
   persistReceiptPlacedRecord,
@@ -20,11 +18,8 @@ import {
 const CHAIN_ID = 31337;
 const MARKET_ID = 7n;
 
-const client = new PGlite();
-// The handlers type their executor as `typeof db` (postgres-js drizzle);
-// the PGlite drizzle instance is query-compatible but nominally distinct,
-// so the spike casts. Track B item 4 makes injection first-class.
-const dbc = drizzle(client, { schema }) as unknown as typeof productionDb;
+let dbc: typeof productionDb;
+let teardownDb: () => Promise<void>;
 
 function receiptRecord(
   overrides: Partial<ReceiptPlacedRecord> = {},
@@ -50,12 +45,7 @@ function receiptRecord(
 }
 
 beforeAll(async () => {
-  const { apply } = await pushSchema(
-    schema,
-    // drizzle-kit's parameter type lags behind drizzle-orm's instance types.
-    dbc as unknown as Parameters<typeof pushSchema>[1],
-  );
-  await apply();
+  ({ dbc, teardown: teardownDb } = await createPgliteDb());
 
   await dbc.insert(schema.contracts).values({
     address: "0x00000000000000000000000000000000000000cc",
@@ -82,7 +72,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await client.close();
+  await teardownDb();
 });
 
 async function marketCounters() {

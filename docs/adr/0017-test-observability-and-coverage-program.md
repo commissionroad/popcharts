@@ -157,10 +157,10 @@ Sequenced checklist (one PR each):
       `ensure-local-unique-constraints` DDL holds — converting the
       paper-trail invariant (docs/portfolio-data-design.md) from prose
       into a merge gate
-- [ ] Make the `src/db/client.ts` import-time singleton injectable, then
+- [x] Make the `src/db/client.ts` import-time singleton injectable, then
       route-layer tests via `app.handle()` against the Elysia apps (no
       listening server), covering `src/api/routes/`
-- [ ] Document the fake-executor vs real-SQL boundary where the test
+- [x] Document the fake-executor vs real-SQL boundary where the test
       helpers live
 
 **Track C — Nightly full-fidelity tier.**
