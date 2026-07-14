@@ -6,9 +6,11 @@ import { marketFactory } from "@/test/factories/markets";
 import { DiscoveryPage } from "./discovery-page";
 
 const getMarkets = vi.hoisted(() => vi.fn());
+const usesFixtureMarkets = vi.hoisted(() => vi.fn(() => false));
 
 vi.mock("@/domain/markets/queries", () => ({
   getMarkets,
+  usesFixtureMarkets,
 }));
 
 describe("DiscoveryPage", () => {
@@ -32,5 +34,23 @@ describe("DiscoveryPage", () => {
 
     expect(screen.getByText("Discover")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("labels fixture-backed markets as sample data", async () => {
+    getMarkets.mockResolvedValueOnce([marketFactory({ id: "m-1" })]);
+    usesFixtureMarkets.mockReturnValueOnce(true);
+
+    render(await DiscoveryPage());
+
+    expect(screen.getByRole("note")).toHaveTextContent(/sample data/i);
+  });
+
+  it("shows no sample-data note for live market data", async () => {
+    getMarkets.mockResolvedValueOnce([marketFactory({ id: "m-1" })]);
+    usesFixtureMarkets.mockReturnValueOnce(false);
+
+    render(await DiscoveryPage());
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });

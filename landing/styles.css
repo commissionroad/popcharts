@@ -1,0 +1,188 @@
+/*
+ * Pop Charts landing — flattened copy of designkit/styles.css.
+ * Source of truth: designkit/tokens/*.css (read-only). Re-flatten from there
+ * if the designkit tokens change; do not hand-tune values here.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");
+/*
+ * Pop Charts — Color tokens
+ * Black does the heavy lifting. The neon spectrum comes off the pastry sprinkles:
+ * magenta leads, cyan / lime / amber / violet punctuate.
+ * Base ramps first, then semantic aliases. Use the SEMANTIC names in product code.
+ */
+:root {
+  /* ───────── INK — the near-black neutral ramp ───────── */
+  --pc-ink: #08080A;          /* page — true canvas */
+  --pc-carbon: #0E0E13;       /* card surface */
+  --pc-coal: #131319;         /* raised surface / inputs */
+  --pc-slate: #1B1B22;        /* hover surface */
+  --pc-line-soft: #1F1F27;    /* hairline dividers on ink */
+  --pc-line: #26262F;         /* default border */
+  --pc-line-strong: #34343E;  /* prominent border / focus ring base */
+  --pc-fog: #6A6A74;          /* faint metadata, disabled */
+  --pc-mist: #9A9AA4;         /* secondary text */
+  --pc-paper: #FFFFFF;        /* primary text, knockout */
+
+  /* ───────── NEON — the sprinkle spectrum ───────── */
+  --pc-magenta: #FF2E97;      /* PRIMARY brand accent */
+  --pc-magenta-deep: #C71E72; /* pressed / borders */
+  --pc-cyan: #1FE0FF;
+  --pc-lime: #C6FF3D;
+  --pc-amber: #FFB020;
+  --pc-violet: #B85CFF;
+
+  /* Tinted fills (neon at low alpha, for chips / wash backgrounds on ink) */
+  --pc-magenta-wash: rgba(255, 46, 151, 0.12);
+  --pc-cyan-wash: rgba(31, 224, 255, 0.12);
+  --pc-lime-wash: rgba(198, 255, 61, 0.12);
+  --pc-amber-wash: rgba(255, 176, 32, 0.12);
+  --pc-violet-wash: rgba(184, 92, 255, 0.12);
+
+  /* ───────── SEMANTIC ALIASES — use these in product code ───────── */
+  --color-page-bg: var(--pc-ink);
+  --surface-card: var(--pc-carbon);
+  --surface-raised: var(--pc-coal);
+  --surface-hover: var(--pc-slate);
+
+  --border: var(--pc-line);
+  --border-soft: var(--pc-line-soft);
+  --border-strong: var(--pc-line-strong);
+
+  --text-primary: var(--pc-paper);
+  --text-secondary: var(--pc-mist);
+  --text-muted: var(--pc-fog);
+
+  --accent: var(--pc-magenta);
+  --accent-pressed: var(--pc-magenta-deep);
+  --accent-content: var(--pc-ink);   /* text/icon ON a magenta fill */
+  --accent-wash: var(--pc-magenta-wash);
+
+  /* Market sides — YES is acid lime, NO is hot magenta */
+  --yes: var(--pc-lime);
+  --yes-border: #3C6B1E;
+  --yes-wash: var(--pc-lime-wash);
+  --no: var(--pc-magenta);
+  --no-border: #5B2B3F;
+  --no-wash: var(--pc-magenta-wash);
+
+  /* Status — lifecycle of a market */
+  --status-bootstrap: var(--pc-cyan);   /* pre-graduation, virtual LMSR live */
+  --status-graduating: var(--pc-amber); /* enough opposing demand forming */
+  --status-graduated: var(--pc-lime);   /* cleared to CTF complete sets */
+  --status-resolved: var(--pc-violet);  /* outcome settled */
+  --status-refunded: var(--pc-fog);     /* cancelled / expired, refunded */
+
+  /* Generic feedback */
+  --positive: var(--pc-lime);
+  --negative: var(--pc-magenta);
+  --info: var(--pc-cyan);
+  --warning: var(--pc-amber);
+  --danger: #FF4D4D;
+}
+/*
+ * Pop Charts — Typography tokens
+ * Unbounded = loud display & wordmark. Space Grotesk = UI/body. Space Mono = data.
+ * Numbers are ALWAYS tabular (font-variant-numeric: tabular-nums) — prices, odds, volume.
+ */
+:root {
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 900;   /* display only */
+
+  /* Type scale (px). Display sizes pair with --font-display. */
+  --text-3xs: 10px;      /* micro chips */
+  --text-2xs: 11px;      /* eyebrows, mono labels */
+  --text-xs: 12px;       /* captions, table data */
+  --text-sm: 13px;
+  --text-body: 15px;     /* default body */
+  --text-md: 17px;
+  --text-lg: 20px;
+  --text-xl: 24px;       /* card titles (display) */
+  --text-2xl: 30px;      /* section heads */
+  --text-3xl: 40px;
+  --text-4xl: 54px;
+  --text-display: 76px;  /* hero wordmark / big odds */
+
+  /* Letter-spacing */
+  --tracking-tight: -0.03em;  /* display headlines */
+  --tracking-snug: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.14em;    /* uppercase eyebrows */
+  --tracking-wider: 0.26em;   /* section eyebrows */
+
+  /* Line-height */
+  --leading-none: 0.9;
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+}
+/*
+ * Pop Charts — Spacing & layout tokens
+ * 4px base grid. Generous padding inside the rounded snack-pop cards.
+ */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 72px;
+  --space-11: 96px;
+  --space-12: 128px;
+
+  /* Component padding defaults */
+  --pad-card: 28px;
+  --pad-card-sm: 20px;
+  --pad-button-x: 20px;
+  --pad-button-y: 14px;
+  --pad-chip-x: 11px;
+  --pad-chip-y: 5px;
+
+  /* Layout */
+  --layout-max: 1180px;       /* marketing + app content cap */
+  --layout-feed-max: 1240px;
+  --layout-gutter: 32px;
+  --layout-gutter-mobile: 18px;
+}
+/*
+ * Pop Charts — Effects: radius, neon glow, motion.
+ * Corners are ROUNDED (snack-pop), never sharp. Glow is the only "shadow" —
+ * use it sparingly to make a neon element feel lit, never as ambient elevation.
+ */
+:root {
+  /* Radius — rounded snack-pop. Nothing is sharp. */
+  --radius-xs: 6px;     /* micro chips */
+  --radius-sm: 10px;    /* inputs, small buttons */
+  --radius-md: 14px;    /* buttons, outcome cells */
+  --radius-lg: 18px;    /* cards */
+  --radius-xl: 22px;    /* large surfaces, app-icon tiles */
+  --radius-pill: 999px; /* status pills, avatars */
+
+  /* Neon glow — colored, soft, low-spread. Reach for the matching accent. */
+  --glow-magenta: 0 0 30px rgba(255, 46, 151, 0.30);
+  --glow-magenta-strong: 0 0 34px rgba(255, 46, 151, 0.45);
+  --glow-cyan: 0 0 26px rgba(31, 224, 255, 0.22);
+  --glow-lime: 0 0 26px rgba(198, 255, 61, 0.22);
+  --glow-amber: 0 0 26px rgba(255, 176, 32, 0.22);
+  --glow-violet: 0 0 26px rgba(184, 92, 255, 0.22);
+
+  /* Plain depth — used rarely, only to lift an app-icon tile off ink */
+  --shadow-tile: 0 18px 40px rgba(0, 0, 0, 0.5);
+
+  /* Motion — quick and functional. No bounce, no spring. */
+  --ease-default: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-marquee: 30s;
+}
