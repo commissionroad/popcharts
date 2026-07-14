@@ -42,7 +42,7 @@ function canonicalSignature(item: NamedAbiItem): string {
   const inputs = (item.inputs ?? [])
     .map(
       (parameter) =>
-        `${canonicalType(parameter)}${parameter.indexed ? " indexed" : ""}`
+        `${canonicalType(parameter)}${parameter.indexed ? " indexed" : ""}`,
     )
     .join(",");
 
@@ -59,7 +59,7 @@ function expectMirrorsGeneratedAbi(mirror: Abi, generated: Abi) {
   const generatedSignatures = new Set(
     (generated as readonly NamedAbiItem[])
       .filter((item) => item.type === "function" || item.type === "event")
-      .map(canonicalSignature)
+      .map(canonicalSignature),
   );
 
   for (const item of mirror as readonly NamedAbiItem[]) {
@@ -83,7 +83,7 @@ describe("hand-written contract ABI mirrors", () => {
   test("dev-market-resolve mirrors the generated CompleteSetBinaryMarket ABI", () => {
     expectMirrorsGeneratedAbi(
       POSTGRAD_DEV_RESOLVE_ABI,
-      completeSetBinaryMarketAbi
+      completeSetBinaryMarketAbi,
     );
   });
 });
