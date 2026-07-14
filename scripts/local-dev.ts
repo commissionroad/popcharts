@@ -9,7 +9,10 @@ import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts
 import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { parsePregradDeploy, type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  type PregradDeploy,
+} from "./shared/deployments/pregradDeploy.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
@@ -213,10 +216,14 @@ async function main(): Promise<void> {
       env: serverEnv,
     },
   );
-  await waitForWithProcesses("API health", () => urlOk(`${apiBaseUrl}/health`), {
-    processes: [api],
-    timeoutMs: 30_000,
-  });
+  await waitForWithProcesses(
+    "API health",
+    () => urlOk(`${apiBaseUrl}/health`),
+    {
+      processes: [api],
+      timeoutMs: 30_000,
+    },
+  );
 
   const indexer = supervisor.start(
     "indexer",
@@ -266,16 +273,20 @@ async function main(): Promise<void> {
       env: appEnv,
     },
   );
-  await waitForWithProcesses("Next.js app", () => urlOk(`${appBaseUrl}/create`), {
-    processes: [
-      api,
-      indexer,
-      app,
-      ...aiReviewProcesses,
-      ...(hardhatNode ? [hardhatNode] : []),
-    ],
-    timeoutMs: 120_000,
-  });
+  await waitForWithProcesses(
+    "Next.js app",
+    () => urlOk(`${appBaseUrl}/create`),
+    {
+      processes: [
+        api,
+        indexer,
+        app,
+        ...aiReviewProcesses,
+        ...(hardhatNode ? [hardhatNode] : []),
+      ],
+      timeoutMs: 120_000,
+    },
+  );
 
   console.log("\nLocal dev stack is ready:");
   console.log(`- App: ${appBaseUrl}`);
@@ -345,6 +356,12 @@ Start the full local Pop Charts stack:
     deterministic heuristic as a fallback when Ollama is unavailable
   - Next.js app configured for devchain market creation
 
+Prerequisite for real (non-fallback) review:
+  ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
+  Without it, reviews fall back to the heuristic (clean markets still
+  auto-approve locally, so you are not blocked). With it, verdicts come from
+  the model and a clean market may land in manual_review.
+
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
@@ -367,7 +384,9 @@ function rejectUnknownArgs(): void {
   const unknownArgs = args.filter((arg) => !knownArgs.has(arg));
 
   if (unknownArgs.length > 0) {
-    throw new Error(`Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`);
+    throw new Error(
+      `Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`,
+    );
   }
 }
 
@@ -442,7 +461,12 @@ async function startAiReviewStack(
 async function deployPostgradVenue(
   deploy: PregradDeploy,
 ): Promise<PostgradDeployment> {
-  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"]);
+  await run("venue", "pnpm", [
+    "--dir",
+    "protocol",
+    "run",
+    "local:deploy-venue",
+  ]);
   await run(
     "postgrad",
     "pnpm",

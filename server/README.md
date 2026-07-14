@@ -73,12 +73,25 @@ provided resolution source URLs, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
 
 From the repository root, `just local-dev` starts the full local app stack plus
 the AI Review service and runner on the Ollama provider (the real agent-based
-path). If the Ollama runtime is not running, reviews degrade to the
-deterministic heuristic; the orchestrator sets `AI_REVIEW_FALLBACK_APPROVE=true`
-so a clean market still approves locally instead of parking in `manual_review`.
-That flag is off by default everywhere else, so production never auto-approves
-when the model is unavailable — it downgrades an `approve` to `manual_review`
-(hard-flag rejects from the heuristic gate are always final). Use
+path). Pull the model once before relying on it:
+
+```bash
+ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
+```
+
+With the runtime up and the model present, review is real: evidence is gathered
+over `safe-web` and the model returns an evidence-backed verdict with scores and
+source checks. Those verdicts are model judgments and are not deterministic — a
+clean market may come back `manual_review` on one run and `approve` on the next.
+That is expected; resolve parked markets through the admin/dev review path.
+
+If the Ollama runtime is not running (or the model is not pulled), reviews
+degrade to the deterministic heuristic; the orchestrator sets
+`AI_REVIEW_FALLBACK_APPROVE=true` so a clean market still approves locally
+instead of parking in `manual_review`. That flag is off by default everywhere
+else, so production never auto-approves when the model is unavailable — it
+downgrades an `approve` to `manual_review` (hard-flag rejects from the heuristic
+gate are always final, before any model runs). Use
 `just local-ai-review` when you only want local Postgres plus the review service
 and runner, without the app, API, indexer, or local chain.
 

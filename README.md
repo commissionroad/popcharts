@@ -37,12 +37,29 @@ starts the indexer, starts the local AI Review service and runner, and starts
 the Next.js app. It uses wallet-signed market creation, so connect an injected
 browser wallet on the Hardhat local chain. Open `http://127.0.0.1:3000/create`,
 create a market, then refresh `http://127.0.0.1:3000/` to see it from the
-indexed markets API. The local review service defaults to the Ollama
-local-model provider on `http://127.0.0.1:3002`, and the runner polls Postgres
-for `under_review` markets. If the Ollama runtime is not running, reviews fall
-back to the deterministic heuristic; locally a clean market still auto-approves
-so testing is not blocked (`LOCAL_AI_REVIEW_FALLBACK_APPROVE`), while harmful
-markets are still rejected by the heuristic gate. Press Ctrl-C in the
+indexed markets API.
+
+The local review service defaults to the Ollama local-model provider on
+`http://127.0.0.1:3002`, and the runner polls Postgres for `under_review`
+markets. It needs the model pulled once:
+
+```sh
+ollama pull gpt-oss:20b   # the default; override with AI_REVIEW_OLLAMA_MODEL
+```
+
+With Ollama running and the model present, review is real: it gathers public
+evidence and the model returns an evidence-backed verdict. Verdicts are model
+judgments, so a clean market can legitimately land in `manual_review` rather
+than `approve` — approve it from the dev menu when that happens.
+
+If Ollama is not running (or the model is not pulled), reviews fall back to the
+deterministic heuristic instead. Locally a clean market then auto-approves so
+testing is never blocked (`LOCAL_AI_REVIEW_FALLBACK_APPROVE`, set only by the
+local orchestrator — production holds it in `manual_review` instead). Harmful
+markets are rejected by the heuristic hard-flag gate either way, before any
+model runs.
+
+Press Ctrl-C in the
 `just local-dev` terminal to stop
 the API, indexer, app, AI review processes, and local chain. Run
 `just local-dev --no-ai-review` if you need the older stack shape temporarily.
