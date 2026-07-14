@@ -48,16 +48,19 @@ ollama pull gpt-oss:20b   # the default; override with AI_REVIEW_OLLAMA_MODEL
 ```
 
 With Ollama running and the model present, review is real: it gathers public
-evidence and the model returns an evidence-backed verdict. Verdicts are model
-judgments, so a clean market can legitimately land in `manual_review` rather
-than `approve` — approve it from the dev menu when that happens.
+evidence and the model returns an evidence-backed verdict with a rationale for
+each score. The local model call has a five-minute budget. While it is queued,
+running, or retrying, the market detail page shows a pending review and refreshes
+until the immutable result appears. Verdicts are model judgments, so a clean
+market can legitimately land in `manual_review` rather than `approve` — approve
+it from the dev menu when that happens.
 
-If Ollama is not running (or the model is not pulled), reviews fall back to the
-deterministic heuristic instead. Locally a clean market then auto-approves so
-testing is never blocked (`LOCAL_AI_REVIEW_FALLBACK_APPROVE`, set only by the
-local orchestrator — production holds it in `manual_review` instead). Harmful
-markets are rejected by the heuristic hard-flag gate either way, before any
-model runs.
+If the local runtime is unavailable, the review job stays pending and retries;
+it does not publish a heuristic scorecard or auto-approve the market. After the
+retry ceiling, the detail page reports that review needs attention. Harmful
+markets are still rejected immediately by the deterministic hard-flag gate,
+before any model runs. Set `AI_REVIEW_PROVIDER=heuristic` explicitly when a
+deterministic no-model smoke is desired.
 
 Press Ctrl-C in the
 `just local-dev` terminal to stop

@@ -2,9 +2,11 @@ import { describe, expect, it } from "bun:test";
 
 import {
   adjustModelScoresForEvidence,
+  alignScoreRationalesWithAdjustedScores,
   arrayOfStrings,
   filterSourceChecksByEvidence,
   parseModelReview,
+  parseScoreRationales,
   parseSourceChecks,
   parseSourceTier,
   parseVerdict,
@@ -69,6 +71,21 @@ describe("parseVerdict", () => {
     expect(parseVerdict("APPROVE")).toBe("manual_review");
     expect(parseVerdict(undefined)).toBe("manual_review");
     expect(parseVerdict(42)).toBe("manual_review");
+  });
+});
+
+describe("parseScoreRationales", () => {
+  it("normalizes every score rationale and fills missing dimensions", () => {
+    const rationales = parseScoreRationales({
+      contentSafety: "  No harmful content.  ",
+      objectivity: 42,
+    });
+
+    expect(rationales.contentSafety).toBe("No harmful content.");
+    expect(rationales.objectivity).toBe(
+      "The reviewer did not provide a rationale for this score.",
+    );
+    expect(Object.keys(rationales)).toHaveLength(7);
   });
 });
 
@@ -186,6 +203,44 @@ describe("adjustModelScoresForEvidence", () => {
       ["unrelated_flag"],
     );
     expect(unflagged.promptInjectionRisk).toBe(2);
+  });
+});
+
+describe("alignScoreRationalesWithAdjustedScores", () => {
+  it("explains safety caps beside the final normalized scores", () => {
+    const rawScores = normalizeScores({
+      contentSafety: 5,
+      corroboration: 4,
+      disputeRisk: 1,
+      objectivity: 5,
+      promptInjectionRisk: 4,
+      publicKnowability: 5,
+      sourceQuality: 5,
+    });
+    const adjustedScores = adjustModelScoresForEvidence(rawScores, [], []);
+    const rationales = parseScoreRationales({
+      contentSafety: "Safe.",
+      corroboration: "Several sources.",
+      disputeRisk: "Low risk.",
+      objectivity: "Objective.",
+      promptInjectionRisk: "Suspicious text.",
+      publicKnowability: "Public.",
+      sourceQuality: "Primary source.",
+    });
+
+    const aligned = alignScoreRationalesWithAdjustedScores({
+      adjustedScores,
+      rationales,
+      rawScores,
+      sourceChecks: [],
+    });
+
+    expect(aligned.corroboration).toContain("No source check matched");
+    expect(aligned.sourceQuality).toContain("No source check matched");
+    expect(aligned.promptInjectionRisk).toContain(
+      "no prompt-injection hard flag",
+    );
+    expect(aligned.objectivity).toBe("Objective.");
   });
 });
 

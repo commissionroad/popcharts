@@ -84,6 +84,36 @@ describe("AiReviewCard", () => {
     expect(screen.getByText("3/5")).toBeInTheDocument();
   });
 
+  it("renders a rationale for every score dimension", () => {
+    render(<AiReviewCard review={reviewFixture()} />);
+
+    for (const rationale of Object.values(reviewFixture().scoreRationales)) {
+      expect(screen.getByText(rationale)).toBeInTheDocument();
+    }
+  });
+
+  it("labels historical provider outages as deterministic fallback", () => {
+    const review = reviewFixture({
+      modelId: "",
+      provider: "heuristic",
+      reasons: ["Model review unavailable: timed out."],
+    });
+
+    render(<AiReviewCard review={review} />);
+
+    expect(screen.getByText(/Deterministic fallback ·/)).toBeInTheDocument();
+  });
+
+  it("labels explicit heuristic reviews as deterministic checks", () => {
+    render(
+      <AiReviewCard
+        review={reviewFixture({ modelId: "", provider: "heuristic", reasons: [] })}
+      />
+    );
+
+    expect(screen.getByText(/Deterministic checks ·/)).toBeInTheDocument();
+  });
+
   it("renders reviewer notes when reasons exist", () => {
     render(
       <AiReviewCard review={reviewFixture({ reasons: ["Bright-line threshold."] })} />
@@ -143,6 +173,15 @@ function reviewFixture(overrides: Partial<MarketAiReview> = {}): MarketAiReview 
     provider: "anthropic",
     reasons: ["Publicly verifiable outcome."],
     reviewedAt: "2026-06-02T09:15:00.000Z",
+    scoreRationales: {
+      contentSafety: "Safe.",
+      corroboration: "Corroborated.",
+      disputeRisk: "Low dispute risk.",
+      objectivity: "Objective.",
+      promptInjectionRisk: "No injection detected.",
+      publicKnowability: "Publicly knowable.",
+      sourceQuality: "Good sources.",
+    },
     scores: {
       contentSafety: 5,
       corroboration: 5,

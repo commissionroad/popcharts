@@ -32,6 +32,17 @@ export const markets: Market[] = [
         "Minor ambiguity about which exchanges count as 'major' adds slight dispute risk.",
       ],
       reviewedAt: "2026-06-02T09:15:00.000Z",
+      scoreRationales: {
+        contentSafety: "The market concerns a public asset price, not harmful conduct.",
+        corroboration:
+          "Multiple independent public price feeds can verify the outcome.",
+        disputeRisk: "The phrase 'major spot exchange' leaves minor interpretive room.",
+        objectivity: "The question defines a numeric threshold and fixed deadline.",
+        promptInjectionRisk: "The metadata contains no reviewer-directed instructions.",
+        publicKnowability: "Anyone can inspect the named public price feeds.",
+        sourceQuality:
+          "The supplied specialist feed is established and publicly accessible.",
+      },
       scores: {
         contentSafety: 5,
         corroboration: 5,

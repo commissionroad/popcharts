@@ -20,6 +20,7 @@ const baseConfig: AiReviewConfig = {
   port: 3002,
   provider: "heuristic",
   requestTimeoutMs: 10,
+  retryProviderFailures: false,
   userAgent: "popcharts-test",
 };
 
@@ -56,6 +57,24 @@ describe("reviewMarket", () => {
     expect(result.provider).toBe("heuristic");
     expect(result.verdict).toBe("manual_review");
     expect(result.reasons.join("\n")).toContain("Ollama review unavailable");
+  });
+
+  it("surfaces provider failures for durable retry when configured", async () => {
+    await expect(
+      reviewMarket({
+        config: {
+          ...baseConfig,
+          provider: "ollama",
+          retryProviderFailures: true,
+        },
+        request: {
+          metadata: {
+            question: "Will NASA announce a new Artemis launch date in 2026?",
+            resolutionCriteria: "Resolve from a public NASA announcement.",
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ name: "ReviewUnavailableError" });
   });
 
   it("keeps the heuristic approve on fallback when fallbackApprove is set", async () => {

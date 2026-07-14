@@ -282,6 +282,15 @@ describe("apiMarketToMarket", () => {
       provider: "heuristic",
       reasons: [],
       reviewedAt: "2026-06-13T12:02:00.000Z",
+      scoreRationales: {
+        contentSafety: "Safe.",
+        corroboration: "Corroborated.",
+        disputeRisk: "Low dispute risk.",
+        objectivity: "Objective.",
+        promptInjectionRisk: "No injection detected.",
+        publicKnowability: "Publicly knowable.",
+        sourceQuality: "Good sources.",
+      },
       scores: {
         contentSafety: 1,
         corroboration: 1,
@@ -298,6 +307,17 @@ describe("apiMarketToMarket", () => {
     const converted = apiMarketToMarket(apiMarket({ aiReview }));
 
     expect(converted.aiReview).toEqual(aiReview);
+  });
+
+  it("carries pending AI review progress through when present", () => {
+    const aiReviewProgress = {
+      phase: "retrying" as const,
+      status: "pending" as const,
+    };
+
+    const converted = apiMarketToMarket(apiMarket({ aiReviewProgress }));
+
+    expect(converted.aiReviewProgress).toEqual(aiReviewProgress);
   });
 
   it("maps the postgrad handoff into USD amounts", () => {

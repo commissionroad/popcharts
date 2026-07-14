@@ -7,6 +7,7 @@
  */
 import type { AiReviewEvidence } from "./aiReviewEvidence";
 import type { AiReviewProvider } from "./aiReviewProvider";
+import type { AiReviewScoreRationales } from "./aiReviewScoreRationales";
 import type { AiReviewScores } from "./aiReviewScores";
 import type { AiReviewSourceCheck } from "./aiReviewSourceCheck";
 import type { AiReviewVerdict } from "./aiReviewVerdict";
@@ -22,6 +23,7 @@ export interface MarketAiReview {
   provider: AiReviewProvider;
   reasons: string[];
   reviewedAt: string;
+  scoreRationales: AiReviewScoreRationales;
   scores: AiReviewScores;
   sourceChecks: AiReviewSourceCheck[];
   verdict: AiReviewVerdict;

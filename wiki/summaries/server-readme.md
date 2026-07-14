@@ -51,20 +51,19 @@ moderation and knowability checks — see
 - **Anthropic** (`AI_REVIEW_PROVIDER=anthropic`) — calls the Messages API
   with native `web_search`/`web_fetch` tools, capped by
   `AI_REVIEW_ANTHROPIC_MAX_WEB_*`. Hard-block heuristics still run first.
-- **Heuristic** (`AI_REVIEW_PROVIDER=heuristic`) — no-model smoke mode, and the
-  fallback when the Ollama runtime is down.
+- **Heuristic** (`AI_REVIEW_PROVIDER=heuristic`) — explicit no-model smoke mode
+  and the deterministic hard-flag gate that runs before model work.
 
 `AI_REVIEW_INTERNET_ACCESS` can be `off` or `provided_urls` to restrict
 evidence collection.
 
 **Local default is Ollama** (changed 2026-07-13): `just local-dev` starts the
-real agent-based path rather than the heuristic. If the Ollama runtime isn't
-running, reviews degrade to the heuristic and the orchestrator sets
-`AI_REVIEW_FALLBACK_APPROVE=true` so a clean market still approves locally
-instead of parking in `manual_review`. That flag is **off by default
-everywhere else** — production never auto-approves when the model is
-unavailable; it downgrades the `approve` to `manual_review`. Hard-flag rejects
-from the heuristic gate are always final.
+real agent-based path rather than the heuristic. The stock local timing is five
+minutes for the model call, six for the runner request, and ten for the DB
+lease. Transient provider failures return a retryable response, keep the market
+pending, and do not persist a heuristic review or scorecard. Completed reviews
+store one rationale per score. Hard-flag rejects from the heuristic gate remain
+final before model work; explicit heuristic mode remains available for smoke.
 
 ## AI review runner
 
@@ -85,7 +84,7 @@ the heuristic provider (default port 3012).
 ## Local orchestration
 
 From the repo root: `just local-dev` starts the full local app stack plus AI
-review service and runner on the **Ollama** provider (heuristic fallback, see
+review service and runner on the **Ollama** provider (pending retries, see
 above); `just local-ai-review` starts just Postgres + review service + runner. `just setup && just local-smoke`
 runs the full local chain smoke: docker-compose Postgres, local protocol
 contracts on a Hardhat node ([devchain](../entities/devchain.md)), generated

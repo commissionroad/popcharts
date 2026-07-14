@@ -1,7 +1,7 @@
 ---
 type: entity
 title: AI review service and runner
-description: Stateless moderation/knowability HTTP service with pluggable providers (ollama by default locally, heuristic fallback, anthropic) plus a DB-leasing runner that gates market entry — working end to end locally.
+description: Stateless moderation/knowability HTTP service with pluggable providers plus a DB-leasing runner that keeps transient local-model failures pending and gates market entry — working end to end locally.
 sources:
   - docs/ai-review-runner-design.md
   - docs/ai-review-next-phase.md
@@ -22,7 +22,7 @@ architecture.
 
 - **Indexer** writes `under_review` projections; no model/web access ever.
 - **Service** (`server/src/ai-review/`, port 3002) — stateless HTTP: metadata
-  + optional context in → verdict out. No DB polling or projection writes.
+  - optional context in → verdict out. No DB polling or projection writes.
 - **Runner** (`server/src/ai-review-runner/`) — polls/claims
   `market_ai_review_jobs` via `FOR UPDATE SKIP LOCKED` with leases, calls the
   service, persists append-only `market_ai_reviews` (keyed to metadata_hash so
@@ -37,25 +37,24 @@ architecture.
 One service, pluggable providers: `heuristic` (deterministic, smoke and
 hard-blocks), `ollama` (local model; service pre-collects evidence with
 SSRF-style guards — private-IP/localhost blocks, size/redirect/content-type
-limits), `anthropic` (Messages API with native web_search/web_fetch, capped
-by `AI_REVIEW_ANTHROPIC_MAX_WEB_*`). `AI_REVIEW_INTERNET_ACCESS=off|provided_urls`
+limits), `anthropic` (Messages API with native web*search/web_fetch, capped
+by `AI_REVIEW_ANTHROPIC_MAX_WEB*\*`). `AI_REVIEW_INTERNET_ACCESS=off|provided_urls`
 restricts evidence. Response parsing (verdict/score clamping) is a single
 shared module — a deliberate security control (cleanup program B1).
 
 **Local default is `ollama`, not `heuristic`** (changed 2026-07-13): `just
-local-dev` now starts the real agent-based path. The fallback semantics are the
-security-relevant part, and they are asymmetric by design:
+local-dev` starts the real agent-based path. Local provider latency now follows
+the durable queue rather than becoming a review result:
 
-- If the Ollama runtime is not running, reviews degrade to the deterministic
-  heuristic.
-- **Locally only**, the orchestrator sets `AI_REVIEW_FALLBACK_APPROVE=true` so a
-  clean market still auto-approves instead of parking in `manual_review` and
-  blocking test flows.
-- That flag is **off by default everywhere else**, so production never
-  auto-approves when the model is unavailable — an `approve` downgrades to
-  `manual_review`.
+- The model has a five-minute local budget; runner request and DB lease limits
+  are longer.
+- Transient provider failures remain retryable jobs, with no immutable review
+  row, scorecard, or auto-approval.
+- Public market reads report `pending`, `complete`, or `attention_required`;
+  the detail page refreshes while pending.
+- Every completed score stores a concise rationale beside the number.
 - Hard-flag rejects from the heuristic gate are always final, in every mode: the
-  fallback can lose an approval, never a rejection.
+  pending path can delay approval, never weaken a rejection.
 
 Security posture: deterministic hard-blocks before model/web access; all
 market text and fetched content treated as untrusted (prompt-injection
@@ -65,7 +64,7 @@ never silent approval.
 ## Status
 
 Working end to end locally (`just server-ai-review-smoke`, service on
-127.0.0.1:3002). All hardening open per
+127.0.0.1:3002). Remaining hardening is tracked in
 [root ADR 0011](../summaries/root-adr-0011-ai-review-service-hardening.md):
 safe-web hardening, strict output validation,
 `AI_REVIEW_PROMPT_VERSION` policy, stuck-job recovery, metrics. (Manual

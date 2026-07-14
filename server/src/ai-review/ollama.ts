@@ -3,9 +3,11 @@ import { MARKET_REVIEW_OUTPUT_CONTRACT, MARKET_REVIEW_POLICY } from "./policy";
 import { normalizeScores } from "./scoring";
 import {
   adjustModelScoresForEvidence,
+  alignScoreRationalesWithAdjustedScores,
   arrayOfStrings,
   filterSourceChecksByEvidence,
   parseModelReview,
+  parseScoreRationales,
   parseSourceChecks,
   parseVerdict,
   unique,
@@ -75,20 +77,28 @@ export async function reviewWithOllama({
     parseSourceChecks(parsed.sourceChecks),
     evidence,
   );
+  const rawScores = normalizeScores(
+    typeof parsed.scores === "object" && parsed.scores !== null
+      ? (parsed.scores as Record<string, unknown>)
+      : {},
+  );
   const scores = adjustModelScoresForEvidence(
-    normalizeScores(
-      typeof parsed.scores === "object" && parsed.scores !== null
-        ? (parsed.scores as Record<string, unknown>)
-        : {},
-    ),
+    rawScores,
     sourceChecks,
     hardFlags,
   );
+  const scoreRationales = alignScoreRationalesWithAdjustedScores({
+    adjustedScores: scores,
+    rationales: parseScoreRationales(parsed.scoreRationales),
+    rawScores,
+    sourceChecks,
+  });
 
   return {
     hardFlags,
     modelId,
     reasons: arrayOfStrings(parsed.reasons),
+    scoreRationales,
     scores,
     sourceChecks,
     verdict: parseVerdict(parsed.verdict),
@@ -133,6 +143,10 @@ export function mergeReviewFindings({
       promptVersion,
       provider: model ? modelProvider : "heuristic",
       reasons: heuristic.reasons,
+      scoreRationales: adjustHeuristicScoreRationales(
+        heuristic.scoreRationales,
+        sourceChecks,
+      ),
       scores,
       sourceChecks,
       verdict: heuristic.verdict,
@@ -155,6 +169,7 @@ export function mergeReviewFindings({
     promptVersion,
     provider: modelProvider,
     reasons: unique([...heuristic.reasons, ...model.reasons]),
+    scoreRationales: model.scoreRationales,
     scores: model.scores,
     sourceChecks,
     verdict,
@@ -258,6 +273,28 @@ function adjustHeuristicScoresForEvidence(
         ? Math.max(scores.publicKnowability, 4)
         : scores.publicKnowability,
     sourceQuality,
+  };
+}
+
+function adjustHeuristicScoreRationales(
+  rationales: PolicyFinding["scoreRationales"],
+  sourceChecks: SourceCheck[],
+) {
+  const reachable = sourceChecks.filter(
+    (sourceCheck) => sourceCheck.sourceTier !== "unreachable",
+  );
+  if (reachable.length === 0) {
+    return rationales;
+  }
+
+  const domains = new Set(reachable.map((sourceCheck) => sourceCheck.domain));
+  return {
+    ...rationales,
+    corroboration: `${domains.size} reachable source domain${domains.size === 1 ? " was" : "s were"} collected for review.`,
+    publicKnowability:
+      "At least one supplied or discovered public source was reachable.",
+    sourceQuality:
+      "Source quality reflects the strongest trust tier among the collected evidence.",
   };
 }
 

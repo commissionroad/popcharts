@@ -106,7 +106,7 @@ export const AiReviewVerdictSchema = t.Union(
   { $id: "AiReviewVerdict" },
 );
 
-/** Per-dimension AI-review scores, each in [0, 1]. */
+/** Per-dimension AI-review scores, each in [0, 5]. */
 export const AiReviewScoresSchema = t.Object(
   {
     contentSafety: t.Number(),
@@ -118,6 +118,20 @@ export const AiReviewScoresSchema = t.Object(
     sourceQuality: t.Number(),
   },
   { $id: "AiReviewScores" },
+);
+
+/** Persisted explanation for each numeric AI-review score. */
+export const AiReviewScoreRationalesSchema = t.Object(
+  {
+    contentSafety: t.String(),
+    corroboration: t.String(),
+    disputeRisk: t.String(),
+    objectivity: t.String(),
+    promptInjectionRisk: t.String(),
+    publicKnowability: t.String(),
+    sourceQuality: t.String(),
+  },
+  { $id: "AiReviewScoreRationales" },
 );
 
 /** Trust tier assigned to a cited source domain. */
@@ -176,11 +190,32 @@ export const MarketAiReviewSchema = t.Object(
     provider: t.Ref(AiReviewProviderSchema),
     reasons: t.Array(t.String()),
     reviewedAt: t.String(),
+    scoreRationales: t.Ref(AiReviewScoreRationalesSchema),
     scores: t.Ref(AiReviewScoresSchema),
     sourceChecks: t.Array(t.Ref(AiReviewSourceCheckSchema)),
     verdict: t.Ref(AiReviewVerdictSchema),
   },
   { $id: "MarketAiReview" },
+);
+
+/** Sanitized review progress exposed on public market reads. */
+export const AiReviewProgressSchema = t.Object(
+  {
+    phase: t.Union([
+      t.Literal("awaiting_queue"),
+      t.Literal("queued"),
+      t.Literal("running"),
+      t.Literal("retrying"),
+      t.Literal("complete"),
+      t.Literal("attention_required"),
+    ]),
+    status: t.Union([
+      t.Literal("pending"),
+      t.Literal("complete"),
+      t.Literal("attention_required"),
+    ]),
+  },
+  { $id: "AiReviewProgress" },
 );
 
 /** Queue state of an AI-review job. */
@@ -391,6 +426,7 @@ export const MarketPostgradSchema = t.Object(
 export const MarketSchema = t.Object(
   {
     aiReview: t.Optional(t.Ref(MarketAiReviewSchema)),
+    aiReviewProgress: t.Optional(t.Ref(AiReviewProgressSchema)),
     bypassAiResolution: t.Boolean(),
     chainId: t.Number(),
     collateral: t.String(),

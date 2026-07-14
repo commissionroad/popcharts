@@ -1,5 +1,10 @@
 import type { normalizeScores } from "./scoring";
-import type { EvidenceItem, SourceCheck } from "./types";
+import type {
+  EvidenceItem,
+  ReviewScoreRationales,
+  ReviewScores,
+  SourceCheck,
+} from "./types";
 
 /**
  * Untrusted-model-output parsing shared by every review provider. This is a
@@ -12,10 +17,40 @@ import type { EvidenceItem, SourceCheck } from "./types";
 export type RawModelReview = {
   hardFlags?: unknown;
   reasons?: unknown;
+  scoreRationales?: unknown;
   scores?: unknown;
   sourceChecks?: unknown;
   verdict?: unknown;
 };
+
+const SCORE_KEYS = [
+  "contentSafety",
+  "corroboration",
+  "disputeRisk",
+  "objectivity",
+  "promptInjectionRisk",
+  "publicKnowability",
+  "sourceQuality",
+] as const satisfies readonly (keyof ReviewScores)[];
+
+export function parseScoreRationales(value: unknown): ReviewScoreRationales {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {};
+
+  return Object.fromEntries(
+    SCORE_KEYS.map((key) => {
+      const rationale = record[key];
+      return [
+        key,
+        typeof rationale === "string" && rationale.trim()
+          ? rationale.trim().slice(0, 500)
+          : "The reviewer did not provide a rationale for this score.",
+      ];
+    }),
+  ) as ReviewScoreRationales;
+}
 
 /**
  * Parses the model's JSON reply, tolerating surrounding prose or markdown by
@@ -124,6 +159,45 @@ export function adjustModelScoresForEvidence(
   }
 
   return { ...scores, promptInjectionRisk };
+}
+
+/**
+ * Keeps displayed rationales aligned with the final, safety-normalized scores
+ * rather than presenting the model's raw explanation beside a capped number.
+ */
+export function alignScoreRationalesWithAdjustedScores({
+  adjustedScores,
+  sourceChecks,
+  rawScores,
+  rationales,
+}: {
+  adjustedScores: ReviewScores;
+  sourceChecks: SourceCheck[];
+  rawScores: ReviewScores;
+  rationales: ReviewScoreRationales;
+}): ReviewScoreRationales {
+  return {
+    ...rationales,
+    corroboration:
+      sourceChecks.length === 0
+        ? "No source check matched the collected evidence, so independent corroboration could not be credited."
+        : rationales.corroboration,
+    promptInjectionRisk:
+      adjustedScores.promptInjectionRisk < rawScores.promptInjectionRisk
+        ? appendNormalizationNote(
+            rationales.promptInjectionRisk,
+            "The final score was capped because no prompt-injection hard flag corroborated the risk.",
+          )
+        : rationales.promptInjectionRisk,
+    sourceQuality:
+      sourceChecks.length === 0
+        ? "No source check matched the collected evidence, so source quality could not be credited."
+        : rationales.sourceQuality,
+  };
+}
+
+function appendNormalizationNote(rationale: string, note: string) {
+  return `${rationale} ${note}`.slice(0, 500);
 }
 
 export function parseSourceTier(value: unknown) {

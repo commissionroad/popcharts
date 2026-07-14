@@ -80,18 +80,19 @@ ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
 ```
 
 With the runtime up and the model present, review is real: evidence is gathered
-over `safe-web` and the model returns an evidence-backed verdict with scores and
-source checks. Those verdicts are model judgments and are not deterministic — a
-clean market may come back `manual_review` on one run and `approve` on the next.
-That is expected; resolve parked markets through the admin/dev review path.
+over `safe-web` and the model returns an evidence-backed verdict with scores,
+one rationale per score, and source checks. Those verdicts are model judgments
+and are not deterministic — a clean market may come back `manual_review` on one
+run and `approve` on the next. That is expected; resolve parked markets through
+the admin/dev review path.
 
-If the Ollama runtime is not running (or the model is not pulled), reviews
-degrade to the deterministic heuristic; the orchestrator sets
-`AI_REVIEW_FALLBACK_APPROVE=true` so a clean market still approves locally
-instead of parking in `manual_review`. That flag is off by default everywhere
-else, so production never auto-approves when the model is unavailable — it
-downgrades an `approve` to `manual_review` (hard-flag rejects from the heuristic
-gate are always final, before any model runs). Use
+The stock local stack gives the model five minutes, the runner six minutes, and
+the database lease ten minutes. A transient runtime or model failure returns a
+retryable service response: the job remains pending and no heuristic review row
+or scorecard is persisted. After the retry ceiling the public market state says
+review needs attention. Hard-flag rejects from the deterministic gate are still
+final before any model runs. Set `AI_REVIEW_PROVIDER=heuristic` explicitly for
+a no-model deterministic run. Use
 `just local-ai-review` when you only want local Postgres plus the review service
 and runner, without the app, API, indexer, or local chain.
 

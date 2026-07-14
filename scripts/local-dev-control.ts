@@ -232,11 +232,10 @@ Selected processes can be passed through for focused debugging, for example:
   pnpm run local:dev:control -- app
   pnpm run local:dev:control -- review-service review-runner
 
-Prerequisite for real (non-fallback) review:
+Prerequisite for model-backed review:
   ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
-  Without it, reviews fall back to the heuristic (clean markets still
-  auto-approve locally, so you are not blocked). With it, verdicts come from
-  the model and a clean market may land in manual_review.
+  Transient provider failures stay pending and retry instead of creating a
+  completed heuristic review.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
@@ -244,7 +243,11 @@ Environment overrides:
   LOCAL_AI_REVIEW_PORT=3002
   LOCAL_AI_REVIEW_PROVIDER=ollama
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
-  LOCAL_AI_REVIEW_FALLBACK_APPROVE=true
+  LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
+  LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true
+  LOCAL_AI_REVIEW_TIMEOUT_MS=300000
+  LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
+  LOCAL_AI_REVIEW_RUNNER_LEASE_MS=600000
   LOCAL_AI_RESOLUTION_PORT=3004
   LOCAL_AI_RESOLUTION_PROVIDER=heuristic
   LOCAL_AI_RESOLUTION_INTERNET_ACCESS=off

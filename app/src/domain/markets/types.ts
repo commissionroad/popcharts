@@ -49,6 +49,19 @@ export type AiReviewScores = {
   sourceQuality: number;
 };
 
+export type AiReviewScoreRationales = Record<keyof AiReviewScores, string>;
+
+export type AiReviewProgress = {
+  phase:
+    | "awaiting_queue"
+    | "queued"
+    | "running"
+    | "retrying"
+    | "complete"
+    | "attention_required";
+  status: "pending" | "complete" | "attention_required";
+};
+
 export type AiReviewEvidence = {
   domain: string;
   kind: AiReviewEvidenceKind;
@@ -73,6 +86,7 @@ export type MarketAiReview = {
   provider: AiReviewProvider;
   reasons: string[];
   reviewedAt: string;
+  scoreRationales: AiReviewScoreRationales;
   scores: AiReviewScores;
   sourceChecks: AiReviewSourceCheck[];
   verdict: AiReviewVerdict;
@@ -121,6 +135,7 @@ export type MarketPostgradHandoff = {
 
 export type Market = {
   aiReview?: MarketAiReview;
+  aiReviewProgress?: AiReviewProgress;
   b: number;
   category: MarketCategory;
   chainId?: number;

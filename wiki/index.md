@@ -31,7 +31,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [app/ workspace](entities/app-workspace.md) — Next.js frontend, domain-first layout, Privy auth
 - [server/ workspace](entities/server-workspace.md) — Bun/Elysia API, DB, and AI review processes
 - [Indexer](entities/indexer.md) — viem chain ingestion and rebuildable projections
-- [AI review service](entities/ai-review-service.md) — moderation/knowability service + leasing runner gating market entry
+- [AI review service](entities/ai-review-service.md) — moderation/knowability service + durable pending/retry lifecycle gating market entry
 - [designkit/](entities/designkit.md) — read-only design-system source of truth
 - [Devchain](entities/devchain.md) — local Hardhat proving ground for every exit criterion
 - [Arc Testnet](entities/arc-testnet.md) — target network: chain 5042002, dual-decimal USDC, self-hosted v4

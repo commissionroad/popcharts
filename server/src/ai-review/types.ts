@@ -103,6 +103,9 @@ export type ReviewScores = {
   sourceQuality: number;
 };
 
+/** Human-readable justification for every numeric reviewer dimension. */
+export type ReviewScoreRationales = Record<keyof ReviewScores, string>;
+
 /**
  * A reviewer judgment about one source. Only sources backed by actual
  * evidence survive into the stored result — see filterSourceChecksByEvidence.
@@ -143,6 +146,7 @@ export type ReviewResult = {
   provider: ReviewProviderName;
   promptVersion: string;
   reasons: string[];
+  scoreRationales: ReviewScoreRationales;
   scores: ReviewScores;
   sourceChecks: SourceCheck[];
   verdict: ReviewVerdict;
@@ -155,6 +159,7 @@ export type ReviewResult = {
 export type PolicyFinding = {
   hardFlags: string[];
   reasons: string[];
+  scoreRationales: ReviewScoreRationales;
   scores: ReviewScores;
   sourceChecks: SourceCheck[];
   verdict: ReviewVerdict;

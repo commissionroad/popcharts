@@ -52,6 +52,9 @@ Robustness:
 - [ ] Stuck-job recovery: expired leases are reclaimed and a terminal-failure
       path notifies operators (surface in the local admin panel, not the
       deployed API).
+- [x] Transient provider failures remain retryable jobs instead of becoming
+      completed heuristic approvals. The local model gets a five-minute
+      bounded call budget with runner timeout and lease margins above it.
 
 Observability:
 
@@ -64,6 +67,9 @@ Product feedback:
 - [ ] Rejection reasons are servable to the app in a user-appropriate form
       (distinct from the full audit record), so creators learn why a market
       was rejected (consumed by ADR 0013).
+- [x] Market reads expose sanitized review progress; the detail page shows and
+      refreshes a pending state until an immutable review exists, and completed
+      scorecards include one persisted rationale per metric.
 
 ## Exit Criteria
 
@@ -81,3 +87,7 @@ act locally against the chain and job queue.
 - Hardened evidence fetching may reject sources that previously passed;
   verdicts can shift between prompt versions, which is why the version is
   persisted per review.
+- Provider latency is not a review verdict. Retryable failures leave the market
+  under review without a scorecard; terminal failures surface as delayed work
+  requiring attention. Explicit heuristic reviews remain available for smoke
+  tests and deterministic policy checks.

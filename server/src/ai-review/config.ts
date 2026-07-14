@@ -5,7 +5,7 @@ import type { InternetAccessMode, ReviewProviderName } from "./types";
  * the prompt/policy revision that produced them. Bump when the policy or
  * output contract changes meaning.
  */
-export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v1";
+export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v2";
 
 /**
  * Full runtime configuration of the AI Review service: provider selection,
@@ -24,9 +24,8 @@ export type AiReviewConfig = {
    * When the selected model provider is unavailable, keep the deterministic
    * heuristic verdict as-is instead of downgrading its `approve` to
    * `manual_review`. Off by default so production never auto-approves on a
-   * model outage; the local-dev orchestrator turns it on so local testing is
-   * not blocked when Ollama is not running. Hard-flag rejects are unaffected —
-   * the heuristic gate still rejects harmful markets regardless of this flag.
+   * model outage. Hard-flag rejects are unaffected — the heuristic gate still
+   * rejects harmful markets regardless of this flag.
    */
   fallbackApprove: boolean;
   fetchSearchResults: boolean;
@@ -38,6 +37,7 @@ export type AiReviewConfig = {
   port: number;
   provider: ReviewProviderName;
   requestTimeoutMs: number;
+  retryProviderFailures: boolean;
   userAgent: string;
 };
 
@@ -79,6 +79,10 @@ export const aiReviewConfig: AiReviewConfig = {
   port: readPositiveInteger("AI_REVIEW_PORT", 3002),
   provider: readProvider(process.env.AI_REVIEW_PROVIDER ?? "ollama"),
   requestTimeoutMs: readPositiveInteger("AI_REVIEW_TIMEOUT_MS", 8_000),
+  retryProviderFailures: readBoolean(
+    "AI_REVIEW_RETRY_PROVIDER_FAILURES",
+    false,
+  ),
   userAgent:
     process.env.AI_REVIEW_USER_AGENT ??
     "PopChartsLocalAiReview/0.1 (+https://popcharts.local)",

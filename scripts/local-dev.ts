@@ -352,15 +352,14 @@ Start the full local Pop Charts stack:
     complete-set market (skip with --no-postgrad)
   - Bun API server
   - Bun indexer
-  - local AI Review service and runner using the Ollama provider, with the
-    deterministic heuristic as a fallback when Ollama is unavailable
+  - local AI Review service and durable runner using the Ollama provider;
+    temporary provider failures remain pending and retry automatically
   - Next.js app configured for devchain market creation
 
-Prerequisite for real (non-fallback) review:
+Prerequisite for local model review:
   ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
-  Without it, reviews fall back to the heuristic (clean markets still
-  auto-approve locally, so you are not blocked). With it, verdicts come from
-  the model and a clean market may land in manual_review.
+  Without it, reviews remain pending and retry until the model is available or
+  the job exhausts its retry budget.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
@@ -368,7 +367,11 @@ Environment overrides:
   LOCAL_AI_REVIEW_PORT=3002
   LOCAL_AI_REVIEW_PROVIDER=ollama
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
-  LOCAL_AI_REVIEW_FALLBACK_APPROVE=true
+  LOCAL_AI_REVIEW_TIMEOUT_MS=300000
+  LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
+  LOCAL_AI_REVIEW_RUNNER_LEASE_MS=600000
+  LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true
+  LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
 }
 
