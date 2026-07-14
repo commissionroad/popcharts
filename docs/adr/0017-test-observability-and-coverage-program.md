@@ -203,7 +203,7 @@ track adds only a correctness gate.
 
 **Track F — Known flake fixes.**
 
-- [ ] Explicit timeout (or reduced default book count with the full run
+- [x] Explicit timeout (or reduced default book count with the full run
       behind an env flag) for the band-pass clearing invariant test
 
 **Track G — Protocol TS SDK surface.**
