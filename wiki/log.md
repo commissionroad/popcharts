@@ -292,3 +292,7 @@ now that its code has landed; check whether the clearing keeper gets ungated
 beyond the local network (that would change several status claims); consider
 whether whitepaper Example B deserves its own golden test if the clearing math is
 touched again; ADR 0012 tick-state vs the resolution code that is landing.
+
+## [2026-07-14] ingest | repo ADR 0016 — D3 settlement-handler split executed (trigger fired)
+Pages: ~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md, ~concepts/monorepo-architecture.md, ~index.md
+Notes: The D3 item's documented split trigger fired — `server/src/indexer/handlers/settlement.ts` gained a 7th event type (MarketCancelled, commit c2e9768, the protocol ADR 0011 kill switch) — so the standing deferred-by-design guard converted to executed work: checkbox ticked, Progress Log row added, split performed as three sibling handler modules (graduation/refunds/claims) plus private shared plumbing behind a kept `settlement.ts` barrel. "Two intentional unticked boxes" framing across the summary and the monorepo-architecture concept page reduced to E7 only.
