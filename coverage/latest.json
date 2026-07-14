@@ -24,8 +24,8 @@
       }
     },
     "protocol-solidity": {
-      "commit": "b41258c8085de75e1d2a00f021b474d8ea9ce4d0",
-      "updatedAt": "2026-07-14T17:11:58.415Z",
+      "commit": "0b026301b99fd65c4b88c051a44777ad30a4de80",
+      "updatedAt": "2026-07-14T17:51:04.263Z",
       "summary": {
         "files": 19,
         "lines": {
