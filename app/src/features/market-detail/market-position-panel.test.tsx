@@ -3,7 +3,7 @@ import type {
   PortfolioPosition,
   PortfolioReceipt,
 } from "@popcharts/api-client/models";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Market } from "@/domain/markets/types";
@@ -14,10 +14,15 @@ import { MarketPositionPanel } from "./market-position-panel";
 
 const usePortfolio = vi.hoisted(() => vi.fn());
 const useWalletAccount = vi.hoisted(() => vi.fn());
+const useRefundClaim = vi.hoisted(() => vi.fn());
 
 vi.mock("@/features/portfolio/use-portfolio", () => ({ usePortfolio }));
 
 vi.mock("@/integrations/wallet/wallet-provider", () => ({ useWalletAccount }));
+
+vi.mock("@/integrations/contracts/hooks/use-refund-claim", () => ({
+  useRefundClaim,
+}));
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 const WAD = 10n ** 18n;
@@ -32,6 +37,8 @@ beforeEach(() => {
     portfolio: portfolioFixture(),
     refresh: vi.fn(),
   });
+  useRefundClaim.mockReset();
+  useRefundClaim.mockReturnValue({ claim: vi.fn(), error: null, status: "idle" });
 });
 
 /** A graduated market whose raw indexer id ("7") matches the fixtures below. */
@@ -218,8 +225,74 @@ describe("MarketPositionPanel pre-graduation receipts", () => {
     expect(screen.getByText("58.00 YES tokens + $25.00 refunded")).toBeInTheDocument();
     expect(screen.getByText("Refunded")).toBeInTheDocument();
     expect(screen.getByText("$60.00 returned")).toBeInTheDocument();
-    expect(screen.getByText("Refund available")).toBeInTheDocument();
-    expect(screen.getByText("Claim on the market page")).toBeInTheDocument();
+    // The refund-claimable receipt shows the amount plus a working Claim
+    // button, not the portfolio's "claim on the market page" pointer.
+    expect(screen.getByText("$60.00 refund available")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Claim refund" })).toBeInTheDocument();
+    expect(screen.queryByText("Claim on the market page")).not.toBeInTheDocument();
+  });
+});
+
+describe("MarketPositionPanel refund claim", () => {
+  function renderRefundClaimable() {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [],
+        receipts: [
+          receiptFixture({
+            cost: (24n * WAD).toString(),
+            receiptId: "32",
+            status: "refund_claimable",
+          }),
+        ],
+      }),
+      refresh: vi.fn(),
+    });
+
+    render(<MarketPositionPanel market={bootstrapMarket({ status: "cancelled" })} />);
+  }
+
+  it("claims the receipt's refund with the connected wallet on click", () => {
+    const claim = vi.fn();
+    useRefundClaim.mockReturnValue({ claim, error: null, status: "idle" });
+    renderRefundClaimable();
+
+    // The panel wires the portfolio refresh into the claim hook so a confirmed
+    // claim flips the row to `refunded` once the indexer catches up.
+    const { onClaimed } = useRefundClaim.mock.calls[0]![0]!;
+    const { refresh } = usePortfolio.mock.results.at(-1)!.value;
+    expect(onClaimed).toBe(refresh);
+
+    fireEvent.click(screen.getByRole("button", { name: "Claim refund" }));
+    expect(claim).toHaveBeenCalledWith("32");
+  });
+
+  it("locks the button and shows progress while a claim is pending", () => {
+    useRefundClaim.mockReturnValue({ claim: vi.fn(), error: null, status: "pending" });
+    renderRefundClaimable();
+
+    expect(screen.getByRole("button", { name: "Claiming refund…" })).toBeDisabled();
+  });
+
+  it("locks the button after a confirmed claim until the row reindexes", () => {
+    useRefundClaim.mockReturnValue({ claim: vi.fn(), error: null, status: "success" });
+    renderRefundClaimable();
+
+    expect(screen.getByRole("button", { name: "Refund claimed" })).toBeDisabled();
+  });
+
+  it("surfaces a claim error beneath an actionable button", () => {
+    useRefundClaim.mockReturnValue({
+      claim: vi.fn(),
+      error: "Could not claim your refund.",
+      status: "error",
+    });
+    renderRefundClaimable();
+
+    expect(screen.getByRole("button", { name: "Claim refund" })).toBeEnabled();
+    expect(screen.getByText("Could not claim your refund.")).toBeInTheDocument();
   });
 });
 

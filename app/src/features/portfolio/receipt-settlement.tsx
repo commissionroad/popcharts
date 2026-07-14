@@ -42,10 +42,16 @@ export function receiptSettlementResult(receipt: PortfolioReceipt): {
   }
 
   // A market that refunded or was cancelled projects to `refund_claimable`
-  // until the holder claims; the refund amount lands only once claimed
-  // (`refunded`), so here we simply point them at the market page.
+  // until the holder claims. A full refund returns the receipt's entire
+  // escrowed cost, so the amount is known before the claim — surface it in the
+  // headline. The detail points portfolio viewers at the market page (where the
+  // Claim button lives); the market-detail panel renders the button in place of
+  // that pointer.
   if (receipt.status === "refund_claimable") {
-    return { detail: "Claim on the market page", label: "Refund available" };
+    return {
+      detail: "Claim on the market page",
+      label: `${formatUsd(wadToNumber(BigInt(receipt.cost)))} refund available`,
+    };
   }
 
   return { label: "Waiting for graduation" };

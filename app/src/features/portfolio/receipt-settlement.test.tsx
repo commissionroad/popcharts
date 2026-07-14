@@ -107,10 +107,15 @@ describe("receiptSettlementResult", () => {
     });
   });
 
-  it("points a refund-claimable receipt at the market page", () => {
+  it("shows the escrowed cost as the amount and points at the market page", () => {
     expect(
-      receiptSettlementResult(receiptFixture({ status: "refund_claimable" }))
-    ).toEqual({ detail: "Claim on the market page", label: "Refund available" });
+      receiptSettlementResult(
+        receiptFixture({ cost: (24n * WAD).toString(), status: "refund_claimable" })
+      )
+    ).toEqual({
+      detail: "Claim on the market page",
+      label: "$24.00 refund available",
+    });
   });
 
   it("falls back to waiting while a receipt is still pre-graduation", () => {
