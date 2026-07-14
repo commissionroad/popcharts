@@ -44,6 +44,8 @@ jobs:
           filters: |
             relevant:
             - server/**
+            # server-ci installs the root pnpm workspace before bun install.
+            - pnpm-workspace.yaml
             # The server consumes @popcharts/protocol TypeScript source
             # (venue ABIs, price/tick helpers), so protocol changes must
             # re-run the server checks.

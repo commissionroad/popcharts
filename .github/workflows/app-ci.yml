@@ -45,6 +45,10 @@ jobs:
             - app/**
             - packages/api-client/**
             - protocol/src/**
+            # App domain imports @popcharts/protocol subpaths that resolve to
+            # protocol/scripts/shared (price policy, tick math) via package
+            # exports; changes there alter the shipped app bundle.
+            - protocol/scripts/shared/**
             - server/generated/openapi.json
             - pnpm-lock.yaml
             - pnpm-workspace.yaml
