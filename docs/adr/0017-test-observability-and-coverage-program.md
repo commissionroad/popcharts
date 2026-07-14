@@ -150,7 +150,7 @@ Sequenced checklist (one PR each):
 - [x] PGlite spike: one persistence-function test file against
       drizzle-orm's PGlite adapter under `bun test`; go/no-go for the
       unit substrate (fallback: the service container everywhere)
-- [ ] Money paper-trail integration suite as the container's first cargo:
+- [x] Money paper-trail integration suite as the container's first cargo:
       drive the settlement/refunds/claims handler family twice with the
       same event against real Postgres and assert exactly-once
       persistence, receipt linkage, and that the
