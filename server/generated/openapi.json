@@ -1010,6 +1010,69 @@
           "ollama"
         ]
       },
+      "AiReviewProgress": {
+        "type": "object",
+        "required": [
+          "phase",
+          "status"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "awaiting_queue",
+              "queued",
+              "running",
+              "retrying",
+              "complete",
+              "attention_required"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "complete",
+              "attention_required"
+            ]
+          }
+        }
+      },
+      "AiReviewScoreRationales": {
+        "type": "object",
+        "required": [
+          "contentSafety",
+          "corroboration",
+          "disputeRisk",
+          "objectivity",
+          "promptInjectionRisk",
+          "publicKnowability",
+          "sourceQuality"
+        ],
+        "properties": {
+          "contentSafety": {
+            "type": "string"
+          },
+          "corroboration": {
+            "type": "string"
+          },
+          "disputeRisk": {
+            "type": "string"
+          },
+          "objectivity": {
+            "type": "string"
+          },
+          "promptInjectionRisk": {
+            "type": "string"
+          },
+          "publicKnowability": {
+            "type": "string"
+          },
+          "sourceQuality": {
+            "type": "string"
+          }
+        }
+      },
       "AiReviewScores": {
         "type": "object",
         "required": [
@@ -1528,6 +1591,9 @@
           "aiReview": {
             "$ref": "#/components/schemas/MarketAiReview"
           },
+          "aiReviewProgress": {
+            "$ref": "#/components/schemas/AiReviewProgress"
+          },
           "bypassAiResolution": {
             "type": "boolean"
           },
@@ -1617,6 +1683,7 @@
           "provider",
           "reasons",
           "reviewedAt",
+          "scoreRationales",
           "scores",
           "sourceChecks",
           "verdict"
@@ -1660,6 +1727,9 @@
           },
           "reviewedAt": {
             "type": "string"
+          },
+          "scoreRationales": {
+            "$ref": "#/components/schemas/AiReviewScoreRationales"
           },
           "scores": {
             "$ref": "#/components/schemas/AiReviewScores"

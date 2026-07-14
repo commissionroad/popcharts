@@ -4,7 +4,7 @@ title: AI Review Runner Design (docs/ai-review-runner-design.md)
 description: Design for the DB-polling review runner that bridges under_review market projections to the stateless AI Review service via a durable job table with leasing, retries, and guarded status transitions.
 sources:
   - docs/ai-review-runner-design.md
-updated: 2026-07-07
+updated: 2026-07-14
 ---
 
 # AI Review Runner Design
@@ -65,8 +65,11 @@ retryable_failed. Composite FKs tie jobs back to `markets` and
   `under_review` → `cancelled`; valid response → persist review, set
   `review_id`, `succeeded`, guarded status transition; transport/non-2xx →
   `retryable_failed` with exponential backoff, `terminal_failed` after the
-  ceiling. A `manual_review` verdict is a successful result — the runner
-  never parses reason prose to decide retries.
+  ceiling. Transient provider failures are non-2xx service responses, so they
+  never create immutable review rows or heuristic scorecards. A valid
+  `manual_review` verdict remains a successful result — the runner never parses
+  reason prose to decide retries. The stock local budget is five minutes for
+  model work, six minutes for the runner request, and ten minutes for the lease.
 - **Status transitions** (guarded by `status = 'under_review'` and metadata
   hash): `approve` → `bootstrap`; `reject` → `rejected`; `manual_review` →
   stays `under_review`. Zero-row updates still count as job success (the
@@ -87,6 +90,10 @@ retryable_failed. Composite FKs tie jobs back to `markets` and
 - **Observability**: structured events for enqueue/claim/request/persist/
   transition/retry/terminal/cancel; logs carry IDs, provider/model, verdict,
   compact errors — never full market text, evidence, or model output.
+- **Public progress**: market reads map active work to `pending`, a persisted
+  review to `complete`, and exhausted retries to `attention_required`. The app
+  refreshes while pending and shows no speculative scores. Completed reviews
+  store one concise rationale per score dimension.
 
 ## Implementation status and open questions
 

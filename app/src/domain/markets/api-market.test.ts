@@ -282,6 +282,15 @@ describe("apiMarketToMarket", () => {
       provider: "heuristic",
       reasons: [],
       reviewedAt: "2026-06-13T12:02:00.000Z",
+      scoreRationales: {
+        contentSafety: "Safe.",
+        corroboration: "Corroborated.",
+        disputeRisk: "Low dispute risk.",
+        objectivity: "Objective.",
+        promptInjectionRisk: "No injection detected.",
+        publicKnowability: "Publicly knowable.",
+        sourceQuality: "Good sources.",
+      },
       scores: {
         contentSafety: 1,
         corroboration: 1,

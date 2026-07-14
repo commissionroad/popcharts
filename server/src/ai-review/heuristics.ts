@@ -93,11 +93,38 @@ export function runHeuristicPolicy(
       matchedPrivate.length > 0 ? 0 : hasResolutionSources(metadata) ? 3 : 2,
     sourceQuality: hasResolutionSources(metadata) ? 2 : 0,
   });
+  const scoreRationales = {
+    contentSafety:
+      matchedHarm.length > 0
+        ? "Deterministic checks found language associated with severe harm."
+        : "Deterministic checks found no language associated with severe harm.",
+    corroboration:
+      "Deterministic checks do not establish independent corroboration.",
+    disputeRisk:
+      "The deterministic baseline cannot fully assess likely disputes.",
+    objectivity: hasClearBinaryQuestion(metadata.question)
+      ? "The question is phrased as a recognizable binary proposition."
+      : "The question is not phrased as a clear binary proposition.",
+    promptInjectionRisk:
+      matchedInjection.length > 0
+        ? "Deterministic checks found instructions aimed at manipulating the reviewer."
+        : "Deterministic checks found no instructions aimed at manipulating the reviewer.",
+    publicKnowability:
+      matchedPrivate.length > 0
+        ? "The market appears to depend on private or local knowledge."
+        : hasResolutionSources(metadata)
+          ? "The metadata names at least one public resolution source."
+          : "The metadata does not name a public resolution source.",
+    sourceQuality: hasResolutionSources(metadata)
+      ? "A resolution source is present, but deterministic checks do not establish its quality."
+      : "No resolution source was supplied for deterministic checks.",
+  };
 
   if (hardFlags.length > 0) {
     return {
       hardFlags: unique(hardFlags),
       reasons: unique(reasons),
+      scoreRationales,
       scores,
       sourceChecks: [],
       verdict: "reject",
@@ -112,6 +139,7 @@ export function runHeuristicPolicy(
   return {
     hardFlags: [],
     reasons: unique(softReasons),
+    scoreRationales,
     scores,
     sourceChecks: [],
     verdict: softReasons.length > 0 ? "manual_review" : "approve",

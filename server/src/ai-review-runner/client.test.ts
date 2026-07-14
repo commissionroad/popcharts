@@ -16,6 +16,15 @@ const result: ReviewResult = {
   promptVersion: "ai-review-v1",
   provider: "heuristic",
   reasons: ["Looks publicly knowable."],
+  scoreRationales: {
+    contentSafety: "Safe.",
+    corroboration: "Corroborated.",
+    disputeRisk: "Low dispute risk.",
+    objectivity: "Objective.",
+    promptInjectionRisk: "No injection detected.",
+    publicKnowability: "Publicly knowable.",
+    sourceQuality: "Good sources.",
+  },
   scores: {
     contentSafety: 0,
     corroboration: 3,

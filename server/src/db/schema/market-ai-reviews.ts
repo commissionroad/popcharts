@@ -14,6 +14,7 @@ import {
 
 import type {
   EvidenceItem,
+  ReviewScoreRationales,
   ReviewScores,
   SourceCheck,
 } from "src/ai-review/types";
@@ -53,6 +54,20 @@ export const marketAiReviews = pgTable(
     scores: jsonb("scores").$type<ReviewScores>().notNull(),
     hardFlags: jsonb("hard_flags").$type<string[]>().notNull(),
     reasons: jsonb("reasons").$type<string[]>().notNull(),
+    scoreRationales: jsonb("score_rationales")
+      .$type<ReviewScoreRationales>()
+      .default({
+        contentSafety: "No rationale was stored for this historical review.",
+        corroboration: "No rationale was stored for this historical review.",
+        disputeRisk: "No rationale was stored for this historical review.",
+        objectivity: "No rationale was stored for this historical review.",
+        promptInjectionRisk:
+          "No rationale was stored for this historical review.",
+        publicKnowability:
+          "No rationale was stored for this historical review.",
+        sourceQuality: "No rationale was stored for this historical review.",
+      })
+      .notNull(),
     sourceChecks: jsonb("source_checks").$type<SourceCheck[]>().notNull(),
     evidence: jsonb("evidence").$type<EvidenceItem[]>().notNull(),
     reviewedAt: timestamp("reviewed_at").defaultNow().notNull(),

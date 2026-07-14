@@ -59,6 +59,8 @@ Review runner
 - Keep chain ingestion independent from model latency, provider failures, and
   web access.
 - Keep the AI Review service stateless and easy to run locally or in AWS.
+- Let slow model reviews remain visibly pending without converting provider
+  latency into a completed heuristic verdict.
 - Make missed, stuck, or manually requested reviews recoverable from database
   state.
 - Preserve an audit trail of review attempts and provider outputs.
@@ -95,8 +97,8 @@ Relevant landed tables:
   - append-only review attempt/result table;
   - references `markets(chain_id, market_id, metadata_hash)`;
   - references `market_metadata(chain_id, metadata_hash)`;
-  - stores provider, model ID, prompt version, verdict, scores, flags, reasons,
-    source checks, evidence, and timestamps.
+  - stores provider, model ID, prompt version, verdict, scores, per-score
+    rationales, flags, reasons, source checks, evidence, and timestamps.
 
 Existing chain review events:
 
@@ -140,27 +142,27 @@ ai_review_job_trigger:
 
 Suggested columns:
 
-| Column | What | Why |
-| --- | --- | --- |
-| `id` | Unique job row ID. | Gives logs, leases, retries, and operators one simple handle for this unit of work. |
-| `chain_id` | Which chain the market belongs to. | Market IDs are only meaningful within a chain, and this also supports the FK back to `markets`. |
-| `market_id` | The on-chain market ID. | Identifies the exact market being reviewed. |
-| `metadata_hash` | The metadata version being reviewed. | Prevents stale reviews. If a market's metadata changes, an old review should not silently apply to the new text. |
-| `status` | Queue lifecycle: queued, running, succeeded, failed, or cancelled. | Lets runners safely find work, skip completed work, retry failures, and expose stuck jobs. |
-| `trigger` | Why the job exists: automatic, manual, or retry. | Useful for audit and behavior; a manual re-review is different from normal polling. |
-| `requested_provider` | Optional AI provider override. | Usually null, meaning use the AI Review service default; manual jobs can request a specific provider. |
-| `requested_model` | Optional model override. | Usually null, meaning use the service default; explicit values support operator-requested re-runs. |
-| `priority` | Claim ordering weight. | Lets manual or urgent jobs run before automatic backlog. |
-| `attempt_count` | Number of times a runner has claimed this job. | Drives retry behavior and shows whether something is repeatedly failing. |
-| `max_attempts` | Retry ceiling. | Prevents infinite retry loops when the service or data is permanently broken. |
-| `run_after` | Earliest timestamp the job can be claimed. | Enables backoff: after a failure, schedule the job later instead of hammering the service. |
-| `lease_until` | Temporary lock expiration. | Lets multiple runners exist safely; if one dies mid-job, the lease eventually expires and another runner can reclaim it. |
-| `locked_by` | Runner instance currently holding the lease. | Helps debug stuck jobs by showing which runner owns the current attempt. |
-| `last_error` | Short latest failure message. | Lets operators understand delayed or failed jobs without digging through logs. It should not contain full model output. |
-| `review_id` | Nullable FK to the final `market_ai_reviews` row. | Links a successful queue job to the immutable review result. It stays null while pending, failed, or cancelled. |
-| `created_at` | When the job was inserted. | Supports audit, backlog age, and latency measurements. |
-| `updated_at` | Last mutation time. | Helps identify stale or recently active jobs. |
-| `completed_at` | When the job reached a terminal state. | Distinguishes finished jobs from active jobs and supports end-to-end timing. |
+| Column               | What                                                               | Why                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`                 | Unique job row ID.                                                 | Gives logs, leases, retries, and operators one simple handle for this unit of work.                                      |
+| `chain_id`           | Which chain the market belongs to.                                 | Market IDs are only meaningful within a chain, and this also supports the FK back to `markets`.                          |
+| `market_id`          | The on-chain market ID.                                            | Identifies the exact market being reviewed.                                                                              |
+| `metadata_hash`      | The metadata version being reviewed.                               | Prevents stale reviews. If a market's metadata changes, an old review should not silently apply to the new text.         |
+| `status`             | Queue lifecycle: queued, running, succeeded, failed, or cancelled. | Lets runners safely find work, skip completed work, retry failures, and expose stuck jobs.                               |
+| `trigger`            | Why the job exists: automatic, manual, or retry.                   | Useful for audit and behavior; a manual re-review is different from normal polling.                                      |
+| `requested_provider` | Optional AI provider override.                                     | Usually null, meaning use the AI Review service default; manual jobs can request a specific provider.                    |
+| `requested_model`    | Optional model override.                                           | Usually null, meaning use the service default; explicit values support operator-requested re-runs.                       |
+| `priority`           | Claim ordering weight.                                             | Lets manual or urgent jobs run before automatic backlog.                                                                 |
+| `attempt_count`      | Number of times a runner has claimed this job.                     | Drives retry behavior and shows whether something is repeatedly failing.                                                 |
+| `max_attempts`       | Retry ceiling.                                                     | Prevents infinite retry loops when the service or data is permanently broken.                                            |
+| `run_after`          | Earliest timestamp the job can be claimed.                         | Enables backoff: after a failure, schedule the job later instead of hammering the service.                               |
+| `lease_until`        | Temporary lock expiration.                                         | Lets multiple runners exist safely; if one dies mid-job, the lease eventually expires and another runner can reclaim it. |
+| `locked_by`          | Runner instance currently holding the lease.                       | Helps debug stuck jobs by showing which runner owns the current attempt.                                                 |
+| `last_error`         | Short latest failure message.                                      | Lets operators understand delayed or failed jobs without digging through logs. It should not contain full model output.  |
+| `review_id`          | Nullable FK to the final `market_ai_reviews` row.                  | Links a successful queue job to the immutable review result. It stays null while pending, failed, or cancelled.          |
+| `created_at`         | When the job was inserted.                                         | Supports audit, backlog age, and latency measurements.                                                                   |
+| `updated_at`         | Last mutation time.                                                | Helps identify stale or recently active jobs.                                                                            |
+| `completed_at`       | When the job reached a terminal state.                             | Distinguishes finished jobs from active jobs and supports end-to-end timing.                                             |
 
 Constraints:
 
@@ -282,26 +284,34 @@ For each claimed job:
    - set `review_id`;
    - mark the job `succeeded`;
    - apply the guarded market status transition.
-6. On transport timeout, connection failure, or non-2xx response:
+6. On transport timeout, connection failure, provider-unavailable response, or
+   other non-2xx response:
    - mark `retryable_failed` if attempts remain;
    - compute `run_after` using exponential backoff;
    - store a compact `last_error`;
    - mark `terminal_failed` after the retry ceiling.
 
-The runner should treat a valid `manual_review` response as a successful review
-result. It should not parse reason strings to decide whether to retry. If we
-need structured model-degraded retry behavior later, add an explicit field to
-the AI Review result contract rather than parsing prose.
+The runner treats a valid `manual_review` response as a successful review
+result. It never parses reason strings to decide whether to retry. Transient
+provider failures are HTTP failures from the review service, so they remain
+durable retryable jobs and do not create `market_ai_reviews` rows. Deterministic
+hard-flag rejections still complete before any provider call.
+
+Local model calls use a generous but finite budget. The stock local stack gives
+the model five minutes, gives the runner a longer HTTP timeout, and holds the
+job lease longer than either timeout. A finite ceiling is required so a dead
+runtime cannot own a job forever; retries and terminal failure remain the
+recovery path.
 
 ## Status Transitions
 
 Only the runner mutates market status based on AI review results in this path.
 
-| Review verdict | Market status action |
-| --- | --- |
-| `approve` | Change `under_review` to `bootstrap`. |
-| `reject` | Change `under_review` to `rejected`. |
-| `manual_review` | Leave `under_review`. |
+| Review verdict  | Market status action                  |
+| --------------- | ------------------------------------- |
+| `approve`       | Change `under_review` to `bootstrap`. |
+| `reject`        | Change `under_review` to `rejected`.  |
+| `manual_review` | Leave `under_review`.                 |
 
 The update must be guarded by current status and metadata hash. If the update
 affects zero rows, the job can still be `succeeded` because the review attempt
@@ -311,6 +321,27 @@ The existing chain review watcher can still move a market to `bootstrap` or
 `rejected`. Until we decide otherwise, chain review events and runner decisions
 are two valid inputs to the same projection, and the guarded runner update keeps
 them from overwriting each other.
+
+## Public Review Progress
+
+The market read model exposes a sanitized review-progress state without
+leaking provider errors or queue internals:
+
+| Job/review state                                          | Public state         | Product behavior                                                           |
+| --------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------- |
+| Awaiting discovery, queued, running, or retryable failure | `pending`            | Keep the market under review and poll for completion.                      |
+| Persisted review                                          | `complete`           | Show provider, model, verdict, scores, per-score rationales, and evidence. |
+| Terminal job failure with no persisted review             | `attention_required` | Keep the market under review and explain that review is delayed.           |
+
+The market detail page refreshes while the public state is `pending`; it does
+not manufacture scores before an immutable review exists.
+
+Each completed review stores one concise rationale for every score dimension.
+Rationales are part of the model output contract, validated as untrusted text,
+and persisted beside the numeric scores. An explicitly selected heuristic
+provider emits deterministic rationales describing the exact rule behind each
+number. Provider-failure fallbacks do not produce scorecards in the retrying
+local path.
 
 ## Manual Trigger
 
@@ -372,16 +403,16 @@ Add package scripts:
 
 Suggested runner env vars:
 
-| Env var | Purpose |
-| --- | --- |
-| `AI_REVIEW_SERVICE_URL` | Base URL for the AI Review HTTP service. |
-| `AI_REVIEW_RUNNER_ID` | Optional stable worker ID. |
-| `AI_REVIEW_RUNNER_POLL_MS` | Poll interval. |
-| `AI_REVIEW_RUNNER_BATCH_SIZE` | Max jobs claimed per loop. |
-| `AI_REVIEW_RUNNER_LEASE_MS` | Lease duration. |
-| `AI_REVIEW_RUNNER_MAX_ATTEMPTS` | Default retry ceiling. |
-| `AI_REVIEW_RUNNER_BACKOFF_MS` | Base backoff duration. |
-| `AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS` | HTTP timeout. |
+| Env var                               | Purpose                                  |
+| ------------------------------------- | ---------------------------------------- |
+| `AI_REVIEW_SERVICE_URL`               | Base URL for the AI Review HTTP service. |
+| `AI_REVIEW_RUNNER_ID`                 | Optional stable worker ID.               |
+| `AI_REVIEW_RUNNER_POLL_MS`            | Poll interval.                           |
+| `AI_REVIEW_RUNNER_BATCH_SIZE`         | Max jobs claimed per loop.               |
+| `AI_REVIEW_RUNNER_LEASE_MS`           | Lease duration.                          |
+| `AI_REVIEW_RUNNER_MAX_ATTEMPTS`       | Default retry ceiling.                   |
+| `AI_REVIEW_RUNNER_BACKOFF_MS`         | Base backoff duration.                   |
+| `AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS` | HTTP timeout.                            |
 
 The runner should have its own health marker or log heartbeat if deployed as a
 separate container.
@@ -423,7 +454,11 @@ Unit tests:
 - `manual_review` persists review and leaves market `under_review`;
 - guarded status update does not override already-moved markets;
 - transport failures schedule retry with backoff;
+- provider timeouts remain pending and do not persist heuristic scorecards;
 - retry ceiling marks jobs `terminal_failed`;
+- public progress maps active jobs to `pending` and terminal failures to
+  `attention_required`;
+- every completed score has a persisted rationale;
 - manual trigger returns existing active job unless forced.
 
 Smoke tests:

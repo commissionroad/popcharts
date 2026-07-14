@@ -365,6 +365,7 @@ async function persistReviewJobResult({
         provider: result.provider,
         reasons: result.reasons,
         reviewedAt,
+        scoreRationales: result.scoreRationales,
         scores: result.scores,
         sourceChecks: result.sourceChecks,
         verdict: result.verdict,

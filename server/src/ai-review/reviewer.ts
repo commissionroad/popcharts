@@ -11,11 +11,11 @@ import type {
 } from "./types";
 
 /**
- * Runs the full market review pipeline and always returns a usable verdict.
- * The deterministic heuristic pass runs first and its reject is final — no
- * model output can overturn a hard flag. Provider errors degrade to the
- * heuristic finding with an approve downgraded to manual_review, so an outage
- * can never silently approve a market.
+ * Runs the full market review pipeline. The deterministic heuristic pass runs
+ * first and its reject is final — no model output can overturn a hard flag.
+ * Provider errors either surface as retryable failures for the durable runner
+ * or degrade to the heuristic finding with an approve downgraded to
+ * manual_review, depending on runtime configuration.
  */
 export async function reviewMarket({
   config,
@@ -63,6 +63,10 @@ export async function reviewMarket({
       providerReview,
     });
   } catch (error) {
+    if (config.retryProviderFailures) {
+      throw new ReviewUnavailableError(providerName, error);
+    }
+
     return modelUnavailableReview({
       allowHeuristicApprove: config.fallbackApprove,
       error,
@@ -70,6 +74,22 @@ export async function reviewMarket({
       heuristic,
       providerName,
     });
+  }
+}
+
+/** Signals a transient provider failure that the durable runner should retry. */
+export class ReviewUnavailableError extends Error {
+  constructor(
+    readonly providerName: ReviewProviderName,
+    cause: unknown,
+  ) {
+    super(
+      cause instanceof Error
+        ? `${displayProviderName(providerName)} review unavailable: ${cause.message}`
+        : `${displayProviderName(providerName)} review unavailable.`,
+      { cause },
+    );
+    this.name = "ReviewUnavailableError";
   }
 }
 
@@ -116,15 +136,19 @@ function modelUnavailableReview({
         ? `${displayProviderName(providerName)} review unavailable: ${error.message}`
         : `${displayProviderName(providerName)} review unavailable.`,
     ],
+    scoreRationales: {
+      ...heuristic.scoreRationales,
+      disputeRisk:
+        "Dispute risk was raised because the configured model reviewer was unavailable.",
+    },
     scores: {
       ...heuristic.scores,
       disputeRisk: Math.max(heuristic.scores.disputeRisk, 4),
     },
     sourceChecks: heuristic.sourceChecks,
     // A hard-flag reject is always final. Otherwise the model outage normally
-    // downgrades the heuristic's `approve` to `manual_review` so production
-    // never auto-approves without a model; local dev opts out via
-    // `fallbackApprove` so a clean market is not blocked when Ollama is down.
+    // downgrades the heuristic's `approve` to `manual_review` so a provider
+    // outage never auto-approves without a model.
     verdict:
       allowHeuristicApprove || heuristic.verdict !== "approve"
         ? heuristic.verdict

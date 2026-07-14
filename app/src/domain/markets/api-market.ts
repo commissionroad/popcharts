@@ -80,6 +80,9 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     volumeUsd: totalEscrowed,
     yesPriceCents,
     ...(apiMarket.aiReview ? { aiReview: apiMarket.aiReview } : {}),
+    ...(apiMarket.aiReviewProgress
+      ? { aiReviewProgress: apiMarket.aiReviewProgress }
+      : {}),
     ...(outcomeNo ? { outcomeNo } : {}),
     ...(outcomeYes ? { outcomeYes } : {}),
     ...(apiMarket.postgrad

@@ -14,6 +14,10 @@ export function buildAiReviewRunnerEnv(
     AI_REVIEW_RUNNER_ID:
       process.env.LOCAL_AI_REVIEW_RUNNER_ID ?? "local-ai-review-runner",
     AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
+    AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS:
+      process.env.LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS ?? "360000",
+    AI_REVIEW_RUNNER_LEASE_MS:
+      process.env.LOCAL_AI_REVIEW_RUNNER_LEASE_MS ?? "600000",
     AI_REVIEW_SERVICE_URL: localAiReviewBaseUrl,
   };
 }

@@ -12,7 +12,7 @@ import {
   getAllReviewProviderStatuses,
   getReviewProviderStatus,
 } from "./providers/registry";
-import { reviewMarket } from "./reviewer";
+import { reviewMarket, ReviewUnavailableError } from "./reviewer";
 
 const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
   context: {
@@ -160,6 +160,16 @@ const ScoresSchema = t.Object({
   sourceQuality: t.Number(),
 });
 
+const ScoreRationalesSchema = t.Object({
+  contentSafety: t.String(),
+  corroboration: t.String(),
+  disputeRisk: t.String(),
+  objectivity: t.String(),
+  promptInjectionRisk: t.String(),
+  publicKnowability: t.String(),
+  sourceQuality: t.String(),
+});
+
 const SourceTierSchema = t.Union([
   t.Literal("primary"),
   t.Literal("major_news"),
@@ -202,6 +212,7 @@ const ReviewResultSchema = t.Object({
   ]),
   promptVersion: t.String(),
   reasons: t.Array(t.String()),
+  scoreRationales: ScoreRationalesSchema,
   scores: ScoresSchema,
   sourceChecks: t.Array(SourceCheckSchema),
   verdict: t.Union([
@@ -310,6 +321,10 @@ export const aiReviewApp = new Elysia()
                   },
                   description: "Market review result",
                 },
+                503: {
+                  description:
+                    "The configured reviewer is temporarily unavailable; durable callers should retry.",
+                },
               },
               summary: "Review market metadata",
               tags: ["Reviews"],
@@ -344,11 +359,23 @@ export const aiReviewApp = new Elysia()
   )
   .post(
     "/reviews/market",
-    async ({ body }) => reviewMarket({ config: aiReviewConfig, request: body }),
+    async ({ body, set }) => {
+      try {
+        return await reviewMarket({ config: aiReviewConfig, request: body });
+      } catch (error) {
+        if (error instanceof ReviewUnavailableError) {
+          set.status = 503;
+          return { error: "Review is temporarily unavailable." };
+        }
+
+        throw error;
+      }
+    },
     {
       body: MarketReviewRequestSchema,
       response: {
         200: ReviewResultSchema,
+        503: t.Object({ error: t.String() }),
       },
       detail: {
         description:

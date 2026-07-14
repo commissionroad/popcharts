@@ -285,6 +285,15 @@ function createReviewRow(overrides: Partial<ReviewRow> = {}): ReviewRow {
     provider: "heuristic",
     reasons: ["Looks publicly knowable."],
     reviewedAt: new Date("2026-06-23T12:02:00.000Z"),
+    scoreRationales: {
+      contentSafety: "Safe.",
+      corroboration: "Corroborated.",
+      disputeRisk: "Low dispute risk.",
+      objectivity: "Objective.",
+      promptInjectionRisk: "No injection detected.",
+      publicKnowability: "Publicly knowable.",
+      sourceQuality: "Good sources.",
+    },
     scores: {
       contentSafety: 0,
       corroboration: 3,

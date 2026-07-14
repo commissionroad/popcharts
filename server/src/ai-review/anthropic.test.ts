@@ -64,6 +64,15 @@ describe("reviewWithAnthropic", () => {
               text: JSON.stringify({
                 hardFlags: [],
                 reasons: ["NASA is a primary public source."],
+                scoreRationales: {
+                  contentSafety: "No unsafe content.",
+                  corroboration: "Two public references support the result.",
+                  disputeRisk: "The criteria are bounded.",
+                  objectivity: "The outcome is binary.",
+                  promptInjectionRisk: "No injection attempt.",
+                  publicKnowability: "The result is publicly announced.",
+                  sourceQuality: "The cited source is primary.",
+                },
                 scores: {
                   contentSafety: 5,
                   corroboration: 2,
@@ -119,6 +128,9 @@ describe("reviewWithAnthropic", () => {
       url: "https://www.nasa.gov/news/",
     });
     expect(result.sourceChecks).toHaveLength(1);
+    expect(result.scoreRationales.sourceQuality).toBe(
+      "The cited source is primary.",
+    );
     expect(bodies).toHaveLength(1);
     expect(
       (bodies[0] as { tools?: Array<Record<string, unknown>> }).tools,

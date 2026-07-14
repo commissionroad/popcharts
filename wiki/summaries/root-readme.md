@@ -28,12 +28,14 @@ the app, and bring up progressively larger local stacks.
   (connect an injected wallet, use `/create`). The local review service
   defaults to the **Ollama local-model provider** on `http://127.0.0.1:3002`
   (changed 2026-07-13 from heuristic); the runner polls Postgres for
-  `under_review` markets. If the Ollama runtime isn't running, reviews fall back
-  to the deterministic heuristic, and locally a clean market still auto-approves
-  so testing isn't blocked (`LOCAL_AI_REVIEW_FALLBACK_APPROVE`) — harmful markets
-  are still rejected by the heuristic gate, and no other environment
-  auto-approves. `--no-ai-review` restores the older stack shape; `just
-  local-reset` wipes the Postgres container/volumes.
+  `under_review` markets. Local model calls have a five-minute budget, with
+  runner and lease margins above it. Transient provider failures remain pending
+  and retry instead of creating a heuristic approval or scorecard; terminal
+  failures surface as delayed review. The detail page refreshes while pending,
+  and completed reviews explain every score. Harmful markets are still rejected
+  before model work by the deterministic hard-flag gate. `--no-ai-review`
+  restores the older stack shape; `just local-reset` wipes the Postgres
+  container/volumes.
 - **Process Compose control plane spike** (`just local-dev-control`): the same
   bootstrap sequence (Postgres → Drizzle push → chain healthy → contracts
   deploy → env files → API/indexer/review workers/app) but with per-process

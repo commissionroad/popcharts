@@ -4,9 +4,11 @@ import { buildAnthropicTools } from "./anthropic/tools";
 import type { AiReviewConfig } from "./config";
 import {
   adjustModelScoresForEvidence,
+  alignScoreRationalesWithAdjustedScores,
   arrayOfStrings,
   filterSourceChecksByEvidence,
   parseModelReview,
+  parseScoreRationales,
   parseSourceChecks,
   parseVerdict,
 } from "./response-parsing";
@@ -71,21 +73,29 @@ export async function reviewWithAnthropic({
     evidence,
   );
   const hardFlags = arrayOfStrings(parsed.hardFlags);
+  const rawScores = normalizeScores(
+    typeof parsed.scores === "object" && parsed.scores !== null
+      ? (parsed.scores as Record<string, unknown>)
+      : {},
+  );
   const scores = adjustModelScoresForEvidence(
-    normalizeScores(
-      typeof parsed.scores === "object" && parsed.scores !== null
-        ? (parsed.scores as Record<string, unknown>)
-        : {},
-    ),
+    rawScores,
     sourceChecks,
     hardFlags,
   );
+  const scoreRationales = alignScoreRationalesWithAdjustedScores({
+    adjustedScores: scores,
+    rationales: parseScoreRationales(parsed.scoreRationales),
+    rawScores,
+    sourceChecks,
+  });
 
   return {
     evidence,
     hardFlags,
     modelId: response.model ?? modelId,
     reasons: arrayOfStrings(parsed.reasons),
+    scoreRationales,
     scores,
     sourceChecks,
     verdict: parseVerdict(parsed.verdict),

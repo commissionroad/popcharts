@@ -68,6 +68,34 @@ describe("MarketDetailPage", () => {
     expect(screen.getByText("AI review")).toBeInTheDocument();
   });
 
+  it("renders pending review progress before a scorecard exists", () => {
+    const market = marketFactory({ status: "under_review" });
+    delete market.aiReview;
+    market.aiReviewProgress = { phase: "running", status: "pending" };
+
+    render(<MarketDetailPage market={market} />);
+
+    expect(screen.getByText("Review pending")).toBeInTheDocument();
+    expect(
+      screen.getByText("Checking the market criteria and public evidence.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Objectivity")).not.toBeInTheDocument();
+  });
+
+  it("renders operator attention without a speculative scorecard", () => {
+    const market = marketFactory({ status: "under_review" });
+    delete market.aiReview;
+    market.aiReviewProgress = {
+      phase: "attention_required",
+      status: "attention_required",
+    };
+
+    render(<MarketDetailPage market={market} />);
+
+    expect(screen.getByText("Review delayed")).toBeInTheDocument();
+    expect(screen.queryByText("Objectivity")).not.toBeInTheDocument();
+  });
+
   it("prefers an explicit price path over the market's own", () => {
     render(
       <MarketDetailPage

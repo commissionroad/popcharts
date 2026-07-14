@@ -20,6 +20,7 @@ const baseConfig: AiReviewConfig = {
   port: 3002,
   provider: "ollama",
   requestTimeoutMs: 100,
+  retryProviderFailures: false,
   userAgent: "popcharts-test",
 };
 

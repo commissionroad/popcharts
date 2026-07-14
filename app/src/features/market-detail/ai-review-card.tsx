@@ -84,6 +84,7 @@ export function AiReviewCard({ review }: { review: MarketAiReview }) {
             key={dimension.key}
             label={dimension.label}
             risk={dimension.risk}
+            rationale={review.scoreRationales[dimension.key]}
             score={review.scores[dimension.key]}
           />
         ))}
@@ -142,10 +143,12 @@ export function AiReviewCard({ review }: { review: MarketAiReview }) {
 
 function ScoreRow({
   label,
+  rationale,
   risk,
   score,
 }: {
   label: string;
+  rationale: string;
   risk: boolean;
   score: number;
 }) {
@@ -175,6 +178,9 @@ function ScoreRow({
           />
         ))}
       </div>
+      <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+        {rationale}
+      </p>
     </div>
   );
 }
@@ -193,5 +199,15 @@ function SourceTierBadge({ tier }: { tier: AiReviewSourceTier }) {
 }
 
 function reviewerLabel(review: MarketAiReview) {
-  return review.modelId?.trim() || review.provider;
+  if (review.modelId?.trim()) {
+    return review.modelId;
+  }
+
+  if (review.provider === "heuristic") {
+    return review.reasons.some((reason) => reason.includes("review unavailable"))
+      ? "Deterministic fallback"
+      : "Deterministic checks";
+  }
+
+  return review.provider;
 }

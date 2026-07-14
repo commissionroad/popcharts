@@ -22,6 +22,15 @@ export const MARKET_REVIEW_POLICY = [
 export const MARKET_REVIEW_OUTPUT_CONTRACT = {
   hardFlags: ["string"],
   reasons: ["string"],
+  scoreRationales: {
+    contentSafety: "concise reason for this score",
+    corroboration: "concise reason for this score",
+    disputeRisk: "concise reason for this score",
+    objectivity: "concise reason for this score",
+    promptInjectionRisk: "concise reason for this score",
+    publicKnowability: "concise reason for this score",
+    sourceQuality: "concise reason for this score",
+  },
   scores: {
     contentSafety: "0-5, higher is safer",
     corroboration: "0-5, higher means more independent evidence",

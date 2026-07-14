@@ -3,11 +3,13 @@
 Append-only, newest at the bottom. Format: see `CLAUDE.md`.
 
 ## [2026-07-07] schema | wiki bootstrapped
+
 Pages: +CLAUDE.md, +log.md
 Notes: Initial schema written; bulk ingest of all existing repo docs
 (3 ADR sets, design docs, CONTEXT/CONSTITUTION files, whitepapers) in progress.
 
 ## [2026-07-07] ingest | initial bulk ingest — all repo docs + whitepapers
+
 Pages: +51 summaries/ (all protocol/app/program ADRs, design docs, READMEs,
 CONTEXT/CONSTITUTION, whitepapers v0.1/v3/v4), +14 entities/, +12 concepts/
 (incl. overview.md), +index.md
@@ -15,7 +17,8 @@ Notes: Six parallel ingest agents wrote summaries; entities/concepts/index
 synthesized from their reports. Whitepaper v4 formulas verified numerically
 against its worked examples (PDF equations are images — text extraction
 misses them). Notable findings filed on pages:
-- Duplicate ADR number: two docs/adr/0007-*.md files; the cleanup program is
+
+- Duplicate ADR number: two docs/adr/0007-\*.md files; the cleanup program is
   absent from docs/adr/README.md index.
 - Stale docs: root README (nested lockfiles, Tenderly pointer), infra/README
   (still targets Base, pre-Arc), docs/deployment/vercel.md (sentilesdal org),
@@ -28,11 +31,12 @@ misses them). Notable findings filed on pages:
 - Privy adopted without the ADR that app ADR 0005 requires.
 - protocol/docs/TESTING.md predates landed clearing; verify golden tests
   exist. ADR 0015 CI checklist items look stale vs. existing CI workflows.
-Follow-ups for next lint: verify whitepaper Example A/B golden tests in the
-test suite; check app MarketStatus vs ADR 0003's frozen ladder; decide
-whether operator-auth deserves its own concept page once implemented.
+  Follow-ups for next lint: verify whitepaper Example A/B golden tests in the
+  test suite; check app MarketStatus vs ADR 0003's frozen ladder; decide
+  whether operator-auth deserves its own concept page once implemented.
 
 ## [2026-07-07] ingest | app component inventory — PriceCurve rework + outcome labels
+
 Pages: ~summaries/app-component-inventory.md
 Notes: PriceCurve became a dual-series YES/NO history chart (trailing-window
 pills 1H-1M/ALL, quarter gridlines with axis values, crosshair hover);
@@ -41,6 +45,7 @@ outcomeYes/outcomeNo market-metadata fields flowing creation form -> canonical
 serialization -> indexer/API -> Market type.
 
 ## [2026-07-07] ingest | protocol ADR 0010 — disable the clearing challenge window by default
+
 Pages: +summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md,
 ~summaries/protocol-adr-0006-optimistic-offchain-graduation-clearing.md,
 ~concepts/graduation-clearing.md, ~entities/pregrad-manager.md, ~index.md
@@ -52,6 +57,7 @@ is a parameter change later. Same PR lands the dev graduation flow + postgrad
 venue wiring the ADR unblocks.
 
 ## [2026-07-08] ingest | portfolio data design — DB-backed portfolio spec
+
 Pages: +summaries/portfolio-data-design.md, ~entities/indexer.md,
 ~entities/server-workspace.md, ~entities/app-workspace.md, ~index.md
 Notes: replaces the localStorage portfolio stub. Indexer page's "graduated
@@ -62,18 +68,21 @@ pulls move tokens to the pool manager) is the doc's main correctness trap.
 PnL deferred: Transfer indexing keeps quantities, not per-swap cost.
 
 ## [2026-07-08] ingest | portfolio data design D4 amendment — direct indexer reads
+
 Pages: ~summaries/portfolio-data-design.md
 Notes: D4's proxy route dropped in implementation; hooks read the indexer
 directly (postgrad-hook precedent, base URL already NEXT_PUBLIC). Phase
 status updated (2+3 landed as PR #152).
 
 ## [2026-07-09] ingest | portfolio data design — implemented (PRs #151-#154)
+
 Pages: ~summaries/portfolio-data-design.md
 Notes: all five phases landed overnight; doc status flipped to Implemented.
 Receipt band column became avg price (rLow/rHigh are LMSR path bounds, not
 probabilities). PnL follow-up (phase 6) remains the only open item.
 
 ## [2026-07-09] ingest | portfolio D4 fix — same-origin proxy (PR #159)
+
 Pages: ~summaries/portfolio-data-design.md
 Notes: the direct-browser-read hook (shipped #153/#154) was broken in local
 dev — it read NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL, which the local stack
@@ -82,6 +91,7 @@ uses the same-origin proxy /api/indexer/orderbook for exactly this reason.
 PR #159 restores the proxy pattern for portfolio. D4 reverted to its original.
 
 ## [2026-07-09] ingest | repo ADR renumber — monorepo cleanup 0007 → 0016
+
 Pages: +summaries/root-adr-0016-monorepo-architecture-cleanup-program.md
 (renamed from root-adr-0007-...), ~summaries/root-adr-0007-track-verticals-with-progress-adrs.md,
 ~summaries/root-adr-index-conventions.md, ~summaries/root-adr-0006-server-runtime-and-indexer.md,
@@ -96,6 +106,7 @@ notes, and added the 0016 row to the ADR index table. No content drift beyond
 the number; collision is resolved, not merely flagged.
 
 ## [2026-07-09] ingest | operator-access model correction (ADRs 0009/0011/0012/0015)
+
 Pages: ~summaries/root-adr-0009-server-api-hardening.md,
 ~summaries/root-adr-0011-ai-review-service-hardening.md,
 ~summaries/root-adr-0012-ai-assisted-resolution.md,
@@ -116,6 +127,7 @@ and server-README summaries unchanged — they faithfully describe their (still
 unchanged) source docs, which still document the current dev/admin endpoint.
 
 ## [2026-07-09] lint | first periodic lint (window: since 2026-07-07 bootstrap)
+
 Pages: +summaries/error-handling-ux-prd.md, ~entities/app-workspace.md,
 ~concepts/product-honesty-rule.md, ~index.md
 Organic ingestion since bootstrap (first lint, so window = bootstrap→now):
@@ -128,6 +140,7 @@ Two edge cases counted as ingested: #140's a11y component-inventory edit
 reached the wiki via the next merge rather than its own PR; #129's ADR-0007
 D1+D1a checkbox tick needed no wiki change (already ticked at bootstrap).
 Findings:
+
 - Staleness: none. Every page's `updated:` >= newest git date of its sources
   (checked all 82 content pages). No orphaned summaries (no source deleted).
 - Integrity: clean. Zero broken internal links, zero pages missing from
@@ -137,7 +150,7 @@ Findings:
   landed, all already annotated. No drift.
 - New raw source found and ingested: docs/error-handling-ux-prd.md (safe-by-
   default error presentation; the one coverage gap).
-Bootstrap follow-ups resolved:
+  Bootstrap follow-ups resolved:
 - Whitepaper golden tests exist (protocol/test/solidity/LmsrMath.t.sol +
   nodejs/display-price-conversion.test.ts golden fixtures). Resolved.
 - app MarketStatus vs ADR 0003's five-value ladder: NOT drift — the wiki
@@ -145,11 +158,12 @@ Bootstrap follow-ups resolved:
   rejected included) in concepts/market-lifecycle.md and the app-adr-0003
   summary. ADR 0003 is design intent; the app is deliberately ahead. Resolved.
 - operator-auth concept page: still unbuilt (root ADR 0009 all-open); defer.
-Follow-ups for next lint: watch error-handling PRD open questions (logging
-vendor, API error codes) for a resolving ADR; re-check whether app MarketStatus
-grows further past ADR 0003.
+  Follow-ups for next lint: watch error-handling PRD open questions (logging
+  vendor, API error codes) for a resolving ADR; re-check whether app MarketStatus
+  grows further past ADR 0003.
 
 ## [2026-07-13] lint | first periodic lint reconcile — 2 missed design docs + checklist drift across 6 vertical ADRs
+
 Pages: +summaries/ai-resolution-service-design.md,
 +summaries/clearing-keeper-design.md, ~concepts/ai-assisted-resolution.md,
 ~entities/clearing-keeper.md, ~concepts/graduation-clearing.md,
@@ -177,6 +191,7 @@ audit" — re-ticked 0008/0009/0010/0011/0013/0015 with 0 wiki files touched. Th
 per-session ingest.
 
 Findings and fixes:
+
 - **New docs ingested:** two summary pages created and cross-linked into the AI
   resolution concept, clearing-keeper entity, and graduation-clearing concept.
   ai-resolution adds the per-outcome temporal gates (`yes_not_before` new
@@ -189,8 +204,8 @@ Findings and fixes:
 - **Checklist drift (real content):** 6 vertical-ADR summaries had `[ ]` boxes
   the 07-09 code-audit reconcile flipped to `[x]`. Reconciled tick-state,
   headings, descriptions, and index annotations. Hidden-drift catch: 0009/0011
-  summaries were already dated 2026-07-09 (bumped by the *later* operator-access
-  ingest) yet still carried unticked boxes from the *earlier* same-day reconcile
+  summaries were already dated 2026-07-09 (bumped by the _later_ operator-access
+  ingest) yet still carried unticked boxes from the _earlier_ same-day reconcile
   — a date-based scan alone would have missed them.
 - **Status drift:** clearing keeper and AI resolution were labelled "not
   built/unbuilt" in the keeper entity, graduation-clearing concept, and
@@ -214,7 +229,9 @@ the resolution concept/summary build-status claims against the code; re-verify
 Server CI checkbox (ADR 0015) against `.github/workflows/`; carry the whitepaper
 Example A/B golden-test check forward (now referenced by the new clearing-keeper
 design summary — confirm the fixture landed).
+
 ## [2026-07-14] lint | new protocol ADR 0011 ingested; ADR 0008 + 0016 checklist drift; AI review default flipped to Ollama
+
 Pages: +summaries/protocol-adr-0011-admin-market-cancellation.md,
 ~summaries/root-adr-0008-protocol-functionality-completion.md,
 ~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md,
@@ -241,20 +258,21 @@ assets with no prose to summarize.) The per-session ingest rule in `AGENTS.md`
 is not being followed by feature sessions; two lints running, two dry spells.
 
 Findings and fixes:
+
 - **New source ingested:** protocol ADR 0011, the owner-only `cancelMarket`
   moderation kill switch. Before it, a live market holding real escrow had no
   way to be stopped — `rejectMarket` only works pre-escrow, `markRefundable`
   only at the deadline, and `MarketStatus.Cancelled` was an enum value no
   function ever assigned while the portfolio already rendered `cancelled` as
   `refund_claimable` (a projection with no on-chain path behind it). The refund
-  path is *reused*, not duplicated: the claim guard widens to "Refunded or
+  path is _reused_, not duplicated: the claim guard widens to "Refunded or
   Cancelled", so double-refund safety is inherited rather than re-argued.
-- **Doc/code drift flagged, not fixed:** ADR 0011 still reads *Proposed* while
+- **Doc/code drift flagged, not fixed:** ADR 0011 still reads _Proposed_ while
   its code is on `main` (contract, event, widened guard, `market_cancelled_events`
-  + watcher). Noted on the page; the wiki never edits raw sources.
+  - watcher). Noted on the page; the wiki never edits raw sources.
 - **Checklist drift (real content), the same hidden-drift class the last lint
   warned about:** ADR 0008 went 4/10 → 7/10 (whole clearing block) and ADR 0016
-  went to fully-executed, both on 2026-07-13 — the *same date* the last lint
+  went to fully-executed, both on 2026-07-13 — the _same date_ the last lint
   stamped its pages, so a date-based staleness scan reports them clean. Only a
   tick-count diff against the raw ADRs catches it. Reconciled both, plus the
   downstream keeper/venue/architecture pages that called this work "open".
@@ -272,12 +290,11 @@ Findings and fixes:
   (pointed at `root-adr-0007-monorepo-architecture-cleanup-program.md`, dead
   since the 0007→0016 renumber; PR #156 was written pre-renumber and merged
   after it). 0 orphans, 0 pages missing from index, no dangling sources.
-- **Carried-forward follow-ups, both resolved:** (1) *Server CI checkbox (ADR
-  0015)* — **not** stale-unticked. `server-ci.yml` exists and runs
+- **Carried-forward follow-ups, both resolved:** (1) _Server CI checkbox (ADR 0015)_ — **not** stale-unticked. `server-ci.yml` exists and runs
   format/lint/typecheck/`openapi:check`/`test:coverage`, but has **no Postgres
   service container**, which is precisely what the item asks for; the open box is
-  honest and the real gap is narrower than "no Server CI". (2) *Whitepaper
-  golden-test fixture* — it landed, but not where `protocol/docs/TESTING.md`
+  honest and the real gap is narrower than "no Server CI". (2) _Whitepaper
+  golden-test fixture_ — it landed, but not where `protocol/docs/TESTING.md`
   implies: it is in `server/src/keeper/clearing/band-pass-clearing.test.ts` (the
   keeper is what it pins), with **Example A** reproduced line by line plus
   invariants over 2,000 random books. **Example B is not separately pinned.**
@@ -294,10 +311,12 @@ whether whitepaper Example B deserves its own golden test if the clearing math i
 touched again; ADR 0012 tick-state vs the resolution code that is landing.
 
 ## [2026-07-14] ingest | repo ADR 0016 — D3 settlement-handler split executed (trigger fired)
+
 Pages: ~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md, ~concepts/monorepo-architecture.md, ~index.md
 Notes: The D3 item's documented split trigger fired — `server/src/indexer/handlers/settlement.ts` gained a 7th event type (MarketCancelled, commit c2e9768, the protocol ADR 0011 kill switch) — so the standing deferred-by-design guard converted to executed work: checkbox ticked, Progress Log row added, split performed as three sibling handler modules (graduation/refunds/claims) plus private shared plumbing behind a kept `settlement.ts` barrel. "Two intentional unticked boxes" framing across the summary and the monorepo-architecture concept page reduced to E7 only.
 
 ## [2026-07-14] ingest | repo ADR 0017 — test observability and coverage program
+
 Pages: +summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md, ~index.md
 Notes: New standalone tracked program (ADR 0016 model) from the 2026-07-14
 testing-infra audit. Six tracks: A coverage visibility (ci-metrics branch,
@@ -308,3 +327,8 @@ tests + StdInvariant escrow harness, E infra cdk-synth gate (deployment CI
 stays with ADR 0015), F band-pass invariant-test timeout fix. Watch for:
 ADR 0015's stale CI checkboxes ("Server CI workflow" unchecked though the
 workflow exists) — flagged during the audit, not fixed in this ingest.
+
+## [2026-07-14] ingest | AI review pending lifecycle and score rationales
+
+Pages: ~summaries/root-readme.md, ~summaries/server-readme.md, ~summaries/ai-review-runner-design.md, ~summaries/root-adr-0011-ai-review-service-hardening.md, ~entities/ai-review-service.md, ~index.md
+Notes: Provider latency no longer becomes a completed local heuristic approval. The durable runner keeps transient failures pending with bounded five/six/ten-minute model/request/lease limits; public reads expose pending/complete/attention states, the detail page refreshes active work, and completed reviews persist a rationale for every score.

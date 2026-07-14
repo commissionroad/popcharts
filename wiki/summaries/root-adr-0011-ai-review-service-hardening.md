@@ -4,7 +4,7 @@ title: Repo ADR 0011 — AI review service hardening
 description: Vertical ADR to harden the working AI review loop for unattended operation — safe evidence fetching, strict output validation, prompt-version policy, metrics, stuck-job recovery. Manual re-review is a local operator action, not an authenticated API endpoint.
 sources:
   - docs/adr/0011-ai-review-service-hardening.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Repo ADR 0011: AI Review Service Hardening
@@ -35,40 +35,46 @@ Harden the existing review service and runner for unattended operation against
 Arc Testnet. The service keeps its single-call review shape (multi-turn
 research stays deferred). Deployment is ADR 0015.
 
-## Progress (3 of 8 done as of the 2026-07-09 checklist reconcile)
+## Progress (5 of 10 done as of 2026-07-14)
 
 Security:
 
 - [ ] Manual re-review is an operator action: run it locally against the chain
-  and job queue (a keyed admin panel), and exclude the `/admin/*` re-review
-  endpoint from production builds (ADR 0009). Not an authenticated API surface.
+      and job queue (a keyed admin panel), and exclude the `/admin/*` re-review
+      endpoint from production builds (ADR 0009). Not an authenticated API surface.
 - [x] Evidence fetching hardening in `safe-web.ts`: block private/loopback
-  IPs, cap redirects, validate content types, bound response sizes.
+      IPs, cap redirects, validate content types, bound response sizes.
 - [x] Review-manager key handling documented: the key signing
-  `approveMarket`/`rejectMarket` is loaded from configuration, never logged,
-  rotatable without schema changes.
+      `approveMarket`/`rejectMarket` is loaded from configuration, never logged,
+      rotatable without schema changes.
 
 Robustness:
 
 - [x] Strict model-output validation with a defined fallback verdict
-  (`manual_review`) on malformed responses.
+      (`manual_review`) on malformed responses.
 - [ ] Decide and implement the prompt-version policy: what happens to
-  already-reviewed and in-flight markets when `AI_REVIEW_PROMPT_VERSION`
-  changes.
+      already-reviewed and in-flight markets when `AI_REVIEW_PROMPT_VERSION`
+      changes.
 - [ ] Stuck-job recovery: expired leases reclaimed; a terminal-failure path
-  notifies operators (surfaced in the local admin panel, not the deployed API).
+      notifies operators (surfaced in the local admin panel, not the deployed API).
+- [x] Transient provider failures stay retryable instead of becoming completed
+      heuristic approvals; local timeouts and leases are aligned around a bounded
+      five-minute model budget.
 
 Observability:
 
 - [ ] Emit metrics from service and runner: review latency, verdict
-  distribution, provider errors, retry counts, queue depth (dashboards and
-  alarms belong to ADR 0015).
+      distribution, provider errors, retry counts, queue depth (dashboards and
+      alarms belong to ADR 0015).
 
 Product feedback:
 
 - [ ] Rejection reasons servable to the app in a user-appropriate form
-  (distinct from the full audit record), so creators learn why a market was
-  rejected (consumed by ADR 0013).
+      (distinct from the full audit record), so creators learn why a market was
+      rejected (consumed by ADR 0013).
+- [x] Public reads expose sanitized pending/complete/attention states, the
+      detail page refreshes pending reviews, and every completed metric stores a
+      rationale.
 
 ## Exit criteria
 
@@ -84,6 +90,10 @@ Manual re-review lives in the local admin panel, not the API — so this ADR no
 longer couples to a shared API auth mechanism. Hardened evidence fetching may
 reject sources that previously passed; verdicts can shift between prompt
 versions, which is why the version is persisted per review.
+
+Provider latency is not a verdict: retryable failures leave the market locked
+without a scorecard, while exhausted retries surface as delayed work needing
+attention. Explicit heuristic runs remain available for deterministic smoke.
 
 ## Related pages
 
