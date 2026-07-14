@@ -90,6 +90,12 @@ jobs:
       - name: Tests with coverage
         run: pnpm test:coverage
 
+      # protocol/src/generated is the ABI source of truth that server and app
+      # import; a contract change that lands without regenerating it leaves
+      # every consumer decoding against a stale ABI at runtime.
+      - name: Check generated contract metadata
+        run: pnpm metadata:check
+
       # The root local dev scripts drive the protocol deploy and market
       # creation helpers, so their typecheck and seam tests gate here.
       - name: Check root scripts

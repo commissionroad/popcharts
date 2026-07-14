@@ -1,4 +1,5 @@
-import { parseAbi, type Hash } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import type { Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { MarketStatus } from "src/api/models/markets";
@@ -13,11 +14,6 @@ const DEFAULT_LOCAL_REVIEW_PRIVATE_KEY =
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 const PREGRAD_MARKET_STATUS_UNDER_REVIEW = 7;
 const PREGRAD_MARKET_STATUS_REJECTED = 8;
-const PREGRAD_REVIEW_ABI = parseAbi([
-  "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
-  "function approveMarket(uint256 marketId)",
-  "function rejectMarket(uint256 marketId)",
-]);
 
 export type ReviewTransitionFunctionName = "approveMarket" | "rejectMarket";
 
@@ -172,7 +168,7 @@ function createDefaultMarketReviewChainTransitionDependencies(): MarketReviewCha
     },
     readMarketStatus: async (marketId) => {
       const state = (await publicClient.readContract({
-        abi: PREGRAD_REVIEW_ABI,
+        abi: pregradManagerAbi,
         address: config.contracts.pregradManager,
         functionName: "getMarketState",
         args: [marketId],
@@ -200,7 +196,7 @@ function createDefaultMarketReviewChainTransitionDependencies(): MarketReviewCha
     writeReviewTransition: async (functionName, marketId) => {
       if (functionName === "approveMarket") {
         return await walletClient.writeContract({
-          abi: PREGRAD_REVIEW_ABI,
+          abi: pregradManagerAbi,
           address: config.contracts.pregradManager,
           functionName: "approveMarket",
           args: [marketId],
@@ -208,7 +204,7 @@ function createDefaultMarketReviewChainTransitionDependencies(): MarketReviewCha
       }
 
       return await walletClient.writeContract({
-        abi: PREGRAD_REVIEW_ABI,
+        abi: pregradManagerAbi,
         address: config.contracts.pregradManager,
         functionName: "rejectMarket",
         args: [marketId],
