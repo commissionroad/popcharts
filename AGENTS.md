@@ -46,3 +46,11 @@
   one; otherwise run it from the feature branch worktree. The command merges the
   PR, updates the base branch locally, removes the feature worktree, and deletes
   the feature branch.
+- When the user writes `/full-review` (optionally with a PR number, URL, or
+  branch), use `skills/engineering/full-file-review/SKILL.md`: read every file
+  the PR touches in its entirety and hold each against the repo's standards
+  suite (clean-code, protocol-code-quality, architecture depth, AGENTS.md
+  rules), including the repo-wide duplication and coordination-constant
+  sweeps. This complements the built-in diff review commands, which check the
+  change; this checks the files. Also run this before publishing any PR that
+  adds helpers, constants, or cross-workspace imports.
