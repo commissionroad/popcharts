@@ -1,18 +1,20 @@
 ---
 type: concept
 title: Deployment and infrastructure
-description: Vercel frontend + AWS CDK/ECS Fargate backend + Arc Testnet protocol deployment — all concentrated in milestone M5, nothing deployed yet.
+description: Vercel frontend (live) + AWS CDK/ECS Fargate backend + Arc Testnet protocol deployment — backend and protocol still M5, frontend went live 2026-07-14.
 sources:
   - docs/adr/0015-deployment-and-infrastructure.md
   - infra/README.md
   - docs/deployment/vercel.md
+  - docs/deployment/go-live-dns.md
   - protocol/deployments/README.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Deployment and infrastructure
 
-**Nothing is deployed.** Deployment is concentrated in
+**The frontend is deployed; backend and protocol are not.** Backend/protocol
+deployment is concentrated in
 [root ADR 0015](../summaries/root-adr-0015-deployment-and-infrastructure.md)
 as milestone M5 and excluded from all functionality verticals by rule.
 Sequencing: CI → CDK shared stage (VPC/RDS/ECR/Secrets) → ECS services →
@@ -21,12 +23,14 @@ last, via existing Ignition modules.
 
 ## Frontend (Vercel)
 
-GitHub integration, project root `app`, previews on PRs, production on
-`main`; no `VERCEL_*` secrets in GitHub — CI runs quality gates only.
-Staleness: [the Vercel doc](../summaries/deployment-vercel.md) still
-references the `sentilesdal/popcharts` remote (repo moved to
-`commissionroad`) and an `app/pnpm-lock.yaml` that no longer exists
-post-workspace-consolidation.
+Live since 2026-07-14: `popcharts-landing` (static marketing site from
+`landing/`) and `popcharts-app` (GitHub integration, project root `app`,
+previews on PRs, production on `main`; no `VERCEL_*` secrets in GitHub — CI
+runs quality gates only). The no-env app deploy serves fixture markets
+behind a sample-data banner; real chain/indexer env arrives with M5. Custom
+domains `popcharts.xyz` / `app.popcharts.xyz` are attached, pending the
+registrar nameserver change — see the
+[go-live DNS runbook](../summaries/deployment-go-live-dns.md).
 
 ## Backend (AWS CDK, `infra/`)
 

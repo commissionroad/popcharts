@@ -420,3 +420,15 @@ asserts the chain-unreachable degraded shape. Test-substrate boundary rule
 documented in server/src/test-support/README.md. Floor ratcheted to
 function 0.7672 / line 0.7666. Whole Track B checklist closed same-day as
 the grill that designed it.
+
+## [2026-07-14] ingest | go-live: landing + app deployed, domains attached (PR #221)
+Pages: +summaries/deployment-go-live-dns.md, ~summaries/deployment-vercel.md,
+~concepts/deployment-and-infrastructure.md, ~index.md
+Notes: docs/deployment/vercel.md now points at commissionroad/popcharts and
+the popcharts-app project (stale-org note resolved); new
+docs/deployment/go-live-dns.md is the go-live state ledger — landing
+(popcharts-landing) and app (popcharts-app) live on Vercel, popcharts.xyz
+and app.popcharts.xyz attached, Namecheap nameserver delegation pending.
+Concept page no longer says "nothing is deployed": frontend live, backend
+and protocol remain M5. The no-env app deploy labels fixture markets with a
+sample-data banner (product honesty rule).
