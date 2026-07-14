@@ -397,3 +397,15 @@ rollback when the markets projection is missing. Coverage rose to 74.52
 funcs / 75.31 lines (bun metrics) and the floor ratcheted up with it —
 first ratchet bump of the program. Executor typing still needs the cast
 noted in-file; first-class injection is Track B item 4.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 3 landed (paper-trail integration suite)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Check server gained a postgres:16-alpine service container and a
+per-PR integration step; *.int.test.ts convention is describe.skipIf on
+POPCHARTS_INT_DB_URL with throwaway databases (int-db.ts; drizzle-kit
+generateMigration DDL because pushSchema is incompatible with the
+postgres-js driver). paper-trail.int.test.ts covers all 7 persist
+functions: exactly-once replay, receipt/market linkage, rollback on
+missing market. Found, not fixed: claim persistence requires the market
+row but not the referenced receipt row (task chip filed). Unit suite and
+coverage floor untouched by all this — int tests skip without the env.

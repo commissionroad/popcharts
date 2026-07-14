@@ -74,9 +74,12 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   verifies unique-index replay dedup, raw-SQL counter increments, and
   transaction rollback on `persistReceiptPlacedRecord` — exactly the claims
   fake executors cannot falsify), then the **money paper-trail integration suite** as
-  the container's first cargo (replay each settlement/refund/claim event
-  twice, assert exactly-once receipt-linked persistence — the
-  portfolio-data-design invariant as a merge gate), then `db` singleton
+  the container's first cargo (**landed 2026-07-14**: all seven
+  settlement/claims/refunds persist functions replay-tested against a
+  real Postgres per PR — `services: postgres` in Check server, throwaway
+  database per file via `server/src/test-support/int-db.ts`,
+  `*.int.test.ts` self-skip without POPCHARTS_INT_DB_URL; found-not-fixed:
+  claim handlers don't require the referenced receipt row to exist), then `db` singleton
   injectability + `app.handle()` route tests. Fake executors stay for pure
   projection/serialization logic.
 - **C — Nightly full-fidelity tier** (scope broadened by the grill): the
