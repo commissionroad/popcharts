@@ -6,7 +6,8 @@
 // Usage:
 //   node --experimental-strip-types scripts/ci-report-coverage-comment.ts \
 //     --workspace <key> --lcov <path> --head-sha <sha> \
-//     [--baseline <latest.json path>] [--existing-body <path>]
+//     [--baseline <latest.json path>] [--existing-body <path>] \
+//     [--playwright-report <report.json path>]
 
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -19,6 +20,7 @@ import {
 import { parseLatestCoverage } from "./shared/coverage-report/coverageMetrics.ts";
 import { workspaceForKey } from "./shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "./shared/coverage-report/parseLcovSummary.ts";
+import { parsePlaywrightReport } from "./shared/coverage-report/parsePlaywrightReport.ts";
 
 const { values } = parseArgs({
   options: {
@@ -27,6 +29,7 @@ const { values } = parseArgs({
     "head-sha": { type: "string" },
     baseline: { type: "string" },
     "existing-body": { type: "string" },
+    "playwright-report": { type: "string" },
   },
 });
 
@@ -66,10 +69,12 @@ const baseline = baselineEntry
     }
   : null;
 
+const e2e = parsePlaywrightReport(readOptional(values["playwright-report"]));
+
 const payload = upsertCommentEntry(
   parseCommentPayload(readOptional(values["existing-body"])),
   workspace.key,
-  { summary, headSha, baseline },
+  { summary, headSha, baseline, ...(e2e ? { e2e } : {}) },
 );
 
 process.stdout.write(renderComment(payload));

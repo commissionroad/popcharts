@@ -346,3 +346,15 @@ consumers were already clean (server imports only the bare specifier; the
 exports map is the allowlist) — the boundary hole was the package's own
 barrel. Track A ships with protocol = Solidity figure only; the TS figure
 is a Track G exit criterion.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track A completed (flake report + retry surfacing)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: Final two Track A boxes ticked: weekly FLAKES.md job (schedule +
+workflow_dispatch on test-observability.yml; report-only, >5% threshold
+computed but never alerting) and Playwright retried-pass surfacing in the PR
+comment (app CI now uploads app-e2e-report; comment payload gained an
+optional e2e field, version unchanged). First real-data run: App CI 7.5%
+failure rate over 7 days but zero rerun-passes — no one reruns failures at
+the same SHA yet, so the flake column starts empty. Also corrected this
+summary's stale "scripts/ci/" location claim to the actual scripts/ci-*.ts +
+scripts/shared/ layout.

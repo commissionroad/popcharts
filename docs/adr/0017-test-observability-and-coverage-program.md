@@ -115,9 +115,9 @@ rate >5% over 7 days; revisit scheduled for 2026-07-28).
       coverage and delta vs main
 - [x] Main-push trend log + `TRENDS.md` on `ci-metrics`
 - [x] README coverage badges (app / protocol / server)
-- [ ] Weekly flake report (`FLAKES.md`): failure rate and pass-on-rerun
+- [x] Weekly flake report (`FLAKES.md`): failure rate and pass-on-rerun
       rate per workflow
-- [ ] Playwright retry data surfaced in the PR comment
+- [x] Playwright retry data surfaced in the PR comment
 
 Track A ships with the protocol figure covering Solidity contracts only
 (what hardhat's coverage emits today); the protocol TS figure plugs in as a

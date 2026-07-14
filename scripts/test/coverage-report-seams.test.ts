@@ -24,6 +24,7 @@ import {
 } from "../shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "../shared/coverage-report/parseLcovSummary.ts";
 import type { CoverageSummary } from "../shared/coverage-report/parseLcovSummary.ts";
+import { parsePlaywrightReport } from "../shared/coverage-report/parsePlaywrightReport.ts";
 
 const SAMPLE_LCOV = [
   "SF:src/api/routes/markets.ts",
@@ -166,6 +167,53 @@ describe("coverage comment", () => {
       emptyCommentPayload(),
     );
     assert.deepEqual(parseCommentPayload(null), emptyCommentPayload());
+  });
+
+  it("surfaces e2e retry data and round-trips it through the payload", () => {
+    const flaky = renderComment(
+      upsertCommentEntry(emptyCommentPayload(), "app", {
+        summary: summaryFixture(100, 100),
+        headSha: "a".repeat(40),
+        baseline: null,
+        e2e: { flaky: 2, total: 24 },
+      }),
+    );
+    assert.ok(flaky.includes("**2 of 24** tests passed only on retry"));
+    assert.equal(parseCommentPayload(flaky).workspaces.app?.e2e?.flaky, 2);
+
+    const clean = renderComment(
+      upsertCommentEntry(emptyCommentPayload(), "app", {
+        summary: summaryFixture(100, 100),
+        headSha: "a".repeat(40),
+        baseline: null,
+        e2e: { flaky: 0, total: 24 },
+      }),
+    );
+    assert.ok(clean.includes("24 tests, none needed a retry"));
+
+    const absent = renderComment(
+      upsertCommentEntry(emptyCommentPayload(), "app", {
+        summary: summaryFixture(100, 100),
+        headSha: "a".repeat(40),
+        baseline: null,
+      }),
+    );
+    assert.ok(!absent.includes("E2E smoke"));
+  });
+});
+
+describe("parsePlaywrightReport", () => {
+  it("counts flaky and run tests from the stats block", () => {
+    const report = JSON.stringify({
+      stats: { expected: 20, unexpected: 1, flaky: 2, skipped: 3 },
+    });
+    assert.deepEqual(parsePlaywrightReport(report), { flaky: 2, total: 23 });
+  });
+
+  it("returns null for absent or non-report input", () => {
+    assert.equal(parsePlaywrightReport(null), null);
+    assert.equal(parsePlaywrightReport("not json"), null);
+    assert.equal(parsePlaywrightReport("{}"), null);
   });
 });
 

@@ -22,7 +22,9 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  reporter: process.env.CI ? "github" : "list",
+  reporter: process.env.CI
+    ? [["github"], ["json", { outputFile: "playwright-report/report.json" }]]
+    : "list",
   retries: process.env.CI ? 2 : 0,
   testDir: "./src/tests/e2e",
   use: {

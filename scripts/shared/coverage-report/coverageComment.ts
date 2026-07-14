@@ -1,4 +1,5 @@
 import type { CoverageSummary } from "./parseLcovSummary.ts";
+import type { E2eRetrySummary } from "./parsePlaywrightReport.ts";
 import { COVERAGE_WORKSPACES } from "./coverageWorkspaces.ts";
 
 /** Identifies the sticky comment; must stay stable across versions. */
@@ -16,6 +17,8 @@ export interface CommentWorkspaceEntry {
   summary: CoverageSummary;
   headSha: string;
   baseline: CommentBaseline | null;
+  /** E2E retry data (app only); absent when the suite didn't run. */
+  e2e?: E2eRetrySummary | null;
 }
 
 export interface CommentPayload {
@@ -95,6 +98,16 @@ export function renderComment(payload: CommentPayload): string {
     const s = entry.summary;
     lines.push(
       `| ${workspace.label} | ${formatPct(s.lines.pct)} (${s.lines.hit}/${s.lines.found}) | ${formatDelta(entry)} | ${formatPct(s.functions.pct)} | ${formatPct(s.branches.pct)} |`,
+    );
+  }
+  for (const workspace of COVERAGE_WORKSPACES) {
+    const e2e = payload.workspaces[workspace.key]?.e2e;
+    if (!e2e) continue;
+    lines.push("");
+    lines.push(
+      e2e.flaky > 0
+        ? `⚠️ E2E smoke (${workspace.label}): **${e2e.flaky} of ${e2e.total}** tests passed only on retry.`
+        : `E2E smoke (${workspace.label}): ${e2e.total} tests, none needed a retry.`,
     );
   }
   lines.push("");

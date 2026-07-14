@@ -115,3 +115,12 @@ jobs:
 
       - name: Smoke test
         run: pnpm test:e2e:smoke
+
+      # Retry data for the Test Observability PR comment (ADR 0017 Track A):
+      # a test that passed only on retry is reported as flaky.
+      - name: Upload e2e report
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-e2e-report
+          path: app/playwright-report/report.json
+          retention-days: 14
