@@ -54,6 +54,6 @@ itself is **complete** as of 2026-07-13: Tracks A/B/D/E/F ran autonomously
 behavior-preserving by a zero-diff metadata regeneration; the two god files that
 motivated the program came down from 1,365 → ~1,090 (`PregradManager.sol`) and
 1,273 → ~925 lines (`BoundedPoolOrderManager.sol`). One checkbox still reads
-`[ ]` in the raw ADR (E7 — landed as PR #111, stale box rather than open work);
+`[x]` everywhere — the once-stale E7 box (landed as PR #111) was re-ticked in the 2026-07-14 bookkeeping pass;
 the long-deferred D3 settlement-handler split executed 2026-07-14 after its
 trigger fired — see the summary.

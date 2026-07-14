@@ -202,7 +202,7 @@ Rules for executing this program:
 - [x] **E6. Extract the create-market form state machine** into a
   `useCreateMarketFormState` hook (stage transitions, validation orchestration,
   retry/error flow). Depends on: E4.
-- [ ] **E7. Split `create-market-panels.tsx` (498 lines)** into a
+- [x] **E7. Split `create-market-panels.tsx` (498 lines)** into a
   `create-market-panels/` directory with one file per panel plus `shared.tsx`;
   panel-local formatters move to shared or `lib/format.ts` where duplicated.
 - [x] **E8. Move app-ID parsing out of the domain layer.**
@@ -267,6 +267,8 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
+| 2026-07-14 | — | — | Bookkeeping: E7's checkbox re-ticked (the work merged as #111; the tick was lost in the 0007→0016 renumber merge) and C6's PR recorded (#191). Re-audit note: docs/architecture.md was reconciled with the post-program reality (server→protocol edge, resolution/keeper subsystems, app import-rule refinements) in the same PR as this row. |
+| 2026-07-13 | C6 | #191 | Human-reviewed; premise corrected during scoping: no production contract converts display prices (a scripts/app concept per ADR 0009), so the sketched on-chain PriceConversion library would have been dead code on the audited surface. The real divergence risk is the TS bit-exact TickMath ports (tickToSqrtPriceX96/sqrtPriceX96ToTick); C6 anchors them against canonical v4-core TickMath via a test-only harness + nodejs parity suite (boundary ticks, prime-stepped full-range grid, policy-band ticks both orientations/roundings, rounding-sensitive inverse spots). Test-only change; zero production-contract diff. Same dual-implementation-with-tests philosophy as the blessed LMSR duplication. This closes Track C and the program. |
 | 2026-07-14 | D3 | TBD | The documented split trigger fired — `settlement.ts` gained a 7th event type (MarketCancelled, commit c2e9768) — so the deferred split was performed as specified: verbatim moves into `settlement-graduation.ts`, `settlement-refunds.ts` (cancel folded in, since MarketCancelled opens refunds), `settlement-claims.ts`, and private plumbing in `settlement-shared.ts`, with `settlement.ts` kept as a barrel because four modules import it. |
 | 2026-07-13 | C6 | TBD | Human-reviewed; premise corrected during scoping: no production contract converts display prices (a scripts/app concept per ADR 0009), so the sketched on-chain PriceConversion library would have been dead code on the audited surface. The real divergence risk is the TS bit-exact TickMath ports (tickToSqrtPriceX96/sqrtPriceX96ToTick); C6 anchors them against canonical v4-core TickMath via a test-only harness + nodejs parity suite (boundary ticks, prime-stepped full-range grid, policy-band ticks both orientations/roundings, rounding-sensitive inverse spots). Test-only change; zero production-contract diff. Same dual-implementation-with-tests philosophy as the blessed LMSR duplication. This closes Track C and the program. |
 | 2026-07-13 | — | — | Program complete: all 24 autonomous items (Tracks A/B/D/E/F, PRs #94–#125) plus all 6 Track C items under human review (C3 #126, C1 #128, C2 #132, C5 #184, C4 #190, C6 below). PregradManager 1,365→~1,090 lines; BoundedPoolOrderManager 1,273→~925; every contract extraction proven ABI-identical by zero-diff metadata regeneration. |
