@@ -8,11 +8,11 @@ coverageDir = "coverage"
 coveragePathIgnorePatterns = ["scripts/**", "../protocol/**"]
 
 # Ratcheted floor (ADR 0017 Track B): never lower these; bump manually as
-# coverage lands. Baseline measured 2026-07-14 (post-PGlite-spike): functions
-# 74.52, lines 75.31
+# coverage lands. Baseline measured 2026-07-14 (post-route-tests): functions
+# 76.73, lines 76.67
 # (bun's own metrics, which differ from the lcov-derived badge figure).
 # Floors sit one display-rounding hundredth under the measured values so
 # equality at bun's printed precision cannot flap. Keys are singular
 # (line/function) — bun exits 1 with no diagnostic when
 # the threshold is unmet OR when given unknown keys like lines/functions.
-coverageThreshold = { function = 0.7451, line = 0.7530 }
+coverageThreshold = { function = 0.7672, line = 0.7666 }
