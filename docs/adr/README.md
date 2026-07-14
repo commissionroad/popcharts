@@ -18,11 +18,13 @@ to the frontend app or the Solidity protocol.
 | [0014](0014-full-lifecycle-e2e-testing.md) | Accepted | Prove the full market lifespan, happy and unhappy, with an automated E2E suite. |
 | [0015](0015-deployment-and-infrastructure.md) | Accepted | Own all CI and deployment work; deploy the protocol to Arc Testnet as the final step. |
 | [0016](0016-monorepo-architecture-cleanup-program.md) | Accepted | Run a tracked, one-concern-per-PR monorepo cleanup program (Tracks A/B/D/E/F done; Track C open, human review required). |
+| [0017](0017-test-observability-and-coverage-program.md) | Accepted | Make test health visible (PR coverage deltas, trends, badges, flake tracking — in-repo, no vendor) and enforce coverage where it protects value transfer. |
 
 Progress toward the Arc Testnet launch is tracked in the checklists inside
 ADRs 0008–0015; ADR 0007 defines the process and milestone ordering. ADR 0016
 (originally filed as a second "0007") is the standalone architecture-cleanup
-program and is not part of the launch milestone chain.
+program and is not part of the launch milestone chain; ADR 0017 (test
+observability and coverage) is likewise a standalone tracked program.
 
 ## Related ADRs
 
