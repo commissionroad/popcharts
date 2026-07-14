@@ -81,11 +81,11 @@ describe("OpenOrdersPanel", () => {
 
     expect(screen.getByText("Buy")).toBeInTheDocument();
     expect(screen.getByText("YES")).toBeInTheDocument();
-    expect(screen.getByText("@ 30.0c")).toBeInTheDocument();
+    expect(screen.getByText("@ 30c")).toBeInTheDocument();
     expect(screen.getByText("100 / 100 tok open")).toBeInTheDocument();
     expect(screen.queryByText("Filling...")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel buy order at 30.0c" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel buy order at 30c" }));
 
     expect(cancelOrder).toHaveBeenCalledTimes(1);
     expect(cancelOrder).toHaveBeenCalledWith(panelState().rows[0]);
@@ -111,11 +111,11 @@ describe("OpenOrdersPanel", () => {
     renderPanel();
 
     expect(screen.getByText("Sell")).toBeInTheDocument();
-    expect(screen.getByText("@ 72.0c")).toBeInTheDocument();
+    expect(screen.getByText("@ 72c")).toBeInTheDocument();
     expect(screen.getByText("40 / 100 tok open")).toBeInTheDocument();
     expect(screen.getByText("Filling...")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Cancel sell order at 72.0c" })
+      screen.getByRole("button", { name: "Cancel sell order at 72c" })
     ).toBeDisabled();
   });
 

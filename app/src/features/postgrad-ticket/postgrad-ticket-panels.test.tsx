@@ -50,8 +50,8 @@ describe("SwapQuotePreview", () => {
     expect(screen.getByText("250 pUSD")).toBeInTheDocument();
     expect(screen.getByText("Est. tokens out")).toBeInTheDocument();
     expect(screen.getByText("500 tok")).toBeInTheDocument();
-    expect(screen.getByText("50.0c")).toBeInTheDocument();
-    expect(screen.getByText("48.0c")).toBeInTheDocument();
+    expect(screen.getByText("50c")).toBeInTheDocument();
+    expect(screen.getByText("48c")).toBeInTheDocument();
     expect(screen.getByText("Venue quoter")).toBeInTheDocument();
   });
 
@@ -146,7 +146,7 @@ describe("LimitOrderPreview", () => {
       />
     );
 
-    expect(screen.getByText("30.0c")).toBeInTheDocument();
+    expect(screen.getByText("30c")).toBeInTheDocument();
     expect(screen.getByText("You deposit")).toBeInTheDocument();
     expect(screen.getByText("30 pUSD")).toBeInTheDocument();
     expect(screen.getByText("If filled you receive")).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("CompletedLimitOrderNotice", () => {
     );
 
     expect(screen.getByText("Limit order placed")).toBeInTheDocument();
-    expect(screen.getByText("Buy 100 YES tokens at 30.0c")).toBeInTheDocument();
+    expect(screen.getByText("Buy 100 YES tokens at 30c")).toBeInTheDocument();
     expect(screen.getByText(/order #9/)).toBeInTheDocument();
     expect(screen.getByText(/Tx 0xccc/)).toBeInTheDocument();
   });
@@ -204,7 +204,7 @@ describe("CompletedLimitOrderNotice", () => {
       />
     );
 
-    expect(screen.getByText("Sell 100 NO tokens at 95.0c")).toBeInTheDocument();
+    expect(screen.getByText("Sell 100 NO tokens at 95c")).toBeInTheDocument();
   });
 });
 

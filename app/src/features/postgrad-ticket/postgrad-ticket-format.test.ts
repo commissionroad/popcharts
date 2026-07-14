@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   formatSwapStep,
   formatVenueBalance,
-  formatVenuePriceCents,
   formatVenueTokens,
 } from "./postgrad-ticket-format";
 
@@ -51,13 +50,6 @@ describe("formatVenueBalance", () => {
       "12.30 tok"
     );
     expect(formatVenueBalance({ ...base, balance: 0 })).toBe("0 pUSD");
-  });
-});
-
-describe("formatVenuePriceCents", () => {
-  it("keeps one decimal of precision", () => {
-    expect(formatVenuePriceCents(61.84)).toBe("61.8c");
-    expect(formatVenuePriceCents(88)).toBe("88.0c");
   });
 });
 

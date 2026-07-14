@@ -4,15 +4,11 @@ import { CheckCircle2 } from "lucide-react";
 
 import type { VenueSwapQuote } from "@/domain/postgrad-trading/venue-trade";
 import { venueTokenUnitsToNumber } from "@/domain/postgrad-trading/venue-trade";
-import { formatAddress } from "@/lib/format";
+import { formatAddress, formatCentsTenths } from "@/lib/format";
 
 import type { VenueLimitOrderReceipt } from "./limit-order-service";
 import type { VenueSwapReceipt } from "./postgrad-swap-service";
-import {
-  formatVenueBalance,
-  formatVenuePriceCents,
-  formatVenueTokens,
-} from "./postgrad-ticket-format";
+import { formatVenueBalance, formatVenueTokens } from "./postgrad-ticket-format";
 import type { LimitOrderQuote } from "./use-limit-order-state";
 
 /**
@@ -123,11 +119,11 @@ export function SwapQuotePreview({
       />
       <TicketRow
         label="Effective price"
-        value={quote ? formatVenuePriceCents(quote.effectivePriceCents) : "--"}
+        value={quote ? formatCentsTenths(quote.effectivePriceCents) : "--"}
       />
       <TicketRow
         label="Pool price"
-        value={quote ? formatVenuePriceCents(quote.poolPriceCents) : "--"}
+        value={quote ? formatCentsTenths(quote.poolPriceCents) : "--"}
       />
       <TicketRow
         label="Quote source"
@@ -214,7 +210,7 @@ export function LimitOrderPreview({
     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] p-4">
       <TicketRow
         label="Limit price"
-        value={quote ? formatVenuePriceCents(quote.priceCents) : "--"}
+        value={quote ? formatCentsTenths(quote.priceCents) : "--"}
       />
       <TicketRow
         label="Size"
@@ -264,8 +260,8 @@ export function CompletedLimitOrderNotice({
   const size = formatVenueTokens(venueTokenUnitsToNumber(order.sizeWad));
   const summary =
     order.direction === "bid"
-      ? `Buy ${size} ${sideLabel} tokens at ${formatVenuePriceCents(order.priceCents)}`
-      : `Sell ${size} ${sideLabel} tokens at ${formatVenuePriceCents(order.priceCents)}`;
+      ? `Buy ${size} ${sideLabel} tokens at ${formatCentsTenths(order.priceCents)}`
+      : `Sell ${size} ${sideLabel} tokens at ${formatCentsTenths(order.priceCents)}`;
 
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--pc-lime)] bg-[var(--pc-lime-wash)] p-3">

@@ -11,7 +11,6 @@ const OWNER = "0x1111111111111111111111111111111111111111";
 const YES_POOL_ID = `0x${"11".repeat(32)}`;
 
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013");
   stubFetch({
     book: {
       chainId: 31337,
@@ -31,7 +30,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -44,15 +42,6 @@ describe("useOpenVenueOrders", () => {
 
     expect(result.current.orders).toBeNull();
     expect(result.current.loading).toBe(false);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("stays disabled without an indexer base URL", () => {
-    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "");
-
-    const { result } = renderHook(() => useOpenOrdersArgs());
-
-    expect(result.current.orders).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -72,8 +61,8 @@ describe("useOpenVenueOrders", () => {
 
     const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
     expect(requested).toEqual([
-      `http://127.0.0.1:3013/markets/31337/7/orders?owner=${OWNER}`,
-      "http://127.0.0.1:3013/markets/31337/7/orderbook",
+      `/api/indexer/venue-orders?chainId=31337&marketId=7&owner=${OWNER}`,
+      "/api/indexer/orderbook?chainId=31337&marketId=7",
     ]);
   });
 
@@ -173,20 +162,6 @@ describe("useOpenVenueOrders", () => {
     expect(result.current.poolPricesWad).toEqual({});
   });
 
-  it("joins paths onto a base URL that already ends in a slash", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "http://127.0.0.1:3013/");
-
-    const { result } = renderHook(() => useOpenOrdersArgs());
-
-    await waitFor(() => expect(result.current.orders).not.toBeNull());
-
-    const requested = vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
-    expect(requested).toEqual([
-      `http://127.0.0.1:3013/markets/31337/7/orders?owner=${OWNER}`,
-      "http://127.0.0.1:3013/markets/31337/7/orderbook",
-    ]);
-  });
-
   it("tears down cleanly when unmounted before the first read settles", () => {
     const { unmount } = renderHook(() => useOpenOrdersArgs());
 
@@ -211,7 +186,7 @@ function stubFetch({ book, orders }: { book: unknown; orders: VenueOrder[] }) {
     vi.fn(async (input: URL | string) => {
       const url = String(input);
 
-      if (url.includes("/orders")) {
+      if (url.includes("/venue-orders")) {
         return Response.json(orders);
       }
 

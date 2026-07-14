@@ -1,13 +1,14 @@
 import type { Portfolio, PortfolioReceipt } from "@popcharts/api-client/models";
 import type { Decorator, Meta, StoryObj } from "@storybook/nextjs";
 
+import { WAD } from "@/domain/tokens/wad";
+
 import {
   type PanelPreview,
   PanelPreviewContext,
 } from "../../../.storybook/mocks/panel-hooks";
 import { PortfolioPage } from "./portfolio-page";
 
-const WAD = 10n ** 18n;
 const OWNER = "0x1111111111111111111111111111111111111111";
 const pct = (cents: bigint) => ((WAD * cents) / 100n).toString();
 

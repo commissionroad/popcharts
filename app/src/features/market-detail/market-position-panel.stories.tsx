@@ -6,6 +6,7 @@ import type {
 import type { Decorator, Meta, StoryObj } from "@storybook/nextjs";
 
 import type { Market } from "@/domain/markets/types";
+import { WAD } from "@/domain/tokens/wad";
 import { marketFactory } from "@/test/factories/markets";
 
 import {
@@ -14,7 +15,6 @@ import {
 } from "../../../.storybook/mocks/panel-hooks";
 import { MarketPositionPanel } from "./market-position-panel";
 
-const WAD = 10n ** 18n;
 const OWNER = "0x1111111111111111111111111111111111111111";
 const pct = (cents: bigint) => ((WAD * cents) / 100n).toString();
 
