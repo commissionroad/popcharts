@@ -4,7 +4,7 @@ title: Error-handling UX PRD — never surface raw errors
 description: Safe-by-default error presentation — invert getErrorMessage to presentError, always-log sink, DisplayableError allow-list, CI guardrail against raw error.message renders; dev menu can re-reveal raw text.
 sources:
   - docs/error-handling-ux-prd.md
-updated: 2026-07-09
+updated: 2026-07-14
 ---
 
 # Error-handling UX PRD: never surface raw errors (docs/error-handling-ux-prd.md)
@@ -76,7 +76,7 @@ the model (friendly copy + opaque `digest`), but did not log.
 ## Relationships
 
 - Directly reworks the util that cleanup-program **E3** consolidated
-  ([root ADR 0007 cleanup](root-adr-0007-monorepo-architecture-cleanup-program.md)
+  ([root ADR 0016 cleanup](root-adr-0016-monorepo-architecture-cleanup-program.md)
   put all error-message extraction in `error-handling.ts`; this PRD inverts that
   single home from raw-default to safe-default).
 - Enforces the same honesty-and-safety spirit as the
@@ -97,4 +97,4 @@ prose.
 
 - [app/ workspace](../entities/app-workspace.md)
 - [Product honesty rule](../concepts/product-honesty-rule.md)
-- [Repo ADR 0007 — cleanup program](root-adr-0007-monorepo-architecture-cleanup-program.md)
+- [Repo ADR 0016 — cleanup program](root-adr-0016-monorepo-architecture-cleanup-program.md)

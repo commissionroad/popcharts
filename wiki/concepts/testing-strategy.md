@@ -8,7 +8,7 @@ sources:
   - app/docs/adr/0004-testing-and-ci-gates.md
   - docs/adr/0014-full-lifecycle-e2e-testing.md
   - README.md
-updated: 2026-07-07
+updated: 2026-07-14
 ---
 
 # Testing strategy
@@ -21,12 +21,28 @@ guards — and TypeScript (node test runner + viem) for orchestration.
 Required property tests (constitution): cost-basis preservation,
 deterministic clearing, local collateral completeness, full refund on
 non-graduation, segment-priced partial fills, no pre-graduation outcome
-token/withdrawal/transfer, singleton market isolation. **Golden tests**
-reproduce whitepaper v4 worked Examples A and B; ADR 0009 adds golden tests
-for both currency sort orders before Arc deployment
+token/withdrawal/transfer, singleton market isolation. ADR 0009 adds golden
+tests for both currency sort orders before Arc deployment
 (`test/solidity/LocalV4StackSmoke.t.sol` runs 18-dec outcomes vs 6-dec
-collateral). Note: `protocol/docs/TESTING.md` predates landed clearing —
-whether the Example A/B golden tests exist as described is a lint item.
+collateral).
+
+**Whitepaper golden tests — resolved 2026-07-14** (this was an open lint item;
+`protocol/docs/TESTING.md` predates landed clearing and describes them
+aspirationally). They exist, but not where the doc implies: they live in
+**`server/src/keeper/clearing/band-pass-clearing.test.ts`**, not in the protocol
+workspace, because the [clearing keeper](../entities/clearing-keeper.md) is the
+thing they pin. **Example A** is reproduced line by line (band eligibility,
+scarce-side full retention, 50/50 proration in the contested band, exact escrow
+conservation), alongside conservation/balance invariants over 2,000 random books,
+an order-independence check, and the lopsided-book case a naive
+`min(totalYes, totalNo)` would wrongly graduate. **Example B is not separately
+pinned** — the anti-manipulation result is asserted only through the general
+invariants. Worth adding if the clearing math is touched again.
+
+The TypeScript tick-math ports are likewise anchored against canonical v4-core
+TickMath by a parity suite (cleanup program C6) rather than trusted by
+inspection — the same dual-implementation-with-tests posture as the blessed LMSR
+duplication.
 
 ## App ([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md))
 

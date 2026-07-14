@@ -1,16 +1,18 @@
 ---
 type: summary
 title: Repo ADR 0016 — Monorepo architecture cleanup program
-description: Tracked cleanup program of ~30 one-concern PRs across six tracks; Tracks A/B/D/E/F executed 2026-07-06..07, Track C (contract decomposition) open pending human review.
+description: Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review.
 sources:
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
-updated: 2026-07-09
+updated: 2026-07-14
 ---
 
 # Repo ADR 0016: Monorepo Architecture Cleanup Program
 
-**Status: Accepted — Tracks A/B/D/E/F executed 2026-07-06..07; Track C open
-(human review required).** Dated 2026-07-06.
+**Status: Accepted — fully executed.** Tracks A/B/D/E/F ran autonomously
+2026-07-06..07; Track C (the fund-holding contract decomposition) ran
+2026-07-07..13 with per-item human review and closed the program on 2026-07-13.
+Dated 2026-07-06.
 
 > **Renumbered:** originally filed as a second "0007" (colliding with
 > `docs/adr/0007-track-verticals-with-progress-adrs.md`), this cleanup program
@@ -84,25 +86,52 @@ requires human review and must never be merged by an unattended session.
 - [x] B6 Add ESLint + Prettier to the server workspace, wired into
   `server:check` and Server CI (PR #115).
 
-### Track C — Protocol contracts (human review required): OPEN
+### Track C — Protocol contracts (human review required): complete 2026-07-13
 
-- [x] C1 Extract FeeManager from PregradManager — human-reviewed; landed as an
-  abstract **`CreationFeeVault`** base (custody: collection accounting,
-  withdrawal guards, fee errors/events) while PregradManager keeps fee policy
-  (`MARKET_CREATION_FEE`, trusted-creator waiver, `onlyOwner` gate). Zero-diff
-  ABI regeneration; 173 tests exact parity. Renamed from the ADR's
-  "FeeManager" to say what it is (custody, not policy).
-- [ ] C2 Extract ReceiptBook from PregradManager (receipt storage, validation,
-  LMSR quote entry points). Depends on C1.
+Every item was reviewed per-item by a human and proven behavior-preserving by a
+**zero-diff metadata regeneration** (identical ABI). Two items deliberately
+deviated from the ADR's own item text — recorded here because the names and
+scopes in the ADR body no longer describe what shipped.
+
+- [x] C1 Extract FeeManager from PregradManager (PR #128) — human-reviewed;
+  landed as an abstract **`CreationFeeVault`** base (custody: collection
+  accounting, withdrawal guards, fee errors/events) while PregradManager keeps
+  fee policy (`MARKET_CREATION_FEE`, trusted-creator waiver, `onlyOwner` gate).
+  173 tests exact parity. Renamed from the ADR's "FeeManager" to say what it is
+  (custody, not policy).
+- [x] C2 Extract ReceiptBook from PregradManager (PR #132) — abstract
+  **`ReceiptBook`** base takes ID allocation, receipt storage/lookups,
+  existence/liveness guards, sequence math, receipt errors, and the
+  `ReceiptPlaced` declaration. **Deviation:** the LMSR quote entry points stayed
+  in PregradManager despite the item text — they read live market state, and
+  moving them would hand the book access to market records. 205 tests.
 - [x] C3 Tighten the IPostgradAdapter handoff (PR #126) — `prepareMarket` now
   returns `(postgradMarket, outcomeCapacity)` and `finalizeGraduation` reverts
   with `PostgradCapacityMismatch` unless capacity equals the clearing root's
   `completeSetCount`; strict equality is dust-safe because `_scaleAmount` is
   exact-or-revert.
-- [ ] C4 Extract DeferredExecutionProcessor from BoundedPoolOrderManager.
-- [ ] C5 Extract SettlementManager from BoundedPoolOrderManager. Depends on C4.
-- [ ] C6 Unify price/tick conversion (Solidity `PriceConversion` library;
-  re-anchor the TypeScript helpers in `protocol/scripts/shared/price/`).
+- [x] C4 Extract DeferredExecutionProcessor from BoundedPoolOrderManager
+  (PR #190) — **scope narrowed:** the resolver loop stays as manager
+  orchestration (moving it would hand a library the manager's full state — the
+  same inversion rejected in C2). What moved: deferred-execution *storage* into
+  a `DeferredExecutionStore` storage-struct library (nonce-scoped IDs,
+  store/at/isPending/remove, `DeferredExecutionStored`, resolver target-tick
+  clamp) and the pure partial-fill math into `PartialFillMath`.
+- [x] C5 Extract SettlementManager from BoundedPoolOrderManager (PR #184) —
+  executed **before** C4 (leaf-first is lower risk than the ADR's stated order).
+  Landed as a stateless internal **`V4DeltaSettlement`** library (delta
+  settlement plumbing, positive-delta readers, partial-add validation, four
+  settlement errors, the `ITokenPuller` interface); the manager passes its
+  immutables explicitly. Named for the mechanics, not "manager".
+- [x] C6 Unify price/tick conversion — **premise corrected during scoping:** no
+  production contract converts display prices (that is a scripts/app concept per
+  protocol ADR 0009), so the sketched on-chain `PriceConversion` library would
+  have been dead code on the audited surface. The real divergence risk is the
+  bit-exact **TypeScript TickMath ports**, which C6 anchors against canonical
+  v4-core TickMath through a test-only harness plus a nodejs parity suite
+  (boundary ticks, prime-stepped full-range grid, policy-band ticks in both
+  orientations/roundings). Test-only; zero production-contract diff — the same
+  dual-implementation-with-tests philosophy as the blessed LMSR duplication.
 
 ### Track D — Protocol tests and scripts: complete (D3 deferred by design)
 
@@ -144,11 +173,22 @@ requires human review and must never be merged by an unattended session.
   dependency graph, import rules, generated-artifact/freshness-gate table,
   intentional duplication notes (PR #117).
 
-## Program status (from the Progress Log, 2026-07-07)
+## Program status (from the Progress Log, closed 2026-07-13)
 
-Tracks A, B, D, E, F complete (PRs #94–#118, plus #95 for a root-lockfile
-drift found en route). Track C (C2, C4–C6) remains open by design — human
-review required, not for autonomous execution.
+**Complete.** All 24 autonomous items (Tracks A/B/D/E/F, PRs #94–#125, plus #95
+for a root-lockfile drift found en route) and all 6 Track C items under human
+review (C3 #126, C1 #128, C2 #132, C5 #184, C4 #190, C6). The god-file numbers
+that motivated the program: `PregradManager.sol` 1,365 → ~1,090 lines,
+`BoundedPoolOrderManager.sol` 1,273 → ~925.
+
+Two checkboxes remain `[ ]` in the raw ADR and **both are intentional, not
+outstanding work** — a date- or tick-based reading of the doc will get this
+wrong:
+
+- **D3** is closed as deferred-by-design (its split trigger never fired; the
+  unticked box is the standing guard against premature cleanup).
+- **E7** landed as PR #111 but its checkbox was never ticked — a stale box, not
+  open work (see Track E above).
 
 ## Related pages
 

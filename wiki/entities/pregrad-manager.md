@@ -6,10 +6,11 @@ sources:
   - protocol/docs/adr/0005-use-a-singleton-pregrad-manager.md
   - protocol/docs/adr/0006-use-optimistic-offchain-graduation-clearing.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
+  - protocol/docs/adr/0011-admin-market-cancellation.md
   - protocol/README.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # PregradManager
@@ -43,6 +44,14 @@ and is fully replaced.
   [graduation clearing](../concepts/graduation-clearing.md).
 - Refunds: deadline passing while `Active` makes the market refundable; refunded
   markets settle entirely from PregradManager without touching the adapter.
+- **Moderation kill switch:** owner-only `cancelMarket(marketId)` halts an
+  `Active` market whose content turns out to be policy-violating, sets
+  `MarketStatus.Cancelled`, and emits `MarketCancelled(marketId, totalEscrowed)`
+  — opening full escrow refunds through the *same* `claimRefundedReceipt` path
+  (its guard widened from "`Refunded` only" to "`Refunded` or `Cancelled`"), so
+  no second refund accounting exists. `Active` only; the creation fee is **not**
+  returned. See
+  [protocol ADR 0011](../summaries/protocol-adr-0011-admin-market-cancellation.md).
 
 ## Key decisions and invariants
 
@@ -55,9 +64,14 @@ and is fully replaced.
   base (cleanup program C1, landed 2026-07-07), policy stays here.
 - `isReviewManager` / `isGraduationManager` both resolve to the owner in v1
   ([protocol ADR 0009](../summaries/protocol-adr-0009-complete-set-testnet-policy.md)).
-- Was the repo's largest contract (1,365 lines); C2 of the
+- Was the repo's largest contract (1,365 lines), now ~1,090 after the
   [cleanup program](../summaries/root-adr-0016-monorepo-architecture-cleanup-program.md)
-  (ReceiptBook extraction) is still open.
+  closed: fee custody moved to the `CreationFeeVault` base (C1) and receipt
+  mechanics to an abstract **`ReceiptBook`** base (C2, PR #132 — ID allocation,
+  receipt storage/lookups, liveness guards, sequence math, receipt errors). The
+  LMSR quote entry points deliberately **stayed here**: they read live market
+  state, and moving them would hand the book access to market records. Both
+  extractions are ABI-identical (zero-diff metadata regeneration).
 - `bypassAiResolution` travels through creation but has no finalized semantics
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).
 
@@ -65,5 +79,5 @@ and is fully replaced.
 
 - [Market lifecycle](../concepts/market-lifecycle.md) — the status ladder it enforces
 - [Graduation clearing](../concepts/graduation-clearing.md) — the mechanism it commits to
-- [Indexer](indexer.md) — consumes its nine event types as the whole input surface
+- [Indexer](indexer.md) — consumes its eleven event types as the whole input surface
 - [Postgrad adapter](postgrad-adapter.md) — the finalization boundary

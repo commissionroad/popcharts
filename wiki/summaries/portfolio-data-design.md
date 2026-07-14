@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Portfolio data design
-description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1.
+description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-09
+updated: 2026-07-14
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -23,6 +23,35 @@ markets — while the backend already indexes receipts, the settlement
 lifecycle, and venue orders, all owner-keyed. The `(chainId, owner, receiptId)`
 join between `receipt_placed_events` and the claim-event tables exists in the
 DB and is surfaced nowhere.
+
+## Invariant: persist a money paper trail (added 2026-07-13)
+
+This doc is now the home of a **repo-wide hard rule**, promoted into `AGENTS.md`
+so every agent session inherits it:
+
+> Every value transfer MUST leave an immutable, receipt-linked DB record sourced
+> from an on-chain event — never inferred, never dropped.
+
+It binds every money-touching feature: graduation clearing, refunds,
+cancellation, resolution redemption, and postgrad trades. Today it is realized by
+append-only event tables mirrored 1:1 from chain:
+
+- `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
+  `retainedCost`, and the **partial** refund. The record that a graduated receipt
+  was filled, and by how much.
+- `refunded_receipt_claimed_events` — per receipt: the **full** refund on a
+  refunded (missed-deadline) or [cancelled](protocol-adr-0011-admin-market-cancellation.md)
+  market.
+- `market_refunds_available_events` / `market_cancelled_events` — the
+  market-level events that open refunds.
+
+The subtle part: because refunds are **pull-based**, a per-receipt record appears
+when money actually *moves* (the claim), not when it becomes *owed*. That is
+deliberate — the owed amount is always recoverable from chain (receipt cost plus
+the clearing root), so the DB trail is "money that moved", which is the correct
+thing to persist. A single canonical per-receipt settlement row (owed + paid +
+claimed-at) may be materialized later as a **projection over** these event
+tables; the events stay the source of truth.
 
 ## Key decisions
 

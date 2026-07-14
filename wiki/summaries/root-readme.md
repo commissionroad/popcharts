@@ -4,7 +4,7 @@ title: Root README — quickstart, local stacks, and command menu
 description: Repo quickstart (mise/just/pnpm), the local-dev and Process Compose stacks, local market creation, server layout, and the just command menu.
 sources:
   - README.md
-updated: 2026-07-07
+updated: 2026-07-14
 ---
 
 # Root README
@@ -26,9 +26,14 @@ the app, and bring up progressively larger local stacks.
   [AI Review service](../entities/ai-review-service.md) and runner, and the
   Next.js app. Market creation is wallet-signed against the local chain
   (connect an injected wallet, use `/create`). The local review service
-  defaults to the heuristic provider on `http://127.0.0.1:3002`; the runner
-  polls Postgres for `under_review` markets. `--no-ai-review` restores the
-  older stack shape; `just local-reset` wipes the Postgres container/volumes.
+  defaults to the **Ollama local-model provider** on `http://127.0.0.1:3002`
+  (changed 2026-07-13 from heuristic); the runner polls Postgres for
+  `under_review` markets. If the Ollama runtime isn't running, reviews fall back
+  to the deterministic heuristic, and locally a clean market still auto-approves
+  so testing isn't blocked (`LOCAL_AI_REVIEW_FALLBACK_APPROVE`) — harmful markets
+  are still rejected by the heuristic gate, and no other environment
+  auto-approves. `--no-ai-review` restores the older stack shape; `just
+  local-reset` wipes the Postgres container/volumes.
 - **Process Compose control plane spike** (`just local-dev-control`): the same
   bootstrap sequence (Postgres → Drizzle push → chain healthy → contracts
   deploy → env files → API/indexer/review workers/app) but with per-process
