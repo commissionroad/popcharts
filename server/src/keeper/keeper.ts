@@ -5,16 +5,15 @@ import {
   findPendingDeferredExecutions,
   readPoolDisplayPrice,
 } from "@popcharts/protocol";
-import {
-  parseUnits,
-  type createPublicClient,
-  type createWalletClient,
-  type PublicClient,
-} from "viem";
+import { parseUnits, type PublicClient } from "viem";
 
 import { graduateDevMarket } from "src/api/services/dev-market-graduate";
 import { createVenueContractWriter } from "src/api/services/postgrad-venue";
 import { refundPregradMarket } from "src/api/services/pregrad-refund";
+import type {
+  BlockchainClient,
+  BlockchainWalletClient,
+} from "src/blockchain/client";
 import { config } from "src/config";
 
 import type { TrackedMarket, TrackedPregradMarket } from "./discovery";
@@ -33,8 +32,8 @@ export async function runMarketPass({
   market,
 }: {
   clients: {
-    publicClient: ReturnType<typeof createPublicClient>;
-    walletClient: ReturnType<typeof createWalletClient>;
+    publicClient: BlockchainClient;
+    walletClient: BlockchainWalletClient;
   };
   market: TrackedMarket;
 }): Promise<{
@@ -71,7 +70,7 @@ export async function runMarketPass({
 
   if (decision.action !== "hold") {
     await executeCompleteSetArb({
-      account: clients.walletClient.account!.address,
+      account: clients.walletClient.account.address,
       action: decision.action,
       arbCollateral: keeperArbCollateral(manifest.collateral.decimals),
       chainId: config.chainId,
@@ -109,8 +108,8 @@ async function drainDeferredExecutions({
   market,
 }: {
   clients: {
-    publicClient: ReturnType<typeof createPublicClient>;
-    walletClient: ReturnType<typeof createWalletClient>;
+    publicClient: BlockchainClient;
+    walletClient: BlockchainWalletClient;
   };
   market: TrackedMarket;
 }): Promise<number> {
@@ -137,7 +136,7 @@ async function drainDeferredExecutions({
 
     const hash = await clients.walletClient.writeContract({
       abi: RESOLVE_DEFERRED_ABI,
-      account: clients.walletClient.account!,
+      account: clients.walletClient.account,
       address: config.contracts.orderManager,
       args: [execution.executionId, requested],
       chain: config.chain,

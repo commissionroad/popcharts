@@ -1,7 +1,4 @@
 import {
-  createPublicClient,
-  createWalletClient,
-  http,
   maxUint256,
   parseAbi,
   parseAbiItem,
@@ -19,6 +16,12 @@ import type {
   MarketResponse,
   MarketVenueResponse,
 } from "src/api/models/markets";
+import {
+  createReadOnlyClient,
+  createWalletClient,
+  type BlockchainClient,
+  type BlockchainWalletClient,
+} from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 import {
@@ -418,15 +421,10 @@ async function wireVenueWithDevSigner({
     return { transactionHashes: [], venue: null };
   }
 
-  const publicClient = createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
-  const walletClient = createWalletClient({
-    account: privateKeyToAccount(readDevPrivateKey()),
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const publicClient = createReadOnlyClient();
+  const walletClient = createWalletClient(
+    privateKeyToAccount(readDevPrivateKey()),
+  );
   const collateral = market.collateral as `0x${string}`;
   const wired = await wirePostgradMarketVenue({
     clients: { publicClient, walletClient },
@@ -469,9 +467,9 @@ async function seedVenueLiquidity({
 }: {
   collateral: `0x${string}`;
   postgradMarket: `0x${string}`;
-  publicClient: ReturnType<typeof createPublicClient>;
+  publicClient: BlockchainClient;
   retainedCostTotal: bigint;
-  walletClient: ReturnType<typeof createWalletClient>;
+  walletClient: BlockchainWalletClient;
 }): Promise<void> {
   if (config.venueSeedBps <= 0) {
     return;
@@ -499,7 +497,7 @@ async function seedVenueLiquidity({
     });
 
     await ensureDevBackstopLiquidity({
-      account: walletClient.account!.address,
+      account: walletClient.account.address,
       chainId: config.chainId,
       devCollateral,
       manifest,
@@ -580,16 +578,9 @@ export async function graduateLocalMarketOnChain(
   marketId: bigint,
   force: boolean,
 ): Promise<ChainGraduationResult> {
-  const publicClient = createPublicClient({
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const publicClient = createReadOnlyClient();
   const account = privateKeyToAccount(readDevPrivateKey());
-  const walletClient = createWalletClient({
-    account,
-    chain: config.chain,
-    transport: http(config.rpcHttpUrl),
-  });
+  const walletClient = createWalletClient(account);
   const manager = config.contracts.pregradManager;
   const transactionHashes: Hash[] = [];
   const mirroredLogs: Log[] = [];
@@ -812,13 +803,13 @@ async function topUpToGraduationThreshold({
   collateral: `0x${string}`;
   graduationThreshold: bigint;
   marketId: bigint;
-  publicClient: ReturnType<typeof createPublicClient>;
+  publicClient: BlockchainClient;
   readState: () => Promise<{
     noShares: bigint;
     totalEscrowed: bigint;
     yesShares: bigint;
   }>;
-  walletClient: ReturnType<typeof createWalletClient>;
+  walletClient: BlockchainWalletClient;
   write: (functionName: "placeReceipt", args: unknown[]) => Promise<unknown>;
 }) {
   for (let round = 0; round < MAX_TOPUP_ROUNDS; round += 1) {
@@ -883,8 +874,8 @@ async function fundDevCollateral({
   account: `0x${string}`;
   amount: bigint;
   collateral: `0x${string}`;
-  publicClient: ReturnType<typeof createPublicClient>;
-  walletClient: ReturnType<typeof createWalletClient>;
+  publicClient: BlockchainClient;
+  walletClient: BlockchainWalletClient;
 }) {
   const mintHash = await walletClient.writeContract({
     abi: DEV_COLLATERAL_ABI,
@@ -892,7 +883,7 @@ async function fundDevCollateral({
     functionName: "mint",
     args: [account, amount],
     chain: config.chain,
-    account: walletClient.account!,
+    account: walletClient.account,
   });
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
 
@@ -910,7 +901,7 @@ async function fundDevCollateral({
       functionName: "approve",
       args: [config.contracts.pregradManager, maxUint256],
       chain: config.chain,
-      account: walletClient.account!,
+      account: walletClient.account,
     });
     await publicClient.waitForTransactionReceipt({ hash: approveHash });
   }
@@ -983,7 +974,7 @@ function verifyReconstructedBookMatchesSnapshot(
 
 /** Reads every ReceiptPlaced log for a market from the local chain. */
 async function collectMarketReceipts(
-  publicClient: ReturnType<typeof createPublicClient>,
+  publicClient: BlockchainClient,
   marketId: bigint,
 ): Promise<ClearingReceipt[]> {
   const logs = await publicClient.getLogs({
@@ -1012,7 +1003,7 @@ async function collectMarketReceipts(
  * committing a root the receipts could never claim against.
  */
 async function assertLeafHashMatchesContract(
-  publicClient: ReturnType<typeof createPublicClient>,
+  publicClient: BlockchainClient,
   claim: ReceiptClaim,
 ) {
   const contractLeaf = await publicClient.readContract({
@@ -1045,7 +1036,7 @@ async function assertLeafHashMatchesContract(
  * mirror or the live watcher lands first.
  */
 async function mirrorSettlementLogs(
-  publicClient: ReturnType<typeof createPublicClient>,
+  publicClient: BlockchainClient,
   logs: Log[],
 ) {
   const parsed = parseEventLogs({
