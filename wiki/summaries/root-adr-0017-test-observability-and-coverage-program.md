@@ -69,7 +69,11 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   (Track C). Sequenced: floor first (bun `coveragePathIgnorePatterns` +
   `coverageThreshold` at baseline, manual never-regress ratchet, unit tier
   only — **landed 2026-07-14**, function 70%/line 74% in bun's own
-  metrics), PGlite spike, then the **money paper-trail integration suite** as
+  metrics), PGlite spike (**landed 2026-07-14 — go**: PGlite + drizzle +
+  drizzle-kit pushSchema all work under bun test, in-process, ~2s; the spike
+  verifies unique-index replay dedup, raw-SQL counter increments, and
+  transaction rollback on `persistReceiptPlacedRecord` — exactly the claims
+  fake executors cannot falsify), then the **money paper-trail integration suite** as
   the container's first cargo (replay each settlement/refund/claim event
   twice, assert exactly-once receipt-linked persistence — the
   portfolio-data-design invariant as a merge gate), then `db` singleton
