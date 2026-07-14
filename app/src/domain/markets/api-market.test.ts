@@ -309,6 +309,17 @@ describe("apiMarketToMarket", () => {
     expect(converted.aiReview).toEqual(aiReview);
   });
 
+  it("carries pending AI review progress through when present", () => {
+    const aiReviewProgress = {
+      phase: "retrying" as const,
+      status: "pending" as const,
+    };
+
+    const converted = apiMarketToMarket(apiMarket({ aiReviewProgress }));
+
+    expect(converted.aiReviewProgress).toEqual(aiReviewProgress);
+  });
+
   it("maps the postgrad handoff into USD amounts", () => {
     const converted = apiMarketToMarket(
       apiMarket({

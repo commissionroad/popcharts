@@ -104,6 +104,16 @@ describe("AiReviewCard", () => {
     expect(screen.getByText(/Deterministic fallback ·/)).toBeInTheDocument();
   });
 
+  it("labels explicit heuristic reviews as deterministic checks", () => {
+    render(
+      <AiReviewCard
+        review={reviewFixture({ modelId: "", provider: "heuristic", reasons: [] })}
+      />
+    );
+
+    expect(screen.getByText(/Deterministic checks ·/)).toBeInTheDocument();
+  });
+
   it("renders reviewer notes when reasons exist", () => {
     render(
       <AiReviewCard review={reviewFixture({ reasons: ["Bright-line threshold."] })} />
