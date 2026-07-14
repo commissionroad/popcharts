@@ -377,3 +377,13 @@ timeout against bun's 5s default — it ran ~8s under coverage
 instrumentation locally while CI stayed green, i.e. a latent local-only
 flake. Done as its own micro-PR ahead of Track B item 1 because the floor
 work needs clean local coverage runs to measure baselines.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 1 landed (server coverage floor)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: bunfig gained ../protocol/** in coveragePathIgnorePatterns (bun's own
+totals now workspace-own: functions 70.09 / lines 74.88 — note bun's line
+metric differs from the lcov-derived badge figure, two rulers by design) and
+coverageThreshold { function = 0.70, line = 0.74 }. Bun gotcha recorded in
+bunfig comment: threshold keys are singular; plural keys OR an unmet
+threshold both exit 1 with zero diagnostic output. Enforcement verified in
+both directions locally.

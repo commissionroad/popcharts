@@ -142,7 +142,7 @@ coverage floor is measured on the unit tier only.
 
 Sequenced checklist (one PR each):
 
-- [ ] Floor first: align bun's own denominator with the workspace-own
+- [x] Floor first: align bun's own denominator with the workspace-own
       definition (`coveragePathIgnorePatterns` for `../protocol`) and set
       `coverageThreshold` at the measured baseline; ratchet upward
       manually as coverage lands (app convention — never-regress, no
