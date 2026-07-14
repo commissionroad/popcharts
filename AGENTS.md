@@ -47,7 +47,9 @@
   PR, updates the base branch locally, removes the feature worktree, and deletes
   the feature branch.
 - When the user writes `/full-review` (optionally with a PR number, URL, or
-  branch), use `skills/engineering/full-file-review/SKILL.md`: read every file
+  branch — also available as a first-class slash command via
+  `.claude/commands/full-review.md`), use
+  `skills/engineering/full-file-review/SKILL.md`: read every file
   the PR touches in its entirety and hold each against the repo's standards
   suite (clean-code, protocol-code-quality, architecture depth, AGENTS.md
   rules), including the repo-wide duplication and coordination-constant
