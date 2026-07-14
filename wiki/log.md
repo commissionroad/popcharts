@@ -358,3 +358,14 @@ failure rate over 7 days but zero rerun-passes — no one reruns failures at
 the same SHA yet, so the flake column starts empty. Also corrected this
 summary's stale "scripts/ci/" location claim to the actual scripts/ci-*.ts +
 scripts/shared/ layout.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B grill decisions, Track C scope broadened
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Second grill session (Track B). Two-substrate decision: PGlite for
+unit (spike-gated), real Postgres service container for integration+ —
+per-PR inside Check server for DB-only tests (*.int.test.ts convention),
+nightly for anything needing a chain or second service. Paper-trail
+invariant chosen as the first integration cargo over route breadth. Track C
+renamed "nightly full-fidelity tier" and broadened from scheduling existing
+smokes to growing new full-stack scenarios. Floor measured on unit tier
+only.

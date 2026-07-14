@@ -59,12 +59,25 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   above (comment, trend, badges, flake report, retry surfacing). Ships with
   the protocol figure covering Solidity contracts only; the protocol TS
   figure is a Track G exit criterion.
-- **B — Server floor**: bun coverage floor at the measured baseline,
-  ratcheted; route-layer tests via Elysia `app.handle()`; real-SQL strategy
-  (candidate PGlite) for `src/db/`.
-- **C — Scheduled integration tier**: nightly run of the existing smokes
-  (`local-smoke`, `local-market-smoke`, `devchain-e2e`,
-  `server-ai-review-smoke`). Explicitly the harness skeleton for — not a
+- **B — Server floor and untested layers** (design grilled 2026-07-14):
+  two-substrate rule — unit tests on in-process PGlite (pending a go/no-go
+  spike), everything above unit on real Postgres. DB-boundary integration
+  tests (`*.int.test.ts`, excluded from the unit run) gate merges per-PR
+  via a `services: postgres` container in `Check server`; placement rule:
+  needs only Postgres → per-PR, needs a chain/second service → nightly
+  (Track C). Sequenced: floor first (bun `coveragePathIgnorePatterns` +
+  `coverageThreshold` at baseline, manual never-regress ratchet, unit tier
+  only), PGlite spike, then the **money paper-trail integration suite** as
+  the container's first cargo (replay each settlement/refund/claim event
+  twice, assert exactly-once receipt-linked persistence — the
+  portfolio-data-design invariant as a merge gate), then `db` singleton
+  injectability + `app.handle()` route tests. Fake executors stay for pure
+  projection/serialization logic.
+- **C — Nightly full-fidelity tier** (scope broadened by the grill): the
+  nightly run of the existing smokes (`local-smoke`, `local-market-smoke`,
+  `devchain-e2e`, `server-ai-review-smoke`) plus deliberate growth of new
+  full-stack scenarios (graduation clearing on a seeded book, refund path,
+  postgrad handoff). Explicitly the harness skeleton for — not a
   replacement of — [ADR 0014](root-adr-0014-full-lifecycle-e2e-testing.md)'s
   full-lifecycle suite.
 - **D — Protocol value-path coverage**: dedicated tests for the three v4
