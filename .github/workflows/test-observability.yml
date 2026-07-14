@@ -13,6 +13,12 @@ on:
   workflow_run:
     workflows: ["App CI", "Protocol CI", "Server CI"]
     types: [completed]
+  # Weekly flake report (Mondays 14:00 UTC); dispatch for manual runs. The
+  # `report` job's `if` only matches workflow_run events, so these triggers
+  # reach the flake-report job alone.
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -80,6 +86,27 @@ jobs:
             echo "no $ARTIFACT artifact on run $RUN_ID (path-filtered skip?); nothing to report"
           fi
 
+      # App CI also uploads its Playwright report; retried-pass counts feed
+      # the PR comment. Absent on other workflows and on failed uploads.
+      - name: Download e2e report artifact
+        id: e2e
+        if: >
+          steps.artifact.outputs.found == 'true' &&
+          steps.workspace.outputs.key == 'app' &&
+          github.event.workflow_run.event == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name app-e2e-report --dir e2e-artifact; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "no app-e2e-report artifact on run $RUN_ID; comment omits e2e line"
+          fi
+
       - name: Fetch coverage baseline from ci-metrics
         if: steps.artifact.outputs.found == 'true'
         id: baseline
@@ -103,6 +130,7 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           WORKSPACE: ${{ steps.workspace.outputs.key }}
           BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
+          E2E_FOUND: ${{ steps.e2e.outputs.found }}
         run: |
           set -euo pipefail
           pr_number=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls" \
@@ -128,6 +156,9 @@ jobs:
                 --head-sha "$HEAD_SHA")
           if [ "$BASELINE_FOUND" = "true" ]; then
             args+=(--baseline baseline.json)
+          fi
+          if [ "$E2E_FOUND" = "true" ]; then
+            args+=(--playwright-report e2e-artifact/report.json)
           fi
           if [ -n "$existing_id" ]; then
             args+=(--existing-body existing-body.md)
@@ -181,6 +212,82 @@ jobs:
           # The three CI workflows finish independently, so pushes can race
           # even with the concurrency group (main vs a concurrent PR event
           # group is fine — those never push). Retry on top of the remote.
+          for attempt in 1 2 3; do
+            if git push "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git" \
+                HEAD:refs/heads/ci-metrics; then
+              exit 0
+            fi
+            git fetch origin ci-metrics && git rebase FETCH_HEAD
+          done
+          echo "failed to push ci-metrics after 3 attempts" >&2
+          exit 1
+
+  # Weekly flake report (ADR 0017 Track A). Report-only by decision: the
+  # >5% threshold is computed and shown in FLAKES.md but never alerts.
+  flake-report:
+    name: Weekly flake report
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Fetch workflow runs for the last 7 days
+        id: window
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          window_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          window_start=$(date -u -d "7 days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "start=$window_start" >> "$GITHUB_OUTPUT"
+          echo "end=$window_end" >> "$GITHUB_OUTPUT"
+          # --paginate emits one workflow_runs array per page; merge them.
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?created=>=$window_start&per_page=100" \
+            --paginate --jq '.workflow_runs' \
+            | node -e '
+              const chunks = [];
+              process.stdin.on("data", (c) => chunks.push(c));
+              process.stdin.on("end", () => {
+                const text = chunks.join("");
+                const pages = text
+                  .split(/\n(?=\[)/)
+                  .filter((p) => p.trim().length > 0)
+                  .map((p) => JSON.parse(p));
+                process.stdout.write(JSON.stringify(pages.flat()));
+              });
+            ' > runs.json
+          echo "fetched $(node -e 'console.log(require("./runs.json").length)') runs"
+
+      - name: Update FLAKES.md on ci-metrics
+        run: |
+          set -euo pipefail
+          if git fetch --depth 1 origin ci-metrics; then
+            git worktree add ../ci-metrics FETCH_HEAD
+          else
+            mkdir ../ci-metrics
+            git -C ../ci-metrics init --initial-branch ci-metrics
+          fi
+
+          node --experimental-strip-types scripts/ci-update-flake-report.ts \
+            --runs runs.json \
+            --dir ../ci-metrics \
+            --window-start "${{ steps.window.outputs.start }}" \
+            --window-end "${{ steps.window.outputs.end }}"
+
+          cd ../ci-metrics
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "flakes: weekly report @ ${{ steps.window.outputs.end }}" || {
+            echo "no changes to commit"; exit 0; }
+
           for attempt in 1 2 3; do
             if git push "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git" \
                 HEAD:refs/heads/ci-metrics; then
