@@ -1,0 +1,192 @@
+name: Test Observability
+
+# Coverage visibility per ADR 0017 Track A. Triggered after each CI workflow
+# so it can read that run's coverage artifact. Strictly informational: this
+# workflow is never a required check and must not gate merges — coverage
+# floors are enforced inside each workspace's own CI job.
+#
+# Security: workflow_run grants write permissions on the base repo, so this
+# workflow only ever checks out and executes code from the default branch.
+# PR artifacts are treated as data (an lcov file to parse), never executed.
+
+on:
+  workflow_run:
+    workflows: ["App CI", "Protocol CI", "Server CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+# Serialize per head branch so two CI completions for the same PR (or two
+# main pushes) don't race the comment upsert or the ci-metrics push.
+concurrency:
+  group: test-observability-${{ github.event.workflow_run.event }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  report:
+    name: Report coverage
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'pull_request' ||
+       (github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch (never PR code)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Map workflow to workspace
+        id: workspace
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          set -euo pipefail
+          case "$WORKFLOW_NAME" in
+            "App CI")      key=app;               artifact=app-coverage ;;
+            "Protocol CI") key=protocol-solidity; artifact=protocol-coverage ;;
+            "Server CI")   key=server;            artifact=server-coverage ;;
+            *) echo "unknown workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
+          esac
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+
+      # The CI job may have been skipped by its path filter, in which case
+      # the run is a success with no coverage artifact — nothing to report.
+      - name: Download coverage artifact
+        id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ARTIFACT: ${{ steps.workspace.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          if gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "$ARTIFACT" --dir coverage-artifact; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "no $ARTIFACT artifact on run $RUN_ID (path-filtered skip?); nothing to report"
+          fi
+
+      - name: Fetch coverage baseline from ci-metrics
+        if: steps.artifact.outputs.found == 'true'
+        id: baseline
+        run: |
+          set -euo pipefail
+          if git fetch --depth 1 origin ci-metrics; then
+            git show FETCH_HEAD:coverage/latest.json > baseline.json || true
+          fi
+          if [ -s baseline.json ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upsert PR coverage comment
+        if: >
+          steps.artifact.outputs.found == 'true' &&
+          github.event.workflow_run.event == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKSPACE: ${{ steps.workspace.outputs.key }}
+          BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
+        run: |
+          set -euo pipefail
+          pr_number=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls" \
+            --jq '.[0].number // empty')
+          if [ -z "$pr_number" ]; then
+            echo "no PR found for $HEAD_SHA; skipping comment"
+            exit 0
+          fi
+
+          marker="<!-- popcharts-test-observability -->"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$pr_number/comments" \
+            --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0] // empty" \
+            > existing.json || true
+          existing_id=""
+          if [ -s existing.json ]; then
+            existing_id=$(node -e 'const c=require("./existing.json");console.log(c.id)')
+            node -e 'const c=require("./existing.json");process.stdout.write(c.body)' \
+              > existing-body.md
+          fi
+
+          args=(--workspace "$WORKSPACE" --lcov coverage-artifact/lcov.info \
+                --head-sha "$HEAD_SHA")
+          if [ "$BASELINE_FOUND" = "true" ]; then
+            args+=(--baseline baseline.json)
+          fi
+          if [ -n "$existing_id" ]; then
+            args+=(--existing-body existing-body.md)
+          fi
+          node --experimental-strip-types scripts/ci-report-coverage-comment.ts \
+            "${args[@]}" > comment-body.md
+
+          if [ -n "$existing_id" ]; then
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$existing_id" \
+              -F body=@comment-body.md > /dev/null
+          else
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$pr_number/comments" \
+              -F body=@comment-body.md > /dev/null
+          fi
+          echo "updated coverage comment on PR #$pr_number ($WORKSPACE)"
+
+      - name: Update ci-metrics branch
+        if: >
+          steps.artifact.outputs.found == 'true' &&
+          github.event.workflow_run.event == 'push'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKSPACE: ${{ steps.workspace.outputs.key }}
+        run: |
+          set -euo pipefail
+          if git fetch --depth 1 origin ci-metrics; then
+            git worktree add ../ci-metrics FETCH_HEAD
+          else
+            # First run ever: bootstrap an empty orphan branch checkout.
+            mkdir ../ci-metrics
+            git -C ../ci-metrics init --initial-branch ci-metrics
+            git -C ../ci-metrics remote add origin \
+              "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git"
+          fi
+
+          node --experimental-strip-types scripts/ci-update-coverage-metrics.ts \
+            --workspace "$WORKSPACE" \
+            --lcov coverage-artifact/lcov.info \
+            --commit "$HEAD_SHA" \
+            --dir ../ci-metrics
+
+          cd ../ci-metrics
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "coverage: $WORKSPACE @ ${HEAD_SHA:0:7}" || {
+            echo "no changes to commit"; exit 0; }
+
+          # The three CI workflows finish independently, so pushes can race
+          # even with the concurrency group (main vs a concurrent PR event
+          # group is fine — those never push). Retry on top of the remote.
+          for attempt in 1 2 3; do
+            if git push "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git" \
+                HEAD:refs/heads/ci-metrics; then
+              exit 0
+            fi
+            git fetch origin ci-metrics && git rebase FETCH_HEAD
+          done
+          echo "failed to push ci-metrics after 3 attempts" >&2
+          exit 1

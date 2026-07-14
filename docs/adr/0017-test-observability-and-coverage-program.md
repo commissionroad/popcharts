@@ -110,11 +110,11 @@ rate >5% over 7 days; revisit scheduled for 2026-07-28).
 
 **Track A — Coverage visibility (the mechanism above).**
 
-- [ ] `ci-metrics` orphan branch seeded with current baselines
-- [ ] `test-observability.yml`: PR sticky comment with per-workspace
+- [x] `ci-metrics` orphan branch seeded with current baselines
+- [x] `test-observability.yml`: PR sticky comment with per-workspace
       coverage and delta vs main
-- [ ] Main-push trend log + `TRENDS.md` on `ci-metrics`
-- [ ] README coverage badges (app / protocol / server)
+- [x] Main-push trend log + `TRENDS.md` on `ci-metrics`
+- [x] README coverage badges (app / protocol / server)
 - [ ] Weekly flake report (`FLAKES.md`): failure rate and pass-on-rerun
       rate per workflow
 - [ ] Playwright retry data surfaced in the PR comment
