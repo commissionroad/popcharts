@@ -22,8 +22,8 @@ import {
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 const PREGRAD_MARKET_STATUS_REFUNDED = 4;
 
-const PREGRAD_REFUND_ABI = parseAbi([
-  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, bool bypassAiResolution))",
+export const PREGRAD_REFUND_ABI = parseAbi([
+  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution))",
   "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
   "function markRefundable(uint256 marketId)",
   "event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed)",
