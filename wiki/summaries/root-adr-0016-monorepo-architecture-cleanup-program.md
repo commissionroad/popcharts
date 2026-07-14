@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0016 — Monorepo architecture cleanup program
-description: Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review.
+description: Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review; the one deferred item (D3 settlement-handler split) fired its trigger and was executed 2026-07-14.
 sources:
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
 updated: 2026-07-14
@@ -133,7 +133,7 @@ scopes in the ADR body no longer describe what shipped.
   orientations/roundings). Test-only; zero production-contract diff — the same
   dual-implementation-with-tests philosophy as the blessed LMSR duplication.
 
-### Track D — Protocol tests and scripts: complete (D3 deferred by design)
+### Track D — Protocol tests and scripts: complete
 
 - [x] D1 + D1a Shared `BaseTest.sol` fixtures; stop re-declaring events in
   Solidity tests (PR #103) — 14 re-declared events deleted in favor of
@@ -141,9 +141,15 @@ scopes in the ADR body no longer describe what shipped.
   67 nodejs).
 - [x] D2 `initializeScriptEnvironment.ts` shared script preamble; 10 top-level
   scripts migrated (PR #104).
-- [ ] D3 Split settlement indexer handlers only if they grow — **closed as
-  deferred-by-design** per its own text (trigger never fired; stays unticked
-  as a standing guard against premature cleanup).
+- [x] D3 Split settlement indexer handlers only if they grow — held as
+  deferred-by-design through program close (2026-07-13), then the documented
+  trigger fired: `server/src/indexer/handlers/settlement.ts` gained a 7th
+  event type (MarketCancelled, commit c2e9768, per protocol ADR 0011). Split
+  executed 2026-07-14 as specified: verbatim moves into
+  `settlement-graduation.ts`, `settlement-refunds.ts` (cancel folded in —
+  MarketCancelled opens refunds), and `settlement-claims.ts`, with private
+  plumbing in `settlement-shared.ts` and `settlement.ts` kept as a barrel
+  (four modules import that surface).
 
 ### Track E — App cleanup: complete per Progress Log
 
@@ -181,14 +187,14 @@ review (C3 #126, C1 #128, C2 #132, C5 #184, C4 #190, C6). The god-file numbers
 that motivated the program: `PregradManager.sol` 1,365 → ~1,090 lines,
 `BoundedPoolOrderManager.sol` 1,273 → ~925.
 
-Two checkboxes remain `[ ]` in the raw ADR and **both are intentional, not
-outstanding work** — a date- or tick-based reading of the doc will get this
-wrong:
+One checkbox remains `[ ]` in the raw ADR and **it is stale, not outstanding
+work** — a tick-based reading of the doc will get this wrong:
 
-- **D3** is closed as deferred-by-design (its split trigger never fired; the
-  unticked box is the standing guard against premature cleanup).
 - **E7** landed as PR #111 but its checkbox was never ticked — a stale box, not
   open work (see Track E above).
+
+**D3** — long the other unticked box, held as deferred-by-design — was ticked
+on 2026-07-14 after its documented trigger fired (see Track D above).
 
 ## Related pages
 

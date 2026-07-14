@@ -170,7 +170,7 @@ Rules for executing this program:
   `protocol/scripts/shared/cli/initializeScriptEnvironment.ts` wrapping the
   repeated connection/profile/wallet/chain-assert preamble, and migrate the
   top-level scripts onto it (mechanical, ~10 lines saved per script).
-- [ ] **D3. Split settlement indexer handlers only if they grow.** Explicitly
+- [x] **D3. Split settlement indexer handlers only if they grow.** Explicitly
   deferred: `server/src/indexer/handlers/settlement.ts` (436 lines, 6 events)
   stays as-is until it gains more event types. This item exists so nobody
   "cleans it up" prematurely — close as won't-do unless the trigger fires.
@@ -267,6 +267,7 @@ Tradeoffs:
 
 | Date | Item | PR | Notes |
 | ---- | ---- | -- | ----- |
+| 2026-07-14 | D3 | TBD | The documented split trigger fired — `settlement.ts` gained a 7th event type (MarketCancelled, commit c2e9768) — so the deferred split was performed as specified: verbatim moves into `settlement-graduation.ts`, `settlement-refunds.ts` (cancel folded in, since MarketCancelled opens refunds), `settlement-claims.ts`, and private plumbing in `settlement-shared.ts`, with `settlement.ts` kept as a barrel because four modules import it. |
 | 2026-07-13 | C6 | TBD | Human-reviewed; premise corrected during scoping: no production contract converts display prices (a scripts/app concept per ADR 0009), so the sketched on-chain PriceConversion library would have been dead code on the audited surface. The real divergence risk is the TS bit-exact TickMath ports (tickToSqrtPriceX96/sqrtPriceX96ToTick); C6 anchors them against canonical v4-core TickMath via a test-only harness + nodejs parity suite (boundary ticks, prime-stepped full-range grid, policy-band ticks both orientations/roundings, rounding-sensitive inverse spots). Test-only change; zero production-contract diff. Same dual-implementation-with-tests philosophy as the blessed LMSR duplication. This closes Track C and the program. |
 | 2026-07-13 | — | — | Program complete: all 24 autonomous items (Tracks A/B/D/E/F, PRs #94–#125) plus all 6 Track C items under human review (C3 #126, C1 #128, C2 #132, C5 #184, C4 #190, C6 below). PregradManager 1,365→~1,090 lines; BoundedPoolOrderManager 1,273→~925; every contract extraction proven ABI-identical by zero-diff metadata regeneration. |
 | 2026-07-13 | C4 | #190 | Human-reviewed; scope deliberately narrowed from the item's 'processor' framing: the resolver loop stays as manager orchestration (moving it would hand a library the manager's full state — same inversion rejected in C2), while deferred-execution STORAGE moved to a `DeferredExecutionStore` storage-struct library (struct, nonce-scoped IDs, store/at/isPending/remove, `DeferredExecutionStored` event, resolver target-tick clamp) and the pure partial-fill math moved to `PartialFillMath`. One stack-too-deep helper (`_executionId`) is commented per house rule. Manager is ~925 lines (from 1,273 pre-program). Zero-diff metadata regeneration; 205 tests, two-line test edit (event-selector requalification). |
