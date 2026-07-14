@@ -4,9 +4,9 @@ import { GraduationBar } from "@/components/ui/graduation-bar";
 import { OutcomeButton } from "@/components/ui/outcome-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
-  marketSideLabel,
   type Market,
   type MarketCategory,
+  marketSideLabel,
 } from "@/domain/markets/types";
 import { formatB, formatUsdCompact } from "@/lib/format";
 
@@ -25,7 +25,13 @@ export function MarketCard({ market }: { market: Market }) {
   const marketHref = `/markets/${encodeURIComponent(market.id)}`;
 
   return (
-    <article className="group flex min-h-[360px] flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6 transition-[border-color,transform] duration-[var(--duration-fast)] hover:-translate-y-1 hover:border-[var(--border-strong)]">
+    <article className="group relative flex min-h-[360px] cursor-pointer flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-6 transition-[border-color,transform] duration-[var(--duration-fast)] hover:-translate-y-1 hover:border-[var(--border-strong)]">
+      <Link
+        aria-label={market.question}
+        className="focus-ring absolute inset-0 z-0 rounded-[var(--radius-lg)]"
+        href={marketHref}
+      />
+
       <div className="flex items-center justify-between gap-3">
         <span
           className="rounded-[var(--radius-pill)] border px-2.5 py-1 font-mono text-[10px] tracking-[0.12em] uppercase"
@@ -39,14 +45,11 @@ export function MarketCard({ market }: { market: Market }) {
         <StatusPill size="sm" status={market.status} />
       </div>
 
-      <Link
-        className="font-display [display:-webkit-box] min-h-[76px] overflow-hidden text-[21px] leading-tight font-bold text-[var(--text-primary)] transition-opacity [-webkit-box-orient:vertical] [-webkit-line-clamp:2] hover:opacity-75"
-        href={marketHref}
-      >
+      <h2 className="font-display [display:-webkit-box] min-h-[76px] overflow-hidden text-[21px] leading-tight font-bold text-[var(--text-primary)] transition-opacity [-webkit-box-orient:vertical] [-webkit-line-clamp:2] group-hover:opacity-75">
         {market.question}
-      </Link>
+      </h2>
 
-      <div className="flex gap-2.5">
+      <div className="relative z-10 flex gap-2.5">
         <OutcomeButton
           href={`${marketHref}?side=yes`}
           label={marketSideLabel(market, "yes")}
