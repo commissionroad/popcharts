@@ -21,6 +21,6 @@ export const localDevIndexerHealthFile = resolve(
 
 /**
  * Next.js app env file (`app/.env.development.local`) that receives the
- * POPCHARTS LOCAL DEV marker block with devchain addresses.
+ * POPCHARTS APP ENV marker block with devchain addresses.
  */
 export const appLocalDevEnvFile = resolve(appDir, ".env.development.local");

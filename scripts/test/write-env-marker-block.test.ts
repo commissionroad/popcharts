@@ -10,13 +10,19 @@ function tempEnvFile(): string {
   return join(mkdtempSync(join(tmpdir(), "popcharts-env-block-")), ".env.development.local");
 }
 
-// The block protocol/scripts/deploy-devchain.ts leaves behind. Its keys
-// overlap the local-dev block, and dotenv resolves duplicates last-one-wins,
-// so a stale copy must not survive a local-dev env write.
-const DEVCHAIN_BLOCK = [
-  "# BEGIN POPCHARTS DEVCHAIN",
+// The per-tool blocks written before the marker was unified. Their keys
+// overlap, and dotenv resolves duplicates last-one-wins, so stale copies must
+// not survive a write (this shadowing shipped a wrong collateral address to
+// the app on 2026-07-14).
+const LEGACY_LOCAL_DEV_BLOCK = [
+  "# BEGIN POPCHARTS LOCAL DEV",
   "NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xstale",
-  "NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS=0xstale",
+  "# END POPCHARTS LOCAL DEV",
+  "",
+].join("\n");
+const LEGACY_DEVCHAIN_BLOCK = [
+  "# BEGIN POPCHARTS DEVCHAIN",
+  "NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xstaler",
   "# END POPCHARTS DEVCHAIN",
   "",
 ].join("\n");
@@ -29,7 +35,7 @@ describe("writeEnvMarkerBlock", function () {
 
     assert.equal(
       readFileSync(filePath, "utf8"),
-      "# BEGIN POPCHARTS LOCAL DEV\nFOO=1\nBAR=2\n# END POPCHARTS LOCAL DEV\n",
+      "# BEGIN POPCHARTS APP ENV\nFOO=1\nBAR=2\n# END POPCHARTS APP ENV\n",
     );
   });
 
@@ -37,50 +43,41 @@ describe("writeEnvMarkerBlock", function () {
     const filePath = tempEnvFile();
     writeFileSync(
       filePath,
-      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS LOCAL DEV\nFOO=old\n# END POPCHARTS LOCAL DEV\n\nTRAILING=keep\n",
+      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS APP ENV\nFOO=old\n# END POPCHARTS APP ENV\n\nTRAILING=keep\n",
     );
 
     writeEnvMarkerBlock({ env: { FOO: "new" }, filePath });
 
     assert.equal(
       readFileSync(filePath, "utf8"),
-      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS LOCAL DEV\nFOO=new\n# END POPCHARTS LOCAL DEV\n\nTRAILING=keep\n",
+      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS APP ENV\nFOO=new\n# END POPCHARTS APP ENV\n\nTRAILING=keep\n",
     );
   });
 
-  it("removes a stale devchain sibling block so its duplicate keys cannot shadow ours", function () {
+  it("migrates legacy per-tool blocks so their duplicate keys cannot shadow ours", function () {
     const filePath = tempEnvFile();
-    writeFileSync(
-      filePath,
-      [
-        "# BEGIN POPCHARTS LOCAL DEV",
-        "NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xold",
-        "# END POPCHARTS LOCAL DEV",
-        "",
-        DEVCHAIN_BLOCK,
-      ].join("\n"),
-    );
+    writeFileSync(filePath, `${LEGACY_LOCAL_DEV_BLOCK}\n${LEGACY_DEVCHAIN_BLOCK}`);
 
     writeEnvMarkerBlock(
       { env: { NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: "0xfresh" }, filePath },
     );
 
     const content = readFileSync(filePath, "utf8");
-    assert.doesNotMatch(content, /POPCHARTS DEVCHAIN/);
+    assert.doesNotMatch(content, /POPCHARTS LOCAL DEV|POPCHARTS DEVCHAIN/);
     assert.deepEqual(content.match(/^NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=.*$/gm), [
       "NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xfresh",
     ]);
   });
 
-  it("takes over a file that only has a devchain block", function () {
+  it("keeps hand-written content while migrating a legacy block", function () {
     const filePath = tempEnvFile();
-    writeFileSync(filePath, `HAND_WRITTEN=keep\n\n${DEVCHAIN_BLOCK}`);
+    writeFileSync(filePath, `HAND_WRITTEN=keep\n\n${LEGACY_DEVCHAIN_BLOCK}`);
 
     writeEnvMarkerBlock({ env: { FOO: "1" }, filePath });
 
     assert.equal(
       readFileSync(filePath, "utf8"),
-      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS LOCAL DEV\nFOO=1\n# END POPCHARTS LOCAL DEV\n",
+      "HAND_WRITTEN=keep\n\n# BEGIN POPCHARTS APP ENV\nFOO=1\n# END POPCHARTS APP ENV\n",
     );
   });
 });

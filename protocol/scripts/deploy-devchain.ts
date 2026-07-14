@@ -11,7 +11,9 @@ import { loadHardhatDeployableArtifact } from "./shared/artifact/loadHardhatDepl
 import { defineEvmChain } from "./shared/chain/defineEvmChain.js";
 import { runScript } from "./shared/cli/runScript.js";
 import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract.js";
-import { updateDevchainEnvBlock } from "./shared/env/updateDevchainEnvBlock.js";
+// Shared with scripts/local-dev.ts so both deploy tools write the one
+// POPCHARTS APP ENV marker block instead of shadowing each other's keys.
+import { updateAppEnvMarkerBlock } from "../../scripts/shared/env/appEnvMarkerBlock.js";
 import { writeJsonFile } from "./shared/json/jsonFile.js";
 import { createViemClients } from "./shared/viem/createViemClients.js";
 
@@ -155,7 +157,7 @@ async function writeAppEnvBlock(
   privateKey: Hex,
 ): Promise<void> {
   const existing = await readOptionalFile(path);
-  const next = updateDevchainEnvBlock({
+  const next = updateAppEnvMarkerBlock({
     entries: [
       "NEXT_PUBLIC_POPCHARTS_CHAIN_ENV=local",
       "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE=devchain",
