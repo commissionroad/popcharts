@@ -1,5 +1,13 @@
 # Repository Agent Instructions
 
+- **Agent-agnostic by default.** Canonical instructions, skills, and commands
+  live in shared locations (this file, `skills/`); harness-specific
+  directories (`.claude/commands/`, `.agents/skills/`) contain only thin
+  adapters that delegate to the canonical skill — never a second copy of the
+  procedure. Model-specific tuning (e.g. the Operating Manual layered on for
+  Opus/Fable) belongs in that model's own file (`CLAUDE.md`), not here. When
+  adding a command, write the skill once under `skills/`, then add one
+  delegating adapter per harness that needs native discovery.
 - `wiki/` is an LLM-maintained knowledge wiki over this repo's design docs
   (ADRs, whitepapers, architecture docs). When you need design context, read
   `wiki/index.md` first and open only the pages it points to, instead of
@@ -47,8 +55,8 @@
   PR, updates the base branch locally, removes the feature worktree, and deletes
   the feature branch.
 - When the user writes `/full-review` (optionally with a PR number, URL, or
-  branch — also available as a first-class slash command via
-  `.claude/commands/full-review.md`), use
+  branch — natively discoverable via the `.claude/commands/` and
+  `.agents/skills/` adapters), use
   `skills/engineering/full-file-review/SKILL.md`: read every file
   the PR touches in its entirety and hold each against the repo's standards
   suite (clean-code, protocol-code-quality, architecture depth, AGENTS.md
