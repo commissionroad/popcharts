@@ -2,4 +2,14 @@
 coverageSkipTestFiles = true
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
-coveragePathIgnorePatterns = ["scripts/**"]
+# ../protocol imports are excluded so bun's own totals (and the threshold
+# below) match the workspace-own denominator rule from ADR 0017 — protocol
+# files are protocol CI's figure, not the server's.
+coveragePathIgnorePatterns = ["scripts/**", "../protocol/**"]
+
+# Ratcheted floor (ADR 0017 Track B): never lower these; bump manually as
+# coverage lands. Baseline measured 2026-07-14: functions 70.09, lines 74.88
+# (bun's own metrics, which differ from the lcov-derived badge figure).
+# Keys are singular (line/function) — bun exits 1 with no diagnostic when
+# the threshold is unmet OR when given unknown keys like lines/functions.
+coverageThreshold = { function = 0.70, line = 0.74 }

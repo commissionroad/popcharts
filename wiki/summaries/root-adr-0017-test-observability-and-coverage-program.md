@@ -68,7 +68,8 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   needs only Postgres → per-PR, needs a chain/second service → nightly
   (Track C). Sequenced: floor first (bun `coveragePathIgnorePatterns` +
   `coverageThreshold` at baseline, manual never-regress ratchet, unit tier
-  only), PGlite spike, then the **money paper-trail integration suite** as
+  only — **landed 2026-07-14**, function 70%/line 74% in bun's own
+  metrics), PGlite spike, then the **money paper-trail integration suite** as
   the container's first cargo (replay each settlement/refund/claim event
   twice, assert exactly-once receipt-linked persistence — the
   portfolio-data-design invariant as a merge gate), then `db` singleton
