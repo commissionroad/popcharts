@@ -31,6 +31,12 @@ describe("PositionClaim", () => {
       positionFixture({ resolution: resolutionFixture({ winningSide: "no" }) }),
     ],
     ["has no held balance", positionFixture({ heldBalance: "0" })],
+    [
+      // Below the one-cent floor a claim could round to zero redeemable on
+      // 6-decimal collateral — no button may render for dust.
+      "holds only sub-cent dust",
+      positionFixture({ heldBalance: (10n ** 11n).toString() }),
+    ],
   ])("renders nothing when the position %s", (_reason, position) => {
     const { container } = render(
       <PositionClaim onClaimed={vi.fn()} position={position} />

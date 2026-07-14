@@ -250,7 +250,7 @@ describe("ClaimWinningsPanel redemption", () => {
     expect(screen.getByText("Claim winnings")).toBeInTheDocument();
     expect(
       screen.getByText(
-        /This market resolved YES\. Your\s+tokens finished out of the money\./
+        "This market resolved YES. Nothing is left to claim on this position."
       )
     ).toBeInTheDocument();
   });
@@ -273,7 +273,34 @@ describe("ClaimWinningsPanel redemption", () => {
     render(<ClaimWinningsPanel market={resolvedMarket()} />);
 
     expect(
-      screen.getByText("All of your winning tokens are resting in open orders.")
+      screen.getByText(
+        "All of your winning tokens are resting in open orders — cancel those orders to claim them."
+      )
+    ).toBeInTheDocument();
+    // The "more tokens" footnote only accompanies the claim button; showing
+    // both here would stack two contradictory versions of the same fact.
+    expect(screen.queryByText(/more YES tokens are resting/)).not.toBeInTheDocument();
+  });
+
+  it("treats sub-cent winning dust as nothing to claim instead of a $0.00 button", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        // Below the one-cent floor (1e16 WAD): redeemable can round to zero
+        // on 6-decimal collateral, so no claim button may render.
+        positions: [positionFixture({ heldBalance: (10n ** 11n).toString() })],
+      }),
+      refresh: vi.fn(),
+    });
+
+    render(<ClaimWinningsPanel market={resolvedMarket()} />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This market resolved YES. Nothing is left to claim on this position."
+      )
     ).toBeInTheDocument();
   });
 

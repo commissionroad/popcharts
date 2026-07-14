@@ -16,6 +16,7 @@ export type PanelPreview = {
   address: string | null;
   loading: boolean;
   portfolio: Portfolio | null;
+  redemption?: RefundClaimPreview;
   refundClaim?: RefundClaimPreview;
 };
 
@@ -46,6 +47,17 @@ export function useRefundClaim() {
   return {
     claim: () => undefined,
     error: preview?.error ?? null,
+    status: preview?.status ?? "idle",
+  };
+}
+
+export function useRedemption() {
+  const preview = useContext(PanelPreviewContext).redemption;
+
+  return {
+    error: preview?.error ?? null,
+    redeem: () => undefined,
+    result: null,
     status: preview?.status ?? "idle",
   };
 }

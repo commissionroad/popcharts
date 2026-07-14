@@ -7,6 +7,7 @@ import { wadToNumber } from "@/domain/tokens/wad";
 import { usePortfolio } from "@/features/portfolio/use-portfolio";
 import { configuredPopChartsChainId } from "@/integrations/contracts/config";
 import { useRedemption } from "@/integrations/contracts/hooks/use-redemption";
+import { MIN_REDEEMABLE_OUTCOME_WAD } from "@/integrations/contracts/redemption-service";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { parseApiMarketAppId } from "@/lib/app-id";
 import { formatTokenAmount, formatUsd } from "@/lib/format";
@@ -51,6 +52,9 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
   const losing = positions.find((position) => position.side !== winningSide);
   const held = winning ? BigInt(winning.heldBalance) : 0n;
   const committed = winning ? BigInt(winning.committedInOrders) : 0n;
+  // Below the one-cent floor the button would display $0.00 and could revert
+  // as unredeemable dust on low-precision collateral — treat as nothing held.
+  const claimable = held >= MIN_REDEEMABLE_OUTCOME_WAD;
   const claimed = status === "success";
 
   if (!winning && !losing && !claimed) {
@@ -81,7 +85,7 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
             for {formatTokenAmount(result.outcomeAmount)} {winningLabel} tokens.
           </span>
         </div>
-      ) : held > 0n ? (
+      ) : claimable ? (
         <>
           <p className="text-sm leading-6 text-[var(--text-secondary)]">
             You hold{" "}
@@ -114,21 +118,26 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
       ) : (
         <p className="text-sm leading-6 text-[var(--text-secondary)]">
           {committed > 0n
-            ? "All of your winning tokens are resting in open orders."
-            : `This market resolved ${winningLabel}. Your ${
-                losing ? marketSideLabel(market, losing.side) : ""
-              } tokens finished out of the money.`}
+            ? "All of your winning tokens are resting in open orders — cancel those orders to claim them."
+            : losing
+              ? `This market resolved ${winningLabel}. Your ${marketSideLabel(
+                  market,
+                  losing.side
+                )} tokens finished out of the money.`
+              : `This market resolved ${winningLabel}. Nothing is left to claim on this position.`}
         </p>
       )}
 
-      {committed > 0n && !claimed ? (
+      {/* "More" is only accurate next to the claim button; the no-held branch
+          above already covers the everything-is-in-orders case. */}
+      {claimable && committed > 0n && !claimed ? (
         <p className="mt-3 font-mono text-[11px] leading-5 text-[var(--text-muted)]">
           {formatTokenAmount(committed)} more {winningLabel} tokens are resting in open
           orders — cancel those orders to claim them too.
         </p>
       ) : null}
 
-      {losing && held > 0n ? (
+      {losing && claimable ? (
         <p className="mt-3 font-mono text-[11px] leading-5 text-[var(--text-muted)]">
           Your {marketSideLabel(market, losing.side)} tokens finished out of the money
           and cannot be redeemed.

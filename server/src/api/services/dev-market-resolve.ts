@@ -5,6 +5,7 @@ import type {
   DevMarketResolveIneligibleReason,
   DevMarketResolveSide,
   MarketPostgradResponse,
+  MarketResolutionResponse,
   MarketResponse,
 } from "src/api/models/markets";
 import {
@@ -16,7 +17,11 @@ import { and, db, eq, schema } from "src/db/client";
 
 import { readDevPrivateKey } from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
-import { selectPostgradInfo, serializeMarketRow } from "./markets";
+import {
+  selectMarketResolution,
+  selectPostgradInfo,
+  serializeMarketRow,
+} from "./markets";
 
 const POSTGRAD_MARKET_STATUS_TRADING = 0;
 const POSTGRAD_MARKET_STATUS_RESOLVED = 1;
@@ -110,6 +115,13 @@ export type DevMarketResolveDependencies = {
     chainId: number;
     marketId: bigint;
   }) => Promise<MarketPostgradResponse | null>;
+  selectResolution: ({
+    chainId,
+    marketId,
+  }: {
+    chainId: number;
+    marketId: bigint;
+  }) => Promise<MarketResolutionResponse | null>;
 };
 
 /**
@@ -175,7 +187,14 @@ export async function resolveDevMarket(
     };
   }
 
-  const market = serializeResolveMarketRow(row);
+  // The indexed terminal event, when the resolution already happened and the
+  // indexer caught up; every response shape carries it so a dev-resolve
+  // payload matches what getMarketById would serve.
+  const indexedResolution = await dependencies.selectResolution({
+    chainId,
+    marketId: parsedMarketId,
+  });
+  const market = serializeResolveMarketRow(row, indexedResolution);
 
   if (row.market.status !== "graduated" && row.market.status !== "resolved") {
     return {
@@ -232,16 +251,34 @@ export async function resolveDevMarket(
     updatedAt: chainResult.blockTimestamp,
   });
 
+  // A fresh resolve outruns the indexer, so synthesize the resolution from
+  // the transaction we just confirmed; an already-indexed row wins because it
+  // is the canonical terminal event.
+  const resolution =
+    indexedResolution ??
+    (chainResult.kind === "resolved"
+      ? {
+          kind: "resolved" as const,
+          postgradMarket: postgrad.marketAddress,
+          resolvedAt: chainResult.blockTimestamp.toISOString(),
+          transactionHash: chainResult.transactionHash,
+          winningSide: chainResult.winningSide,
+        }
+      : null);
+
   return {
     kind: "resolved",
-    market: serializeResolveMarketRow({
-      market: updatedMarket ?? {
-        ...row.market,
-        status: "resolved",
-        updatedAt: chainResult.blockTimestamp,
+    market: serializeResolveMarketRow(
+      {
+        market: updatedMarket ?? {
+          ...row.market,
+          status: "resolved",
+          updatedAt: chainResult.blockTimestamp,
+        },
+        metadata: row.metadata,
       },
-      metadata: row.metadata,
-    }),
+      resolution,
+    ),
     ...(chainResult.kind === "resolved"
       ? { transactionHash: chainResult.transactionHash }
       : {}),
@@ -255,6 +292,7 @@ const defaultDependencies: DevMarketResolveDependencies = {
   resolveMarketOnChain: resolveLocalPostgradMarketOnChain,
   selectMarket: selectMarketForDevResolve,
   selectPostgradInfo,
+  selectResolution: selectMarketResolution,
 };
 
 async function selectMarketForDevResolve({
@@ -374,11 +412,18 @@ async function resolveLocalPostgradMarketOnChain(
   };
 }
 
-function serializeResolveMarketRow(row: DevMarketResolveRow) {
+function serializeResolveMarketRow(
+  row: DevMarketResolveRow,
+  resolution: MarketResolutionResponse | null = null,
+) {
   return serializeMarketRow(
     row.market,
     row.metadata,
     calculateMatchedMarketCap(row.market),
+    null,
+    null,
+    null,
+    resolution,
   );
 }
 

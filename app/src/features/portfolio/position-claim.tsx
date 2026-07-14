@@ -4,6 +4,7 @@ import type { PortfolioPosition } from "@popcharts/api-client/models";
 
 import { wadToNumber } from "@/domain/tokens/wad";
 import { useRedemption } from "@/integrations/contracts/hooks/use-redemption";
+import { MIN_REDEEMABLE_OUTCOME_WAD } from "@/integrations/contracts/redemption-service";
 import { formatUsd } from "@/lib/format";
 
 /**
@@ -30,10 +31,12 @@ export function PositionClaim({
 
   const resolution = position.resolution;
   const held = BigInt(position.heldBalance);
+  // The one-cent floor keeps sub-display-precision dust from rendering a
+  // "Claim $0.00" button that could only revert on low-precision collateral.
   const claimable =
     resolution?.kind === "resolved" &&
     resolution.winningSide === position.side &&
-    held > 0n;
+    held >= MIN_REDEEMABLE_OUTCOME_WAD;
 
   if (!claimable && status === "idle") {
     return null;

@@ -29,6 +29,16 @@ export type RedemptionResult = {
   transactionHash: `0x${string}`;
 };
 
+/**
+ * Smallest winning balance (outcome-token WAD) a claim surface should offer a
+ * button for: one cent. Below this the amount both displays as $0.00 and, on
+ * low-precision collateral (6-decimal on Arc, conversion factor 1e12), can
+ * round down to zero redeemable — a button that could only ever revert. The
+ * one-cent floor (1e16) strictly dominates that dust factor on every
+ * supported collateral, so callers need no chain read to apply it.
+ */
+export const MIN_REDEEMABLE_OUTCOME_WAD = 10n ** 16n;
+
 /** MarketTypes.Side encodes YES as 0 and NO as 1. */
 function sideToContractSide(side: MarketSide): number {
   return side === "yes" ? 0 : 1;

@@ -779,6 +779,36 @@ export function serializeResolutionRow(
 }
 
 /**
+ * Serializes the terminal resolution event for one market, if any — the
+ * single-market companion to getResolutions, mirroring selectPostgradInfo.
+ */
+export async function selectMarketResolution({
+  chainId,
+  marketId,
+}: {
+  chainId: number;
+  marketId: bigint;
+}): Promise<MarketResolutionResponse | null> {
+  const rows = await db
+    .select()
+    .from(schema.postgradResolutionEvents)
+    .where(
+      and(
+        eq(schema.postgradResolutionEvents.chainId, chainId),
+        eq(schema.postgradResolutionEvents.marketId, marketId),
+      ),
+    )
+    .orderBy(
+      desc(schema.postgradResolutionEvents.blockNumber),
+      desc(schema.postgradResolutionEvents.logIndex),
+    )
+    .limit(1);
+  const row = rows[0];
+
+  return row ? serializeResolutionRow(row) : null;
+}
+
+/**
  * Loads the terminal resolution event for each resolved/cancelled market in
  * the page. A market emits at most one terminal event ever, so the newest row
  * per market is the only row; the ordering just makes that deterministic
