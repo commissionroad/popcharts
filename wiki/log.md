@@ -369,3 +369,11 @@ invariant chosen as the first integration cargo over route breadth. Track C
 renamed "nightly full-fidelity tier" and broadened from scheduling existing
 smokes to growing new full-stack scenarios. Floor measured on unit tier
 only.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track F completed (invariant-test timeout)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: The band-pass invariant test (2000 random books) got a 30s explicit
+timeout against bun's 5s default — it ran ~8s under coverage
+instrumentation locally while CI stayed green, i.e. a latent local-only
+flake. Done as its own micro-PR ahead of Track B item 1 because the floor
+work needs clean local coverage runs to measure baselines.

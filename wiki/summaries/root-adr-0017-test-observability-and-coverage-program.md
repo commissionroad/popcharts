@@ -13,7 +13,8 @@ updated: 2026-07-14
 [ADR 0016](root-adr-0016-monorepo-architecture-cleanup-program.md)), not part
 of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
 core pipeline; the flake report and Playwright retry surfacing followed the
-same day); Tracks B–G open.**
+same day); Track F (invariant-test timeout) completed 2026-07-14;
+Tracks B/C/D/E/G open.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -86,7 +87,7 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
 - **E — Infra gate**: path-filtered `tsc` + `cdk synth` job; deployment CI
   stays with [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
 - **D also carries** the protocol Solidity floor (~92% lines baseline).
-- **F — Known flake fix**: explicit timeout for the band-pass clearing
+- **F — Known flake fix** (**complete 2026-07-14**): explicit timeout for the band-pass clearing
   invariant test (~8s under coverage vs bun's 5s default).
 - **G — Protocol TS SDK surface** (added post-grill): the package barrel
   re-exports ~25 symbols from `protocol/scripts/shared/{price,market}`, so
