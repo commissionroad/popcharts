@@ -1,5 +1,3 @@
-import { parseAbi } from "viem";
-
 import type {
   MarketAiReviewResponse,
   MarketCreatedEventResponse,
@@ -16,13 +14,13 @@ import {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
-import { computeMatchedMarketCap } from "@popcharts/protocol";
+import {
+  computeMatchedMarketCap,
+  pregradManagerAbi,
+} from "@popcharts/protocol";
 import { readPostgradMarketVenue } from "./postgrad-venue";
 
 const MARKET_LIST_LIMIT = 200;
-const LOCAL_MARKET_EXISTS_ABI = parseAbi([
-  "function marketExists(uint256 marketId) view returns (bool)",
-]);
 
 /** Drizzle select shape of a markets row, shared by the market services. */
 export type MarketRow = typeof schema.markets.$inferSelect;
@@ -683,7 +681,7 @@ async function isLiveLocalMarket(marketId: bigint) {
 
   try {
     return await getLocalPublicClient().readContract({
-      abi: LOCAL_MARKET_EXISTS_ABI,
+      abi: pregradManagerAbi,
       address: config.contracts.pregradManager,
       functionName: "marketExists",
       args: [marketId],

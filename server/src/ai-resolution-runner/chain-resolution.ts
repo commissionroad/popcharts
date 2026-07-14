@@ -1,4 +1,5 @@
-import { parseAbi, type Hash } from "viem";
+import { completeSetBinaryMarketAbi } from "@popcharts/protocol";
+import type { Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -17,10 +18,6 @@ const POSTGRAD_STATUS_RESOLVED = 1;
 // MarketTypes.Side: Yes = 0, No = 1.
 const SIDE_YES = 0;
 const SIDE_NO = 1;
-const COMPLETE_SET_MARKET_ABI = parseAbi([
-  "function status() view returns (uint8)",
-  "function resolve(uint8 side)",
-]);
 
 export type ResolutionChainAction = { side: number };
 
@@ -156,7 +153,7 @@ function createDefaultDependencies(): MarketResolutionChainTransitionDependencie
     },
     readMarketStatus: async (marketAddress) => {
       const status = await publicClient.readContract({
-        abi: COMPLETE_SET_MARKET_ABI,
+        abi: completeSetBinaryMarketAbi,
         address: marketAddress,
         functionName: "status",
       });
@@ -182,7 +179,7 @@ function createDefaultDependencies(): MarketResolutionChainTransitionDependencie
     },
     writeResolution: async (marketAddress, side) =>
       walletClient.writeContract({
-        abi: COMPLETE_SET_MARKET_ABI,
+        abi: completeSetBinaryMarketAbi,
         address: marketAddress,
         functionName: "resolve",
         args: [side],
