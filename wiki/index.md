@@ -81,6 +81,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0014](summaries/root-adr-0014-full-lifecycle-e2e-testing.md) — the every-terminal-state e2e suite; acceptance gate for M1–M4 (all open)
 - [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (1/13; Protocol CI done)
 - [ADR 0016 (cleanup)](summaries/root-adr-0016-monorepo-architecture-cleanup-program.md) — Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review; the one deferred item (D3 settlement-handler split) fired its trigger and was executed 2026-07-14.
+- [ADR 0017 (test observability)](summaries/root-adr-0017-test-observability-and-coverage-program.md) — Make test health visible in-repo (PR coverage deltas, trend log, badges, flake tracking) and enforce coverage along the value-transfer risk gradient; six tracks, one concern per PR (accepted 2026-07-14, all open)
 
 ## Summaries — root docs
 

@@ -7,6 +7,7 @@ sources:
   - protocol/CONSTITUTION.md
   - app/docs/adr/0004-testing-and-ci-gates.md
   - docs/adr/0014-full-lifecycle-e2e-testing.md
+  - docs/adr/0017-test-observability-and-coverage-program.md
   - README.md
 updated: 2026-07-14
 ---
@@ -61,6 +62,20 @@ domain layer; honesty-rule copy is tested
   local-market-smoke` (maker/taker/arb/resolution) — postgrad venue flows
 - `just server-ai-review-smoke` — DB→service→DB heuristic review cycle
 - CI freshness gates: `metadata:check`, `openapi:check`, `api:check`
+
+## Observability and enforcement ([root ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md), accepted 2026-07-14, all open)
+
+The 2026-07-14 audit found the suites healthy but unobserved: lcov artifacts
+uploaded and never read, coverage floors only in the app (server ~60% lines
+unenforced; v4 order libraries 62–70% and only transitively tested), all
+integration smokes manual-only, no flake tracking. ADR 0017 is the tracked
+fix: a CI-written `ci-metrics` branch feeding sticky PR coverage-delta
+comments, a trend log, README badges, and a weekly flake report (Track A);
+then enforcement along the risk gradient — server coverage floor + route/db
+tests (B), a nightly scheduled smoke tier (C, the harness skeleton for ADR
+0014), dedicated v4-library tests and a `StdInvariant` escrow-conservation
+harness (D), an infra `cdk synth` gate (E), and the band-pass invariant-test
+timeout fix (F).
 
 ## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
 

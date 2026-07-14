@@ -296,3 +296,15 @@ touched again; ADR 0012 tick-state vs the resolution code that is landing.
 ## [2026-07-14] ingest | repo ADR 0016 — D3 settlement-handler split executed (trigger fired)
 Pages: ~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md, ~concepts/monorepo-architecture.md, ~index.md
 Notes: The D3 item's documented split trigger fired — `server/src/indexer/handlers/settlement.ts` gained a 7th event type (MarketCancelled, commit c2e9768, the protocol ADR 0011 kill switch) — so the standing deferred-by-design guard converted to executed work: checkbox ticked, Progress Log row added, split performed as three sibling handler modules (graduation/refunds/claims) plus private shared plumbing behind a kept `settlement.ts` barrel. "Two intentional unticked boxes" framing across the summary and the monorepo-architecture concept page reduced to E7 only.
+
+## [2026-07-14] ingest | repo ADR 0017 — test observability and coverage program
+Pages: +summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md, ~index.md
+Notes: New standalone tracked program (ADR 0016 model) from the 2026-07-14
+testing-infra audit. Six tracks: A coverage visibility (ci-metrics branch,
+sticky PR coverage-delta comment, trend, badges, weekly flake report), B
+server coverage floor + route/db tests, C nightly scheduled smoke tier
+(harness skeleton for ADR 0014, scope stays with 0014), D v4 order-library
+tests + StdInvariant escrow harness, E infra cdk-synth gate (deployment CI
+stays with ADR 0015), F band-pass invariant-test timeout fix. Watch for:
+ADR 0015's stale CI checkboxes ("Server CI workflow" unchecked though the
+workflow exists) — flagged during the audit, not fixed in this ingest.
