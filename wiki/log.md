@@ -387,3 +387,13 @@ coverageThreshold { function = 0.70, line = 0.74 }. Bun gotcha recorded in
 bunfig comment: threshold keys are singular; plural keys OR an unmet
 threshold both exit 1 with zero diagnostic output. Enforcement verified in
 both directions locally.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 2 landed (PGlite spike: go)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: receipt-placed.pglite.test.ts proves the unit substrate: PGlite +
+drizzle-orm/pglite + drizzle-kit/api pushSchema under bun test, no Docker.
+Covers replay dedup via the real unique index, raw-SQL increments, and
+rollback when the markets projection is missing. Coverage rose to 74.52
+funcs / 75.31 lines (bun metrics) and the floor ratcheted up with it —
+first ratchet bump of the program. Executor typing still needs the cast
+noted in-file; first-class injection is Track B item 4.

@@ -147,7 +147,7 @@ Sequenced checklist (one PR each):
       `coverageThreshold` at the measured baseline; ratchet upward
       manually as coverage lands (app convention — never-regress, no
       mandated target)
-- [ ] PGlite spike: one persistence-function test file against
+- [x] PGlite spike: one persistence-function test file against
       drizzle-orm's PGlite adapter under `bun test`; go/no-go for the
       unit substrate (fallback: the service container everywhere)
 - [ ] Money paper-trail integration suite as the container's first cargo:
