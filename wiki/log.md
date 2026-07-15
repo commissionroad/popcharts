@@ -582,3 +582,15 @@ pages (summary + concept + server-workspace) moved, not just one. (2) Watch for
 `overview.md`'s deployment snapshot going stale as backend/protocol deploy. (3)
 The README's 0016 "Track C open" row is a live raw-source lag; if 0016 is ever
 re-touched, that row should be corrected at the source.
+
+## [2026-07-15] ingest | root doc — AI verdict failure taxonomy
+Pages: +summaries/ai-verdict-failure-taxonomy.md, ~index.md
+Notes: first ADR 0019 artifact (same PR #226 as the eval dataset/runner and
+the v3 policy adoption). Records the WHAT/WHERE/WHEN resolvability contract,
+failure classes with calibrated verdicts (reject reserved for
+harm/injection/private-circle), six documented venue disputes mapped to
+seed cases, and reviewer blind spots (payload lacks on-chain times;
+prompt v2 judgment guidance was testless — v3 adopted with 42→75% accuracy
+numbers in the same PR). testing-strategy and ai-review-service pages
+already carry ADR 0019 sections from its ingest; no further page edits
+needed.

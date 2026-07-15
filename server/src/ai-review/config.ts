@@ -5,7 +5,7 @@ import type { InternetAccessMode, ReviewProviderName } from "./types";
  * the prompt/policy revision that produced them. Bump when the policy or
  * output contract changes meaning.
  */
-export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v2";
+export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v3";
 
 /**
  * Full runtime configuration of the AI Review service: provider selection,
