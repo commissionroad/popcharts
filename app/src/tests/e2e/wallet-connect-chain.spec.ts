@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { installTestWallet } from "./support/test-wallet";
+import { installTestWallet, TEST_WALLET_ADDRESS } from "./support/test-wallet";
 
-// The truncated form the wallet button renders for hardhat account #3.
-const TRUNCATED_TEST_ADDRESS = /0x90F.*906/;
+// The wallet button truncates the address (leading and trailing characters
+// around an ellipsis); derive both ends from the fixture constant so the
+// assertion can never drift from the account the provider reports.
+const TRUNCATED_TEST_ADDRESS = new RegExp(
+  `${TEST_WALLET_ADDRESS.slice(0, 5)}.*${TEST_WALLET_ADDRESS.slice(-3)}`
+);
 
 test("@chain wallet connects through the injected test provider", async ({ page }) => {
   test.skip(
