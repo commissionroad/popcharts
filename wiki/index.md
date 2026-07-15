@@ -93,6 +93,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [AI review runner design](summaries/ai-review-runner-design.md) — the durable-job runner bridging projections to the review service
 - [AI review next phase](summaries/ai-review-next-phase.md) — provider triad, service split rationale, AWS shape, injection defenses
 - [AI resolution service & runner design](summaries/ai-resolution-service-design.md) — the ADR 0012 design: resolution as a sibling of review, per-outcome temporal gates, on-chain floor guard, 0.85/24h safety valves
+- [AI verdict failure taxonomy](summaries/ai-verdict-failure-taxonomy.md) — the ADR 0019 classification: WHAT/WHERE/WHEN resolvability contract from Kalshi/Polymarket practice, failure classes with calibrated verdicts, six real disputes mapped to eval seed cases
 - [Clearing keeper design](summaries/clearing-keeper-design.md) — the ADR 0008 design: band-pass sweep, largest-remainder rounding, snapshotHash verification, three-outcome decision logic, golden tests
 - [Vercel deployment](summaries/deployment-vercel.md) — frontend deploy pipeline: popcharts-app project, GitHub integration, root `app`
 - [Go-live DNS runbook](summaries/deployment-go-live-dns.md) — popcharts.xyz / app.popcharts.xyz domains, Namecheap nameserver delegation, go-live state ledger

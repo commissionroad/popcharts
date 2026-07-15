@@ -466,3 +466,15 @@ gains a consumer (both flagged on the 0011 summary). Motivated by the
 2026-07-14 verdict-lottery findings (identical markets drew reject ×2 /
 manual_review ×3). Also flips the resolution local default heuristic →
 Ollama — added as a third safety valve note on the resolution concept page.
+
+## [2026-07-15] ingest | root doc — AI verdict failure taxonomy
+Pages: +summaries/ai-verdict-failure-taxonomy.md, ~index.md
+Notes: first ADR 0019 artifact (same PR #226 as the eval dataset/runner and
+the v3 policy adoption). Records the WHAT/WHERE/WHEN resolvability contract,
+failure classes with calibrated verdicts (reject reserved for
+harm/injection/private-circle), six documented venue disputes mapped to
+seed cases, and reviewer blind spots (payload lacks on-chain times;
+prompt v2 judgment guidance was testless — v3 adopted with 42→75% accuracy
+numbers in the same PR). testing-strategy and ai-review-service pages
+already carry ADR 0019 sections from its ingest; no further page edits
+needed.
