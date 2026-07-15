@@ -186,11 +186,11 @@ The full-lifecycle suite (every terminal state, unhappy paths) remains ADR
 
 **Track D — Protocol value-path coverage.**
 
-- [ ] Dedicated unit tests for `PartialFillMath`, `V4DeltaSettlement`,
+- [x] Dedicated unit tests for `PartialFillMath`, `V4DeltaSettlement`,
       `OrderValidation`
-- [ ] A `StdInvariant` harness over `BoundedPoolOrderManager` asserting
+- [x] A `StdInvariant` harness over `BoundedPoolOrderManager` asserting
       escrow conservation across randomized order/fill/cancel sequences
-- [ ] Protocol Solidity coverage floor at the measured baseline (~92%
+- [x] Protocol Solidity coverage floor at the measured baseline (~92%
       lines), ratcheted
 
 **Track E — Infra check gate.**

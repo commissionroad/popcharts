@@ -474,3 +474,13 @@ postgrad_redemption_events table indexing Redeemed/CancelledRedeemed from
 graduated CompleteSetBinaryMarkets — the first concrete realization of the
 invariant's "resolution redemption" clause. Doc bullet and summary updated;
 index line unchanged (already mentions the invariant).
+## [2026-07-15] ingest | repo ADR 0017 — Track D complete (v4 lib suites, invariant harness, Solidity floor)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: OrderValidation/PartialFillMath/V4DeltaSettlement get dedicated
+harness-backed suites (house pattern: external-wrapper harnesses; recording
+mocks + a CallJournal assert the sync->pull->settle order). StdInvariant
+works natively in Hardhat 3 (probe-verified before building). Escrow
+invariants run 256 randomized create/cancel/swap/resolveDeferred sequences
+against the full in-process v4 stack. Solidity lines 92.13 -> 96.68; floor
+pinned 96.67 via the new lcov floor-check CLI (reuses the coverage-report
+lcov parser + workspace filters; hardhat has no native threshold).
