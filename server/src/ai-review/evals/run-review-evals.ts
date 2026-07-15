@@ -155,10 +155,21 @@ async function reviewOnce(serviceUrl: string, evalCase: ReviewEvalCase) {
       `HTTP ${response.status}: ${(await response.text()).slice(0, 160)}`,
     );
   }
-  return (await response.json()) as {
+  const review = (await response.json()) as {
     hardFlags: string[];
+    reasons?: string[];
     verdict: ReviewVerdict;
   };
+  // The service fail-safes provider outages/timeouts to manual_review; for
+  // eval purposes that is an errored run, not a judgment — counting it as a
+  // verdict silently rewards prompts that make the model time out.
+  const unavailable = (review.reasons ?? []).some((reason) =>
+    /review unavailable/i.test(reason),
+  );
+  if (unavailable) {
+    throw new Error(`provider unavailable: ${review.reasons?.[0] ?? ""}`);
+  }
+  return review;
 }
 
 function majorityVerdict(
