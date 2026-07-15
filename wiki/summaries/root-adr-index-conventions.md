@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR index and conventions (docs/adr/README.md)
-description: Index of repository-level ADRs 0006–0016 — runtime choice, the progress-ADR process, the eight vertical checklists tracking the Arc Testnet launch, and the monorepo cleanup program.
+description: Index of repository-level ADRs 0006–0019 — runtime choice, the progress-ADR process, the eight vertical checklists (0008–0015) tracking the Arc Testnet launch, the monorepo cleanup program (0016), and the standalone test-observability (0017), terminal-market-surface (0018), and verdict-quality (0019) programs.
 sources:
   - docs/adr/README.md
-updated: 2026-07-09
+updated: 2026-07-15
 ---
 
 # Repo ADR index and conventions
@@ -30,9 +30,21 @@ All listed ADRs carry status **Accepted**:
 | 0014 | Prove the full market lifespan, happy and unhappy, with an automated E2E suite. |
 | 0015 | Own all CI and deployment work; deploy the protocol to Arc Testnet as the final step. |
 | 0016 | Run a tracked, one-concern-per-PR monorepo cleanup program (Tracks A/B/D/E/F done; Track C open, human review required). |
+| 0017 | Make test health visible in-repo (PR coverage deltas, trends, badges, flake tracking — no vendor) and enforce coverage where it protects value transfer. |
+| 0018 | Give resolved and cancelled postgrad markets a first-class surface: keep the postgrad payload in the API, show the outcome, and ship wallet-signed redemption (redeem / redeemCancelled). |
+| 0019 | Measure and harden AI review/resolution verdicts: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, and a CI consistency lane. |
 
 Progress toward the Arc Testnet launch is tracked in the checklists inside
-ADRs 0008–0015; ADR 0007 defines the process and milestone ordering.
+ADRs 0008–0015; ADR 0007 defines the process and milestone ordering. The
+remaining four are outside the milestone chain: **0016** and **0017** are
+standalone tracked programs (monorepo cleanup; test observability and coverage),
+and **0018/0019** are additional accepted ADRs (terminal-market surface;
+AI verdict quality) extending the app and AI-review/resolution work.
+
+> Wiki note: the README's 0016 row above still reads "Track C open" — that line
+> lags the ADR, whose Track C closed 2026-07-13 (C6 landed as #191). The
+> program is fully executed; see
+> [root-adr-0016](root-adr-0016-monorepo-architecture-cleanup-program.md).
 
 ## Numbering note
 
@@ -58,4 +70,7 @@ added to this index, resolving the earlier collision. See
   [0012](root-adr-0012-ai-assisted-resolution.md),
   [0013](root-adr-0013-app-feature-completion.md),
   [0014](root-adr-0014-full-lifecycle-e2e-testing.md),
-  [0015](root-adr-0015-deployment-and-infrastructure.md)
+  [0015](root-adr-0015-deployment-and-infrastructure.md),
+  [0017 test observability](root-adr-0017-test-observability-and-coverage-program.md),
+  [0018 terminal-market surface](root-adr-0018-terminal-market-surface-and-redemption-ux.md),
+  [0019 verdict quality](root-adr-0019-ai-verdict-quality-program.md)

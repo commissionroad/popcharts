@@ -4,7 +4,7 @@ title: Monorepo Architecture (docs/architecture.md)
 description: Workspace map, acyclic dependency graph, committed-generated-code freshness gates, and the two intentional duplications (MarketStatus, LMSR math).
 sources:
   - docs/architecture.md
-updated: 2026-07-13
+updated: 2026-07-15
 ---
 
 # Monorepo Architecture
@@ -28,8 +28,11 @@ disagree, fix one of them in the same PR.
 - [`server/`](../entities/server-workspace.md) — Bun + Elysia read API,
   viem event [indexer](../entities/indexer.md), the
   [AI review service and runner](../entities/ai-review-service.md)
-  (`src/ai-review/`, `src/ai-review-runner/`), Drizzle/PostgreSQL persistence,
-  shared viem client factories (`src/blockchain/`), config.
+  (`src/ai-review/`, `src/ai-review-runner/`), the AI resolution service and
+  runner (`src/ai-resolution/`, `src/ai-resolution-runner/`), the complete-set
+  [clearing keeper](../entities/clearing-keeper.md) (`src/keeper/`),
+  Drizzle/PostgreSQL persistence, shared viem client factories
+  (`src/blockchain/`), config.
 - [`protocol/`](../entities/protocol-workspace.md) — Solidity contracts,
   Hardhat deploy/ops scripts, the contract-metadata export pipeline, tests.
 - `scripts/` — root-level local-dev orchestration glue; spawns workspace
@@ -43,8 +46,11 @@ disagree, fix one of them in the same PR.
 Tooling: `app`, `protocol`, and `packages/*` are true pnpm workspace members —
 one root `pnpm install`, one root `pnpm-lock.yaml` (no nested lockfiles). The
 server stays outside the workspace and installs with Bun (`bun.lock`); it
-produces artifacts for the others but imports nothing from them. Shared
-strictness lives in root `tsconfig.base.json` and `.prettierrc.json`.
+produces artifacts for the others and now also *consumes* `@popcharts/protocol`
+through a `file:../protocol` dependency (venue ABIs, price/tick helpers,
+clearing math, manifest types) — so server CI's path filter includes
+`protocol/**`. Shared strictness lives in root `tsconfig.base.json` and
+`.prettierrc.json`.
 
 ## Dependency graph and import rules
 
@@ -60,14 +66,22 @@ workspace package, committed generated artifacts, or over the network:
   `packages/api-client/src/generated/` (committed) → consumed only through the
   hand-written adapter `app/src/integrations/indexer/markets-api.ts`.
 - **server → chain**: RPC via viem client factories in
-  `server/src/blockchain/client.ts`; the server declares minimal inline
-  `parseAbi` fragments for exactly the events/functions it touches and never
-  imports protocol artifacts.
-- The acyclic contract: protocol imports nothing; server never imports
-  protocol or app source; app never imports server source; feature code never
-  imports the generated packages directly (shims/adapters only); within the
-  app `src/domain/` stays pure TypeScript; ABIs have one home
-  (`src/integrations/contracts/`) with reads going through its hooks.
+  `server/src/blockchain/client.ts`. The pregrad indexer watchers still declare
+  minimal inline `parseAbi` fragments for the events they watch (e.g.
+  `src/indexer/watchers/market-created.ts`).
+- **server → protocol**: the server depends on `@popcharts/protocol`
+  (`file:../protocol`) for venue ABIs, price/tick helpers, clearing math, and
+  manifest types (keeper, venue services, `indexer/utils/venue-pool-registry`).
+- The acyclic contract: protocol imports nothing; server may import
+  `@popcharts/protocol` but never app source or root scripts; app never imports
+  server source; feature code never imports the generated packages directly
+  (shims/adapters only), with two blessed exceptions enforced by ESLint
+  `no-restricted-imports` — the pure price-policy/tick-math constants imported
+  directly by `app/src/domain/postgrad-trading/`, and type-only imports of
+  generated api-client models in feature code (value imports stay in the
+  `integrations/indexer` adapter); within the app `src/domain/` stays pure
+  TypeScript; ABIs have one home (`src/integrations/contracts/`) with reads
+  going through its hooks.
 
 ## Freshness gates
 
