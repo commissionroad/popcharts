@@ -49,11 +49,12 @@
   the user's response before continuing. Update glossary/ADR docs inline only
   as decisions crystallize. Do not proceed to implementation until the user
   explicitly says to implement, continue, or take it from here after the grill.
-- When the user writes `/land` or asks to land a PR, run `land` from the
-  relevant repository. Pass a PR number, PR URL, or branch if the user provides
-  one; otherwise run it from the feature branch worktree. The command merges the
-  PR, updates the base branch locally, removes the feature worktree, and deletes
-  the feature branch.
+- When the user writes `/land` or asks to land a PR (natively discoverable via
+  the `.claude/commands/` and `.agents/skills/` adapters), use
+  `skills/engineering/land/SKILL.md`: run `scripts/land` from the relevant
+  repository, passing a PR number, PR URL, or branch if the user provides one.
+  The command merges the PR, updates the base branch locally, removes the
+  feature worktree, and deletes the feature branch.
 - When the user writes `/full-review` (optionally with a PR number, URL, or
   branch — natively discoverable via the `.claude/commands/` and
   `.agents/skills/` adapters), use
