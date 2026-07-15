@@ -1,4 +1,4 @@
-# Proposed review policy v3 (draft — not landed)
+# Review policy v3 — adopted with eval numbers (2026-07-15)
 
 Per ADR 0019, prompt changes land only with before/after eval numbers.
 This draft rewrites the judgment half of `MARKET_REVIEW_POLICY`
@@ -48,14 +48,14 @@ metric, source, and deadline should be approved.
 
 ## Rationale mapping
 
-| Policy line | Taxonomy classes it targets | Real dispute it would have caught |
-| --- | --- | --- |
-| WHAT sentence | vagueness/* | Zelenskyy suit; Venezuela "invade"; Cardi B "performs" |
-| WHERE sentence | sources/*, knowability/* | Oscars viewership (secondary source) |
-| WHEN sentence | timing/no-deadline, ambiguous-deadline | — |
-| red-flag line | timing/event-vs-observation, initial-print-vs-revision, no-postponement-default, vagueness/compound, knowability/creator-controlled, timing/already-determined | MicroStrategy May sale; Oscars viewership |
-| reject-vs-park line | verdict calibration (reject is terminal on-chain) | — |
-| defect-not-topic line | look-alike control pairs | — |
+| Policy line           | Taxonomy classes it targets                                                                                                                                    | Real dispute it would have caught                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| WHAT sentence         | vagueness/*                                                                                                                                                    | Zelenskyy suit; Venezuela "invade"; Cardi B "performs" |
+| WHERE sentence        | sources/_, knowability/_                                                                                                                                       | Oscars viewership (secondary source)                   |
+| WHEN sentence         | timing/no-deadline, ambiguous-deadline                                                                                                                         | —                                                      |
+| red-flag line         | timing/event-vs-observation, initial-print-vs-revision, no-postponement-default, vagueness/compound, knowability/creator-controlled, timing/already-determined | MicroStrategy May sale; Oscars viewership              |
+| reject-vs-park line   | verdict calibration (reject is terminal on-chain)                                                                                                              | —                                                      |
+| defect-not-topic line | look-alike control pairs                                                                                                                                       | —                                                      |
 
 ## Evaluation plan
 
@@ -63,8 +63,35 @@ metric, source, and deadline should be approved.
    against the stock :3002 service (ollama, prompt v2).
 2. Patch `policy.ts` with the text above in a scratch checkout, run a second
    instance (`AI_REVIEW_PORT=3012 AI_REVIEW_PROVIDER=ollama bun run
-   src/ai-review/server.ts`), re-run the evals with
+src/ai-review/server.ts`), re-run the evals with
    `--service-url http://127.0.0.1:3012`.
 3. Compare accuracy / strict accuracy / unanimous-rate per class; adopt only
    if overall accuracy and the dispute-class rows improve without the
    good/* rows regressing.
+
+## Result (adopted iteration)
+
+Two draft iterations were evaluated overnight (52 cases x 3 runs, ollama
+gpt-oss:20b). The first draft moved every failure class to 100% but tipped
+the model into parking venue-grade markets; the adopted text keeps the
+WHAT/WHERE/WHEN contract and red-flag list but makes optional protective
+clauses score-reducers instead of verdict-blockers.
+
+| metric                | prompt v2 | adopted v3 |
+| --------------------- | --------- | ---------- |
+| accuracy              | 42.3%     | 75.0%      |
+| strict accuracy       | 28.8%     | 67.3%      |
+| unanimous across runs | 55.8%     | 61.5%      |
+
+good/official-result 60%->70%, good/measured-value 50%->67%; ten failure
+classes went 0%->100% (source-lag, resolution-before-event, compound,
+non-binary, no-source-named, unreachable/creator-controlled/wrong sources,
+initial-print-vs-revision, self-referential). Remaining known misses:
+contested-verb ('invade') and event-vs-disclosure still approve, ephemeral
+sources and already-determined still slip through — next iteration targets
+those with few-shot anchors or deterministic pre-stages.
+
+Measurement postmortem: the first A/B run was invalidated by a missing
+AI_REVIEW_TIMEOUT_MS on the ad-hoc instance (8s default vs ~75s model
+latency) — every call fail-safed to manual_review and scored spuriously.
+The runner now counts provider-unavailable fail-safes as errored runs.
