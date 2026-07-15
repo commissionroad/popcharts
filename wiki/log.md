@@ -484,3 +484,9 @@ invariants run 256 randomized create/cancel/swap/resolveDeferred sequences
 against the full in-process v4 stack. Solidity lines 92.13 -> 96.68; floor
 pinned 96.67 via the new lcov floor-check CLI (reuses the coverage-report
 lcov parser + workspace filters; hardhat has no native threshold).
+
+## [2026-07-15] ingest | repo ADR 0017 — Track E gate landed (infra CI)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: infra-ci.yml (Check infra) typechecks and cdk-synths the CDK app on
+infra/** changes — synth verified credential-less locally. Fourth required
+status check on main. CDK assertion tests stay open as E's second box.

@@ -103,8 +103,12 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   functions natively), and a Solidity line floor enforced by
   `scripts/ci-check-coverage-floor.ts` in protocol CI (96.67, measured
   96.68 after the new suites — up from 92.1).
-- **E — Infra gate**: path-filtered `tsc` + `cdk synth` job; deployment CI
-  stays with [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
+- **E — Infra gate** (gate **landed 2026-07-15**; CDK assertion tests
+  remain a follow-up): path-filtered `Check infra` job — `tsc --noEmit` +
+  credential-less `cdk synth` (verified to need no AWS account), same
+  self-gating paths-filter pattern as the other three CIs, added to the
+  required status checks; deployment CI stays with
+  [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
 - **F — Known flake fix** (**complete 2026-07-14**): explicit timeout for the band-pass clearing
   invariant test (~8s under coverage vs bun's 5s default).
 - **G — Protocol TS SDK surface** (added post-grill): the package barrel
