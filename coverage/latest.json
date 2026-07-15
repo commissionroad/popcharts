@@ -24,14 +24,14 @@
       }
     },
     "protocol-solidity": {
-      "commit": "0b026301b99fd65c4b88c051a44777ad30a4de80",
-      "updatedAt": "2026-07-14T17:51:04.263Z",
+      "commit": "6539405fdbf19ccc891844464216dfdac093645b",
+      "updatedAt": "2026-07-15T03:09:30.107Z",
       "summary": {
         "files": 19,
         "lines": {
-          "hit": 1417,
+          "hit": 1490,
           "found": 1538,
-          "pct": 92.13
+          "pct": 96.88
         },
         "functions": {
           "hit": 0,
