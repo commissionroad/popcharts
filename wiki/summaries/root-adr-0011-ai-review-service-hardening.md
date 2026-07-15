@@ -12,6 +12,12 @@ updated: 2026-07-14
 **Status: Accepted.** Dated 2026-07-06. Vertical checklist per ADR 0007
 ([summary](root-adr-0007-track-verticals-with-progress-adrs.md)).
 
+> **Extended by [root ADR 0019](root-adr-0019-ai-verdict-quality-program.md)**
+> (2026-07-14): this ADR hardens the *pipeline*; 0019 measures the *verdicts*
+> (eval harness, labeled dataset, reject-corroboration policy). 0019 carries
+> the open prompt-version checkbox below (bump requires a recorded eval run)
+> and gives the open metrics item its consumer (verdict-distribution trends).
+
 ## Context
 
 AI review gatekeeping works end to end locally: the runner claims leased jobs

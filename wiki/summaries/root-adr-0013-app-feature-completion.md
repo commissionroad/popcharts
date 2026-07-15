@@ -4,7 +4,7 @@ title: Repo ADR 0013 — App feature completion
 description: Vertical ADR to complete the app across the full market lifecycle — Google sign-in verification, graduation UX, postgrad trading/redemption, unhappy-path surfaces, search and polish; 2 of 14 done as of the 2026-07-09 reconcile (postgrad-mode market detail, receipt-state copy).
 sources:
   - docs/adr/0013-app-feature-completion.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # Repo ADR 0013: App Feature Completion
@@ -55,7 +55,11 @@ Postgrad trading:
   `BoundedPoolOrderManager`).
 - [ ] Portfolio shows postgrad positions and P&L alongside pregrad receipts.
 - [ ] Redemption/claims UX: claim graduated receipts, redeem winning tokens
-  after resolution, claim refunds on refunded markets.
+  after resolution, claim refunds on refunded markets. *The postgrad half of
+  this (redeem after resolution, redeemCancelled on draws, terminal market
+  surfaces) is now carried by
+  [root ADR 0018](root-adr-0018-terminal-market-surface-and-redemption-ux.md)
+  (2026-07-14), which also covers the resolved-market view item below.*
 
 Unhappy paths:
 

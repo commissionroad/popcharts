@@ -7,7 +7,8 @@ sources:
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - protocol/docs/postgrad-contract-metadata.md
   - protocol/docs/complete-set-v4-hook-order-manager-plan.md
-updated: 2026-07-07
+  - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
+updated: 2026-07-14
 ---
 
 # CompleteSetBinaryMarket
@@ -38,6 +39,12 @@ mainnet tokenization is deliberately left open.
 - `resolve(winningOutcome)` / `cancel()` exist, but nothing decides outcomes
   yet — that is the planned [AI-assisted resolution](../concepts/ai-assisted-resolution.md)
   ([root ADR 0012](../summaries/root-adr-0012-ai-assisted-resolution.md)).
+- Redemption works on-chain (`redeem(side, amount)` 1:1 for winners,
+  `redeemCancelled(yesAmount, noAmount)` at 50c per token on draws;
+  script-verified 2026-07-14) but has **no app surface** —
+  [root ADR 0018](../summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md)
+  (accepted 2026-07-14, open) adds wallet-signed redemption panels and stops
+  the API dropping the `postgrad` payload for cancelled markets.
 
 ## Discovery
 

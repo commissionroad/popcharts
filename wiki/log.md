@@ -433,6 +433,40 @@ Concept page no longer says "nothing is deployed": frontend live, backend
 and protocol remain M5. The no-env app deploy labels fixture markets with a
 sample-data banner (product honesty rule).
 
+## [2026-07-14] ingest | repo ADR 0018 — terminal-market surface and redemption UX
+Pages: +summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md,
+~concepts/market-lifecycle.md, ~entities/app-workspace.md,
+~entities/postgrad-market.md, ~summaries/root-adr-0013-app-feature-completion.md,
+~index.md
+Notes: born from the 2026-07-14 full-lifecycle test session — resolved
+markets regress to the pre-grad layout (no winning side, no redemption),
+and getMarketById drops the whole postgrad payload for cancelled markets,
+so a draw-cancelled venue is app-undiscoverable. Decision: postgrad payload
+for any finalized graduation, outcome banners, wallet-signed
+redeem/redeemCancelled panels (refund-claim-service pattern, no new API
+endpoints), portfolio terminal states, e2e resolve→redeem lane. Executes
+the postgrad half of ADR 0013's open Redemption/claims UX checkbox plus
+its resolved-market-view item (noted inline there). Also surfaces a code
+gap the lifecycle page now flags: cancel_draw verdicts become user-visible
+while the operator cancel task only targets the synthetic manifest market.
+
+## [2026-07-14] ingest | repo ADR 0019 — AI verdict quality program
+Pages: +summaries/root-adr-0019-ai-verdict-quality-program.md,
+~concepts/ai-assisted-resolution.md, ~entities/ai-review-service.md,
+~concepts/testing-strategy.md, ~summaries/root-adr-0011-ai-review-service-hardening.md,
+~summaries/root-adr-0012-ai-assisted-resolution.md, ~index.md
+Notes: complements 0011 (pipeline) and 0012 (resolution build) with verdict
+QUALITY: offline eval harness at the service HTTP seams, ~150–200-seed
+labeled failure-taxonomy dataset with template expansion, deterministic
+pre-stages that annotate rather than decide, reject-corroboration policy
+(no terminal reject — or YES/NO resolve — on a single uncorroborated model
+run), nightly CI consistency lane, prompt-version eval policy. The last
+item carries 0011's open prompt-version checkbox and the metrics item
+gains a consumer (both flagged on the 0011 summary). Motivated by the
+2026-07-14 verdict-lottery findings (identical markets drew reject ×2 /
+manual_review ×3). Also flips the resolution local default heuristic →
+Ollama — added as a third safety valve note on the resolution concept page.
+
 ## [2026-07-14] ingest | portfolio-data-design — postgrad_redemption_events added to paper-trail tables
 Pages: ~summaries/portfolio-data-design.md
 Notes: The claim-winnings build (resolution redemption UI) added the

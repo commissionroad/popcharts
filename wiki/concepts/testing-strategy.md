@@ -8,6 +8,7 @@ sources:
   - app/docs/adr/0004-testing-and-ci-gates.md
   - docs/adr/0014-full-lifecycle-e2e-testing.md
   - docs/adr/0017-test-observability-and-coverage-program.md
+  - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
 updated: 2026-07-14
 ---
@@ -81,6 +82,19 @@ invariant-test timeout fix (F), and the protocol TS SDK move out of
 Coverage figures use workspace-own denominators (`app/src`, `server/src`,
 protocol Solidity + protocol TS) with ratcheted floors for each; flake
 tracking is report-only until its history justifies alerting.
+
+## AI verdict evals ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, all open)
+
+A new test kind for the two verdict services (review, resolution): an
+offline eval harness at the service HTTP seams running a labeled
+failure-taxonomy dataset (~150–200 seeds, template-expanded) N times per
+case, measuring cross-run agreement, per-class accuracy, and calibration —
+because unit/smoke tiers can't catch a verdict lottery. Baselines live
+in-repo like the ADR 0017 coverage metrics; a nightly/on-demand CI
+consistency lane (modeled on the flake-report lane) fails on agreement or
+accuracy regression beyond tolerance. Heuristic mode stays for
+deterministic pipeline tests, but local stacks default to LLM providers so
+eval numbers reflect what ships.
 
 ## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
 
