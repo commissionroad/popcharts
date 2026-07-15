@@ -4,7 +4,7 @@ title: Repo ADR 0015 — Deployment and infrastructure
 description: Vertical ADR owning all CI and deployment — per-package CI, AWS CDK stack, ECS services, monitoring, and the Arc Testnet protocol deployment as the final step of milestone M5; 1 of 13 done as of the 2026-07-09 reconcile (Protocol CI), secrets corrected to signer-keys-only (no API operator-auth).
 sources:
   - docs/adr/0015-deployment-and-infrastructure.md
-updated: 2026-07-14
+updated: 2026-07-15
 ---
 
 # Repo ADR 0015: Deployment And Infrastructure
@@ -23,6 +23,15 @@ points at no live backend. Per ADR 0007, deployment is deliberately excluded
 from every functionality vertical and concentrated here. Deploying the
 protocol to Arc Testnet is the last step: services are stood up and verified
 first, then contracts go live and the stack flips on against them.
+
+> Reality note (2026-07-15): two of the Context premises above have moved since
+> the ADR was written. **CI is no longer app-only** — app, server, protocol, and
+> infra each gate their own paths (four required status checks on `main`; the
+> infra gate landed with ADR 0017 Track E). And the **frontend is now live** on
+> custom domains: `popcharts-landing` on popcharts.xyz and the app on
+> app.popcharts.xyz since 2026-07-14 (still pointing at no live backend). The
+> AWS CDK stack and the Arc protocol deployment remain the open M5 work. See
+> [deployment and infrastructure](../concepts/deployment-and-infrastructure.md).
 
 ## Decision
 

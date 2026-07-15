@@ -9,7 +9,7 @@ sources:
   - docs/architecture.md
   - docs/ai-review-runner-design.md
   - docs/portfolio-data-design.md
-updated: 2026-07-14
+updated: 2026-07-15
 ---
 
 # server/ workspace
@@ -18,9 +18,11 @@ Bun runtime + Elysia + Drizzle/PostgreSQL + viem
 ([root ADR 0006](../summaries/root-adr-0006-server-runtime-and-indexer.md)
 chose Bun deliberately while app/protocol stay pnpm/Node — Hardhat 3 pins the
 protocol to Node). Outside the pnpm workspace (`bun.lock`); produces
-artifacts for others (openapi.json → orval api-client) but imports nothing
-from them — chain knowledge is inline `parseAbi` fragments plus config
-addresses.
+artifacts for others (openapi.json → orval api-client) and consumes
+`@popcharts/protocol` through a `file:../protocol` dependency (venue ABIs,
+price/tick helpers, clearing math, manifest types — used by the keeper, venue
+services, and the venue-pool registry). Pregrad indexer watchers keep inline
+`parseAbi` fragments for the events they watch; addresses come from config.
 
 ## Processes
 
@@ -33,7 +35,10 @@ One Docker image, entrypoint-selected:
 2. **Indexer** (`src/indexer/`) — see [indexer](indexer.md).
 3. **AI review runner** (`src/ai-review-runner/`) + the separate **AI review
    service** (`src/ai-review/`, port 3002) — see [AI review service](ai-review-service.md).
-4. **Clearing keeper** (`src/keeper/`) — the band-pass graduation clearing pass;
+4. **AI resolution runner** (`src/ai-resolution-runner/`) + the separate **AI
+   resolution service** (`src/ai-resolution/`) — the post-graduation sibling of
+   AI review; see [AI-assisted resolution](../concepts/ai-assisted-resolution.md).
+5. **Clearing keeper** (`src/keeper/`) — the band-pass graduation clearing pass;
    see [clearing keeper](clearing-keeper.md). Built, but poll-based and still
    gated to the local network.
 

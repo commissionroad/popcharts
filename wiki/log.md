@@ -490,3 +490,95 @@ Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~ind
 Notes: infra-ci.yml (Check infra) typechecks and cdk-synths the CDK app on
 infra/** changes — synth verified credential-less locally. Fourth required
 status check on main. CDK assertion tests stay open as E's second box.
+
+## [2026-07-15] lint | server→protocol edge contradiction reconciled; go-live/CI reality drift; 0016 E7 re-tick + ADR-index 0017–0019
+
+Pages: ~summaries/architecture.md, ~concepts/monorepo-architecture.md,
+~entities/server-workspace.md, ~overview.md,
+~summaries/root-adr-0016-monorepo-architecture-cleanup-program.md,
+~summaries/root-adr-index-conventions.md,
+~summaries/root-adr-0015-deployment-and-infrastructure.md,
+~concepts/local-dev-orchestration.md, ~concepts/creation-fee-custody.md,
+~entities/creation-fee-vault.md, ~entities/postgrad-adapter.md. (11 pages;
+index.md unchanged — no short-form line went false.)
+
+Organic ingestion since last lint (window = merge of #196 → HEAD, ~18 distinct
+prose doc-change PRs): **16/18 self-ingested** (wiki touched in-PR) — a sharp
+reversal from the last two lints' 0/5 and 0/4. The ADR-0017 observability
+program dominates the window and was ingested diligently PR-by-PR (#204, #207,
+#211, #214–#220, #227, #228 all touched the 0017 summary/testing pages).
+Straight misses: (a) **#221** go-live deployment docs shipped with zero wiki
+files — caught the next day by follow-up ingest #222, but that follow-up was
+itself **incomplete** (it updated the deployment concept + summaries and left
+`overview.md` still asserting "nothing is deployed"); (b) **#208** ADR-0017
+Track A landed the coverage pipeline + ticked the ADR with wiki=0 (the summary
+was reconciled by adjacent 0017 PRs).
+
+The metric's blind spot this window was **partial ingests**, not zero ingests:
+**#198** (`health-docs-reconcile`) touched `concepts/monorepo-architecture.md`
+for the E7/D3 bookkeeping but the *same PR's* `docs/architecture.md` reconcile —
+the real server→protocol dependency edge, the resolution/keeper subsystems, the
+app import-rule refinements — never propagated to `summaries/architecture.md`,
+the rest of `monorepo-architecture.md`, or `entities/server-workspace.md`. A
+raw "did the PR touch wiki?" check scores #198 green; the load-bearing
+contradiction survived to today. Counting partial ingests honestly, call it
+**~14/18 fully self-ingested**.
+
+Findings and fixes:
+
+- **Keystone contradiction (server↔protocol coupling), fixed.** Three pages
+  still said the server "imports nothing from workspaces (inline `parseAbi`)".
+  Since the 2026-07-14 architecture reconcile that is **false**: the server now
+  depends on `@popcharts/protocol` via a `file:../protocol` dependency (venue
+  ABIs, price/tick helpers, clearing math, manifest types — used by the keeper,
+  venue services, and the venue-pool registry), and only the *pregrad indexer
+  watchers* keep inline `parseAbi` fragments. Reconciled the acyclic-contract
+  wording, the server→chain / new server→protocol edges, and the tooling note
+  across `summaries/architecture.md`, `concepts/monorepo-architecture.md`, and
+  `entities/server-workspace.md`. Also folded in the two new workspaces
+  (ai-resolution service+runner, clearing keeper) and the two blessed app
+  import-rule exceptions (pure price-policy/tick-math in
+  `domain/postgrad-trading`; type-only generated-model imports in features).
+  **This was date-clean drift** — both concept/entity pages carried `updated:
+  2026-07-14`, so a staleness scan reported them healthy; only reading the
+  source diff caught it.
+- **`overview.md` "nothing is deployed" → false.** The frontend went live on
+  Vercel 2026-07-14 (`popcharts-landing` on popcharts.xyz, app on
+  app.popcharts.xyz; backend + protocol still undeployed). Refreshed the
+  "where things stand" snapshot to 2026-07-15: keeper real sweep landed,
+  resolution building out, frontend deployed / backend+protocol M5.
+- **`root-adr-0015` reality note (world-drift, not source-drift).** The ADR's
+  Context still reads "CI covers only the app package" and "nothing deployed" —
+  now both stale (app/server/protocol/infra each gate their paths = four
+  required checks; frontend live). Source ADR unchanged, so appended a dated
+  reality note rather than rewriting the ADR's premise.
+- **0016 E7 re-tick propagation.** Raw ADR 0016 is now fully ticked (33/0); the
+  summary still showed E7 `[ ]` with a "stale checkbox, treat as done"
+  narrative. The box was re-ticked in the 2026-07-14 bookkeeping pass (the tick
+  was lost in the 0007→0016 renumber merge) — updated the summary to "every box
+  reads `[x]`". The concept page already had this; only the summary lagged.
+- **ADR index conventions expanded 0006–0016 → 0006–0019.** Added rows for
+  0017 (test observability), 0018 (terminal-market surface), 0019 (verdict
+  quality), noted 0016/0017 as standalone tracked programs, and flagged that
+  the README's 0016 row still reads "Track C open" though Track C closed
+  2026-07-13 (C6 = #191) — a raw-source lag, noted on the page, not edited.
+- **`local-dev-orchestration`**: `local-ai-review` was described as a
+  "heuristic review loop"; locally the default is now Ollama (heuristic
+  fallback) — corrected.
+- **Integrity:** 0 broken links (incl. the ~15 new internal links added), 0
+  orphans, 0 pages missing from index, 0 missing sources. The 86 index-vs-page
+  "description mismatches" are by-design short forms, not drift — spot-checked,
+  none assert anything false (deployment already shows "Vercel frontend live").
+- **Date-stale-only (no content change, `updated:` bumped to 2026-07-15 as
+  re-verified-current):** `creation-fee-custody`, `creation-fee-vault`,
+  `postgrad-adapter` — all cite ADR 0016, whose only post-page changes were the
+  D3/E7/C6 checkbox ticks + the architecture-edge reconcile, none of which
+  touch fee-custody or adapter content.
+
+Follow-ups for next lint: (1) the AGENTS.md per-session ingest rule is being
+followed far better (16/18) but **partial ingests are the new failure mode** —
+when a PR changes `docs/architecture.md`, check that all three architecture
+pages (summary + concept + server-workspace) moved, not just one. (2) Watch for
+`overview.md`'s deployment snapshot going stale as backend/protocol deploy. (3)
+The README's 0016 "Track C open" row is a live raw-source lag; if 0016 is ever
+re-touched, that row should be corrected at the source.
