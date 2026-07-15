@@ -9,12 +9,17 @@ import {
 
 const CURSOR = "TestCursor";
 const TOKEN = "0x00000000000000000000000000000000000000aa";
+const OTHER_TOKEN = "0x00000000000000000000000000000000000000bb";
 
 const CONTRACT: WatchedContract = { address: TOKEN, startBlock: 100n };
 
-function transferLog(blockNumber: bigint, logIndex: number): DynamicWatcherLog {
+function transferLog(
+  blockNumber: bigint,
+  logIndex: number,
+  address = TOKEN,
+): DynamicWatcherLog {
   return {
-    address: TOKEN as `0x${string}`,
+    address: address as `0x${string}`,
     blockHash: `0x${"22".repeat(32)}` as const,
     blockNumber,
     data: "0x" as const,
@@ -109,7 +114,7 @@ function buildHarness({
     calls,
     client,
     currentBlock,
-    cursor: () => cursors.get(TOKEN) ?? null,
+    cursor: (address = TOKEN) => cursors.get(address) ?? null,
     setChainHead: (block: bigint) => {
       chainHead = block;
     },
@@ -208,7 +213,7 @@ describe("recover", () => {
     expect(h.cursor()).toBe(120n);
   });
 
-  it("re-refreshes the registry for an unknown address and skips without handling", async () => {
+  it("parks the watermark below a log it had to skip instead of checkpointing past it", async () => {
     const h = buildHarness({ logs: [transferLog(110n, 0)] });
     h.makeLookupStale();
 
@@ -217,6 +222,26 @@ describe("recover", () => {
     expect(h.handled).toHaveLength(0);
     // recover() refreshes once up front; the unknown log forces one more.
     expect(h.calls.filter((c) => c === "refreshRegistry")).toHaveLength(2);
+    // The skipped money event must stay above the watermark so the next
+    // sweep retries it — never silently checkpointed as persisted.
+    expect(h.cursor()).toBe(null);
+  });
+
+  it("coalesces contracts sharing a watermark into one getLogs and advances both", async () => {
+    const other: WatchedContract = { address: OTHER_TOKEN, startBlock: 100n };
+    const h = buildHarness({
+      contracts: [CONTRACT, other],
+      logs: [transferLog(110n, 0), transferLog(112n, 0, OTHER_TOKEN)],
+    });
+
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    expect(h.calls.filter((c) => c.startsWith("getLogs:"))).toEqual([
+      "getLogs:100-120",
+    ]);
+    expect(h.handled).toHaveLength(2);
+    expect(h.cursor()).toBe(120n);
+    expect(h.cursor(OTHER_TOKEN)).toBe(120n);
   });
 });
 
