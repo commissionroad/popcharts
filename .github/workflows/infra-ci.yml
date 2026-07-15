@@ -47,6 +47,8 @@ jobs:
           filters: |
             relevant:
             - infra/**
+            # infra/tsconfig.json extends the repo-root base config.
+            - tsconfig.base.json
             - .github/workflows/infra-ci.yml
 
   infra:
