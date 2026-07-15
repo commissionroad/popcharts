@@ -6,9 +6,10 @@ sources:
   - docs/ai-resolution-service-design.md
   - docs/adr/0012-ai-assisted-resolution.md
   - docs/adr/0011-ai-review-service-hardening.md
+  - docs/adr/0019-ai-verdict-quality-program.md
   - documents/whitepaper_v3.pdf
   - documents/whitepaper_v0_1.pdf
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # AI-assisted resolution
@@ -53,6 +54,21 @@ automation in the system" (an AI holding a resolver key).
   `provider = 'manual'`), included in the first build behind a cloned env-flag
   auth seam; coordinated with the resolver entry points
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).
+
+## Verdict quality ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, all open)
+
+The 2026-07-14 test session showed verdicts are a run-to-run lottery on the
+same content, and pipeline hardening (0011) plus this build (0012) measure
+nothing about verdict *quality*. ADR 0019 covers resolution alongside review:
+an offline eval harness at the service HTTP seam (resolution metrics add
+outcome accuracy and confidence calibration against labeled outcomes), a
+failure-taxonomy dataset including draw/edge outcomes and
+too_early/abstain expectations, and a corroboration policy mirroring the
+review-side reject rule — **a confident YES/NO below the corroboration bar
+parks instead of resolving on-chain**, adding a third safety valve to the
+abstention threshold and operator window. The program also flips the
+resolution local default from heuristic to Ollama so eval numbers reflect
+what ships.
 
 ## Provenance caveat
 

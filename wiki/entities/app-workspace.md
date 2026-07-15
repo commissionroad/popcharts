@@ -10,9 +10,10 @@ sources:
   - app/docs/adr/0005-code-quality-and-dependency-policy.md
   - docs/architecture.md
   - docs/adr/0013-app-feature-completion.md
+  - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
   - docs/portfolio-data-design.md
   - docs/error-handling-ux-prd.md
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # app/ workspace
@@ -56,7 +57,14 @@ the remaining localStorage stub — being replaced per the
 [portfolio data design](../summaries/portfolio-data-design.md) with a
 DB-backed view (receipts ⋈ settlement, YES/NO positions, open orders; mock
 localStorage receipts dropped). Remaining post-graduation items tracked in
-[root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md). CI
+[root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md); the
+2026-07-14 full-lifecycle test session found the postgrad *terminal* states
+unbuilt — resolved markets regress to the pre-grad layout with no
+winning-side display or redemption UX, and cancelled markets lose their API
+`postgrad` payload entirely —
+[root ADR 0018](../summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md)
+now carries that work (terminal surfaces, wallet-signed
+`redeem`/`redeemCancelled` panels, portfolio terminal states). CI
 gates on every app PR: lint, typecheck, unit, e2e-smoke
 ([app ADR 0004](../summaries/app-adr-0004-testing-and-ci-gates.md)) plus a
 guardrail test that fails on any raw `error.message` render — error presentation

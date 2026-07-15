@@ -4,13 +4,19 @@ title: Repo ADR 0012 — AI-assisted resolution
 description: Vertical ADR to build resolution as a sibling of AI review — service + leased runner deciding resolve/cancel from public evidence, with abstention to manual review and a local (not API) operator override; all ten items open.
 sources:
   - docs/adr/0012-ai-assisted-resolution.md
-updated: 2026-07-09
+updated: 2026-07-14
 ---
 
 # Repo ADR 0012: AI-Assisted Resolution
 
 **Status: Accepted.** Dated 2026-07-06. Vertical checklist per ADR 0007
 ([summary](root-adr-0007-track-verticals-with-progress-adrs.md)).
+
+> **Extended by [root ADR 0019](root-adr-0019-ai-verdict-quality-program.md)**
+> (2026-07-14): a verdict-quality program (eval harness, labeled dataset,
+> corroboration policy) covering resolution verdicts alongside review — a
+> confident YES/NO below the corroboration bar parks instead of resolving,
+> and the resolution local default flips heuristic → Ollama.
 
 ## Context
 
