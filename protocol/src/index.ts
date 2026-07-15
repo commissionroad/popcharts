@@ -85,8 +85,13 @@ export {
   computeBandPassClearing,
   computeMatchedMarketCap,
   lmsrCost,
-  SIDE_NO,
-  SIDE_YES,
   yesBandCost,
 } from "./clearing/band-pass-clearing.js";
 export type { BandPassClearingResult, ClearingReceipt } from "./clearing/band-pass-clearing.js";
+export {
+  contractSideToMarketSide,
+  marketSideToContractSide,
+  SIDE_NO,
+  SIDE_YES,
+} from "./market-side.js";
+export type { MarketSide } from "./market-side.js";

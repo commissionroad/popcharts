@@ -5,11 +5,10 @@ import { getAddress, keccak256, stringToBytes } from "viem";
 
 import {
   computeBandPassClearing,
-  SIDE_NO,
-  SIDE_YES,
   type ClearingReceipt,
 } from "../../src/clearing/band-pass-clearing.js";
 import { hashReceiptClaim } from "../../src/clearing/receipt-claim-merkle.js";
+import { SIDE_NO, SIDE_YES } from "../../src/market-side.js";
 
 /**
  * Proves the offchain band-pass sweep produces a plan the on-chain

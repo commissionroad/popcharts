@@ -1,4 +1,8 @@
-import { completeSetBinaryMarketAbi } from "@popcharts/protocol";
+import {
+  completeSetBinaryMarketAbi,
+  SIDE_NO,
+  SIDE_YES,
+} from "@popcharts/protocol";
 import type { Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -15,11 +19,8 @@ const DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY =
 // CompleteSetBinaryMarket.Status: Trading = 0, Resolved = 1, Cancelled = 2.
 const POSTGRAD_STATUS_TRADING = 0;
 const POSTGRAD_STATUS_RESOLVED = 1;
-// MarketTypes.Side: Yes = 0, No = 1.
-const SIDE_YES = 0;
-const SIDE_NO = 1;
 
-export type ResolutionChainAction = { side: number };
+export type ResolutionChainAction = { side: typeof SIDE_YES | typeof SIDE_NO };
 
 export type MarketResolutionChainTransitionResult = {
   blockTimestamp: Date;

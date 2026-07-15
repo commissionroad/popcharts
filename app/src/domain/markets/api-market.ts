@@ -5,6 +5,7 @@ import {
   type VirtualLmsrState,
 } from "@/domain/lmsr/lmsr";
 import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
+import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
 import type {
   ApiMarket,
   ApiReceiptPlacedEvent,
@@ -255,7 +256,7 @@ export function pricePathFromReceipts(
   for (const receipt of ordered) {
     state = stateAfterBuy({
       shares: wadToNumber(receipt.shares),
-      side: receipt.side === 0 ? "yes" : "no",
+      side: contractSideToMarketSide(receipt.side),
       state,
     });
     path.push({

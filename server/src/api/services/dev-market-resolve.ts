@@ -1,3 +1,7 @@
+import {
+  contractSideToMarketSide,
+  marketSideToContractSide,
+} from "@popcharts/protocol";
 import { parseAbi, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -373,7 +377,7 @@ async function resolveLocalPostgradMarketOnChain(
     return {
       blockTimestamp: await latestBlockTimestamp(publicClient),
       kind: "already_resolved",
-      winningSide: sideFromContract(winningSide),
+      winningSide: contractSideToMarketSide(winningSide),
     };
   }
 
@@ -390,7 +394,7 @@ async function resolveLocalPostgradMarketOnChain(
     abi: POSTGRAD_DEV_RESOLVE_ABI,
     address: postgradMarket,
     functionName: "resolve",
-    args: [sideToContract(side)],
+    args: [marketSideToContractSide(side)],
   });
   const receipt = await publicClient.waitForTransactionReceipt({
     hash: transactionHash,
@@ -435,14 +439,6 @@ function parseResolveSide(side: string): DevMarketResolveSide | null {
 
 function formatSide(side: DevMarketResolveSide) {
   return side.toUpperCase();
-}
-
-function sideToContract(side: DevMarketResolveSide) {
-  return side === "yes" ? 0 : 1;
-}
-
-function sideFromContract(side: number): DevMarketResolveSide {
-  return side === 0 ? "yes" : "no";
 }
 
 async function latestBlockTimestamp(

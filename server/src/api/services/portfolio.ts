@@ -1,5 +1,6 @@
 import {
   COMPLETE_SET_PRICE_POLICY,
+  contractSideToMarketSide,
   sqrtPriceX96ToDisplayPriceWad,
 } from "@popcharts/protocol";
 
@@ -252,8 +253,7 @@ function serializeReceipt(row: PortfolioReceiptRow): PortfolioReceiptResponse {
     receiptId: row.placed.receiptId.toString(),
     ...(settlement ? { settlement } : {}),
     shares: row.placed.shares.toString(),
-    // ReceiptPlaced encodes side 0 as YES and 1 as NO.
-    side: row.placed.side === 0 ? "yes" : "no",
+    side: contractSideToMarketSide(row.placed.side),
     status: portfolioReceiptStatus(row),
   };
 }
@@ -463,7 +463,7 @@ function aggregateSettlements(receiptRows: PortfolioReceiptRow[]) {
       continue;
     }
 
-    const side = row.placed.side === 0 ? "yes" : "no";
+    const side = contractSideToMarketSide(row.placed.side);
     const key = settlementKey(row.placed.marketId, side);
     const total = totals.get(key) ?? { retainedCost: 0n, retainedShares: 0n };
 

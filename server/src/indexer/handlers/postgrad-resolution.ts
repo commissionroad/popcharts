@@ -1,3 +1,4 @@
+import { contractSideToMarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -7,7 +8,7 @@ export type PostgradResolutionKind = "resolved" | "cancelled";
 
 export type PostgradMarketResolvedLog = Log & {
   args: {
-    /** MarketTypes.Side: 0 = YES, 1 = NO. */
+    /** MarketTypes.Side; decode via contractSideToMarketSide. */
     side?: number;
   };
 };
@@ -51,7 +52,7 @@ export function buildPostgradResolutionRecord({
       (log as PostgradMarketResolvedLog).args.side,
       "side",
     );
-    winningSide = Number(side) === 0 ? "yes" : "no";
+    winningSide = contractSideToMarketSide(side);
   }
 
   return {

@@ -832,8 +832,8 @@ async function topUpToGraduationThreshold({
     // Fold the escrow deficit into both sides: buying X YES and X NO moves
     // total escrow up by exactly X in the LMSR cost function.
     const buys: Array<{ shares: bigint; side: number }> = [
-      { shares: maxBigInt(yesDeficit, escrowDeficit), side: 0 },
-      { shares: maxBigInt(noDeficit, escrowDeficit), side: 1 },
+      { shares: maxBigInt(yesDeficit, escrowDeficit), side: SIDE_YES },
+      { shares: maxBigInt(noDeficit, escrowDeficit), side: SIDE_NO },
     ].filter((buy) => buy.shares > 0n);
 
     for (const buy of buys) {

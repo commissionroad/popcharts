@@ -10,6 +10,7 @@ import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { erc20Abi } from "@/integrations/contracts/erc20";
+import { marketSideToContractSide } from "@/integrations/contracts/market-side";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseApiMarketAppId } from "@/lib/app-id";
 import { formatTokenAmount } from "@/lib/format";
@@ -162,7 +163,7 @@ async function placeContractReceipt({
   }
 
   const shares = toTokenUnits(quote.shares);
-  const sideIndex = side === "yes" ? 0 : 1;
+  const sideIndex = marketSideToContractSide(side);
 
   options.onStep?.("quoting");
   const marketExists = await wallet.publicClient.readContract({
