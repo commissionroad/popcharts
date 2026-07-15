@@ -90,6 +90,17 @@ jobs:
       - name: Tests with coverage
         run: pnpm test:coverage
 
+      # Ratcheted floor (ADR 0017 Track D): never lower without reviewer
+      # sign-off; bump as coverage lands. Solidity-contract lines only —
+      # hardhat has no native threshold support, so the gate is this step.
+      - name: Enforce coverage floor
+        working-directory: .
+        run: |
+          node --experimental-strip-types scripts/ci-check-coverage-floor.ts \
+            --workspace protocol-solidity \
+            --lcov protocol/coverage/lcov.info \
+            --min-lines 96.67
+
       # protocol/src/generated is the ABI source of truth that server and app
       # import; a contract change that lands without regenerating it leaves
       # every consumer decoding against a stale ABI at runtime.
