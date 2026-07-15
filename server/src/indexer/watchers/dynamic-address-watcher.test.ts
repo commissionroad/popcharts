@@ -29,7 +29,7 @@ function transferLog(blockNumber: bigint, logIndex: number): DynamicWatcherLog {
 /**
  * Everything the watcher touches, faked in memory: cursor rows, the
  * discovered-contract registry, the chain client, and a chronological call
- * journal so ordering claims (subscribe-before-backfill) are assertable.
+ * journal so ordering claims (subscribe-before-sweep) are assertable.
  */
 function buildHarness({
   contracts = [CONTRACT],
@@ -40,6 +40,8 @@ function buildHarness({
   const calls: string[] = [];
   const handled: DynamicWatcherLog[] = [];
   const liveHandlers: Array<(logs: DynamicWatcherLog[]) => Promise<void>> = [];
+  const chainLogs = [...logs];
+  let chainHead = currentBlock;
   let unwatchCount = 0;
   let failHandleLogAt: number | null = null;
   let backfillError: Error | null = null;
@@ -48,7 +50,7 @@ function buildHarness({
   const known = new Map(contracts.map((c) => [c.address, c]));
 
   const client = {
-    getBlockNumber: async () => currentBlock,
+    getBlockNumber: async () => chainHead,
     getLogs: async (args: { fromBlock: bigint; toBlock: bigint }) => {
       calls.push(`getLogs:${args.fromBlock}-${args.toBlock}`);
       if (backfillError) {
@@ -56,16 +58,16 @@ function buildHarness({
         backfillError = null;
         throw error;
       }
-      return logs.filter(
+      return chainLogs.filter(
         (log) =>
           log.blockNumber! >= args.fromBlock &&
           log.blockNumber! <= args.toBlock,
       );
     },
-    watchContractEvent: (args: {
+    watchEvent: (args: {
       onLogs: (logs: DynamicWatcherLog[]) => Promise<void>;
     }) => {
-      calls.push("watchContractEvent");
+      calls.push("watchEvent");
       liveHandlers.push(args.onLogs);
       return () => {
         unwatchCount += 1;
@@ -103,10 +105,14 @@ function buildHarness({
   });
 
   return {
+    addChainLog: (log: DynamicWatcherLog) => chainLogs.push(log),
     calls,
     client,
     currentBlock,
     cursor: () => cursors.get(TOKEN) ?? null,
+    setChainHead: (block: bigint) => {
+      chainHead = block;
+    },
     setCursor: (block: bigint) => cursors.set(TOKEN, block),
     /** Registry still lists contracts, but per-address lookups miss. */
     makeLookupStale: () => {
@@ -215,49 +221,62 @@ describe("recover", () => {
 });
 
 describe("watch", () => {
-  it("subscribes before backfilling so no log can fall between snapshot and subscription", async () => {
+  it("subscribes before the first sweep and backfills existing logs", async () => {
     const h = buildHarness({ logs: [transferLog(110n, 0)] });
 
     const stop = h.watcher.watch(h.client);
     try {
       await waitFor(() => h.cursor() === 120n);
 
-      const subscribeAt = h.calls.indexOf("watchContractEvent");
-      const backfillAt = h.calls.findIndex((c) => c.startsWith("getLogs:"));
+      const subscribeAt = h.calls.indexOf("watchEvent");
+      const sweepAt = h.calls.findIndex((c) => c.startsWith("getLogs:"));
       expect(subscribeAt).toBeGreaterThanOrEqual(0);
-      expect(subscribeAt).toBeLessThan(backfillAt);
+      expect(subscribeAt).toBeLessThan(sweepAt);
       expect(h.handled).toHaveLength(1);
     } finally {
       stop();
     }
   });
 
-  it("retries the full backfill on the next discovery tick when it throws", async () => {
+  it("sweeps on every discovery tick so logs the subscription missed are recovered", async () => {
     const h = buildHarness();
-    h.failNextBackfill(new Error("rpc hiccup"));
 
     const stop = h.watcher.watch(h.client);
     try {
-      // First tick subscribed but the sweep failed, so the address set is not
-      // marked watched; the next tick resubscribes and re-sweeps.
       await waitFor(() => h.cursor() === 120n);
-      expect(
-        h.calls.filter((c) => c === "watchContractEvent").length,
-      ).toBeGreaterThanOrEqual(2);
 
-      // Once a sweep completes, further ticks see an unchanged set and stay
-      // quiet.
-      const settled = h.calls.filter((c) => c === "watchContractEvent").length;
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      expect(h.calls.filter((c) => c === "watchContractEvent")).toHaveLength(
-        settled,
-      );
+      // A log the live subscription never delivered (e.g. mined during the
+      // eth_subscribe handshake) is picked up by the next tick's sweep.
+      h.addChainLog(transferLog(130n, 0));
+      h.setChainHead(140n);
+
+      await waitFor(() => h.cursor() === 140n);
+      expect(h.handled).toHaveLength(1);
+      // The address set never changed, so no resubscription happened.
+      expect(h.calls.filter((c) => c === "watchEvent")).toHaveLength(1);
     } finally {
       stop();
     }
   });
 
-  it("runs live logs through the same trailing-cursor discipline", async () => {
+  it("retries a failed sweep on the next discovery tick", async () => {
+    const h = buildHarness();
+    h.failNextBackfill(new Error("rpc hiccup"));
+
+    const stop = h.watcher.watch(h.client);
+    try {
+      await waitFor(() => h.cursor() === 120n);
+
+      // The failed sweep left the watermark unset; a later tick completed it.
+      expect(
+        h.calls.filter((c) => c.startsWith("getLogs:")).length,
+      ).toBeGreaterThanOrEqual(2);
+    } finally {
+      stop();
+    }
+  });
+
+  it("persists live logs without advancing the watermark", async () => {
     const h = buildHarness();
 
     const stop = h.watcher.watch(h.client);
@@ -267,7 +286,33 @@ describe("watch", () => {
       await h.emitLive([transferLog(130n, 0)]);
 
       expect(h.handled).toHaveLength(1);
-      expect(h.cursor()).toBe(129n);
+      // Only sweeps move the cursor: a missed sibling of this log can still
+      // be recovered because the watermark stayed below it.
+      expect(h.cursor()).toBe(120n);
+    } finally {
+      stop();
+    }
+  });
+
+  it("recovers a live log whose persistence failed via the next sweep", async () => {
+    const h = buildHarness();
+
+    const stop = h.watcher.watch(h.client);
+    try {
+      await waitFor(() => h.cursor() === 120n);
+
+      // The live path swallows the error (viem does not await onLogs) and
+      // the watermark stays put...
+      h.failHandleLogAt(0);
+      await h.emitLive([transferLog(130n, 0)]);
+      expect(h.handled).toHaveLength(0);
+      expect(h.cursor()).toBe(120n);
+
+      // ...so the next tick's sweep replays it from the chain.
+      h.addChainLog(transferLog(130n, 0));
+      h.setChainHead(140n);
+      await waitFor(() => h.handled.length === 1);
+      await waitFor(() => h.cursor() === 140n);
     } finally {
       stop();
     }
