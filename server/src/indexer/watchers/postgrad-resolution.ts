@@ -72,7 +72,9 @@ const watcher = createDynamicAddressWatcher({
   subject: "graduated postgrad market",
 });
 
+/** Catch-up sweep over every known market's terminal events up to currentBlock. */
 export const recoverPostgradResolutionEvents = watcher.recover;
+/** Live terminal-event subscription with market discovery; returns a stop function. */
 export const watchPostgradResolutionEvents = watcher.watch;
 
 function kindForEventName(

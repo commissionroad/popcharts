@@ -63,5 +63,7 @@ const watcher = createDynamicAddressWatcher({
   subject: "graduated outcome token",
 });
 
+/** Catch-up sweep over every known token's Transfer logs up to currentBlock. */
 export const recoverOutcomeTokenTransferEvents = watcher.recover;
+/** Live Transfer subscription with token discovery; returns a stop function. */
 export const watchOutcomeTokenTransferEvents = watcher.watch;

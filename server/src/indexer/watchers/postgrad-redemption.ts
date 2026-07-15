@@ -77,7 +77,9 @@ const watcher = createDynamicAddressWatcher({
   subject: "graduated postgrad market",
 });
 
+/** Catch-up sweep over every known market's redemption logs up to currentBlock. */
 export const recoverPostgradRedemptionEvents = watcher.recover;
+/** Live redemption subscription with market discovery; returns a stop function. */
 export const watchPostgradRedemptionEvents = watcher.watch;
 
 function kindForEventName(

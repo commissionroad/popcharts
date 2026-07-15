@@ -47,6 +47,7 @@ export type WatchedContract = {
   startBlock: bigint;
 };
 
+/** Options for a recovery sweep; quiet suppresses per-address idle logging. */
 export type RecoveryOptions = {
   quiet?: boolean;
 };
@@ -95,6 +96,13 @@ type DynamicAddressWatcherConfig<TContract extends WatchedContract> = {
   discoveryIntervalMs?: number;
 };
 
+/**
+ * Builds a watcher over a dynamic contract set: `recover` runs one catch-up
+ * sweep to the given block, `watch` runs the discovery loop plus live
+ * subscription until its returned stop function is called. Both deliver every
+ * log at least once (see the module comment for the guarantees); handleLog
+ * supplies the per-event persistence.
+ */
 export function createDynamicAddressWatcher<TContract extends WatchedContract>(
   config: DynamicAddressWatcherConfig<TContract>,
 ) {
