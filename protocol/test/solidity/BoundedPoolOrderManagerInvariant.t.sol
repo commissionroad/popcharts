@@ -331,6 +331,11 @@ contract BoundedPoolOrderManagerInvariantTest is StdInvariant, Test {
     orderManager.setMinimumOrderAmount(address(token0), 1e18);
     orderManager.setMinimumOrderAmount(address(token1), 1e18);
     orderManager.setResolverRole(address(handler), true);
+    // Defaults to uint256.max, which executes every crossed order inline and
+    // leaves the deferred path (and the handler's resolver op) unreachable.
+    // A cap of 1 forces multi-order crossings through DeferredExecutionStored
+    // so the invariants also hold across pending-resolution states.
+    orderManager.setMaximumExecutionCount(1);
 
     poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0));
     router.modifyLiquidity(
