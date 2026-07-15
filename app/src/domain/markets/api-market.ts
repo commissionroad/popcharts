@@ -46,15 +46,20 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     apiMarket.status === "graduated"
       ? venuePriceCents(apiMarket.postgrad?.venue)
       : null;
-  // A resolved market's prices are settled facts, not quotes: the winning
-  // side is worth exactly one collateral unit and the losing side nothing.
+  // A settled market's prices are facts, not quotes: the winning side is
+  // worth exactly one collateral unit and the loser nothing, and a cancelled
+  // draw redeems both sides at half. Pregrad admin-cancelled markets carry no
+  // terminal resolution event (they refund at cost, not half), so the
+  // `resolution` guard keeps them on their historical prices.
   const resolvedPrices =
     apiMarket.status === "resolved" && apiMarket.resolution?.winningSide
       ? {
           noPriceCents: apiMarket.resolution.winningSide === "no" ? 100 : 0,
           yesPriceCents: apiMarket.resolution.winningSide === "yes" ? 100 : 0,
         }
-      : null;
+      : apiMarket.status === "cancelled" && apiMarket.resolution?.kind === "cancelled"
+        ? { noPriceCents: 50, yesPriceCents: 50 }
+        : null;
   const yesPriceCents =
     resolvedPrices?.yesPriceCents ?? venuePrices?.yesPriceCents ?? lmsrYesPriceCents;
   const noPriceCents =

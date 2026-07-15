@@ -18,6 +18,7 @@ beforeEach(() => {
   useRedemption.mockReturnValue({
     error: null,
     redeem: vi.fn(),
+    redeemDraw: vi.fn(),
     result: null,
     status: "idle",
   });
@@ -50,6 +51,7 @@ describe("PositionClaim", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem,
+      redeemDraw: vi.fn(),
       result: null,
       status: "idle",
     });
@@ -66,10 +68,56 @@ describe("PositionClaim", () => {
     });
   });
 
+  it.each([
+    ["yes", 40n * WAD, 0n],
+    ["no", 0n, 40n * WAD],
+  ] as const)(
+    "claims a cancelled draw's %s position at half value",
+    (side, yesAmount, noAmount) => {
+      const redeemDraw = vi.fn();
+      useRedemption.mockReturnValue({
+        error: null,
+        redeem: vi.fn(),
+        redeemDraw,
+        result: null,
+        status: "idle",
+      });
+
+      render(
+        <PositionClaim
+          onClaimed={vi.fn()}
+          position={positionFixture({ resolution: drawResolution(), side })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Claim $20.00" }));
+      expect(redeemDraw).toHaveBeenCalledWith({
+        marketAddress: MARKET,
+        noAmount,
+        yesAmount,
+      });
+    }
+  );
+
+  it("hides a draw claim when its half value is below one cent", () => {
+    const { container } = render(
+      <PositionClaim
+        onClaimed={vi.fn()}
+        position={positionFixture({
+          heldBalance: (10n ** 16n).toString(),
+          resolution: drawResolution(),
+        })}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("shows progress while the redemption is pending", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "pending",
     });
@@ -79,26 +127,29 @@ describe("PositionClaim", () => {
     expect(screen.getByRole("button", { name: "Claiming…" })).toBeDisabled();
   });
 
-  it("shows the confirmed value from the outcome amount, not raw collateral", () => {
+  it("shows the confirmed display value, not raw collateral or tokens burned", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
-      // A 6-decimal-collateral payout: raw collateralAmount would misread as
-      // ~$0 through the 18-decimal formatter; the burned outcome amount
-      // (always WAD, redeems 1:1) is the displayable value.
-      result: { collateralAmount: 24n * 10n ** 6n, outcomeAmount: 24n * WAD },
+      redeemDraw: vi.fn(),
+      result: {
+        collateralAmount: 24n * 10n ** 6n,
+        outcomeAmount: 24n * WAD,
+        valueWad: 17n * WAD,
+      },
       status: "success",
     });
 
     render(<PositionClaim onClaimed={vi.fn()} position={positionFixture()} />);
 
-    expect(screen.getByRole("button", { name: "Claimed $24.00" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Claimed $17.00" })).toBeDisabled();
   });
 
   it("keeps the confirmed button locked while its result is not yet exposed", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "success",
     });
@@ -113,6 +164,7 @@ describe("PositionClaim", () => {
     useRedemption.mockReturnValue({
       error: "Could not claim your winnings.",
       redeem,
+      redeemDraw: vi.fn(),
       result: null,
       status: "error",
     });
@@ -129,6 +181,7 @@ describe("PositionClaim", () => {
     useRedemption.mockReturnValue({
       error: "Could not claim your winnings.",
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "error",
     });
@@ -171,5 +224,14 @@ function resolutionFixture(
     transactionHash: `0x${"cc".repeat(32)}`,
     winningSide: "yes",
     ...overrides,
+  };
+}
+
+function drawResolution(): NonNullable<PortfolioPosition["resolution"]> {
+  return {
+    kind: "cancelled",
+    postgradMarket: MARKET,
+    resolvedAt: "2026-07-14T00:00:00.000Z",
+    transactionHash: `0x${"cc".repeat(32)}`,
   };
 }

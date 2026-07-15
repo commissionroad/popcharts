@@ -43,9 +43,15 @@ export function MarketPositionPanel({ market }: { market: Market }) {
     return null;
   }
 
-  // Graduated and resolved markets both live in outcome-token positions; the
-  // receipt view only applies while the receipt book is still the market.
-  const graduated = market.status === "graduated" || market.status === "resolved";
+  // Graduated and settled markets live in outcome-token positions; the
+  // receipt view only applies while the receipt book is still the market. A
+  // `cancelled` status counts only with a postgrad terminal event (a draw) —
+  // a pregrad admin-cancel has no resolution and must keep the receipt view,
+  // where the refund claim button lives.
+  const graduated =
+    market.status === "graduated" ||
+    market.status === "resolved" ||
+    (market.status === "cancelled" && market.resolution?.kind === "cancelled");
   const positions = graduated
     ? portfolio.positions.filter((position) => position.marketId === marketId)
     : [];

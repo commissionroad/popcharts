@@ -157,9 +157,43 @@ describe("MarketPositionPanel graduated positions", () => {
     expect(screen.getByText("140 tok")).toBeInTheDocument();
     expect(screen.queryByText("Your receipts")).not.toBeInTheDocument();
   });
+
+  it("shows positions for a postgrad cancelled draw", () => {
+    render(
+      <MarketPositionPanel
+        market={graduatedMarket({
+          resolution: {
+            kind: "cancelled",
+            postgradMarket: "0x2222222222222222222222222222222222222222",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+          },
+          status: "cancelled",
+        })}
+      />
+    );
+
+    expect(screen.getByText("Your position")).toBeInTheDocument();
+    expect(screen.getByText("140 tok")).toBeInTheDocument();
+    expect(screen.queryByText("Your receipts")).not.toBeInTheDocument();
+  });
 });
 
 describe("MarketPositionPanel pre-graduation receipts", () => {
+  it("shows receipts for a pregrad cancellation without a resolution", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({ positions: [] }),
+      refresh: vi.fn(),
+    });
+
+    render(<MarketPositionPanel market={bootstrapMarket({ status: "cancelled" })} />);
+
+    expect(screen.getByText("Your receipts")).toBeInTheDocument();
+    expect(screen.getByText("100 tok")).toBeInTheDocument();
+    expect(screen.queryByText("Your position")).not.toBeInTheDocument();
+  });
+
   it("lists this market's receipts with cost, average, and lifecycle status", () => {
     usePortfolio.mockReturnValue({
       error: null,

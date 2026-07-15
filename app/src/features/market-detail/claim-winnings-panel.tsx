@@ -13,9 +13,10 @@ import { parseApiMarketAppId } from "@/lib/app-id";
 import { formatTokenAmount, formatUsd } from "@/lib/format";
 
 /**
- * The resolved market's claim surface: winning-side tokens redeem 1:1 for
- * collateral straight from this panel, with the connected wallet signing the
- * postgrad market's `redeem` write. Losing-side holders see their outcome
+ * The settled market's claim surface. On a resolved market, winning-side
+ * tokens redeem 1:1 for collateral; on a cancelled draw, both sides redeem at
+ * half value through the same panel. The connected wallet signs the postgrad
+ * market's redemption write right here. Losing-side holders see their outcome
  * spelled out instead of a dead end, and tokens still resting in open ask
  * orders are called out (they must be cancelled before they can redeem). The
  * panel hides for uninvolved or disconnected viewers, mirroring the position
@@ -27,17 +28,24 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
     chainId: configuredPopChartsChainId,
     owner: wallet.address,
   });
-  const { error, redeem, result, status } = useRedemption({
+  const { error, redeem, redeemDraw, result, status } = useRedemption({
     onRedeemed: refresh,
   });
 
   const resolution = market.resolution;
+  const isDraw = resolution?.kind === "cancelled";
   const winningSide = resolution?.winningSide;
   const marketId = parseApiMarketAppId(market.id)?.marketId ?? null;
   const marketAddress =
     market.postgrad?.marketAddress ?? resolution?.postgradMarket ?? null;
 
-  if (!resolution || !winningSide || !marketAddress || !marketId) {
+  if (!resolution || !marketAddress || !marketId) {
+    return null;
+  }
+
+  // A resolved market whose winning side is not indexed yet cannot offer a
+  // claim; a draw needs no winner.
+  if (!isDraw && !winningSide) {
     return null;
   }
 
@@ -48,62 +56,104 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
   const positions = portfolio.positions.filter(
     (position) => position.marketId === marketId
   );
-  const winning = positions.find((position) => position.side === winningSide);
-  const losing = positions.find((position) => position.side !== winningSide);
-  const held = winning ? BigInt(winning.heldBalance) : 0n;
-  const committed = winning ? BigInt(winning.committedInOrders) : 0n;
+  const winning = isDraw
+    ? undefined
+    : positions.find((position) => position.side === winningSide);
+  const losing = isDraw
+    ? undefined
+    : positions.find((position) => position.side !== winningSide);
+  const heldYes = BigInt(
+    positions.find((position) => position.side === "yes")?.heldBalance ?? "0"
+  );
+  const heldNo = BigInt(
+    positions.find((position) => position.side === "no")?.heldBalance ?? "0"
+  );
+  const heldWinning = winning ? BigInt(winning.heldBalance) : 0n;
+  const committed = positions.reduce(
+    (total, position) =>
+      isDraw || position.side === winningSide
+        ? total + BigInt(position.committedInOrders)
+        : total,
+    0n
+  );
+
+  // What a claim would burn and what it pays: winners redeem 1:1, a draw
+  // redeems both sides at half value.
+  const claimTokens = isDraw ? heldYes + heldNo : heldWinning;
+  const claimValueWad = isDraw ? (heldYes + heldNo) / 2n : heldWinning;
   // Below the one-cent floor the button would display $0.00 and could revert
   // as unredeemable dust on low-precision collateral — treat as nothing held.
-  const claimable = held >= MIN_REDEEMABLE_OUTCOME_WAD;
+  const claimable = claimValueWad >= MIN_REDEEMABLE_OUTCOME_WAD;
   const claimed = status === "success";
 
-  if (!winning && !losing && !claimed) {
+  if (positions.length === 0 && !claimed) {
     return null;
   }
 
-  const winningLabel = marketSideLabel(market, winningSide);
+  const winningLabel = winningSide ? marketSideLabel(market, winningSide) : "";
+  const tokensLabel = isDraw ? "outcome" : `winning ${winningLabel}`;
   const pending = status === "pending";
+  const submitClaim = () => {
+    if (isDraw) {
+      redeemDraw({
+        marketAddress: marketAddress as `0x${string}`,
+        noAmount: heldNo,
+        yesAmount: heldYes,
+      });
+    } else if (winningSide) {
+      redeem({
+        amount: heldWinning,
+        marketAddress: marketAddress as `0x${string}`,
+        side: winningSide,
+      });
+    }
+  };
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-card)] p-5">
       <div className="mb-3 font-mono text-[10px] tracking-[0.14em] text-[var(--status-graduated)] uppercase">
-        Claim winnings
+        {isDraw ? "Claim redemption" : "Claim winnings"}
       </div>
 
       {claimed && result ? (
         <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
           <BadgeCheck size={16} className="text-[var(--status-graduated)]" />
           <span>
-            {/* The payout value is derived from the burned outcome amount
-                (always 18-decimal WAD, redeems 1:1) — the event's
-                collateralAmount is raw collateral units whose precision
-                varies by chain (6-decimal on Arc). */}
+            {/* The payout value comes from the service's valueWad (derived
+                from the 18-decimal burn legs) — the event's collateralAmount
+                is raw collateral units whose precision varies by chain. */}
             Claimed{" "}
             <span className="font-display font-black">
-              {formatUsd(wadToNumber(result.outcomeAmount))}
+              {formatUsd(wadToNumber(result.valueWad))}
             </span>{" "}
-            for {formatTokenAmount(result.outcomeAmount)} {winningLabel} tokens.
+            for {formatTokenAmount(result.outcomeAmount)} {tokensLabel} tokens.
           </span>
         </div>
       ) : claimable ? (
         <>
           <p className="text-sm leading-6 text-[var(--text-secondary)]">
-            You hold{" "}
-            <span className="font-mono font-bold text-[var(--text-primary)]">
-              {formatTokenAmount(held)}
-            </span>{" "}
-            winning {winningLabel} tokens. Each redeems 1:1 for collateral.
+            {isDraw ? (
+              <>
+                This market was cancelled — a draw. Your{" "}
+                <span className="font-mono font-bold text-[var(--text-primary)]">
+                  {formatTokenAmount(claimTokens)}
+                </span>{" "}
+                outcome tokens each redeem at half value.
+              </>
+            ) : (
+              <>
+                You hold{" "}
+                <span className="font-mono font-bold text-[var(--text-primary)]">
+                  {formatTokenAmount(claimTokens)}
+                </span>{" "}
+                winning {winningLabel} tokens. Each redeems 1:1 for collateral.
+              </>
+            )}
           </p>
           <button
             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--status-graduated)] px-4 py-2.5 font-mono text-[13px] font-bold text-[var(--surface-card)] transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={pending}
-            onClick={() =>
-              redeem({
-                amount: held,
-                marketAddress: marketAddress as `0x${string}`,
-                side: winningSide,
-              })
-            }
+            onClick={submitClaim}
             type="button"
           >
             {pending ? (
@@ -111,20 +161,22 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
                 <Loader2 size={15} className="animate-spin" /> Claiming…
               </>
             ) : (
-              `Claim ${formatUsd(wadToNumber(held))}`
+              `Claim ${formatUsd(wadToNumber(claimValueWad))}`
             )}
           </button>
         </>
       ) : (
         <p className="text-sm leading-6 text-[var(--text-secondary)]">
           {committed > 0n
-            ? "All of your winning tokens are resting in open orders — cancel those orders to claim them."
-            : losing
-              ? `This market resolved ${winningLabel}. Your ${marketSideLabel(
-                  market,
-                  losing.side
-                )} tokens finished out of the money.`
-              : `This market resolved ${winningLabel}. Nothing is left to claim on this position.`}
+            ? `All of your ${tokensLabel} tokens are resting in open orders — cancel those orders to claim them.`
+            : isDraw
+              ? "This market was cancelled — a draw. Nothing is left to claim on this position."
+              : losing
+                ? `This market resolved ${winningLabel}. Your ${marketSideLabel(
+                    market,
+                    losing.side
+                  )} tokens finished out of the money.`
+                : `This market resolved ${winningLabel}. Nothing is left to claim on this position.`}
         </p>
       )}
 
@@ -132,7 +184,7 @@ export function ClaimWinningsPanel({ market }: { market: Market }) {
           above already covers the everything-is-in-orders case. */}
       {claimable && committed > 0n && !claimed ? (
         <p className="mt-3 font-mono text-[11px] leading-5 text-[var(--text-muted)]">
-          {formatTokenAmount(committed)} more {winningLabel} tokens are resting in open
+          {formatTokenAmount(committed)} more {tokensLabel} tokens are resting in open
           orders — cancel those orders to claim them too.
         </p>
       ) : null}

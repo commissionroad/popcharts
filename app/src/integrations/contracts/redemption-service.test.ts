@@ -7,6 +7,7 @@ import { completeSetBinaryMarketAbi } from "./postgrad-venue";
 import {
   getRedemptionErrorMessage,
   readRedeemableAmount,
+  submitDrawRedemption,
   submitRedemption,
 } from "./redemption-service";
 
@@ -87,6 +88,7 @@ describe("submitRedemption", () => {
         collateralAmount: 24n * WAD,
         outcomeAmount: 24n * WAD,
         transactionHash: REDEMPTION_HASH,
+        valueWad: 24n * WAD,
       });
       expect(clients.writeContract).toHaveBeenCalledWith({
         abi: completeSetBinaryMarketAbi,
@@ -135,6 +137,96 @@ describe("submitRedemption", () => {
   });
 });
 
+describe("submitDrawRedemption", () => {
+  it("requires the wallet to be on the configured chain", async () => {
+    const { wallet } = mockWallet();
+    wallet.activeChainId = 1;
+
+    await expect(
+      submitDrawRedemption({
+        config: contractConfig,
+        marketAddress: MARKET,
+        noAmount: 12n * WAD,
+        wallet,
+        yesAmount: 24n * WAD,
+      })
+    ).rejects.toThrow("Switch your wallet to chain 31337.");
+    expect(wallet.walletClient.writeContract).not.toHaveBeenCalled();
+  });
+
+  it("rounds each leg, redeems the draw, and returns the confirmed half value", async () => {
+    const { clients, wallet } = mockWallet();
+    clients.logs = [
+      cancelledRedeemedLog({
+        account: "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa",
+        collateralAmount: 18n * WAD,
+        noAmount: 12n * WAD,
+        yesAmount: 24n * WAD,
+      }),
+    ];
+
+    const result = await submitDrawRedemption({
+      config: contractConfig,
+      marketAddress: MARKET,
+      noAmount: 12n * WAD + 456n,
+      wallet,
+      yesAmount: 24n * WAD + 123n,
+    });
+
+    expect(result).toEqual({
+      collateralAmount: 18n * WAD,
+      outcomeAmount: 36n * WAD,
+      transactionHash: REDEMPTION_HASH,
+      valueWad: 18n * WAD,
+    });
+    expect(clients.writeContract).toHaveBeenCalledWith({
+      abi: completeSetBinaryMarketAbi,
+      account: ACCOUNT,
+      address: MARKET,
+      chain: undefined,
+      functionName: "redeemCancelled",
+      args: [24n * WAD, 12n * WAD],
+    });
+    expect(clients.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REDEMPTION_HASH,
+    });
+  });
+
+  it("fails when both rounded legs leave nothing redeemable", async () => {
+    const { clients, wallet } = mockWallet();
+
+    await expect(
+      submitDrawRedemption({
+        config: contractConfig,
+        marketAddress: MARKET,
+        noAmount: 456n,
+        wallet,
+        yesAmount: 123n,
+      })
+    ).rejects.toThrow("Nothing to redeem for this position.");
+    expect(clients.writeContract).not.toHaveBeenCalled();
+  });
+
+  it("fails when the transaction confirms without the matching draw event", async () => {
+    const { clients, wallet } = mockWallet();
+    clients.logs = [
+      cancelledRedeemedLog({
+        account: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      }),
+    ];
+
+    await expect(
+      submitDrawRedemption({
+        config: contractConfig,
+        marketAddress: MARKET,
+        noAmount: 12n * WAD,
+        wallet,
+        yesAmount: 24n * WAD,
+      })
+    ).rejects.toThrow("Transaction succeeded but CancelledRedeemed was not emitted.");
+  });
+});
+
 describe("getRedemptionErrorMessage", () => {
   it("explains a losing-side redemption", () => {
     expect(
@@ -148,6 +240,12 @@ describe("getRedemptionErrorMessage", () => {
     );
   });
 
+  it("explains an amount that is no longer redeemable", () => {
+    expect(getRedemptionErrorMessage(new Error("reverted: InvalidAmount()"))).toBe(
+      "Nothing to redeem for this position."
+    );
+  });
+
   it("falls back to a generic message for unknown failures", () => {
     expect(getRedemptionErrorMessage(new Error("network down"))).toBe(
       "Could not claim your winnings."
@@ -156,7 +254,7 @@ describe("getRedemptionErrorMessage", () => {
 });
 
 type MockClients = {
-  logs: ReturnType<typeof redeemedLog>[];
+  logs: Array<ReturnType<typeof cancelledRedeemedLog> | ReturnType<typeof redeemedLog>>;
   readContract: ReturnType<typeof vi.fn>;
   waitForTransactionReceipt: ReturnType<typeof vi.fn>;
   writeContract: ReturnType<typeof vi.fn>;
@@ -165,7 +263,12 @@ type MockClients = {
 function mockWallet() {
   const clients: MockClients = {
     logs: [redeemedLog()],
-    readContract: vi.fn().mockResolvedValueOnce(6).mockResolvedValueOnce(18),
+    readContract: vi
+      .fn()
+      .mockResolvedValueOnce(6)
+      .mockResolvedValueOnce(18)
+      .mockResolvedValueOnce(6)
+      .mockResolvedValueOnce(18),
     waitForTransactionReceipt: vi.fn(),
     writeContract: vi.fn(),
   };
@@ -209,6 +312,37 @@ function redeemedLog({ account = ACCOUNT }: { account?: `0x${string}` } = {}) {
       abi: completeSetBinaryMarketAbi,
       eventName: "Redeemed",
       args: { account, side: 0 },
+    }),
+  };
+}
+
+// A genuinely ABI-encoded CancelledRedeemed log so both the indexed account
+// and the three burn/payout values run through viem's real decoder.
+function cancelledRedeemedLog({
+  account = ACCOUNT,
+  collateralAmount = 18n * WAD,
+  noAmount = 12n * WAD,
+  yesAmount = 24n * WAD,
+}: {
+  account?: `0x${string}`;
+  collateralAmount?: bigint;
+  noAmount?: bigint;
+  yesAmount?: bigint;
+} = {}) {
+  return {
+    address: MARKET,
+    data: encodeAbiParameters(
+      [
+        { name: "yesAmount", type: "uint256" },
+        { name: "noAmount", type: "uint256" },
+        { name: "collateralAmount", type: "uint256" },
+      ],
+      [yesAmount, noAmount, collateralAmount]
+    ),
+    topics: encodeEventTopics({
+      abi: completeSetBinaryMarketAbi,
+      eventName: "CancelledRedeemed",
+      args: { account },
     }),
   };
 }

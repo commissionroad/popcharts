@@ -551,6 +551,38 @@ describe("apiMarketToMarket", () => {
     }
   );
 
+  it("prices both sides of a cancelled postgrad draw at half value", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        noShares: "1000000000000000000000",
+        resolution: {
+          kind: "cancelled",
+          postgradMarket: "0x00000000000000000000000000000000000000cd",
+          resolvedAt: "2026-07-14T00:00:00.000Z",
+          transactionHash: `0x${"dd".repeat(32)}`,
+        },
+        status: "cancelled",
+        yesShares: "3000000000000000000000",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices for a pregrad cancellation without resolution data", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        noShares: "1000000000000000000000",
+        status: "cancelled",
+        yesShares: "3000000000000000000000",
+      })
+    );
+
+    expect(converted.yesPriceCents).not.toBe(50);
+    expect(converted.noPriceCents).toBe(100 - converted.yesPriceCents);
+  });
+
   it("keeps LMSR prices for a resolved market without resolution data", () => {
     const converted = apiMarketToMarket(
       apiMarket({

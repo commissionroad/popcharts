@@ -38,7 +38,13 @@ export function MarketDetailPage({
   // Once it resolves, trading is history too: the page leads with the outcome
   // and the aside becomes the claim surface instead of a trade ticket.
   const isResolved = market.status === "resolved";
-  const settled = isGraduated || isResolved;
+  // A postgrad draw (MarketCancelled after graduation, marked by its terminal
+  // resolution event) settles at half value per side. A pregrad admin-cancel
+  // shares the `cancelled` status but has no resolution event — it stays on
+  // the receipt view, where the refund claim lives.
+  const isDraw =
+    market.status === "cancelled" && market.resolution?.kind === "cancelled";
+  const settled = isGraduated || isResolved || isDraw;
   // The graduate button is the manual fallback for a market that earned
   // graduation but was not yet picked up by the keeper — it never forces
   // liquidity, so it only shows once the threshold is met.
@@ -96,7 +102,7 @@ export function MarketDetailPage({
             </div>
           </div>
 
-          {isResolved ? <ResolvedMarketSummary market={market} /> : null}
+          {isResolved || isDraw ? <ResolvedMarketSummary market={market} /> : null}
           {isGraduated ? <GraduatedMarketSummary market={market} /> : null}
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
@@ -159,7 +165,7 @@ export function MarketDetailPage({
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
           <MarketPositionPanel market={market} />
-          {isResolved ? (
+          {isResolved || isDraw ? (
             <>
               <ClaimWinningsPanel market={market} />
               {/* Tokens resting in ask orders cannot redeem until the order
@@ -192,12 +198,14 @@ export function MarketDetailPage({
 }
 
 /**
- * The headline outcome of a resolved market: which side won, when, and what
- * that means for holders. Winning tokens redeem 1:1 from the claim panel in
- * the aside; a resolution without a recorded winning side (not yet indexed)
- * degrades to the resolution date alone rather than guessing a winner.
+ * The headline outcome of a settled market: which side won (or that the
+ * market cancelled to a draw), when, and what that means for holders. Tokens
+ * redeem from the claim panel in the aside; a resolution without a recorded
+ * winning side (not yet indexed) degrades to the resolution date alone
+ * rather than guessing a winner.
  */
 function ResolvedMarketSummary({ market }: { market: Market }) {
+  const isDraw = market.resolution?.kind === "cancelled";
   const winningSide = market.resolution?.winningSide;
   const resolvedAt = market.resolution?.resolvedAt;
 
@@ -205,18 +213,25 @@ function ResolvedMarketSummary({ market }: { market: Market }) {
     <div className="rounded-[var(--radius-lg)] border border-[var(--status-graduated)] bg-[var(--surface-raised)] p-5">
       <div className="mb-2 flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-[var(--status-graduated)] uppercase">
         <BadgeCheck size={16} />
-        {winningSide
-          ? `Resolved - ${marketSideLabel(market, winningSide)} wins`
-          : "Resolved"}
+        {isDraw
+          ? "Cancelled - draw"
+          : winningSide
+            ? `Resolved - ${marketSideLabel(market, winningSide)} wins`
+            : "Resolved"}
       </div>
       <p className="max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
-        {winningSide
-          ? `Winning ${marketSideLabel(market, winningSide)} tokens redeem 1:1 for collateral; ${marketSideLabel(
+        {isDraw
+          ? `This market was cancelled after graduation, so ${marketSideLabel(
               market,
-              winningSide === "yes" ? "no" : "yes"
-            )} tokens finished out of the money.`
-          : "This market has resolved on-chain."}
-        {resolvedAt ? ` Resolved ${formatDateTime(resolvedAt)}.` : ""}
+              "yes"
+            )} and ${marketSideLabel(market, "no")} tokens both redeem at half value.`
+          : winningSide
+            ? `Winning ${marketSideLabel(market, winningSide)} tokens redeem 1:1 for collateral; ${marketSideLabel(
+                market,
+                winningSide === "yes" ? "no" : "yes"
+              )} tokens finished out of the money.`
+            : "This market has resolved on-chain."}
+        {resolvedAt ? ` Settled ${formatDateTime(resolvedAt)}.` : ""}
       </p>
     </div>
   );

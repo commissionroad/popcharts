@@ -2,7 +2,7 @@ import type { PublicClient, WalletClient } from "viem";
 import { parseEventLogs } from "viem";
 
 import type { MarketSide } from "@/domain/markets/types";
-import { presentError } from "@/lib/error-handling";
+import { DisplayableError, presentError } from "@/lib/error-handling";
 
 import type { PopChartsContractConfig } from "./config";
 import { completeSetBinaryMarketAbi } from "./postgrad-venue";
@@ -20,13 +20,17 @@ export type RedemptionWallet = {
 
 /**
  * Result of a settled redemption: the tokens burned, the collateral paid out
- * (raw collateral units, from the `Redeemed` event), and the confirming
- * transaction hash.
+ * (raw collateral units, from the confirming event), the payout value in
+ * display-WAD, and the confirming transaction hash. `valueWad` is derived
+ * from the burned outcome legs (always 18-decimal) rather than the raw
+ * collateral amount, whose precision varies by chain (6-decimal on Arc) —
+ * it is the number claim surfaces may format as dollars.
  */
 export type RedemptionResult = {
   collateralAmount: bigint;
   outcomeAmount: bigint;
   transactionHash: `0x${string}`;
+  valueWad: bigint;
 };
 
 /**
@@ -114,7 +118,8 @@ export async function submitRedemption({
   });
 
   if (redeemable <= 0n) {
-    throw new Error("Nothing to redeem for this position.");
+    // DisplayableError: written for the user and shown verbatim by presentError.
+    throw new DisplayableError("Nothing to redeem for this position.");
   }
 
   const hash = await wallet.walletClient.writeContract({
@@ -146,14 +151,95 @@ export async function submitRedemption({
     collateralAmount: redeemed.args.collateralAmount,
     outcomeAmount: redeemed.args.outcomeAmount,
     transactionHash: hash,
+    // Winning tokens redeem 1:1, so the burned amount is the payout value.
+    valueWad: redeemed.args.outcomeAmount,
+  };
+}
+
+/**
+ * Redeems outcome tokens on a cancelled (draw) postgrad market: both sides
+ * pay out at half value through `redeemCancelled(yesAmount, noAmount)`, and
+ * either leg may be zero so a holder can redeem one side at a time. Rounds
+ * each leg down to collateral precision (the contract reverts on dust per
+ * conversion), waits for the transaction, then confirms the matching
+ * `CancelledRedeemed` event before resolving.
+ */
+export async function submitDrawRedemption({
+  config,
+  marketAddress,
+  noAmount,
+  wallet,
+  yesAmount,
+}: {
+  config: PopChartsContractConfig;
+  marketAddress: `0x${string}`;
+  noAmount: bigint;
+  wallet: RedemptionWallet;
+  yesAmount: bigint;
+}): Promise<RedemptionResult> {
+  if (wallet.activeChainId !== config.chainId) {
+    throw new Error(`Switch your wallet to chain ${config.chainId}.`);
+  }
+
+  const [redeemableYes, redeemableNo] = await Promise.all([
+    readRedeemableAmount({
+      amount: yesAmount,
+      marketAddress,
+      publicClient: wallet.publicClient,
+    }),
+    readRedeemableAmount({
+      amount: noAmount,
+      marketAddress,
+      publicClient: wallet.publicClient,
+    }),
+  ]);
+
+  if (redeemableYes + redeemableNo <= 0n) {
+    // DisplayableError: written for the user and shown verbatim by presentError.
+    throw new DisplayableError("Nothing to redeem for this position.");
+  }
+
+  const hash = await wallet.walletClient.writeContract({
+    abi: completeSetBinaryMarketAbi,
+    account: wallet.accountAddress,
+    address: marketAddress,
+    chain: wallet.walletClient.chain,
+    functionName: "redeemCancelled",
+    args: [redeemableYes, redeemableNo],
+  });
+
+  const transactionReceipt = await wallet.publicClient.waitForTransactionReceipt({
+    hash,
+  });
+  const redeemedLogs = parseEventLogs({
+    abi: completeSetBinaryMarketAbi,
+    eventName: "CancelledRedeemed",
+    logs: transactionReceipt.logs,
+  });
+  const redeemed = redeemedLogs.find(
+    (log) => log.args.account.toLowerCase() === wallet.accountAddress.toLowerCase()
+  );
+
+  if (!redeemed) {
+    throw new Error("Transaction succeeded but CancelledRedeemed was not emitted.");
+  }
+
+  const burned = redeemed.args.yesAmount + redeemed.args.noAmount;
+
+  return {
+    collateralAmount: redeemed.args.collateralAmount,
+    outcomeAmount: burned,
+    transactionHash: hash,
+    // A cancelled draw redeems both sides at half value.
+    valueWad: burned / 2n,
   };
 }
 
 /**
  * Translates a redemption failure into user-facing copy, mapping the reverts a
  * holder can realistically hit — a stale winning side, a market whose indexed
- * status ran ahead of the chain, or an amount the pool cannot pay — to plain
- * explanations instead of raw selectors.
+ * status ran ahead of the chain, or an amount that converts to nothing — to
+ * plain explanations instead of raw selectors.
  */
 export function getRedemptionErrorMessage(error: unknown) {
   return presentError(error, {
@@ -166,6 +252,10 @@ export function getRedemptionErrorMessage(error: unknown) {
 
       if (redemptionError.message.includes("InvalidStatus")) {
         return "This market is not redeemable on-chain yet. Refresh to see the updated status.";
+      }
+
+      if (redemptionError.message.includes("InvalidAmount")) {
+        return "Nothing to redeem for this position.";
       }
 
       return undefined;

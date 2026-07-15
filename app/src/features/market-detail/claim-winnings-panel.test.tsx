@@ -38,6 +38,7 @@ beforeEach(() => {
   useRedemption.mockReturnValue({
     error: null,
     redeem: vi.fn(),
+    redeemDraw: vi.fn(),
     result: null,
     status: "idle",
   });
@@ -46,6 +47,7 @@ beforeEach(() => {
 describe("ClaimWinningsPanel visibility", () => {
   it.each([
     ["resolution", marketWithoutResolution()],
+    ["postgrad address", marketWithoutAddress()],
     ["winning side", resolvedMarket({ resolution: resolutionWithoutWinningSide() })],
   ])("renders nothing without a market %s", (_reason, market) => {
     const { container } = render(<ClaimWinningsPanel market={market} />);
@@ -106,6 +108,7 @@ describe("ClaimWinningsPanel redemption", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem,
+      redeemDraw: vi.fn(),
       result: null,
       status: "idle",
     });
@@ -128,6 +131,7 @@ describe("ClaimWinningsPanel redemption", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem,
+      redeemDraw: vi.fn(),
       result: null,
       status: "idle",
     });
@@ -146,6 +150,7 @@ describe("ClaimWinningsPanel redemption", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "pending",
     });
@@ -155,16 +160,17 @@ describe("ClaimWinningsPanel redemption", () => {
     expect(screen.getByRole("button", { name: "Claiming…" })).toBeDisabled();
   });
 
-  it("shows the confirmed value from the outcome amount, not raw collateral", () => {
+  it("shows the confirmed display value, not raw collateral or tokens burned", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
-      // A 6-decimal-collateral payout: raw collateralAmount would misread as
-      // ~$0 through the 18-decimal formatter; the burned outcome amount
-      // (always WAD, redeems 1:1) is the displayable value.
+      redeemDraw: vi.fn(),
+      // Pin display value independently from both raw collateral precision and
+      // the number of outcome tokens burned.
       result: {
         collateralAmount: 24n * 10n ** 6n,
         outcomeAmount: 24n * WAD,
+        valueWad: 17n * WAD,
       },
       status: "success",
     });
@@ -172,7 +178,7 @@ describe("ClaimWinningsPanel redemption", () => {
     render(<ClaimWinningsPanel market={resolvedMarket()} />);
 
     expect(screen.getByText(/Claimed/)).toHaveTextContent(
-      "Claimed $24.00 for 24.00 YES tokens."
+      "Claimed $17.00 for 24.00 winning YES tokens."
     );
   });
 
@@ -189,7 +195,7 @@ describe("ClaimWinningsPanel redemption", () => {
     render(<ClaimWinningsPanel market={resolvedMarket()} />);
 
     expect(
-      screen.getByText(/12.00 more YES tokens are resting in open orders/)
+      screen.getByText(/12.00 more winning YES tokens are resting in open orders/)
     ).toBeInTheDocument();
   });
 
@@ -241,6 +247,7 @@ describe("ClaimWinningsPanel redemption", () => {
     useRedemption.mockReturnValue({
       error: null,
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "success",
     });
@@ -274,12 +281,14 @@ describe("ClaimWinningsPanel redemption", () => {
 
     expect(
       screen.getByText(
-        "All of your winning tokens are resting in open orders — cancel those orders to claim them."
+        "All of your winning YES tokens are resting in open orders — cancel those orders to claim them."
       )
     ).toBeInTheDocument();
     // The "more tokens" footnote only accompanies the claim button; showing
     // both here would stack two contradictory versions of the same fact.
-    expect(screen.queryByText(/more YES tokens are resting/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/more winning YES tokens are resting/)
+    ).not.toBeInTheDocument();
   });
 
   it("treats sub-cent winning dust as nothing to claim instead of a $0.00 button", () => {
@@ -308,6 +317,7 @@ describe("ClaimWinningsPanel redemption", () => {
     useRedemption.mockReturnValue({
       error: "Could not claim your winnings.",
       redeem: vi.fn(),
+      redeemDraw: vi.fn(),
       result: null,
       status: "error",
     });
@@ -315,6 +325,104 @@ describe("ClaimWinningsPanel redemption", () => {
     render(<ClaimWinningsPanel market={resolvedMarket()} />);
 
     expect(screen.getByText("Could not claim your winnings.")).toBeInTheDocument();
+  });
+});
+
+describe("ClaimWinningsPanel draw redemption", () => {
+  it("claims both outcome balances at half value", () => {
+    const redeemDraw = vi.fn();
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [
+          positionFixture(),
+          positionFixture({ heldBalance: (20n * WAD).toString(), side: "no" }),
+        ],
+      }),
+      refresh: vi.fn(),
+    });
+    useRedemption.mockReturnValue({
+      error: null,
+      redeem: vi.fn(),
+      redeemDraw,
+      result: null,
+      status: "idle",
+    });
+
+    render(<ClaimWinningsPanel market={drawMarket()} />);
+
+    expect(screen.getByText("Claim redemption")).toBeInTheDocument();
+    expect(screen.getByText(/This market was cancelled — a draw/)).toHaveTextContent(
+      "This market was cancelled — a draw. Your 60.00 outcome tokens each redeem at half value."
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Claim $30.00" }));
+    expect(redeemDraw).toHaveBeenCalledWith({
+      marketAddress: MARKET,
+      noAmount: 20n * WAD,
+      yesAmount: 40n * WAD,
+    });
+  });
+
+  it("treats a sub-cent half value as nothing left to claim", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [positionFixture({ heldBalance: (10n ** 16n).toString() })],
+      }),
+      refresh: vi.fn(),
+    });
+
+    render(<ClaimWinningsPanel market={drawMarket()} />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This market was cancelled — a draw. Nothing is left to claim on this position."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("uses outcome-token wording when every draw token is in orders", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [
+          positionFixture({
+            committedInOrders: (40n * WAD).toString(),
+            heldBalance: "0",
+          }),
+        ],
+      }),
+      refresh: vi.fn(),
+    });
+
+    render(<ClaimWinningsPanel market={drawMarket()} />);
+
+    expect(
+      screen.getByText(
+        "All of your outcome tokens are resting in open orders — cancel those orders to claim them."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("uses outcome-token wording for additional draw tokens in orders", () => {
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({
+        positions: [positionFixture({ committedInOrders: (12n * WAD).toString() })],
+      }),
+      refresh: vi.fn(),
+    });
+
+    render(<ClaimWinningsPanel market={drawMarket()} />);
+
+    expect(
+      screen.getByText(/12.00 more outcome tokens are resting in open orders/)
+    ).toBeInTheDocument();
   });
 });
 
@@ -331,6 +439,18 @@ function resolvedMarket(overrides: Partial<Market> = {}): Market {
     },
     resolution: resolutionFixture(),
     status: "resolved",
+    ...overrides,
+  });
+}
+
+function drawMarket(overrides: Partial<Market> = {}): Market {
+  return resolvedMarket({
+    resolution: {
+      kind: "cancelled",
+      postgradMarket: MARKET,
+      resolvedAt: "2026-07-14T00:00:00.000Z",
+    },
+    status: "cancelled",
     ...overrides,
   });
 }
@@ -364,6 +484,14 @@ function marketWithoutResolution() {
 function marketWithoutPostgrad() {
   const market = resolvedMarket();
   delete market.postgrad;
+
+  return market;
+}
+
+function marketWithoutAddress() {
+  const market = marketWithoutPostgrad();
+  delete (market.resolution as Partial<NonNullable<Market["resolution"]>>)
+    .postgradMarket;
 
   return market;
 }

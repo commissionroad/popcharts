@@ -7,7 +7,7 @@ import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 
 import type { PopChartsContractConfig } from "../config";
 import { getPopChartsContractConfig } from "../config";
-import { submitRedemption } from "../redemption-service";
+import { submitDrawRedemption, submitRedemption } from "../redemption-service";
 import { useRedemption } from "./use-redemption";
 
 vi.mock("wagmi", () => ({
@@ -26,6 +26,7 @@ vi.mock("../config", async (importOriginal) => ({
 
 vi.mock("../redemption-service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../redemption-service")>()),
+  submitDrawRedemption: vi.fn(),
   submitRedemption: vi.fn(),
 }));
 
@@ -48,6 +49,7 @@ const redemptionResult = {
   collateralAmount: 24n * WAD,
   outcomeAmount: 24n * WAD,
   transactionHash: `0x${"cc".repeat(32)}` as const,
+  valueWad: 24n * WAD,
 };
 
 beforeEach(() => {
@@ -63,6 +65,7 @@ beforeEach(() => {
     activeChainId: 31337,
     address: ACCOUNT,
   } as ReturnType<typeof useWalletAccount>);
+  vi.mocked(submitDrawRedemption).mockResolvedValue(redemptionResult);
   vi.mocked(submitRedemption).mockResolvedValue(redemptionResult);
 });
 
@@ -78,6 +81,17 @@ describe("useRedemption", () => {
     expect(submitRedemption).not.toHaveBeenCalled();
   });
 
+  it("guards draw redemptions when no contract config is available", async () => {
+    vi.mocked(getPopChartsContractConfig).mockReturnValue(null);
+    const { result } = renderHook(() => useRedemption());
+
+    act(() => result.current.redeemDraw(drawRequest()));
+
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(result.current.error).toBe("Claims are not available on this network.");
+    expect(submitDrawRedemption).not.toHaveBeenCalled();
+  });
+
   it("fails when the wallet or clients are not ready", async () => {
     vi.mocked(useWalletClient).mockReturnValue({
       data: undefined,
@@ -91,6 +105,21 @@ describe("useRedemption", () => {
       "Connect a wallet before claiming your winnings."
     );
     expect(submitRedemption).not.toHaveBeenCalled();
+  });
+
+  it("guards draw redemptions when the wallet or clients are not ready", async () => {
+    vi.mocked(useWalletClient).mockReturnValue({
+      data: undefined,
+    } as ReturnType<typeof useWalletClient>);
+    const { result } = renderHook(() => useRedemption());
+
+    act(() => result.current.redeemDraw(drawRequest()));
+
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(result.current.error).toBe(
+      "Connect a wallet before claiming your winnings."
+    );
+    expect(submitDrawRedemption).not.toHaveBeenCalled();
   });
 
   it("submits the redemption and reports success, then refreshes the caller", async () => {
@@ -117,6 +146,29 @@ describe("useRedemption", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("submits a draw redemption with the request and wallet context", async () => {
+    const onRedeemed = vi.fn();
+    const { result } = renderHook(() => useRedemption({ onRedeemed }));
+
+    act(() => result.current.redeemDraw(drawRequest()));
+
+    expect(result.current.status).toBe("pending");
+    await waitFor(() => expect(result.current.status).toBe("success"));
+
+    expect(submitDrawRedemption).toHaveBeenCalledWith({
+      ...drawRequest(),
+      config: contractConfig,
+      wallet: {
+        accountAddress: ACCOUNT,
+        activeChainId: 31337,
+        publicClient,
+        walletClient,
+      },
+    });
+    expect(result.current.result).toEqual(redemptionResult);
+    expect(onRedeemed).toHaveBeenCalledOnce();
+  });
+
   it("surfaces a formatted error when the write fails", async () => {
     const onRedeemed = vi.fn();
     vi.mocked(submitRedemption).mockRejectedValue(
@@ -136,4 +188,8 @@ describe("useRedemption", () => {
 
 function request() {
   return { amount: 24n * WAD, marketAddress: MARKET, side: "yes" as const };
+}
+
+function drawRequest() {
+  return { marketAddress: MARKET, noAmount: 12n * WAD, yesAmount: 24n * WAD };
 }
