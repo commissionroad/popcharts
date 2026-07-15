@@ -9,6 +9,7 @@ import type { MarketAiReview } from "./marketAiReview";
 import type { AiReviewProgress } from "./aiReviewProgress";
 import type { MarketMetadata } from "./marketMetadata";
 import type { MarketPostgrad } from "./marketPostgrad";
+import type { MarketResolution } from "./marketResolution";
 import type { MarketStatus } from "./marketStatus";
 
 export interface Market {
@@ -34,6 +35,7 @@ export interface Market {
   openingProbabilityWad: string;
   postgrad?: MarketPostgrad;
   receiptCount: string;
+  resolution?: MarketResolution;
   resolutionTime: string;
   status: MarketStatus;
   totalEscrowed: string;

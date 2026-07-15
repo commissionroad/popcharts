@@ -466,3 +466,11 @@ gains a consumer (both flagged on the 0011 summary). Motivated by the
 2026-07-14 verdict-lottery findings (identical markets drew reject ×2 /
 manual_review ×3). Also flips the resolution local default heuristic →
 Ollama — added as a third safety valve note on the resolution concept page.
+
+## [2026-07-14] ingest | portfolio-data-design — postgrad_redemption_events added to paper-trail tables
+Pages: ~summaries/portfolio-data-design.md
+Notes: The claim-winnings build (resolution redemption UI) added the
+postgrad_redemption_events table indexing Redeemed/CancelledRedeemed from
+graduated CompleteSetBinaryMarkets — the first concrete realization of the
+invariant's "resolution redemption" clause. Doc bullet and summary updated;
+index line unchanged (already mentions the invariant).

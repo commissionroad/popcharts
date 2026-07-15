@@ -28,6 +28,18 @@ vi.mock("@/features/order-book/order-book-card", () => ({
   ),
 }));
 
+vi.mock("@/features/postgrad-ticket/open-orders-panel", () => ({
+  OpenOrdersPanel: ({ market }: { market: Market }) => (
+    <div>Open orders panel for {market.id}</div>
+  ),
+}));
+
+vi.mock("./claim-winnings-panel", () => ({
+  ClaimWinningsPanel: ({ market }: { market: Market }) => (
+    <div>Claim winnings panel for {market.id}</div>
+  ),
+}));
+
 vi.mock("./market-position-panel", () => ({
   MarketPositionPanel: ({ market }: { market: Market }) => (
     <div>Position panel for {market.id}</div>
@@ -80,6 +92,17 @@ describe("MarketDetailPage", () => {
       screen.getByText("Checking the market criteria and public evidence.")
     ).toBeInTheDocument();
     expect(screen.queryByText("Objectivity")).not.toBeInTheDocument();
+  });
+
+  it("infers queued review progress when the index has not supplied detail", () => {
+    const market = marketFactory({ status: "under_review" });
+    delete market.aiReview;
+    delete market.aiReviewProgress;
+
+    render(<MarketDetailPage market={market} />);
+
+    expect(screen.getByText("Review pending")).toBeInTheDocument();
+    expect(screen.getByText("Preparing this market for review.")).toBeInTheDocument();
   });
 
   it("renders operator attention without a speculative scorecard", () => {
@@ -160,6 +183,120 @@ describe("MarketDetailPage", () => {
 
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
+    ).toBeInTheDocument();
+  });
+
+  it("retires trading UI and offers claims and order cancellation once resolved", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+            winningSide: "yes",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getByText("Resolved - YES wins")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Winning YES tokens redeem 1:1 for collateral/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Claim winnings panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Open orders panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Postgrad trade panel for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Receipt ticket for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("GRADUATION")).not.toBeInTheDocument();
+    expect(screen.queryByText("Receipt book settled")).not.toBeInTheDocument();
+  });
+
+  it("renders a postgrad cancellation as a draw with claims and order cancellation", () => {
+    render(<MarketDetailPage market={drawMarket()} />);
+
+    expect(screen.getByText("Cancelled - draw")).toBeInTheDocument();
+    expect(
+      screen.getByText(/YES and NO tokens both redeem at half value/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Claim winnings panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Open orders panel for eth-5000-august")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Postgrad trade panel for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Receipt ticket for eth-5000-august")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("GRADUATION")).not.toBeInTheDocument();
+  });
+
+  it("keeps a pregrad cancellation on the receipt layout", () => {
+    render(<MarketDetailPage market={marketFactory({ status: "cancelled" })} />);
+
+    expect(screen.getByText("GRADUATION")).toBeInTheDocument();
+    expect(screen.getByText("Receipt ticket for eth-5000-august")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Claim winnings panel for eth-5000-august")
+    ).not.toBeInTheDocument();
+  });
+
+  it("summarizes a resolved market before its winner and timestamp index", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getAllByText("Resolved")).toHaveLength(2);
+    expect(screen.getByText("This market has resolved on-chain.")).toBeInTheDocument();
+  });
+
+  it("names NO as the winner and YES as out of the money", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+            winningSide: "no",
+          },
+          status: "resolved",
+        })}
+      />
+    );
+
+    expect(screen.getByText("Resolved - NO wins")).toBeInTheDocument();
+    expect(
+      screen.getByText(/YES tokens finished out of the money/)
     ).toBeInTheDocument();
   });
 
@@ -306,6 +443,25 @@ function offChainMarket(): Market {
   delete market.chainId;
 
   return market;
+}
+
+function drawMarket(): Market {
+  return marketFactory({
+    postgrad: {
+      adapterAddress: "0x00000000000000000000000000000000000000ab",
+      completeSets: 356_000,
+      finalizedAt: "2026-07-01T00:00:00.000Z",
+      marketAddress: "0x00000000000000000000000000000000000000cd",
+      refundedUsd: 126_300,
+      retainedUsd: 356_000,
+    },
+    resolution: {
+      kind: "cancelled",
+      postgradMarket: "0x00000000000000000000000000000000000000cd",
+      resolvedAt: "2026-07-14T00:00:00.000Z",
+    },
+    status: "cancelled",
+  });
 }
 
 function graduatableMarket(overrides: Partial<Market> = {}): Market {
