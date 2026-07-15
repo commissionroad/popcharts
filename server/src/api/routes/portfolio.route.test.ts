@@ -91,6 +91,40 @@ beforeAll(async () => {
     updatedAt: SEEDED_AT,
     updatedBlockNumber: 101n,
   });
+  // Two payouts in ascending chain order; the API must return them newest
+  // first (block desc, log desc).
+  await dbc.insert(schema.postgradRedemptionEvents).values([
+    {
+      account: OWNER,
+      blockNumber: 102n,
+      blockTimestamp: SEEDED_AT,
+      chainId,
+      collateralAmount: 40_000_000n,
+      contractId: contract.id,
+      kind: "redeemed",
+      logIndex: 5,
+      marketId: MARKET_ID,
+      outcomeAmount: 40_000_000_000_000_000_000n,
+      postgradMarket: POSTGRAD_MARKET,
+      side: "yes",
+      transactionHash: `0x${"77".repeat(32)}`,
+    },
+    {
+      account: OWNER,
+      blockNumber: 103n,
+      blockTimestamp: new Date("2026-07-14T13:00:00.000Z"),
+      chainId,
+      collateralAmount: 5_000_000n,
+      contractId: contract.id,
+      kind: "cancelled_redeemed",
+      logIndex: 1,
+      marketId: MARKET_ID,
+      noAmount: 4_000_000_000_000_000_000n,
+      postgradMarket: POSTGRAD_MARKET,
+      transactionHash: `0x${"78".repeat(32)}`,
+      yesAmount: 6_000_000_000_000_000_000n,
+    },
+  ]);
 
   ({ app } = await import("src/api"));
 }, 15_000);
@@ -125,6 +159,33 @@ describe("portfolio route", () => {
         },
       ],
       receipts: [],
+      // Newest first; the unreachable RPC also skips the decimals read, so
+      // each payout keeps its raw collateral amount without a display-WAD
+      // value.
+      redemptions: [
+        {
+          collateralAmount: "5000000",
+          kind: "cancelled_redeemed",
+          logIndex: 1,
+          marketId: MARKET_ID.toString(),
+          marketQuestion: "Will the portfolio seed resolve YES?",
+          noAmount: "4000000000000000000",
+          redeemedAt: "2026-07-14T13:00:00.000Z",
+          transactionHash: `0x${"78".repeat(32)}`,
+          yesAmount: "6000000000000000000",
+        },
+        {
+          collateralAmount: "40000000",
+          kind: "redeemed",
+          logIndex: 5,
+          marketId: MARKET_ID.toString(),
+          marketQuestion: "Will the portfolio seed resolve YES?",
+          outcomeAmount: "40000000000000000000",
+          redeemedAt: SEEDED_AT.toISOString(),
+          side: "yes",
+          transactionHash: `0x${"77".repeat(32)}`,
+        },
+      ],
       summary: {
         claimableReceiptCount: 0,
         lockedCollateral: "0",

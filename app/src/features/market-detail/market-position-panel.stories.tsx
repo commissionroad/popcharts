@@ -35,6 +35,7 @@ function portfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     owner: OWNER,
     positions: [],
     receipts: [],
+    redemptions: [],
     summary: {
       claimableReceiptCount: 0,
       lockedCollateral: "0",

@@ -79,6 +79,8 @@ export * from "./portfolioPosition";
 export * from "./portfolioReceipt";
 export * from "./portfolioReceiptSettlement";
 export * from "./portfolioReceiptStatus";
+export * from "./portfolioRedemption";
+export * from "./portfolioRedemptionKind";
 export * from "./portfolioSummary";
 export * from "./receiptPlacedEvent";
 export * from "./receiptPlacedEventList";

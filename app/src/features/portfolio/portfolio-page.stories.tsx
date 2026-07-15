@@ -19,6 +19,7 @@ function portfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     owner: OWNER,
     positions: [],
     receipts: [],
+    redemptions: [],
     summary: {
       claimableReceiptCount: 0,
       lockedCollateral: (60n * WAD).toString(),
@@ -131,6 +132,57 @@ export const ReceiptLifecycle: Story = {
           lockedCollateral: (60n * WAD).toString(),
           openOrderCount: 0,
           openReceiptCount: 1,
+          positionCount: 0,
+          totalPositionValueWad: "0",
+        },
+      }),
+    }),
+  ],
+};
+
+/**
+ * The claimed-payouts history table: a redeemed resolution winner and a
+ * cancelled-draw payout. A redeemed position's balance row zeroes out and
+ * leaves the tables above, so this history is the only place the payout
+ * stays visible.
+ */
+export const ClaimedPayouts: Story = {
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        redemptions: [
+          {
+            collateralAmount: "120000000",
+            kind: "redeemed",
+            logIndex: 3,
+            marketId: "7",
+            marketQuestion: "Will it pop?",
+            outcomeAmount: (120n * WAD).toString(),
+            redeemedAt: "2026-07-12T00:00:00.000Z",
+            side: "yes",
+            transactionHash: `0x${"dd".repeat(32)}`,
+            valueWad: (120n * WAD).toString(),
+          },
+          {
+            collateralAmount: "30000000",
+            kind: "cancelled_redeemed",
+            logIndex: 9,
+            marketId: "9",
+            marketQuestion: "Will the draw market settle?",
+            noAmount: (25n * WAD).toString(),
+            redeemedAt: "2026-07-13T00:00:00.000Z",
+            transactionHash: `0x${"ee".repeat(32)}`,
+            valueWad: (30n * WAD).toString(),
+            yesAmount: (35n * WAD).toString(),
+          },
+        ],
+        summary: {
+          claimableReceiptCount: 0,
+          lockedCollateral: "0",
+          openOrderCount: 0,
+          openReceiptCount: 0,
           positionCount: 0,
           totalPositionValueWad: "0",
         },

@@ -12,6 +12,7 @@ import {
   type PortfolioOrderRow,
   type PortfolioReadDependencies,
   type PortfolioReceiptRow,
+  type PortfolioRedemptionRow,
 } from "src/api/services/portfolio";
 import {
   venueOrderOutcomeSize,
@@ -511,6 +512,102 @@ describe("getPortfolio positions", () => {
   });
 });
 
+describe("getPortfolio redemptions", () => {
+  it("serializes a winning-side payout with its display-WAD value", async () => {
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerRedemptions: async () => [
+          createRedemptionRow({
+            collateralAmount: 40_000_000n,
+            outcomeAmount: 40n * WAD,
+            side: "yes",
+          }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.redemptions).toHaveLength(1);
+    expect(result.portfolio.redemptions[0]).toEqual({
+      collateralAmount: "40000000",
+      kind: "redeemed",
+      logIndex: 3,
+      marketId: "7",
+      marketQuestion: "Will it pop?",
+      outcomeAmount: (40n * WAD).toString(),
+      redeemedAt: "2026-07-12T00:00:00.000Z",
+      side: "yes",
+      transactionHash: `0x${"ee".repeat(32)}`,
+      // 40 collateral at 6 decimals re-expressed as a display-WAD value.
+      valueWad: (40n * WAD).toString(),
+    });
+  });
+
+  it("serializes a cancelled-draw payout with both burn legs and no side", async () => {
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerRedemptions: async () => [
+          createRedemptionRow({
+            collateralAmount: 10_000_000n,
+            kind: "cancelled_redeemed",
+            noAmount: 12n * WAD,
+            yesAmount: 8n * WAD,
+          }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.redemptions[0]).toMatchObject({
+      kind: "cancelled_redeemed",
+      noAmount: (12n * WAD).toString(),
+      yesAmount: (8n * WAD).toString(),
+    });
+    expect(result.portfolio.redemptions[0]?.side).toBeUndefined();
+    expect(result.portfolio.redemptions[0]?.outcomeAmount).toBeUndefined();
+  });
+
+  it("keeps the raw payout but omits value and question for an unknown market", async () => {
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerRedemptions: async () => [
+          createRedemptionRow({ market: null }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.redemptions[0]).toMatchObject({
+      collateralAmount: "40000000",
+    });
+    expect(result.portfolio.redemptions[0]?.valueWad).toBeUndefined();
+    expect(result.portfolio.redemptions[0]?.marketQuestion).toBeUndefined();
+  });
+
+  it("omits the value when the collateral decimals read fails", async () => {
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        readCollateralDecimals: async () => {
+          throw new Error("rpc unavailable");
+        },
+        selectOwnerRedemptions: async () => [createRedemptionRow({})],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.redemptions).toHaveLength(1);
+    expect(result.portfolio.redemptions[0]?.valueWad).toBeUndefined();
+  });
+});
+
 describe("getPortfolio open orders and summary", () => {
   it("annotates open orders with their market and counts them", async () => {
     const pool = createPoolRow({});
@@ -724,6 +821,47 @@ function createOrderRow(overrides: Partial<VenueOrderRow>): VenueOrderRow {
   };
 }
 
+function createRedemptionRow({
+  collateralAmount = 40_000_000n,
+  kind = "redeemed",
+  market,
+  noAmount = null,
+  outcomeAmount = null,
+  side = null,
+  yesAmount = null,
+}: {
+  collateralAmount?: bigint;
+  kind?: PortfolioRedemptionRow["redemption"]["kind"];
+  market?: PortfolioRedemptionRow["market"];
+  noAmount?: bigint | null;
+  outcomeAmount?: bigint | null;
+  side?: "yes" | "no" | null;
+  yesAmount?: bigint | null;
+}): PortfolioRedemptionRow {
+  return {
+    market:
+      market === undefined
+        ? {
+            collateral: "0x0000000000000000000000000000000000000002",
+            question: "Will it pop?",
+            status: "resolved",
+          }
+        : market,
+    redemption: {
+      blockTimestamp: new Date("2026-07-12T00:00:00Z"),
+      collateralAmount,
+      kind,
+      logIndex: 3,
+      marketId: 7n,
+      noAmount,
+      outcomeAmount,
+      side,
+      transactionHash: `0x${"ee".repeat(32)}`,
+      yesAmount,
+    },
+  };
+}
+
 function createDependencies(
   overrides: Partial<PortfolioReadDependencies>,
 ): PortfolioReadDependencies {
@@ -733,6 +871,7 @@ function createDependencies(
     selectOwnerBalances: async () => [],
     selectOwnerOpenOrders: async () => [],
     selectOwnerReceipts: async () => [],
+    selectOwnerRedemptions: async () => [],
     ...overrides,
   };
 }

@@ -865,7 +865,7 @@
       "get": {
         "operationId": "getPortfolio",
         "summary": "Get a wallet's full portfolio",
-        "description": "Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), and open venue maker orders. Public owner-scoped read; no authentication.",
+        "description": "Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), open venue maker orders, and past resolution-redemption payouts (newest first). Public owner-scoped read; no authentication.",
         "tags": [
           "Portfolio"
         ],
@@ -2410,6 +2410,7 @@
           "owner",
           "positions",
           "receipts",
+          "redemptions",
           "summary"
         ],
         "properties": {
@@ -2435,6 +2436,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PortfolioReceipt"
+            }
+          },
+          "redemptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioRedemption"
             }
           },
           "summary": {
@@ -2598,6 +2605,59 @@
           "settled",
           "refunded"
         ]
+      },
+      "PortfolioRedemption": {
+        "type": "object",
+        "required": [
+          "collateralAmount",
+          "kind",
+          "logIndex",
+          "marketId",
+          "redeemedAt",
+          "transactionHash"
+        ],
+        "properties": {
+          "collateralAmount": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "redeemed",
+              "cancelled_redeemed"
+            ]
+          },
+          "logIndex": {
+            "type": "number"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "marketQuestion": {
+            "type": "string"
+          },
+          "noAmount": {
+            "type": "string"
+          },
+          "outcomeAmount": {
+            "type": "string"
+          },
+          "redeemedAt": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/VenuePoolSide"
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "valueWad": {
+            "type": "string"
+          },
+          "yesAmount": {
+            "type": "string"
+          }
+        }
       },
       "PortfolioSummary": {
         "type": "object",

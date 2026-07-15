@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-14
+updated: 2026-07-15
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -77,7 +77,14 @@ tables; the events stay the source of truth.
     became), not current balance.
 - **D2 — one aggregate endpoint.** `GET /portfolio/:chainId?owner=0x...`
   returning receipts + positions + open orders + summary in one payload
-  (new `server/src/api/routes/portfolio.ts`).
+  (new `server/src/api/routes/portfolio.ts`). *Extended 2026-07-15:* the
+  payload also carries `redemptions` — past `Redeemed`/`CancelledRedeemed`
+  payouts read from `postgrad_redemption_events` as `PortfolioRedemption`
+  (burned token legs, raw `collateralAmount`, decimals-reconciled `valueWad`).
+  A redeemed position's balance row zeroes out and leaves the positions list,
+  so this history (the portfolio page's "Claimed payouts" table) is the only
+  surface where the payout stays visible — the resolution counterpart of a
+  receipt's `settled` state.
 - **D3 — wallet identity = lowercased query param**, validated
   `^0x[0-9a-f]{40}$`, no auth; same pattern as `orders?owner=`.
 - **D4 — client transport:** visibility-aware polling hook

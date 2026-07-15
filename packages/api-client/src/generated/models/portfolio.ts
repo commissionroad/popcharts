@@ -8,6 +8,7 @@
 import type { PortfolioOpenOrder } from "./portfolioOpenOrder";
 import type { PortfolioPosition } from "./portfolioPosition";
 import type { PortfolioReceipt } from "./portfolioReceipt";
+import type { PortfolioRedemption } from "./portfolioRedemption";
 import type { PortfolioSummary } from "./portfolioSummary";
 
 export interface Portfolio {
@@ -16,5 +17,6 @@ export interface Portfolio {
   owner: string;
   positions: PortfolioPosition[];
   receipts: PortfolioReceipt[];
+  redemptions: PortfolioRedemption[];
   summary: PortfolioSummary;
 }

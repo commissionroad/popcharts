@@ -594,3 +594,12 @@ prompt v2 judgment guidance was testless — v3 adopted with 42→75% accuracy
 numbers in the same PR). testing-strategy and ai-review-service pages
 already carry ADR 0019 sections from its ingest; no further page edits
 needed.
+
+## [2026-07-15] ingest | root doc — portfolio data design (redemption read surface)
+Pages: ~summaries/portfolio-data-design.md
+Notes: doc gained a `PortfolioRedemption` model in its Proposed API section —
+the portfolio payload now includes past resolution-redemption payouts from
+postgrad_redemption_events (raw collateralAmount + decimals-reconciled
+valueWad), rendered as the portfolio page's "Claimed payouts" table. D2
+bullet extended; no other page edits needed (paper-trail section already
+covered the table itself from PR #219's ingest).
