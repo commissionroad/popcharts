@@ -9,6 +9,7 @@ sources:
   - app/docs/adr/0003-domain-first-module-layout.md
   - docs/adr/0007-track-verticals-with-progress-adrs.md
   - protocol/docs/adr/0011-admin-market-cancellation.md
+  - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
 updated: 2026-07-14
 ---
 
@@ -60,6 +61,17 @@ in **three vocabularies with three masters** (do not unify — see
 > is a *draw* on `CompleteSetBinaryMarket` (half-value redemption), a separate
 > contract with its own surface. The API union exposes one `cancelled` string;
 > which one it means depends on where the market is in the ladder.
+
+**The postgrad terminal states currently have no surface** (found in the
+2026-07-14 full-lifecycle test session): resolved markets regress to the
+pre-graduation layout with no winning-side display or redemption UX, and the
+API drops the whole `postgrad` payload for cancelled markets, so a
+draw-cancelled market's venue is undiscoverable by the app.
+[Root ADR 0018](../summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md)
+(accepted 2026-07-14, all slices open) is the fix: the API keeps the
+`postgrad` payload for any finalized graduation, and resolved/cancelled
+markets get outcome banners plus wallet-signed `redeem`/`redeemCancelled`
+panels — completing the redemption end of the ladder.
 
 The lifecycle is the organizing frame for all vertical ADRs: protocol drives
 transitions (0008), indexer/API project them (0010/0009), AI services gate
