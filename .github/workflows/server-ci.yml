@@ -58,6 +58,24 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+
+    # Backs the *.int.test.ts tier (ADR 0017 Track B): DB-boundary
+    # integration tests run per PR against a real Postgres. Unit tests
+    # never touch it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         shell: bash
@@ -108,6 +126,11 @@ jobs:
 
       - name: Tests with coverage
         run: bun run test:coverage
+
+      - name: Integration tests (real Postgres)
+        env:
+          POPCHARTS_INT_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: bun run test:integration
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

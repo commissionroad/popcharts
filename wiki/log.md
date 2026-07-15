@@ -370,6 +370,69 @@ renamed "nightly full-fidelity tier" and broadened from scheduling existing
 smokes to growing new full-stack scenarios. Floor measured on unit tier
 only.
 
+## [2026-07-14] ingest | repo ADR 0017 — Track F completed (invariant-test timeout)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: The band-pass invariant test (2000 random books) got a 30s explicit
+timeout against bun's 5s default — it ran ~8s under coverage
+instrumentation locally while CI stayed green, i.e. a latent local-only
+flake. Done as its own micro-PR ahead of Track B item 1 because the floor
+work needs clean local coverage runs to measure baselines.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 1 landed (server coverage floor)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: bunfig gained ../protocol/** in coveragePathIgnorePatterns (bun's own
+totals now workspace-own: functions 70.09 / lines 74.88 — note bun's line
+metric differs from the lcov-derived badge figure, two rulers by design) and
+coverageThreshold { function = 0.70, line = 0.74 }. Bun gotcha recorded in
+bunfig comment: threshold keys are singular; plural keys OR an unmet
+threshold both exit 1 with zero diagnostic output. Enforcement verified in
+both directions locally.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 2 landed (PGlite spike: go)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: receipt-placed.pglite.test.ts proves the unit substrate: PGlite +
+drizzle-orm/pglite + drizzle-kit/api pushSchema under bun test, no Docker.
+Covers replay dedup via the real unique index, raw-SQL increments, and
+rollback when the markets projection is missing. Coverage rose to 74.52
+funcs / 75.31 lines (bun metrics) and the floor ratcheted up with it —
+first ratchet bump of the program. Executor typing still needs the cast
+noted in-file; first-class injection is Track B item 4.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B item 3 landed (paper-trail integration suite)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Check server gained a postgres:16-alpine service container and a
+per-PR integration step; *.int.test.ts convention is describe.skipIf on
+POPCHARTS_INT_DB_URL with throwaway databases (int-db.ts; drizzle-kit
+generateMigration DDL because pushSchema is incompatible with the
+postgres-js driver). paper-trail.int.test.ts covers all 7 persist
+functions: exactly-once replay, receipt/market linkage, rollback on
+missing market. Found, not fixed: claim persistence requires the market
+row but not the referenced receipt row (task chip filed). Unit suite and
+coverage floor untouched by all this — int tests skip without the env.
+
+## [2026-07-14] ingest | repo ADR 0017 — Track B complete (items 4+5: injectable db, route tests, boundary doc)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: src/db/client.ts `db` is now a lazy Proxy (function-binding get,
+setDbForTesting override; no connection until first query, so route tests
+inject PGlite before anything connects). app.handle() route tests cover
+system/markets/portfolio with exact-serialization assertions; portfolio
+asserts the chain-unreachable degraded shape. Test-substrate boundary rule
+documented in server/src/test-support/README.md. Floor ratcheted to
+function 0.7672 / line 0.7666. Whole Track B checklist closed same-day as
+the grill that designed it.
+
+## [2026-07-14] ingest | go-live: landing + app deployed, domains attached (PR #221)
+Pages: +summaries/deployment-go-live-dns.md, ~summaries/deployment-vercel.md,
+~concepts/deployment-and-infrastructure.md, ~index.md
+Notes: docs/deployment/vercel.md now points at commissionroad/popcharts and
+the popcharts-app project (stale-org note resolved); new
+docs/deployment/go-live-dns.md is the go-live state ledger — landing
+(popcharts-landing) and app (popcharts-app) live on Vercel, popcharts.xyz
+and app.popcharts.xyz attached, Namecheap nameserver delegation pending.
+Concept page no longer says "nothing is deployed": frontend live, backend
+and protocol remain M5. The no-env app deploy labels fixture markets with a
+sample-data banner (product honesty rule).
+
 ## [2026-07-14] ingest | portfolio-data-design — postgrad_redemption_events added to paper-trail tables
 Pages: ~summaries/portfolio-data-design.md
 Notes: The claim-winnings build (resolution redemption UI) added the

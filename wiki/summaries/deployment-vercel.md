@@ -4,7 +4,7 @@ title: Vercel Deployments (docs/deployment/vercel.md)
 description: How the frontend deploys from app/ via Vercel's GitHub integration — preview/production branch mapping, project settings, and pre-land verification checks.
 sources:
   - docs/deployment/vercel.md
-updated: 2026-07-07
+updated: 2026-07-14
 ---
 
 # Vercel Deployments
@@ -26,10 +26,11 @@ GitHub integration.
 
 ## Project settings
 
-The Vercel project is linked to `sentilesdal/popcharts`. The local link lives
-in `app/.vercel/project.json`, which stays uncommitted (`app/.gitignore`
+The Vercel project is `popcharts-app` in the `commissionroads-projects`
+team, linked to `commissionroad/popcharts`. The local link lives in
+`app/.vercel/project.json`, which stays uncommitted (`app/.gitignore`
 excludes `.vercel/`). The doc gives the CLI recipe to recreate the setup
-(`vercel link --scope sentilesdals-projects --project popcharts`,
+(`vercel link --scope commissionroads-projects --project popcharts-app`,
 `vercel git connect`) and a `vercel api` PATCH that pins project settings:
 `rootDirectory: "app"`, `framework: "nextjs"`,
 `installCommand: "pnpm install --frozen-lockfile"`,
@@ -49,9 +50,5 @@ Before landing deployment changes, run the same app checks locally:
 - [Devchain summary](devchain.md) — Preview-scoped devchain env rules
   (`POPCHARTS_DEVCHAIN_PRIVATE_KEY` Preview-only, never
   `POPCHARTS_DEVCHAIN_ENABLED=true` in Production).
-
-## Staleness note
-
-The doc links the Vercel project to `sentilesdal/popcharts`, but the repo has
-since moved to the `commissionroad` GitHub org; the linked-repo reference may
-be stale.
+- [Go-live DNS runbook](deployment-go-live-dns.md) — custom domains
+  (`popcharts.xyz`, `app.popcharts.xyz`) and registrar DNS.

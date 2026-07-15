@@ -142,25 +142,25 @@ coverage floor is measured on the unit tier only.
 
 Sequenced checklist (one PR each):
 
-- [ ] Floor first: align bun's own denominator with the workspace-own
+- [x] Floor first: align bun's own denominator with the workspace-own
       definition (`coveragePathIgnorePatterns` for `../protocol`) and set
       `coverageThreshold` at the measured baseline; ratchet upward
       manually as coverage lands (app convention — never-regress, no
       mandated target)
-- [ ] PGlite spike: one persistence-function test file against
+- [x] PGlite spike: one persistence-function test file against
       drizzle-orm's PGlite adapter under `bun test`; go/no-go for the
       unit substrate (fallback: the service container everywhere)
-- [ ] Money paper-trail integration suite as the container's first cargo:
+- [x] Money paper-trail integration suite as the container's first cargo:
       drive the settlement/refunds/claims handler family twice with the
       same event against real Postgres and assert exactly-once
       persistence, receipt linkage, and that the
       `ensure-local-unique-constraints` DDL holds — converting the
       paper-trail invariant (docs/portfolio-data-design.md) from prose
       into a merge gate
-- [ ] Make the `src/db/client.ts` import-time singleton injectable, then
+- [x] Make the `src/db/client.ts` import-time singleton injectable, then
       route-layer tests via `app.handle()` against the Elysia apps (no
       listening server), covering `src/api/routes/`
-- [ ] Document the fake-executor vs real-SQL boundary where the test
+- [x] Document the fake-executor vs real-SQL boundary where the test
       helpers live
 
 **Track C — Nightly full-fidelity tier.**
@@ -203,7 +203,7 @@ track adds only a correctness gate.
 
 **Track F — Known flake fixes.**
 
-- [ ] Explicit timeout (or reduced default book count with the full run
+- [x] Explicit timeout (or reduced default book count with the full run
       behind an env flag) for the band-pass clearing invariant test
 
 **Track G — Protocol TS SDK surface.**

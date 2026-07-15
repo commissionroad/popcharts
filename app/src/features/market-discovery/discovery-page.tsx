@@ -1,8 +1,9 @@
-import { getMarkets } from "@/domain/markets/queries";
+import { getMarkets, usesFixtureMarkets } from "@/domain/markets/queries";
 import { DiscoveryBoard } from "@/features/market-discovery/discovery-board";
 
 export async function DiscoveryPage() {
   const markets = await getMarkets();
+  const sampleData = usesFixtureMarkets();
 
   return (
     <div>
@@ -16,6 +17,14 @@ export async function DiscoveryPage() {
           </h1>
         </div>
       </div>
+      {sampleData ? (
+        <p
+          role="note"
+          className="mb-6 rounded-md border border-[var(--border)] px-4 py-3 font-mono text-[11px] tracking-[0.1em] text-[var(--text-secondary)] uppercase"
+        >
+          Sample data — these markets are illustrative, not live trading.
+        </p>
+      ) : null}
       <DiscoveryBoard markets={markets} />
     </div>
   );

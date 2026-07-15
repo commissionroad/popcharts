@@ -39,6 +39,14 @@ protocol-side adaptation of the same source.
   parsing, and env handling are the classic offenders.
 - One source of truth per fact. If two workspaces need the same constant or
   schema, one exports it and the other imports it — don't copy.
+- **Coordination constants especially**: a literal that two or more tools must
+  agree on (marker strings, env keys, ports, sentinel comments) gets exactly
+  one definition; tools never mirror each other's literals, even behind a
+  comment saying to keep them in sync. If the runtimes can't share a package
+  (node --experimental-strip-types won't load TS from node_modules), share a
+  dependency-free module by relative path and comment the loader constraint at
+  the import site. (Incident: duplicated env marker blocks shadowed live
+  contract addresses — PR #210.)
 - Don't extract a helper for one caller and speculative reuse; extract when a
   second caller exists or the extraction makes the caller readable.
 
@@ -75,6 +83,11 @@ protocol-side adaptation of the same source.
   over markets"), no changelog ("moved from utils.ts"), no commented-out code.
 - If a comment explains *what* the code does, rewrite the code until the
   comment is unnecessary; keep comments that explain *why*.
+- Regexes beyond the trivial get a comment saying in prose what they match and
+  why any subtle construct is there (lazy quantifiers, `[\s\S]` vs dotAll,
+  trailing-newline handling). Every regex flag must earn its place — a flag
+  with no effect (an `m` on a pattern with no `^`/`$` anchors) is deleted, not
+  explained.
 
 ## Definition of done
 

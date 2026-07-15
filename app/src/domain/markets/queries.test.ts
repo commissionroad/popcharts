@@ -15,6 +15,7 @@ import {
   requestDevMarketResolution,
   requestMarketGraduation,
   requestPregradMarketCloseForRefund,
+  usesFixtureMarkets,
 } from "./queries";
 
 const apiMarket: ApiMarket = {
@@ -580,6 +581,14 @@ describe("market queries", () => {
   it("defaults to fixtures in auto mode without an indexer URL", async () => {
     await expect(getMarkets()).resolves.toBe(fixtureMarkets);
     await expect(getMarkets({ chainId: 5042002 })).resolves.toBe(fixtureMarkets);
+  });
+
+  it("reports fixture-backed reads so the UI can label sample data", () => {
+    expect(usesFixtureMarkets()).toBe(true);
+    expect(usesFixtureMarkets({ source: "fixtures", chainId: 5042002 })).toBe(true);
+    expect(
+      usesFixtureMarkets({ apiBaseUrl: "http://localhost:3999", source: "api" })
+    ).toBe(false);
   });
 });
 

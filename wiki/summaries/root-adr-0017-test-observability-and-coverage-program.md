@@ -13,7 +13,8 @@ updated: 2026-07-14
 [ADR 0016](root-adr-0016-monorepo-architecture-cleanup-program.md)), not part
 of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
 core pipeline; the flake report and Playwright retry surfacing followed the
-same day); Tracks B–G open.**
+same day); Track F (invariant-test timeout) and Track B (server floor +
+untested layers, five items) completed 2026-07-14; Tracks C/D/E/G open.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -67,12 +68,24 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   needs only Postgres → per-PR, needs a chain/second service → nightly
   (Track C). Sequenced: floor first (bun `coveragePathIgnorePatterns` +
   `coverageThreshold` at baseline, manual never-regress ratchet, unit tier
-  only), PGlite spike, then the **money paper-trail integration suite** as
-  the container's first cargo (replay each settlement/refund/claim event
-  twice, assert exactly-once receipt-linked persistence — the
-  portfolio-data-design invariant as a merge gate), then `db` singleton
-  injectability + `app.handle()` route tests. Fake executors stay for pure
-  projection/serialization logic.
+  only — **landed 2026-07-14**, function 70%/line 74% in bun's own
+  metrics), PGlite spike (**landed 2026-07-14 — go**: PGlite + drizzle +
+  drizzle-kit pushSchema all work under bun test, in-process, ~2s; the spike
+  verifies unique-index replay dedup, raw-SQL counter increments, and
+  transaction rollback on `persistReceiptPlacedRecord` — exactly the claims
+  fake executors cannot falsify), then the **money paper-trail integration suite** as
+  the container's first cargo (**landed 2026-07-14**: all seven
+  settlement/claims/refunds persist functions replay-tested against a
+  real Postgres per PR — `services: postgres` in Check server, throwaway
+  database per file via `server/src/test-support/int-db.ts`,
+  `*.int.test.ts` self-skip without POPCHARTS_INT_DB_URL; found-not-fixed:
+  claim handlers don't require the referenced receipt row to exist), then `db` singleton
+  injectability + `app.handle()` route tests (**landed 2026-07-14**: lazy
+  proxy in client.ts + setDbForTesting; route tests for system/markets/
+  portfolio run on PGlite in the unit tier; boundary documented in
+  `server/src/test-support/README.md`). Fake executors stay for pure
+  projection/serialization logic. **Track B complete 2026-07-14** — floor
+  ratcheted twice on the way (70.09→74.52→76.73 functions).
 - **C — Nightly full-fidelity tier** (scope broadened by the grill): the
   nightly run of the existing smokes (`local-smoke`, `local-market-smoke`,
   `devchain-e2e`, `server-ai-review-smoke`) plus deliberate growth of new
@@ -86,7 +99,7 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
 - **E — Infra gate**: path-filtered `tsc` + `cdk synth` job; deployment CI
   stays with [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
 - **D also carries** the protocol Solidity floor (~92% lines baseline).
-- **F — Known flake fix**: explicit timeout for the band-pass clearing
+- **F — Known flake fix** (**complete 2026-07-14**): explicit timeout for the band-pass clearing
   invariant test (~8s under coverage vs bun's 5s default).
 - **G — Protocol TS SDK surface** (added post-grill): the package barrel
   re-exports ~25 symbols from `protocol/scripts/shared/{price,market}`, so

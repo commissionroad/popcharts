@@ -224,6 +224,8 @@ function randomBook(rng: () => number, count: number): ClearingReceipt[] {
 }
 
 describe("computeBandPassClearing — invariants over random books", () => {
+  // ~8s under coverage instrumentation vs bun's 5s default timeout
+  // (ADR 0017 Track F) — the 2000-trial loop needs explicit headroom.
   it("holds every conservation and balance invariant across 2000 random books", () => {
     const rng = makeRng(0xc0ffee);
     for (let trial = 0; trial < 2000; trial += 1) {
@@ -258,7 +260,7 @@ describe("computeBandPassClearing — invariants over random books", () => {
       expect(yes).toBe(no);
       expect(yes).toBe(plan.completeSetCount);
     }
-  });
+  }, 30_000);
 
   it("is deterministic and independent of receipt ordering", () => {
     const rng = makeRng(0x1234);
