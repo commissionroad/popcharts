@@ -6,7 +6,7 @@ sources:
   - documents/whitepaper_v4.pdf
   - docs/architecture.md
   - docs/adr/0007-track-verticals-with-progress-adrs.md
-updated: 2026-07-13
+updated: 2026-07-15
 ---
 
 # Pop Charts overview
@@ -42,19 +42,23 @@ Full ladder: [market lifecycle](concepts/market-lifecycle.md).
 [designkit/](entities/designkit.md)), with `infra/` (AWS CDK) and local
 stacks orchestrated by `just` ([local dev](concepts/local-dev-orchestration.md)).
 
-## Where things stand (2026-07-13)
+## Where things stand (2026-07-15)
 
 - **Working locally end to end**: pregrad loop (create → review → receipts →
   graduation clearing → claims) on the [devchain](entities/devchain.md);
-  postgrad venue smoke flows; AI review runner cycle.
-- **Landing now**: the [clearing keeper](entities/clearing-keeper.md)'s real
-  band-pass sweep (design accepted, replacing the greedy dev placeholder) and
-  [AI resolution](concepts/ai-assisted-resolution.md) (service/runner design
-  accepted, on-chain transition + config + client beginning to land); postgrad
-  UX is partway in (market-detail postgrad mode, portfolio/postgrad API
-  surface, and the v4-venue indexer watchers all ticked 2026-07-09).
+  postgrad venue smoke flows; AI review runner cycle. The
+  [clearing keeper](entities/clearing-keeper.md)'s real band-pass sweep has
+  landed (the greedy dev placeholder is gone; still poll-based and gated to the
+  local network), and [AI resolution](concepts/ai-assisted-resolution.md)
+  (service + leased runner) is building out — its on-chain transition, config,
+  and redemption UI have begun landing.
+- **Deployed**: the frontend went live on Vercel 2026-07-14 —
+  `popcharts-landing` on popcharts.xyz and the app on app.popcharts.xyz (custom
+  domains attached; Namecheap nameserver delegation pending). The **backend
+  (AWS CDK/ECS) and the protocol contracts (Arc Testnet) are still undeployed**
+  — see [deployment and infrastructure](concepts/deployment-and-infrastructure.md).
 - **Not built**: indexer reorg-hardening, resolver-key/operator flows end to
-  end, and all deployment ([nothing is deployed](concepts/deployment-and-infrastructure.md)).
+  end, and the backend/protocol deployment (milestone M5).
 - The road to [Arc Testnet](entities/arc-testnet.md) launch is tracked in
   vertical progress ADRs 0008–0015 (milestones M1–M5) — see
   [the conventions summary](summaries/root-adr-index-conventions.md).

@@ -186,16 +186,16 @@ The full-lifecycle suite (every terminal state, unhappy paths) remains ADR
 
 **Track D — Protocol value-path coverage.**
 
-- [ ] Dedicated unit tests for `PartialFillMath`, `V4DeltaSettlement`,
+- [x] Dedicated unit tests for `PartialFillMath`, `V4DeltaSettlement`,
       `OrderValidation`
-- [ ] A `StdInvariant` harness over `BoundedPoolOrderManager` asserting
+- [x] A `StdInvariant` harness over `BoundedPoolOrderManager` asserting
       escrow conservation across randomized order/fill/cancel sequences
-- [ ] Protocol Solidity coverage floor at the measured baseline (~92%
+- [x] Protocol Solidity coverage floor at the measured baseline (~92%
       lines), ratcheted
 
 **Track E — Infra check gate.**
 
-- [ ] Path-filtered CI job for `infra/**`: `tsc --noEmit` + `cdk synth`
+- [x] Path-filtered CI job for `infra/**`: `tsc --noEmit` + `cdk synth`
 - [ ] CDK assertion tests as a follow-up once the gate exists
 
 Deployment CI (image builds, deploy pipelines) stays with ADR 0015; this

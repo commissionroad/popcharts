@@ -9,6 +9,7 @@ import {
   recoverMarketCreatedEvents,
   recoverMarketReviewEvents,
   recoverOutcomeTokenTransferEvents,
+  recoverPostgradRedemptionEvents,
   recoverPostgradResolutionEvents,
   recoverReceiptPlacedEvents,
   recoverSettlementEvents,
@@ -16,6 +17,7 @@ import {
   watchMarketCreatedEvents,
   watchMarketReviewEvents,
   watchOutcomeTokenTransferEvents,
+  watchPostgradRedemptionEvents,
   watchPostgradResolutionEvents,
   watchReceiptPlacedEvents,
   watchSettlementEvents,
@@ -68,6 +70,7 @@ async function main() {
   const unwatchVenueOrders = watchVenueOrderEvents(client);
   const unwatchOutcomeTokenTransfers = watchOutcomeTokenTransferEvents(client);
   const unwatchPostgradResolution = watchPostgradResolutionEvents(client);
+  const unwatchPostgradRedemption = watchPostgradRedemptionEvents(client);
 
   markHealthy();
   console.log("\nIndexer is running and healthy");
@@ -96,6 +99,7 @@ async function main() {
     unwatchVenueOrders();
     unwatchOutcomeTokenTransfers();
     unwatchPostgradResolution();
+    unwatchPostgradRedemption();
     console.log("Shutdown complete");
     process.exit(0);
   };
@@ -123,6 +127,7 @@ async function recoverMissedEvents(
   // Also after settlement: postgrad markets are discovered from
   // GraduationFinalized rows, and their terminal events cannot precede them.
   await recoverPostgradResolutionEvents(client, currentBlock, { quiet });
+  await recoverPostgradRedemptionEvents(client, currentBlock, { quiet });
 }
 
 main().catch((error) => {

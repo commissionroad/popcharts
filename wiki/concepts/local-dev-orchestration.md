@@ -7,7 +7,7 @@ sources:
   - docs/devchain.md
   - docs/architecture.md
   - server/README.md
-updated: 2026-07-13
+updated: 2026-07-15
 ---
 
 # Local dev orchestration
@@ -26,8 +26,8 @@ convention: **orchestrators read deployment manifests
 - `just local-smoke` — create→index→API verification
   (`GET /markets?chainId=31337`).
 - `just devchain-e2e` — chain-backed Playwright `@chain` smoke.
-- `just local-ai-review` / `just server-ai-review-smoke` — heuristic review
-  loop on port 3002/3012.
+- `just local-ai-review` / `just server-ai-review-smoke` — AI review loop on
+  port 3002/3012 (Ollama by default locally, heuristic fallback).
 - Postgrad venue local deploy + `just local-market-health` /
   `just local-market-smoke` — the four venue flows.
 - `just local-create-market` — emits canonical JSON metadata in the

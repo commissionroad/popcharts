@@ -4,6 +4,7 @@ import type {
   MarketMetadataResponse,
   MarketMetadataWrite,
   MarketPostgradResponse,
+  MarketResolutionResponse,
   MarketResponse,
   ReceiptPlacedEventResponse,
 } from "src/api/models/markets";
@@ -79,6 +80,7 @@ export async function getMarkets({
   const reviews = await getLatestAiReviews(liveMarkets);
   const reviewJobs = await getLatestAiReviewJobs(liveMarkets);
   const postgrads = await getLatestPostgradInfos(liveMarkets);
+  const resolutions = await getResolutions(liveMarkets);
   const matchedCaps = await loadMatchedMarketCaps(liveMarkets);
 
   return liveRows.map(({ market, metadata }) =>
@@ -89,6 +91,7 @@ export async function getMarkets({
       reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
       postgrads.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
       reviewJobs.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
+      resolutions.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
     ),
   );
 }
@@ -155,6 +158,7 @@ export async function getMarketById(
   }
 
   const matchedCaps = await loadMatchedMarketCaps([row.market]);
+  const resolutions = await getResolutions([row.market]);
 
   return serializeMarketRow(
     row.market,
@@ -165,6 +169,8 @@ export async function getMarketById(
       null,
     postgrad,
     reviewJobs.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
+      null,
+    resolutions.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
   );
 }
@@ -381,6 +387,7 @@ export function serializeMarketRow(
   aiReview: MarketAiReviewRow | null = null,
   postgrad: MarketPostgradResponse | null = null,
   aiReviewJob: MarketAiReviewJobRow | null = null,
+  resolution: MarketResolutionResponse | null = null,
 ): MarketResponse {
   const aiReviewProgress = serializeAiReviewProgress({
     job: aiReviewJob,
@@ -411,6 +418,7 @@ export function serializeMarketRow(
     noShares: market.noShares.toString(),
     openingProbabilityWad: market.openingProbabilityWad.toString(),
     receiptCount: market.receiptCount.toString(),
+    ...(resolution ? { resolution } : {}),
     resolutionTime: market.resolutionTime.toISOString(),
     status: market.status,
     totalEscrowed: market.totalEscrowed.toString(),
@@ -747,6 +755,98 @@ async function getLatestPostgradInfos(markets: MarketRow[]) {
   }
 
   return infos;
+}
+
+/** Drizzle select shape of a postgrad_resolution_events row. */
+export type PostgradResolutionRow =
+  typeof schema.postgradResolutionEvents.$inferSelect;
+
+/**
+ * Maps a MarketResolved/MarketCancelled event row to the resolution shape
+ * exposed on resolved and cancelled markets: what settled, when, and — for a
+ * resolved market — which side redeems on the postgrad market.
+ */
+export function serializeResolutionRow(
+  row: PostgradResolutionRow,
+): MarketResolutionResponse {
+  return {
+    kind: row.kind,
+    postgradMarket: row.postgradMarket,
+    resolvedAt: row.blockTimestamp.toISOString(),
+    transactionHash: row.transactionHash,
+    ...(row.winningSide ? { winningSide: row.winningSide } : {}),
+  };
+}
+
+/**
+ * Serializes the terminal resolution event for one market, if any — the
+ * single-market companion to getResolutions, mirroring selectPostgradInfo.
+ */
+export async function selectMarketResolution({
+  chainId,
+  marketId,
+}: {
+  chainId: number;
+  marketId: bigint;
+}): Promise<MarketResolutionResponse | null> {
+  const rows = await db
+    .select()
+    .from(schema.postgradResolutionEvents)
+    .where(
+      and(
+        eq(schema.postgradResolutionEvents.chainId, chainId),
+        eq(schema.postgradResolutionEvents.marketId, marketId),
+      ),
+    )
+    .orderBy(
+      desc(schema.postgradResolutionEvents.blockNumber),
+      desc(schema.postgradResolutionEvents.logIndex),
+    )
+    .limit(1);
+  const row = rows[0];
+
+  return row ? serializeResolutionRow(row) : null;
+}
+
+/**
+ * Loads the terminal resolution event for each resolved/cancelled market in
+ * the page. A market emits at most one terminal event ever, so the newest row
+ * per market is the only row; the ordering just makes that deterministic
+ * against replayed data.
+ */
+async function getResolutions(markets: MarketRow[]) {
+  const resolutions = new Map<string, MarketResolutionResponse>();
+  const settledMarkets = markets.filter(
+    (market) => market.status === "resolved" || market.status === "cancelled",
+  );
+  if (settledMarkets.length === 0) {
+    return resolutions;
+  }
+
+  const chainIds = unique(settledMarkets.map((market) => market.chainId));
+  const marketIds = unique(settledMarkets.map((market) => market.marketId));
+  const rows = await db
+    .select()
+    .from(schema.postgradResolutionEvents)
+    .where(
+      and(
+        inArray(schema.postgradResolutionEvents.chainId, chainIds),
+        inArray(schema.postgradResolutionEvents.marketId, marketIds),
+      ),
+    )
+    .orderBy(
+      desc(schema.postgradResolutionEvents.blockNumber),
+      desc(schema.postgradResolutionEvents.logIndex),
+    );
+
+  for (const row of rows) {
+    const key = marketReviewKey(row.chainId, row.marketId);
+    if (!resolutions.has(key)) {
+      resolutions.set(key, serializeResolutionRow(row));
+    }
+  }
+
+  return resolutions;
 }
 
 async function filterLiveLocalMarketRows(rows: MarketQueryRow[]) {

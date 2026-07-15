@@ -422,6 +422,23 @@ export const MarketPostgradSchema = t.Object(
   { $id: "MarketPostgrad" },
 );
 
+/**
+ * Terminal resolution of a graduated market, projected from the postgrad
+ * market's MarketResolved/MarketCancelled event. `winningSide` is present for
+ * `resolved` (winning tokens redeem 1:1 for collateral on `postgradMarket`)
+ * and absent for a `cancelled` draw (both sides redeem at half value).
+ */
+export const MarketResolutionSchema = t.Object(
+  {
+    kind: t.Union([t.Literal("resolved"), t.Literal("cancelled")]),
+    postgradMarket: t.String(),
+    resolvedAt: t.String(),
+    transactionHash: t.String(),
+    winningSide: t.Optional(t.Ref(VenuePoolSideSchema)),
+  },
+  { $id: "MarketResolution" },
+);
+
 /** An indexed market projection, including optional metadata and AI review. */
 export const MarketSchema = t.Object(
   {
@@ -447,6 +464,7 @@ export const MarketSchema = t.Object(
     openingProbabilityWad: t.String(),
     postgrad: t.Optional(t.Ref(MarketPostgradSchema)),
     receiptCount: t.String(),
+    resolution: t.Optional(t.Ref(MarketResolutionSchema)),
     resolutionTime: t.String(),
     status: t.Ref(MarketStatusSchema),
     totalEscrowed: t.String(),
@@ -736,6 +754,7 @@ export type VenueOrderResponse = Static<typeof VenueOrderSchema>;
 export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
 export type MarketVenueResponse = Static<typeof MarketVenueSchema>;
 export type MarketPostgradResponse = Static<typeof MarketPostgradSchema>;
+export type MarketResolutionResponse = Static<typeof MarketResolutionSchema>;
 export type DevMarketGraduateResponse = Static<
   typeof DevMarketGraduateResponseSchema
 >;

@@ -68,6 +68,8 @@ export * from "./marketMetadata";
 export * from "./marketMetadataWrite";
 export * from "./marketOrderBook";
 export * from "./marketPostgrad";
+export * from "./marketResolution";
+export * from "./marketResolutionKind";
 export * from "./marketStatus";
 export * from "./marketVenue";
 export * from "./marketVenuePool";

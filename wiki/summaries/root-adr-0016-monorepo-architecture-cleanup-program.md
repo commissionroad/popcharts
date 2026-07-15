@@ -4,7 +4,7 @@ title: Repo ADR 0016 — Monorepo architecture cleanup program
 description: Tracked cleanup program of ~30 one-concern PRs across six tracks; fully executed — Tracks A/B/D/E/F 2026-07-06..07 autonomously, Track C (contract decomposition) 2026-07-07..13 under per-item human review; the one deferred item (D3 settlement-handler split) fired its trigger and was executed 2026-07-14.
 sources:
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
-updated: 2026-07-14
+updated: 2026-07-15
 ---
 
 # Repo ADR 0016: Monorepo Architecture Cleanup Program
@@ -163,9 +163,10 @@ scopes in the ADR body no longer describe what shipped.
   (`useTrustedCreatorStatus`, `useContractMarketStatus`) (PR #108).
 - [x] E5 Extract `useReceiptTicketState` hook (PR #109).
 - [x] E6 Extract `useCreateMarketFormState` hook (PR #110).
-- [ ] E7 Split `create-market-panels.tsx` — **checkbox unticked, but the
-  Progress Log records it landed as PR #111** (split into a
-  `create-market-panels/` directory). Stale checkbox; treat as done.
+- [x] E7 Split `create-market-panels.tsx` into a `create-market-panels/`
+  directory (PR #111). The checkbox long read `[ ]` — the tick was lost in the
+  0007→0016 renumber merge — and was **re-ticked in the 2026-07-14 bookkeeping
+  pass**.
 - [x] E8 Move app-ID parsing to `app/src/lib/app-id.ts` (PR #112).
 
 ### Track F — Tooling and repo hygiene: complete
@@ -187,14 +188,18 @@ review (C3 #126, C1 #128, C2 #132, C5 #184, C4 #190, C6). The god-file numbers
 that motivated the program: `PregradManager.sol` 1,365 → ~1,090 lines,
 `BoundedPoolOrderManager.sol` 1,273 → ~925.
 
-One checkbox remains `[ ]` in the raw ADR and **it is stale, not outstanding
-work** — a tick-based reading of the doc will get this wrong:
+**Every box in the raw ADR now reads `[x]`.** The two that used to lag are both
+resolved:
 
-- **E7** landed as PR #111 but its checkbox was never ticked — a stale box, not
-  open work (see Track E above).
+- **E7** landed as PR #111 but its checkbox was lost in the 0007→0016 renumber
+  merge; it was re-ticked in the 2026-07-14 bookkeeping pass (see Track E above).
+- **D3** — long the other unticked box, held as deferred-by-design — was ticked
+  on 2026-07-14 after its documented trigger fired (see Track D above).
 
-**D3** — long the other unticked box, held as deferred-by-design — was ticked
-on 2026-07-14 after its documented trigger fired (see Track D above).
+That same 2026-07-14 pass also recorded C6's PR (#191) and reconciled
+`docs/architecture.md` with post-program reality — the real server→protocol
+edge (`file:../protocol`), the resolution/keeper subsystems, and the app
+import-rule refinements.
 
 ## Related pages
 

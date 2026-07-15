@@ -138,3 +138,85 @@ export const ReceiptLifecycle: Story = {
     }),
   ],
 };
+
+/**
+ * Settled positions in the backed-positions table: a resolved winner with its
+ * working Claim button, the worthless losing side, and a cancelled-draw row
+ * claimable at half value — the portfolio-side claim surfaces.
+ */
+export const SettledPositionClaims: Story = {
+  decorators: [
+    withPreview({
+      address: OWNER,
+      loading: false,
+      portfolio: portfolio({
+        positions: [
+          {
+            committedInOrders: "0",
+            currentValueWad: (120n * WAD).toString(),
+            heldBalance: (120n * WAD).toString(),
+            marketId: "7",
+            marketQuestion: "Will it pop?",
+            marketStatus: "resolved",
+            outcomeToken: "0x00000000000000000000000000000000000000e0",
+            ownedTotal: (120n * WAD).toString(),
+            poolPriceWad: WAD.toString(),
+            resolution: {
+              kind: "resolved",
+              postgradMarket: "0x00000000000000000000000000000000000000f0",
+              resolvedAt: "2026-07-10T00:00:00.000Z",
+              transactionHash: `0x${"dd".repeat(32)}`,
+              winningSide: "yes",
+            },
+            side: "yes",
+          },
+          {
+            committedInOrders: "0",
+            currentValueWad: "0",
+            heldBalance: (80n * WAD).toString(),
+            marketId: "7",
+            marketQuestion: "Will it pop?",
+            marketStatus: "resolved",
+            outcomeToken: "0x00000000000000000000000000000000000000e1",
+            ownedTotal: (80n * WAD).toString(),
+            poolPriceWad: "0",
+            resolution: {
+              kind: "resolved",
+              postgradMarket: "0x00000000000000000000000000000000000000f0",
+              resolvedAt: "2026-07-10T00:00:00.000Z",
+              transactionHash: `0x${"dd".repeat(32)}`,
+              winningSide: "yes",
+            },
+            side: "no",
+          },
+          {
+            committedInOrders: "0",
+            currentValueWad: (30n * WAD).toString(),
+            heldBalance: (60n * WAD).toString(),
+            marketId: "9",
+            marketQuestion: "Will the draw market settle?",
+            marketStatus: "cancelled",
+            outcomeToken: "0x00000000000000000000000000000000000000e2",
+            ownedTotal: (60n * WAD).toString(),
+            poolPriceWad: (WAD / 2n).toString(),
+            resolution: {
+              kind: "cancelled",
+              postgradMarket: "0x00000000000000000000000000000000000000f1",
+              resolvedAt: "2026-07-11T00:00:00.000Z",
+              transactionHash: `0x${"ee".repeat(32)}`,
+            },
+            side: "yes",
+          },
+        ],
+        summary: {
+          claimableReceiptCount: 0,
+          lockedCollateral: "0",
+          openOrderCount: 0,
+          openReceiptCount: 0,
+          positionCount: 3,
+          totalPositionValueWad: (150n * WAD).toString(),
+        },
+      }),
+    }),
+  ],
+};

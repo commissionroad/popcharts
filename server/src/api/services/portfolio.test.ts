@@ -328,6 +328,158 @@ describe("getPortfolio positions", () => {
     expect(result.portfolio.positions[0]!.currentValueWad).toBeUndefined();
   });
 
+  it("values resolved-market positions at the settlement price, not the pool quote", async () => {
+    const pool = createPoolRow({});
+    const poolPrice = displayPriceWadToSqrtPriceX96({
+      collateralDecimals: MOCK_DECIMALS,
+      displayPriceWad: WAD / 2n,
+      outcomeDecimals: COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+      outcomeIsCurrency0: pool.outcomeIsCurrency0,
+    });
+    const market = {
+      collateral: "0x0000000000000000000000000000000000000002",
+      question: "Will it pop?",
+      resolution: {
+        kind: "resolved" as const,
+        postgradMarket: "0x00000000000000000000000000000000000000f0",
+        resolvedAt: "2026-07-10T00:00:00.000Z",
+        transactionHash: `0x${"dd".repeat(32)}`,
+        winningSide: "yes" as const,
+      },
+      status: "resolved",
+    };
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        readPoolSqrtPricesX96: async () => new Map([[pool.poolId, poolPrice]]),
+        selectOwnerBalances: async () => [
+          createBalanceRow({ balance: 40n * WAD, market, pool }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    // Winning side: worth exactly 1 collateral per token, not the stale 0.50.
+    expect(result.portfolio.positions[0]).toMatchObject({
+      currentValueWad: (40n * WAD).toString(),
+      poolPriceWad: WAD.toString(),
+    });
+  });
+
+  it("values a cancelled draw at half and the losing side at zero", async () => {
+    const pool = createPoolRow({});
+    const losingResolution = {
+      kind: "resolved" as const,
+      postgradMarket: "0x00000000000000000000000000000000000000f0",
+      resolvedAt: "2026-07-10T00:00:00.000Z",
+      transactionHash: `0x${"dd".repeat(32)}`,
+      winningSide: "no" as const,
+    };
+    const marketFor = (
+      resolution: NonNullable<
+        NonNullable<PortfolioBalanceRow["market"]>["resolution"]
+      >,
+    ) => ({
+      collateral: "0x0000000000000000000000000000000000000002",
+      question: "Will it pop?",
+      resolution,
+      status: "resolved",
+    });
+
+    const losing = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerBalances: async () => [
+          createBalanceRow({
+            balance: 40n * WAD,
+            market: marketFor(losingResolution),
+            pool,
+          }),
+        ],
+      }),
+    );
+    const draw = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerBalances: async () => [
+          createBalanceRow({
+            balance: 40n * WAD,
+            market: marketFor({
+              ...losingResolution,
+              kind: "cancelled",
+              winningSide: undefined,
+            }),
+            pool,
+          }),
+        ],
+      }),
+    );
+
+    if (losing.kind !== "portfolio" || draw.kind !== "portfolio") {
+      throw new Error("expected portfolios");
+    }
+
+    expect(losing.portfolio.positions[0]?.currentValueWad).toBe("0");
+    expect(draw.portfolio.positions[0]?.currentValueWad).toBe(
+      (20n * WAD).toString(),
+    );
+  });
+
+  it("carries market status and resolution onto resolved-market positions", async () => {
+    const resolution = {
+      kind: "resolved" as const,
+      postgradMarket: "0x00000000000000000000000000000000000000f0",
+      resolvedAt: "2026-07-10T00:00:00.000Z",
+      transactionHash: `0x${"dd".repeat(32)}`,
+      winningSide: "yes" as const,
+    };
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerBalances: async () => [
+          createBalanceRow({
+            balance: 40n * WAD,
+            market: {
+              collateral: "0x0000000000000000000000000000000000000002",
+              question: "Will it pop?",
+              resolution,
+              status: "resolved",
+            },
+            pool: createPoolRow({}),
+          }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.positions[0]).toMatchObject({
+      marketStatus: "resolved",
+      resolution,
+    });
+  });
+
+  it("omits market status and resolution when the market row is unknown", async () => {
+    const result = await getPortfolio(
+      { chainId: CHAIN_ID, owner: OWNER },
+      createDependencies({
+        selectOwnerBalances: async () => [
+          createBalanceRow({
+            balance: 40n * WAD,
+            market: null,
+            pool: createPoolRow({}),
+          }),
+        ],
+      }),
+    );
+
+    if (result.kind !== "portfolio") throw new Error(result.kind);
+
+    expect(result.portfolio.positions[0]?.marketStatus).toBeUndefined();
+    expect(result.portfolio.positions[0]?.resolution).toBeUndefined();
+  });
+
   it("derives avg cost from settled receipts with decimal scaling", async () => {
     // 0.6 collateral (6 decimals) retained for 1 outcome token → 0.6e18 WAD.
     const result = await getPortfolio(
@@ -478,9 +630,11 @@ function createReceiptRow({
 
 function createBalanceRow({
   balance,
+  market,
   pool,
 }: {
   balance: bigint;
+  market?: PortfolioBalanceRow["market"];
   pool: VenuePoolRow | null;
 }): PortfolioBalanceRow {
   return {
@@ -490,11 +644,14 @@ function createBalanceRow({
       outcomeToken: YES_TOKEN,
       side: "yes",
     },
-    market: {
-      collateral: "0x0000000000000000000000000000000000000002",
-      question: "Will it pop?",
-      status: "graduated",
-    },
+    market:
+      market === undefined
+        ? {
+            collateral: "0x0000000000000000000000000000000000000002",
+            question: "Will it pop?",
+            status: "graduated",
+          }
+        : market,
     pool,
   };
 }

@@ -489,6 +489,114 @@ describe("apiMarketToMarket", () => {
     expect(converted.noPriceCents).toBe(50);
   });
 
+  it("carries a resolved market result through", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        resolution: {
+          kind: "resolved",
+          postgradMarket: "0x00000000000000000000000000000000000000cd",
+          resolvedAt: "2026-07-14T00:00:00.000Z",
+          transactionHash: `0x${"dd".repeat(32)}`,
+          winningSide: "yes",
+        },
+        status: "resolved",
+      })
+    );
+
+    expect(converted.resolution).toEqual({
+      kind: "resolved",
+      postgradMarket: "0x00000000000000000000000000000000000000cd",
+      resolvedAt: "2026-07-14T00:00:00.000Z",
+      winningSide: "yes",
+    });
+  });
+
+  it("omits the winning side when resolution has not indexed it", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        resolution: {
+          kind: "resolved",
+          postgradMarket: "0x00000000000000000000000000000000000000cd",
+          resolvedAt: "2026-07-14T00:00:00.000Z",
+          transactionHash: `0x${"dd".repeat(32)}`,
+        },
+        status: "resolved",
+      })
+    );
+
+    expect(converted.resolution).not.toHaveProperty("winningSide");
+  });
+
+  it.each([
+    ["yes", 100, 0],
+    ["no", 0, 100],
+  ] as const)(
+    "prices a resolved %s winner at par and the loser at zero",
+    (winningSide, yesPriceCents, noPriceCents) => {
+      const converted = apiMarketToMarket(
+        apiMarket({
+          resolution: {
+            kind: "resolved",
+            postgradMarket: "0x00000000000000000000000000000000000000cd",
+            resolvedAt: "2026-07-14T00:00:00.000Z",
+            transactionHash: `0x${"dd".repeat(32)}`,
+            winningSide,
+          },
+          status: "resolved",
+        })
+      );
+
+      expect(converted.yesPriceCents).toBe(yesPriceCents);
+      expect(converted.noPriceCents).toBe(noPriceCents);
+    }
+  );
+
+  it("prices both sides of a cancelled postgrad draw at half value", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        noShares: "1000000000000000000000",
+        resolution: {
+          kind: "cancelled",
+          postgradMarket: "0x00000000000000000000000000000000000000cd",
+          resolvedAt: "2026-07-14T00:00:00.000Z",
+          transactionHash: `0x${"dd".repeat(32)}`,
+        },
+        status: "cancelled",
+        yesShares: "3000000000000000000000",
+      })
+    );
+
+    expect(converted.yesPriceCents).toBe(50);
+    expect(converted.noPriceCents).toBe(50);
+  });
+
+  it("keeps LMSR prices for a pregrad cancellation without resolution data", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        noShares: "1000000000000000000000",
+        status: "cancelled",
+        yesShares: "3000000000000000000000",
+      })
+    );
+
+    expect(converted.yesPriceCents).not.toBe(50);
+    expect(converted.noPriceCents).toBe(100 - converted.yesPriceCents);
+  });
+
+  it("keeps LMSR prices for a resolved market without resolution data", () => {
+    const converted = apiMarketToMarket(
+      apiMarket({
+        noShares: "1000000000000000000000",
+        status: "resolved",
+        yesShares: "3000000000000000000000",
+      })
+    );
+
+    expect(converted.yesPriceCents).not.toBe(100);
+    expect(converted.yesPriceCents).not.toBe(0);
+    expect(converted.noPriceCents).toBe(100 - converted.yesPriceCents);
+  });
+
   it("generates a category from the chain id when the market id is not numeric", () => {
     const converted = apiMarketToMarket(
       apiMarket({ chainId: 3, marketId: "not-a-number" })

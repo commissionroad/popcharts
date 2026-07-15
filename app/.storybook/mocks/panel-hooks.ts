@@ -12,10 +12,27 @@ export type RefundClaimPreview = {
  * through `PanelPreviewContext` so each story renders the real component
  * against fixture data — no wallet connection, indexer, or contract writes.
  */
+/**
+ * The redemption state a story wants a claim surface to render. `result`
+ * mirrors the integration hook's RedemptionResult (declared structurally so
+ * the mock does not pull the contract-service module into the preview build).
+ */
+export type RedemptionPreview = {
+  error?: string | null;
+  result?: {
+    collateralAmount: bigint;
+    outcomeAmount: bigint;
+    transactionHash: `0x${string}`;
+    valueWad: bigint;
+  } | null;
+  status?: "error" | "idle" | "pending" | "success";
+};
+
 export type PanelPreview = {
   address: string | null;
   loading: boolean;
   portfolio: Portfolio | null;
+  redemption?: RedemptionPreview;
   refundClaim?: RefundClaimPreview;
 };
 
@@ -46,6 +63,18 @@ export function useRefundClaim() {
   return {
     claim: () => undefined,
     error: preview?.error ?? null,
+    status: preview?.status ?? "idle",
+  };
+}
+
+export function useRedemption() {
+  const preview = useContext(PanelPreviewContext).redemption;
+
+  return {
+    error: preview?.error ?? null,
+    redeem: () => undefined,
+    redeemDraw: () => undefined,
+    result: preview?.result ?? null,
     status: preview?.status ?? "idle",
   };
 }

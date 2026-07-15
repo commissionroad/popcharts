@@ -117,6 +117,7 @@ describe("portfolio route", () => {
           heldBalance: BALANCE.toString(),
           marketId: MARKET_ID.toString(),
           marketQuestion: "Will the portfolio seed resolve YES?",
+          marketStatus: "graduated",
           outcomeToken: OUTCOME_TOKEN,
           ownedTotal: BALANCE.toString(),
           poolId: POOL_ID,

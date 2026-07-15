@@ -5,9 +5,11 @@ import {
   serializeMarketAiReviewRow,
   serializeMarketRow,
   serializeReceiptPlacedEventRow,
+  serializeResolutionRow,
   type MarketAiReviewRow,
   type MarketAiReviewJobRow,
   type MarketRow,
+  type PostgradResolutionRow,
   type ReceiptPlacedEventRow,
 } from "./markets";
 
@@ -129,6 +131,22 @@ describe("parseSinceTimestamp", () => {
   });
 });
 
+const resolutionRow = {
+  blockNumber: 900n,
+  blockTimestamp: new Date("2026-07-10T00:00:00.000Z"),
+  chainId: 5042002,
+  contractId: 2,
+  createdAt: new Date("2026-07-10T00:00:01.000Z"),
+  id: 3,
+  kind: "resolved",
+  logIndex: 1,
+  marketId: 42n,
+  postgradMarket: "0x00000000000000000000000000000000000000f0",
+  transactionHash:
+    "0x3333333333333333333333333333333333333333333333333333333333333333",
+  winningSide: "yes",
+} satisfies PostgradResolutionRow;
+
 describe("market serializers", () => {
   it("serializes a persisted AI review attempt for market reads", () => {
     expect(serializeMarketAiReviewRow(review)).toEqual({
@@ -186,6 +204,43 @@ describe("market serializers", () => {
       phase: "attention_required",
       status: "attention_required",
     });
+  });
+
+  it("serializes a resolved terminal event with its winning side", () => {
+    expect(serializeResolutionRow(resolutionRow)).toEqual({
+      kind: "resolved",
+      postgradMarket: "0x00000000000000000000000000000000000000f0",
+      resolvedAt: "2026-07-10T00:00:00.000Z",
+      transactionHash: resolutionRow.transactionHash,
+      winningSide: "yes",
+    });
+  });
+
+  it("omits the winning side for a cancelled draw", () => {
+    const serialized = serializeResolutionRow({
+      ...resolutionRow,
+      kind: "cancelled",
+      winningSide: null,
+    });
+
+    expect(serialized.kind).toBe("cancelled");
+    expect(serialized.winningSide).toBeUndefined();
+  });
+
+  it("includes the resolution on serialized market rows when provided", () => {
+    const resolution = serializeResolutionRow(resolutionRow);
+    const serialized = serializeMarketRow(
+      { ...market, status: "resolved" },
+      null,
+      0n,
+      null,
+      null,
+      null,
+      resolution,
+    );
+
+    expect(serialized.resolution).toEqual(resolution);
+    expect(serializeMarketRow(market, null, 0n).resolution).toBeUndefined();
   });
 
   it("serializes receipt placed event rows for price-history reads", () => {

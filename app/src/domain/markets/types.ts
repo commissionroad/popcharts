@@ -122,6 +122,20 @@ export type MarketVenueInfo = {
   yesPool: MarketVenuePool;
 };
 
+/**
+ * Terminal resolution of a graduated market, from the postgrad market's
+ * on-chain terminal event. `winningSide` is present for `resolved` (winning
+ * tokens redeem 1:1 for collateral) and absent for a `cancelled` draw (both
+ * sides redeem at half value).
+ */
+export type MarketResolution = {
+  kind: "resolved" | "cancelled";
+  /** Address of the postgrad market that pays redemptions. */
+  postgradMarket: string;
+  resolvedAt: string;
+  winningSide?: MarketSide;
+};
+
 /** Where a graduated market's matched exposure settled after onchain handoff. */
 export type MarketPostgradHandoff = {
   adapterAddress: string;
@@ -157,6 +171,7 @@ export type Market = {
   pricePath: number[];
   question: string;
   receiptCount: number;
+  resolution?: MarketResolution;
   resolutionCriteria?: string;
   resolutionSources?: string[];
   resolutionUrl?: string;

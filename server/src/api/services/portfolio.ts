@@ -3,6 +3,7 @@ import {
   sqrtPriceX96ToDisplayPriceWad,
 } from "@popcharts/protocol";
 
+import type { MarketResolutionResponse } from "src/api/models/markets";
 import type {
   PortfolioOpenOrderResponse,
   PortfolioPositionResponse,
@@ -12,6 +13,7 @@ import type {
 } from "src/api/models/portfolio";
 import { and, db, desc, eq, schema } from "src/db/client";
 
+import { serializeResolutionRow } from "./markets";
 import {
   serializeVenueOrder,
   venueOrderDirection,
@@ -39,6 +41,11 @@ type MarketContext = {
   readonly collateral: string;
   readonly question: string | null;
   readonly status: string;
+  /**
+   * Terminal resolution event for a resolved/cancelled market; only loaded
+   * where a claim affordance needs it (balance rows), so optional.
+   */
+  readonly resolution?: MarketResolutionResponse | null;
 };
 
 /** One placed receipt with its (optional) claim rows and market context. */
@@ -357,7 +364,7 @@ async function buildPositions({
       const sqrtPriceX96 = draft.pool
         ? priceBySide.get(draft.pool.poolId)
         : undefined;
-      const priceWad =
+      const poolPriceWad =
         draft.pool &&
         decimals !== undefined &&
         sqrtPriceX96 !== undefined &&
@@ -369,6 +376,11 @@ async function buildPositions({
               sqrtPriceX96,
             })
           : undefined;
+      // After a terminal event the pool quote is history; the settlement
+      // price is a fact (winner 1, loser 0, draw ½) and wins outright.
+      const priceWad =
+        settledOutcomePriceWad(draft.market?.resolution ?? null, draft.side) ??
+        poolPriceWad;
       const settlement = settlementBySide.get(
         settlementKey(draft.marketId, draft.side),
       );
@@ -394,15 +406,50 @@ async function buildPositions({
         ...(draft.market?.question
           ? { marketQuestion: draft.market.question }
           : {}),
+        ...(draft.market
+          ? {
+              marketStatus: draft.market
+                .status as PortfolioPositionResponse["marketStatus"],
+            }
+          : {}),
         outcomeToken: draft.outcomeToken,
         ownedTotal: owned.toString(),
         ...(draft.pool ? { poolId: draft.pool.poolId } : {}),
         ...(priceWad !== undefined
           ? { poolPriceWad: priceWad.toString() }
           : {}),
+        ...(draft.market?.resolution
+          ? { resolution: draft.market.resolution }
+          : {}),
         side: draft.side,
       };
     });
+}
+
+/**
+ * Display price of an outcome token once its market hit a terminal event:
+ * the winning side redeems at exactly one collateral unit, the losing side at
+ * zero, and a cancelled draw redeems both sides at half. Returns undefined
+ * while no terminal event is indexed (including a resolution row without a
+ * winning side, which cannot price either side).
+ */
+function settledOutcomePriceWad(
+  resolution: MarketResolutionResponse | null,
+  side: "yes" | "no",
+): bigint | undefined {
+  if (!resolution) {
+    return undefined;
+  }
+
+  if (resolution.kind === "cancelled") {
+    return WAD / 2n;
+  }
+
+  if (!resolution.winningSide) {
+    return undefined;
+  }
+
+  return side === resolution.winningSide ? WAD : 0n;
 }
 
 function aggregateSettlements(receiptRows: PortfolioReceiptRow[]) {
@@ -529,6 +576,7 @@ const defaultDependencies: PortfolioReadDependencies = {
         market: schema.markets,
         metadata: schema.marketMetadata,
         pool: schema.venuePools,
+        resolution: schema.postgradResolutionEvents,
       })
       .from(schema.outcomeTokenBalances)
       .leftJoin(
@@ -555,6 +603,21 @@ const defaultDependencies: PortfolioReadDependencies = {
           eq(schema.marketMetadata.metadataHash, schema.markets.metadataHash),
         ),
       )
+      // A market emits at most one terminal MarketResolved/MarketCancelled
+      // event ever, so this join cannot fan rows out.
+      .leftJoin(
+        schema.postgradResolutionEvents,
+        and(
+          eq(
+            schema.postgradResolutionEvents.chainId,
+            schema.outcomeTokenBalances.chainId,
+          ),
+          eq(
+            schema.postgradResolutionEvents.marketId,
+            schema.outcomeTokenBalances.marketId,
+          ),
+        ),
+      )
       .where(
         and(
           eq(schema.outcomeTokenBalances.chainId, chainId),
@@ -568,6 +631,9 @@ const defaultDependencies: PortfolioReadDependencies = {
         ? {
             collateral: row.market.collateral,
             question: row.metadata?.question ?? null,
+            resolution: row.resolution
+              ? serializeResolutionRow(row.resolution)
+              : null,
             status: row.market.status,
           }
         : null,

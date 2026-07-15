@@ -1654,6 +1654,9 @@
           "receiptCount": {
             "type": "string"
           },
+          "resolution": {
+            "$ref": "#/components/schemas/MarketResolution"
+          },
           "resolutionTime": {
             "type": "string"
           },
@@ -1780,6 +1783,36 @@
           },
           "venue": {
             "$ref": "#/components/schemas/MarketVenue"
+          }
+        }
+      },
+      "MarketResolution": {
+        "type": "object",
+        "required": [
+          "kind",
+          "postgradMarket",
+          "resolvedAt",
+          "transactionHash"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "cancelled"
+            ]
+          },
+          "postgradMarket": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "type": "string"
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "winningSide": {
+            "$ref": "#/components/schemas/VenuePoolSide"
           }
         }
       },
@@ -2459,6 +2492,9 @@
           "marketQuestion": {
             "type": "string"
           },
+          "marketStatus": {
+            "$ref": "#/components/schemas/MarketStatus"
+          },
           "outcomeToken": {
             "type": "string"
           },
@@ -2470,6 +2506,9 @@
           },
           "poolPriceWad": {
             "type": "string"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/MarketResolution"
           },
           "side": {
             "$ref": "#/components/schemas/VenuePoolSide"

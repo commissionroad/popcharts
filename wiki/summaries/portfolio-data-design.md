@@ -44,6 +44,12 @@ append-only event tables mirrored 1:1 from chain:
   market.
 - `market_refunds_available_events` / `market_cancelled_events` — the
   market-level events that open refunds.
+- `postgrad_redemption_events` *(added 2026-07-14 with the claim-winnings UI)* —
+  per redemption on a resolved/cancelled postgrad market: winning-side tokens
+  (or YES+NO draw legs) burned and the **collateral paid out**, from the
+  market's `Redeemed`/`CancelledRedeemed` events. The token-burn leg of the
+  same transaction also lands in `outcome_token_transfer_events`; this table
+  records the collateral leg.
 
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is

@@ -14,7 +14,8 @@ updated: 2026-07-14
 of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
 core pipeline; the flake report and Playwright retry surfacing followed the
 same day); Track F (invariant-test timeout) and Track B (server floor +
-untested layers, five items) completed 2026-07-14; Tracks C/D/E/G open.**
+untested layers, five items) completed 2026-07-14; Track D (v4 value-path
+coverage) completed 2026-07-15; Tracks C/E/G open.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -93,12 +94,21 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   postgrad handoff). Explicitly the harness skeleton for — not a
   replacement of — [ADR 0014](root-adr-0014-full-lifecycle-e2e-testing.md)'s
   full-lifecycle suite.
-- **D — Protocol value-path coverage**: dedicated tests for the three v4
-  libraries plus a `StdInvariant` escrow-conservation harness over
-  `BoundedPoolOrderManager`.
-- **E — Infra gate**: path-filtered `tsc` + `cdk synth` job; deployment CI
-  stays with [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
-- **D also carries** the protocol Solidity floor (~92% lines baseline).
+- **D — Protocol value-path coverage** (**complete 2026-07-15**): dedicated
+  harness-backed suites for the three v4 libraries (boundary + fuzz), a
+  `StdInvariant` escrow-conservation harness over `BoundedPoolOrderManager`
+  (handler-driven create/cancel/swap/resolve; invariants: non-custodial
+  components hold zero, live book entries backed 1:1 by pool positions,
+  value only moves between actors and the pool — Hardhat 3 runs invariant_
+  functions natively), and a Solidity line floor enforced by
+  `scripts/ci-check-coverage-floor.ts` in protocol CI (96.67, measured
+  96.68 after the new suites — up from 92.1).
+- **E — Infra gate** (gate **landed 2026-07-15**; CDK assertion tests
+  remain a follow-up): path-filtered `Check infra` job — `tsc --noEmit` +
+  credential-less `cdk synth` (verified to need no AWS account), same
+  self-gating paths-filter pattern as the other three CIs, added to the
+  required status checks; deployment CI stays with
+  [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
 - **F — Known flake fix** (**complete 2026-07-14**): explicit timeout for the band-pass clearing
   invariant test (~8s under coverage vs bun's 5s default).
 - **G — Protocol TS SDK surface** (added post-grill): the package barrel

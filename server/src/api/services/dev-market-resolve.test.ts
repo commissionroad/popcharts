@@ -111,6 +111,36 @@ describe("resolveDevMarket", () => {
     expect(result.kind === "resolved" ? result.market.updatedAt : null).toBe(
       updatedAt.toISOString(),
     );
+    // A fresh resolve outruns the indexer, so the response synthesizes the
+    // resolution from the confirmed transaction — matching getMarketById.
+    expect(
+      result.kind === "resolved" ? result.market.resolution : null,
+    ).toEqual({
+      kind: "resolved",
+      postgradMarket: "0x00000000000000000000000000000000000000cd",
+      resolvedAt: updatedAt.toISOString(),
+      transactionHash:
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      winningSide: "yes",
+    });
+  });
+
+  it("prefers the indexed terminal event over the synthesized resolution", async () => {
+    const indexed = {
+      kind: "resolved" as const,
+      postgradMarket: "0x00000000000000000000000000000000000000cd",
+      resolvedAt: "2026-06-21T00:00:00.000Z",
+      transactionHash: `0x${"dd".repeat(32)}`,
+      winningSide: "yes" as const,
+    };
+    const result = await resolveDevMarket(
+      { chainId: 31337, marketId: "7", side: "yes" },
+      createDependencies({ selectResolution: async () => indexed }),
+    );
+
+    expect(
+      result.kind === "resolved" ? result.market.resolution : null,
+    ).toEqual(indexed);
   });
 
   it("responds idempotently when the market is already resolved to that side", async () => {
@@ -186,12 +216,14 @@ function createDependencies({
     winningSide: "yes" as const,
   }),
   selectMarket,
+  selectResolution = async () => null,
 }: {
   devResolveEnabled?: boolean;
   market?: MarketRow;
   postgrad?: MarketPostgradResponse | null;
   resolveMarketOnChain?: DevMarketResolveDependencies["resolveMarketOnChain"];
   selectMarket?: DevMarketResolveDependencies["selectMarket"];
+  selectResolution?: DevMarketResolveDependencies["selectResolution"];
 } = {}): DevMarketResolveDependencies {
   return {
     devResolveEnabled: () => devResolveEnabled,
@@ -208,6 +240,7 @@ function createDependencies({
           ? { market, metadata: null }
           : null),
     selectPostgradInfo: async () => postgrad,
+    selectResolution,
   };
 }
 
