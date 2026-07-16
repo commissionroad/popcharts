@@ -1,5 +1,9 @@
 import type { AiReviewConfig } from "./config";
-import { MARKET_REVIEW_OUTPUT_CONTRACT, MARKET_REVIEW_POLICY } from "./policy";
+import {
+  MARKET_REVIEW_EXAMPLES,
+  MARKET_REVIEW_OUTPUT_CONTRACT,
+  MARKET_REVIEW_POLICY,
+} from "./policy";
 import { normalizeScores } from "./scoring";
 import {
   adjustModelScoresForEvidence,
@@ -160,7 +164,16 @@ export function mergeReviewFindings({
       : heuristic.sourceChecks.length > 0
         ? heuristic.sourceChecks
         : sourceChecksFromEvidence(evidence);
-  const verdict = hardFlags.length > 0 ? "reject" : model.verdict;
+  // Deterministic pre-stage soft flags cap a model approve: plain code found
+  // a defect (retrospective question, ephemeral source) the model must not
+  // wave through, but unlike hard flags they never force a reject.
+  const softFlagged = (heuristic.softFlags?.length ?? 0) > 0;
+  const verdict =
+    hardFlags.length > 0
+      ? "reject"
+      : softFlagged && model.verdict === "approve"
+        ? "manual_review"
+        : model.verdict;
 
   return {
     evidence,
@@ -228,6 +241,8 @@ function buildSystemPrompt() {
     "",
     "Policy:",
     MARKET_REVIEW_POLICY,
+    "",
+    MARKET_REVIEW_EXAMPLES,
     "",
     "Output contract:",
     JSON.stringify(MARKET_REVIEW_OUTPUT_CONTRACT, null, 2),

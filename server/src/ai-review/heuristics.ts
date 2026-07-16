@@ -136,11 +136,26 @@ export function runHeuristicPolicy(
     softReasons.push("Question should be phrased as a clear YES/NO market.");
   }
 
+  const softFlags: string[] = [];
+  if (isRetrospectiveQuestion(metadata)) {
+    softFlags.push("retrospective_question");
+    softReasons.push(
+      "Question appears to ask about an already-decided past event; markets must predict, not look up.",
+    );
+  }
+  if (usesEphemeralSource(metadata)) {
+    softFlags.push("ephemeral_source");
+    softReasons.push(
+      "Resolution depends on an ephemeral artifact (stories or deletable posts) that cannot be verified after the fact.",
+    );
+  }
+
   return {
     hardFlags: [],
     reasons: unique(softReasons),
     scoreRationales,
     scores,
+    softFlags: unique(softFlags),
     sourceChecks: [],
     verdict: softReasons.length > 0 ? "manual_review" : "approve",
   };
@@ -171,6 +186,59 @@ function hasClearBinaryQuestion(question: string) {
   return /^(will|is|are|does|do|did|has|have|can|could|was|were)\b/i.test(
     question.trim(),
   );
+}
+
+// Strongly past-tense interrogative openers. "Has/Have" are excluded: "Has X
+// happened by <future date>?" is common, legitimate future phrasing.
+const RETROSPECTIVE_OPENER = /^(did|was|were|had)\b/i;
+const YEAR_PATTERN = /\b(19|20)\d{2}\b/g;
+
+/**
+ * Flags questions that read as lookups of already-decided events (the
+ * "already-determined" taxonomy class): a past-tense opener with no future
+ * year anywhere in the question or criteria to anchor a prediction. The
+ * creation year comes from metadata.createdAt when present so eval fixtures
+ * and replayed reviews stay deterministic.
+ */
+function isRetrospectiveQuestion(metadata: MarketReviewMetadata): boolean {
+  if (!RETROSPECTIVE_OPENER.test(metadata.question.trim())) {
+    return false;
+  }
+  const createdYear = metadata.createdAt
+    ? new Date(metadata.createdAt).getFullYear()
+    : new Date().getFullYear();
+  const referenced = `${metadata.question}\n${metadata.resolutionCriteria}`;
+  for (const match of referenced.matchAll(YEAR_PATTERN)) {
+    if (Number(match[0]) >= createdYear) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Platforms whose default artifacts disappear (stories, snaps) — a settlement
+// read-out there is unverifiable after the fact ("ephemeral_source" class).
+const EPHEMERAL_SOURCE_DOMAINS = [
+  "instagram.com",
+  "snapchat.com",
+  "tiktok.com",
+];
+const EPHEMERAL_TEXT_PATTERN =
+  /\b((instagram|snapchat|facebook)\s+stor(y|ies)|stor(y|ies)\s+expire|deleted?\s+(tweet|post|video))\b/i;
+
+/** Flags markets whose named read-out is an ephemeral artifact. */
+function usesEphemeralSource(metadata: MarketReviewMetadata): boolean {
+  const urls = [...(metadata.resolutionSources ?? []), metadata.resolutionUrl]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+  if (
+    urls.some((url) =>
+      EPHEMERAL_SOURCE_DOMAINS.some((domain) => url.includes(domain)),
+    )
+  ) {
+    return true;
+  }
+  return EPHEMERAL_TEXT_PATTERN.test(marketText(metadata));
 }
 
 function hasResolutionSources(metadata: MarketReviewMetadata) {

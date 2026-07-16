@@ -1,5 +1,9 @@
 import type { AiReviewConfig } from "../config";
-import { MARKET_REVIEW_OUTPUT_CONTRACT, MARKET_REVIEW_POLICY } from "../policy";
+import {
+  MARKET_REVIEW_EXAMPLES,
+  MARKET_REVIEW_OUTPUT_CONTRACT,
+  MARKET_REVIEW_POLICY,
+} from "../policy";
 import { unique } from "../response-parsing";
 import type { InternetAccessMode, MarketReviewRequest } from "../types";
 import { domainFromUrl } from "./evidence";
@@ -79,6 +83,8 @@ export function buildSystemPrompt() {
     "",
     "Policy:",
     MARKET_REVIEW_POLICY,
+    "",
+    MARKET_REVIEW_EXAMPLES,
     "",
     "Output contract:",
     JSON.stringify(MARKET_REVIEW_OUTPUT_CONTRACT, null, 2),

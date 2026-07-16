@@ -161,6 +161,13 @@ export type PolicyFinding = {
   reasons: string[];
   scoreRationales: ReviewScoreRationales;
   scores: ReviewScores;
+  /**
+   * Deterministic pre-stage annotations (e.g. retrospective_question,
+   * ephemeral_source). Unlike hardFlags they never reject, but a model
+   * "approve" is capped to manual_review while any are present — plain code
+   * caught a defect the model must not wave through.
+   */
+  softFlags?: string[];
   sourceChecks: SourceCheck[];
   verdict: ReviewVerdict;
 };
