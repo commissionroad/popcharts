@@ -24,6 +24,14 @@ export type ResolveMarketInput = {
 };
 
 /**
+ * Hard flag stamped on the fail-safe result when the provider call itself
+ * failed (outage, timeout, config error). Consumers that must distinguish "the
+ * model judged abstain" from "the model never answered" — notably the eval
+ * runner — key off this flag; import it rather than mirroring the literal.
+ */
+export const SERVICE_ERROR_HARD_FLAG = "service_error";
+
+/**
  * Runs one stateless resolution: heuristic pre-pass, provider call, then the
  * verdict-derivation gates. Any provider/config error fail-safes to
  * `manual_review` — an outage never resolves a market.
@@ -57,7 +65,7 @@ export async function resolveMarket({
     return {
       confidence: null,
       evidence: [],
-      hardFlags: ["service_error"],
+      hardFlags: [SERVICE_ERROR_HARD_FLAG],
       modelId: undefined,
       outcome: "abstain",
       promptVersion: AI_RESOLUTION_PROMPT_VERSION,
