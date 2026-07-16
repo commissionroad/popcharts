@@ -1,0 +1,28 @@
+{
+  "overall": {
+    "accuracy": 0.95,
+    "cases": 40,
+    "strictAccuracy": 0.9,
+    "unanimousRate": 0.8
+  },
+  "classes": {
+    "good/official-result": {
+      "accuracy": 1,
+      "cases": 10,
+      "strictAccuracy": 1,
+      "unanimousRate": 0.9
+    },
+    "harm/death-market": {
+      "accuracy": 1,
+      "cases": 5,
+      "strictAccuracy": 1,
+      "unanimousRate": 1
+    },
+    "timing/no-deadline": {
+      "accuracy": 0.8,
+      "cases": 25,
+      "strictAccuracy": 0.72,
+      "unanimousRate": 0.7
+    }
+  }
+}

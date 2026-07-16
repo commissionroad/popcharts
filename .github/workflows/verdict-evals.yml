@@ -1,0 +1,158 @@
+name: Verdict Evals
+
+# ADR 0019 CI consistency lane — currently DORMANT SCAFFOLDING.
+#
+# The job skips itself (neutral success with a notice) until BOTH of these
+# are provisioned, and today neither is:
+#   1. the ANTHROPIC_API_KEY repository secret, and
+#   2. a committed baseline at server/src/ai-review/evals/baselines/anthropic.json
+#      (created deliberately after a reviewed eval run — see the README in
+#      that directory).
+#
+# When enabled it runs the labeled review-eval seed set (3 runs per case)
+# against the review service with the anthropic provider and fails on
+# accuracy/strict-accuracy regression beyond tolerance, or on any guarded
+# (hard-flag) taxonomy class collapsing.
+#
+# Strictly informational, matching the ADR 0017 in-repo/no-vendor philosophy:
+# this workflow must NEVER be added to required checks. Verdict quality gates
+# land as reviewed baseline diffs, not merge blocks.
+
+on:
+  workflow_dispatch:
+  # Weekly, Mondays 06:00 UTC (the flake report runs Mondays 14:00 UTC).
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verdict-evals
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  BUN_VERSION: "1.3.14"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.33.0"
+  REVIEW_SERVICE_URL: http://127.0.0.1:3002
+  # Relative to the server/ working directory used by all run steps.
+  BASELINE_PATH: src/ai-review/evals/baselines/anthropic.json
+
+jobs:
+  evals:
+    name: Review verdict evals (anthropic)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Secrets are not readable in job-level `if` expressions, so a first
+      # step decides whether the lane is provisioned and every later step
+      # keys off its output. Skipping here is a clean neutral success.
+      - name: Check lane prerequisites
+        id: gate
+        env:
+          HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$HAS_ANTHROPIC_KEY" != "true" ]; then
+            echo "::notice::verdict-evals lane skipped: the ANTHROPIC_API_KEY secret is not configured (dormant scaffolding per ADR 0019)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ ! -f "$BASELINE_PATH" ]; then
+            echo "::notice::verdict-evals lane skipped: no committed baseline at server/$BASELINE_PATH (see server/src/ai-review/evals/baselines/README.md)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Setup mirrors server-ci.yml exactly: Bun + Node + pnpm, root
+      # workspace install before the server's bun install (the server links
+      # @popcharts/protocol as TypeScript source).
+      - name: Set up Bun
+        if: steps.gate.outputs.enabled == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        if: steps.gate.outputs.enabled == 'true'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        if: steps.gate.outputs.enabled == 'true'
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Install dependencies
+        if: steps.gate.outputs.enabled == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Start review service
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          AI_REVIEW_PROVIDER: anthropic
+          # Long enough for reasoning + web search on the slowest cases; the
+          # eval runner's own per-review timeout is 360s.
+          AI_REVIEW_TIMEOUT_MS: "300000"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          bun run start:ai-review > ai-review-service.log 2>&1 &
+          echo "started review service (pid $!)"
+
+      - name: Wait for service ready
+        if: steps.gate.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl -fsS "$REVIEW_SERVICE_URL/ready" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "review service never became ready" >&2
+          tail -n 50 ai-review-service.log >&2 || true
+          exit 1
+
+      - name: Run review evals (3 runs per case)
+        if: steps.gate.outputs.enabled == 'true'
+        run: |
+          bun run src/ai-review/evals/run-review-evals.ts \
+            --service-url "$REVIEW_SERVICE_URL" --runs 3 \
+            --out eval-reports/ci-anthropic
+
+      - name: Check regression against baseline
+        if: steps.gate.outputs.enabled == 'true'
+        run: |
+          bun run src/ai-review/evals/check-eval-regression.ts \
+            --report eval-reports/ci-anthropic.json \
+            --baseline "$BASELINE_PATH"
+
+      # Keep the raw report (and the service log for diagnosing timeouts)
+      # even when the regression check fails — that is when it matters most.
+      - name: Upload eval report
+        if: always() && steps.gate.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdict-eval-report
+          path: |
+            server/eval-reports/ci-anthropic.*
+            server/ai-review-service.log
+          retention-days: 90

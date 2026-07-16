@@ -69,6 +69,27 @@ server-check:
 server-coverage:
     pnpm run server:coverage
 
+# ADR 0019 consistency lane, local flavor: run the review-verdict evals
+# against a running review service (see `just local-ai-review`), then check
+# for regression against the committed local-model baseline when one exists.
+verdict-evals:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd server
+    service_url="${VERDICT_EVAL_SERVICE_URL:-http://127.0.0.1:3002}"
+    out="eval-reports/verdict-evals-latest"
+    bun run src/ai-review/evals/run-review-evals.ts \
+        --service-url "$service_url" --out "$out"
+    baseline="src/ai-review/evals/baselines/ollama-gpt-oss-20b.json"
+    if [ -f "$baseline" ]; then
+        bun run src/ai-review/evals/check-eval-regression.ts \
+            --report "$out.json" --baseline "$baseline"
+    else
+        echo "No committed baseline at server/$baseline — skipping regression check."
+        echo "To create one after reviewing this run: cp \"$out.json\" \"$baseline\""
+        echo "(see server/src/ai-review/evals/baselines/README.md)"
+    fi
+
 local-dev *args:
     pnpm run local:dev -- {{args}}
 
