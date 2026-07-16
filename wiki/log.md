@@ -594,3 +594,46 @@ prompt v2 judgment guidance was testless — v3 adopted with 42→75% accuracy
 numbers in the same PR). testing-strategy and ai-review-service pages
 already carry ADR 0019 sections from its ingest; no further page edits
 needed.
+
+## [2026-07-16] lint | ADR 0019 first-slice status reconcile
+Pages: ~summaries/root-adr-0019-ai-verdict-quality-program.md,
+~concepts/testing-strategy.md, ~concepts/ai-assisted-resolution.md,
+~entities/ai-review-service.md, ~index.md
+Notes:
+- **Organic ingestion since last lint: 1/1 doc changes self-ingested**
+  (docs/ai-verdict-failure-taxonomy.md, created and wiki-ingested inside the
+  same PR #226). Quiet window otherwise — PRs #229/#231 touched no raw
+  sources.
+- **"All open" → "first slice landed" for ADR 0019.** PR #226 (merged
+  2026-07-15) filed the ADR *and* landed its first slice: the review-side
+  eval runner (`server/src/ai-review/evals/run-review-evals.ts`), 52
+  hand-labeled seeds in per-class dataset modules, the taxonomy doc, and
+  review prompt v3 (`market-ai-review-v3`) adopted with before/after eval
+  numbers (42→75%) — but four wiki pages still described the program as
+  all-open/unstarted. Updated all four (0019 summary, testing-strategy,
+  ai-assisted-resolution — kept "resolution side all open", true —
+  ai-review-service) plus the index row.
+- **Raw-source lag noted, not edited:** docs/adr/0019's own checklist is
+  still all-`[ ]` despite the landed items; flagged on the summary page for
+  correction whenever the ADR is next touched (same pattern as the README
+  0016 "Track C open" row, still outstanding).
+- **Cross-linking:** summaries/ai-verdict-failure-taxonomy.md was index-only
+  (its ingest added no inbound links); the three pages that discuss the
+  dataset (0019 summary ×2 spots, testing-strategy, ai-review-service) now
+  link it.
+- **Integrity:** 0 broken links, 0 orphans, 0 pages missing from index,
+  0 missing sources, 0 date-stale pages (staleness scanner verified against
+  a known-good page before trusting its empty output).
+- Follow-ups from 2026-07-15 lint: (1) partial-ingest watch — the taxonomy
+  ingest was single-page by design and correct (entity/concept pages already
+  carried the content from the 0019 ADR ingest; only cross-links were
+  missing, fixed here); (2) overview.md deployment snapshot — no
+  deploy-state change, still accurate; (3) README 0016 row — 0016 untouched,
+  still pending at source.
+
+Follow-ups for next lint: (1) when any ADR-0019 work lands next, re-check
+whether the source checklist got ticked and whether the four status-bearing
+pages moved together (this lint's drift was exactly a same-PR
+doc+code landing whose wiki pages lagged one edit behind). (2) PR #234
+(resolution-redemption portfolio payouts) is open — if it lands with doc
+changes, verify ingestion.

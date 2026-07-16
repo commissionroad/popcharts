@@ -4,16 +4,20 @@ title: Repo ADR 0019 — AI verdict quality program
 description: Measured quality program for review and resolution verdicts — offline eval harness at the service HTTP seams, ~150–200-seed labeled failure-taxonomy dataset (template-expanded), deterministic pre-stages, reject-corroboration policy (no terminal reject/resolve on one uncorroborated model run), CI consistency lane, prompt-version eval policy.
 sources:
   - docs/adr/0019-ai-verdict-quality-program.md
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 
 # Repo ADR 0019: AI Verdict Quality Program (Review + Resolution Evals)
 
-**Status: Accepted.** Dated 2026-07-14. Complements
+**Status: Accepted; first slice landed.** Dated 2026-07-14. Complements
 [root ADR 0011](root-adr-0011-ai-review-service-hardening.md) (pipeline
 hardening) and [root ADR 0012](root-adr-0012-ai-assisted-resolution.md)
 (resolution build): those made the pipelines robust; neither measures
-whether the **verdicts** are any good. All checklist items open.
+whether the **verdicts** are any good. The same PR that filed the ADR
+(#226, merged 2026-07-15) landed the first slice — see the status note
+under Program below. The ADR's own checklist is still all-unticked
+(raw-source lag; the landed items should be ticked at the source if the
+ADR is re-touched).
 
 ## Context (verdict-lottery findings, 2026-07-14 test session)
 
@@ -60,7 +64,22 @@ Local defaults stay LLM-backed (heuristic mode remains an explicit,
 temporary test tool; the resolution local default flips heuristic → Ollama
 as part of this program).
 
-## Program (all open)
+## Program
+
+**Landed 2026-07-14/15 (PR #226, same PR as the ADR):** the review-side
+eval runner (`server/src/ai-review/evals/run-review-evals.ts`, N runs per
+case at the HTTP seam, provider-unavailable fail-safes counted as errored
+runs), 52 hand-labeled seed cases in per-class TS modules
+(`evals/dataset/` — good/timing/vagueness/sources/knowability/adversarial/
+disputes, pinned to the
+[failure taxonomy](ai-verdict-failure-taxonomy.md)), the taxonomy doc
+itself, and the first exercise of the measure-before-tuning rule: review
+policy/prompt v3 (`market-ai-review-v3`) adopted with before/after eval
+numbers (42→75% accuracy) recorded in
+`server/src/ai-review/evals/proposed-policy-v3.md`. **Still open:** the
+resolution-side sibling harness, template/LLM-assisted expansion beyond
+the 52 seeds, deterministic pre-stages, the reject-corroboration policy,
+and the CI consistency lane.
 
 - **Harness** (`server/src/ai-review/evals/`, sibling for resolution): eval
   runner at the service HTTP seam (no chain, no UI), N runs per case;
@@ -70,7 +89,8 @@ as part of this program).
   across prompt versions, baselines in-repo per the
   [ADR 0017](root-adr-0017-test-observability-and-coverage-program.md)
   pattern.
-- **Dataset**: failure-taxonomy doc (future-source quality, public
+- **Dataset**: [failure-taxonomy doc](ai-verdict-failure-taxonomy.md)
+  (future-source quality, public
   knowability, temporal specificity, data-question verifiability, source
   timestamping/race conditions, non-binary phrasing, private knowledge,
   harm classes, prompt injection, draw/edge outcomes); ~150–200 hand-labeled
