@@ -17,6 +17,18 @@ export const MARKET_REVIEW_POLICY = [
 ].join("\n");
 
 /**
+ * Compact worked examples embedded after the policy in every provider's
+ * system prompt. They anchor the two judgment classes eval runs show models
+ * miss most (contested verbs; event-time vs disclosure-time) — patterns
+ * behind real venue settlement disputes. Keep them short: they steer, the
+ * policy governs.
+ */
+export const MARKET_REVIEW_EXAMPLES = [
+  "Worked example 1 — contested verb. Question: 'Will China invade Taiwan before 2028?' with major news outlets as sources. Verdict: manual_review. 'Invade' has no operational definition (does a blockade, raid, or islet seizure count?); two honest resolvers could disagree on the same facts. Fix: define the triggering event (e.g. 'a landing of PLA ground forces on the main island of Taiwan, confirmed by at least two of AP/Reuters/AFP').",
+  "Worked example 2 — event time vs disclosure time. Question: 'Will Company X sell any Bitcoin during Q1?' resolved from company filings. Verdict: manual_review. The sale can occur inside the window but be disclosed after it; the criteria never say which clock counts. Fix: state whether execution date or public-disclosure date decides, and what happens to disclosures after the market's deadline.",
+].join("\n");
+
+/**
  * JSON shape the model must return, embedded in the system prompt as a
  * template. Mirrors the PolicyFinding/SourceCheck types in types.ts — keep the
  * two in sync when either changes.
