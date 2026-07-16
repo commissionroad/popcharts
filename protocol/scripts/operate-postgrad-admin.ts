@@ -16,9 +16,7 @@ import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,
 } from "../src/generated/postgrad-venue.js";
-
-// MarketTypes.Side enum values.
-const SIDE_ENUM = { no: 1, yes: 0 } as const;
+import { marketSideToContractSide } from "../src/market-side.js";
 
 /** One owner/resolver workflow the postgrad admin CLI can plan and broadcast. */
 export type PostgradAdminAction =
@@ -406,7 +404,7 @@ async function planMarketLifecycle(
         ? context.walletClient.writeContract({
             abi: completeSetBinaryMarketAbi,
             address: market,
-            args: [SIDE_ENUM[request.side]],
+            args: [marketSideToContractSide(request.side)],
             functionName: "resolve",
           })
         : context.walletClient.writeContract({

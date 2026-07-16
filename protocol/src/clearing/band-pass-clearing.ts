@@ -1,3 +1,4 @@
+import { SIDE_NO, SIDE_YES } from "../market-side.js";
 import {
   buildClaimMerkleTree,
   hashReceiptClaim,
@@ -26,9 +27,6 @@ import {
  * the Merkle root unbound at `submitClearingRoot`, so every invariant is asserted
  * here before returning; a violation throws rather than shipping a bad root.
  */
-
-export const SIDE_YES = 0;
-export const SIDE_NO = 1;
 
 /** A frozen pre-graduation receipt, reconstructed from ReceiptPlaced logs. */
 export type ClearingReceipt = {

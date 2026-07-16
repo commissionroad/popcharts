@@ -1,6 +1,7 @@
 import hre, { network } from "hardhat";
 import { erc20Abi, formatUnits, getAddress, parseEventLogs, type Abi } from "viem";
 
+import { SIDE_NO, SIDE_YES } from "../src/market-side.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
@@ -10,9 +11,6 @@ import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMa
 import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
 import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
 
-// MarketTypes.Side enum values.
-const SIDE_YES = 0;
-const SIDE_NO = 1;
 const LOSING_SIDE_ERROR = "LosingSideCannotRedeem";
 
 /**

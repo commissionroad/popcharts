@@ -1,3 +1,4 @@
+import { contractSideToMarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -8,7 +9,7 @@ export type PostgradRedemptionKind = "redeemed" | "cancelled_redeemed";
 export type PostgradRedeemedLog = Log & {
   args: {
     account?: string;
-    /** MarketTypes.Side: 0 = YES, 1 = NO. */
+    /** MarketTypes.Side; decode via contractSideToMarketSide. */
     side?: number;
     outcomeAmount?: bigint;
     collateralAmount?: bigint;
@@ -88,7 +89,7 @@ export function buildPostgradRedemptionRecord({
           redeemed.args.outcomeAmount,
           "outcomeAmount",
         ),
-        side: Number(side) === 0 ? ("yes" as const) : ("no" as const),
+        side: contractSideToMarketSide(side),
         yesAmount: null,
       },
     };

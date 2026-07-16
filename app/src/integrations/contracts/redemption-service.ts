@@ -5,6 +5,7 @@ import type { MarketSide } from "@/domain/markets/types";
 import { DisplayableError, presentError } from "@/lib/error-handling";
 
 import type { PopChartsContractConfig } from "./config";
+import { marketSideToContractSide } from "./market-side";
 import { completeSetBinaryMarketAbi } from "./postgrad-venue";
 
 /**
@@ -42,11 +43,6 @@ export type RedemptionResult = {
  * supported collateral, so callers need no chain read to apply it.
  */
 export const MIN_REDEEMABLE_OUTCOME_WAD = 10n ** 16n;
-
-/** MarketTypes.Side encodes YES as 0 and NO as 1. */
-function sideToContractSide(side: MarketSide): number {
-  return side === "yes" ? 0 : 1;
-}
 
 /**
  * Rounds a redeem amount down to what the market can convert to collateral
@@ -128,7 +124,7 @@ export async function submitRedemption({
     address: marketAddress,
     chain: wallet.walletClient.chain,
     functionName: "redeem",
-    args: [sideToContractSide(side), redeemable],
+    args: [marketSideToContractSide(side), redeemable],
   });
 
   const transactionReceipt = await wallet.publicClient.waitForTransactionReceipt({

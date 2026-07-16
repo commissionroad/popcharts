@@ -1,3 +1,4 @@
+import { SIDE_YES } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -14,6 +15,7 @@ export type ReceiptPlacedLog = Log & {
     receiptId?: bigint;
     sequence?: bigint;
     shares?: bigint;
+    /** MarketTypes.Side; compare against SIDE_YES/SIDE_NO. */
     side?: number;
   };
 };
@@ -74,7 +76,7 @@ export async function persistReceiptPlacedRecord(
         receiptCount: record.sequence,
         totalEscrowed: sql`${schema.markets.totalEscrowed} + ${costIncrement}::numeric(78, 0)`,
         updatedAt: new Date(),
-        ...(record.side === 0
+        ...(record.side === SIDE_YES
           ? {
               yesShares: sql`${schema.markets.yesShares} + ${sharesIncrement}::numeric(78, 0)`,
             }
