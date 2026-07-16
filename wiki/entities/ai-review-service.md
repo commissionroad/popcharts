@@ -8,7 +8,7 @@ sources:
   - docs/adr/0011-ai-review-service-hardening.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - server/README.md
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 
 # AI review service and runner
@@ -71,14 +71,17 @@ safe-web hardening, strict output validation,
 `AI_REVIEW_PROMPT_VERSION` policy, stuck-job recovery, metrics. (Manual
 re-review is a local operator action, not an API endpoint.)
 
-**Verdict quality is a separate, unstarted program**
+**Verdict quality is a separate program, now started**
 ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md),
 accepted 2026-07-14): the 2026-07-14 test session found verdicts a
 run-to-run lottery (identical markets drawing reject vs manual_review) and
-one false REJECT away from irreversibly burning a market. Planned: an
-offline eval harness at the service HTTP seam
-(`server/src/ai-review/evals/`), a labeled failure-taxonomy dataset,
-deterministic pre-stages promoted out of the model, a
+one false REJECT away from irreversibly burning a market. Landed (PR #226,
+2026-07-15): the offline eval harness at the service HTTP seam
+(`server/src/ai-review/evals/`), a 52-seed labeled
+[failure-taxonomy](../summaries/ai-verdict-failure-taxonomy.md) dataset,
+and review prompt v3 (`market-ai-review-v3`) adopted with before/after
+eval numbers — the first exercise of the measure-before-tuning rule.
+Still planned: deterministic pre-stages promoted out of the model, a
 **reject-corroboration policy** (on-chain reject only with hard-flag
 agreement or second-run concurrence; lone LLM rejects park as
 manual_review), a CI consistency lane, and the `AI_REVIEW_PROMPT_VERSION`
