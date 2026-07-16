@@ -203,6 +203,7 @@ function emptyPortfolio(): Portfolio {
     owner: OWNER,
     positions: [],
     receipts: [],
+    redemptions: [],
     summary: {
       claimableReceiptCount: 0,
       lockedCollateral: "0",

@@ -503,6 +503,7 @@ function portfolioFixture(overrides: Partial<Portfolio> = {}): Portfolio {
     owner: OWNER,
     positions: [positionFixture()],
     receipts: [],
+    redemptions: [],
     summary: {
       claimableReceiptCount: 0,
       lockedCollateral: "0",

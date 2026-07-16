@@ -6,6 +6,7 @@ import {
   PortfolioReceiptSchema,
   PortfolioReceiptSettlementSchema,
   PortfolioReceiptStatusSchema,
+  PortfolioRedemptionSchema,
   PortfolioSchema,
   PortfolioSummarySchema,
 } from "src/api/models/portfolio";
@@ -24,6 +25,7 @@ export const portfolioRoutes = new Elysia({ prefix: "" })
     PortfolioReceipt: PortfolioReceiptSchema,
     PortfolioReceiptSettlement: PortfolioReceiptSettlementSchema,
     PortfolioReceiptStatus: PortfolioReceiptStatusSchema,
+    PortfolioRedemption: PortfolioRedemptionSchema,
     PortfolioSummary: PortfolioSummarySchema,
   })
   .get(
@@ -56,7 +58,7 @@ export const portfolioRoutes = new Elysia({ prefix: "" })
         operationId: "getPortfolio",
         summary: "Get a wallet's full portfolio",
         description:
-          "Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), and open venue maker orders. Public owner-scoped read; no authentication.",
+          "Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), open venue maker orders, and past resolution-redemption payouts (newest first). Public owner-scoped read; no authentication.",
         tags: ["Portfolio"],
       },
     },

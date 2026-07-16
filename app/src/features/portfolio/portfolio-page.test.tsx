@@ -3,6 +3,7 @@ import type {
   PortfolioOpenOrder,
   PortfolioPosition,
   PortfolioReceipt,
+  PortfolioRedemption,
 } from "@popcharts/api-client/models";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,6 +96,7 @@ describe("PortfolioPage wallet and load states", () => {
         openOrders: [],
         positions: [],
         receipts: [],
+        redemptions: [],
         summary: summaryFixture({
           openReceiptCount: 0,
           positionCount: 0,
@@ -108,6 +110,7 @@ describe("PortfolioPage wallet and load states", () => {
     expect(screen.getByText("No receipts")).toBeInTheDocument();
     expect(screen.getByText("No backed positions")).toBeInTheDocument();
     expect(screen.queryByText("Open orders")).not.toBeInTheDocument();
+    expect(screen.queryByText("Claimed payouts")).not.toBeInTheDocument();
   });
 });
 
@@ -344,6 +347,76 @@ describe("PortfolioPage positions", () => {
   });
 });
 
+describe("PortfolioPage claimed history", () => {
+  it("shows a resolution payout with tokens burned, value, and claim time", () => {
+    render(<PortfolioPage />);
+
+    expect(screen.getByText("Claimed payouts")).toBeInTheDocument();
+    expect(screen.getByText("Resolution payout")).toBeInTheDocument();
+    // 25 winning-side tokens redeemed for $25.00 on Jul 12.
+    expect(screen.getByText("25.00")).toBeInTheDocument();
+    expect(screen.getByText("$25.00")).toBeInTheDocument();
+    expect(screen.getByText("Jul 12, 2026, 12:00 AM UTC")).toBeInTheDocument();
+  });
+
+  it("sums both burn legs of a cancelled draw and labels it BOTH", () => {
+    const redemption = redemptionFixture({
+      kind: "cancelled_redeemed",
+      noAmount: (12n * WAD).toString(),
+      valueWad: (10n * WAD).toString(),
+      yesAmount: (8n * WAD).toString(),
+    });
+    delete redemption.outcomeAmount;
+    delete redemption.side;
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({ redemptions: [redemption] }),
+      refresh: vi.fn(),
+    });
+
+    render(<PortfolioPage />);
+
+    expect(screen.getByText("Draw payout - both sides at half")).toBeInTheDocument();
+    expect(screen.getByText("BOTH")).toBeInTheDocument();
+    expect(screen.getByText("20.00")).toBeInTheDocument();
+    expect(screen.getByText("$10.00")).toBeInTheDocument();
+  });
+
+  it("renders zero tokens when a payout omits its burn amounts", () => {
+    const winner = redemptionFixture({ logIndex: 1 });
+    delete winner.outcomeAmount;
+    const draw = redemptionFixture({ kind: "cancelled_redeemed", logIndex: 2 });
+    delete draw.outcomeAmount;
+    delete draw.side;
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({ redemptions: [winner, draw] }),
+      refresh: vi.fn(),
+    });
+
+    render(<PortfolioPage />);
+
+    expect(screen.getAllByText("0")).toHaveLength(2);
+  });
+
+  it("dashes the payout value when the server could not derive it", () => {
+    const redemption = redemptionFixture({});
+    delete redemption.valueWad;
+    usePortfolio.mockReturnValue({
+      error: null,
+      loading: false,
+      portfolio: portfolioFixture({ redemptions: [redemption] }),
+      refresh: vi.fn(),
+    });
+
+    render(<PortfolioPage />);
+
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+});
+
 describe("PortfolioPage open orders", () => {
   it("describes each resting order with side, direction, price, and remaining size", () => {
     render(<PortfolioPage />);
@@ -385,7 +458,26 @@ function portfolioFixture(overrides: Partial<Portfolio> = {}): Portfolio {
     owner: OWNER,
     positions: [positionFixture({})],
     receipts: [receiptFixture({})],
+    redemptions: [redemptionFixture({})],
     summary: summaryFixture({}),
+    ...overrides,
+  };
+}
+
+function redemptionFixture(
+  overrides: Partial<PortfolioRedemption>
+): PortfolioRedemption {
+  return {
+    collateralAmount: "25000000",
+    kind: "redeemed",
+    logIndex: 3,
+    marketId: "7",
+    marketQuestion: "Will it pop?",
+    outcomeAmount: (25n * WAD).toString(),
+    redeemedAt: "2026-07-12T00:00:00.000Z",
+    side: "yes",
+    transactionHash: `0x${"ee".repeat(32)}`,
+    valueWad: (25n * WAD).toString(),
     ...overrides,
   };
 }

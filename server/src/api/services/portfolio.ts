@@ -10,6 +10,7 @@ import type {
   PortfolioPositionResponse,
   PortfolioReceiptResponse,
   PortfolioReceiptStatusResponse,
+  PortfolioRedemptionResponse,
   PortfolioResponse,
 } from "src/api/models/portfolio";
 import { and, db, desc, eq, schema } from "src/db/client";
@@ -31,9 +32,11 @@ import {
  * Owner-scoped portfolio read (docs/portfolio-data-design.md): the wallet's
  * pre-graduation receipts joined to their settlement results, its graduated
  * YES/NO positions from the Transfer-indexed balance projection plus tokens
- * committed to its own resting ask orders, and its open venue orders across
- * markets. The only chain reads are each pool's current price and each
- * market collateral's decimals (memoized) for tier-2 current value.
+ * committed to its own resting ask orders, its open venue orders across
+ * markets, and its past resolution-redemption payouts from the indexed
+ * Redeemed/CancelledRedeemed paper trail. The only chain reads are each
+ * pool's current price and each market collateral's decimals (memoized) for
+ * tier-2 current value.
  */
 
 const WAD = 10n ** 18n;
@@ -95,6 +98,23 @@ export type PortfolioOrderRow = {
   readonly pool: VenuePoolRow;
 };
 
+/** One indexed redemption payout with its market context. */
+export type PortfolioRedemptionRow = {
+  readonly market: MarketContext | null;
+  readonly redemption: {
+    readonly blockTimestamp: Date;
+    readonly collateralAmount: bigint;
+    readonly kind: "redeemed" | "cancelled_redeemed";
+    readonly logIndex: number;
+    readonly marketId: bigint;
+    readonly noAmount: bigint | null;
+    readonly outcomeAmount: bigint | null;
+    readonly side: "yes" | "no" | null;
+    readonly transactionHash: string;
+    readonly yesAmount: bigint | null;
+  };
+};
+
 /** Outcome of a portfolio read. */
 export type PortfolioResult =
   | { kind: "invalid_owner"; message: string }
@@ -119,6 +139,10 @@ export type PortfolioReadDependencies = {
     chainId: number;
     owner: string;
   }) => Promise<PortfolioReceiptRow[]>;
+  selectOwnerRedemptions: (args: {
+    chainId: number;
+    owner: string;
+  }) => Promise<PortfolioRedemptionRow[]>;
 };
 
 /**
@@ -144,16 +168,18 @@ export async function getPortfolio(
     return { kind: "invalid_chain", message: "Invalid chain id" };
   }
 
-  const [receiptRows, balanceRows, orderRows] = await Promise.all([
-    dependencies.selectOwnerReceipts({ chainId, owner: normalizedOwner }),
-    dependencies.selectOwnerBalances({ chainId, owner: normalizedOwner }),
-    dependencies.selectOwnerOpenOrders({ chainId, owner: normalizedOwner }),
-  ]);
+  const [receiptRows, balanceRows, orderRows, redemptionRows] =
+    await Promise.all([
+      dependencies.selectOwnerReceipts({ chainId, owner: normalizedOwner }),
+      dependencies.selectOwnerBalances({ chainId, owner: normalizedOwner }),
+      dependencies.selectOwnerOpenOrders({ chainId, owner: normalizedOwner }),
+      dependencies.selectOwnerRedemptions({ chainId, owner: normalizedOwner }),
+    ]);
 
   const receipts = receiptRows.map(serializeReceipt);
   const decimalsByCollateral = await readDecimalsBestEffort(
     dependencies,
-    collateralAddresses(balanceRows, orderRows),
+    collateralAddresses(balanceRows, orderRows, redemptionRows),
   );
   const positions = await buildPositions({
     balanceRows,
@@ -163,6 +189,9 @@ export async function getPortfolio(
     receiptRows,
   });
   const openOrders = serializeOpenOrders(orderRows, decimalsByCollateral);
+  const redemptions = redemptionRows.map((row) =>
+    serializeRedemption(row, decimalsByCollateral),
+  );
 
   const lockedCollateral = receiptRows
     .filter((row) => serializeReceipt(row).status === "awaiting_graduation")
@@ -182,6 +211,7 @@ export async function getPortfolio(
       owner: normalizedOwner,
       positions,
       receipts,
+      redemptions,
       summary: {
         claimableReceiptCount: receipts.filter(
           (receipt) =>
@@ -386,7 +416,7 @@ async function buildPositions({
       );
       const avgCostWad =
         settlement && settlement.retainedShares > 0n && decimals !== undefined
-          ? (settlement.retainedCost * 10n ** BigInt(18 - decimals) * WAD) /
+          ? (collateralUnitsToWad(settlement.retainedCost, decimals) * WAD) /
             settlement.retainedShares
           : undefined;
 
@@ -452,6 +482,59 @@ function settledOutcomePriceWad(
   return side === resolution.winningSide ? WAD : 0n;
 }
 
+/**
+ * Serializes one redemption payout. `valueWad` re-expresses the raw
+ * collateral payout as a display-WAD value using the collateral's decimals,
+ * so clients never re-derive chain-specific scaling; it is omitted when the
+ * market row or its decimals read is unavailable, leaving the raw amount as
+ * the paper-trail fallback.
+ */
+function serializeRedemption(
+  row: PortfolioRedemptionRow,
+  decimalsByCollateral: Map<string, number>,
+): PortfolioRedemptionResponse {
+  const decimals = row.market
+    ? decimalsByCollateral.get(row.market.collateral)
+    : undefined;
+
+  return {
+    collateralAmount: row.redemption.collateralAmount.toString(),
+    kind: row.redemption.kind,
+    logIndex: row.redemption.logIndex,
+    marketId: row.redemption.marketId.toString(),
+    ...(row.market?.question ? { marketQuestion: row.market.question } : {}),
+    ...(row.redemption.noAmount !== null
+      ? { noAmount: row.redemption.noAmount.toString() }
+      : {}),
+    ...(row.redemption.outcomeAmount !== null
+      ? { outcomeAmount: row.redemption.outcomeAmount.toString() }
+      : {}),
+    redeemedAt: row.redemption.blockTimestamp.toISOString(),
+    ...(row.redemption.side !== null ? { side: row.redemption.side } : {}),
+    transactionHash: row.redemption.transactionHash,
+    ...(decimals !== undefined
+      ? {
+          valueWad: collateralUnitsToWad(
+            row.redemption.collateralAmount,
+            decimals,
+          ).toString(),
+        }
+      : {}),
+    ...(row.redemption.yesAmount !== null
+      ? { yesAmount: row.redemption.yesAmount.toString() }
+      : {}),
+  };
+}
+
+/**
+ * Re-expresses a raw collateral amount as an 18-decimal display-WAD value.
+ * Assumes collateral decimals ≤ 18 (true for every supported collateral;
+ * a larger value would make the exponent negative and throw).
+ */
+function collateralUnitsToWad(amount: bigint, decimals: number): bigint {
+  return amount * 10n ** BigInt(18 - decimals);
+}
+
 function aggregateSettlements(receiptRows: PortfolioReceiptRow[]) {
   const totals = new Map<
     string,
@@ -511,10 +594,11 @@ function serializeOpenOrders(
 function collateralAddresses(
   balanceRows: PortfolioBalanceRow[],
   orderRows: PortfolioOrderRow[],
+  redemptionRows: PortfolioRedemptionRow[],
 ): string[] {
   const addresses = new Set<string>();
 
-  for (const row of [...balanceRows, ...orderRows]) {
+  for (const row of [...balanceRows, ...orderRows, ...redemptionRows]) {
     if (row.market) {
       addresses.add(row.market.collateral);
     }
@@ -764,6 +848,50 @@ const defaultDependencies: PortfolioReadDependencies = {
       },
       placed: row.placed,
       refundClaim: row.refundClaim,
+    }));
+  },
+  selectOwnerRedemptions: async ({ chainId, owner }) => {
+    const rows = await db
+      .select({
+        market: schema.markets,
+        metadata: schema.marketMetadata,
+        redemption: schema.postgradRedemptionEvents,
+      })
+      .from(schema.postgradRedemptionEvents)
+      .leftJoin(
+        schema.markets,
+        and(
+          eq(schema.markets.chainId, schema.postgradRedemptionEvents.chainId),
+          eq(schema.markets.marketId, schema.postgradRedemptionEvents.marketId),
+        ),
+      )
+      .leftJoin(
+        schema.marketMetadata,
+        and(
+          eq(schema.marketMetadata.chainId, schema.markets.chainId),
+          eq(schema.marketMetadata.metadataHash, schema.markets.metadataHash),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.postgradRedemptionEvents.chainId, chainId),
+          eq(schema.postgradRedemptionEvents.account, owner),
+        ),
+      )
+      .orderBy(
+        desc(schema.postgradRedemptionEvents.blockNumber),
+        desc(schema.postgradRedemptionEvents.logIndex),
+      );
+
+    return rows.map((row) => ({
+      market: row.market
+        ? {
+            collateral: row.market.collateral,
+            question: row.metadata?.question ?? null,
+            status: row.market.status,
+          }
+        : null,
+      redemption: row.redemption,
     }));
   },
 };

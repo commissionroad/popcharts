@@ -4,6 +4,7 @@ import type {
   PortfolioOpenOrder,
   PortfolioPosition,
   PortfolioReceipt,
+  PortfolioRedemption,
 } from "@popcharts/api-client/models";
 import { Layers, ReceiptText, WalletCards } from "lucide-react";
 import Link from "next/link";
@@ -29,10 +30,11 @@ import { ReceiptSettlement } from "./receipt-settlement";
 /**
  * Database-backed portfolio: the connected wallet's pre-graduation receipts
  * (with their settlement results once markets graduate), graduated YES/NO
- * positions, and open venue orders — all read from the indexer, cross-market
- * and cross-device. Most writes (refund claims, order cancels) stay on each
- * market page; the one exception is redeeming a resolved market's winnings,
- * which is offered directly on the position row as well as the market page.
+ * positions, open venue orders, and past resolution-redemption payouts — all
+ * read from the indexer, cross-market and cross-device. Most writes (refund
+ * claims, order cancels) stay on each market page; the one exception is
+ * redeeming a resolved market's winnings, which is offered directly on the
+ * position row as well as the market page.
  */
 export function PortfolioPage() {
   const wallet = useWalletAccount();
@@ -143,6 +145,10 @@ function ConnectedPortfolio({
 
         {portfolio.openOrders.length > 0 ? (
           <OpenOrderTable orders={portfolio.openOrders} />
+        ) : null}
+
+        {portfolio.redemptions.length > 0 ? (
+          <RedemptionTable redemptions={portfolio.redemptions} />
         ) : null}
       </div>
     </>
@@ -302,6 +308,71 @@ function OpenOrderRow({ openOrder }: { openOrder: PortfolioOpenOrder }) {
       </span>
       <span className="text-[var(--text-secondary)]">
         {formatDateTime(order.createdBlockTimestamp)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Past resolution-redemption payouts. Once a position is redeemed its row
+ * leaves the tables above, so this history is the only place the payout stays
+ * visible — the resolution counterpart of a receipt's "Settled" state.
+ */
+function RedemptionTable({ redemptions }: { redemptions: PortfolioRedemption[] }) {
+  return (
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)]">
+      <SectionHeader title="Claimed payouts" />
+      <div className="hidden grid-cols-[1.4fr_0.4fr_0.5fr_0.5fr_0.7fr] gap-3 border-b border-[var(--border-soft)] px-5 py-3 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
+        <span>Market</span>
+        <span>Side</span>
+        <span>Tokens</span>
+        <span>Paid out</span>
+        <span>Claimed</span>
+      </div>
+      {redemptions.map((redemption) => (
+        <RedemptionRow
+          key={`${redemption.transactionHash}:${redemption.logIndex}`}
+          redemption={redemption}
+        />
+      ))}
+    </section>
+  );
+}
+
+function RedemptionRow({ redemption }: { redemption: PortfolioRedemption }) {
+  const isDraw = redemption.kind === "cancelled_redeemed";
+  // A resolved winner burns one side's tokens; a cancelled draw burns both
+  // legs at half value each, so the burned total is their sum.
+  const tokensBurned = isDraw
+    ? BigInt(redemption.yesAmount ?? "0") + BigInt(redemption.noAmount ?? "0")
+    : BigInt(redemption.outcomeAmount ?? "0");
+
+  return (
+    <div className="grid gap-3 border-b border-[var(--border-soft)] px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.4fr_0.4fr_0.5fr_0.5fr_0.7fr]">
+      <span>
+        <MarketLink
+          marketId={redemption.marketId}
+          question={redemption.marketQuestion}
+        />
+        <span className="font-mono text-xs text-[var(--text-muted)]">
+          {isDraw ? "Draw payout - both sides at half" : "Resolution payout"}
+        </span>
+      </span>
+      {redemption.side ? (
+        <SideLabel side={redemption.side} />
+      ) : (
+        <span className="font-mono font-bold text-[var(--text-muted)]">BOTH</span>
+      )}
+      <span className="font-mono text-[var(--text-secondary)]">
+        {formatTokenAmount(tokensBurned)}
+      </span>
+      <span className="font-mono font-bold text-[var(--text-primary)]">
+        {redemption.valueWad
+          ? formatUsd(wadToNumber(BigInt(redemption.valueWad)))
+          : "-"}
+      </span>
+      <span className="text-[var(--text-secondary)]">
+        {formatDateTime(redemption.redeemedAt)}
       </span>
     </div>
   );

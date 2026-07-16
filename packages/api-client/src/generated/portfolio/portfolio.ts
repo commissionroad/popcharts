@@ -8,7 +8,7 @@
 import type { GetPortfolioParams, Portfolio } from ".././models";
 
 /**
- * Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), and open venue maker orders. Public owner-scoped read; no authentication.
+ * Returns one wallet's cross-market lifecycle view: pre-graduation receipts joined to their settlement results, graduated YES/NO outcome-token positions (held wallet balance plus tokens committed to the wallet's own resting ask orders, valued at the current pool price when available), open venue maker orders, and past resolution-redemption payouts (newest first). Public owner-scoped read; no authentication.
  * @summary Get a wallet's full portfolio
  */
 export type getPortfolioResponse200 = {

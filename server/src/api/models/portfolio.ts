@@ -105,6 +105,33 @@ export const PortfolioPositionSchema = t.Object(
   { $id: "PortfolioPosition" },
 );
 
+/**
+ * One resolution-redemption payout, read straight from the indexed
+ * Redeemed/CancelledRedeemed money paper trail. A `redeemed` row burned
+ * `outcomeAmount` tokens of `side`; a `cancelled_redeemed` (draw) row burned
+ * `yesAmount` + `noAmount` at half value each. `collateralAmount` is the raw
+ * collateral paid out (chain-specific precision); `valueWad` is the same
+ * payout as a display-WAD value, omitted only when the collateral's decimals
+ * are unavailable (unknown market or failed chain read).
+ */
+export const PortfolioRedemptionSchema = t.Object(
+  {
+    collateralAmount: t.String(),
+    kind: t.Union([t.Literal("redeemed"), t.Literal("cancelled_redeemed")]),
+    logIndex: t.Number(),
+    marketId: t.String(),
+    marketQuestion: t.Optional(t.String()),
+    noAmount: t.Optional(t.String()),
+    outcomeAmount: t.Optional(t.String()),
+    redeemedAt: t.String(),
+    side: t.Optional(t.Ref(VenuePoolSideSchema)),
+    transactionHash: t.String(),
+    valueWad: t.Optional(t.String()),
+    yesAmount: t.Optional(t.String()),
+  },
+  { $id: "PortfolioRedemption" },
+);
+
 /** One resting venue maker order, annotated with its market for display. */
 export const PortfolioOpenOrderSchema = t.Object(
   {
@@ -132,7 +159,10 @@ export const PortfolioSummarySchema = t.Object(
   { $id: "PortfolioSummary" },
 );
 
-/** A wallet's full lifecycle view: receipts, positions, open orders. */
+/**
+ * A wallet's full lifecycle view: receipts, positions, open orders, and past
+ * resolution redemptions (newest first).
+ */
 export const PortfolioSchema = t.Object(
   {
     chainId: t.Number(),
@@ -140,6 +170,7 @@ export const PortfolioSchema = t.Object(
     owner: t.String(),
     positions: t.Array(t.Ref(PortfolioPositionSchema)),
     receipts: t.Array(t.Ref(PortfolioReceiptSchema)),
+    redemptions: t.Array(t.Ref(PortfolioRedemptionSchema)),
     summary: t.Ref(PortfolioSummarySchema),
   },
   { $id: "Portfolio" },
@@ -153,6 +184,9 @@ export type PortfolioReceiptSettlementResponse = Static<
 >;
 export type PortfolioReceiptResponse = Static<typeof PortfolioReceiptSchema>;
 export type PortfolioPositionResponse = Static<typeof PortfolioPositionSchema>;
+export type PortfolioRedemptionResponse = Static<
+  typeof PortfolioRedemptionSchema
+>;
 export type PortfolioOpenOrderResponse = Static<
   typeof PortfolioOpenOrderSchema
 >;

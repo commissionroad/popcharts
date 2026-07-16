@@ -330,6 +330,15 @@ emits named client models:
   position): the existing `VenueOrder` shape plus `marketId` / `marketQuestion` for
   cross-market display; cross-market query over `venue_orders` filtered by `owner` +
   `status = open`.
+- `PortfolioRedemption` — one past resolution-redemption payout straight from
+  `postgrad_redemption_events` (newest first): `kind`
+  (`redeemed` | `cancelled_redeemed`), the burned token amounts
+  (`outcomeAmount` + `side` for a winner; `yesAmount`/`noAmount` for a draw),
+  the raw `collateralAmount` paid out, and a decimals-reconciled `valueWad`
+  (omitted when the collateral's decimals are unreadable). Once a position is
+  redeemed its balance row zeroes out and leaves the positions list, so this
+  history is the only product surface where the payout stays visible — the
+  resolution counterpart of a receipt's `settled` state.
 - `PortfolioSummary` — `openReceiptCount`, `lockedCollateral` (sum of `cost` for
   `awaiting_graduation` receipts), `settledPositionCount`, `openOrderCount`. These
   replace the current hardcoded metric cards.

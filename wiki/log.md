@@ -595,6 +595,15 @@ numbers in the same PR). testing-strategy and ai-review-service pages
 already carry ADR 0019 sections from its ingest; no further page edits
 needed.
 
+## [2026-07-15] ingest | root doc — portfolio data design (redemption read surface)
+Pages: ~summaries/portfolio-data-design.md
+Notes: doc gained a `PortfolioRedemption` model in its Proposed API section —
+the portfolio payload now includes past resolution-redemption payouts from
+postgrad_redemption_events (raw collateralAmount + decimals-reconciled
+valueWad), rendered as the portfolio page's "Claimed payouts" table. D2
+bullet extended; no other page edits needed (paper-trail section already
+covered the table itself from PR #219's ingest).
+
 ## [2026-07-16] lint | ADR 0019 first-slice status reconcile
 Pages: ~summaries/root-adr-0019-ai-verdict-quality-program.md,
 ~concepts/testing-strategy.md, ~concepts/ai-assisted-resolution.md,
