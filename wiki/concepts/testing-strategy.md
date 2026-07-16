@@ -10,7 +10,7 @@ sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 
 # Testing strategy
@@ -83,18 +83,24 @@ Coverage figures use workspace-own denominators (`app/src`, `server/src`,
 protocol Solidity + protocol TS) with ratcheted floors for each; flake
 tracking is report-only until its history justifies alerting.
 
-## AI verdict evals ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, all open)
+## AI verdict evals ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, first slice landed)
 
 A new test kind for the two verdict services (review, resolution): an
 offline eval harness at the service HTTP seams running a labeled
-failure-taxonomy dataset (~150–200 seeds, template-expanded) N times per
-case, measuring cross-run agreement, per-class accuracy, and calibration —
-because unit/smoke tiers can't catch a verdict lottery. Baselines live
-in-repo like the ADR 0017 coverage metrics; a nightly/on-demand CI
-consistency lane (modeled on the flake-report lane) fails on agreement or
-accuracy regression beyond tolerance. Heuristic mode stays for
-deterministic pipeline tests, but local stacks default to LLM providers so
-eval numbers reflect what ships.
+[failure-taxonomy](../summaries/ai-verdict-failure-taxonomy.md) dataset
+(~150–200 seeds target, template-expanded) N times per case, measuring
+cross-run agreement, per-class accuracy, and calibration — because
+unit/smoke tiers can't catch a verdict lottery. Baselines live in-repo
+like the ADR 0017 coverage metrics; a nightly/on-demand CI consistency
+lane (modeled on the flake-report lane) fails on agreement or accuracy
+regression beyond tolerance. Heuristic mode stays for deterministic
+pipeline tests, but local stacks default to LLM providers so eval numbers
+reflect what ships. **Landed (PR #226, 2026-07-15):** the review-side
+runner (`server/src/ai-review/evals/run-review-evals.ts`) plus 52
+hand-labeled seeds across the taxonomy classes, and the first recorded
+before/after eval run (review prompt v3 adoption, 42→75% accuracy). The
+resolution sibling, dataset expansion, and the CI consistency lane remain
+open.
 
 ## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
 

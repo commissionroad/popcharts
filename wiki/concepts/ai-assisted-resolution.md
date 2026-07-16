@@ -9,7 +9,7 @@ sources:
   - docs/adr/0019-ai-verdict-quality-program.md
   - documents/whitepaper_v3.pdf
   - documents/whitepaper_v0_1.pdf
-updated: 2026-07-14
+updated: 2026-07-16
 ---
 
 # AI-assisted resolution
@@ -55,7 +55,7 @@ automation in the system" (an AI holding a resolver key).
   auth seam; coordinated with the resolver entry points
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).
 
-## Verdict quality ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, all open)
+## Verdict quality ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14; resolution side all open — the review-side runner/dataset/prompt-v3 slice landed in PR #226)
 
 The 2026-07-14 test session showed verdicts are a run-to-run lottery on the
 same content, and pipeline hardening (0011) plus this build (0012) measure
