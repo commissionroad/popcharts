@@ -3,6 +3,8 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 
 import {
   MARKET_COUNT_SELECTOR,
@@ -13,6 +15,16 @@ import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
+import { BASE_CHAIN_PORT } from "./shared/localStack/ports.ts";
+import {
+  pruneDeadDescriptors,
+  type StackDescriptor,
+} from "./shared/localStack/registry.ts";
+import {
+  describeTargetStack,
+  resolveTargetStack,
+  TargetStackResolutionError,
+} from "./shared/localStack/resolveTargetStack.ts";
 import {
   extractGeneratedMarketOptionKeyFromQuestion,
   filterUnusedGeneratedMarketOptions,
@@ -90,12 +102,14 @@ type GeneratedMarket = {
   readonly resolutionSeconds: number;
 };
 
-type CliOptions = {
+/** Parsed command-line options for the local market creation helper. */
+export type CliOptions = {
   apiBaseUrl: string | undefined;
   envFile: string | undefined;
   help: boolean;
   kind: GeneratedMarketKind | "random";
   preview: boolean;
+  stack: string | undefined;
 };
 
 type RpcResponse = {
@@ -139,18 +153,26 @@ const weatherStations: readonly WeatherStation[] = [
     stationId: "KSFO",
   },
 ];
-const defaultRpcHttpUrl = "http://127.0.0.1:8545";
 const hardhatLocalChainId = "0x7a69";
 const hardhatLocalChainNumber = 31337;
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
-main().catch((error: unknown) => {
-  console.error(
-    `\n[local-create-market] ${error instanceof Error ? error.message : error}`,
-  );
-  process.exit(1);
-});
+if (
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  main().catch((error: unknown) => {
+    if (error instanceof TargetStackResolutionError) {
+      console.error(error.message);
+    } else {
+      console.error(
+        `\n[local-create-market] ${error instanceof Error ? error.message : error}`,
+      );
+    }
+    process.exit(1);
+  });
+}
 
 async function main(): Promise<void> {
   const options = parseArgs(rawArgs);
@@ -177,18 +199,28 @@ async function main(): Promise<void> {
     return;
   }
 
+  const bypassRegistry =
+    options.envFile !== undefined || options.apiBaseUrl !== undefined;
+  const target = bypassRegistry
+    ? undefined
+    : await resolveRegisteredStack(options);
   const envFile =
+    target?.envFilePath ??
     options.envFile ??
     resolvePath(process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ?? defaultEnvFile);
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const commandEnv: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
+  const rpcFallbackUrl = `http://127.0.0.1:${target?.chainPort ?? BASE_CHAIN_PORT}`;
 
   validateLocalEnv(commandEnv, envFile, envFileExists);
-  await validateLocalDeployment(commandEnv, envFile);
+  await validateLocalDeployment(commandEnv, envFile, rpcFallbackUrl);
   ensureDependenciesInstalled();
 
-  const apiBaseUrl = resolveIndexerApiBaseUrl(options.apiBaseUrl, commandEnv);
+  const apiBaseUrl = resolveIndexerApiBaseUrl(
+    target ? `http://127.0.0.1:${target.apiPort}` : options.apiBaseUrl,
+    commandEnv,
+  );
   const usedOptionKeys = await readExistingGeneratedMarketOptions({
     apiBaseUrl,
     chainId: hardhatLocalChainNumber,
@@ -246,11 +278,68 @@ async function main(): Promise<void> {
   }
 }
 
+async function resolveRegisteredStack(
+  options: CliOptions,
+): Promise<StackDescriptor> {
+  const live = await pruneDeadDescriptors();
+  return resolveTargetStack({
+    liveStacks: live,
+    token: options.stack ?? process.env.POPCHARTS_STACK,
+    chooseStack: process.stdin.isTTY ? promptForStack : undefined,
+  });
+}
+
+/**
+ * Prompts an interactive caller to choose one of the running local stacks.
+ * Each attempt accepts either the displayed one-based list index or a stack's
+ * slot number, and invalid choices are retried until a live stack is selected.
+ */
+async function promptForStack(
+  stacks: readonly StackDescriptor[],
+): Promise<StackDescriptor> {
+  const readline = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  console.log("Multiple local dev stacks are running:");
+  stacks.forEach((stack, index) => {
+    console.log(`  ${index + 1}. ${describeTargetStack(stack)}`);
+  });
+
+  try {
+    while (true) {
+      const answer = (
+        await readline.question("Choose a stack (list number or slot): ")
+      ).trim();
+      const numericChoice = Number(answer);
+      const indexedStack = Number.isInteger(numericChoice)
+        ? stacks[numericChoice - 1]
+        : undefined;
+      const slottedStack = Number.isInteger(numericChoice)
+        ? stacks.find((stack) => stack.slot === numericChoice)
+        : undefined;
+      const selected = indexedStack ?? slottedStack;
+
+      if (selected !== undefined) {
+        return selected;
+      }
+
+      console.log(
+        "Invalid choice. Enter a displayed list number or stack slot.",
+      );
+    }
+  } finally {
+    readline.close();
+  }
+}
+
 async function validateLocalDeployment(
   env: NodeJS.ProcessEnv,
   envFile: string,
+  rpcFallbackUrl: string,
 ): Promise<void> {
-  const rpcUrl = env.RPC_HTTP_URL ?? defaultRpcHttpUrl;
+  const rpcUrl = env.RPC_HTTP_URL ?? rpcFallbackUrl;
   const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
   const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
 
@@ -309,13 +398,18 @@ async function validateLocalDeployment(
   }
 }
 
-function parseArgs(args: readonly string[]): CliOptions {
+/** Parses local-create-market command-line arguments. */
+export function parseArgs(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): CliOptions {
   const options: CliOptions = {
     apiBaseUrl: undefined,
     envFile: undefined,
     help: false,
     kind: "random",
     preview: false,
+    stack: env.POPCHARTS_STACK,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -343,6 +437,15 @@ function parseArgs(args: readonly string[]): CliOptions {
       index += 1;
     } else if (arg.startsWith("--api-url=")) {
       options.apiBaseUrl = arg.slice("--api-url=".length);
+    } else if (arg === "--stack") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--stack requires a slot or instance id.");
+      }
+      options.stack = value;
+      index += 1;
+    } else if (arg.startsWith("--stack=")) {
+      options.stack = arg.slice("--stack=".length);
     } else if (arg === "--kind") {
       const value = args[index + 1];
       if (!value) {
@@ -375,7 +478,10 @@ Options:
   --kind <kind>            Generate crypto, weather, or random.
                             Defaults to random.
   --local-chain-env <path>  Load a generated local-chain env file.
-                            Defaults to server/.env.local-chain.
+                            Explicit use bypasses stack registry resolution.
+  --stack <slot|id>         Choose a running stack by slot or instance id.
+                            Defaults to POPCHARTS_STACK; with multiple stacks,
+                            interactive terminals prompt when neither is set.
   --preview                 Print generated metadata JSON without creating a market.
   -h, --help                Show this help.
 
