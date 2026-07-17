@@ -718,3 +718,15 @@ amended from "asserting UI" to API/DB/on-chain, with five named Playwright
 issues; Discord revisit noted; server-ai-review-smoke re-homed per-PR
 (placement rule). Cross-ADR watch: 0019's lane spec and 0017 C5 must not
 drift apart.
+
+## [2026-07-17] ingest | repo ADR 0020 — concurrent local dev stacks
+Pages: +summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: New slot-addressed instance model (slot 0 human, 1..n agents in
+.claude/worktrees/, then auto-offset); home-dir registry
+~/.popcharts/local-stacks/; per-slot chain port / DB / env / process-compose
+admin; identity-scoped chain reuse replaces the silent-adoption footgun that
+caused the 2026-07-17 contamination incident. chainId stays 31337 across slots
+(deferred; only matters for a browser wallet on two stacks at once). Phase 1
+core landed 2026-07-17 (PR #242); Phases 2–4 open. Concept page gained a
+"Concurrent stacks" section; watch for drift as the wiring phases land (the
+env-seams section still describes the single-stack .env.local-chain path).
