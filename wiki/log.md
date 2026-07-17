@@ -646,3 +646,63 @@ pages moved together (this lint's drift was exactly a same-PR
 doc+code landing whose wiki pages lagged one edit behind). (2) PR #234
 (resolution-redemption portfolio payouts) is open — if it lands with doc
 changes, verify ingestion.
+
+## [2026-07-17] lint | ADR 0019 core-harness drift + portfolio-doc partial ingest
+Pages: ~summaries/root-adr-0019-ai-verdict-quality-program.md,
+~concepts/testing-strategy.md, ~entities/ai-review-service.md,
+~concepts/ai-assisted-resolution.md, ~entities/app-workspace.md,
+~entities/indexer.md, ~index.md
+Notes:
+- **Organic ingestion since last lint: 1/1 doc changes self-ingested.** The
+  only raw-source doc change in the window (PR #235 baseline → origin/main)
+  was `docs/portfolio-data-design.md` (PR #234, merged 2026-07-16): its
+  703003b commit updated `summaries/portfolio-data-design.md` in the same
+  commit. Self-ingested. The five ADR-0019 PRs that also landed 2026-07-16
+  (#236/#237/#238/#232/#233) were **code-only — they touched no raw
+  sources** — so they don't count in the doc-ingestion metric, but they did
+  drive status drift (below): the wiki summarizes design *intent* (docs),
+  and no doc changed, yet the pages' landed-vs-open status notes went wrong.
+- **ADR 0019 status drift (main finding, the last two lints' follow-up #1).**
+  Three of the five items the 0019 pages still listed as "still open" landed
+  2026-07-16 as code-only PRs: the **resolution-side eval harness** +
+  35-seed dataset (#236, `server/src/ai-resolution/evals/`), **deterministic
+  review pre-stages** + first in-repo eval baseline (#238,
+  `heuristics.ts` + `evals/baselines/ollama-gpt-oss-20b.json`), and the
+  **CI consistency lane** (#237, `check-eval-regression.ts` wired to a
+  dormant `.github/workflows/verdict-evals.yml`). Reconciled all four
+  status-bearing pages (0019 summary, testing-strategy, ai-review-service,
+  ai-assisted-resolution) + the index row: moved these to landed, kept only
+  the reject-corroboration policy, template/LLM dataset expansion, the
+  `AI_REVIEW_PROMPT_VERSION` eval-gate, and the resolution local-default
+  heuristic→Ollama flip as open. Verified against commit contents, not
+  titles: `resolver.ts` in #236 only exported `SERVICE_ERROR_HARD_FLAG` (no
+  default flip — kept as open); the resolution dataset is 35 seeds (9 YES /
+  9 NO / 5 too_early / 3 draw / 6 abstain / 3 injection), *not* the review
+  side's 52.
+- **Partial-ingest (last lint's follow-up on the same failure mode).**
+  `docs/portfolio-data-design.md`'s 703003b change ingested its summary but
+  not the two entity pages that also cite it. `app-workspace.md` was stale
+  in substance — it still called the portfolio "the remaining localStorage
+  stub — being replaced," though PR #154 dropped the stub 2026-07-09 and the
+  2026-07-15 change added the "Claimed payouts" redemption table; rewrote to
+  DB-backed-and-live + the payout surface. `indexer.md` was date-stale-only:
+  the change is an API *read* surface (`PortfolioRedemption`), not
+  ingestion, which the indexer page describes — bumped `updated:` (verified
+  current), no content change.
+- **Raw-source lag (widening).** `docs/adr/0019`'s own checklist is still
+  entirely `[ ]` at the source despite ~4 landed items now — flagged on the
+  0019 summary page (as before; same pattern as the README 0016 "Track C
+  open" row). Not edited (raw source).
+- **Integrity:** 0 broken wiki links, 0 pages missing from index, 0 true
+  orphans (the 6 README/index-convention summaries with no inbound page
+  links are all linked from index.md, so not orphans per the schema), 0
+  missing sources. Staleness scanner re-run after fixes: 0 stale pages.
+
+Follow-ups for next lint: (1) code-only PRs are now the dominant drift
+source — when scanning, don't stop at raw-source doc diffs; for active
+programs (0019 especially) check whether landed *code* has moved the
+"open/landed" status notes even when no doc changed. (2) The open ADR-0019
+items to watch land next: reject-corroboration policy, resolution
+local-default flip, `AI_REVIEW_PROMPT_VERSION` eval-gate, template/LLM
+dataset expansion. (3) README 0016 "Track C open" row + ADR 0019 all-`[ ]`
+checklist remain raw-source lags to reconcile if either doc is next touched.

@@ -9,7 +9,7 @@ sources:
   - docs/adr/0019-ai-verdict-quality-program.md
   - documents/whitepaper_v3.pdf
   - documents/whitepaper_v0_1.pdf
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # AI-assisted resolution
@@ -55,7 +55,7 @@ automation in the system" (an AI holding a resolver key).
   auth seam; coordinated with the resolver entry points
   ([root ADR 0008](../summaries/root-adr-0008-protocol-functionality-completion.md)).
 
-## Verdict quality ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14; resolution side all open — the review-side runner/dataset/prompt-v3 slice landed in PR #226)
+## Verdict quality ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14; review + resolution eval harnesses landed — corroboration policy still open)
 
 The 2026-07-14 test session showed verdicts are a run-to-run lottery on the
 same content, and pipeline hardening (0011) plus this build (0012) measure
@@ -68,7 +68,13 @@ review-side reject rule — **a confident YES/NO below the corroboration bar
 parks instead of resolving on-chain**, adding a third safety valve to the
 abstention threshold and operator window. The program also flips the
 resolution local default from heuristic to Ollama so eval numbers reflect
-what ships.
+what ships. *Landed:* the review-side eval slice in PR #226 (runner +
+52 seeds + prompt v3); the resolution-side sibling runner and a 35-seed
+dataset (clear-YES/clear-NO controls, too_early, draw, abstain, injection —
+all forced through the LLM path) in PR #236, plus the CI regression lane in
+PR #237 (all 2026-07-16). Still open on the resolution side: the
+confidence-corroboration parking policy, dataset expansion, and the
+local-default heuristic → Ollama flip.
 
 ## Provenance caveat
 

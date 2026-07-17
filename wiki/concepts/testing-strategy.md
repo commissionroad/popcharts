@@ -10,7 +10,7 @@ sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # Testing strategy
@@ -83,7 +83,7 @@ Coverage figures use workspace-own denominators (`app/src`, `server/src`,
 protocol Solidity + protocol TS) with ratcheted floors for each; flake
 tracking is report-only until its history justifies alerting.
 
-## AI verdict evals ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, first slice landed)
+## AI verdict evals ([root ADR 0019](../summaries/root-adr-0019-ai-verdict-quality-program.md), accepted 2026-07-14, review + resolution harnesses landed)
 
 A new test kind for the two verdict services (review, resolution): an
 offline eval harness at the service HTTP seams running a labeled
@@ -98,8 +98,14 @@ pipeline tests, but local stacks default to LLM providers so eval numbers
 reflect what ships. **Landed (PR #226, 2026-07-15):** the review-side
 runner (`server/src/ai-review/evals/run-review-evals.ts`) plus 52
 hand-labeled seeds across the taxonomy classes, and the first recorded
-before/after eval run (review prompt v3 adoption, 42→75% accuracy). The
-resolution sibling, dataset expansion, and the CI consistency lane remain
+before/after eval run (review prompt v3 adoption, 42→75% accuracy).
+**Extended 2026-07-16 (PRs #236/#237/#238):** the resolution-side sibling
+runner (`server/src/ai-resolution/evals/run-resolution-evals.ts`) with a
+35-seed dataset (clear-YES/clear-NO controls, too_early, draw, abstain,
+injection), deterministic review pre-stages plus the first in-repo eval
+baseline, and the CI consistency lane — a verdict-eval regression check
+wired to a dormant nightly/on-demand `verdict-evals.yml` workflow.
+Template/LLM dataset expansion and the reject-corroboration policy remain
 open.
 
 ## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
