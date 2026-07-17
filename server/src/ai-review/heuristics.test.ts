@@ -117,3 +117,28 @@ describe("soft-flag verdict cap in mergeReviewFindings", () => {
     expect(merged.verdict).toBe("manual_review");
   });
 });
+
+describe("satirical-source pre-stage", () => {
+  it("flags a known satire outlet named as a source", () => {
+    const result = runHeuristicPolicy({
+      question: "Will the President be named Person of the Year for 2026?",
+      resolutionCriteria:
+        "Resolves YES if The Onion reports it before January 1, 2027.",
+      resolutionSources: ["https://www.theonion.com"],
+    });
+
+    expect(result.verdict).toBe("manual_review");
+    expect(result.softFlags).toContain("satirical_source");
+  });
+
+  it("does not flag legitimate outlets", () => {
+    const result = runHeuristicPolicy({
+      question: "Will the visiting side win the July 26, 2026 league match?",
+      resolutionCriteria:
+        "Resolves YES per the official score at premierleague.com.",
+      resolutionSources: ["https://www.premierleague.com"],
+    });
+
+    expect(result.softFlags ?? []).not.toContain("satirical_source");
+  });
+});

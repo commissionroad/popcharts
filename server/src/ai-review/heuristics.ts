@@ -149,6 +149,12 @@ export function runHeuristicPolicy(
       "Resolution depends on an ephemeral artifact (stories or deletable posts) that cannot be verified after the fact.",
     );
   }
+  if (usesSatiricalSource(metadata)) {
+    softFlags.push("satirical_source");
+    softReasons.push(
+      "A named resolution source is a known satire outlet and cannot settle a factual market.",
+    );
+  }
 
   return {
     hardFlags: [],
@@ -225,6 +231,31 @@ const EPHEMERAL_SOURCE_DOMAINS = [
 ];
 const EPHEMERAL_TEXT_PATTERN =
   /\b((instagram|snapchat|facebook)\s+stor(y|ies)|stor(y|ies)\s+expire|deleted?\s+(tweet|post|video))\b/i;
+
+// Known satire outlets: a factual market naming one as its settlement source
+// is either a joke or an attempt to settle from fiction. List only
+// unambiguous, well-known satire domains — borderline outlets stay a model
+// judgment ("satirical_source" class in the taxonomy).
+const SATIRE_SOURCE_DOMAINS = [
+  "theonion.com",
+  "babylonbee.com",
+  "clickhole.com",
+  "thebeaverton.com",
+  "waterfordwhispersnews.com",
+  "newsthump.com",
+  "thedailymash.co.uk",
+  "duffelblog.com",
+];
+
+/** Flags markets that name a known satire outlet as a resolution source. */
+function usesSatiricalSource(metadata: MarketReviewMetadata): boolean {
+  const urls = [...(metadata.resolutionSources ?? []), metadata.resolutionUrl]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+  return urls.some((url) =>
+    SATIRE_SOURCE_DOMAINS.some((domain) => url.includes(domain)),
+  );
+}
 
 /** Flags markets whose named read-out is an ephemeral artifact. */
 function usesEphemeralSource(metadata: MarketReviewMetadata): boolean {

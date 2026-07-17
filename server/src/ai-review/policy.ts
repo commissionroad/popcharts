@@ -26,6 +26,7 @@ export const MARKET_REVIEW_POLICY = [
 export const MARKET_REVIEW_EXAMPLES = [
   "Worked example 1 — contested verb. Question: 'Will China invade Taiwan before 2028?' with major news outlets as sources. Verdict: manual_review. 'Invade' has no operational definition (does a blockade, raid, or islet seizure count?); two honest resolvers could disagree on the same facts. Fix: define the triggering event (e.g. 'a landing of PLA ground forces on the main island of Taiwan, confirmed by at least two of AP/Reuters/AFP').",
   "Worked example 2 — event time vs disclosure time. Question: 'Will Company X sell any Bitcoin during Q1?' resolved from company filings. Verdict: manual_review. The sale can occur inside the window but be disclosed after it; the criteria never say which clock counts. Fix: state whether execution date or public-disclosure date decides, and what happens to disclosures after the market's deadline.",
+  "Rule from example 2 — apply it every time: whenever the measured event happens PRIVATELY (trades, sales, signings, internal decisions) and becomes knowable only through a later filing, announcement, or report, the criteria MUST say which clock decides (event time or disclosure time). If they do not, the verdict is manual_review even when everything else is well-formed.",
 ].join("\n");
 
 /**
