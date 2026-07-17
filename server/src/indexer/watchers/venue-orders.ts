@@ -1,4 +1,4 @@
-import { parseAbiItem, type AbiEvent } from "viem";
+import { parseAbiItem } from "viem";
 
 import type { BlockchainClient } from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
@@ -21,13 +21,15 @@ import {
   type OrderRequeuedLog,
 } from "src/indexer/handlers/venue-orders";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
-import {
-  getRecoveryStartBlock,
-  updateLastProcessedBlock,
-} from "src/indexer/utils/block-tracker";
+import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 import { retryUntilIndexed } from "src/indexer/utils/retry-until-indexed";
 import { ensureVenuePoolIndexed } from "src/indexer/utils/venue-pool-registry";
+import {
+  createDynamicAddressWatcher,
+  staticContractSet,
+  type DynamicWatcherLog,
+} from "src/indexer/watchers/dynamic-address-watcher";
 
 /**
  * Watches the BoundedPoolOrderManager's maker-order lifecycle so the server
@@ -37,6 +39,14 @@ import { ensureVenuePoolIndexed } from "src/indexer/utils/venue-pool-registry";
  * OrderPartiallyFilled only when actually executed, so the projection stays
  * consistent without them.
  */
+
+// One cursor for all order events, replacing the pre-watermark per-event
+// cursors (OrderCreated … OrderRequeued); their rows are orphaned and the
+// first sweep re-walks from the deploy-block heuristic, which the deduped
+// persists absorb. Single-cursor processing delivers events in true chain
+// order, so an order's OrderCreated always lands before its fills — the
+// retry below then only covers live-vs-sweep races.
+const CURSOR_NAME = "VenueOrders";
 
 const ORDER_CREATED_EVENT = parseAbiItem(
   "event OrderCreated(bytes32 indexed poolId, uint32 indexed orderId, address indexed owner, bool zeroForOne, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 amountIn)",
@@ -54,250 +64,101 @@ const ORDER_REQUEUED_EVENT = parseAbiItem(
   "event OrderRequeued(bytes32 indexed poolId, uint32 indexed orderId, int24 thresholdTick)",
 );
 
-type RecoveryOptions = {
-  quiet?: boolean;
+const ORDER_HANDLERS: Record<
+  string,
+  (client: BlockchainClient, log: DynamicWatcherLog) => Promise<void>
+> = {
+  OrderCancelled: async (client, log) =>
+    retryUntilOrderIndexed(
+      async () =>
+        persistOrderCancelledRecord(
+          buildOrderCancelledRecord(
+            await buildInput(client, log as OrderCancelledLog),
+          ),
+        ),
+      "OrderCancelled",
+    ),
+  OrderCreated: async (client, log) =>
+    persistOrderCreatedRecord(
+      buildOrderCreatedRecord(await buildInput(client, log as OrderCreatedLog)),
+    ),
+  OrderFilled: async (client, log) =>
+    retryUntilOrderIndexed(
+      async () =>
+        persistOrderFilledRecord(
+          buildOrderFilledRecord(
+            await buildInput(client, log as OrderFilledLog),
+          ),
+        ),
+      "OrderFilled",
+    ),
+  OrderPartiallyFilled: async (client, log) =>
+    retryUntilOrderIndexed(
+      async () =>
+        persistOrderPartiallyFilledRecord(
+          buildOrderPartiallyFilledRecord(
+            await buildInput(client, log as OrderPartiallyFilledLog),
+          ),
+        ),
+      "OrderPartiallyFilled",
+    ),
+  OrderRequeued: async (client, log) =>
+    retryUntilOrderIndexed(
+      async () =>
+        persistOrderRequeuedRecord(
+          buildOrderRequeuedRecord(
+            await buildInput(client, log as OrderRequeuedLog),
+          ),
+        ),
+      "OrderRequeued",
+    ),
 };
 
-type VenueOrderEventDefinition<TLog> = {
-  cursorName: string;
-  event: AbiEvent;
-  eventName:
-    | "OrderCreated"
-    | "OrderCancelled"
-    | "OrderFilled"
-    | "OrderPartiallyFilled"
-    | "OrderRequeued";
-  label: string;
-  process: (client: BlockchainClient, log: TLog) => Promise<void>;
-};
+const watcher = createDynamicAddressWatcher({
+  cursorName: CURSOR_NAME,
+  events: [
+    ORDER_CREATED_EVENT,
+    ORDER_CANCELLED_EVENT,
+    ORDER_FILLED_EVENT,
+    ORDER_PARTIALLY_FILLED_EVENT,
+    ORDER_REQUEUED_EVENT,
+  ],
+  fallbackStartBlock: (currentBlock) =>
+    getDefaultStartBlock(CURSOR_NAME, currentBlock),
+  handleLog: async (client, log) => {
+    const handle = log.eventName ? ORDER_HANDLERS[log.eventName] : undefined;
 
-// OrderCreated recovers first so the projection rows exist before the other
-// event types' recovery passes need them.
-const VENUE_ORDER_EVENTS = [
-  {
-    cursorName: "OrderCreated",
-    event: ORDER_CREATED_EVENT as AbiEvent,
-    eventName: "OrderCreated",
-    label: "OrderCreated",
-    process: processOrderCreatedEvent,
-  },
-  {
-    cursorName: "OrderCancelled",
-    event: ORDER_CANCELLED_EVENT as AbiEvent,
-    eventName: "OrderCancelled",
-    label: "OrderCancelled",
-    process: processOrderCancelledEvent,
-  },
-  {
-    cursorName: "OrderFilled",
-    event: ORDER_FILLED_EVENT as AbiEvent,
-    eventName: "OrderFilled",
-    label: "OrderFilled",
-    process: processOrderFilledEvent,
-  },
-  {
-    cursorName: "OrderPartiallyFilled",
-    event: ORDER_PARTIALLY_FILLED_EVENT as AbiEvent,
-    eventName: "OrderPartiallyFilled",
-    label: "OrderPartiallyFilled",
-    process: processOrderPartiallyFilledEvent,
-  },
-  {
-    cursorName: "OrderRequeued",
-    event: ORDER_REQUEUED_EVENT as AbiEvent,
-    eventName: "OrderRequeued",
-    label: "OrderRequeued",
-    process: processOrderRequeuedEvent,
-  },
-] as const;
-
-export async function processOrderCreatedEvent(
-  client: BlockchainClient,
-  log: OrderCreatedLog,
-) {
-  logOrderEvent("OrderCreated", log);
-  await ensurePoolMappingIndexed(client, log.args.poolId);
-
-  const record = buildOrderCreatedRecord(await buildInput(client, log));
-
-  await persistOrderCreatedRecord(record);
-  await advanceCursor("OrderCreated", record.blockNumber);
-}
-
-export async function processOrderCancelledEvent(
-  client: BlockchainClient,
-  log: OrderCancelledLog,
-) {
-  logOrderEvent("OrderCancelled", log);
-  await ensurePoolMappingIndexed(client, log.args.poolId);
-
-  const record = buildOrderCancelledRecord(await buildInput(client, log));
-
-  await retryUntilOrderIndexed(
-    () => persistOrderCancelledRecord(record),
-    "OrderCancelled",
-  );
-  await advanceCursor("OrderCancelled", record.blockNumber);
-}
-
-export async function processOrderFilledEvent(
-  client: BlockchainClient,
-  log: OrderFilledLog,
-) {
-  logOrderEvent("OrderFilled", log);
-  await ensurePoolMappingIndexed(client, log.args.poolId);
-
-  const record = buildOrderFilledRecord(await buildInput(client, log));
-
-  await retryUntilOrderIndexed(
-    () => persistOrderFilledRecord(record),
-    "OrderFilled",
-  );
-  await advanceCursor("OrderFilled", record.blockNumber);
-}
-
-export async function processOrderPartiallyFilledEvent(
-  client: BlockchainClient,
-  log: OrderPartiallyFilledLog,
-) {
-  logOrderEvent("OrderPartiallyFilled", log);
-  await ensurePoolMappingIndexed(client, log.args.poolId);
-
-  const record = buildOrderPartiallyFilledRecord(await buildInput(client, log));
-
-  await retryUntilOrderIndexed(
-    () => persistOrderPartiallyFilledRecord(record),
-    "OrderPartiallyFilled",
-  );
-  await advanceCursor("OrderPartiallyFilled", record.blockNumber);
-}
-
-export async function processOrderRequeuedEvent(
-  client: BlockchainClient,
-  log: OrderRequeuedLog,
-) {
-  logOrderEvent("OrderRequeued", log);
-  await ensurePoolMappingIndexed(client, log.args.poolId);
-
-  const record = buildOrderRequeuedRecord(await buildInput(client, log));
-
-  await retryUntilOrderIndexed(
-    () => persistOrderRequeuedRecord(record),
-    "OrderRequeued",
-  );
-  await advanceCursor("OrderRequeued", record.blockNumber);
-}
-
-export async function recoverVenueOrderEvents(
-  client: BlockchainClient,
-  currentBlock: bigint,
-  options: RecoveryOptions = {},
-) {
-  if (!venueOrderIndexingConfigured()) {
-    if (!options.quiet) {
-      console.log("[VenueOrders] Order manager not configured; skipping");
+    if (!handle) {
+      console.warn(
+        `[VenueOrders] Unrecognized event ${log.eventName ?? "unknown"}; skipping`,
+      );
+      return;
     }
-    return;
-  }
 
-  for (const definition of VENUE_ORDER_EVENTS) {
-    await recoverVenueOrderEvent(client, currentBlock, definition, options);
-  }
-}
-
-export function watchVenueOrderEvents(client: BlockchainClient) {
-  if (!venueOrderIndexingConfigured()) {
-    console.log("[VenueOrders] Order manager not configured; skipping");
-    return () => {};
-  }
-
-  console.log("[VenueOrders] Starting real-time event watchers");
-
-  const unwatchers = VENUE_ORDER_EVENTS.map((definition) =>
-    client.watchContractEvent({
-      abi: [definition.event],
-      address: config.contracts.orderManager,
-      eventName: definition.eventName,
-      onError: (error) => {
-        console.error(`[${definition.label}] Watch error:`, error);
-      },
-      onLogs: async (logs) => {
-        for (const log of logs) {
-          await definition.process(client, log as never);
-        }
-      },
-    }),
-  );
-
-  return () => {
-    for (const unwatch of unwatchers) {
-      unwatch();
-    }
-  };
-}
-
-async function recoverVenueOrderEvent<TLog>(
-  client: BlockchainClient,
-  currentBlock: bigint,
-  definition: VenueOrderEventDefinition<TLog>,
-  options: RecoveryOptions,
-) {
-  const fromBlock = await getRecoveryStartBlock(
-    config.contracts.orderManager,
-    definition.cursorName,
-    currentBlock,
-  );
-
-  if (fromBlock >= currentBlock) {
-    if (!options.quiet) {
-      console.log(`[${definition.label}] No blocks to recover`);
-    }
-    return;
-  }
-
-  if (!options.quiet) {
+    const orderLog = log as DynamicWatcherLog & {
+      args: { orderId?: number; poolId?: `0x${string}` };
+    };
     console.log(
-      `[${definition.label}] Recovering events from block ${fromBlock} to ${currentBlock}`,
+      `[${log.eventName}] poolId=${orderLog.args.poolId ?? "unknown"} orderId=${orderLog.args.orderId?.toString() ?? "unknown"}`,
     );
-  }
 
-  const logs = await client.getLogs({
-    address: config.contracts.orderManager,
-    event: definition.event,
-    fromBlock,
-    toBlock: currentBlock,
-  });
+    await ensurePoolMappingIndexed(client, orderLog.args.poolId);
+    await handle(client, log);
+  },
+  label: "VenueOrders",
+  subject: "order manager",
+  // The order manager address is unset until the venue deploys on a chain.
+  ...staticContractSet(() =>
+    config.contracts.orderManager === ZERO_ADDRESS
+      ? null
+      : config.contracts.orderManager,
+  ),
+});
 
-  if (logs.length === 0) {
-    if (!options.quiet) {
-      console.log(`[${definition.label}] Found 0 historical events`);
-    }
-    await updateLastProcessedBlock(
-      config.contracts.orderManager,
-      definition.cursorName,
-      currentBlock,
-    );
-    return;
-  }
-
-  console.log(`[${definition.label}] Found ${logs.length} historical events`);
-
-  for (const log of logs) {
-    await definition.process(client, log as TLog);
-  }
-}
-
-function venueOrderIndexingConfigured() {
-  return config.contracts.orderManager !== ZERO_ADDRESS;
-}
-
-function advanceCursor(cursorName: string, blockNumber: bigint) {
-  return updateLastProcessedBlock(
-    config.contracts.orderManager,
-    cursorName,
-    blockNumber,
-  );
-}
+/** Catch-up sweep over order lifecycle logs up to currentBlock. */
+export const recoverVenueOrderEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
+export const watchVenueOrderEvents = watcher.watch;
 
 async function buildInput<TLog extends { blockNumber: bigint | null }>(
   client: BlockchainClient,
@@ -314,9 +175,10 @@ async function buildInput<TLog extends { blockNumber: bigint | null }>(
 
 /**
  * A fill, cancellation, or requeue can race ahead of its own OrderCreated
- * event (each event type runs behind an independent cursor); wait for the
- * venue_orders row rather than losing the update. If retries run out, the
- * thrown error keeps the cursor behind so recovery replays the event.
+ * event when the live subscription delivers it while the sweep is still
+ * backfilling the creation; wait for the venue_orders row rather than losing
+ * the update. If retries run out, the thrown error parks the sweep so the
+ * event replays.
  */
 function retryUntilOrderIndexed<T>(operation: () => Promise<T>, label: string) {
   return retryUntilIndexed(operation, {
@@ -328,8 +190,8 @@ function retryUntilOrderIndexed<T>(operation: () => Promise<T>, label: string) {
 
 /**
  * The mapping is a best-effort enrichment re-attempted on every event for
- * still-unknown pools; a failure here must never block order indexing or the
- * event's cursor.
+ * still-unknown pools; a failure here must never block order indexing or park
+ * the sweep.
  */
 async function ensurePoolMappingIndexed(
   client: BlockchainClient,
@@ -347,13 +209,4 @@ async function ensurePoolMappingIndexed(
       error,
     );
   }
-}
-
-function logOrderEvent(
-  label: string,
-  log: { args: { orderId?: number; poolId?: `0x${string}` } },
-) {
-  const poolId = log.args.poolId ?? "unknown";
-  const orderId = log.args.orderId?.toString() ?? "unknown";
-  console.log(`[${label}] poolId=${poolId} orderId=${orderId}`);
 }

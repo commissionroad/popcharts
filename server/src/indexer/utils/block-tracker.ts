@@ -45,20 +45,12 @@ export async function updateLastProcessedBlock(
     });
 }
 
-export async function getRecoveryStartBlock(
-  contractAddress: string,
-  cursorName: string,
-  currentBlock: bigint,
-) {
-  const lastProcessed = await getLastProcessedBlock(
-    contractAddress,
-    cursorName,
-  );
-
-  if (lastProcessed !== null) {
-    return lastProcessed + 1n;
-  }
-
+/**
+ * First-recovery start for a fixed contract with no cursor yet: the
+ * configured deploy block when known, the current block on a local chain
+ * (fresh deploys index from the start anyway), else a bounded look-back.
+ */
+export function getDefaultStartBlock(cursorName: string, currentBlock: bigint) {
   if (config.deployBlock > 0n) {
     console.log(
       `[BlockTracker] Using deployment block ${config.deployBlock} for ${cursorName}`,
