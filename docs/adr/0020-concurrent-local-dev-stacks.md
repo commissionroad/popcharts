@@ -176,6 +176,14 @@ reclaimed out from under it.
       env-file path.
 - [ ] AI review / resolution endpoint helpers: slot offset.
 - [ ] `local-dev.control-plane.yaml` and any port references it carries.
+- [ ] **Collapse the duplicated coordination constants.** `ports.ts` is the
+      single source of truth, but the same literals (`8545`, `3001`, `3000`,
+      `3002`, `3004`, `"popcharts"`) are still hardcoded in the two sibling
+      orchestrators `local-dev.ts` and `local-chain-smoke.ts`,
+      `buildLocalServerEnv.ts`, `resolveIndexerApiBaseUrl.ts`, the AI endpoint
+      helpers, and `ensureLocalPostgres.ts`/`dockerComposeEnv.ts`. Each must
+      import from `ports.ts` (or the slot-derived env) rather than redefine the
+      value, so a base port has exactly one definition.
 
 ### Phase 3 — database-scoped isolation
 

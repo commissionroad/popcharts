@@ -1,5 +1,13 @@
 import { localChainEnvFile } from "../env/localDevEnvFiles.ts";
+import { assertValidSlot } from "./assertValidSlot.ts";
 
+/**
+ * Base resource values for slot 0 and the per-slot stride, exported as the
+ * single source of truth so nothing else hardcodes a port or chain id.
+ * `deriveStackResources` offsets each base by the slot (chain id excepted —
+ * see below). Slot 0 must equal the historical single-stack defaults, so these
+ * numbers are load-bearing: changing one silently moves every stack (ADR 0020).
+ */
 export const SLOT_PORT_STRIDE = 10;
 export const BASE_CHAIN_PORT = 8545;
 export const BASE_CHAIN_ID = 31337;
@@ -9,6 +17,11 @@ export const BASE_REVIEW_PORT = 3002;
 export const BASE_RESOLUTION_PORT = 3004;
 export const BASE_PC_ADMIN_PORT = 8080;
 
+/**
+ * The fully-derived set of resources a single local dev stack owns for a given
+ * slot: the ports it binds, the devchain it talks to, its Postgres database,
+ * and the generated env file it writes. Produced by `deriveStackResources`.
+ */
 export type StackPorts = {
   slot: number;
   chainPort: number;
@@ -24,10 +37,15 @@ export type StackPorts = {
   envFilePath: string;
 };
 
+/**
+ * Derives every resource a stack on `slot` owns by offsetting the base values
+ * by the slot number. Slot 0 reproduces the historical single-stack defaults
+ * exactly; higher slots get non-overlapping ports, database, and env file so
+ * they run concurrently without collision (ADR 0020). Throws on a negative or
+ * non-integer slot.
+ */
 export function deriveStackResources(slot: number): StackPorts {
-  if (!Number.isInteger(slot) || slot < 0) {
-    throw new Error(`Stack slot must be a non-negative integer; received ${slot}.`);
-  }
+  assertValidSlot(slot);
 
   const chainPort = BASE_CHAIN_PORT + SLOT_PORT_STRIDE * slot;
 

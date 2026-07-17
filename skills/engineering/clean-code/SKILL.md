@@ -78,6 +78,10 @@ protocol-side adaptation of the same source.
   1–3 sentences stating what it guarantees and why it exists — the contract,
   not a restatement of the signature. Reference ADRs when the behavior encodes
   a decision (e.g. "widens — never narrows — a display-price range (ADR 0009)").
+  This is non-negotiable and applies to **every file you touch while coding**,
+  not just new files: if you edit a file whose exports lack contract comments,
+  add them in the same change. A group of related exported constants may share
+  one comment block above the group. No exported symbol ships without one.
 - Interior comments only for constraints the code can't express: invariants,
   units, ordering requirements, workaround references. No narration ("loop
   over markets"), no changelog ("moved from utils.ts"), no commented-out code.

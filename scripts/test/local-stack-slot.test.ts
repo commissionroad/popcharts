@@ -11,7 +11,7 @@ function descriptor(slot: number): StackDescriptor {
     kind: slot === 0 ? "human" : "agent",
     worktreePath: "/src/popcharts",
     chainPort: 8545 + slot * 10,
-    chainId: 31337 + slot,
+    chainId: 31337,
     apiPort: 3001 + slot * 10,
     appPort: 3000 + slot * 10,
     reviewPort: 3002 + slot * 10,

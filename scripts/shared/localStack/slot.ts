@@ -4,6 +4,11 @@ import type { StackDescriptor } from "./registry.ts";
 
 const MAX_SLOT_SEARCH_ATTEMPTS = 64;
 
+/**
+ * Inputs for `resolveSlot`. `isPortFree` is injected (rather than probed
+ * internally) so slot resolution stays pure and unit-testable; `liveDescriptors`
+ * should be the already-pruned set of running stacks.
+ */
 type ResolveSlotOptions = {
   cwd: string;
   explicitSlot?: number | undefined;
@@ -35,6 +40,14 @@ async function firstOccupiedPort(
   return undefined;
 }
 
+/**
+ * Chooses the slot a starting stack should claim. An explicit slot is honored
+ * or rejected loudly if its slot or any of its ports is already taken (never
+ * silently advanced). Otherwise the search starts at the kind's home slot —
+ * 0 for humans, 1 for agents — and advances past any slot held by a live
+ * descriptor or whose ports are occupied, up to a bounded number of attempts
+ * (ADR 0020). Returns the chosen slot and the detected stack kind.
+ */
 export async function resolveSlot(
   options: ResolveSlotOptions,
 ): Promise<{ slot: number; kind: StackKind }> {

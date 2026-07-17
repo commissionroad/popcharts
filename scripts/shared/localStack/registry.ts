@@ -11,6 +11,13 @@ import { join } from "node:path";
 import { isRpcReady } from "../net/isRpcReady.ts";
 import type { StackKind } from "./identity.ts";
 
+/**
+ * The on-disk record of one running local dev stack, written to the registry
+ * at startup and read by other stacks (and stack-targeting scripts) to
+ * discover what is already running. Carries everything needed to address the
+ * stack — its slot, ports, devchain, database, env file — plus the control
+ * process id and start time used to decide whether it is still alive (ADR 0020).
+ */
 export type StackDescriptor = {
   instanceId: string;
   slot: number;
@@ -40,6 +47,12 @@ function descriptorPath(instanceId: string): string {
   return join(registryDir(), `${instanceId}.json`);
 }
 
+/**
+ * Absolute path to the registry directory shared across all checkouts and
+ * worktrees. Defaults to `~/.popcharts/local-stacks/` (home, because each
+ * worktree has its own `.local-dev/` and the registry must be cross-worktree);
+ * overridable via `POPCHARTS_STACK_REGISTRY_DIR` to keep tests hermetic.
+ */
 export function registryDir(): string {
   return (
     process.env.POPCHARTS_STACK_REGISTRY_DIR ??
@@ -47,6 +60,11 @@ export function registryDir(): string {
   );
 }
 
+/**
+ * Persists a stack's descriptor to `<registryDir>/<instanceId>.json`, creating
+ * the registry directory if needed. Overwrites any existing file for the same
+ * instance id, so a restarting stack refreshes its own record.
+ */
 export function writeDescriptor(descriptor: StackDescriptor): void {
   mkdirSync(registryDir(), { recursive: true });
   writeFileSync(
@@ -55,6 +73,11 @@ export function writeDescriptor(descriptor: StackDescriptor): void {
   );
 }
 
+/**
+ * Deletes a stack's descriptor from the registry. A missing file is not an
+ * error (another process may have pruned it concurrently); any other failure
+ * propagates.
+ */
 export function removeDescriptor(instanceId: string): void {
   try {
     unlinkSync(descriptorPath(instanceId));
@@ -65,6 +88,12 @@ export function removeDescriptor(instanceId: string): void {
   }
 }
 
+/**
+ * Reads every stack descriptor currently in the registry. Returns an empty
+ * array when the registry directory does not exist yet, and skips any
+ * malformed or concurrently-removed file so one bad descriptor never hides the
+ * live stacks. Liveness is not checked here — use `pruneDeadDescriptors`.
+ */
 export function readDescriptors(): StackDescriptor[] {
   let filenames: string[];
 
@@ -96,10 +125,19 @@ function isProcessAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
+    // EPERM means the process exists but is owned by another user — still
+    // alive; only ESRCH (falls through to false) means it is truly gone.
     return errorCode(error) === "EPERM";
   }
 }
 
+/**
+ * Whether a stack described by `descriptor` is still running. Requires both the
+ * control process to be alive AND its devchain RPC to answer — a stack whose
+ * control process died or whose chain stopped is treated as dead. Note: a stack
+ * mid-boot (process up, chain not yet listening) reads as dead here; callers
+ * that prune during startup must account for that (ADR 0020, Phase 2).
+ */
 export async function isDescriptorAlive(
   descriptor: StackDescriptor,
 ): Promise<boolean> {
@@ -110,6 +148,11 @@ export async function isDescriptorAlive(
   return isRpcReady(`http://127.0.0.1:${descriptor.chainPort}`);
 }
 
+/**
+ * Removes descriptors for stacks that are no longer alive and returns the
+ * survivors. This is how crashed or force-killed stacks release their slot:
+ * the next stack to start prunes them before choosing its own slot (ADR 0020).
+ */
 export async function pruneDeadDescriptors(): Promise<StackDescriptor[]> {
   const liveDescriptors: StackDescriptor[] = [];
 
