@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { BlockchainClient } from "src/blockchain/client";
 import {
   createDynamicAddressWatcher,
+  staticContractSet,
   type DynamicWatcherLog,
   type WatchedContract,
 } from "src/indexer/watchers/dynamic-address-watcher";
@@ -40,6 +41,8 @@ function buildHarness({
   contracts = [CONTRACT],
   logs = [] as DynamicWatcherLog[],
   currentBlock = 120n,
+  fallbackStartBlock = undefined as
+    ((currentBlock: bigint) => bigint) | undefined,
 } = {}) {
   const cursors = new Map<string, bigint>();
   const calls: string[] = [];
@@ -84,6 +87,7 @@ function buildHarness({
     cursorName: CURSOR,
     discoveryIntervalMs: 20,
     events: [],
+    fallbackStartBlock,
     getKnownContract: (address) =>
       lookupStale ? undefined : known.get(address.toLowerCase()),
     handleLog: async (_client, log) => {
@@ -227,6 +231,31 @@ describe("recover", () => {
     expect(h.cursor()).toBe(null);
   });
 
+  it("resolves a null startBlock through fallbackStartBlock on first recovery", async () => {
+    const h = buildHarness({
+      contracts: [{ address: TOKEN, startBlock: null }],
+      fallbackStartBlock: (currentBlock) => currentBlock - 15n,
+      logs: [transferLog(110n, 0)],
+    });
+
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    expect(h.calls).toContain("getLogs:105-120");
+    expect(h.handled).toHaveLength(1);
+    expect(h.cursor()).toBe(120n);
+  });
+
+  it("throws loudly when a null startBlock has no fallback configured", async () => {
+    const h = buildHarness({
+      contracts: [{ address: TOKEN, startBlock: null }],
+    });
+
+    await expect(h.watcher.recover(h.client, h.currentBlock)).rejects.toThrow(
+      "no fallbackStartBlock",
+    );
+    expect(h.cursor()).toBe(null);
+  });
+
   it("coalesces contracts sharing a watermark into one getLogs and advances both", async () => {
     const other: WatchedContract = { address: OTHER_TOKEN, startBlock: 100n };
     const h = buildHarness({
@@ -242,6 +271,28 @@ describe("recover", () => {
     expect(h.handled).toHaveLength(2);
     expect(h.cursor()).toBe(120n);
     expect(h.cursor(OTHER_TOKEN)).toBe(120n);
+  });
+});
+
+describe("staticContractSet", () => {
+  it("exposes one lowercased contract with a null startBlock", async () => {
+    const set = staticContractSet(() => TOKEN.toUpperCase());
+
+    expect(await set.refreshRegistry()).toEqual([
+      { address: TOKEN, startBlock: null },
+    ]);
+    expect(set.getKnownContract(TOKEN.toUpperCase())).toEqual({
+      address: TOKEN,
+      startBlock: null,
+    });
+    expect(set.getKnownContract(OTHER_TOKEN)).toBeUndefined();
+  });
+
+  it("is empty while the address is unconfigured", async () => {
+    const set = staticContractSet(() => null);
+
+    expect(await set.refreshRegistry()).toEqual([]);
+    expect(set.getKnownContract(TOKEN)).toBeUndefined();
   });
 });
 

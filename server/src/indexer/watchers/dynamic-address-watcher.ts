@@ -53,9 +53,10 @@ export type WatchedContract = {
   address: string;
   /**
    * Earliest block this contract can emit watched events — the safe backfill
-   * start when no cursor exists yet.
+   * start when no cursor exists yet. Null for fixed contracts with no
+   * discovery event; the watcher's fallbackStartBlock resolves it instead.
    */
-  startBlock: bigint;
+  startBlock: bigint | null;
 };
 
 /** Options for a recovery sweep; quiet suppresses per-address idle logging. */
@@ -105,11 +106,46 @@ type DynamicAddressWatcherConfig<TContract extends WatchedContract> = {
     log: DynamicWatcherLog,
     contract: TContract,
   ) => Promise<void>;
+  /**
+   * Resolves the first-recovery start for contracts with a null startBlock
+   * (fixed contracts, which have no discovery event to anchor on). Fixed
+   * watchers pass the deploy-block heuristics; required whenever the registry
+   * can return a null startBlock.
+   */
+  fallbackStartBlock?: (currentBlock: bigint) => bigint;
   /** Injection seam for tests; production uses the db-backed block tracker. */
   tracker?: CursorTracker;
   /** Discovery cadence override for tests. */
   discoveryIntervalMs?: number;
 };
+
+/**
+ * Registry adapter for a watcher over one fixed, config-supplied contract:
+ * the "discovered set" is that single address (or empty while unconfigured,
+ * e.g. an unset order manager on a fresh devchain), and the start block is
+ * left to the watcher's fallbackStartBlock.
+ */
+export function staticContractSet(getAddress: () => string | null) {
+  const contract = (): WatchedContract | null => {
+    const address = getAddress();
+    return address
+      ? { address: address.toLowerCase(), startBlock: null }
+      : null;
+  };
+
+  return {
+    getKnownContract: (address: string) => {
+      const known = contract();
+      return known && known.address === address.toLowerCase()
+        ? known
+        : undefined;
+    },
+    refreshRegistry: async () => {
+      const known = contract();
+      return known ? [known] : [];
+    },
+  };
+}
 
 /**
  * Builds a watcher over a dynamic contract set: `recover` runs one catch-up
@@ -176,12 +212,20 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
         contract.address,
         cursorName,
       );
-      // First recovery starts at the contract's own start block, not the
-      // global deploy-block heuristics: no watched event can be earlier, and
-      // a contract discovered at the chain head must still scan its start
-      // block (hence > rather than the singleton watchers' >=).
+      // First recovery starts at the contract's own start block where one is
+      // known (no watched event can be earlier, and a contract discovered at
+      // the chain head must still scan its start block — hence > rather than
+      // >=); fixed contracts have none and fall back to the deploy-block
+      // heuristics.
+      const startBlock =
+        contract.startBlock ?? config.fallbackStartBlock?.(currentBlock);
+      if (startBlock === undefined) {
+        throw new Error(
+          `[${label}] ${contract.address} has no startBlock and no fallbackStartBlock is configured.`,
+        );
+      }
       const fromBlock =
-        lastProcessed !== null ? lastProcessed + 1n : contract.startBlock;
+        lastProcessed !== null ? lastProcessed + 1n : startBlock;
 
       if (fromBlock > currentBlock) {
         if (!options.quiet) {
