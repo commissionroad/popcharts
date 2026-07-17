@@ -55,5 +55,7 @@ const watcher = createDynamicAddressWatcher({
   ...staticContractSet(() => config.contracts.pregradManager),
 });
 
+/** Catch-up sweep over ReceiptPlaced logs up to currentBlock. */
 export const recoverReceiptPlacedEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
 export const watchReceiptPlacedEvents = watcher.watch;

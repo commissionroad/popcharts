@@ -15,6 +15,13 @@ import {
   staticContractSet,
 } from "src/indexer/watchers/dynamic-address-watcher";
 
+/**
+ * Watches MarketCreated on the PregradManager — the root of every market's
+ * indexed lifecycle. Each event seeds the markets projection and the
+ * market-metadata store; the review, receipt, and settlement watchers all
+ * wait on the row this one writes.
+ */
+
 const CURSOR_NAME = "MarketCreated";
 
 const MARKET_CREATED_EVENT = parseAbiItem(
@@ -94,7 +101,9 @@ const watcher = createDynamicAddressWatcher({
   ...staticContractSet(() => config.contracts.pregradManager),
 });
 
+/** Catch-up sweep over MarketCreated logs up to currentBlock. */
 export const recoverMarketCreatedEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
 export const watchMarketCreatedEvents = watcher.watch;
 
 async function persistEventMetadata(

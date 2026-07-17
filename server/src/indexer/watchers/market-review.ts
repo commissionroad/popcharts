@@ -72,5 +72,7 @@ const watcher = createDynamicAddressWatcher({
   ...staticContractSet(() => config.contracts.pregradManager),
 });
 
+/** Catch-up sweep over review approval/rejection logs up to currentBlock. */
 export const recoverMarketReviewEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
 export const watchMarketReviewEvents = watcher.watch;

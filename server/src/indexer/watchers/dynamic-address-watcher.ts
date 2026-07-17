@@ -7,11 +7,12 @@ import {
 } from "src/indexer/utils/block-tracker";
 
 /**
- * Shared scaffolding for watchers over a dynamic address set: contracts are
- * discovered from database rows as markets graduate, each runs behind its own
- * per-address cursor, and the live subscription is rebuilt on a discovery
- * interval when new contracts appear. A contract discovered late backfills
- * from its own start block, so nothing is lost to late discovery.
+ * Shared scaffolding for every indexer watcher. The address set is either
+ * dynamic — contracts discovered from database rows as markets graduate —
+ * or a single fixed contract adapted through staticContractSet; both run
+ * behind per-address cursors, and the live subscription is rebuilt on a
+ * discovery interval when the set changes. A contract discovered late
+ * backfills from its own start block, so nothing is lost to late discovery.
  *
  * The loss-proofing invariant, deliberately centralized here so no
  * per-watcher copy can drift: **the cursor is a sweep watermark — only

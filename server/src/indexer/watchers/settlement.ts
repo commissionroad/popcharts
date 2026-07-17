@@ -195,7 +195,9 @@ const watcher = createDynamicAddressWatcher({
   ...staticContractSet(() => config.contracts.pregradManager),
 });
 
+/** Catch-up sweep over settlement logs up to currentBlock. */
 export const recoverSettlementEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
 export const watchSettlementEvents = watcher.watch;
 
 async function buildInput(client: BlockchainClient, log: DynamicWatcherLog) {

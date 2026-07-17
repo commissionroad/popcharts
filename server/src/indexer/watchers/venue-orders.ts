@@ -155,7 +155,9 @@ const watcher = createDynamicAddressWatcher({
   ),
 });
 
+/** Catch-up sweep over order lifecycle logs up to currentBlock. */
 export const recoverVenueOrderEvents = watcher.recover;
+/** Discovery loop + live subscription; returns a stop function. */
 export const watchVenueOrderEvents = watcher.watch;
 
 async function buildInput<TLog extends { blockNumber: bigint | null }>(
