@@ -16,7 +16,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
 - [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel frontend live (2026-07-14); AWS CDK backend + Arc protocol still M5
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
-- [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks
+- [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks, now becoming slot-addressed concurrent instances (ADR 0020)
 - [Product honesty rule](concepts/product-honesty-rule.md) — the tested never-imply-a-guaranteed-fill copy contract
 
 ## Entities
@@ -84,6 +84,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0017 (test observability)](summaries/root-adr-0017-test-observability-and-coverage-program.md) — Make test health visible in-repo (informational-only PR coverage deltas, trend log, badges, report-only flake tracking) and ratchet per-workspace coverage floors over workspace-own denominators; seven tracks incl. the protocol TS SDK move, one concern per PR (accepted 2026-07-14, grill-refined same day; Tracks A, B, D, F complete + the E gate; C design settled 2026-07-15 (two nightly suites, C1–C6), G and E's assertion tests open)
 - [ADR 0018](summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md) — first-class surface for resolved/postgrad-cancelled markets: API keeps the postgrad payload after graduation, outcome banners, wallet-signed redeem/redeemCancelled panels, portfolio terminal states (executes ADR 0013's open redemption checkbox; all six slices open)
 - [ADR 0019](summaries/root-adr-0019-ai-verdict-quality-program.md) — measured verdict-quality program for AI review + resolution: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, CI consistency lane, prompt-version eval policy (extends 0011/0012; core harness landed — review + resolution runners, datasets, pre-stages, CI regression lane; corroboration policy open)
+- [ADR 0020](summaries/root-adr-0020-concurrent-local-dev-stacks.md) — concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market (Phase 1 core landed 2026-07-17; control-plane wiring, db-scoped reset, stack-aware scripts open)
 
 ## Summaries — root docs
 
