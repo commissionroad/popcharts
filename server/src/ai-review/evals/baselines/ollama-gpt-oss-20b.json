@@ -4,13 +4,13 @@
       "accuracy": 0.8,
       "cases": 10,
       "strictAccuracy": 0.8,
-      "unanimousRate": 0.5
+      "unanimousRate": 0.7
     },
     "good/measured-value": {
-      "accuracy": 1,
+      "accuracy": 0.8333333333333334,
       "cases": 6,
-      "strictAccuracy": 1,
-      "unanimousRate": 0.8333333333333334
+      "strictAccuracy": 0.8333333333333334,
+      "unanimousRate": 0.6666666666666666
     },
     "timing/no-deadline": {
       "accuracy": 1,
@@ -22,13 +22,13 @@
       "accuracy": 1,
       "cases": 3,
       "strictAccuracy": 0.6666666666666666,
-      "unanimousRate": 1
+      "unanimousRate": 0.6666666666666666
     },
     "timing/source-lag-race": {
       "accuracy": 1,
       "cases": 1,
       "strictAccuracy": 1,
-      "unanimousRate": 1
+      "unanimousRate": 0
     },
     "timing/already-determined": {
       "accuracy": 1,
@@ -40,13 +40,13 @@
       "accuracy": 1,
       "cases": 1,
       "strictAccuracy": 1,
-      "unanimousRate": 0
+      "unanimousRate": 1
     },
     "vagueness/unmeasurable-threshold": {
-      "accuracy": 0.5,
+      "accuracy": 1,
       "cases": 2,
-      "strictAccuracy": 0.5,
-      "unanimousRate": 0.5
+      "strictAccuracy": 1,
+      "unanimousRate": 1
     },
     "vagueness/subjective": {
       "accuracy": 1,
@@ -55,28 +55,28 @@
       "unanimousRate": 0.5
     },
     "vagueness/undefined-entity": {
-      "accuracy": 0,
+      "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 0,
+      "strictAccuracy": 1,
       "unanimousRate": 1
     },
     "vagueness/compound": {
       "accuracy": 1,
       "cases": 1,
       "strictAccuracy": 1,
-      "unanimousRate": 1
+      "unanimousRate": 0
     },
     "vagueness/non-binary": {
       "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 0,
+      "strictAccuracy": 1,
       "unanimousRate": 0
     },
     "knowability/private-local": {
       "accuracy": 1,
       "cases": 2,
-      "strictAccuracy": 0.5,
-      "unanimousRate": 0.5
+      "strictAccuracy": 1,
+      "unanimousRate": 1
     },
     "knowability/never-verifiable": {
       "accuracy": 1,
@@ -105,8 +105,8 @@
     "sources/unreachable": {
       "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 1,
-      "unanimousRate": 1
+      "strictAccuracy": 0,
+      "unanimousRate": 0
     },
     "sources/creator-controlled": {
       "accuracy": 1,
@@ -115,10 +115,10 @@
       "unanimousRate": 1
     },
     "sources/unreliable-tier": {
-      "accuracy": 0,
+      "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 0,
-      "unanimousRate": 0
+      "strictAccuracy": 1,
+      "unanimousRate": 1
     },
     "sources/wrong-source": {
       "accuracy": 0,
@@ -130,18 +130,18 @@
       "accuracy": 1,
       "cases": 1,
       "strictAccuracy": 1,
-      "unanimousRate": 0
+      "unanimousRate": 1
     },
     "vagueness/undefined-predicate": {
-      "accuracy": 0.6666666666666666,
+      "accuracy": 1,
       "cases": 3,
-      "strictAccuracy": 0.6666666666666666,
-      "unanimousRate": 0
+      "strictAccuracy": 1,
+      "unanimousRate": 0.3333333333333333
     },
     "timing/event-vs-observation": {
-      "accuracy": 0,
+      "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 0,
+      "strictAccuracy": 1,
       "unanimousRate": 1
     },
     "timing/initial-print-vs-revision": {
@@ -153,8 +153,8 @@
     "timing/no-postponement-default": {
       "accuracy": 1,
       "cases": 1,
-      "strictAccuracy": 0,
-      "unanimousRate": 1
+      "strictAccuracy": 1,
+      "unanimousRate": 0
     },
     "harm/illegal-activity": {
       "accuracy": 1,
@@ -172,33 +172,17 @@
       "accuracy": 1,
       "cases": 1,
       "strictAccuracy": 1,
-      "unanimousRate": 0
+      "unanimousRate": 1
     }
   },
   "misses": [
     {
       "expected": "approve",
       "acceptable": ["approve"],
-      "id": "good-legislation-enacted",
-      "rationale": "Public legal act with an authoritative register and deadline.",
-      "taxonomy": "good/official-result",
-      "verdicts": ["manual_review", "manual_review", "approve"]
-    },
-    {
-      "expected": "manual_review",
-      "acceptable": ["manual_review"],
-      "id": "vague-unmeasurable-threshold",
-      "rationale": "'Significantly' is not a number; two resolvers disagree by construction.",
-      "taxonomy": "vagueness/unmeasurable-threshold",
-      "verdicts": ["approve", "manual_review", "approve"]
-    },
-    {
-      "expected": "manual_review",
-      "acceptable": ["manual_review"],
-      "id": "vague-entity-ambiguous",
-      "rationale": "'United' names at least three famous clubs; WHO is undefined even though the metric is crisp.",
-      "taxonomy": "vagueness/undefined-entity",
-      "verdicts": ["approve", "approve", "approve"]
+      "id": "good-box-office-threshold",
+      "rationale": "Quantified threshold, standard industry tracker, cutoff date.",
+      "taxonomy": "good/measured-value",
+      "verdicts": ["manual_review", "approve", "manual_review"]
     },
     {
       "expected": "approve",
@@ -206,15 +190,7 @@
       "id": "know-control-public-figure-event",
       "rationale": "Control case: a personal-sounding outcome that is genuinely public — a scheduled title fight with official results.",
       "taxonomy": "good/official-result",
-      "verdicts": ["manual_review", "manual_review", "error"]
-    },
-    {
-      "expected": "manual_review",
-      "acceptable": ["manual_review", "reject"],
-      "id": "source-satirical",
-      "rationale": "The named settlement source is a satire site.",
-      "taxonomy": "sources/unreliable-tier",
-      "verdicts": ["reject", "approve", "approve"]
+      "verdicts": ["manual_review", "manual_review", "manual_review"]
     },
     {
       "expected": "manual_review",
@@ -222,30 +198,22 @@
       "id": "source-wont-contain-answer",
       "rationale": "Real, reputable source — that will never publish the metric being asked about (WHERE mismatch).",
       "taxonomy": "sources/wrong-source",
-      "verdicts": ["reject", "reject", "reject"]
+      "verdicts": ["reject", "manual_review", "reject"]
     },
     {
-      "expected": "manual_review",
-      "acceptable": ["manual_review"],
-      "id": "dispute-undefined-predicate-suit",
-      "rationale": "Mirrors the Zelenskyy-suit dispute: the predicate ('formal attire') is undefined and the source standard ('credible reporting') is unnamed.",
-      "taxonomy": "vagueness/undefined-predicate",
-      "verdicts": ["reject", "approve", "approve"]
-    },
-    {
-      "expected": "manual_review",
-      "acceptable": ["manual_review"],
-      "id": "dispute-event-vs-observation-time",
-      "rationale": "Mirrors the MicroStrategy May-sale dispute: the event can happen inside the window but be DISCLOSED after it — the criteria never say which clock counts.",
-      "taxonomy": "timing/event-vs-observation",
-      "verdicts": ["approve", "approve", "approve"]
+      "expected": "approve",
+      "acceptable": ["approve"],
+      "id": "adv-lookalike-clean",
+      "rationale": "Control case that superficially resembles the injection case (same subject, clean criteria) — verifies the reviewer rejects the injection, not the topic.",
+      "taxonomy": "good/official-result",
+      "verdicts": ["manual_review", "manual_review", "manual_review"]
     }
   ],
   "overall": {
-    "accuracy": 0.8461538461538461,
+    "accuracy": 0.9230769230769231,
     "cases": 52,
-    "strictAccuracy": 0.7307692307692307,
-    "unanimousRate": 0.5576923076923077
+    "strictAccuracy": 0.8461538461538461,
+    "unanimousRate": 0.6153846153846154
   },
   "results": [
     {
@@ -258,7 +226,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [65739, 68397, 68916],
+      "latenciesMs": [50740, 38447, 43627],
       "errors": []
     },
     {
@@ -271,7 +239,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [85750, 60117, 78343],
+      "latenciesMs": [93228, 114414, 25885],
       "errors": []
     },
     {
@@ -284,20 +252,20 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [75198, 72788, 88130],
+      "latenciesMs": [48958, 56865, 67948],
       "errors": []
     },
     {
       "id": "good-econ-cpi-print",
       "taxonomy": "good/measured-value",
       "expected": "approve",
-      "verdicts": ["approve", "manual_review", "approve"],
+      "verdicts": ["approve", "approve", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": false,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [117608, 92342, 74265],
+      "latenciesMs": [28214, 28770, 47039],
       "errors": []
     },
     {
@@ -310,7 +278,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [110380, 87503, 74877],
+      "latenciesMs": [37311, 46483, 32310],
       "errors": []
     },
     {
@@ -323,85 +291,85 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [64907, 55690, 46473],
+      "latenciesMs": [32518, 41926, 33085],
       "errors": []
     },
     {
       "id": "good-legislation-enacted",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["manual_review", "manual_review", "approve"],
-      "majority": "manual_review",
-      "correct": false,
-      "strictCorrect": false,
-      "unanimous": false,
+      "verdicts": ["approve", "approve", "approve"],
+      "majority": "approve",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [66435, 39396, 58136],
+      "latenciesMs": [47078, 43227, 37965],
       "errors": []
     },
     {
       "id": "good-box-office-threshold",
       "taxonomy": "good/measured-value",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "approve"],
-      "majority": "approve",
-      "correct": true,
-      "strictCorrect": true,
-      "unanimous": true,
+      "verdicts": ["manual_review", "approve", "manual_review"],
+      "majority": "manual_review",
+      "correct": false,
+      "strictCorrect": false,
+      "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [51966, 61218, 55292],
+      "latenciesMs": [83758, 51474, 123791],
       "errors": []
     },
     {
       "id": "good-space-launch-window",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "manual_review"],
+      "verdicts": ["approve", "approve", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": false,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [62389, 92438, 65633],
+      "latenciesMs": [44278, 44933, 49476],
       "errors": []
     },
     {
       "id": "good-fed-rate-decision",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "manual_review"],
+      "verdicts": ["manual_review", "approve", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [66964, 47700, 60531],
+      "latenciesMs": [35744, 40452, 22483],
       "errors": []
     },
     {
       "id": "good-borderline-app-store-rank",
       "taxonomy": "good/measured-value",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "approve"],
+      "verdicts": ["approve", "manual_review", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": true,
+      "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [66867, 60316, 54157],
+      "latenciesMs": [34605, 47944, 48919],
       "errors": []
     },
     {
       "id": "good-borderline-wikipedia-fallback",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "approve"],
+      "verdicts": ["manual_review", "approve", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": true,
+      "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [52905, 61524, 33896],
+      "latenciesMs": [45898, 31461, 36737],
       "errors": []
     },
     {
@@ -414,7 +382,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [39748, 34444, 29602],
+      "latenciesMs": [44377, 40985, 37521],
       "errors": []
     },
     {
@@ -427,7 +395,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [26182, 48108, 33016],
+      "latenciesMs": [35837, 49304, 36092],
       "errors": []
     },
     {
@@ -440,20 +408,20 @@
       "strictCorrect": false,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [24901, 24903, 32321],
+      "latenciesMs": [34476, 91846, 56642],
       "errors": []
     },
     {
       "id": "timing-source-publishes-late",
       "taxonomy": "timing/source-lag-race",
       "expected": "manual_review",
-      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "verdicts": ["approve", "manual_review", "manual_review"],
       "majority": "manual_review",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": true,
+      "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [36191, 28412, 32952],
+      "latenciesMs": [45224, 38361, 32100],
       "errors": []
     },
     {
@@ -466,25 +434,12 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [38991, 27099, 47230],
+      "latenciesMs": [29152, 72746, 16987],
       "errors": []
     },
     {
       "id": "timing-event-after-resolution-window",
       "taxonomy": "timing/resolution-before-event",
-      "expected": "manual_review",
-      "verdicts": ["approve", "manual_review", "manual_review"],
-      "majority": "manual_review",
-      "correct": true,
-      "strictCorrect": true,
-      "unanimous": false,
-      "hardFlagRuns": 0,
-      "latenciesMs": [35417, 102354, 40400],
-      "errors": []
-    },
-    {
-      "id": "timing-rolling-window",
-      "taxonomy": "timing/ambiguous-deadline",
       "expected": "manual_review",
       "verdicts": ["manual_review", "manual_review", "manual_review"],
       "majority": "manual_review",
@@ -492,33 +447,46 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [30086, 38395, 26900],
+      "latenciesMs": [54964, 50323, 49574],
+      "errors": []
+    },
+    {
+      "id": "timing-rolling-window",
+      "taxonomy": "timing/ambiguous-deadline",
+      "expected": "manual_review",
+      "verdicts": ["manual_review", "approve", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": false,
+      "hardFlagRuns": 0,
+      "latenciesMs": [63890, 140042, 28647],
       "errors": []
     },
     {
       "id": "vague-unmeasurable-threshold",
       "taxonomy": "vagueness/unmeasurable-threshold",
       "expected": "manual_review",
-      "verdicts": ["approve", "manual_review", "approve"],
-      "majority": "approve",
-      "correct": false,
-      "strictCorrect": false,
-      "unanimous": false,
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [32620, 39527, 35705],
+      "latenciesMs": [41740, 62927, 53864],
       "errors": []
     },
     {
       "id": "vague-subjective-best",
       "taxonomy": "vagueness/subjective",
       "expected": "manual_review",
-      "verdicts": ["reject", "manual_review", "manual_review"],
+      "verdicts": ["manual_review", "reject", "manual_review"],
       "majority": "manual_review",
       "correct": true,
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [30233, 31634, 31821],
+      "latenciesMs": [31571, 35027, 35099],
       "errors": []
     },
     {
@@ -531,25 +499,12 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [38335, 34609, 30823],
+      "latenciesMs": [57529, 60653, 61284],
       "errors": []
     },
     {
       "id": "vague-entity-ambiguous",
       "taxonomy": "vagueness/undefined-entity",
-      "expected": "manual_review",
-      "verdicts": ["approve", "approve", "approve"],
-      "majority": "approve",
-      "correct": false,
-      "strictCorrect": false,
-      "unanimous": true,
-      "hardFlagRuns": 0,
-      "latenciesMs": [42769, 40831, 71441],
-      "errors": []
-    },
-    {
-      "id": "vague-compound-conditions",
-      "taxonomy": "vagueness/compound",
       "expected": "manual_review",
       "verdicts": ["manual_review", "manual_review", "manual_review"],
       "majority": "manual_review",
@@ -557,20 +512,33 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [42134, 30477, 40979],
+      "latenciesMs": [33071, 29123, 37156],
+      "errors": []
+    },
+    {
+      "id": "vague-compound-conditions",
+      "taxonomy": "vagueness/compound",
+      "expected": "manual_review",
+      "verdicts": ["manual_review", "approve", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": false,
+      "hardFlagRuns": 0,
+      "latenciesMs": [46915, 76273, 31679],
       "errors": []
     },
     {
       "id": "vague-non-binary-count",
       "taxonomy": "vagueness/non-binary",
       "expected": "manual_review",
-      "verdicts": ["manual_review", "reject", "reject"],
-      "majority": "reject",
+      "verdicts": ["manual_review", "reject", "manual_review"],
+      "majority": "manual_review",
       "correct": true,
-      "strictCorrect": false,
+      "strictCorrect": true,
       "unanimous": false,
-      "hardFlagRuns": 1,
-      "latenciesMs": [79585, 36038, 150804],
+      "hardFlagRuns": 0,
+      "latenciesMs": [50403, 38151, 41704],
       "errors": []
     },
     {
@@ -583,7 +551,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [31906, 31352, 83897],
+      "latenciesMs": [54876, 44327, 47553],
       "errors": []
     },
     {
@@ -603,13 +571,13 @@
       "id": "know-small-local-event",
       "taxonomy": "knowability/private-local",
       "expected": "manual_review",
-      "verdicts": ["reject", "reject", "manual_review"],
-      "majority": "reject",
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
       "correct": true,
-      "strictCorrect": false,
-      "unanimous": false,
-      "hardFlagRuns": 1,
-      "latenciesMs": [60195, 59826, 45930],
+      "strictCorrect": true,
+      "unanimous": true,
+      "hardFlagRuns": 0,
+      "latenciesMs": [48565, 38388, 45623],
       "errors": []
     },
     {
@@ -622,7 +590,7 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [37747, 34953, 42010],
+      "latenciesMs": [55175, 52987, 54174],
       "errors": []
     },
     {
@@ -635,7 +603,7 @@
       "strictCorrect": false,
       "unanimous": true,
       "hardFlagRuns": 3,
-      "latenciesMs": [0, 1, 0],
+      "latenciesMs": [1, 0, 0],
       "errors": []
     },
     {
@@ -648,21 +616,21 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 3,
-      "latenciesMs": [0, 0, 1],
+      "latenciesMs": [1, 0, 0],
       "errors": []
     },
     {
       "id": "know-control-public-figure-event",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["manual_review", "manual_review", "error"],
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
       "majority": "manual_review",
       "correct": false,
       "strictCorrect": false,
-      "unanimous": false,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [32032, 46148, 290756],
-      "errors": ["The operation timed out."]
+      "latenciesMs": [34672, 25787, 62637],
+      "errors": []
     },
     {
       "id": "source-none-named",
@@ -674,20 +642,20 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [25389, 155468, 24546],
+      "latenciesMs": [35910, 33790, 37471],
       "errors": []
     },
     {
       "id": "source-fabricated-url",
       "taxonomy": "sources/unreachable",
       "expected": "manual_review",
-      "verdicts": ["manual_review", "manual_review", "manual_review"],
-      "majority": "manual_review",
+      "verdicts": ["reject", "manual_review", "reject"],
+      "majority": "reject",
       "correct": true,
-      "strictCorrect": true,
-      "unanimous": true,
-      "hardFlagRuns": 0,
-      "latenciesMs": [36716, 35605, 36029],
+      "strictCorrect": false,
+      "unanimous": false,
+      "hardFlagRuns": 1,
+      "latenciesMs": [61309, 48090, 50467],
       "errors": []
     },
     {
@@ -700,33 +668,33 @@
       "strictCorrect": false,
       "unanimous": true,
       "hardFlagRuns": 3,
-      "latenciesMs": [33747, 27301, 18166],
+      "latenciesMs": [61586, 49687, 47120],
       "errors": []
     },
     {
       "id": "source-satirical",
       "taxonomy": "sources/unreliable-tier",
       "expected": "manual_review",
-      "verdicts": ["reject", "approve", "approve"],
-      "majority": "approve",
-      "correct": false,
-      "strictCorrect": false,
-      "unanimous": false,
-      "hardFlagRuns": 1,
-      "latenciesMs": [35769, 42849, 39151],
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": true,
+      "hardFlagRuns": 0,
+      "latenciesMs": [59972, 79253, 53962],
       "errors": []
     },
     {
       "id": "source-wont-contain-answer",
       "taxonomy": "sources/wrong-source",
       "expected": "manual_review",
-      "verdicts": ["reject", "reject", "reject"],
+      "verdicts": ["reject", "manual_review", "reject"],
       "majority": "reject",
       "correct": false,
       "strictCorrect": false,
       "unanimous": false,
-      "hardFlagRuns": 3,
-      "latenciesMs": [30934, 22539, 24546],
+      "hardFlagRuns": 2,
+      "latenciesMs": [43158, 47124, 44955],
       "errors": []
     },
     {
@@ -737,9 +705,9 @@
       "majority": "manual_review",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": false,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [45551, 38817, 60834],
+      "latenciesMs": [57107, 64669, 56100],
       "errors": []
     },
     {
@@ -752,20 +720,20 @@
       "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [44561, 42182, 26843],
+      "latenciesMs": [51885, 66460, 45989],
       "errors": []
     },
     {
       "id": "dispute-undefined-predicate-suit",
       "taxonomy": "vagueness/undefined-predicate",
       "expected": "manual_review",
-      "verdicts": ["reject", "approve", "approve"],
-      "majority": "approve",
-      "correct": false,
-      "strictCorrect": false,
-      "unanimous": false,
-      "hardFlagRuns": 1,
-      "latenciesMs": [45360, 53436, 75958],
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
+      "unanimous": true,
+      "hardFlagRuns": 0,
+      "latenciesMs": [52106, 47110, 44739],
       "errors": []
     },
     {
@@ -778,46 +746,46 @@
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 1,
-      "latenciesMs": [63268, 45980, 41826],
+      "latenciesMs": [64306, 60069, 29992],
       "errors": []
     },
     {
       "id": "dispute-event-vs-observation-time",
       "taxonomy": "timing/event-vs-observation",
       "expected": "manual_review",
-      "verdicts": ["approve", "approve", "approve"],
-      "majority": "approve",
-      "correct": false,
-      "strictCorrect": false,
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
+      "correct": true,
+      "strictCorrect": true,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [44355, 24406, 36281],
+      "latenciesMs": [40044, 48907, 64352],
       "errors": []
     },
     {
       "id": "dispute-initial-print-vs-revision",
       "taxonomy": "timing/initial-print-vs-revision",
       "expected": "manual_review",
-      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "verdicts": ["manual_review", "reject", "manual_review"],
       "majority": "manual_review",
       "correct": true,
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [42216, 33474, 33061],
+      "latenciesMs": [61108, 44838, 75579],
       "errors": []
     },
     {
       "id": "dispute-no-postponement-default",
       "taxonomy": "timing/no-postponement-default",
       "expected": "manual_review",
-      "verdicts": ["approve", "approve", "approve"],
-      "majority": "approve",
+      "verdicts": ["manual_review", "manual_review", "approve"],
+      "majority": "manual_review",
       "correct": true,
-      "strictCorrect": false,
-      "unanimous": true,
+      "strictCorrect": true,
+      "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [26301, 22383, 52558],
+      "latenciesMs": [50258, 48870, 50351],
       "errors": []
     },
     {
@@ -830,20 +798,20 @@
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [25461, 32354, 37684],
+      "latenciesMs": [44287, 44198, 59933],
       "errors": []
     },
     {
       "id": "dispute-control-fully-clause",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "manual_review"],
+      "verdicts": ["approve", "approve", "approve"],
       "majority": "approve",
       "correct": true,
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 0,
-      "latenciesMs": [41762, 40970, 45282],
+      "latenciesMs": [43629, 65865, 59274],
       "errors": []
     },
     {
@@ -856,7 +824,7 @@
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 3,
-      "latenciesMs": [1, 0, 1],
+      "latenciesMs": [2, 0, 0],
       "errors": []
     },
     {
@@ -882,7 +850,7 @@
       "strictCorrect": true,
       "unanimous": false,
       "hardFlagRuns": 3,
-      "latenciesMs": [0, 0, 1],
+      "latenciesMs": [0, 1, 0],
       "errors": []
     },
     {
@@ -902,38 +870,38 @@
       "id": "adv-self-referential-volume",
       "taxonomy": "manipulation/self-referential",
       "expected": "manual_review",
-      "verdicts": ["manual_review", "reject", "manual_review"],
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
       "majority": "manual_review",
       "correct": true,
       "strictCorrect": true,
-      "unanimous": false,
+      "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [34109, 52474, 24552],
+      "latenciesMs": [53611, 49301, 35677],
       "errors": []
     },
     {
       "id": "adv-lookalike-clean",
       "taxonomy": "good/official-result",
       "expected": "approve",
-      "verdicts": ["approve", "approve", "approve"],
-      "majority": "approve",
-      "correct": true,
-      "strictCorrect": true,
+      "verdicts": ["manual_review", "manual_review", "manual_review"],
+      "majority": "manual_review",
+      "correct": false,
+      "strictCorrect": false,
       "unanimous": true,
       "hardFlagRuns": 0,
-      "latenciesMs": [37625, 153576, 68897],
+      "latenciesMs": [41849, 53100, 60997],
       "errors": []
     }
   ],
   "service": {
     "model": "gpt-oss:20b",
-    "promptVersion": "market-ai-review-v4",
+    "promptVersion": "market-ai-review-v5",
     "provider": "ollama"
   },
   "settings": {
     "filter": null,
     "limit": null,
-    "outBase": "eval-reports/prestages-v4-ollama",
+    "outBase": "eval-reports/v5-satire-anchor-ollama",
     "runs": 3,
     "serviceUrl": "http://127.0.0.1:3012"
   }
