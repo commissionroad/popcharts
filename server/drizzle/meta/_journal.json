@@ -134,6 +134,13 @@
       "when": 1784309026039,
       "tag": "0018_boring_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784566757741,
+      "tag": "0019_graceful_black_queen",
+      "breakpoints": true
     }
   ]
 }
