@@ -1,5 +1,5 @@
 {
-  "id": "edae514e-8e42-41fa-8f13-a9083bbcb9f1",
+  "id": "dfd8d2cb-dc60-4d62-9fbc-2252b6c33fda",
   "prevId": "5679c437-e1be-44c2-8073-56675ac0d469",
   "version": "7",
   "dialect": "postgresql",
@@ -3066,7 +3066,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -3154,8 +3154,8 @@
           "method": "btree",
           "with": {}
         },
-        "pool_price_ticks_chain_pool_block_idx": {
-          "name": "pool_price_ticks_chain_pool_block_idx",
+        "pool_price_ticks_chain_pool_time_idx": {
+          "name": "pool_price_ticks_chain_pool_time_idx",
           "columns": [
             {
               "expression": "chain_id",
@@ -3170,7 +3170,13 @@
               "nulls": "last"
             },
             {
-              "expression": "block_number",
+              "expression": "block_timestamp",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "log_index",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

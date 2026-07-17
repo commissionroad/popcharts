@@ -1,9 +1,9 @@
 import {
   bigint,
+  bigserial,
   index,
   integer,
   pgTable,
-  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -23,7 +23,9 @@ import { contracts } from "./contracts";
 export const poolPriceTicks = pgTable(
   "pool_price_ticks",
   {
-    id: serial("id").primaryKey(),
+    // bigserial, not serial: replays burn sequence values even on
+    // ON CONFLICT DO NOTHING, and this table gets a row per swap.
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
     chainId: integer("chain_id").notNull(),
     contractId: integer("contract_id")
       .notNull()
@@ -42,11 +44,13 @@ export const poolPriceTicks = pgTable(
       table.transactionHash,
       table.logIndex,
     ),
-    // Chart range queries: one pool's ticks over a block window.
-    index("pool_price_ticks_chain_pool_block_idx").on(
+    // Chart range queries: one pool's ticks over a wall-clock window, in
+    // deterministic order when one block holds several swaps.
+    index("pool_price_ticks_chain_pool_time_idx").on(
       table.chainId,
       table.poolId,
-      table.blockNumber,
+      table.blockTimestamp,
+      table.logIndex,
     ),
   ],
 );

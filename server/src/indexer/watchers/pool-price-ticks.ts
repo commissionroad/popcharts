@@ -38,9 +38,9 @@ const watcher = createDynamicAddressWatcher({
     getDefaultStartBlock(CURSOR_NAME, currentBlock),
   handleLog: async (client, log) => {
     const tickLog = log as PoolPriceTickLog;
-    console.log(
-      `[PoolPriceTick] poolId=${tickLog.args.poolId ?? "unknown"} tick=${tickLog.args.tick ?? "unknown"}`,
-    );
+    // Deliberately no per-log console output: this fires once per swap, and
+    // sweeps replay live-delivered ticks by design — per-tick narration would
+    // dominate the indexer's stdout at any real trading volume.
 
     const contractId = await getOrCreateContractId(
       config.contracts.boundedHook,
