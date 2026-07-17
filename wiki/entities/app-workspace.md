@@ -13,7 +13,7 @@ sources:
   - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
   - docs/portfolio-data-design.md
   - docs/error-handling-ux-prd.md
-updated: 2026-07-14
+updated: 2026-07-17
 ---
 
 # app/ workspace
@@ -53,10 +53,12 @@ interactive client islands), route tree at `app/src/app`.
 Pregrad journey is polished (discovery, market detail with AI evidence,
 create flow, receipts); the graduated-market trading surface landed 2026-07-08
 (market/limit tickets, depth ladder, open-orders panel). The portfolio page is
-the remaining localStorage stub — being replaced per the
-[portfolio data design](../summaries/portfolio-data-design.md) with a
-DB-backed view (receipts ⋈ settlement, YES/NO positions, open orders; mock
-localStorage receipts dropped). Remaining post-graduation items tracked in
+now DB-backed (localStorage stub dropped in PR #154) per the
+[portfolio data design](../summaries/portfolio-data-design.md) — receipts ⋈
+settlement, YES/NO positions, open orders, and (2026-07-15) a **Claimed
+payouts** table surfacing past resolution-redemption payouts read from
+`postgrad_redemption_events`, the only product surface where a redeemed
+position's payout stays visible. Remaining post-graduation items tracked in
 [root ADR 0013](../summaries/root-adr-0013-app-feature-completion.md); the
 2026-07-14 full-lifecycle test session found the postgrad *terminal* states
 unbuilt — resolved markets regress to the pre-grad layout with no

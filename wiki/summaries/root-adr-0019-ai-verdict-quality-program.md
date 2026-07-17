@@ -4,12 +4,13 @@ title: Repo ADR 0019 — AI verdict quality program
 description: Measured quality program for review and resolution verdicts — offline eval harness at the service HTTP seams, ~150–200-seed labeled failure-taxonomy dataset (template-expanded), deterministic pre-stages, reject-corroboration policy (no terminal reject/resolve on one uncorroborated model run), CI consistency lane, prompt-version eval policy.
 sources:
   - docs/adr/0019-ai-verdict-quality-program.md
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # Repo ADR 0019: AI Verdict Quality Program (Review + Resolution Evals)
 
-**Status: Accepted; first slice landed.** Dated 2026-07-14. Complements
+**Status: Accepted; core harness landed (review + resolution), guardrail
+policy still open.** Dated 2026-07-14. Complements
 [root ADR 0011](root-adr-0011-ai-review-service-hardening.md) (pipeline
 hardening) and [root ADR 0012](root-adr-0012-ai-assisted-resolution.md)
 (resolution build): those made the pipelines robust; neither measures
@@ -76,10 +77,21 @@ disputes, pinned to the
 itself, and the first exercise of the measure-before-tuning rule: review
 policy/prompt v3 (`market-ai-review-v3`) adopted with before/after eval
 numbers (42→75% accuracy) recorded in
-`server/src/ai-review/evals/proposed-policy-v3.md`. **Still open:** the
-resolution-side sibling harness, template/LLM-assisted expansion beyond
-the 52 seeds, deterministic pre-stages, the reject-corroboration policy,
-and the CI consistency lane.
+`server/src/ai-review/evals/proposed-policy-v3.md`. **Landed 2026-07-16
+(PRs #236/#237/#238):** the resolution-side sibling harness
+(`server/src/ai-resolution/evals/run-resolution-evals.ts` with a 35-seed
+dataset — 9 clear-YES / 9 clear-NO / 5 too_early / 3 draw / 6 abstain /
+3 injection, all forced through the LLM path); the deterministic review
+pre-stages promoted into `heuristics.ts` (with few-shot anchors) plus the
+first recorded eval baseline (`evals/baselines/ollama-gpt-oss-20b.json`);
+and the CI consistency lane — a verdict-eval regression check
+(`check-eval-regression.ts`) wired to a dormant
+`.github/workflows/verdict-evals.yml` that fails on agreement/accuracy
+regression beyond tolerance. **Still open:** template/LLM-assisted
+expansion beyond the hand-labeled seeds, the reject-corroboration policy
+(no terminal reject/resolve on one uncorroborated run), the
+`AI_REVIEW_PROMPT_VERSION` eval-gate that closes the 0011 checkbox, and the
+resolution local-default flip (heuristic → Ollama).
 
 - **Harness** (`server/src/ai-review/evals/`, sibling for resolution): eval
   runner at the service HTTP seam (no chain, no UI), N runs per case;

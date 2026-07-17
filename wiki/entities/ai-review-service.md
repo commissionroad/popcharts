@@ -8,7 +8,7 @@ sources:
   - docs/adr/0011-ai-review-service-hardening.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - server/README.md
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # AI review service and runner
@@ -81,11 +81,14 @@ one false REJECT away from irreversibly burning a market. Landed (PR #226,
 [failure-taxonomy](../summaries/ai-verdict-failure-taxonomy.md) dataset,
 and review prompt v3 (`market-ai-review-v3`) adopted with before/after
 eval numbers — the first exercise of the measure-before-tuning rule.
-Still planned: deterministic pre-stages promoted out of the model, a
-**reject-corroboration policy** (on-chain reject only with hard-flag
-agreement or second-run concurrence; lone LLM rejects park as
-manual_review), a CI consistency lane, and the `AI_REVIEW_PROMPT_VERSION`
-eval policy that closes the 0011 checkbox.
+Extended 2026-07-16 (PRs #238/#237): deterministic pre-stages promoted into
+`heuristics.ts` (with few-shot anchors), the first in-repo eval baseline,
+and a CI consistency lane — a verdict-eval regression check wired to a
+dormant on-demand workflow that fails on agreement/accuracy regression.
+Still planned: a **reject-corroboration policy** (on-chain reject only with
+hard-flag agreement or second-run concurrence; lone LLM rejects park as
+manual_review) and the `AI_REVIEW_PROMPT_VERSION` eval policy that closes
+the 0011 checkbox.
 
 ## Related pages
 
