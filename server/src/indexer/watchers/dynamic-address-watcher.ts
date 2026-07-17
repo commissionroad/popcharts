@@ -54,6 +54,10 @@ function bigintMin(a: bigint, b: bigint) {
   return a < b ? a : b;
 }
 
+function bigintMax(a: bigint, b: bigint) {
+  return a > b ? a : b;
+}
+
 /** One discovered contract the watcher follows. */
 export type WatchedContract = {
   /** Lowercased contract address. */
@@ -264,22 +268,35 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
     // and a first recovery (fresh deployment, consolidated cursor) may span
     // deploy-to-head. Each completed chunk advances the watermarks, so a
     // crash or cap-induced failure resumes at the last chunk boundary
-    // instead of retrying one oversized request forever.
-    for (
-      let chunkFrom = fromBlock;
-      chunkFrom <= currentBlock;
-      chunkFrom += SWEEP_CHUNK_BLOCKS
-    ) {
-      const chunkTo = bigintMin(
-        chunkFrom + SWEEP_CHUNK_BLOCKS - 1n,
-        currentBlock,
-      );
-      const logs = await client.getLogs({
-        address: addresses,
-        events,
-        fromBlock: chunkFrom,
-        toBlock: chunkTo,
-      });
+    // instead of retrying one oversized request forever. The span adapts:
+    // a getLogs failure halves it (result-size caps on dense ranges — e.g.
+    // per-swap events — would otherwise refetch the same too-big range every
+    // tick, parking the sweep permanently), and each success doubles it back
+    // toward the maximum. Only a failure at the single-block floor
+    // propagates, since that can't be a range-size problem.
+    let span = SWEEP_CHUNK_BLOCKS;
+    let chunkFrom = fromBlock;
+    while (chunkFrom <= currentBlock) {
+      const chunkTo = bigintMin(chunkFrom + span - 1n, currentBlock);
+      let logs;
+      try {
+        logs = await client.getLogs({
+          address: addresses,
+          events,
+          fromBlock: chunkFrom,
+          toBlock: chunkTo,
+        });
+      } catch (error) {
+        if (span === 1n) {
+          throw error;
+        }
+        span = bigintMax(span / 2n, 1n);
+        console.warn(
+          `[${label}] getLogs failed for ${chunkFrom}-${chunkTo}; retrying with span ${span}:`,
+          error,
+        );
+        continue;
+      }
 
       if (!options.quiet && logs.length > 0) {
         console.log(
@@ -326,6 +343,9 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
           chunkTo,
         );
       }
+
+      chunkFrom = chunkTo + 1n;
+      span = bigintMin(span * 2n, SWEEP_CHUNK_BLOCKS);
     }
   }
 

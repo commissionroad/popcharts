@@ -53,6 +53,7 @@ function buildHarness({
   let unwatchCount = 0;
   let failHandleLogAt: number | null = null;
   let backfillError: Error | null = null;
+  let maxLogsSpan: bigint | null = null;
   let lookupStale = false;
 
   const known = new Map(contracts.map((c) => [c.address, c]));
@@ -65,6 +66,12 @@ function buildHarness({
         const error = backfillError;
         backfillError = null;
         throw error;
+      }
+      if (
+        maxLogsSpan !== null &&
+        args.toBlock - args.fromBlock + 1n > maxLogsSpan
+      ) {
+        throw new Error("query returned more than 10000 results");
       }
       return chainLogs.filter(
         (log) =>
@@ -128,6 +135,10 @@ function buildHarness({
       lookupStale = true;
     },
     emitLive: (liveLogs: DynamicWatcherLog[]) => liveHandlers.at(-1)!(liveLogs),
+    /** Make getLogs reject any request spanning more than N blocks. */
+    capLogsSpan: (span: bigint) => {
+      maxLogsSpan = span;
+    },
     failNextBackfill: (error: Error) => {
       backfillError = error;
     },
@@ -250,6 +261,41 @@ describe("recover", () => {
       "cursor:111",
       "cursor:120",
     ]);
+  });
+
+  it("halves the sweep span until a provider-capped getLogs succeeds, then completes", async () => {
+    // Provider rejects any span over 2000 blocks (result-size cap). A fixed
+    // 10k chunk would retry the same too-big range forever; the adaptive
+    // span must shrink until requests succeed and still cover everything.
+    const h = buildHarness({
+      currentBlock: 5_000n,
+      logs: [transferLog(150n, 0), transferLog(4_500n, 0)],
+    });
+    h.capLogsSpan(2_000n);
+
+    await h.watcher.recover(h.client, 5_000n);
+
+    expect(h.handled).toHaveLength(2);
+    expect(h.cursor()).toBe(5_000n);
+    // The first attempt probed the full range and was rejected; halving then
+    // found a passing size. (Failed probes may exceed the cap — regrowth
+    // deliberately re-probes larger spans — so only the shape is asserted:
+    // more attempts than the two a cap-free sweep would need, and full
+    // coverage above.)
+    const attempts = h.calls.filter((c) => c.startsWith("getLogs:"));
+    expect(attempts[0]).toBe("getLogs:100-5000");
+    expect(attempts.length).toBeGreaterThan(2);
+  });
+
+  it("propagates a getLogs failure at the single-block floor", async () => {
+    const h = buildHarness();
+    // A cap below one block is unsatisfiable — not a range-size problem.
+    h.capLogsSpan(0n);
+
+    await expect(h.watcher.recover(h.client, h.currentBlock)).rejects.toThrow(
+      "query returned more than 10000 results",
+    );
+    expect(h.cursor()).toBe(null);
   });
 
   it("chunks long ranges and resumes at the last completed chunk after a failure", async () => {

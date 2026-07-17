@@ -9,6 +9,7 @@ import {
   recoverMarketCreatedEvents,
   recoverMarketReviewEvents,
   recoverOutcomeTokenTransferEvents,
+  recoverPoolPriceTickEvents,
   recoverPostgradRedemptionEvents,
   recoverPostgradResolutionEvents,
   recoverReceiptPlacedEvents,
@@ -17,6 +18,7 @@ import {
   watchMarketCreatedEvents,
   watchMarketReviewEvents,
   watchOutcomeTokenTransferEvents,
+  watchPoolPriceTickEvents,
   watchPostgradRedemptionEvents,
   watchPostgradResolutionEvents,
   watchReceiptPlacedEvents,
@@ -68,6 +70,7 @@ async function main() {
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
   const unwatchVenueOrders = watchVenueOrderEvents(client);
+  const unwatchPoolPriceTicks = watchPoolPriceTickEvents(client);
   const unwatchOutcomeTokenTransfers = watchOutcomeTokenTransferEvents(client);
   const unwatchPostgradResolution = watchPostgradResolutionEvents(client);
   const unwatchPostgradRedemption = watchPostgradRedemptionEvents(client);
@@ -97,6 +100,7 @@ async function main() {
     unwatchReceiptPlaced();
     unwatchSettlement();
     unwatchVenueOrders();
+    unwatchPoolPriceTicks();
     unwatchOutcomeTokenTransfers();
     unwatchPostgradResolution();
     unwatchPostgradRedemption();
@@ -121,6 +125,7 @@ async function recoverMissedEvents(
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
   await recoverVenueOrderEvents(client, currentBlock, { quiet });
+  await recoverPoolPriceTickEvents(client, currentBlock, { quiet });
   // Runs after settlement so newly finalized graduations are discoverable
   // through venue_pools before the token transfer sweep.
   await recoverOutcomeTokenTransferEvents(client, currentBlock, { quiet });

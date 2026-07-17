@@ -11,6 +11,10 @@ export {
   watchOutcomeTokenTransferEvents,
 } from "./outcome-token-transfers";
 export {
+  recoverPoolPriceTickEvents,
+  watchPoolPriceTickEvents,
+} from "./pool-price-ticks";
+export {
   recoverPostgradRedemptionEvents,
   watchPostgradRedemptionEvents,
 } from "./postgrad-redemption";
