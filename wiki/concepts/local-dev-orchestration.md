@@ -60,11 +60,9 @@ owns it (foreign chains fail loudly instead of being adopted); Postgres is
 isolated per slot at the **database** level inside the one shared container;
 and `local-create-market` (and siblings) resolve which stack to target from the
 registry. chainId stays 31337 across slots — it only matters for a browser
-wallet on two stacks at once. Phases 1–3 landed 2026-07-17: the control plane
-now resolves/registers a slot before launching Process Compose, children
-inherit it through `POPCHARTS_STACK_SLOT`, the admin API uses the derived port,
-and fresh-chain reset drops only that slot's database. Phase 4's stack-aware
-targeting scripts remain.
+wallet on two stacks at once. Phase 1 (the slot/registry core) landed
+2026-07-17; the control-plane wiring, database-scoped reset, and stack-aware
+scripts follow.
 
 ## Related pages
 

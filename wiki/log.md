@@ -730,8 +730,3 @@ caused the 2026-07-17 contamination incident. chainId stays 31337 across slots
 core landed 2026-07-17 (PR #242); Phases 2–4 open. Concept page gained a
 "Concurrent stacks" section; watch for drift as the wiring phases land (the
 env-seams section still describes the single-stack .env.local-chain path).
-
-## [2026-07-17] ingest | repo ADR 0020 — concurrent local dev stacks phases 2–3
-
-Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
-Notes: Recorded control-plane slot propagation, identity-scoped chain reuse with startup grace, and per-slot database creation/reset as implemented; Phase 4 targeting remains open.
