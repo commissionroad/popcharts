@@ -70,8 +70,21 @@ failover, DB-backed leasing, cursor-lag metrics remain open. Balance
 projections raise the stakes on reorg handling: an orphaned Transfer leaves a
 wrong balance, not just a stale log row.
 
+## Live-updates emit seam (planned, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
+
+Live browser updates do **not** add code to the indexer or break its purity: a
+generic `AFTER INSERT` trigger on the append-only tables writes one
+`change_feed` outbox row in the *same transaction* as each event, which the API
+(a separate process) tails and fans out over SSE. The indexer keeps writing only
+its own DB rows — no network calls, no held connections, no dependency on the
+API. The trigger being DB-level makes the feed writer-agnostic (it also captures
+the AI-review runner's and keeper's writes, which an in-indexer emit would miss)
+and transactional (a rolled-back event — e.g. the `MarketNotIndexedError` retry
+path — produces no phantom signal). Proposed, not yet built.
+
 ## Related pages
 
 - [Server workspace](server-workspace.md) — hosts it
 - [Market lifecycle](../concepts/market-lifecycle.md) — the projection semantics
 - [Postgrad v4 venue](postgrad-v4-venue.md) — the event surface it must learn
+- [Live market updates (ADR 0021)](../summaries/root-adr-0021-live-market-updates.md) — the change_feed emit seam
