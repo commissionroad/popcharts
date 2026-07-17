@@ -21,6 +21,7 @@ to the frontend app or the Solidity protocol.
 | [0017](0017-test-observability-and-coverage-program.md) | Accepted | Make test health visible (PR coverage deltas, trends, badges, flake tracking — in-repo, no vendor) and enforce coverage where it protects value transfer. |
 | [0018](0018-terminal-market-surface-and-redemption-ux.md) | Accepted | Give resolved and cancelled postgrad markets a first-class surface: keep the postgrad payload in the API, show the outcome, and ship wallet-signed redemption (redeem / redeemCancelled). |
 | [0019](0019-ai-verdict-quality-program.md) | Accepted | Measure and harden AI review/resolution verdicts: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, and a CI consistency lane. |
+| [0020](0020-concurrent-local-dev-stacks.md) | Accepted | Run concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market. |
 
 Progress toward the Arc Testnet launch is tracked in the checklists inside
 ADRs 0008–0015; ADR 0007 defines the process and milestone ordering. ADR 0016
