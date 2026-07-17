@@ -1,3 +1,4 @@
+import type { StackPorts } from "../localStack/ports.ts";
 import { localAiResolutionBaseUrl } from "./localAiResolutionEndpoint.ts";
 
 /**
@@ -7,6 +8,7 @@ import { localAiResolutionBaseUrl } from "./localAiResolutionEndpoint.ts";
  */
 export function buildAiResolutionRunnerEnv(
   serverEnv: NodeJS.ProcessEnv,
+  resources: StackPorts,
 ): NodeJS.ProcessEnv {
   return {
     ...serverEnv,
@@ -14,6 +16,6 @@ export function buildAiResolutionRunnerEnv(
       process.env.LOCAL_AI_RESOLUTION_RUNNER_ID ?? "local-ai-resolution-runner",
     AI_RESOLUTION_RUNNER_POLL_MS:
       process.env.LOCAL_AI_RESOLUTION_RUNNER_POLL_MS ?? "1000",
-    AI_RESOLUTION_SERVICE_URL: localAiResolutionBaseUrl,
+    AI_RESOLUTION_SERVICE_URL: localAiResolutionBaseUrl(resources),
   };
 }

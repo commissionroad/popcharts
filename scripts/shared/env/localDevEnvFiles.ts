@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 
+import { assertValidSlot } from "../localStack/assertValidSlot.ts";
 import { appDir, serverDir } from "../paths.ts";
 
 /**
@@ -8,6 +9,15 @@ import { appDir, serverDir } from "../paths.ts";
  * `local-create-market` and the control-plane API/indexer read back.
  */
 export const localChainEnvFile = resolve(serverDir, ".env.local-chain");
+
+/**
+ * Returns the generated server env file owned by a stack slot. Slot 0 keeps
+ * the legacy filename, while concurrent slots append their number (ADR 0020).
+ */
+export function localChainEnvFileForSlot(slot: number): string {
+  assertValidSlot(slot);
+  return slot === 0 ? localChainEnvFile : `${localChainEnvFile}.${slot}`;
+}
 
 /**
  * Health marker file the indexer touches once it has recovered missed events

@@ -9,9 +9,9 @@ updated: 2026-07-17
 
 # Repo ADR 0020: Concurrent Local Dev Stacks
 
-**Status: Accepted — build underway.** Phase 1 (the pure slot/registry core)
-landed 2026-07-17; Phases 2–4 (control-plane wiring, database-scoped reset,
-stack-aware targeting scripts) follow as their own PRs. Dated 2026-07-17.
+**Status: Accepted — build underway.** Phases 1–3 (slot/registry core,
+control-plane wiring, and database-scoped reset) were implemented
+2026-07-17; Phase 4 (stack-aware targeting scripts) remains. Dated 2026-07-17.
 
 ## Why
 
@@ -59,7 +59,7 @@ Key decisions:
   cross-worktree. Startup prunes dead descriptors (PID + chain-RPC liveness),
   resolves the slot, bind-checks ports, and writes its own descriptor.
 - **Fail loudly on a foreign chain.** The identity check replaces silent
-  adoption: reuse a chain only when a live registry entry for *this* instance
+  adoption: reuse a chain only when a live registry entry for _this_ instance
   owns it.
 
 ## Status by phase
@@ -68,11 +68,13 @@ Key decisions:
   `scripts/shared/localStack/{ports,identity,registry,slot}.ts` +
   `assertValidSlot.ts`, unit-tested. Pure; wires nothing into the running
   stack.
-- **Phase 2 — control-plane wiring** (thread the slot through
+- **Phase 2 — control-plane wiring (implemented 2026-07-17).** Threads the slot through
   `local-dev-control.ts`, the env builders, and process-compose admin port;
-  replace silent chain reuse with the identity check).
-- **Phase 3 — database-scoped isolation** (`ensureLocalPostgres` /
-  `resetLocalPostgresForFreshChain` operate on the slot's database).
+  replaces silent chain reuse with the identity check, and gives booting
+  descriptors a grace period before RPC liveness is required.
+- **Phase 3 — database-scoped isolation (implemented 2026-07-17).**
+  `ensureLocalPostgres` creates the slot database when absent, while
+  `resetLocalPostgresForFreshChain` drops/recreates only that database.
 - **Phase 4 — stack-aware scripts** (`local-create-market` and siblings
   resolve the target from the registry: 0 → error, 1 → use, >1 → "which
   stack?" prompt or `--stack`).

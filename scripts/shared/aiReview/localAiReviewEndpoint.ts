@@ -1,9 +1,17 @@
-/** Port the local AI review service listens on (LOCAL_AI_REVIEW_PORT, default 3002). */
-export const localAiReviewPort: string =
-  process.env.LOCAL_AI_REVIEW_PORT ?? "3002";
+import type { StackPorts } from "../localStack/ports.ts";
 
 /**
- * Base URL of the local AI review service, used both to configure the API
- * and runner (AI_REVIEW_SERVICE_URL) and to poll `/ready` during startup.
+ * Resolves the review service port for a stack, preserving an explicit local
+ * override while otherwise using the slot-derived resource (ADR 0020).
  */
-export const localAiReviewBaseUrl = `http://127.0.0.1:${localAiReviewPort}`;
+export function localAiReviewPort(resources: StackPorts): string {
+  return process.env.LOCAL_AI_REVIEW_PORT ?? String(resources.reviewPort);
+}
+
+/**
+ * Resolves the review service base URL used by runners and readiness probes
+ * from the same slot resource that configures the listener (ADR 0020).
+ */
+export function localAiReviewBaseUrl(resources: StackPorts): string {
+  return `http://127.0.0.1:${localAiReviewPort(resources)}`;
+}

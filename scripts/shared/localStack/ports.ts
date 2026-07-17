@@ -1,4 +1,4 @@
-import { localChainEnvFile } from "../env/localDevEnvFiles.ts";
+import { localChainEnvFileForSlot } from "../env/localDevEnvFiles.ts";
 import { assertValidSlot } from "./assertValidSlot.ts";
 
 /**
@@ -16,6 +16,7 @@ export const BASE_APP_PORT = 3000;
 export const BASE_REVIEW_PORT = 3002;
 export const BASE_RESOLUTION_PORT = 3004;
 export const BASE_PC_ADMIN_PORT = 8080;
+export const BASE_DATABASE_NAME = "popcharts";
 
 /**
  * The fully-derived set of resources a single local dev stack owns for a given
@@ -62,9 +63,9 @@ export function deriveStackResources(slot: number): StackPorts {
     reviewPort: BASE_REVIEW_PORT + SLOT_PORT_STRIDE * slot,
     resolutionPort: BASE_RESOLUTION_PORT + SLOT_PORT_STRIDE * slot,
     pcAdminPort: BASE_PC_ADMIN_PORT + slot,
-    dbName: slot === 0 ? "popcharts" : `popcharts_${slot}`,
+    dbName: slot === 0 ? BASE_DATABASE_NAME : `${BASE_DATABASE_NAME}_${slot}`,
     chainRpcHttpUrl: `http://127.0.0.1:${chainPort}`,
     chainRpcWssUrl: `ws://127.0.0.1:${chainPort}`,
-    envFilePath: slot === 0 ? localChainEnvFile : `${localChainEnvFile}.${slot}`,
+    envFilePath: localChainEnvFileForSlot(slot),
   };
 }

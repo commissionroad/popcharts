@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { localChainEnvFile } from "../shared/env/localDevEnvFiles.ts";
+import {
+  localChainEnvFile,
+  localChainEnvFileForSlot,
+} from "../shared/env/localDevEnvFiles.ts";
 import {
   BASE_API_PORT,
   BASE_APP_PORT,
   BASE_CHAIN_ID,
   BASE_CHAIN_PORT,
+  BASE_DATABASE_NAME,
   BASE_PC_ADMIN_PORT,
   BASE_RESOLUTION_PORT,
   BASE_REVIEW_PORT,
@@ -69,6 +73,7 @@ test("resource bases and stride are exported as the source of truth", function (
       BASE_APP_PORT,
       BASE_CHAIN_ID,
       BASE_CHAIN_PORT,
+      BASE_DATABASE_NAME,
       BASE_PC_ADMIN_PORT,
       BASE_RESOLUTION_PORT,
       BASE_REVIEW_PORT,
@@ -79,6 +84,7 @@ test("resource bases and stride are exported as the source of truth", function (
       BASE_APP_PORT: 3000,
       BASE_CHAIN_ID: 31337,
       BASE_CHAIN_PORT: 8545,
+      BASE_DATABASE_NAME: "popcharts",
       BASE_PC_ADMIN_PORT: 8080,
       BASE_RESOLUTION_PORT: 3004,
       BASE_REVIEW_PORT: 3002,
@@ -91,4 +97,10 @@ test("resource derivation rejects negative and non-integer slots", function () {
   assert.throws(() => deriveStackResources(-1), /non-negative integer/);
   assert.throws(() => deriveStackResources(1.5), /non-negative integer/);
   assert.throws(() => deriveStackResources(Number.NaN), /non-negative integer/);
+});
+
+test("slot-aware env paths preserve the legacy slot-0 filename", function () {
+  assert.equal(localChainEnvFileForSlot(0), localChainEnvFile);
+  assert.equal(localChainEnvFileForSlot(1), `${localChainEnvFile}.1`);
+  assert.throws(() => localChainEnvFileForSlot(-1), /non-negative integer/);
 });

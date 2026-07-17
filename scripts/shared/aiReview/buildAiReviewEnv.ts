@@ -1,3 +1,4 @@
+import type { StackPorts } from "../localStack/ports.ts";
 import { localAiReviewPort } from "./localAiReviewEndpoint.ts";
 
 /**
@@ -11,6 +12,7 @@ import { localAiReviewPort } from "./localAiReviewEndpoint.ts";
  */
 export function buildAiReviewEnv(
   serverEnv: NodeJS.ProcessEnv,
+  resources: StackPorts,
 ): NodeJS.ProcessEnv {
   return {
     ...serverEnv,
@@ -20,7 +22,7 @@ export function buildAiReviewEnv(
       process.env.LOCAL_AI_REVIEW_FETCH_SEARCH_RESULTS ?? "false",
     AI_REVIEW_INTERNET_ACCESS:
       process.env.LOCAL_AI_REVIEW_INTERNET_ACCESS ?? "search",
-    AI_REVIEW_PORT: localAiReviewPort,
+    AI_REVIEW_PORT: localAiReviewPort(resources),
     AI_REVIEW_PROVIDER: process.env.LOCAL_AI_REVIEW_PROVIDER ?? "ollama",
     AI_REVIEW_RETRY_PROVIDER_FAILURES:
       process.env.LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES ?? "true",

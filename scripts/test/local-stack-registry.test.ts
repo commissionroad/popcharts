@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -73,8 +68,21 @@ test("registry round-trips descriptors and prunes dead entries", async function 
       controlPid: 2_147_483_647,
     });
     writeDescriptor(deadRecord);
-    assert.deepEqual(await pruneDeadDescriptors(), []);
-    assert.deepEqual(readDescriptors(), []);
+    const bootingRecord = descriptor({
+      instanceId: "booting-slot2",
+      slot: 2,
+      chainPort: 65533,
+      startedAt: new Date().toISOString(),
+    });
+    const staleRecord = descriptor({
+      instanceId: "stale-slot3",
+      slot: 3,
+      chainPort: 65532,
+    });
+    writeDescriptor(bootingRecord);
+    writeDescriptor(staleRecord);
+    assert.deepEqual(await pruneDeadDescriptors(), [bootingRecord]);
+    assert.deepEqual(readDescriptors(), [bootingRecord]);
   } finally {
     if (previousRegistryDir === undefined) {
       delete process.env.POPCHARTS_STACK_REGISTRY_DIR;

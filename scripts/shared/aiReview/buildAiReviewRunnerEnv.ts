@@ -1,3 +1,4 @@
+import type { StackPorts } from "../localStack/ports.ts";
 import { localAiReviewBaseUrl } from "./localAiReviewEndpoint.ts";
 import { localAiReviewRunnerPollMs } from "./localAiReviewRunnerPollMs.ts";
 
@@ -8,6 +9,7 @@ import { localAiReviewRunnerPollMs } from "./localAiReviewRunnerPollMs.ts";
  */
 export function buildAiReviewRunnerEnv(
   serverEnv: NodeJS.ProcessEnv,
+  resources: StackPorts,
 ): NodeJS.ProcessEnv {
   return {
     ...serverEnv,
@@ -18,6 +20,6 @@ export function buildAiReviewRunnerEnv(
       process.env.LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS ?? "360000",
     AI_REVIEW_RUNNER_LEASE_MS:
       process.env.LOCAL_AI_REVIEW_RUNNER_LEASE_MS ?? "600000",
-    AI_REVIEW_SERVICE_URL: localAiReviewBaseUrl,
+    AI_REVIEW_SERVICE_URL: localAiReviewBaseUrl(resources),
   };
 }

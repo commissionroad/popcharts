@@ -12,6 +12,12 @@ import { isRpcReady } from "../net/isRpcReady.ts";
 import type { StackKind } from "./identity.ts";
 
 /**
+ * Startup grace period during which a live control process owns its descriptor
+ * before the chain RPC is expected to answer, preventing mid-boot slot theft.
+ */
+export const STACK_STARTUP_GRACE_MS = 5 * 60_000;
+
+/**
  * The on-disk record of one running local dev stack, written to the registry
  * at startup and read by other stacks (and stack-targeting scripts) to
  * discover what is already running. Carries everything needed to address the
@@ -98,7 +104,9 @@ export function readDescriptors(): StackDescriptor[] {
   let filenames: string[];
 
   try {
-    filenames = readdirSync(registryDir()).filter((name) => name.endsWith(".json"));
+    filenames = readdirSync(registryDir()).filter((name) =>
+      name.endsWith(".json"),
+    );
   } catch (error) {
     if (errorCode(error) === "ENOENT") {
       return [];
@@ -110,7 +118,9 @@ export function readDescriptors(): StackDescriptor[] {
   for (const filename of filenames) {
     try {
       descriptors.push(
-        JSON.parse(readFileSync(join(registryDir(), filename), "utf8")) as StackDescriptor,
+        JSON.parse(
+          readFileSync(join(registryDir(), filename), "utf8"),
+        ) as StackDescriptor,
       );
     } catch {
       // A malformed or concurrently removed descriptor must not hide live stacks.
@@ -132,17 +142,26 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
- * Whether a stack described by `descriptor` is still running. Requires both the
- * control process to be alive AND its devchain RPC to answer — a stack whose
- * control process died or whose chain stopped is treated as dead. Note: a stack
- * mid-boot (process up, chain not yet listening) reads as dead here; callers
- * that prune during startup must account for that (ADR 0020, Phase 2).
+ * Whether a described stack is still running. A live control process owns its
+ * descriptor throughout the startup grace period; afterward its chain RPC must
+ * also answer. A dead control process is always dead, even during the grace
+ * period, so crashed startups release their slots promptly (ADR 0020).
  */
 export async function isDescriptorAlive(
   descriptor: StackDescriptor,
 ): Promise<boolean> {
   if (!isProcessAlive(descriptor.controlPid)) {
     return false;
+  }
+
+  const startedAtMs = Date.parse(descriptor.startedAt);
+  const startupAgeMs = Date.now() - startedAtMs;
+  if (
+    Number.isFinite(startedAtMs) &&
+    startupAgeMs >= 0 &&
+    startupAgeMs < STACK_STARTUP_GRACE_MS
+  ) {
+    return true;
   }
 
   return isRpcReady(`http://127.0.0.1:${descriptor.chainPort}`);

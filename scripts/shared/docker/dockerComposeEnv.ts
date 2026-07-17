@@ -1,5 +1,7 @@
+import { BASE_DATABASE_NAME } from "../localStack/ports.ts";
+
 /** Compose project name shared by every local Pop Charts orchestrator. */
-export const COMPOSE_PROJECT_NAME = "popcharts";
+export const COMPOSE_PROJECT_NAME = BASE_DATABASE_NAME;
 
 /** Container name of the local Postgres started by docker-compose. */
 export const POSTGRES_CONTAINER_NAME = "popcharts-postgres";

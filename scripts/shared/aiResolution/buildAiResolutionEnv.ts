@@ -1,3 +1,4 @@
+import type { StackPorts } from "../localStack/ports.ts";
 import { localAiResolutionPort } from "./localAiResolutionEndpoint.ts";
 
 /**
@@ -7,12 +8,13 @@ import { localAiResolutionPort } from "./localAiResolutionEndpoint.ts";
  */
 export function buildAiResolutionEnv(
   serverEnv: NodeJS.ProcessEnv,
+  resources: StackPorts,
 ): NodeJS.ProcessEnv {
   return {
     ...serverEnv,
     AI_RESOLUTION_INTERNET_ACCESS:
       process.env.LOCAL_AI_RESOLUTION_INTERNET_ACCESS ?? "off",
-    AI_RESOLUTION_PORT: localAiResolutionPort,
+    AI_RESOLUTION_PORT: localAiResolutionPort(resources),
     AI_RESOLUTION_PROVIDER:
       process.env.LOCAL_AI_RESOLUTION_PROVIDER ?? "heuristic",
   };

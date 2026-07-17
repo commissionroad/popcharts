@@ -10,7 +10,7 @@ import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutio
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
-import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
+import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import {
   parsePregradDeploy,
@@ -33,11 +33,25 @@ import {
 } from "./shared/env/postgradEnv.ts";
 import {
   appLocalDevEnvFile,
-  localChainEnvFile,
   localDevIndexerHealthFile,
 } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
+import { classifyChainPortOwnership } from "./shared/localStack/classifyChainPortOwnership.ts";
+import { deriveInstanceId } from "./shared/localStack/identity.ts";
+import { isPortFree } from "./shared/localStack/isPortFree.ts";
+import {
+  deriveStackResources,
+  type StackPorts,
+} from "./shared/localStack/ports.ts";
+import { readSlotFromEnv } from "./shared/localStack/readSlotFromEnv.ts";
+import {
+  pruneDeadDescriptors,
+  removeDescriptor,
+  writeDescriptor,
+  type StackDescriptor,
+} from "./shared/localStack/registry.ts";
+import { resolveSlot } from "./shared/localStack/slot.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -56,14 +70,17 @@ import { waitFor } from "./shared/wait/waitFor.ts";
 const LOG_LABEL = "local-dev-control";
 const CONTROL_FILE = resolve(repoRoot, "local-dev.control-plane.yaml");
 const rpcHost = "127.0.0.1";
-const rpcPort = "8545";
-const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
-const apiPort = process.env.LOCAL_API_PORT ?? "3001";
-const appPort = process.env.LOCAL_APP_PORT ?? "3000";
+const resources = deriveStackResources(readSlotFromEnv());
+const rpcPort = String(resources.chainPort);
+const rpcHttpUrl = resources.chainRpcHttpUrl;
+const apiPort = String(resources.apiPort);
+const appPort = String(resources.appPort);
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const appBaseUrl = `http://127.0.0.1:${appPort}`;
-const aiReviewBaseUrl = localAiReviewBaseUrl;
-const aiResolutionBaseUrl = localAiResolutionBaseUrl;
+const aiReviewBaseUrl = localAiReviewBaseUrl(resources);
+const aiResolutionBaseUrl = localAiResolutionBaseUrl(resources);
+const localChainEnvFile = resources.envFilePath;
+const instanceId = deriveInstanceId(process.cwd(), resources.slot);
 
 const processComposeConfigDir = resolve(
   repoRoot,
@@ -147,6 +164,44 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
     throw new Error("--no-ai-review cannot be combined with --ai-review-only.");
   }
 
+  const cwd = process.cwd();
+  const liveDescriptors = await pruneDeadDescriptors();
+  const explicitSlot =
+    process.env.POPCHARTS_STACK_SLOT === undefined
+      ? undefined
+      : readSlotFromEnv(process.env);
+  const resolved = await resolveSlot({
+    cwd,
+    explicitSlot,
+    liveDescriptors,
+    isPortFree,
+  });
+  const resolvedResources = deriveStackResources(resolved.slot);
+  const resolvedInstanceId = deriveInstanceId(cwd, resolved.slot);
+  const descriptor: StackDescriptor = {
+    instanceId: resolvedInstanceId,
+    slot: resolved.slot,
+    kind: resolved.kind,
+    worktreePath: repoRoot,
+    chainPort: resolvedResources.chainPort,
+    chainId: resolvedResources.chainId,
+    apiPort: resolvedResources.apiPort,
+    appPort: resolvedResources.appPort,
+    reviewPort: resolvedResources.reviewPort,
+    resolutionPort: resolvedResources.resolutionPort,
+    pcAdminPort: resolvedResources.pcAdminPort,
+    dbName: resolvedResources.dbName,
+    envFilePath: resolvedResources.envFilePath,
+    deployAddressesPath: null,
+    controlPid: process.pid,
+    startedAt: new Date().toISOString(),
+  };
+  writeDescriptor(descriptor);
+  registerDescriptorCleanup(resolvedInstanceId);
+
+  process.env.POPCHARTS_STACK_SLOT = String(resolved.slot);
+  Object.assign(env, stackChildEnv(resolvedResources));
+
   mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
   mkdirSync(logsDir, { recursive: true });
@@ -160,7 +215,14 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
           ? ["database-log", "app"]
           : [];
 
-  const processArgs = ["-f", CONTROL_FILE, "up", ...selectedProcesses];
+  const processArgs = [
+    "--port",
+    String(resolvedResources.pcAdminPort),
+    "-f",
+    CONTROL_FILE,
+    "up",
+    ...selectedProcesses,
+  ];
 
   console.log("=== Pop Charts local dev control plane ===\n");
   console.log(
@@ -168,11 +230,44 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
       ? `[${LOG_LABEL}] starting ${selectedProcesses.join(", ")}`
       : `[${LOG_LABEL}] starting full stack`,
   );
+  console.log(
+    `[${LOG_LABEL}] slot ${resolved.slot} (${resolved.kind}) ` +
+      `chain:${resolvedResources.chainPort} api:${resolvedResources.apiPort} ` +
+      `app:${resolvedResources.appPort} db:${resolvedResources.dbName}`,
+  );
   console.log(`[${LOG_LABEL}] press ? in the TUI for keyboard help\n`);
 
   await inherit("process-compose", processArgs, {
     env: withProcessComposeHome(env),
   });
+}
+
+function stackChildEnv(stackResources: StackPorts): NodeJS.ProcessEnv {
+  return {
+    POPCHARTS_STACK_SLOT: String(stackResources.slot),
+    LOCAL_API_PORT: String(stackResources.apiPort),
+    LOCAL_APP_PORT: String(stackResources.appPort),
+    LOCAL_AI_REVIEW_PORT: String(stackResources.reviewPort),
+    LOCAL_AI_RESOLUTION_PORT: String(stackResources.resolutionPort),
+  };
+}
+
+function registerDescriptorCleanup(descriptorInstanceId: string): void {
+  const cleanup = (): void => {
+    try {
+      removeDescriptor(descriptorInstanceId);
+    } catch (error) {
+      console.warn(
+        `[${LOG_LABEL}] could not remove stack descriptor: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+    }
+  };
+
+  process.once("exit", cleanup);
+  process.once("SIGINT", cleanup);
+  process.once("SIGTERM", cleanup);
 }
 
 async function runInternal(name: string): Promise<void> {
@@ -255,7 +350,7 @@ Environment overrides:
   LOCAL_AI_RESOLUTION_PORT=3004
   LOCAL_AI_RESOLUTION_PROVIDER=heuristic
   LOCAL_AI_RESOLUTION_INTERNET_ACCESS=off
-  DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
+  DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${resources.dbName}`);
 }
 
 async function prepareDatabase(): Promise<void> {
@@ -263,35 +358,37 @@ async function prepareDatabase(): Promise<void> {
   ensureDependenciesInstalled();
   rmSync(localDevIndexerHealthFile, { force: true });
 
-  const reuseExistingHardhatRpc = await isRpcReady(rpcHttpUrl);
-  if (!reuseExistingHardhatRpc) {
+  await ensureLocalPostgres({
+    cwd: repoRoot,
+    dbName: resources.dbName,
+    expectedVolumeName: POSTGRES_VOLUME_NAME,
+    logLabel: LOG_LABEL,
+  });
+
+  const reuseExistingChainRpc = await canReuseChainPort();
+  if (!reuseExistingChainRpc) {
     // A fresh chain invalidates previously deployed addresses; drop the stale
     // generated env so review-runner waits for the new deployment instead of
     // signing transitions against contracts that no longer exist.
     rmSync(localChainEnvFile, { force: true });
   }
   if (
-    !reuseExistingHardhatRpc &&
+    !reuseExistingChainRpc &&
     process.env.POPCHARTS_LOCAL_DEV_KEEP_DB !== "true"
   ) {
     await resetLocalPostgresForFreshChain({
       cwd: repoRoot,
+      dbName: resources.dbName,
       logLabel: LOG_LABEL,
     });
-  } else if (!reuseExistingHardhatRpc) {
+  } else if (!reuseExistingChainRpc) {
     console.warn(
       `[${LOG_LABEL}] --keep-db was passed while starting a fresh Hardhat chain. ` +
         "Old local market rows may not match the new chain.",
     );
   }
 
-  await ensureLocalPostgres({
-    cwd: repoRoot,
-    expectedVolumeName: POSTGRES_VOLUME_NAME,
-    logLabel: LOG_LABEL,
-  });
-
-  const initialServerEnv = buildLocalServerEnv();
+  const initialServerEnv = buildLocalServerEnv(resources);
   await run(
     "db constraints",
     "bun",
@@ -320,7 +417,7 @@ async function chain(): Promise<void> {
   // Reuse an already-running Hardhat node (e.g. from another orchestrator)
   // and stay alive as its stand-in so process-compose keeps this pane; if
   // that external node dies, fail loudly instead of silently taking over.
-  if (await isRpcReady(rpcHttpUrl)) {
+  if (await canReuseChainPort()) {
     console.log(`[${LOG_LABEL}] using existing Hardhat RPC at ${rpcHttpUrl}`);
     while (await isRpcReady(rpcHttpUrl)) {
       await sleep(1_000);
@@ -342,6 +439,26 @@ async function chain(): Promise<void> {
     "--port",
     rpcPort,
   ]);
+}
+
+async function canReuseChainPort(): Promise<boolean> {
+  const isRpcResponding = await isRpcReady(rpcHttpUrl);
+  const liveDescriptors = isRpcResponding ? await pruneDeadDescriptors() : [];
+  const ownership = classifyChainPortOwnership({
+    chainPort: resources.chainPort,
+    instanceId,
+    isRpcResponding,
+    liveDescriptors,
+  });
+  if (ownership === "foreign-or-unknown") {
+    throw new Error(
+      `Port ${resources.chainPort} answers as a local chain RPC, but no live ` +
+        `descriptor for this instance (${instanceId}) owns it. A foreign or ` +
+        "unknown process holds the port; refusing to adopt it.",
+    );
+  }
+
+  return ownership === "this-instance";
 }
 
 async function deployContracts(): Promise<void> {
@@ -383,7 +500,7 @@ async function deployContracts(): Promise<void> {
   );
   const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
 
-  const serverEnv = buildLocalServerEnv({
+  const serverEnv = buildLocalServerEnv(resources, {
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
     postgradAdapterAddress: deploy.postgradAdapterAddress,
@@ -408,7 +525,7 @@ async function deployContracts(): Promise<void> {
 
 async function runReviewService(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review"], {
-    env: buildAiReviewEnv(buildLocalServerEnv()),
+    env: buildAiReviewEnv(buildLocalServerEnv(resources), resources),
   });
 }
 
@@ -425,13 +542,13 @@ async function runReviewRunner(): Promise<void> {
   );
 
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review-runner"], {
-    env: buildAiReviewRunnerEnv(readGeneratedServerEnv()),
+    env: buildAiReviewRunnerEnv(readGeneratedServerEnv(), resources),
   });
 }
 
 async function runResolutionService(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-resolution"], {
-    env: buildAiResolutionEnv(buildLocalServerEnv()),
+    env: buildAiResolutionEnv(buildLocalServerEnv(resources), resources),
   });
 }
 
@@ -448,7 +565,7 @@ async function runResolutionRunner(): Promise<void> {
   await inherit(
     "bun",
     ["run", "--cwd", "server", "start:ai-resolution-runner"],
-    { env: buildAiResolutionRunnerEnv(readGeneratedServerEnv()) },
+    { env: buildAiResolutionRunnerEnv(readGeneratedServerEnv(), resources) },
   );
 }
 
@@ -556,7 +673,7 @@ async function postgresReady(): Promise<boolean> {
       "-U",
       "postgres",
       "-d",
-      "popcharts",
+      resources.dbName,
       "-c",
       "select 1",
     ],
@@ -578,7 +695,8 @@ function buildAppEnv(deploy: PregradDeploy): Record<string, string> {
     NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
     POPCHARTS_DEVCHAIN_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
+      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
+      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
