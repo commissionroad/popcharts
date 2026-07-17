@@ -77,6 +77,14 @@ export async function resolveAndRegisterStack(
     LOCAL_APP_PORT: String(resources.appPort),
     LOCAL_AI_REVIEW_PORT: String(resources.reviewPort),
     LOCAL_AI_RESOLUTION_PORT: String(resources.resolutionPort),
+    // Protocol deploy scripts pick their chain from two different vars: the
+    // hardhat `localhost` network reads POPCHARTS_LOCAL_RPC_URL, while the
+    // deploy scripts' own viem clients read POPCHARTS_RPC_URL. Both default to
+    // :8545, so without pinning them here every `--network localhost` deploy
+    // (pregrad, venue, postgrad, demo) lands on slot 0's chain instead of this
+    // slot's. Scoped to local orchestrators, which only ever deploy locally.
+    POPCHARTS_LOCAL_RPC_URL: resources.chainRpcHttpUrl,
+    POPCHARTS_RPC_URL: resources.chainRpcHttpUrl,
   });
 
   return { slot, kind, instanceId, resources };
