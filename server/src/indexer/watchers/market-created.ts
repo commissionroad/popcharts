@@ -43,13 +43,20 @@ const watcher = createDynamicAddressWatcher({
       log: marketCreatedLog,
     });
 
-    await persistEventMetadata(records);
-
-    await db.transaction(async (tx) => {
-      await tx
+    // Gated on the event insert like every other projection: watermark
+    // replays are routine (each live creation is re-swept once), and an
+    // unconditional upsert would stamp markets.updatedAt — which graduation
+    // reads — on every replay of an old creation.
+    const freshInsert = await db.transaction(async (tx) => {
+      const inserted = await tx
         .insert(schema.marketCreatedEvents)
         .values(records.event)
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ id: schema.marketCreatedEvents.id });
+
+      if (!inserted[0]) {
+        return false;
+      }
 
       await tx
         .insert(schema.markets)
@@ -74,7 +81,13 @@ const watcher = createDynamicAddressWatcher({
             updatedAt: new Date(),
           },
         });
+
+      return true;
     });
+
+    if (freshInsert) {
+      await persistEventMetadata(records);
+    }
   },
   label: "MarketCreated",
   subject: "pregrad manager",

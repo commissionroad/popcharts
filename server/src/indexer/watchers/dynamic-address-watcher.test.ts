@@ -231,6 +231,59 @@ describe("recover", () => {
     expect(h.cursor()).toBe(null);
   });
 
+  it("sorts logs into chain order before processing and advancing watermarks", async () => {
+    // Deliberately reversed: eth_getLogs order is not guaranteed, and an
+    // out-of-order response must not advance the watermark past a log that
+    // has not been persisted yet.
+    const h = buildHarness({
+      logs: [transferLog(112n, 1), transferLog(112n, 0), transferLog(110n, 0)],
+    });
+
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    expect(
+      h.handled.map((log) => `${log.blockNumber}:${log.logIndex}`),
+    ).toEqual(["110:0", "112:0", "112:1"]);
+    expect(h.calls.filter((c) => c.startsWith("cursor:"))).toEqual([
+      "cursor:109",
+      "cursor:111",
+      "cursor:111",
+      "cursor:120",
+    ]);
+  });
+
+  it("chunks long ranges and resumes at the last completed chunk after a failure", async () => {
+    const h = buildHarness({
+      currentBlock: 25_000n,
+      logs: [transferLog(150n, 0), transferLog(15_000n, 0)],
+    });
+    // Chunk 1 (100–10099) persists its log; the chunk-2 log throws.
+    h.failHandleLogAt(1);
+
+    await expect(h.watcher.recover(h.client, 25_000n)).rejects.toThrow(
+      "db died",
+    );
+
+    // Chunk 1 completed, so the watermark holds at its end block — the
+    // failed chunk-2 log stays above it.
+    expect(h.calls.filter((c) => c.startsWith("getLogs:"))).toEqual([
+      "getLogs:100-10099",
+      "getLogs:10100-20099",
+    ]);
+    expect(h.cursor()).toBe(10_099n);
+
+    await h.watcher.recover(h.client, 25_000n);
+
+    expect(h.handled).toHaveLength(2);
+    expect(h.calls.filter((c) => c.startsWith("getLogs:"))).toEqual([
+      "getLogs:100-10099",
+      "getLogs:10100-20099",
+      "getLogs:10100-20099",
+      "getLogs:20100-25000",
+    ]);
+    expect(h.cursor()).toBe(25_000n);
+  });
+
   it("resolves a null startBlock through fallbackStartBlock on first recovery", async () => {
     const h = buildHarness({
       contracts: [{ address: TOKEN, startBlock: null }],

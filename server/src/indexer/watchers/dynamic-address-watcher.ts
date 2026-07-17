@@ -46,6 +46,12 @@ import {
  */
 
 const DISCOVERY_INTERVAL_MS = 15_000;
+// Max block span per eth_getLogs during a sweep, below common provider caps.
+const SWEEP_CHUNK_BLOCKS = 10_000n;
+
+function bigintMin(a: bigint, b: bigint) {
+  return a < b ? a : b;
+}
 
 /** One discovered contract the watcher follows. */
 export type WatchedContract = {
@@ -252,47 +258,73 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
     const addresses = group.map(
       (contract) => contract.address as `0x${string}`,
     );
-    const logs = await client.getLogs({
-      address: addresses,
-      events,
-      fromBlock,
-      toBlock: currentBlock,
-    });
 
-    if (!options.quiet) {
-      console.log(
-        `[${label}] ${addresses.join(",")}: found ${logs.length} historical events`,
-      );
-    }
-
-    for (const log of logs) {
-      const persisted = await processLog(client, log as DynamicWatcherLog);
-      // A skipped log parks the whole group below its block: no snapshot
-      // jump, so the next sweep re-fetches and retries it (see the module
-      // comment). Prior per-log advances stand — everything before this log
-      // was persisted.
-      if (!persisted) {
-        return;
-      }
-      // Trail the log's block by one: a crash here replays the whole block
-      // on the next sweep instead of skipping its remaining logs.
-      if (log.blockNumber !== null) {
-        await tracker.updateLastProcessedBlock(
-          log.address.toLowerCase(),
-          cursorName,
-          log.blockNumber - 1n,
-        );
-      }
-    }
-
-    // Only a completed pass may jump the watermarks to the sweep's snapshot,
-    // guaranteeing every fetched log was persisted first.
-    for (const contract of group) {
-      await tracker.updateLastProcessedBlock(
-        contract.address,
-        cursorName,
+    // Bounded ranges: RPC providers cap eth_getLogs spans and result sizes,
+    // and a first recovery (fresh deployment, consolidated cursor) may span
+    // deploy-to-head. Each completed chunk advances the watermarks, so a
+    // crash or cap-induced failure resumes at the last chunk boundary
+    // instead of retrying one oversized request forever.
+    for (
+      let chunkFrom = fromBlock;
+      chunkFrom <= currentBlock;
+      chunkFrom += SWEEP_CHUNK_BLOCKS
+    ) {
+      const chunkTo = bigintMin(
+        chunkFrom + SWEEP_CHUNK_BLOCKS - 1n,
         currentBlock,
       );
+      const logs = await client.getLogs({
+        address: addresses,
+        events,
+        fromBlock: chunkFrom,
+        toBlock: chunkTo,
+      });
+
+      if (!options.quiet && logs.length > 0) {
+        console.log(
+          `[${label}] ${addresses.join(",")}: found ${logs.length} historical events`,
+        );
+      }
+
+      // Watermark advances assume chain order; eth_getLogs responses are
+      // ordered in practice but not guaranteed, and handlers that wait on an
+      // earlier event (e.g. a fill on its OrderCreated) would park the sweep
+      // forever if its prerequisite sat later in the same response.
+      const ordered = [...logs].sort((a, b) =>
+        a.blockNumber !== b.blockNumber
+          ? Number(a.blockNumber! - b.blockNumber!)
+          : a.logIndex! - b.logIndex!,
+      );
+
+      for (const log of ordered) {
+        const persisted = await processLog(client, log as DynamicWatcherLog);
+        // A skipped log parks the whole group below its block: no snapshot
+        // jump, so the next sweep re-fetches and retries it (see the module
+        // comment). Prior per-log advances stand — everything before this
+        // log was persisted.
+        if (!persisted) {
+          return;
+        }
+        // Trail the log's block by one: a crash here replays the whole block
+        // on the next sweep instead of skipping its remaining logs.
+        if (log.blockNumber !== null) {
+          await tracker.updateLastProcessedBlock(
+            log.address.toLowerCase(),
+            cursorName,
+            log.blockNumber - 1n,
+          );
+        }
+      }
+
+      // Only a completed chunk may jump the watermarks to its end block,
+      // guaranteeing every fetched log was persisted first.
+      for (const contract of group) {
+        await tracker.updateLastProcessedBlock(
+          contract.address,
+          cursorName,
+          chunkTo,
+        );
+      }
     }
   }
 
