@@ -706,3 +706,15 @@ items to watch land next: reject-corroboration policy, resolution
 local-default flip, `AI_REVIEW_PROMPT_VERSION` eval-gate, template/LLM
 dataset expansion. (3) README 0016 "Track C open" row + ADR 0019 all-`[ ]`
 checklist remain raw-source lags to reconcile if either doc is next touched.
+
+## [2026-07-15] ingest | repo ADRs 0017+0014 — Track C grill decisions (two nightly suites)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~index.md
+Notes: Track C settled: nightly-lifecycle (service/chain layer for ALL
+lifecycle paths, heuristics + time-jumps, paper-trail assertions; ADR 0014
+is the scenario checklist and ticks in the same PRs — 0014's happy-path box
+amended from "asserting UI" to API/DB/on-chain, with five named Playwright
+@lifecycle UI journeys added as their own boxes) + nightly-ai-verdicts
+(executes ADR 0019's CI consistency lane, no UI). Per-suite tracking
+issues; Discord revisit noted; server-ai-review-smoke re-homed per-PR
+(placement rule). Cross-ADR watch: 0019's lane spec and 0017 C5 must not
+drift apart.
