@@ -176,14 +176,14 @@ reclaimed out from under it.
       env-file path.
 - [x] AI review / resolution endpoint helpers: slot offset.
 - [x] `local-dev.control-plane.yaml` and any port references it carries.
+- [x] All three local orchestrators (`local-dev-control.ts`, `local-dev.ts`,
+      and `local-chain-smoke.ts`) resolve and register a slot through the shared
+      `resolveAndRegisterStack` helper before starting their children.
 - [x] **Collapse the duplicated coordination constants.** `ports.ts` is the
-      single source of truth, but the same literals (`8545`, `3001`, `3000`,
-      `3002`, `3004`, `"popcharts"`) are still hardcoded in the two sibling
-      orchestrators `local-dev.ts` and `local-chain-smoke.ts`,
-      `buildLocalServerEnv.ts`, `resolveIndexerApiBaseUrl.ts`, the AI endpoint
-      helpers, and `ensureLocalPostgres.ts`/`dockerComposeEnv.ts`. Each must
-      import from `ports.ts` (or the slot-derived env) rather than redefine the
-      value, so a base port has exactly one definition.
+      single source of truth: every orchestrator and env/endpoint/database
+      helper now consumes resolved `StackPorts` (or the slot-derived env), so
+      the work is full slot-awareness rather than merely sourcing slot-0
+      constants from one file.
 
 ### Phase 3 — database-scoped isolation
 

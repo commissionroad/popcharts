@@ -18,7 +18,7 @@ import {
 } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { localChainEnvFileForSlot } from "./shared/env/localDevEnvFiles.ts";
-import { deriveStackResources } from "./shared/localStack/ports.ts";
+import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
@@ -44,7 +44,7 @@ const LOG_LABEL = "local-smoke";
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const keepRunning = args.includes("--keep-running");
 const helpRequested = args.includes("--help") || args.includes("-h");
-const resources = deriveStackResources(0);
+const { resources } = await resolveAndRegisterStack(process.cwd());
 const databaseUrl =
   process.env.DATABASE_URL ??
   `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`;

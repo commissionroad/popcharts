@@ -28,11 +28,10 @@ import {
 } from "./shared/env/postgradEnv.ts";
 import {
   appLocalDevEnvFile,
-  localChainEnvFile,
   localDevIndexerHealthFile,
 } from "./shared/env/localDevEnvFiles.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
-import { deriveStackResources } from "./shared/localStack/ports.ts";
+import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -59,7 +58,7 @@ const noAiReview = args.includes("--no-ai-review");
 const aiReviewEnabled = aiReviewOnly || !noAiReview;
 const keepDb = args.includes("--keep-db");
 const noPostgrad = args.includes("--no-postgrad");
-const resources = deriveStackResources(0);
+const { resources } = await resolveAndRegisterStack(process.cwd());
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -327,7 +326,7 @@ async function main(): Promise<void> {
     console.log("- Postgrad venue: skipped (--no-postgrad)");
   }
   console.log(`- App env: ${appLocalDevEnvFile}`);
-  console.log(`- Server env: ${localChainEnvFile}`);
+  console.log(`- Server env: ${resources.envFilePath}`);
   console.log(
     "\nPress Ctrl-C to stop API, indexer, app, AI review, and local chain.",
   );
@@ -551,7 +550,7 @@ function writeServerEnv(
     "",
   ];
 
-  writeFileSync(localChainEnvFile, lines.join("\n"));
+  writeFileSync(resources.envFilePath, lines.join("\n"));
 }
 
 async function run(

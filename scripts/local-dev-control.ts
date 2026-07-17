@@ -39,19 +39,10 @@ import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
 import { classifyChainPortOwnership } from "./shared/localStack/classifyChainPortOwnership.ts";
 import { deriveInstanceId } from "./shared/localStack/identity.ts";
-import { isPortFree } from "./shared/localStack/isPortFree.ts";
-import {
-  deriveStackResources,
-  type StackPorts,
-} from "./shared/localStack/ports.ts";
+import { deriveStackResources } from "./shared/localStack/ports.ts";
 import { readSlotFromEnv } from "./shared/localStack/readSlotFromEnv.ts";
-import {
-  pruneDeadDescriptors,
-  removeDescriptor,
-  writeDescriptor,
-  type StackDescriptor,
-} from "./shared/localStack/registry.ts";
-import { resolveSlot } from "./shared/localStack/slot.ts";
+import { pruneDeadDescriptors } from "./shared/localStack/registry.ts";
+import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -70,6 +61,7 @@ import { waitFor } from "./shared/wait/waitFor.ts";
 const LOG_LABEL = "local-dev-control";
 const CONTROL_FILE = resolve(repoRoot, "local-dev.control-plane.yaml");
 const rpcHost = "127.0.0.1";
+// Internal commands see the inherited slot; startControlPlane resolves its own fresh claim.
 const resources = deriveStackResources(readSlotFromEnv());
 const rpcPort = String(resources.chainPort);
 const rpcHttpUrl = resources.chainRpcHttpUrl;
@@ -139,13 +131,13 @@ if (command !== undefined && internalCommands.has(command)) {
 
 async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
   const passthrough: string[] = [];
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  let keepDb = false;
   let noAiReview = false;
   let aiReviewOnly = false;
 
   for (const arg of rawArgs) {
     if (arg === "--keep-db") {
-      env.POPCHARTS_LOCAL_DEV_KEEP_DB = "true";
+      keepDb = true;
     } else if (arg === "--no-ai-review") {
       noAiReview = true;
     } else if (arg === "--ai-review-only") {
@@ -164,43 +156,16 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
     throw new Error("--no-ai-review cannot be combined with --ai-review-only.");
   }
 
-  const cwd = process.cwd();
-  const liveDescriptors = await pruneDeadDescriptors();
-  const explicitSlot =
-    process.env.POPCHARTS_STACK_SLOT === undefined
-      ? undefined
-      : readSlotFromEnv(process.env);
-  const resolved = await resolveSlot({
-    cwd,
-    explicitSlot,
-    liveDescriptors,
-    isPortFree,
-  });
-  const resolvedResources = deriveStackResources(resolved.slot);
-  const resolvedInstanceId = deriveInstanceId(cwd, resolved.slot);
-  const descriptor: StackDescriptor = {
+  const {
+    slot,
+    kind,
+    resources: resolvedResources,
     instanceId: resolvedInstanceId,
-    slot: resolved.slot,
-    kind: resolved.kind,
-    worktreePath: repoRoot,
-    chainPort: resolvedResources.chainPort,
-    chainId: resolvedResources.chainId,
-    apiPort: resolvedResources.apiPort,
-    appPort: resolvedResources.appPort,
-    reviewPort: resolvedResources.reviewPort,
-    resolutionPort: resolvedResources.resolutionPort,
-    pcAdminPort: resolvedResources.pcAdminPort,
-    dbName: resolvedResources.dbName,
-    envFilePath: resolvedResources.envFilePath,
-    deployAddressesPath: null,
-    controlPid: process.pid,
-    startedAt: new Date().toISOString(),
-  };
-  writeDescriptor(descriptor);
-  registerDescriptorCleanup(resolvedInstanceId);
-
-  process.env.POPCHARTS_STACK_SLOT = String(resolved.slot);
-  Object.assign(env, stackChildEnv(resolvedResources));
+  } = await resolveAndRegisterStack(process.cwd());
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (keepDb) {
+    env.POPCHARTS_LOCAL_DEV_KEEP_DB = "true";
+  }
 
   mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
@@ -231,7 +196,7 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
       : `[${LOG_LABEL}] starting full stack`,
   );
   console.log(
-    `[${LOG_LABEL}] slot ${resolved.slot} (${resolved.kind}) ` +
+    `[${LOG_LABEL}] slot ${slot} (${kind}) ` +
       `chain:${resolvedResources.chainPort} api:${resolvedResources.apiPort} ` +
       `app:${resolvedResources.appPort} db:${resolvedResources.dbName}`,
   );
@@ -240,34 +205,6 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
   await inherit("process-compose", processArgs, {
     env: withProcessComposeHome(env),
   });
-}
-
-function stackChildEnv(stackResources: StackPorts): NodeJS.ProcessEnv {
-  return {
-    POPCHARTS_STACK_SLOT: String(stackResources.slot),
-    LOCAL_API_PORT: String(stackResources.apiPort),
-    LOCAL_APP_PORT: String(stackResources.appPort),
-    LOCAL_AI_REVIEW_PORT: String(stackResources.reviewPort),
-    LOCAL_AI_RESOLUTION_PORT: String(stackResources.resolutionPort),
-  };
-}
-
-function registerDescriptorCleanup(descriptorInstanceId: string): void {
-  const cleanup = (): void => {
-    try {
-      removeDescriptor(descriptorInstanceId);
-    } catch (error) {
-      console.warn(
-        `[${LOG_LABEL}] could not remove stack descriptor: ${
-          error instanceof Error ? error.message : error
-        }`,
-      );
-    }
-  };
-
-  process.once("exit", cleanup);
-  process.once("SIGINT", cleanup);
-  process.once("SIGTERM", cleanup);
 }
 
 async function runInternal(name: string): Promise<void> {
