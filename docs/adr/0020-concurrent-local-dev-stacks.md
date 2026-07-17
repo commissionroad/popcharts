@@ -166,31 +166,34 @@ reclaimed out from under it.
 
 ### Phase 2 — wire the slot through the control plane
 
-- [ ] `local-dev-control.ts`: derive chain port, admin port, and env from the
+- [x] `local-dev-control.ts`: derive chain port, admin port, and env from the
       resolved slot; write and remove the registry descriptor around the run.
-- [ ] Replace silent RPC reuse in `chain()` / `prepareDatabase()` with the
+- [x] Replace silent RPC reuse in `chain()` / `prepareDatabase()` with the
       identity check (reuse only this instance's chain; fail loudly on a
       foreign one).
-- [ ] `buildLocalServerEnv.ts`, `localDevEnvFiles.ts`,
+- [x] `buildLocalServerEnv.ts`, `localDevEnvFiles.ts`,
       `resolveIndexerApiBaseUrl.ts`: slot-scoped RPC URL, DB URL, ports, and
       env-file path.
-- [ ] AI review / resolution endpoint helpers: slot offset.
-- [ ] `local-dev.control-plane.yaml` and any port references it carries.
-- [ ] **Collapse the duplicated coordination constants.** `ports.ts` is the
-      single source of truth, but the same literals (`8545`, `3001`, `3000`,
-      `3002`, `3004`, `"popcharts"`) are still hardcoded in the two sibling
-      orchestrators `local-dev.ts` and `local-chain-smoke.ts`,
-      `buildLocalServerEnv.ts`, `resolveIndexerApiBaseUrl.ts`, the AI endpoint
-      helpers, and `ensureLocalPostgres.ts`/`dockerComposeEnv.ts`. Each must
-      import from `ports.ts` (or the slot-derived env) rather than redefine the
-      value, so a base port has exactly one definition.
+- [x] AI review / resolution endpoint helpers: slot offset.
+- [x] `local-dev.control-plane.yaml` and any port references it carries.
+- [x] All three local orchestrators (`local-dev-control.ts`, `local-dev.ts`,
+      and `local-chain-smoke.ts`) resolve and register a slot through the shared
+      `resolveAndRegisterStack` helper before starting their children.
+- [x] **Collapse the duplicated coordination constants.** `ports.ts` is the
+      single source of truth: every orchestrator and env/endpoint/database
+      helper now consumes resolved `StackPorts` (or the slot-derived env), so
+      the work is full slot-awareness rather than merely sourcing slot-0
+      constants from one file.
 
 ### Phase 3 — database-scoped isolation
 
-- [ ] `ensureLocalPostgres.ts`: ensure the slot's database exists inside the
+- [x] `ensureLocalPostgres.ts`: ensure the slot's database exists inside the
       shared container.
-- [ ] `resetLocalPostgresForFreshChain.ts`: drop/recreate only the slot's
+- [x] `resetLocalPostgresForFreshChain.ts`: drop/recreate only the slot's
       database; never remove the container or its volumes.
+
+Phases 2 and 3 were implemented together on 2026-07-17 so the control plane
+never points a derived slot at the legacy shared database-reset behavior.
 
 ### Phase 4 — stack-aware scripts
 

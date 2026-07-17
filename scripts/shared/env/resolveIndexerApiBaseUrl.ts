@@ -1,4 +1,5 @@
-const DEFAULT_API_PORT = "3001";
+import { deriveStackResources } from "../localStack/ports.ts";
+import { readSlotFromEnv } from "../localStack/readSlotFromEnv.ts";
 
 /**
  * Resolves the local indexer API base URL the same way the local dev stack
@@ -13,6 +14,10 @@ export function resolveIndexerApiBaseUrl(
     explicitUrl ??
     env.POPCHARTS_INDEXER_API_URL ??
     env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ??
-    `http://127.0.0.1:${env.LOCAL_API_PORT ?? env.PORT ?? DEFAULT_API_PORT}`
+    `http://127.0.0.1:${
+      env.LOCAL_API_PORT ??
+      env.PORT ??
+      deriveStackResources(readSlotFromEnv(env)).apiPort
+    }`
   );
 }

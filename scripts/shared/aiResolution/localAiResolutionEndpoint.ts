@@ -1,9 +1,19 @@
-/** Port the local AI resolution service listens on (LOCAL_AI_RESOLUTION_PORT, default 3004). */
-export const localAiResolutionPort: string =
-  process.env.LOCAL_AI_RESOLUTION_PORT ?? "3004";
+import type { StackPorts } from "../localStack/ports.ts";
 
 /**
- * Base URL of the local AI resolution service, used both to configure the
- * runner (AI_RESOLUTION_SERVICE_URL) and to poll `/ready` during startup.
+ * Resolves the resolution service port for a stack, preserving an explicit
+ * local override while otherwise using the slot-derived resource (ADR 0020).
  */
-export const localAiResolutionBaseUrl = `http://127.0.0.1:${localAiResolutionPort}`;
+export function localAiResolutionPort(resources: StackPorts): string {
+  return (
+    process.env.LOCAL_AI_RESOLUTION_PORT ?? String(resources.resolutionPort)
+  );
+}
+
+/**
+ * Resolves the resolution service base URL used by runners and readiness
+ * probes from the same slot resource that configures the listener (ADR 0020).
+ */
+export function localAiResolutionBaseUrl(resources: StackPorts): string {
+  return `http://127.0.0.1:${localAiResolutionPort(resources)}`;
+}

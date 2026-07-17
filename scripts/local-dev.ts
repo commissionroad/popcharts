@@ -7,7 +7,7 @@ import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
-import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
+import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import {
   parsePregradDeploy,
@@ -28,10 +28,10 @@ import {
 } from "./shared/env/postgradEnv.ts";
 import {
   appLocalDevEnvFile,
-  localChainEnvFile,
   localDevIndexerHealthFile,
 } from "./shared/env/localDevEnvFiles.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
+import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { appDir, protocolDir, repoRoot, serverDir } from "./shared/paths.ts";
@@ -58,18 +58,19 @@ const noAiReview = args.includes("--no-ai-review");
 const aiReviewEnabled = aiReviewOnly || !noAiReview;
 const keepDb = args.includes("--keep-db");
 const noPostgrad = args.includes("--no-postgrad");
+const { resources } = await resolveAndRegisterStack(process.cwd());
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5433/popcharts";
+  `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`;
 const rpcHost = "127.0.0.1";
-const rpcPort = "8545";
-const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
-const apiPort = process.env.LOCAL_API_PORT ?? "3001";
-const appPort = process.env.LOCAL_APP_PORT ?? "3000";
+const rpcPort = String(resources.chainPort);
+const rpcHttpUrl = resources.chainRpcHttpUrl;
+const apiPort = process.env.LOCAL_API_PORT ?? String(resources.apiPort);
+const appPort = process.env.LOCAL_APP_PORT ?? String(resources.appPort);
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const appBaseUrl = `http://127.0.0.1:${appPort}`;
-const aiReviewBaseUrl = localAiReviewBaseUrl;
+const aiReviewBaseUrl = localAiReviewBaseUrl(resources);
 
 const supervisor = createProcessSupervisor({
   cwd: repoRoot,
@@ -110,26 +111,28 @@ async function main(): Promise<void> {
   // Reusing a live Hardhat RPC keeps existing chain state, so the database
   // rows still match. A fresh chain invalidates old rows unless --keep-db
   // explicitly accepts the mismatch.
-  const reuseExistingHardhatRpc = !aiReviewOnly && (await rpcReady());
-  if (!aiReviewOnly && !reuseExistingHardhatRpc && !keepDb) {
+  const reuseExistingChainRpc = !aiReviewOnly && (await rpcReady());
+  await ensureLocalPostgres({
+    cwd: repoRoot,
+    dbName: resources.dbName,
+    expectedVolumeName: POSTGRES_VOLUME_NAME,
+    logLabel: LOG_LABEL,
+  });
+
+  if (!aiReviewOnly && !reuseExistingChainRpc && !keepDb) {
     await resetLocalPostgresForFreshChain({
       cwd: repoRoot,
+      dbName: resources.dbName,
       logLabel: LOG_LABEL,
     });
-  } else if (!aiReviewOnly && !reuseExistingHardhatRpc && keepDb) {
+  } else if (!aiReviewOnly && !reuseExistingChainRpc && keepDb) {
     console.warn(
       "[local-dev] --keep-db was passed while starting a fresh Hardhat chain. " +
         "Old local market rows may not match the new chain.",
     );
   }
 
-  await ensureLocalPostgres({
-    cwd: repoRoot,
-    expectedVolumeName: POSTGRES_VOLUME_NAME,
-    logLabel: LOG_LABEL,
-  });
-
-  const initialServerEnv = buildLocalServerEnv();
+  const initialServerEnv = buildLocalServerEnv(resources);
   await run(
     "db constraints",
     "bun",
@@ -158,11 +161,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  let hardhatNode: SupervisedProcess | null = null;
-  if (reuseExistingHardhatRpc) {
+  let localChainNode: SupervisedProcess | null = null;
+  if (reuseExistingChainRpc) {
     console.log(`[local-dev] using existing Hardhat RPC at ${rpcHttpUrl}`);
   } else {
-    hardhatNode = supervisor.start("hardhat", "pnpm", [
+    localChainNode = supervisor.start("chain", "pnpm", [
       "--dir",
       "protocol",
       "exec",
@@ -176,7 +179,7 @@ async function main(): Promise<void> {
   }
 
   await waitForWithProcesses("Hardhat RPC", () => rpcReady(), {
-    processes: hardhatNode ? [hardhatNode] : [],
+    processes: localChainNode ? [localChainNode] : [],
     timeoutMs: 45_000,
   });
 
@@ -192,7 +195,7 @@ async function main(): Promise<void> {
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
   const serverEnv = {
-    ...buildLocalServerEnv({
+    ...buildLocalServerEnv(resources, {
       collateralAddress: deploy.collateralAddress,
       deployBlock: deploy.deployBlock,
       postgradAdapterAddress: deploy.postgradAdapterAddress,
@@ -282,7 +285,7 @@ async function main(): Promise<void> {
         indexer,
         app,
         ...aiReviewProcesses,
-        ...(hardhatNode ? [hardhatNode] : []),
+        ...(localChainNode ? [localChainNode] : []),
       ],
       timeoutMs: 120_000,
     },
@@ -323,7 +326,7 @@ async function main(): Promise<void> {
     console.log("- Postgrad venue: skipped (--no-postgrad)");
   }
   console.log(`- App env: ${appLocalDevEnvFile}`);
-  console.log(`- Server env: ${localChainEnvFile}`);
+  console.log(`- Server env: ${resources.envFilePath}`);
   console.log(
     "\nPress Ctrl-C to stop API, indexer, app, AI review, and local chain.",
   );
@@ -333,7 +336,7 @@ async function main(): Promise<void> {
     indexer,
     app,
     ...aiReviewProcesses,
-    ...(hardhatNode ? [hardhatNode] : []),
+    ...(localChainNode ? [localChainNode] : []),
   ]);
 }
 
@@ -372,7 +375,7 @@ Environment overrides:
   LOCAL_AI_REVIEW_RUNNER_LEASE_MS=600000
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true
   LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
-  DATABASE_URL=postgresql://postgres:postgres@localhost:5433/popcharts`);
+  DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${resources.dbName}`);
 }
 
 function rejectUnknownArgs(): void {
@@ -431,7 +434,7 @@ async function startAiReviewStack(
     "bun",
     ["run", "--cwd", "server", "start:ai-review"],
     {
-      env: buildAiReviewEnv(serverEnv),
+      env: buildAiReviewEnv(serverEnv, resources),
     },
   );
 
@@ -449,7 +452,7 @@ async function startAiReviewStack(
     "bun",
     ["run", "--cwd", "server", "start:ai-review-runner"],
     {
-      env: buildAiReviewRunnerEnv(serverEnv),
+      env: buildAiReviewRunnerEnv(serverEnv, resources),
     },
   );
 
@@ -510,7 +513,8 @@ function buildAppEnv(
     NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
     POPCHARTS_DEVCHAIN_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
+      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
+      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
@@ -546,7 +550,7 @@ function writeServerEnv(
     "",
   ];
 
-  writeFileSync(localChainEnvFile, lines.join("\n"));
+  writeFileSync(resources.envFilePath, lines.join("\n"));
 }
 
 async function run(

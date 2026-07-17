@@ -3,6 +3,9 @@ import { afterEach, describe, it } from "node:test";
 
 import { buildAiReviewEnv } from "../shared/aiReview/buildAiReviewEnv.ts";
 import { buildAiReviewRunnerEnv } from "../shared/aiReview/buildAiReviewRunnerEnv.ts";
+import { deriveStackResources } from "../shared/localStack/ports.ts";
+
+const resources = deriveStackResources(0);
 
 const OVERRIDES = [
   "LOCAL_AI_REVIEW_TIMEOUT_MS",
@@ -19,8 +22,8 @@ afterEach(() => {
 
 describe("local AI review timing", () => {
   it("keeps the model budget below the runner timeout and job lease", () => {
-    const service = buildAiReviewEnv({});
-    const runner = buildAiReviewRunnerEnv({});
+    const service = buildAiReviewEnv({}, resources);
+    const runner = buildAiReviewRunnerEnv({}, resources);
 
     assert.equal(service.AI_REVIEW_TIMEOUT_MS, "300000");
     assert.equal(service.AI_REVIEW_FALLBACK_APPROVE, "false");
@@ -35,8 +38,8 @@ describe("local AI review timing", () => {
     process.env.LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS = "180000";
     process.env.LOCAL_AI_REVIEW_RUNNER_LEASE_MS = "240000";
 
-    const service = buildAiReviewEnv({});
-    const runner = buildAiReviewRunnerEnv({});
+    const service = buildAiReviewEnv({}, resources);
+    const runner = buildAiReviewRunnerEnv({}, resources);
 
     assert.equal(service.AI_REVIEW_TIMEOUT_MS, "120000");
     assert.equal(service.AI_REVIEW_RETRY_PROVIDER_FAILURES, "false");

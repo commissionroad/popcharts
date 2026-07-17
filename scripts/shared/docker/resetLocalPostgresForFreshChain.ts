@@ -1,56 +1,55 @@
+import { assertLocalStackDatabaseName } from "../localStack/assertLocalStackDatabaseName.ts";
 import { collectCommand } from "../process/collectCommand.ts";
-import { dockerContainerExists } from "./dockerContainerExists.ts";
-import { dockerContainerVolumeNames } from "./dockerContainerVolumeNames.ts";
-import { dockerVolumeExists } from "./dockerVolumeExists.ts";
-import {
-  POSTGRES_CONTAINER_NAME,
-  POSTGRES_VOLUME_NAME,
-} from "./dockerComposeEnv.ts";
-import { removeDockerContainerAndVolumes } from "./removeDockerContainerAndVolumes.ts";
+import { POSTGRES_CONTAINER_NAME } from "./dockerComposeEnv.ts";
 
 /**
- * Clears the local Postgres container and its data volumes so the database
- * projection matches a freshly started Hardhat chain instead of retaining
- * market rows from a previous chain. Also removes the canonical
- * `popcharts_postgres_data` volume even when no container mounts it, because
- * Compose would otherwise silently reattach the stale data on the next up.
+ * Recreates only one stack's database so its projection matches a fresh local
+ * chain without disturbing databases owned by concurrent stacks (ADR 0020).
+ * Slot 0 intentionally changes from the legacy container-and-volume removal
+ * to the same database-scoped drop used by every other slot.
  */
 export async function resetLocalPostgresForFreshChain(options: {
   readonly cwd: string;
+  readonly dbName: string;
   readonly logLabel: string;
 }): Promise<void> {
+  assertLocalStackDatabaseName(options.dbName);
+
   console.log(
-    `[${options.logLabel}] no existing Hardhat RPC; clearing local Postgres so the projection matches the fresh chain`,
+    `[${options.logLabel}] no existing local RPC; recreating database ${options.dbName} for the fresh chain`,
   );
 
-  const mountedVolumes = await dockerContainerVolumeNames(
-    POSTGRES_CONTAINER_NAME,
-    { cwd: options.cwd },
+  await runSql(
+    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${options.dbName}' AND pid <> pg_backend_pid()`,
+    options,
   );
-
-  if (await dockerContainerExists(POSTGRES_CONTAINER_NAME, { cwd: options.cwd })) {
-    await removeDockerContainerAndVolumes(POSTGRES_CONTAINER_NAME, options);
-  }
-
-  for (const volumeName of new Set([...mountedVolumes, POSTGRES_VOLUME_NAME])) {
-    await removeVolumeIfExists(volumeName, options);
-  }
+  await runSql(`DROP DATABASE IF EXISTS "${options.dbName}"`, options);
+  await runSql(`CREATE DATABASE "${options.dbName}"`, options);
 }
 
-async function removeVolumeIfExists(
-  volumeName: string,
+async function runSql(
+  sql: string,
   options: { readonly cwd: string; readonly logLabel: string },
 ): Promise<void> {
-  if (!(await dockerVolumeExists(volumeName, { cwd: options.cwd }))) {
-    return;
-  }
-
-  console.log(
-    `[${options.logLabel}] removing stale Docker volume ${volumeName}`,
+  await collectCommand(
+    "docker",
+    [
+      "exec",
+      POSTGRES_CONTAINER_NAME,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      sql,
+    ],
+    {
+      cwd: options.cwd,
+      echoPrefix: "postgres",
+      rejectOnFailure: true,
+    },
   );
-  await collectCommand("docker", ["volume", "rm", "-f", volumeName], {
-    cwd: options.cwd,
-    echoPrefix: "postgres",
-    rejectOnFailure: true,
-  });
 }

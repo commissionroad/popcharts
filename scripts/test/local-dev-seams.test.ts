@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 
 import { buildLocalServerEnv } from "../shared/env/buildLocalServerEnv.ts";
 import { parsePregradDeploy } from "../shared/deployments/pregradDeploy.ts";
+import { deriveStackResources } from "../shared/localStack/ports.ts";
 
 // A LOCAL_CHAIN_SMOKE_DEPLOY line as protocol/scripts/deploy-local-pregrad.ts
 // emits it (recorded from a real run). local-dev.ts, local-dev-control.ts, and
@@ -41,8 +42,7 @@ describe("parsePregradDeploy", function () {
 
   it("rejects payloads missing the fields it promises", function () {
     assert.throws(
-      () =>
-        parsePregradDeploy(DEPLOY_LINE.replace('"chainId":31337,', "")),
+      () => parsePregradDeploy(DEPLOY_LINE.replace('"chainId":31337,', "")),
       /chainId/,
     );
     assert.throws(
@@ -55,7 +55,10 @@ describe("parsePregradDeploy", function () {
     assert.throws(
       () =>
         parsePregradDeploy(
-          DEPLOY_LINE.replace(/"pregradManagerAddress":"0x[0-9a-f]+"/, '"pregradManagerAddress":"0x1234"'),
+          DEPLOY_LINE.replace(
+            /"pregradManagerAddress":"0x[0-9a-f]+"/,
+            '"pregradManagerAddress":"0x1234"',
+          ),
         ),
       /pregradManagerAddress/,
     );
@@ -67,14 +70,22 @@ describe("parsePregradDeploy", function () {
       /postgradAdapterAddress/,
     );
     assert.throws(
-      () => parsePregradDeploy(DEPLOY_LINE.replace('"deployBlock":"30"', '"deployBlock":30')),
+      () =>
+        parsePregradDeploy(
+          DEPLOY_LINE.replace('"deployBlock":"30"', '"deployBlock":30'),
+        ),
       /deployBlock/,
     );
   });
 });
 
 describe("buildLocalServerEnv", function () {
-  const managedKeys = ["DATABASE_URL", "LOCAL_API_PORT", "POPCHARTS_DEVCHAIN_PRIVATE_KEY"];
+  const resources = deriveStackResources(0);
+  const managedKeys = [
+    "DATABASE_URL",
+    "LOCAL_API_PORT",
+    "POPCHARTS_DEVCHAIN_PRIVATE_KEY",
+  ];
   const savedEnv = new Map(managedKeys.map((key) => [key, process.env[key]]));
 
   afterEach(function () {
@@ -92,7 +103,7 @@ describe("buildLocalServerEnv", function () {
     delete process.env.LOCAL_API_PORT;
 
     const deploy = parsePregradDeploy(DEPLOY_OUTPUT);
-    const env = buildLocalServerEnv({
+    const env = buildLocalServerEnv(resources, {
       collateralAddress: deploy.collateralAddress,
       deployBlock: deploy.deployBlock,
       pregradManagerAddress: deploy.pregradManagerAddress,
@@ -115,7 +126,7 @@ describe("buildLocalServerEnv", function () {
   });
 
   it("leaves addresses blank before deployment so db:push can run", function () {
-    const env = buildLocalServerEnv();
+    const env = buildLocalServerEnv(resources);
 
     assert.equal(env.PREGRAD_MANAGER_ADDRESS, "");
     assert.equal(env.LOCAL_COLLATERAL_ADDRESS, "");
@@ -126,9 +137,25 @@ describe("buildLocalServerEnv", function () {
     process.env.DATABASE_URL = "postgresql://elsewhere:5555/scratch";
     process.env.LOCAL_API_PORT = "3101";
 
-    const env = buildLocalServerEnv();
+    const env = buildLocalServerEnv(resources);
 
     assert.equal(env.DATABASE_URL, "postgresql://elsewhere:5555/scratch");
     assert.equal(env.PORT, "3101");
+  });
+
+  it("derives every network and database value from a nonzero slot", function () {
+    delete process.env.DATABASE_URL;
+    delete process.env.LOCAL_API_PORT;
+
+    const env = buildLocalServerEnv(deriveStackResources(2));
+
+    assert.equal(env.RPC_HTTP_URL, "http://127.0.0.1:8565");
+    assert.equal(env.RPC_WSS_URL, "ws://127.0.0.1:8565");
+    assert.equal(env.PORT, "3021");
+    assert.equal(
+      env.DATABASE_URL,
+      "postgresql://postgres:postgres@localhost:5433/popcharts_2",
+    );
+    assert.equal(env.AI_REVIEW_SERVICE_URL, "http://127.0.0.1:3022");
   });
 });

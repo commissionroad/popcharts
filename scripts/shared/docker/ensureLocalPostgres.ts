@@ -1,3 +1,4 @@
+import { assertLocalStackDatabaseName } from "../localStack/assertLocalStackDatabaseName.ts";
 import { waitFor } from "../wait/waitFor.ts";
 import { collectCommand } from "../process/collectCommand.ts";
 import { commandSucceeds } from "../process/commandSucceeds.ts";
@@ -10,8 +11,9 @@ import {
 import { removeDockerContainerAndVolumes } from "./removeDockerContainerAndVolumes.ts";
 
 /**
- * Starts the local Postgres container and waits until it accepts
- * connections. Reuses the deterministically named `popcharts-postgres`
+ * Starts the shared local Postgres container, creates the requested stack
+ * database when absent, and waits until that database accepts connections.
+ * Reuses the deterministically named `popcharts-postgres`
  * container when one exists (it may have been created by another worktree);
  * otherwise asks Compose to create it under the shared project name.
  * When `expectedVolumeName` is set, a container that does not mount that
@@ -22,6 +24,7 @@ import { removeDockerContainerAndVolumes } from "./removeDockerContainerAndVolum
  */
 export async function ensureLocalPostgres(options: {
   readonly cwd: string;
+  readonly dbName: string;
   readonly expectedVolumeName?: string;
   readonly logLabel: string;
 }): Promise<void> {
@@ -40,24 +43,9 @@ export async function ensureLocalPostgres(options: {
         echoPrefix: "postgres",
         rejectOnFailure: true,
       });
-      await waitFor(
-        "Postgres readiness",
-        () =>
-          commandSucceeds(
-            "docker",
-            [
-              "exec",
-              POSTGRES_CONTAINER_NAME,
-              "pg_isready",
-              "-U",
-              "postgres",
-              "-d",
-              "popcharts",
-            ],
-            { cwd: options.cwd },
-          ),
-        { logLabel: options.logLabel },
-      );
+      await waitForPostgresServer(options);
+      await ensureDatabaseExists(options);
+      await waitForDatabase(options);
       return;
     }
 
@@ -78,23 +66,95 @@ export async function ensureLocalPostgres(options: {
     env: dockerComposeEnv(),
     rejectOnFailure: true,
   });
+  await waitForPostgresServer(options);
+  await ensureDatabaseExists(options);
+  await waitForDatabase(options);
+}
+
+type PostgresOptions = {
+  readonly cwd: string;
+  readonly dbName: string;
+  readonly logLabel: string;
+};
+
+async function waitForPostgresServer(options: PostgresOptions): Promise<void> {
   await waitFor(
-    "Postgres readiness",
+    "Postgres server readiness",
     () =>
       commandSucceeds(
         "docker",
         [
-          "compose",
           "exec",
-          "-T",
-          "postgres",
+          POSTGRES_CONTAINER_NAME,
           "pg_isready",
           "-U",
           "postgres",
           "-d",
-          "popcharts",
+          "postgres",
         ],
-        { cwd: options.cwd, env: dockerComposeEnv() },
+        { cwd: options.cwd },
+      ),
+    { logLabel: options.logLabel },
+  );
+}
+
+async function ensureDatabaseExists(options: PostgresOptions): Promise<void> {
+  assertLocalStackDatabaseName(options.dbName);
+  const result = await collectCommand(
+    "docker",
+    [
+      "exec",
+      POSTGRES_CONTAINER_NAME,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-tAc",
+      `SELECT 1 FROM pg_database WHERE datname = '${options.dbName}'`,
+    ],
+    { cwd: options.cwd, rejectOnFailure: true },
+  );
+  if (result.stdout.trim() === "1") {
+    return;
+  }
+
+  await collectCommand(
+    "docker",
+    [
+      "exec",
+      POSTGRES_CONTAINER_NAME,
+      "createdb",
+      "-U",
+      "postgres",
+      options.dbName,
+    ],
+    {
+      cwd: options.cwd,
+      echoPrefix: "postgres",
+      rejectOnFailure: true,
+    },
+  );
+}
+
+async function waitForDatabase(options: PostgresOptions): Promise<void> {
+  await waitFor(
+    `Postgres database ${options.dbName} readiness`,
+    () =>
+      commandSucceeds(
+        "docker",
+        [
+          "exec",
+          POSTGRES_CONTAINER_NAME,
+          "psql",
+          "-U",
+          "postgres",
+          "-d",
+          options.dbName,
+          "-c",
+          "select 1",
+        ],
+        { cwd: options.cwd },
       ),
     { logLabel: options.logLabel },
   );

@@ -117,10 +117,7 @@ describe("resolveIndexerApiBaseUrl", function () {
       PORT: "4001",
     };
 
-    assert.equal(
-      resolveIndexerApiBaseUrl("http://cli:9", env),
-      "http://cli:9",
-    );
+    assert.equal(resolveIndexerApiBaseUrl("http://cli:9", env), "http://cli:9");
     assert.equal(resolveIndexerApiBaseUrl(undefined, env), "http://direct:2");
     assert.equal(
       resolveIndexerApiBaseUrl(undefined, {
@@ -129,14 +126,24 @@ describe("resolveIndexerApiBaseUrl", function () {
       "http://next-public:1",
     );
     assert.equal(
-      resolveIndexerApiBaseUrl(undefined, { LOCAL_API_PORT: "3005", PORT: "4001" }),
+      resolveIndexerApiBaseUrl(undefined, {
+        LOCAL_API_PORT: "3005",
+        PORT: "4001",
+      }),
       "http://127.0.0.1:3005",
     );
     assert.equal(
       resolveIndexerApiBaseUrl(undefined, { PORT: "4001" }),
       "http://127.0.0.1:4001",
     );
-    assert.equal(resolveIndexerApiBaseUrl(undefined, {}), "http://127.0.0.1:3001");
+    assert.equal(
+      resolveIndexerApiBaseUrl(undefined, {}),
+      "http://127.0.0.1:3001",
+    );
+    assert.equal(
+      resolveIndexerApiBaseUrl(undefined, { POPCHARTS_STACK_SLOT: "2" }),
+      "http://127.0.0.1:3021",
+    );
   });
 });
 

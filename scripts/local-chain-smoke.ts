@@ -4,13 +4,21 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { parsePregradDeploy, type PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
-import { parseSmokeMarket, type SmokeMarket } from "./shared/deployments/smokeMarket.ts";
+import {
+  parsePregradDeploy,
+  type PregradDeploy,
+} from "./shared/deployments/pregradDeploy.ts";
+import {
+  parseSmokeMarket,
+  type SmokeMarket,
+} from "./shared/deployments/smokeMarket.ts";
 import {
   readPostgradDeployment,
   type PostgradDeployment,
 } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
+import { localChainEnvFileForSlot } from "./shared/env/localDevEnvFiles.ts";
+import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
@@ -36,22 +44,24 @@ const LOG_LABEL = "local-smoke";
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const keepRunning = args.includes("--keep-running");
 const helpRequested = args.includes("--help") || args.includes("-h");
+const { resources } = await resolveAndRegisterStack(process.cwd());
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5433/popcharts";
+  `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`;
 
 // Keep local service addresses deterministic so docs, env files, and polling
 // URLs line up with the default developer setup.
 const rpcHost = "127.0.0.1";
-const rpcPort = "8545";
-const rpcHttpUrl = `http://${rpcHost}:${rpcPort}`;
-const rpcWssUrl = `ws://${rpcHost}:${rpcPort}`;
-const apiPort = process.env.PORT ?? process.env.LOCAL_API_PORT ?? "3001";
+const rpcPort = String(resources.chainPort);
+const rpcHttpUrl = resources.chainRpcHttpUrl;
+const rpcWssUrl = resources.chainRpcWssUrl;
+const apiPort =
+  process.env.PORT ?? process.env.LOCAL_API_PORT ?? String(resources.apiPort);
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 
 // The smoke writes these under server/ so a developer can reuse the exact same
 // deployed addresses after a successful run with --keep-running.
-const envFile = resolve(serverDir, ".env.local-chain");
+const envFile = localChainEnvFileForSlot(resources.slot);
 const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
 
 type IndexedMarket = {
@@ -94,7 +104,11 @@ async function main(): Promise<void> {
   // it so this run proves the newly started indexer reached healthy state.
   rmSync(healthFile, { force: true });
 
-  await ensureLocalPostgres({ cwd: repoRoot, logLabel: LOG_LABEL });
+  await ensureLocalPostgres({
+    cwd: repoRoot,
+    dbName: resources.dbName,
+    logLabel: LOG_LABEL,
+  });
 
   // db:push keeps the smoke useful while migrations are evolving. The schema's
   // additive defaults keep this non-interactive against existing local data.
@@ -105,7 +119,7 @@ async function main(): Promise<void> {
 
   // Hardhat's local node is the chain source for both the deploy helper and the
   // server indexer. The explicit host/port make HTTP and WS URLs predictable.
-  const hardhatNode = supervisor.start("hardhat", "pnpm", [
+  const localChainNode = supervisor.start("chain", "pnpm", [
     "--dir",
     "protocol",
     "exec",
@@ -117,7 +131,7 @@ async function main(): Promise<void> {
     rpcPort,
   ]);
   await waitForWithProcesses("Hardhat RPC", () => isRpcReady(rpcHttpUrl), {
-    processes: [hardhatNode],
+    processes: [localChainNode],
     timeoutMs: 45_000,
   });
 
@@ -133,7 +147,12 @@ async function main(): Promise<void> {
   // The postgrad venue rides the same fresh chain so the smoke proves the
   // whole system deploys end-to-end: v4 venue stack, postgrad contracts, and
   // one demo complete-set market that makes the venue immediately tradeable.
-  await run("venue", "pnpm", ["--dir", "protocol", "run", "local:deploy-venue"]);
+  await run("venue", "pnpm", [
+    "--dir",
+    "protocol",
+    "run",
+    "local:deploy-venue",
+  ]);
   await run(
     "postgrad",
     "pnpm",
@@ -189,10 +208,14 @@ async function main(): Promise<void> {
       env: configuredServerEnv,
     },
   );
-  await waitForWithProcesses("API health", () => urlOk(`${apiBaseUrl}/health`), {
-    processes: [api],
-    timeoutMs: 30_000,
-  });
+  await waitForWithProcesses(
+    "API health",
+    () => urlOk(`${apiBaseUrl}/health`),
+    {
+      processes: [api],
+      timeoutMs: 30_000,
+    },
+  );
 
   // The indexer writes a health marker once it has recovered any missed events
   // and subscribed to live MarketCreated logs. That is stronger than merely
@@ -234,7 +257,7 @@ async function main(): Promise<void> {
     `GET /markets includes market ${market.marketId}`,
     () => findIndexedMarket(market),
     {
-      processes: [api, indexer, hardhatNode],
+      processes: [api, indexer, localChainNode],
       timeoutMs: 45_000,
     },
   );
@@ -284,7 +307,9 @@ function rejectUnknownArgs(): void {
   const unknownArgs = args.filter((arg) => arg !== "--keep-running");
 
   if (unknownArgs.length > 0) {
-    throw new Error(`Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`);
+    throw new Error(
+      `Unknown option(s): ${unknownArgs.join(", ")}. Use --help.`,
+    );
   }
 }
 
