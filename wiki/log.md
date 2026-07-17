@@ -730,3 +730,7 @@ caused the 2026-07-17 contamination incident. chainId stays 31337 across slots
 core landed 2026-07-17 (PR #242); Phases 2–4 open. Concept page gained a
 "Concurrent stacks" section; watch for drift as the wiring phases land (the
 env-seams section still describes the single-stack .env.local-chain path).
+
+## [2026-07-17] ingest | repo ADR 0021 — live market updates (SSE over a change-feed outbox)
+Pages: +summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
+Notes: Proposed standalone program (not in the M1–M5 chain). Decision = signal-to-refetch over SSE fed by a durable change_feed outbox (trigger-written atomically with each indexed event); DB/REST stays single source of truth; indexer stays pure (DB-level, writer-agnostic emit seam); NOTIFY demoted to an optional poll-first doorbell (verified: NOTIFY serializes commits via a cluster-global AccessExclusiveLock + RDS Proxy can't LISTEN); no message broker. Leans on two open items elsewhere — finer-grained read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010). Deployment pieces (SSE/ALB/CORS/RDS-Proxy) scoped to ADR 0015. Watch for drift once the 7 slices start landing; entity notes are marked "planned, not yet built."
