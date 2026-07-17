@@ -165,24 +165,52 @@ Sequenced checklist (one PR each):
 
 **Track C — Nightly full-fidelity tier.**
 
-Scope broadened by the 2026-07-14 grill: not just scheduling the existing
-smokes but deliberately growing the above-unit tier, which the audit found
-lacking. Everything here runs against real services (docker-compose
-Postgres, devchain) — full fidelity by definition. Tests that need only
-Postgres belong in Track B's per-PR integration step instead; what lands
-here is anything needing a chain or a second service.
+Design settled by the 2026-07-15 grill. Two separate nightly suites, so a
+slow or red AI lane never masks a lifecycle regression:
 
-- [ ] Nightly workflow: docker-compose Postgres + devchain, then
-      `local-smoke`, `local-market-smoke`, `devchain-e2e`,
-      `server-ai-review-smoke`
-- [ ] Failures append to the flake report and notify (issue or existing
-      channel)
-- [ ] Grow the tier: new full-stack scenarios beyond the existing smokes,
-      prioritized by lifecycle risk (candidates: graduation clearing
-      against a seeded book, refund path, postgrad venue handoff)
+- **`nightly-lifecycle`** — the market-lifecycle regression net. Drives
+  every lifecycle path (creation good/bad, pregrad trading, pregrad
+  cancel/refund, graduation, partial clearing refunds, postgrad trading,
+  resolution, draw/cancel redemption) through the **service/chain layer**:
+  scripts against the devchain, real API + indexer + heuristic AI
+  services, devchain time-jumps for the lifecycle clocks, and assertions
+  on API responses and the database — every path ends by asserting the
+  money paper trail balances. The scenario checklist itself lives in ADR
+  0014 (this track is its delivery vehicle; 0014 boxes tick in the same
+  PRs). On top, **five full-E2E UI journeys** (Playwright `@lifecycle`
+  tag, injected wallet — no auth-vendor login in nightly): the golden
+  journey to redeemed winnings, rejected creation, failed-graduation
+  refund, partial-clearing claims, and cancelled/draw redemption — every
+  terminal state crossed with the user-visible money-out moment.
+- **`nightly-ai-verdicts`** — the AI review + resolution consistency lane
+  at the service HTTP seams, no UI. Specified by ADR 0019 (labeled
+  dataset, consistency measurement); this track only provides the
+  scheduled harness and executes 0019's CI-lane checkbox.
 
-The full-lifecycle suite (every terminal state, unhappy paths) remains ADR
-0014's scope; this nightly job is its natural harness skeleton.
+Failure handling: each suite auto-files/refreshes its own tracking issue
+(closed with a comment on the next green run) and appends to the flake
+report. Rationale: a nightly red is actionable binary breakage, unlike the
+statistical flake alerting deliberately deferred in Track A. Revisit
+(noted 2026-07-15): move notifications to a project Discord once one
+exists. Cron ~09:00 UTC plus `workflow_dispatch`.
+
+Placement-rule correction from the grill: `server-ai-review-smoke` needs
+only Postgres, so it moves to Track B's per-PR integration step rather
+than running nightly.
+
+- [ ] C1 — `nightly-lifecycle` workflow running the three chain smokes
+      (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
+      tracking-issue lifecycle and flake-report append
+- [ ] C2 — promote `server-ai-review-smoke` into `Check server`'s per-PR
+      integration step
+- [ ] C3 — lifecycle harness (boot once, heuristic providers, time-jump
+      utilities) + service/chain scenarios, tracked scenario-by-scenario
+      in ADR 0014's checklist
+- [ ] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014)
+- [ ] C5 — `nightly-ai-verdicts` workflow (executes ADR 0019's CI lane)
+- [ ] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
+      alongside coverage (the operator-side heads-up agent is personal
+      tooling, outside the repo)
 
 **Track D — Protocol value-path coverage.**
 

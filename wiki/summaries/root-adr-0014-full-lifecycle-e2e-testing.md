@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; all ten items open.
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); scenario items open.
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
 updated: 2026-07-07
@@ -45,7 +45,7 @@ Happy path:
 
 - [ ] Lifecycle spec: create (Google/Privy test login or injected wallet) →
   AI approve → receipt trading → graduation threshold → clearing → postgrad
-  trading → resolution → redemption; asserting UI, API, and on-chain state at
+  trading → resolution → redemption; asserting API, database, and on-chain state at
   each transition.
 
 Unhappy paths:

@@ -21,6 +21,17 @@ terminal state through the real local stack (chain, contracts, API, indexer,
 AI services, app), covering happy and unhappy paths. The suite is the
 acceptance gate for milestones M1–M4 and, ultimately, the Arc launch.
 
+Delivery and layering (amended by the 2026-07-15 ADR 0017 Track C grill):
+the suite lands as the `nightly-lifecycle` tier of ADR 0017 Track C, and
+the checklist below ticks in the same PRs as that work. Two layers: every
+path runs at the **service/chain layer** (scripts drive the devchain;
+assertions hit the API and database, ending with the money paper trail
+balancing), and **five paths additionally run as full UI journeys**
+(Playwright, injected wallet — auth-vendor login stays out of nightly).
+UI-level assertions for the remaining paths are deliberately not built:
+the app's enforced-100% unit tier plus those five journeys carry the UI's
+regression risk.
+
 ## Progress
 
 Harness:
@@ -35,10 +46,22 @@ Harness:
 
 Happy path:
 
-- [ ] Lifecycle spec: create (Google/Privy test login or injected wallet) →
+- [ ] Lifecycle spec: create (injected wallet at the service layer) →
       AI approve → receipt trading → graduation threshold reached →
-      clearing → postgrad trading → resolution → redemption; asserting UI,
-      API, and on-chain state at each transition.
+      clearing → postgrad trading → resolution → redemption; asserting
+      API, database, and on-chain state at each transition.
+
+UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
+
+- [ ] Golden journey: UI create → approval → pregrad trade → graduation →
+      postgrad trade → resolution → redeem winnings, asserting the
+      user-visible balances.
+- [ ] Rejected creation: creator sees `rejected` with reasons.
+- [ ] Failed graduation: full refund claimed through the UI.
+- [ ] Partial clearing: retained + refunded portions itemized in the UI
+      claim flow.
+- [ ] Cancelled/draw: redeem at cost through the ADR 0018 redemption
+      surface.
 
 Unhappy paths:
 

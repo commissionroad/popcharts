@@ -87,13 +87,24 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   `server/src/test-support/README.md`). Fake executors stay for pure
   projection/serialization logic. **Track B complete 2026-07-14** — floor
   ratcheted twice on the way (70.09→74.52→76.73 functions).
-- **C — Nightly full-fidelity tier** (scope broadened by the grill): the
-  nightly run of the existing smokes (`local-smoke`, `local-market-smoke`,
-  `devchain-e2e`, `server-ai-review-smoke`) plus deliberate growth of new
-  full-stack scenarios (graduation clearing on a seeded book, refund path,
-  postgrad handoff). Explicitly the harness skeleton for — not a
-  replacement of — [ADR 0014](root-adr-0014-full-lifecycle-e2e-testing.md)'s
-  full-lifecycle suite.
+- **C — Nightly full-fidelity tier** (design settled by the 2026-07-15
+  grill; items C1–C6 open): **two separate nightly suites** so a slow/red
+  AI lane never masks a lifecycle regression. `nightly-lifecycle` = the
+  three chain smokes plus the full market-lifecycle regression net at the
+  service/chain layer (heuristic providers, devchain time-jumps, every
+  path ends asserting the money paper trail), delivered as
+  [ADR 0014](root-adr-0014-full-lifecycle-e2e-testing.md)'s checklist —
+  Track C is 0014's delivery vehicle, not a competitor — plus five
+  full-E2E Playwright `@lifecycle` UI journeys (golden path to redeemed
+  winnings, rejected creation, failed-graduation refund, partial-clearing
+  claims, cancelled/draw redemption via the ADR 0018 surface).
+  `nightly-ai-verdicts` = the service-seam consistency lane specified by
+  [ADR 0019](root-adr-0019-ai-verdict-quality-program.md) (C5 executes its
+  CI-lane box). Failures auto-file/refresh one tracking issue per suite +
+  append to FLAKES.md (binary breakage ≠ the deferred statistical flake
+  alerting); revisit: Discord notifications once set up.
+  `server-ai-review-smoke` moves to Track B's per-PR step (needs only
+  Postgres — placement rule).
 - **D — Protocol value-path coverage** (**complete 2026-07-15**): dedicated
   harness-backed suites for the three v4 libraries (boundary + fuzz), a
   `StdInvariant` escrow-conservation harness over `BoundedPoolOrderManager`
