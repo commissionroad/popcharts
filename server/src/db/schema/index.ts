@@ -9,6 +9,7 @@ export * from "./market-resolutions";
 export * from "./markets";
 export * from "./outcome-token-balances";
 export * from "./outcome-token-transfer-events";
+export * from "./pool-price-ticks";
 export * from "./postgrad-redemption-events";
 export * from "./postgrad-resolution-events";
 export * from "./venue-order-events";
