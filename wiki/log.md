@@ -744,3 +744,15 @@ local-create-market (resolveTargetStack + "which stack?" prompt). Remaining
 open: applying the target resolver to sibling scripts (local-bot-trade,
 local-deploy-venue, postgrad helpers) — tracked as ADR follow-up. Env-seams
 note in the concept page updated to per-slot env files.
+## [2026-07-15] ingest | repo ADR 0017 — C2 premise correction (ai-review smoke needs a chain)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: The Track C grill note that server-ai-review-smoke "needs only
+Postgres -> per-PR" was falsified during C1 pre-flight: chain-review.ts
+requires PREGRAD_MANAGER_ADDRESS and submits the approval transition
+on-chain. Worse: the smoke is broken on main — it fabricates a synthetic
+market the chain doesn't have, so the transition reverts with
+MarketDoesNotExist. C2 reframed: repair the smoke to seed its market
+on-chain, then add it to the nightly job. Local-dev gotcha
+found on the way: a dev-stack ai-review server on :3012 makes the smoke's
+in-process service fail confusingly; the job error lands in
+market_ai_review_jobs.last_error, which the smoke doesn't print.

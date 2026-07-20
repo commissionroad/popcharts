@@ -103,8 +103,10 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   CI-lane box). Failures auto-file/refresh one tracking issue per suite +
   append to FLAKES.md (binary breakage ≠ the deferred statistical flake
   alerting); revisit: Discord notifications once set up.
-  `server-ai-review-smoke` moves to Track B's per-PR step (needs only
-  Postgres — placement rule).
+  `server-ai-review-smoke` stays nightly (grill premise corrected same
+  day: the runner submits a real on-chain approval transition — needs a
+  chain) and was found broken on main during pre-flight (fabricated
+  market → MarketDoesNotExist); C2 is now its repair + nightly wiring.
 - **D — Protocol value-path coverage** (**complete 2026-07-15**): dedicated
   harness-backed suites for the three v4 libraries (boundary + fuzz), a
   `StdInvariant` escrow-conservation harness over `BoundedPoolOrderManager`

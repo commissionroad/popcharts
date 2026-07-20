@@ -87,6 +87,10 @@ describe("renderFlakesMarkdown", () => {
     );
     assert.match(markdown, /\| Protocol CI \| 1 \| 0 \| 0\.0% \| 0 \| 0\.0% \| no \|/);
     assert.match(markdown, /\| Server CI \| 0 \| 0 \| n\/a \| 0 \| n\/a \| no \|/);
+    assert.match(
+      markdown,
+      /\| Nightly Lifecycle \| 0 \| 0 \| n\/a \| 0 \| n\/a \| no \|/,
+    );
   });
 
   it("states the window and the report-only decision", () => {
