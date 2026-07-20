@@ -734,3 +734,13 @@ env-seams section still describes the single-stack .env.local-chain path).
 ## [2026-07-17] ingest | repo ADR 0021 — live market updates (SSE over a change-feed outbox)
 Pages: +summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
 Notes: Proposed standalone program (not in the M1–M5 chain). Decision = signal-to-refetch over SSE fed by a durable change_feed outbox (trigger-written atomically with each indexed event); DB/REST stays single source of truth; indexer stays pure (DB-level, writer-agnostic emit seam); NOTIFY demoted to an optional poll-first doorbell (verified: NOTIFY serializes commits via a cluster-global AccessExclusiveLock + RDS Proxy can't LISTEN); no message broker. Leans on two open items elsewhere — finer-grained read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010). Deployment pieces (SSE/ALB/CORS/RDS-Proxy) scoped to ADR 0015. Watch for drift once the 7 slices start landing; entity notes are marked "planned, not yet built."
+
+## [2026-07-17] ingest | repo ADR 0020 — phases 2–4 landed
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: All build phases of ADR 0020 landed 2026-07-17 (PRs #242, #247, #248):
+control-plane slot wiring (resolveAndRegisterStack), identity-scoped chain
+reuse (classifyChainPortOwnership), database-scoped reset, and stack-aware
+local-create-market (resolveTargetStack + "which stack?" prompt). Remaining
+open: applying the target resolver to sibling scripts (local-bot-trade,
+local-deploy-venue, postgrad helpers) — tracked as ADR follow-up. Env-seams
+note in the concept page updated to per-slot env files.
