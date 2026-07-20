@@ -143,6 +143,19 @@ jobs:
       - name: Run chain-backed e2e
         run: pnpm devchain:e2e
 
+      # Traces/screenshots are the only way to diagnose a red that doesn't
+      # reproduce locally.
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-results
+          path: |
+            app/test-results/
+            app/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
   # One tracking issue, refreshed while red, closed on the next green run.
   report:
     name: Update tracking issue

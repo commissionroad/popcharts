@@ -31,7 +31,12 @@ test("@chain user can create a market on the configured devchain", async ({ page
   await expect(page.getByText("Metadata hash")).toBeVisible();
   await page.getByRole("button", { name: "Create market" }).click();
 
-  await expect(page.getByText("On-chain created")).toBeVisible();
+  // A real devchain transaction confirms behind this first assertion, so it
+  // gets explicit headroom over the 5s default. The mode eyebrow proves the
+  // market went on-chain (mock mode renders "Mock created" instead).
+  await expect(page.getByText(/Wallet-signed|Devchain relay/)).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(page.getByText("Market under review")).toBeVisible();
   await expect(page.getByText("Market ID")).toBeVisible();
   await expect(page.getByText("Transaction", { exact: true })).toBeVisible();
