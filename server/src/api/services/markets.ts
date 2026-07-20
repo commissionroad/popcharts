@@ -724,8 +724,15 @@ export async function selectPostgradInfo({
 
 async function getLatestPostgradInfos(markets: MarketRow[]) {
   const infos = new Map<string, MarketPostgradResponse>();
+  // Any status a market can reach after graduation keeps its venue data:
+  // terminal states still need the child-market address and mint totals for
+  // redemption (ADR 0018). Pregrad admin-cancels share the `cancelled`
+  // status but have no GraduationFinalized row, so they simply find no info.
   const settledMarkets = markets.filter(
-    (market) => market.status === "graduated" || market.status === "resolved",
+    (market) =>
+      market.status === "graduated" ||
+      market.status === "resolved" ||
+      market.status === "cancelled",
   );
   if (settledMarkets.length === 0) {
     return infos;

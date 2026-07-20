@@ -57,3 +57,40 @@ derived on-chain verdict (`resolve_yes` / `resolve_no` / `cancel_draw` /
 `requeue_too_early` / `manual_review`) is recorded per run for inspection
 but not graded — it additionally depends on the confidence/evidence gates
 in `resolver.ts`.
+
+## Measured iterations (negative results included)
+
+Per ADR 0019, every prompt change is adopted or rejected on eval numbers.
+Rejected iterations are recorded here so they are not retraced.
+
+### 2026-07-17: criteria-literalism (v2–v2d) — REJECTED, prompt reverted to v1
+
+Target: the baseline's worst failure — the model overriding explicit
+void-by-cutoff / bounded-scope / draw clauses with its memory of the
+headline event (`draw-paul-tyson-july-2024-postponed` resolved wrong-YES
+3/3 at baseline). Four iterations against ollama gpt-oss:20b:
+
+| iteration | change                                                                                           | result                                                                                                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v2        | prose IF-THEN scope rules incl. "event outside window supports NO"                               | killed early: two true-YES cases flipped to `resolve_no` — the rule licensed absence-of-evidence → NO                                                                                   |
+| v2b       | added "absence of evidence is not evidence of absence" guard                                     | killed early: bitcoin-100k still `resolve_no` 3/3 (was correct at baseline)                                                                                                             |
+| v2c       | scope rules may only RECLASSIFY an evidence-established outcome, never generate yes/no           | poison gone, but sentinel smoke: Paul–Tyson still wrong-YES, Copa regressed to wrong-YES                                                                                                |
+| v2d       | + structured `criteriaAnalysis` scaffold in the output contract (quote clauses before answering) | full 35×3: **57.1% vs 62.9% baseline** — globally over-conservative (5 formerly-correct clear cases now park), Paul–Tyson wrong-YES 3/3 unchanged, one wrong-direction NO (labour, 1/3) |
+
+Conclusions for the next attempt:
+
+- Any rule that can GENERATE a NO gets misapplied to missing evidence by
+  this model class. Scope rules must only ever reclassify.
+- Output-contract scaffolding beat prose (it fixed Copa in isolation) but
+  did not survive the full run and taxed every other class with
+  conservatism.
+- Single-run sentinel smokes are worthless at this variance — v2d's smoke
+  showed Paul–Tyson "fixed" (abstain), the 3-run eval showed wrong-YES
+  3/3. Smoke with `--runs 3` minimum.
+- The literalism failure is likely evidence-bound, not prompt-bound: with
+  query-echo local evidence the model leans on memory, and memory says
+  "Paul won". Next levers, in order: (1) run the same dataset against the
+  anthropic provider with native web search (also expected to fix the
+  clear-case evidence starvation); (2) the ADR 0012 operator delay window
+  before on-chain submission — the production backstop that makes any
+  residual wrong-resolve recoverable; (3) only then further prompt work.

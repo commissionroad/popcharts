@@ -204,7 +204,7 @@ deployed stack via the stack-generated `server/.env.local-chain`.
 - [x] C1 — `nightly-lifecycle` workflow running the three chain smokes
       (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
       tracking-issue lifecycle and flake-report append
-- [ ] C2 — repair `server-ai-review-smoke` and add it to the nightly
+- [x] C2 — repair `server-ai-review-smoke` and add it to the nightly
       lifecycle job. Found broken on main during C1 pre-flight: it
       fabricates a synthetic market in the database, but the review
       runner now submits a real on-chain approval transition and reverts
