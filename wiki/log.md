@@ -786,3 +786,24 @@ env superset the cross-workspace bun/hardhat scripts read (local:bot-trade,
 deploy-venue/-postgrad, market-health/-smoke). promptForStack extracted to a
 shared module. Same-worktree scope; cross-slot deploy from one checkout still
 wants the deferred per-slot chainId (hardhat ignition state keyed by chainEnv).
+
+## [2026-07-20] ingest | protocol ADR 0012 — singleton postgrad position book (proposed)
+Pages: +summaries/protocol-adr-0012-singleton-postgrad-position-book.md,
+~concepts/complete-sets.md, ~entities/postgrad-market.md,
+~entities/postgrad-adapter.md, ~entities/indexer.md, ~index.md
+Notes: This is the "later ADR" ADR 0008 promised for mainnet tokenization.
+Status Proposed — under user review; entity pages phrase the book as
+conditional ("would absorb") until accepted. Watch for two collisions when
+it lands: the designkit's stale "CTF YES/NO tokens" language (already
+flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
+which shrink in scope if dynamic postgrad addresses become bounded.
+
+## [2026-07-20] ingest | protocol ADR 0012 — Codex design-review hardening (same PR)
+Pages: ~summaries/protocol-adr-0012-singleton-postgrad-position-book.md
+Notes: Independent design review surfaced 9 findings, all folded into the
+ADR pre-review: terminal retained-claim liabilities (stranding hazard),
+global collateral-conservation invariant, cancelled-draw invariant case,
+per-side resolution gates, wrapper ERC1155-receiver validation, terminal-
+market venue exit path, honest (narrowed) indexing claims, wrapper-
+registration discovery event, and outcome decimals promoted to a BLOCKING
+pre-acceptance question (v4 dust vs. exact-or-revert redemption).
