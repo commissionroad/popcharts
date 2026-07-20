@@ -20,6 +20,7 @@
     "app:e2e:chain": "pnpm --dir app test:e2e:chain",
     "devchain:deploy": "pnpm --dir protocol devchain:deploy",
     "devchain:e2e": "node --experimental-strip-types scripts/run-local-chain-e2e.ts",
+    "lifecycle:e2e": "node --experimental-strip-types scripts/run-lifecycle-e2e.ts",
     "protocol:build": "pnpm --dir protocol build",
     "protocol:check": "pnpm --dir protocol format:check && pnpm --dir protocol lint:sol && pnpm --dir protocol typecheck && pnpm --dir protocol test",
     "protocol:test": "pnpm --dir protocol test",

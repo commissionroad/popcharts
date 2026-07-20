@@ -20,9 +20,9 @@ import {
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
+import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
-  postgradAppEnv,
   postgradServerEnv,
   postgradServerEnvLines,
 } from "./shared/env/postgradEnv.ts";
@@ -203,7 +203,7 @@ async function main(): Promise<void> {
     }),
     ...postgradServerEnv(postgrad),
   };
-  const appEnv = buildAppEnv(deploy, postgrad);
+  const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
   writeServerEnv(serverEnv, deploy, postgrad);
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
 
@@ -494,32 +494,6 @@ async function deployPostgradVenue(
   );
 
   return readPostgradDeployment(DEMO_MARKET_SYMBOL);
-}
-
-function buildAppEnv(
-  deploy: PregradDeploy,
-  postgrad: PostgradDeployment | null,
-): Record<string, string> {
-  return {
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "local",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE: "devchain",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER: "wallet",
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ID: String(deploy.chainId),
-    NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
-    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
-    NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
-    NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
-    POPCHARTS_INDEXER_API_URL: apiBaseUrl,
-    POPCHARTS_MARKET_DATA_SOURCE: "api",
-    POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
-    ...postgradAppEnv(postgrad),
-  };
 }
 
 function writeServerEnv(

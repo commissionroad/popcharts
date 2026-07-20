@@ -28,7 +28,6 @@ import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
-  postgradAppEnv,
   postgradServerEnvLines,
 } from "./shared/env/postgradEnv.ts";
 import {
@@ -36,6 +35,7 @@ import {
   localDevIndexerHealthFile,
 } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
+import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
 import { classifyChainPortOwnership } from "./shared/localStack/classifyChainPortOwnership.ts";
 import { deriveInstanceId } from "./shared/localStack/identity.ts";
@@ -443,7 +443,7 @@ async function deployContracts(): Promise<void> {
     postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
-  const appEnv = { ...buildAppEnv(deploy), ...postgradAppEnv(postgrad) };
+  const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 
   writeServerEnv(serverEnv, deploy, postgrad);
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
@@ -616,28 +616,6 @@ async function postgresReady(): Promise<boolean> {
     ],
     { cwd: repoRoot },
   );
-}
-
-function buildAppEnv(deploy: PregradDeploy): Record<string, string> {
-  return {
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "local",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE: "devchain",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER: "wallet",
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ID: String(deploy.chainId),
-    NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
-    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
-    NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
-    NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
-    POPCHARTS_INDEXER_API_URL: apiBaseUrl,
-    POPCHARTS_MARKET_DATA_SOURCE: "api",
-    POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
-  };
 }
 
 function writeServerEnv(
