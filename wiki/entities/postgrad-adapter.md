@@ -8,7 +8,8 @@ sources:
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - protocol/docs/postgrad-contract-metadata.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
-updated: 2026-07-15
+  - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
+updated: 2026-07-20
 ---
 
 # CompleteSetPostgradAdapter
@@ -32,6 +33,13 @@ only approved claim data and exactly the approved retained collateral.
   [indexer](indexer.md).
 - Never asked to rescue undercollateralized markets; refunded markets bypass
   it entirely.
+
+Mainnet outlook:
+[protocol ADR 0012](../summaries/protocol-adr-0012-singleton-postgrad-position-book.md)
+(proposed) keeps this adapter boundary but reworks `prepareMarket`/funding to
+target a singleton `PostgradPositionBook` ledger entry instead of deploying a
+per-market contract; retained claims would mint ERC1155 positions under the
+same retained-mint constraints.
 
 ## Related pages
 

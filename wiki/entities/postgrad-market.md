@@ -8,7 +8,8 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - protocol/docs/complete-set-v4-hook-order-manager-plan.md
   - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
-updated: 2026-07-14
+  - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
+updated: 2026-07-20
 ---
 
 # CompleteSetBinaryMarket
@@ -19,8 +20,12 @@ tokens fully backed by collateral. "CTF-style" here means complete-set
 *economics* (fixed payout, mint/merge/redeem), deliberately not Gnosis CTF
 ERC1155 tokenization — a bounded deviation from
 [protocol ADR 0007](../summaries/protocol-adr-0007-ctf-style-postgrad-handoff.md)
-recorded in [protocol ADR 0008](../summaries/protocol-adr-0008-complete-set-erc20-arc-testnet.md);
-mainnet tokenization is deliberately left open.
+recorded in [protocol ADR 0008](../summaries/protocol-adr-0008-complete-set-erc20-arc-testnet.md).
+The mainnet path is now proposed:
+[protocol ADR 0012](../summaries/protocol-adr-0012-singleton-postgrad-position-book.md)
+(under review) would absorb this contract's responsibilities into a singleton
+ERC1155 `PostgradPositionBook`, leaving per-market deploys to two thin ERC20
+wrapper clones for the v4 pools; this factory contract stays testnet-scoped.
 
 ## Behavior
 
