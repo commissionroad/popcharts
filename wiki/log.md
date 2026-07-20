@@ -777,3 +777,12 @@ approveMarket transaction, and asserts the bootstrap transition. Legacy
 fabricated rows (creator 0x...01) are swept so long-lived local DBs
 self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
 trade -> resolve -> review).
+
+## [2026-07-17] ingest | repo ADR 0020 — Phase 5 (sibling scripts) landed
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: The deferred sibling-targeting-scripts follow-up landed (#260): a single
+scripts/with-target-stack.ts launcher resolves the target stack and exports the
+env superset the cross-workspace bun/hardhat scripts read (local:bot-trade,
+deploy-venue/-postgrad, market-health/-smoke). promptForStack extracted to a
+shared module. Same-worktree scope; cross-slot deploy from one checkout still
+wants the deferred per-slot chainId (hardhat ignition state keyed by chainEnv).
