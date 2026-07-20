@@ -34,7 +34,7 @@ async function main() {
   const marketOutput = await collectCommand(
     "pnpm",
     ["--dir", "protocol", "run", "local:create-market"],
-    { cwd: repoRoot, env: { ...process.env, ...stackEnv } },
+    { cwd: repoRoot, env: { ...process.env, ...stackEnv }, rejectOnFailure: true },
   );
   const market = parseSmokeMarket(marketOutput.stdout);
   console.log(
@@ -54,6 +54,7 @@ async function main() {
       POPCHARTS_SMOKE_METADATA_HASH: market.metadataHash,
     },
     echoPrefix: "ai-review-smoke",
+    rejectOnFailure: true,
   });
   console.log(`[${LOG_LABEL}] passed`);
 }

@@ -33,6 +33,11 @@ async function main() {
     const enqueued = await enqueueEligibleMarketReviewJobs({
       limit: 1,
       maxAttempts: config.maxAttempts,
+      onlyMarket: {
+        chainId: market.chainId,
+        marketId: market.marketId,
+        metadataHash: market.metadataHash,
+      },
     });
 
     const smokeJob = enqueued.find(
