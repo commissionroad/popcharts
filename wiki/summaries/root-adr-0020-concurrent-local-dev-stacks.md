@@ -82,9 +82,15 @@ Key decisions:
   the target from the registry (0 → error, 1 → use, >1 → interactive "which
   stack?" prompt on a TTY, else `--stack <slot|id>` / `POPCHARTS_STACK`);
   wired into `local-create-market`, with explicit `--local-chain-env` /
-  `--api-url` still bypassing the registry for back-compat. Applying the same
-  resolver to the other targeting scripts (`local-bot-trade`,
-  `local-deploy-venue`, postgrad helpers) is a tracked follow-up.
+  `--api-url` still bypassing the registry for back-compat.
+- **Phase 5 — cross-workspace targeting scripts (#260).** The `bun`/`hardhat`
+  scripts that pick their target from env vars route through one launcher,
+  `scripts/with-target-stack.ts`, which resolves the stack (shared
+  `resolveTargetStack` + `promptForStack` + `--stack`/`POPCHARTS_STACK`) and
+  exports the slot's env superset. `local-bot-trade`, `local-deploy-venue` /
+  `-postgrad`, `local-market-health` / `-smoke` are wired through it. Correct
+  same-worktree; cross-slot deploy from one checkout still wants the deferred
+  per-slot chainId.
 
 ## Deferred / future work
 
