@@ -2,8 +2,10 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
+import { deriveStackResources } from "./shared/localStack/ports.ts";
 import { pruneDeadDescriptors, type StackDescriptor } from "./shared/localStack/registry.ts";
 import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
@@ -72,15 +74,16 @@ export function targetStackEnv(
   const fileEnv = existsSync(target.envFilePath)
     ? readEnvFile(target.envFilePath)
     : {};
-  const rpcHttpUrl = `http://127.0.0.1:${target.chainPort}`;
-  const rpcWssUrl = `ws://127.0.0.1:${target.chainPort}`;
+  // Re-derive the URLs from the slot so the `http://127.0.0.1:<port>` format
+  // has one source of truth (ports.ts), not a copy here.
+  const { chainRpcHttpUrl, chainRpcWssUrl } = deriveStackResources(target.slot);
   return {
     ...fileEnv,
     POPCHARTS_LOCAL_CHAIN_ENV_FILE: target.envFilePath,
-    POPCHARTS_LOCAL_RPC_URL: rpcHttpUrl,
-    POPCHARTS_RPC_URL: rpcHttpUrl,
-    RPC_HTTP_URL: rpcHttpUrl,
-    RPC_WSS_URL: rpcWssUrl,
+    POPCHARTS_LOCAL_RPC_URL: chainRpcHttpUrl,
+    POPCHARTS_RPC_URL: chainRpcHttpUrl,
+    RPC_HTTP_URL: chainRpcHttpUrl,
+    RPC_WSS_URL: chainRpcWssUrl,
     LOCAL_API_PORT: String(target.apiPort),
   };
 }
@@ -114,13 +117,23 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((error: unknown) => {
-  if (error instanceof TargetStackResolutionError) {
-    console.error(error.message);
-    process.exit(1);
-  }
-  console.error(
-    `[with-target-stack] ${error instanceof Error ? error.message : error}`,
+/** True when this module is the entry point, not imported (e.g. by tests). */
+function isMainModule(): boolean {
+  return (
+    process.argv[1] !== undefined &&
+    fileURLToPath(import.meta.url) === process.argv[1]
   );
-  process.exit(1);
-});
+}
+
+if (isMainModule()) {
+  main().catch((error: unknown) => {
+    if (error instanceof TargetStackResolutionError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    console.error(
+      `[with-target-stack] ${error instanceof Error ? error.message : error}`,
+    );
+    process.exit(1);
+  });
+}
