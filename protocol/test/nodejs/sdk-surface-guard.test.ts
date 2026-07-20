@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -20,55 +20,56 @@ function collectTypeScriptFiles(dir: string): string[] {
   return files;
 }
 
-// Static import/export-from/dynamic-import specifiers. Intentionally coarse:
-// a false positive in a comment is a cheap review nudge, a false negative is
-// a silent boundary hole.
-const specifierPattern = /(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g;
+// Any quoted string mentioning scripts/, not just import-shaped ones: a
+// specifier-context pattern (`from "..."`) misses side-effect imports
+// (`import "../scripts/x.js"`), require()/createRequire, and vi/jiti-style
+// dynamic loaders. Intentionally coarse — a false positive in a quoted log
+// message is a cheap review nudge, a false negative is a silent boundary
+// hole.
+const quotedScriptsPathPattern = /["']([^"'\n]*scripts\/[^"'\n]*)["']/g;
+
+function readExportsMap(): Record<string, string> {
+  const packageJson = JSON.parse(readFileSync(join(protocolRoot, "package.json"), "utf8")) as {
+    exports: Record<string, string>;
+  };
+  return packageJson.exports;
+}
 
 describe("protocol SDK surface guard (ADR 0017 Track G)", function () {
-  it("src/ never imports from scripts/ — the SDK cannot depend on ops tooling", function () {
+  it("src/ never references scripts/ — the SDK cannot depend on ops tooling", function () {
     const offenders: string[] = [];
     for (const file of collectTypeScriptFiles(srcRoot)) {
       const source = readFileSync(file, "utf8");
-      for (const match of source.matchAll(specifierPattern)) {
-        const specifier = match[1];
-        if (specifier.includes("scripts/")) {
-          offenders.push(`${relative(protocolRoot, file)} -> ${specifier}`);
-        }
+      for (const match of source.matchAll(quotedScriptsPathPattern)) {
+        offenders.push(`${relative(protocolRoot, file)} -> ${match[1]}`);
       }
     }
     assert.deepEqual(
       offenders,
       [],
-      `protocol/src must not reach into protocol/scripts. The public SDK lives in src/; scripts import from src, never the reverse (ADR 0017 Track G). Offending imports:\n${offenders.join("\n")}`,
+      `protocol/src must not reach into protocol/scripts. The public SDK lives in src/; scripts import from src, never the reverse (ADR 0017 Track G). Offending references:\n${offenders.join("\n")}`,
     );
   });
 
-  it("every exports-map target resolves inside src/", function () {
-    const packageJson = JSON.parse(readFileSync(join(protocolRoot, "package.json"), "utf8")) as {
-      exports: Record<string, string>;
-    };
-    for (const [subpath, target] of Object.entries(packageJson.exports)) {
+  it("the exports map is exactly the reviewed surface, every target under src/ and on disk", function () {
+    // The full key-to-target map is pinned, not just key names or a ./src/
+    // prefix: retargeting a subpath is as surface-changing as adding one.
+    // Growing or repointing the surface is fine — do it here, in the same
+    // PR, so it is a reviewed decision rather than a barrel side effect.
+    const exportsMap = readExportsMap();
+    assert.deepEqual(exportsMap, {
+      ".": "./src/index.ts",
+      "./market-side": "./src/market-side.ts",
+      "./pregrad-manager": "./src/generated/pregrad-manager.ts",
+      "./postgrad-venue": "./src/generated/postgrad-venue.ts",
+      "./complete-set-price-policy": "./src/price/completeSetPricePolicy.ts",
+      "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts",
+    });
+    for (const [subpath, target] of Object.entries(exportsMap)) {
       assert.ok(
-        target.startsWith("./src/"),
-        `exports["${subpath}"] targets ${target}; the consumer allowlist must be implemented entirely under src/`,
+        existsSync(join(protocolRoot, target)),
+        `exports["${subpath}"] targets ${target}, which does not exist on disk`,
       );
     }
-  });
-
-  it("the exports-map subpath set only grows deliberately", function () {
-    const packageJson = JSON.parse(readFileSync(join(protocolRoot, "package.json"), "utf8")) as {
-      exports: Record<string, string>;
-    };
-    // Growing the public surface is fine — do it here, in the same PR, so
-    // the addition is a reviewed decision rather than a barrel side effect.
-    assert.deepEqual(Object.keys(packageJson.exports).sort(), [
-      ".",
-      "./complete-set-price-policy",
-      "./market-side",
-      "./postgrad-venue",
-      "./pregrad-manager",
-      "./tick-to-sqrt-price",
-    ]);
   });
 });
