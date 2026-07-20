@@ -56,9 +56,14 @@ import {
 // One cursor for all postgrad-market events, replacing the pre-consolidation
 // per-watcher cursors (PostgradResolution, PostgradRedemption); their rows are
 // orphaned and the first sweep re-walks each market from its graduation start
-// block in chunks, which the deduped persists absorb. Single-cursor processing
-// also delivers a market's events in true chain order, so its Redeemed logs
-// always land after its MarketResolved.
+// block in chunks, which the deduped persists absorb. Sweeps deliver a
+// market's events in chain order; live subscription batches can interleave
+// across event families, so handlers must not depend on cross-family commit
+// order — and none do: every persist is a deduped append, and projection
+// writes are guarded. The single watermark also means a persistently failing
+// handler blocks the shared cursor for all six families (the same trade the
+// settlement watcher makes); acceptable because persists are idempotent and
+// failures surface loudly rather than silently skipping logs.
 const CURSOR_NAME = "PostgradMarket";
 const LABEL = "PostgradMarket";
 

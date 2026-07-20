@@ -19,7 +19,7 @@ const OTHER = "0x70997970C51812DC3A010C7D01B50E0D17DC79C8";
 const blockTimestamp = new Date("2026-06-13T12:00:00.000Z");
 
 describe("buildCompleteSetEventRecord", () => {
-  it("maps CompleteSetsMinted to a minted event for the recipient", () => {
+  it("maps CompleteSetsMinted to a minted event for the paying caller", () => {
     const record = buildCompleteSetEventRecord({
       blockTimestamp,
       config: { chainId: 5042002 },
@@ -41,7 +41,6 @@ describe("buildCompleteSetEventRecord", () => {
       account: ACCOUNT.toLowerCase(),
       blockNumber: 123n,
       blockTimestamp,
-      caller: null,
       chainId: 5042002,
       collateralAmount: 500n,
       contractId: 42,
@@ -50,11 +49,12 @@ describe("buildCompleteSetEventRecord", () => {
       marketId: 7n,
       outcomeAmount: 1000n,
       postgradMarket: BASE_LOG.address.toLowerCase(),
+      recipient: null,
       transactionHash: BASE_LOG.transactionHash,
     });
   });
 
-  it("keeps a minted caller only when it differs from the recipient", () => {
+  it("attributes a sponsored mint to the payer and keeps the recipient", () => {
     const record = buildCompleteSetEventRecord({
       blockTimestamp,
       config: { chainId: 5042002 },
@@ -72,11 +72,11 @@ describe("buildCompleteSetEventRecord", () => {
       marketId: 7n,
     });
 
-    expect(record.event.account).toBe(ACCOUNT.toLowerCase());
-    expect(record.event.caller).toBe(OTHER.toLowerCase());
+    expect(record.event.account).toBe(OTHER.toLowerCase());
+    expect(record.event.recipient).toBe(ACCOUNT.toLowerCase());
   });
 
-  it("maps CompleteSetsMerged to a merged event with a null caller", () => {
+  it("maps CompleteSetsMerged to a merged event with a null recipient", () => {
     const record = buildCompleteSetEventRecord({
       blockTimestamp,
       config: { chainId: 5042002 },
@@ -95,10 +95,10 @@ describe("buildCompleteSetEventRecord", () => {
 
     expect(record.event).toMatchObject({
       account: ACCOUNT.toLowerCase(),
-      caller: null,
       collateralAmount: 250n,
       kind: "merged",
       outcomeAmount: 250n,
+      recipient: null,
     });
   });
 

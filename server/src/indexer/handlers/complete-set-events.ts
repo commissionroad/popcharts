@@ -33,8 +33,10 @@ export type CompleteSetEventRecord = {
  * (docs/portfolio-data-design.md). Like the other postgrad-market handlers,
  * the contract emits no marketId; the address identifies the market, resolved
  * through the postgrad-market registry by the caller. `account` is the wallet
- * whose collateral position changed — the mint recipient (`to`) or the merge
- * `account`; a mint's `caller` is kept only when someone else paid.
+ * whose collateral moved — mintCompleteSets pulls collateral from its caller
+ * (msg.sender) and mergeCompleteSets pays msg.sender, so mint rows attribute
+ * to the payer, not the token recipient; a sponsored mint's `to` is kept as
+ * `recipient` only when it differs from the payer.
  */
 export function buildCompleteSetEventRecord({
   blockTimestamp,
@@ -61,17 +63,17 @@ export function buildCompleteSetEventRecord({
   const outcomeAmount = requireValue(log.args.outcomeAmount, "outcomeAmount");
 
   let account: string;
-  let caller: string | null;
+  let recipient: string | null;
 
   if (kind === "minted") {
     const minted = log as CompleteSetsMintedLog;
-    account = requireValue(minted.args.to, "to").toLowerCase();
-    const mintCaller = requireValue(minted.args.caller, "caller").toLowerCase();
-    caller = mintCaller === account ? null : mintCaller;
+    account = requireValue(minted.args.caller, "caller").toLowerCase();
+    const mintRecipient = requireValue(minted.args.to, "to").toLowerCase();
+    recipient = mintRecipient === account ? null : mintRecipient;
   } else {
     const merged = log as CompleteSetsMergedLog;
     account = requireValue(merged.args.account, "account").toLowerCase();
-    caller = null;
+    recipient = null;
   }
 
   return {
@@ -79,7 +81,6 @@ export function buildCompleteSetEventRecord({
       account,
       blockNumber,
       blockTimestamp,
-      caller,
       chainId: config.chainId,
       collateralAmount,
       contractId,
@@ -88,6 +89,7 @@ export function buildCompleteSetEventRecord({
       marketId,
       outcomeAmount,
       postgradMarket: log.address.toLowerCase(),
+      recipient,
       transactionHash,
     },
   };

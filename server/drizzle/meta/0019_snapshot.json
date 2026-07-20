@@ -1,5 +1,5 @@
 {
-  "id": "c2033de7-3f1e-48b8-8cf6-37cd30fe8480",
+  "id": "1902b185-ceab-417b-b46c-744e509481f9",
   "prevId": "dfd8d2cb-dc60-4d62-9fbc-2252b6c33fda",
   "version": "7",
   "dialect": "postgresql",
@@ -75,8 +75,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "caller": {
-          "name": "caller",
+        "recipient": {
+          "name": "recipient",
           "type": "text",
           "primaryKey": false,
           "notNull": false

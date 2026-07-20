@@ -11,7 +11,7 @@ CREATE TABLE "complete_set_events" (
 	"postgrad_market" text NOT NULL,
 	"kind" "complete_set_kind" NOT NULL,
 	"account" text NOT NULL,
-	"caller" text,
+	"recipient" text,
 	"collateral_amount" numeric(78, 0) NOT NULL,
 	"outcome_amount" numeric(78, 0) NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL

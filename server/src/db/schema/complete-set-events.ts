@@ -48,10 +48,14 @@ export const completeSetEvents = pgTable(
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
     postgradMarket: text("postgrad_market").notNull(),
     kind: completeSetKind("kind").notNull(),
-    /** Wallet whose collateral moved: minted's recipient (`to`), merged's `account`. */
+    /**
+     * Wallet whose collateral moved: minted's `caller` (mintCompleteSets
+     * pulls collateral from msg.sender), merged's `account` (collateral is
+     * paid back to msg.sender).
+     */
     account: text("account").notNull(),
-    /** Minted's `caller` when it differs from the recipient; null otherwise. */
-    caller: text("caller"),
+    /** Minted's `to` when the YES/NO sets went to someone other than the payer; null otherwise. */
+    recipient: text("recipient"),
     /** Collateral pulled in (minted) or paid out (merged), raw collateral units. */
     collateralAmount: uint256("collateral_amount").notNull(),
     /** Complete sets minted or merged (one YES + one NO each). */
