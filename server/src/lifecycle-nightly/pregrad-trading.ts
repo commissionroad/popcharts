@@ -1,4 +1,5 @@
-import { pregradManagerAbi } from "@popcharts/protocol";
+import { pregradManagerAbi, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
+import { maxUint256 } from "viem";
 
 import { DEV_COLLATERAL_ABI } from "src/api/services/dev-market-graduate";
 
@@ -8,9 +9,6 @@ import {
   publicClient,
   walletFor,
 } from "./stack";
-
-export const SIDE_YES = 0;
-export const SIDE_NO = 1;
 
 const QUOTE_SLIPPAGE_BPS = 1_000n;
 
@@ -152,7 +150,7 @@ async function fundTrader(
       abi: DEV_COLLATERAL_ABI,
       address: collateralAddress,
       functionName: "approve",
-      args: [pregradManagerAddress, 2n ** 256n - 1n],
+      args: [pregradManagerAddress, maxUint256],
     });
     await publicClient.waitForTransactionReceipt({ hash: approveHash });
   }

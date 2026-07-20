@@ -19,6 +19,9 @@ import { config } from "src/config";
  */
 
 // Hardhat's default in-memory mnemonic; the devchain pre-funds indexes 0-19.
+// Also spelled out in server/scripts/bot-trade.ts, which lives outside this
+// package's typecheck root and deliberately avoids src imports (it must run
+// without the server config env), so the two copies cannot share a module.
 const LOCAL_DEV_MNEMONIC =
   "test test test test test test test test test test test junk";
 

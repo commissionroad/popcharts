@@ -1,5 +1,6 @@
 import { pregradManagerAbi } from "@popcharts/protocol";
 
+import { heuristicOutcomeMarker } from "src/ai-resolution/heuristics";
 import {
   hashMarketMetadata,
   serializeMarketMetadata,
@@ -64,7 +65,7 @@ export async function createLifecycleMarket(
     options.resolutionCriteria ??
       "Resolves per the stated question against the named source.",
     ...(options.heuristicOutcome
-      ? [`[heuristic-outcome: ${options.heuristicOutcome}]`]
+      ? [heuristicOutcomeMarker(options.heuristicOutcome)]
       : []),
   ].join(" ");
 

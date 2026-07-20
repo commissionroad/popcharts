@@ -3,6 +3,7 @@ import {
   executeCompleteSetArb,
   outcomeTokenAbi,
   pregradManagerAbi,
+  SIDE_YES,
 } from "@popcharts/protocol";
 import { parseUnits, type Address, type PublicClient } from "viem";
 
@@ -25,7 +26,7 @@ import {
   walletFor,
   type ApiMarket,
 } from "../stack";
-import { placeGraduationLiquidity, SIDE_YES } from "../pregrad-trading";
+import { placeGraduationLiquidity } from "../pregrad-trading";
 import { waitForCondition } from "../wait";
 import type { Scenario } from "../report";
 
