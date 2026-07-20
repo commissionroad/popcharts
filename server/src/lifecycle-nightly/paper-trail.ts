@@ -1,10 +1,12 @@
 import {
   completeSetBinaryMarketAbi,
+  contractSideToMarketSide,
+  outcomeTokenAbi,
   pregradManagerAbi,
 } from "@popcharts/protocol";
 import type { Address } from "viem";
 
-import { and, db, eq, schema } from "src/db/client";
+import { and, db, eq, inArray, schema } from "src/db/client";
 
 import { chainId, pregradManagerAddress, publicClient } from "./stack";
 
@@ -18,10 +20,21 @@ import { chainId, pregradManagerAddress, publicClient } from "./stack";
  *
  * Everything is keyed by the market under test, so a long-lived local
  * database with rows from other runs can never affect the verdict.
+ *
+ * Attribution caveat: this proves the ledger is complete and chain-sourced,
+ * not which writer produced it — the local graduation flow mirrors
+ * settlement logs into the same tables the settlement watcher writes
+ * (dev-market-graduate's mirrorSettlementLogs), idempotently on the same
+ * (chainId, tx, logIndex) keys. Watcher liveness is proven separately:
+ * scenarios wait for receipt rows before graduation can trigger, redemption
+ * and transfer tables have no mirror path, and the ADR 0014 indexer-restart
+ * drill exercises settlement watcher recovery directly.
  */
 
 type LedgerEntry = {
   amounts: Record<string, bigint>;
+  /** Non-numeric columns to compare (addresses pre-lowercased by callers). */
+  fields?: Record<string, string | null>;
   key: string;
 };
 
@@ -303,16 +316,87 @@ async function reconcilePostgrad({
     failures,
     "postgrad_resolution_events",
     [
-      ...toEntries(byName("MarketResolved"), []),
-      ...toEntries(byName("MarketCancelled"), []),
+      ...byName("MarketResolved").map((log) => ({
+        amounts: {},
+        fields: {
+          kind: "resolved",
+          winningSide: contractSideToMarketSide(
+            (log.args as { side: number }).side,
+          ),
+        },
+        key: logKey(log),
+      })),
+      ...byName("MarketCancelled").map((log) => ({
+        amounts: {},
+        fields: { kind: "cancelled", winningSide: null },
+        key: logKey(log),
+      })),
     ],
-    resolutionRows.map((row) => ({ amounts: {}, key: rowKey(row) })),
+    resolutionRows.map((row) => ({
+      amounts: {},
+      fields: { kind: row.kind, winningSide: row.winningSide },
+      key: rowKey(row),
+    })),
   );
 
+  const minted = byName("CompleteSetsMinted");
+  const merged = byName("CompleteSetsMerged");
+  const completeSetRows = await db
+    .select()
+    .from(schema.completeSetEvents)
+    .where(
+      and(
+        eq(schema.completeSetEvents.chainId, chainId),
+        eq(schema.completeSetEvents.marketId, marketId),
+      ),
+    );
+  // `account` is the payer for both kinds (mint attributes the caller, not
+  // the recipient); the sponsored-mint recipient mapping is owned by the
+  // handler's own unit tests.
+  reconcile(
+    failures,
+    "complete_set_events",
+    [
+      ...minted.map((log) => ({
+        amounts: pickAmounts(log, ["collateralAmount", "outcomeAmount"]),
+        fields: {
+          account: (log.args as { caller: string }).caller.toLowerCase(),
+          kind: "minted",
+        },
+        key: logKey(log),
+      })),
+      ...merged.map((log) => ({
+        amounts: pickAmounts(log, ["collateralAmount", "outcomeAmount"]),
+        fields: {
+          account: (log.args as { account: string }).account.toLowerCase(),
+          kind: "merged",
+        },
+        key: logKey(log),
+      })),
+    ],
+    completeSetRows.map((row) => ({
+      amounts: {
+        collateralAmount: row.collateralAmount,
+        outcomeAmount: row.outcomeAmount,
+      },
+      fields: { account: row.account.toLowerCase(), kind: row.kind },
+      key: rowKey(row),
+    })),
+  );
+
+  await reconcileOutcomeTokenTransfers({
+    createdBlock,
+    failures,
+    postgradMarketAddress,
+  });
+
+  // RetainedCollateralFunded (clearing collateral moving in at graduation)
+  // has no dedicated event table; it participates only in this conservation
+  // bound: collateral redeemed out can never exceed what verifiably moved in.
   const collateralIn =
     sumArg(byName("RetainedCollateralFunded"), "collateralAmount") +
-    sumArg(byName("CompleteSetsMinted"), "collateralAmount") -
-    sumArg(byName("CompleteSetsMerged"), "collateralAmount");
+    sumArg(minted, "collateralAmount") -
+    sumArg(merged, "collateralAmount");
   const collateralOut =
     sumArg(redeemed, "collateralAmount") +
     sumArg(cancelledRedeemed, "collateralAmount");
@@ -322,6 +406,80 @@ async function reconcilePostgrad({
       `postgrad market paid out ${collateralOut} collateral but only ${collateralIn} moved in`,
     );
   }
+}
+
+/**
+ * Every ERC-20 Transfer on the market's YES/NO outcome tokens must have
+ * exactly one `outcome_token_transfer_events` row — this is the source feed
+ * for held balances (portfolio data design D1), so a dropped transfer means
+ * a wrong portfolio.
+ */
+async function reconcileOutcomeTokenTransfers({
+  createdBlock,
+  failures,
+  postgradMarketAddress,
+}: {
+  createdBlock: bigint;
+  failures: string[];
+  postgradMarketAddress: Address;
+}): Promise<void> {
+  const [yesToken, noToken] = (await Promise.all([
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarketAddress,
+      functionName: "yesToken",
+    }),
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarketAddress,
+      functionName: "noToken",
+    }),
+  ])) as [Address, Address];
+
+  const transferLogs = await publicClient.getContractEvents({
+    abi: outcomeTokenAbi,
+    address: [yesToken, noToken],
+    eventName: "Transfer",
+    fromBlock: createdBlock,
+  });
+  const rows = await db
+    .select()
+    .from(schema.outcomeTokenTransferEvents)
+    .where(
+      and(
+        eq(schema.outcomeTokenTransferEvents.chainId, chainId),
+        inArray(schema.outcomeTokenTransferEvents.outcomeToken, [
+          yesToken.toLowerCase(),
+          noToken.toLowerCase(),
+        ]),
+      ),
+    );
+
+  reconcile(
+    failures,
+    "outcome_token_transfer_events",
+    transferLogs.map((log) => {
+      const args = log.args as { from: string; to: string; value: bigint };
+      return {
+        amounts: { value: args.value },
+        fields: {
+          fromAddress: args.from.toLowerCase(),
+          outcomeToken: log.address.toLowerCase(),
+          toAddress: args.to.toLowerCase(),
+        },
+        key: logKey(log),
+      };
+    }),
+    rows.map((row) => ({
+      amounts: { value: row.value },
+      fields: {
+        fromAddress: row.fromAddress.toLowerCase(),
+        outcomeToken: row.outcomeToken.toLowerCase(),
+        toAddress: row.toAddress.toLowerCase(),
+      },
+      key: rowKey(row),
+    })),
+  );
 }
 
 /**
@@ -357,6 +515,15 @@ function reconcile(
         );
       }
     }
+
+    for (const [field, chainValue] of Object.entries(chainEntry.fields ?? {})) {
+      const dbValue = dbEntry.fields?.[field];
+      if (dbValue !== chainValue) {
+        failures.push(
+          `${table}: ${key} ${field} mismatch (chain ${chainValue}, db ${dbValue})`,
+        );
+      }
+    }
   }
 
   for (const key of dbByKey.keys()) {
@@ -366,33 +533,47 @@ function reconcile(
   }
 }
 
+type MoneyEventLog = {
+  args: unknown;
+  logIndex: number;
+  transactionHash: `0x${string}`;
+};
+
 function toEntries(
-  logs: readonly {
-    args: unknown;
-    logIndex: number;
-    transactionHash: `0x${string}`;
-  }[],
+  logs: readonly MoneyEventLog[],
   amountFields: readonly string[],
 ): LedgerEntry[] {
-  return logs.map((log) => {
-    const args = log.args as Record<string, bigint>;
-    const amounts: Record<string, bigint> = {};
+  return logs.map((log) => ({
+    amounts: pickAmounts(log, amountFields),
+    key: logKey(log),
+  }));
+}
 
-    for (const field of amountFields) {
-      const value = args[field];
-      if (value === undefined) {
-        throw new Error(
-          `Expected event field ${field} missing on log ${log.transactionHash}:${log.logIndex}`,
-        );
-      }
-      amounts[field] = value;
+function pickAmounts(
+  log: MoneyEventLog,
+  amountFields: readonly string[],
+): Record<string, bigint> {
+  const args = log.args as Record<string, bigint>;
+  const amounts: Record<string, bigint> = {};
+
+  for (const field of amountFields) {
+    const value = args[field];
+    if (value === undefined) {
+      throw new Error(
+        `Expected event field ${field} missing on log ${logKey(log)}`,
+      );
     }
+    amounts[field] = value;
+  }
 
-    return {
-      amounts,
-      key: `${log.transactionHash.toLowerCase()}:${log.logIndex}`,
-    };
-  });
+  return amounts;
+}
+
+function logKey(log: {
+  logIndex: number;
+  transactionHash: `0x${string}`;
+}): string {
+  return `${log.transactionHash.toLowerCase()}:${log.logIndex}`;
 }
 
 function sumArg(logs: readonly { args: unknown }[], field: string): bigint {

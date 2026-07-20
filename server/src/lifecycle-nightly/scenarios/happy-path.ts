@@ -61,11 +61,16 @@ export const happyPath: Scenario = {
       }),
     );
 
+    // Pre-graduation step timeouts must sum below graduationSeconds (240s)
+    // so a slow stack fails at the slow step with a clear message instead of
+    // silently crossing the graduation deadline and reporting a confusing
+    // refunded market: 45s indexing + 90s review + 30s receipt indexing
+    // leaves ≥75s for the keeper's pass to start graduation.
     await step("indexer serves the market as under_review", async () => {
       const indexed = await waitForCondition(
         `market ${market.marketId} indexed`,
         () => fetchApiMarket(market.marketId),
-        { tickChain: true },
+        { tickChain: true, timeoutMs: 45_000 },
       );
       assertEqual("indexed status", indexed.status, "under_review");
       assertEqual(
@@ -82,7 +87,7 @@ export const happyPath: Scenario = {
           const current = await fetchApiMarket(market.marketId);
           return current?.status === "bootstrap" ? current : null;
         },
-        { tickChain: true, timeoutMs: 120_000 },
+        { tickChain: true, timeoutMs: 90_000 },
       );
       assertEqual("post-review status", approved.status, "bootstrap");
 
@@ -135,7 +140,7 @@ export const happyPath: Scenario = {
             );
           return rows.length >= trading.receiptCount ? rows : null;
         },
-        { tickChain: true },
+        { tickChain: true, timeoutMs: 30_000 },
       );
     });
 
@@ -333,9 +338,13 @@ function assertEqual<T>(label: string, actual: T, expected: T): void {
 }
 
 function assertResolution(market: ApiMarket): void {
-  if (!market.resolution || market.resolution.kind !== "resolved") {
+  if (
+    !market.resolution ||
+    market.resolution.kind !== "resolved" ||
+    market.resolution.winningSide !== "yes"
+  ) {
     throw new Error(
-      `API resolution payload missing or not resolved: ${JSON.stringify(market.resolution)}`,
+      `API resolution payload is not a YES resolution: ${JSON.stringify(market.resolution)}`,
     );
   }
 }

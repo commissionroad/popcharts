@@ -30,6 +30,19 @@ if (only && selected.length === 0) {
   process.exit(1);
 }
 
+// A wedged I/O call (a fetch with no timeout, a stuck transaction-receipt
+// wait) would otherwise park the runner until the CI job's 45-minute kill
+// with no summary; the hard deadline turns any hang into a loud failure.
+const suiteTimeoutMs = Number(
+  process.env.POPCHARTS_LIFECYCLE_SUITE_TIMEOUT_MS ?? 30 * 60 * 1000,
+);
+setTimeout(() => {
+  console.error(
+    `Lifecycle suite exceeded its ${suiteTimeoutMs}ms deadline; aborting.`,
+  );
+  process.exit(1);
+}, suiteTimeoutMs);
+
 let exitCode = 1;
 try {
   exitCode = await runScenarios(selected);
