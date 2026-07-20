@@ -1,20 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { alignTickToSpacing } from "../../scripts/shared/price/alignTickToSpacing.js";
-import { clampDisplayPriceWad } from "../../scripts/shared/price/clampDisplayPriceWad.js";
-import { COMPLETE_SET_PRICE_POLICY } from "../../scripts/shared/price/completeSetPricePolicy.js";
-import { deriveEpsilonBoundTicks } from "../../scripts/shared/price/deriveEpsilonBoundTicks.js";
-import { displayPriceWadToSqrtPriceX96 } from "../../scripts/shared/price/displayPriceWadToSqrtPriceX96.js";
-import { displayPriceWadToTick } from "../../scripts/shared/price/displayPriceWadToTick.js";
+import { alignTickToSpacing } from "../../src/price/alignTickToSpacing.js";
+import { clampDisplayPriceWad } from "../../src/price/clampDisplayPriceWad.js";
+import { COMPLETE_SET_PRICE_POLICY } from "../../src/price/completeSetPricePolicy.js";
+import { deriveEpsilonBoundTicks } from "../../src/price/deriveEpsilonBoundTicks.js";
+import { displayPriceWadToSqrtPriceX96 } from "../../src/price/displayPriceWadToSqrtPriceX96.js";
+import { displayPriceWadToTick } from "../../src/price/displayPriceWadToTick.js";
 import { parseDisplayPriceWad } from "../../scripts/shared/price/parseDisplayPriceWad.js";
-import { sqrtPriceX96ToTick } from "../../scripts/shared/price/sqrtPriceX96ToTick.js";
-import { tickToDisplayPriceWad } from "../../scripts/shared/price/tickToDisplayPriceWad.js";
-import {
-  MAX_TICK,
-  MIN_TICK,
-  tickToSqrtPriceX96,
-} from "../../scripts/shared/price/tickToSqrtPriceX96.js";
+import { sqrtPriceX96ToTick } from "../../src/price/sqrtPriceX96ToTick.js";
+import { tickToDisplayPriceWad } from "../../src/price/tickToDisplayPriceWad.js";
+import { MAX_TICK, MIN_TICK, tickToSqrtPriceX96 } from "../../src/price/tickToSqrtPriceX96.js";
 
 const WAD = 10n ** 18n;
 const HALF_WAD = WAD / 2n;

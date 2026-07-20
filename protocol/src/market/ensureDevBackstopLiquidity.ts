@@ -9,10 +9,7 @@ import { COMPLETE_SET_SMOKE_POLICY } from "./completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "./ensureCollateralBalance.js";
 import { readPoolActiveLiquidity } from "./readPoolActiveLiquidity.js";
 import { readPoolDisplayPrice } from "./readPoolDisplayPrice.js";
-import {
-  completeSetBinaryMarketAbi,
-  minimalV4SwapRouterAbi,
-} from "../../../src/generated/postgrad-venue.js";
+import { completeSetBinaryMarketAbi, minimalV4SwapRouterAbi } from "../generated/postgrad-venue.js";
 import type { CompleteSetMarketManifestData } from "./readCompleteSetMarketManifest.js";
 
 const HOOK_DATA_NONE: Hex = "0x";

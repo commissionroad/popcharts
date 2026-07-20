@@ -6,20 +6,20 @@ import { erc20Abi, getAddress, type Address, type Hex, type PublicClient } from 
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { requireAddress, requireString } from "./shared/cli/requireCliValue.js";
+import { requireAddress, requireString } from "../src/cli/requireCliValue.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
-import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
-import { COMPLETE_SET_MARKET_DEPLOYMENT } from "./shared/market/completeSetMarketDeployment.js";
+import { readJsonFile, writeJsonFile } from "../src/json/jsonFile.js";
+import { COMPLETE_SET_MARKET_DEPLOYMENT } from "../src/market/completeSetMarketDeployment.js";
 import {
   configureOutcomePool,
   deployCompleteSetBinaryMarket,
   type MarketPoolManifestEntry,
 } from "./shared/market/deployCompleteSetMarketContracts.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
-import { clampDisplayPriceWad } from "./shared/price/clampDisplayPriceWad.js";
-import { COMPLETE_SET_PRICE_POLICY } from "./shared/price/completeSetPricePolicy.js";
+import { clampDisplayPriceWad } from "../src/price/clampDisplayPriceWad.js";
+import { COMPLETE_SET_PRICE_POLICY } from "../src/price/completeSetPricePolicy.js";
 import { parseDisplayPriceWad } from "./shared/price/parseDisplayPriceWad.js";
 
 const WAD = 10n ** 18n;

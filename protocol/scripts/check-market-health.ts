@@ -4,13 +4,13 @@ import { erc20Abi, formatUnits } from "viem";
 import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
+import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import { evaluateMarketHealth } from "./shared/market/evaluateMarketHealth.js";
-import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMarketManifest.js";
-import { readPoolActiveLiquidity } from "./shared/market/readPoolActiveLiquidity.js";
-import { readPoolDisplayPrice } from "./shared/market/readPoolDisplayPrice.js";
-import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
+import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
+import { readPoolActiveLiquidity } from "../src/market/readPoolActiveLiquidity.js";
+import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
+import { readErc20Balance } from "../src/viem/readErc20Balance.js";
 import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,

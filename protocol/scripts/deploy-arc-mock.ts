@@ -16,7 +16,7 @@ import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract
 import { ARCSCAN } from "./shared/explorer/arcscan.js";
 import { contractExplorerUrl } from "./shared/explorer/contractExplorerUrl.js";
 import { verifyBlockscoutStandardJson } from "./shared/explorer/verifyBlockscoutStandardJson.js";
-import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 import { createViemClients } from "./shared/viem/createViemClients.js";
 

@@ -1,6 +1,6 @@
 import { getAddress, isAddress, type Address } from "viem";
 
-import { requireAddress, requireNonNegativeInteger } from "../cli/requireCliValue.js";
+import { requireAddress, requireNonNegativeInteger } from "../../../src/cli/requireCliValue.js";
 
 export const DEFAULT_VENUE_DEPLOYMENT_FILE = "deployments/venue-stack.json";
 

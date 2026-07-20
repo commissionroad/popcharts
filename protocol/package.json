@@ -9,8 +9,8 @@
     "./market-side": "./src/market-side.ts",
     "./pregrad-manager": "./src/generated/pregrad-manager.ts",
     "./postgrad-venue": "./src/generated/postgrad-venue.ts",
-    "./complete-set-price-policy": "./scripts/shared/price/completeSetPricePolicy.ts",
-    "./tick-to-sqrt-price": "./scripts/shared/price/tickToSqrtPriceX96.ts"
+    "./complete-set-price-policy": "./src/price/completeSetPricePolicy.ts",
+    "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
