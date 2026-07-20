@@ -106,7 +106,7 @@ const RECEIPT_PLACED_EVENT = parseAbiItem(
   "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
 );
 
-const DEV_COLLATERAL_ABI = parseAbi([
+export const DEV_COLLATERAL_ABI = parseAbi([
   "function mint(address account, uint256 amount)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",

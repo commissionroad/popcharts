@@ -9,14 +9,12 @@ import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts
 import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
   type PregradDeploy,
 } from "./shared/deployments/pregradDeploy.ts";
-import {
-  readPostgradDeployment,
-  type PostgradDeployment,
-} from "./shared/deployments/readPostgradDeployment.ts";
+import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
@@ -190,7 +188,7 @@ async function main(): Promise<void> {
     "local:deploy-pregrad",
   ]);
   const deploy = parsePregradDeploy(deployOutput.stdout);
-  const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
+  const postgrad = noPostgrad ? null : await deployPostgradVenue(run, deploy);
   // The supervised server processes receive this object directly (not the
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
@@ -457,43 +455,6 @@ async function startAiReviewStack(
   );
 
   return [aiReview, runner];
-}
-
-// Deploys the postgrad venue on top of the fresh pregrad deployment: the v4
-// venue stack, the complete-set postgrad contracts, and one demo market so the
-// venue is immediately tradeable. The deploy scripts are idempotent against a
-// reused chain (the venue deploy clears stale Ignition journals itself), and
-// every failure rejects loudly through run().
-async function deployPostgradVenue(
-  deploy: PregradDeploy,
-): Promise<PostgradDeployment> {
-  await run("venue", "pnpm", [
-    "--dir",
-    "protocol",
-    "run",
-    "local:deploy-venue",
-  ]);
-  await run(
-    "postgrad",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:deploy-postgrad"],
-    {
-      env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
-    },
-  );
-  await run(
-    "demo market",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:create-complete-set-market"],
-    {
-      env: {
-        POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-        POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
-      },
-    },
-  );
-
-  return readPostgradDeployment(DEMO_MARKET_SYMBOL);
 }
 
 function buildAppEnv(

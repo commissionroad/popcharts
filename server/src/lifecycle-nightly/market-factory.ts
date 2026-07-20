@@ -1,0 +1,147 @@
+import { pregradManagerAbi } from "@popcharts/protocol";
+
+import {
+  hashMarketMetadata,
+  serializeMarketMetadata,
+  type MarketMetadataPayload,
+} from "src/indexer/metadata/market-metadata";
+
+import { chainNowSeconds } from "./chain-time";
+import {
+  CREATOR_ACCOUNT_INDEX,
+  collateralAddress,
+  pregradManagerAddress,
+  publicClient,
+  walletFor,
+} from "./stack";
+
+const WAD = 10n ** 18n;
+
+export type LifecycleMarketOptions = {
+  creatorAccountIndex?: number;
+  /** Seconds from the timing anchor to the graduation deadline. */
+  graduationSeconds?: number;
+  graduationThresholdWad?: bigint;
+  /**
+   * Deterministic verdict for the heuristic resolution provider, appended to
+   * the resolution criteria as the `[heuristic-outcome: …]` marker. Omit to
+   * leave the market unresolvable (the provider abstains without a marker).
+   */
+  heuristicOutcome?: "yes" | "no" | "draw" | "too_early";
+  question: string;
+  resolutionCriteria?: string;
+  /** Seconds from the timing anchor to resolutionTime (and yesNotBefore). */
+  resolutionSeconds?: number;
+  resolutionSources?: string[];
+};
+
+export type LifecycleMarket = {
+  createdBlock: bigint;
+  creator: `0x${string}`;
+  graduationDeadline: bigint;
+  graduationThresholdWad: bigint;
+  marketId: bigint;
+  metadataHash: `0x${string}`;
+  resolutionTime: bigint;
+};
+
+/**
+ * Creates one pregrad market on the running stack through the generated
+ * PregradManager ABI, serialized and hashed by the same functions the indexer
+ * verifies event payloads with. Timing anchors to whichever of chain time and
+ * wall time is later: the contract validates deadlines against block
+ * timestamps (which earlier scenarios may have jumped forward), while the AI
+ * runners gate job eligibility on wall clock — anchoring to the later clock
+ * keeps the market valid for both.
+ */
+export async function createLifecycleMarket(
+  options: LifecycleMarketOptions,
+): Promise<LifecycleMarket> {
+  const wallet = walletFor(
+    options.creatorAccountIndex ?? CREATOR_ACCOUNT_INDEX,
+  );
+
+  const criteria = [
+    options.resolutionCriteria ??
+      "Resolves per the stated question against the named source.",
+    ...(options.heuristicOutcome
+      ? [`[heuristic-outcome: ${options.heuristicOutcome}]`]
+      : []),
+  ].join(" ");
+
+  const metadata: MarketMetadataPayload = {
+    category: "Testing",
+    createdAt: new Date().toISOString(),
+    description:
+      "Created by the lifecycle nightly suite (ADR 0017 Track C); asserts " +
+      "the full market lifecycle against the local stack.",
+    question: options.question,
+    resolutionCriteria: criteria,
+    resolutionSources: options.resolutionSources ?? [
+      "https://example.com/lifecycle-nightly-oracle",
+    ],
+    version: 1,
+  };
+  const serialized = serializeMarketMetadata(metadata);
+  const metadataHash = hashMarketMetadata(metadata) as `0x${string}`;
+
+  const chainNow = await chainNowSeconds();
+  const wallNow = BigInt(Math.floor(Date.now() / 1000));
+  const anchor = chainNow > wallNow ? chainNow : wallNow;
+  const graduationDeadline =
+    anchor + BigInt(options.graduationSeconds ?? 3_600);
+  const resolutionTime = anchor + BigInt(options.resolutionSeconds ?? 7_200);
+  const graduationThresholdWad = options.graduationThresholdWad ?? 300n * WAD;
+
+  const creationFee = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "marketCreationFee",
+    args: [wallet.account.address],
+  });
+  const marketCountBefore = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "marketCount",
+  });
+
+  const transactionHash = await wallet.writeContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "createMarket",
+    args: [
+      {
+        bypassAiResolution: false,
+        collateral: collateralAddress,
+        graduationDeadline,
+        graduationThreshold: graduationThresholdWad,
+        liquidityParameter: 5_000n * WAD,
+        metadata: serialized,
+        metadataHash,
+        openingProbabilityWad: WAD / 2n,
+        resolutionTime,
+        // No early YES gate for lifecycle markets: resolution opens both
+        // sides at once (must satisfy deadline < yesNotBefore <= resolution).
+        yesNotBefore: resolutionTime,
+      },
+    ],
+    value: creationFee,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: transactionHash,
+  });
+
+  if (receipt.status !== "success") {
+    throw new Error(`createMarket reverted: ${transactionHash}`);
+  }
+
+  return {
+    createdBlock: receipt.blockNumber,
+    creator: wallet.account.address,
+    graduationDeadline,
+    graduationThresholdWad,
+    marketId: marketCountBefore + 1n,
+    metadataHash,
+    resolutionTime,
+  };
+}

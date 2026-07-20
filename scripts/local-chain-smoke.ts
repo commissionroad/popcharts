@@ -4,6 +4,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
   type PregradDeploy,
@@ -12,10 +13,7 @@ import {
   parseSmokeMarket,
   type SmokeMarket,
 } from "./shared/deployments/smokeMarket.ts";
-import {
-  readPostgradDeployment,
-  type PostgradDeployment,
-} from "./shared/deployments/readPostgradDeployment.ts";
+import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { localChainEnvFileForSlot } from "./shared/env/localDevEnvFiles.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
@@ -147,35 +145,9 @@ async function main(): Promise<void> {
   // The postgrad venue rides the same fresh chain so the smoke proves the
   // whole system deploys end-to-end: v4 venue stack, postgrad contracts, and
   // one demo complete-set market that makes the venue immediately tradeable.
-  await run("venue", "pnpm", [
-    "--dir",
-    "protocol",
-    "run",
-    "local:deploy-venue",
-  ]);
-  await run(
-    "postgrad",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:deploy-postgrad"],
-    {
-      env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
-    },
-  );
-  await run(
-    "demo market",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:create-complete-set-market"],
-    {
-      env: {
-        POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-        POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
-      },
-    },
-  );
-
-  // The deploy scripts write manifests as their machine-readable output, so
-  // read those instead of parsing human stdout for addresses.
-  const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
+  // The helper reads the deploy manifests as its machine-readable output
+  // instead of parsing human stdout for addresses.
+  const postgrad = await deployPostgradVenue(run, deploy);
 
   // The read-only health check walks market status, collateral escrow, pool
   // prices, bounds, and whitelisting against the manifest — a cheap
