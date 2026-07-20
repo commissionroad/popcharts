@@ -64,18 +64,27 @@ Key decisions:
 
 ## Status by phase
 
-- **Phase 1 — slot + registry core (landed 2026-07-17).**
+**All build phases landed 2026-07-17** (PRs #242, #247, #248).
+
+- **Phase 1 — slot + registry core (#242).**
   `scripts/shared/localStack/{ports,identity,registry,slot}.ts` +
   `assertValidSlot.ts`, unit-tested. Pure; wires nothing into the running
   stack.
-- **Phase 2 — control-plane wiring** (thread the slot through
-  `local-dev-control.ts`, the env builders, and process-compose admin port;
-  replace silent chain reuse with the identity check).
-- **Phase 3 — database-scoped isolation** (`ensureLocalPostgres` /
-  `resetLocalPostgresForFreshChain` operate on the slot's database).
-- **Phase 4 — stack-aware scripts** (`local-create-market` and siblings
-  resolve the target from the registry: 0 → error, 1 → use, >1 → "which
-  stack?" prompt or `--stack`).
+- **Phase 2 + 3 — control-plane wiring + database-scoped isolation (#247).**
+  `resolveAndRegisterStack` threads the slot through `local-dev-control.ts`
+  (and `local-dev.ts` / `local-chain-smoke.ts`), the env builders, and the
+  process-compose admin port; silent chain reuse is replaced with the identity
+  check (`classifyChainPortOwnership` — a foreign chain fails loudly);
+  `ensureLocalPostgres` / `resetLocalPostgresForFreshChain` create and reset
+  only the slot's database inside the one shared container. Proven by a real
+  two-stack boot (a slot-1 stack alongside a live slot-0, isolated chain/DB/API).
+- **Phase 4 — stack-aware create-market (#248).** `resolveTargetStack` selects
+  the target from the registry (0 → error, 1 → use, >1 → interactive "which
+  stack?" prompt on a TTY, else `--stack <slot|id>` / `POPCHARTS_STACK`);
+  wired into `local-create-market`, with explicit `--local-chain-env` /
+  `--api-url` still bypassing the registry for back-compat. Applying the same
+  resolver to the other targeting scripts (`local-bot-trade`,
+  `local-deploy-venue`, postgrad helpers) is a tracked follow-up.
 
 ## Deferred / future work
 
