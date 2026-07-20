@@ -766,3 +766,14 @@ nowhere in CI, exactly the gap Track C closes. Tracking-issue loop
 verified live (auto-filed #253). Spec now asserts the mode eyebrow
 (Wallet-signed|Devchain relay) with 30s tx headroom; e2e failure
 artifacts uploaded on red.
+
+## [2026-07-20] ingest | repo ADR 0017 — C2 landed (real-market ai-review smoke)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox only)
+Notes: the ai-review smoke no longer fabricates DB rows. New root
+orchestrator scripts/local-ai-review-smoke.ts creates a fresh on-chain
+market via the protocol helper and pins it to the server smoke by env; the
+smoke adopts it once indexed, heuristic-reviews it, submits the real
+approveMarket transaction, and asserts the bootstrap transition. Legacy
+fabricated rows (creator 0x...01) are swept so long-lived local DBs
+self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
+trade -> resolve -> review).
