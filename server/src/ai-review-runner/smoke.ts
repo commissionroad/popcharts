@@ -1,4 +1,4 @@
-import { and, closeDb, db, eq, schema } from "src/db/client";
+import { and, closeDb, db, desc, eq, schema } from "src/db/client";
 import {
   claimReviewJobs,
   enqueueEligibleMarketReviewJobs,
@@ -7,9 +7,6 @@ import {
 import type { AiReviewRunnerConfig } from "./config";
 
 const DEFAULT_SMOKE_PORT = "3012";
-const SMOKE_CHAIN_ID = 31337;
-const SMOKE_CONTRACT_ADDRESS = "0x000000000000000000000000000000000000cafe";
-const SMOKE_CREATOR_ADDRESS = "0x0000000000000000000000000000000000000001";
 const SMOKE_JOB_PRIORITY = 2_147_483_647;
 
 process.env.AI_REVIEW_PROVIDER ??= "heuristic";
@@ -25,7 +22,7 @@ async function main() {
   let serviceStarted = false;
 
   try {
-    const market = await seedUnderReviewMarket();
+    const market = await adoptUnderReviewMarket();
 
     serverModule = await import("src/ai-review/server");
     const serviceUrl = startAiReviewService(serverModule);
@@ -160,85 +157,64 @@ function buildSmokeRunnerConfig(serviceUrl: string): AiReviewRunnerConfig {
   };
 }
 
-async function seedUnderReviewMarket() {
-  const now = new Date();
-  const smokeCreatedAt = new Date(0);
-  const seed = BigInt(Date.now());
-  const marketId = 9_000_000_000_000n + seed;
-  const metadataHash = makeBytes32("metadata", seed);
+async function adoptUnderReviewMarket() {
+  // The smoke reviews a real market — the review runner submits a real
+  // approveMarket transaction, so a fabricated row would revert with
+  // MarketDoesNotExist (the failure mode this smoke had until ADR 0017 C2).
+  // scripts/local-ai-review-smoke.ts creates a fresh market and pins it via
+  // env; without the pin, the newest indexed under_review market is adopted.
+  await sweepLegacyFabricatedRows();
 
-  // Remove only prior smoke-owned rows so production claim ordering cannot
-  // accidentally process an older local fixture instead of this one.
-  await deletePriorSmokeRows();
+  const pinnedMarketId = process.env.POPCHARTS_SMOKE_MARKET_ID;
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const [row] = await db
+      .select()
+      .from(schema.markets)
+      .innerJoin(
+        schema.marketMetadata,
+        and(
+          eq(schema.marketMetadata.chainId, schema.markets.chainId),
+          eq(schema.marketMetadata.metadataHash, schema.markets.metadataHash),
+        ),
+      )
+      .where(
+        pinnedMarketId
+          ? and(
+              eq(schema.markets.status, "under_review"),
+              eq(schema.markets.marketId, BigInt(pinnedMarketId)),
+            )
+          : eq(schema.markets.status, "under_review"),
+      )
+      .orderBy(desc(schema.markets.createdAt))
+      .limit(1);
 
-  const [contract] = await db
-    .insert(schema.contracts)
-    .values({
-      address: SMOKE_CONTRACT_ADDRESS,
-      chainId: SMOKE_CHAIN_ID,
-      name: "AiReviewSmokePregradManager",
-    })
-    .onConflictDoUpdate({
-      target: [schema.contracts.address, schema.contracts.chainId],
-      set: {
-        name: "AiReviewSmokePregradManager",
-      },
-    })
-    .returning();
-
-  if (!contract) {
-    throw new Error("Failed to upsert AI review smoke contract row.");
+    if (row) {
+      return row.markets;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        [
+          pinnedMarketId
+            ? `Market ${pinnedMarketId} did not appear as under_review within 60s.`
+            : "No under_review market with metadata found within 60s.",
+          "This smoke requires the live local stack. Run",
+          "`pnpm local:smoke -- --keep-running`, then",
+          "`pnpm local:ai-review-smoke` (it creates and pins a fresh market).",
+        ].join(" "),
+      );
+    }
+    await new Promise((resolvePoll) => setTimeout(resolvePoll, 2_000));
   }
-
-  await db.insert(schema.marketMetadata).values({
-    category: "Science",
-    chainId: SMOKE_CHAIN_ID,
-    createdAt: smokeCreatedAt,
-    description:
-      "Resolve using public NASA announcements or major wire coverage.",
-    metadataCreatedAt: now.toISOString(),
-    metadataHash,
-    question: "Will NASA announce a new Artemis launch date in 2026?",
-    resolutionCriteria:
-      "YES if NASA publishes an official new Artemis launch date before the end of 2026. NO otherwise.",
-    resolutionSources: ["Official NASA announcements", "Major wire coverage"],
-    resolutionUrl: "https://www.nasa.gov/",
-    updatedAt: now,
-  });
-
-  const [market] = await db
-    .insert(schema.markets)
-    .values({
-      bypassAiResolution: false,
-      chainId: SMOKE_CHAIN_ID,
-      collateral: "0x0000000000000000000000000000000000000000",
-      contractId: contract.id,
-      createdBlockNumber: seed,
-      createdBlockTimestamp: now,
-      createdAt: smokeCreatedAt,
-      createdLogIndex: Number(seed % 1_000_000n),
-      createdTransactionHash: makeBytes32("tx", seed),
-      creator: SMOKE_CREATOR_ADDRESS,
-      graduationThreshold: 1_000_000_000_000_000_000n,
-      graduationTime: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-      liquidityParameter: 1_000_000_000_000_000_000n,
-      marketId,
-      metadataHash,
-      openingProbabilityWad: 500_000_000_000_000_000n,
-      resolutionTime: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-      status: "under_review",
-      updatedAt: now,
-    })
-    .returning();
-
-  if (!market) {
-    throw new Error("Failed to insert AI review smoke market row.");
-  }
-
-  return market;
 }
 
-async function deletePriorSmokeRows() {
+/**
+ * Earlier versions of this smoke fabricated markets in the database (fake
+ * contract 0x...cafe, creator 0x...01). Long-lived local databases still
+ * carry those rows, and their jobs shadow real ones — delete them.
+ */
+async function sweepLegacyFabricatedRows() {
+  const LEGACY_CREATOR = "0x0000000000000000000000000000000000000001";
   const rows = await db
     .select({
       chainId: schema.markets.chainId,
@@ -246,21 +222,18 @@ async function deletePriorSmokeRows() {
       metadataHash: schema.markets.metadataHash,
     })
     .from(schema.markets)
-    .where(
-      and(
-        eq(schema.markets.chainId, SMOKE_CHAIN_ID),
-        eq(schema.markets.creator, SMOKE_CREATOR_ADDRESS),
-      ),
-    );
+    .where(eq(schema.markets.creator, LEGACY_CREATOR));
 
   for (const row of rows) {
-    const marketKey = and(
-      eq(schema.marketAiReviewJobs.chainId, row.chainId),
-      eq(schema.marketAiReviewJobs.marketId, row.marketId),
-      eq(schema.marketAiReviewJobs.metadataHash, row.metadataHash),
-    );
-
-    await db.delete(schema.marketAiReviewJobs).where(marketKey);
+    await db
+      .delete(schema.marketAiReviewJobs)
+      .where(
+        and(
+          eq(schema.marketAiReviewJobs.chainId, row.chainId),
+          eq(schema.marketAiReviewJobs.marketId, row.marketId),
+          eq(schema.marketAiReviewJobs.metadataHash, row.metadataHash),
+        ),
+      );
     await db
       .delete(schema.marketAiReviews)
       .where(
@@ -276,7 +249,6 @@ async function deletePriorSmokeRows() {
         and(
           eq(schema.markets.chainId, row.chainId),
           eq(schema.markets.marketId, row.marketId),
-          eq(schema.markets.metadataHash, row.metadataHash),
         ),
       );
     await db
@@ -287,12 +259,10 @@ async function deletePriorSmokeRows() {
           eq(schema.marketMetadata.metadataHash, row.metadataHash),
         ),
       );
+    console.info("[AI Review Runner Smoke] swept legacy fabricated market", {
+      marketId: row.marketId.toString(),
+    });
   }
-}
-
-function makeBytes32(label: string, seed: bigint) {
-  const encoded = `${Buffer.from(label).toString("hex")}${seed.toString(16)}`;
-  return `0x${encoded.padEnd(64, "0").slice(0, 64)}`;
 }
 
 if (import.meta.main) {

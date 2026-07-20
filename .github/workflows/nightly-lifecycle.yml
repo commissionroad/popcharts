@@ -65,7 +65,7 @@ jobs:
       # promise), so the smoke runs in the background and the step polls
       # for its readiness line — printed only after the created market is
       # served by the API — before handing the live stack to market-smoke.
-      - name: Chain smoke sequence (create → index → trade → resolve)
+      - name: Chain smoke sequence (create → index → trade → resolve → review)
         run: |
           set -euo pipefail
           pnpm local:smoke -- --keep-running > smoke.log 2>&1 &
@@ -87,6 +87,7 @@ jobs:
             sleep 5
           done
           pnpm local:market-smoke
+          pnpm local:ai-review-smoke
           kill -TERM "$smoke_pid" 2>/dev/null || true
           wait "$smoke_pid" 2>/dev/null || true
 
@@ -98,9 +99,6 @@ jobs:
           path: smoke.log
           retention-days: 14
 
-      # server-ai-review-smoke joins this job once repaired (ADR 0017 C2):
-      # today it fabricates a market the chain doesn't have, and the review
-      # runner's on-chain transition rejects it with MarketDoesNotExist.
 
   # Self-orchestrates its own stack plus the Next app and runs the
   # chain-backed Playwright spec.
