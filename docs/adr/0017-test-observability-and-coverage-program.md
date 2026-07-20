@@ -201,7 +201,7 @@ on-chain approval transition (wallet client against PregradManager), so
 the smoke needs a chain and stays nightly, riding the lifecycle job's
 deployed stack via the stack-generated `server/.env.local-chain`.
 
-- [ ] C1 — `nightly-lifecycle` workflow running the three chain smokes
+- [x] C1 — `nightly-lifecycle` workflow running the three chain smokes
       (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
       tracking-issue lifecycle and flake-report append
 - [ ] C2 — repair `server-ai-review-smoke` and add it to the nightly

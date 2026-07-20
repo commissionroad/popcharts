@@ -756,3 +756,13 @@ on-chain, then add it to the nightly job. Local-dev gotcha
 found on the way: a dev-stack ai-review server on :3012 makes the smoke's
 in-process service fail confusingly; the job error lands in
 market_ai_review_jobs.last_error, which the smoke doesn't print.
+
+## [2026-07-20] ingest | repo ADR 0017 — C1 landed; first nightly catch
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox state only)
+Notes: nightly-lifecycle live (PRs #251 + spec fix). Its FIRST dispatched
+run caught a real rotted spec: the @chain Playwright test asserted
+"On-chain created", copy the success-panel redesign removed — the spec ran
+nowhere in CI, exactly the gap Track C closes. Tracking-issue loop
+verified live (auto-filed #253). Spec now asserts the mode eyebrow
+(Wallet-signed|Devchain relay) with 30s tx headroom; e2e failure
+artifacts uploaded on red.
