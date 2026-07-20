@@ -767,3 +767,13 @@ conditional ("would absorb") until accepted. Watch for two collisions when
 it lands: the designkit's stale "CTF YES/NO tokens" language (already
 flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
 which shrink in scope if dynamic postgrad addresses become bounded.
+
+## [2026-07-20] ingest | protocol ADR 0012 — Codex design-review hardening (same PR)
+Pages: ~summaries/protocol-adr-0012-singleton-postgrad-position-book.md
+Notes: Independent design review surfaced 9 findings, all folded into the
+ADR pre-review: terminal retained-claim liabilities (stranding hazard),
+global collateral-conservation invariant, cancelled-draw invariant case,
+per-side resolution gates, wrapper ERC1155-receiver validation, terminal-
+market venue exit path, honest (narrowed) indexing claims, wrapper-
+registration discovery event, and outcome decimals promoted to a BLOCKING
+pre-acceptance question (v4 dust vs. exact-or-revert redemption).

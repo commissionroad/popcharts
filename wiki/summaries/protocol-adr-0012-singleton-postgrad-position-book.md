@@ -33,9 +33,17 @@ ERC1155 interop target and the shipped v4 venue:
 - The [adapter](../entities/postgrad-adapter.md) boundary survives:
   `finalizeGraduation` funds a book ledger entry instead of deploying a
   market; retained claims mint book positions under ADR 0008's
-  retained-mint constraints.
-- The per-market solvency invariant restates inside the book, with outcome
-  supply counting wrapped + unwrapped units.
+  retained-mint constraints — with unclaimed retained positions reserved as
+  explicit liabilities so resolution can never strand a lazy receipt claim
+  (a hazard the current Trading-only retained-mint gate has).
+- The solvency invariant restates per market in three states (trading,
+  resolved, cancelled-draw), counting wrapped + unwrapped supply, plus a new
+  global conservation invariant shared custody demands: per collateral
+  token, book balance ≥ Σ per-market capacity ledgers, via exact
+  balance-delta checks.
+- The book emits a wrapper-registration event per clone (marketId, side,
+  position id) as the event-first discovery root — raw ERC20 `Transfer`
+  logs carry neither.
 
 ## Why
 
@@ -50,21 +58,29 @@ ERC1155 interop target and the shipped v4 venue:
 
 ## Consequences recorded
 
-Indexing becomes bounded (fixed-address money watchers; only wrapper
-`Transfer` tracking stays dynamic, and terminal markets go quiet — prunable).
-Graduation gets cheaper (two clones vs. three full deploys). The honest
-security trade: all postgrad collateral concentrates in one contract
-(honeypot, cross-market bug risk) in exchange for one auditable, pausable
-surface instead of an immortal factory template — acceptable only with
-invariant/fuzz coverage, external audit, and launch caps. Balances live in
-two shapes (positions + wrapped), so portfolio accounting sums both.
+The money paper trail becomes fixed-address (three dynamic watchers become
+one, and the survivor only tracks balances) — but the ADR is explicit that
+the contract set is not fully bounded: two wrapper clones still deploy per
+market, wrapper `Transfer` tracking stays dynamic (terminal markets go quiet
+as balances unwind, prunable via hot/cold tiers, not instantly). Graduation
+gets cheaper (two clones vs. three full deploys). The honest security trade:
+all postgrad collateral concentrates in one contract (honeypot, cross-market
+bug risk) in exchange for one auditable, pausable surface instead of an
+immortal factory template — acceptable only with invariant/fuzz coverage,
+external audit, and launch caps. Balances live in two shapes (positions +
+wrapped), so portfolio accounting sums both. The venue exit path for
+terminal markets (withdraw → unwrap → redeem while balances sit in pools,
+orders, LP positions) is a named design obligation — today nothing gates
+swaps on market lifecycle.
 
 Scope: mainnet path only — Arc Testnet keeps the ADR 0008 factory. Six
 phases (book core → wrappers → adapter rework → venue integration → indexer
 cutover → deployment path); deferred: singleton governance design, full
 Gnosis-CTF ID compatibility, hot/cold indexer tiering, optional testnet
-migration. Open questions: position ID scheme, wrap timing at graduation,
-outcome decimals.
+migration. Open questions: outcome decimals (BLOCKING — 18-decimal
+dust-rejecting redemption vs. arbitrary v4 swap amounts creates
+non-redeemable dust), position ID scheme, wrap timing, post-resolution swap
+policy.
 
 ## Touches
 
