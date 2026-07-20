@@ -37,7 +37,8 @@ convention: **orchestrators read deployment manifests
 
 ## Env seams
 
-`server/.env.local-chain` (generated), `app/.env.development.local`
+`server/.env.local-chain` (generated; per-slot `.env.local-chain.<slot>` for
+agent stacks, see the slot model below), `app/.env.development.local`
 (gitignored; deterministic local key for the dev-only creation route),
 `NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN`, `NETWORK=local`,
 `POPCHARTS_MARKET_DATA_SOURCE=auto|api|fixtures`. Dev-only server endpoints
@@ -60,9 +61,11 @@ owns it (foreign chains fail loudly instead of being adopted); Postgres is
 isolated per slot at the **database** level inside the one shared container;
 and `local-create-market` (and siblings) resolve which stack to target from the
 registry. chainId stays 31337 across slots — it only matters for a browser
-wallet on two stacks at once. Phase 1 (the slot/registry core) landed
-2026-07-17; the control-plane wiring, database-scoped reset, and stack-aware
-scripts follow.
+wallet on two stacks at once. All build phases landed 2026-07-17 (slot/registry
+core, control-plane wiring with identity-scoped chain reuse, database-scoped
+reset, and stack-aware `local-create-market`); applying the target resolver to
+the other targeting scripts (`local-bot-trade`, `local-deploy-venue`, postgrad
+helpers) is the tracked follow-up.
 
 ## Related pages
 
