@@ -70,7 +70,7 @@ explicit.** Per ADR 0007, `finalizeGraduation` funds per-market collateral
 capacity — now a book ledger entry instead of a market deployment — and
 per-receipt claims distribute retained YES/NO as book positions under ADR
 0008's single-side retained-mint rule (safe only against already-funded
-complete-set capacity). One carry-over is deliberately *not* unchanged:
+complete-set capacity). One carry-over is deliberately _not_ unchanged:
 today's market accepts retained mints only while `Trading`, and receipt
 claims are lazy with no deadline — so resolving today's market strands every
 unclaimed receipt. The book must account outstanding unclaimed retained
@@ -104,7 +104,7 @@ final rehearsal on Arc before mainnet.
 
 The money paper trail becomes fixed-address. Complete-set mints and merges,
 resolutions, cancellations, and redemptions all arrive from one address,
-keyed by `marketId`. To be precise about what this does *not* claim: the
+keyed by `marketId`. To be precise about what this does _not_ claim: the
 contract set is not fully bounded — each graduation still deploys two wrapper
 clones (down from three contracts), and wrapper `Transfer` tracking remains a
 dynamic-address watcher, since wrapped balances are real balances and remain
@@ -158,7 +158,7 @@ re-verified against them, not assumed.
       per-market capacity ledger, complete-set mint/merge, resolution/
       cancellation with per-side time gates, redemption/draw redemption.
       Property/fuzz tests must cover all three invariant states (trading,
-      resolved, *and* cancelled draw liabilities) plus the global
+      resolved, _and_ cancelled draw liabilities) plus the global
       collateral-conservation invariant across concurrent markets; behavioral
       parity tests against `CompleteSetBinaryMarket` as the golden reference.
 - [ ] **Phase 2 — Wrappers.** `WrappedOutcomeToken` template plus atomic
@@ -168,7 +168,7 @@ re-verified against them, not assumed.
       tests including unsolicited transfers, batch transfers, and wrong-id
       transfers — not just happy-path supply equality.
 - [ ] **Phase 3 — Adapter rework.** Graduation finalization funds book
-      capacity *and reserves outstanding retained-claim liabilities*;
+      capacity _and reserves outstanding retained-claim liabilities_;
       retained claims mint book positions in trading and terminal states
       (resolved/cancelled claims redeem at their terminal rates); ADR 0008
       retained-mint constraints with tests, including resolve-with-unclaimed-
@@ -177,7 +177,7 @@ re-verified against them, not assumed.
       currencies on the devchain; hook, order manager, router, and Permit2
       path exercised end to end; seeding path decided (auto-wrap at
       graduation vs. lazy wrap). Terminal-market exit test: resolve and
-      cancel markets *while* wrapper balances sit in pools, open orders, and
+      cancel markets _while_ wrapper balances sit in pools, open orders, and
       LP positions, then prove withdraw → unwrap → redeem for every holder;
       decide and document post-resolution swap policy.
 - [ ] **Phase 5 — Indexer cutover.** Fixed-address book watchers replace the
