@@ -197,11 +197,13 @@ never points a derived slot at the legacy shared database-reset behavior.
 
 ### Phase 4 — stack-aware scripts
 
-- [ ] `local-create-market.ts`: registry resolution + interactive prompt +
+- [x] `local-create-market.ts`: registry resolution + interactive prompt +
       `--stack` / `POPCHARTS_STACK`.
 - [ ] Apply the same resolution to the sibling scripts
       (`local-bot-trade`, `local-smoke`, `local-dev-ai-review`,
       `local-deploy-venue`, postgrad helpers).
+      These siblings remain a tracked follow-up; this phase's current PR is
+      scoped to `local-create-market`, the originally requested surface.
 - [ ] `just` recipe help text documents multi-stack usage.
 
 ### Verification

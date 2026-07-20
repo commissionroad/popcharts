@@ -18,6 +18,7 @@ import {
   filterUnusedGeneratedMarketOptions,
   generatedMarketOptionKey,
 } from "../shared/localMarket/generatedMarketOptions.ts";
+import { parseArgs } from "../local-create-market.ts";
 
 // A LOCAL_CHAIN_SMOKE_MARKET line as protocol/scripts/create-local-market.ts
 // emits it (recorded from a real run, surrounded by typical pnpm/Hardhat
@@ -241,5 +242,22 @@ describe("readEnvFile", function () {
       PREGRAD_MANAGER_ADDRESS: "0x1111111111111111111111111111111111111111",
       EQUALS_IN_VALUE: "a=b",
     });
+  });
+});
+
+describe("local-create-market CLI", function () {
+  it("parses --stack and falls back to POPCHARTS_STACK", function () {
+    assert.equal(parseArgs(["--stack", "2"]).stack, "2");
+    assert.equal(parseArgs(["--stack=feature-stack"]).stack, "feature-stack");
+    assert.equal(
+      parseArgs([], { POPCHARTS_STACK: "env-stack" }).stack,
+      "env-stack",
+    );
+    assert.equal(
+      parseArgs(["--stack", "cli-stack"], {
+        POPCHARTS_STACK: "env-stack",
+      }).stack,
+      "cli-stack",
+    );
   });
 });
