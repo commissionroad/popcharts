@@ -61,11 +61,42 @@ jobs:
         working-directory: server
         run: bun install --frozen-lockfile
 
-      - name: Create market through the real stack
-        run: pnpm local:smoke -- --keep-running
+      # --keep-running never exits by design (it parks on an unresolved
+      # promise), so the smoke runs in the background and the step polls
+      # for its readiness line — printed only after the created market is
+      # served by the API — before handing the live stack to market-smoke.
+      - name: Chain smoke sequence (create → index → trade → resolve)
+        run: |
+          set -euo pipefail
+          pnpm local:smoke -- --keep-running > smoke.log 2>&1 &
+          smoke_pid=$!
+          for i in $(seq 1 120); do
+            if grep -q "Keeping Hardhat, API, and indexer running" smoke.log; then
+              break
+            fi
+            if ! kill -0 "$smoke_pid" 2>/dev/null; then
+              echo "local:smoke exited before readiness:"
+              tail -80 smoke.log
+              exit 1
+            fi
+            if [ "$i" = "120" ]; then
+              echo "timed out waiting for stack readiness"
+              tail -80 smoke.log
+              exit 1
+            fi
+            sleep 5
+          done
+          pnpm local:market-smoke
+          kill -TERM "$smoke_pid" 2>/dev/null || true
+          wait "$smoke_pid" 2>/dev/null || true
 
-      - name: Trade and resolve on the postgrad venue
-        run: pnpm local:market-smoke
+      - name: Upload smoke log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-smoke-log
+          path: smoke.log
+          retention-days: 14
 
       # server-ai-review-smoke joins this job once repaired (ADR 0017 C2):
       # today it fabricates a market the chain doesn't have, and the review
