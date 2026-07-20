@@ -4,7 +4,7 @@ import { mnemonicToAccount } from "viem/accounts";
 import type { Address } from "viem";
 
 import {
-  createBlockchainClient,
+  createReadOnlyClient,
   createWalletClient,
   type BlockchainClient,
   type BlockchainWalletClient,
@@ -38,7 +38,10 @@ export const collateralAddress = requireCollateralAddress();
 
 export const apiBaseUrl = `http://127.0.0.1:${config.apiPort}`;
 
-export const publicClient: BlockchainClient = createBlockchainClient();
+// HTTP-only on purpose: the harness polls, and the indexer-style WebSocket
+// client's reconnect loop would keep the runner process alive after the
+// scenario summary.
+export const publicClient: BlockchainClient = createReadOnlyClient();
 
 const walletCache = new Map<number, BlockchainWalletClient>();
 

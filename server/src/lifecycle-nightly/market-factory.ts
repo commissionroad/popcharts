@@ -21,7 +21,6 @@ export type LifecycleMarketOptions = {
   creatorAccountIndex?: number;
   /** Seconds from the timing anchor to the graduation deadline. */
   graduationSeconds?: number;
-  graduationThresholdWad?: bigint;
   /**
    * Deterministic verdict for the heuristic resolution provider, appended to
    * the resolution criteria as the `[heuristic-outcome: …]` marker. Omit to
@@ -85,13 +84,28 @@ export async function createLifecycleMarket(
   const serialized = serializeMarketMetadata(metadata);
   const metadataHash = hashMarketMetadata(metadata) as `0x${string}`;
 
+  const graduationSeconds = options.graduationSeconds ?? 3_600;
+  const resolutionSeconds = options.resolutionSeconds ?? 7_200;
+  if (resolutionSeconds <= graduationSeconds) {
+    // Fail before the transaction does: the contract enforces
+    // graduationDeadline < yesNotBefore <= resolutionTime and reverts with
+    // InvalidResolutionTime() on inverted windows.
+    throw new Error(
+      `resolutionSeconds (${resolutionSeconds}) must exceed graduationSeconds (${graduationSeconds}).`,
+    );
+  }
+
   const chainNow = await chainNowSeconds();
   const wallNow = BigInt(Math.floor(Date.now() / 1000));
   const anchor = chainNow > wallNow ? chainNow : wallNow;
-  const graduationDeadline =
-    anchor + BigInt(options.graduationSeconds ?? 3_600);
-  const resolutionTime = anchor + BigInt(options.resolutionSeconds ?? 7_200);
-  const graduationThresholdWad = options.graduationThresholdWad ?? 300n * WAD;
+  const graduationDeadline = anchor + BigInt(graduationSeconds);
+  const resolutionTime = anchor + BigInt(resolutionSeconds);
+  // Public (non-trusted) creators must pass graduationThreshold equal to
+  // liquidityParameter / 2 (PregradManager._validatePublicCreateMarketParams
+  // reverts PublicGraduationThresholdMismatch otherwise). The authoritative
+  // threshold is read back from getMarketConfig after creation.
+  const liquidityParameterWad = 5_000n * WAD;
+  const graduationThresholdWad = liquidityParameterWad / 2n;
 
   const creationFee = await publicClient.readContract({
     abi: pregradManagerAbi,
@@ -115,7 +129,7 @@ export async function createLifecycleMarket(
         collateral: collateralAddress,
         graduationDeadline,
         graduationThreshold: graduationThresholdWad,
-        liquidityParameter: 5_000n * WAD,
+        liquidityParameter: liquidityParameterWad,
         metadata: serialized,
         metadataHash,
         openingProbabilityWad: WAD / 2n,
@@ -135,12 +149,20 @@ export async function createLifecycleMarket(
     throw new Error(`createMarket reverted: ${transactionHash}`);
   }
 
+  const marketId = marketCountBefore + 1n;
+  const marketConfig = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "getMarketConfig",
+    args: [marketId],
+  });
+
   return {
     createdBlock: receipt.blockNumber,
     creator: wallet.account.address,
     graduationDeadline,
-    graduationThresholdWad,
-    marketId: marketCountBefore + 1n,
+    graduationThresholdWad: marketConfig.graduationThreshold,
+    marketId,
     metadataHash,
     resolutionTime,
   };

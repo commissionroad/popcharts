@@ -49,11 +49,14 @@ export const happyPath: Scenario = {
         // against a long-lived local database.
         question: `Will the lifecycle happy-path market settle YES? (run ${Date.now()})`,
         heuristicOutcome: "yes",
-        graduationSeconds: 3_600,
-        // Short window: the resolution runner's job eligibility compares
-        // resolutionTime against wall clock, so the scenario waits this out
-        // in real time after the chain-time jump.
-        resolutionSeconds: 90,
+        // The whole pregrad phase (index → approve → trade → startGraduation)
+        // must land inside the graduation window, and the scenario's real-time
+        // cost is roughly resolutionSeconds: the resolution runner's job
+        // eligibility compares resolutionTime against wall clock, which
+        // cannot be jumped. 240s gives the pregrad phase ~3x headroom over
+        // its typical ~70s while keeping the wall wait to a few minutes.
+        graduationSeconds: 240,
+        resolutionSeconds: 300,
       }),
     );
 

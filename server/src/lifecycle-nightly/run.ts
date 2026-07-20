@@ -30,8 +30,13 @@ if (only && selected.length === 0) {
   process.exit(1);
 }
 
+let exitCode = 1;
 try {
-  process.exitCode = await runScenarios(selected);
+  exitCode = await runScenarios(selected);
 } finally {
   await closeDb();
 }
+
+// Exit explicitly: any stray handle (a service's keep-alive socket, a timer)
+// would otherwise park the process after the summary and hang the nightly.
+process.exit(exitCode);

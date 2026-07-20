@@ -777,3 +777,15 @@ approveMarket transaction, and asserts the bootstrap transition. Legacy
 fabricated rows (creator 0x...01) are swept so long-lived local DBs
 self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
 trade -> resolve -> review).
+
+## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
+Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
+delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
+deploy, Postgres, API, indexer, keeper, heuristic AI review + resolution
+pairs) handing off to `server/src/lifecycle-nightly/` (sequential scenarios,
+forward-only chain-time jumps, market-scoped assertions, two-way chain<->DB
+money paper-trail reconciliation). One ADR wording amendment: receipt volume
+comes from deterministic balanced buys reusing the trading bot's receipt
+mechanics, not the interactive bot script. Unhappy-path scenarios and infra
+drills remain open (next C3 slices).
