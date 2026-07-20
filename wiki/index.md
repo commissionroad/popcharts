@@ -57,6 +57,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0009](summaries/protocol-adr-0009-complete-set-testnet-policy.md) — proposed testnet policy: caps, roles, display, audit gates
 - [ADR 0010](summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md) — Accepted — the clearing challenge window becomes owner-configurable `clearingChallengePeriod`, default 0, capped at 7 days; re-enable (~5 minutes) only when third-party proposers and a dispute mechanism exist
 - [ADR 0011](summaries/protocol-adr-0011-admin-market-cancellation.md) — owner-only `cancelMarket` moderation kill switch: halts an Active market, opens full escrow refunds via the existing claim path, distinct `Cancelled` status (doc still says Proposed; the code has landed)
+- [ADR 0012](summaries/protocol-adr-0012-singleton-postgrad-position-book.md) — PROPOSED mainnet path: singleton ERC1155 `PostgradPositionBook` for all markets + per-market ERC20 wrapper clones as v4 pool currencies; scale-mandate driven, resolves ADR 0008's bounded deviation
 
 ## Summaries — protocol design docs (protocol/docs/)
 

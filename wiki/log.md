@@ -756,3 +756,14 @@ on-chain, then add it to the nightly job. Local-dev gotcha
 found on the way: a dev-stack ai-review server on :3012 makes the smoke's
 in-process service fail confusingly; the job error lands in
 market_ai_review_jobs.last_error, which the smoke doesn't print.
+
+## [2026-07-20] ingest | protocol ADR 0012 — singleton postgrad position book (proposed)
+Pages: +summaries/protocol-adr-0012-singleton-postgrad-position-book.md,
+~concepts/complete-sets.md, ~entities/postgrad-market.md,
+~entities/postgrad-adapter.md, ~entities/indexer.md, ~index.md
+Notes: This is the "later ADR" ADR 0008 promised for mainnet tokenization.
+Status Proposed — under user review; entity pages phrase the book as
+conditional ("would absorb") until accepted. Watch for two collisions when
+it lands: the designkit's stale "CTF YES/NO tokens" language (already
+flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
+which shrink in scope if dynamic postgrad addresses become bounded.
