@@ -1,7 +1,12 @@
 import type { WorkflowRunRecord } from "./computeFlakeStats.ts";
 
 /** The workflows the weekly flake report covers. */
-export const FLAKE_REPORT_WORKFLOWS = ["App CI", "Protocol CI", "Server CI"];
+export const FLAKE_REPORT_WORKFLOWS = [
+  "App CI",
+  "Protocol CI",
+  "Server CI",
+  "Nightly Lifecycle",
+];
 
 /** Shape of the GitHub REST `actions/runs` items the report consumes. */
 export interface RawWorkflowRun {

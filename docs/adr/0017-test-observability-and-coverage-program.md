@@ -194,15 +194,22 @@ statistical flake alerting deliberately deferred in Track A. Revisit
 (noted 2026-07-15): move notifications to a project Discord once one
 exists. Cron ~09:00 UTC plus `workflow_dispatch`.
 
-Placement-rule correction from the grill: `server-ai-review-smoke` needs
-only Postgres, so it moves to Track B's per-PR integration step rather
-than running nightly.
+Placement note (corrected 2026-07-15 during C1 pre-flight): the grill
+assumed `server-ai-review-smoke` needs only Postgres and should move
+per-PR. Verification falsified that — the review runner submits a real
+on-chain approval transition (wallet client against PregradManager), so
+the smoke needs a chain and stays nightly, riding the lifecycle job's
+deployed stack via the stack-generated `server/.env.local-chain`.
 
 - [ ] C1 — `nightly-lifecycle` workflow running the three chain smokes
       (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
       tracking-issue lifecycle and flake-report append
-- [ ] C2 — promote `server-ai-review-smoke` into `Check server`'s per-PR
-      integration step
+- [ ] C2 — repair `server-ai-review-smoke` and add it to the nightly
+      lifecycle job. Found broken on main during C1 pre-flight: it
+      fabricates a synthetic market in the database, but the review
+      runner now submits a real on-chain approval transition and reverts
+      with `MarketDoesNotExist`. The repair seeds its market on-chain
+      (and rules out per-PR placement for good — it needs a chain)
 - [ ] C3 — lifecycle harness (boot once, heuristic providers, time-jump
       utilities) + service/chain scenarios, tracked scenario-by-scenario
       in ADR 0014's checklist
