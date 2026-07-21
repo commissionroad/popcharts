@@ -1,7 +1,5 @@
-import { pregradManagerAbi, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
+import { mockCollateralAbi, pregradManagerAbi, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
 import { maxUint256 } from "viem";
-
-import { DEV_COLLATERAL_ABI } from "src/api/services/dev-market-graduate";
 
 import {
   collateralAddress,
@@ -131,7 +129,7 @@ async function fundTrader(
   amount: bigint,
 ): Promise<void> {
   const mintHash = await wallet.writeContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "mint",
     args: [wallet.account.address, amount],
@@ -139,7 +137,7 @@ async function fundTrader(
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
 
   const allowance = await publicClient.readContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "allowance",
     args: [wallet.account.address, pregradManagerAddress],
@@ -147,7 +145,7 @@ async function fundTrader(
 
   if (allowance < amount) {
     const approveHash = await wallet.writeContract({
-      abi: DEV_COLLATERAL_ABI,
+      abi: mockCollateralAbi,
       address: collateralAddress,
       functionName: "approve",
       args: [pregradManagerAddress, maxUint256],
