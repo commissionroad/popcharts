@@ -7,9 +7,10 @@ import type { StackPorts } from "../localStack/ports.ts";
 /**
  * Environment for the local Bun API and indexer, shared by the local-dev and
  * control-plane orchestrators. RPC URLs, default API port, Postgres database,
- * and review endpoint come from one slot resource set; explicit DATABASE_URL
- * and LOCAL_API_PORT overrides remain honored. Deployment address overrides
- * are blank before deployment and populated after it completes.
+ * review endpoint, and indexer health marker come from one slot resource set;
+ * explicit DATABASE_URL and LOCAL_API_PORT overrides remain honored.
+ * Deployment address overrides are blank before deployment and populated
+ * after it completes.
  */
 export function buildLocalServerEnv(
   resources: StackPorts,
