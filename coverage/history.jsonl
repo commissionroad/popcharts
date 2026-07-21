@@ -62,3 +62,5 @@
 {"ts":"2026-07-21T20:49:55.887Z","workspace":"app","commit":"29a97382c66e3096b3dea49d5843a5cfe162aaac","linesPct":100,"linesHit":2923,"linesFound":2923,"functionsPct":99.53,"branchesPct":99.75}
 {"ts":"2026-07-21T21:16:32.649Z","workspace":"server","commit":"fbb33b2750bee0c5d8c20f89af3ff09e60130f73","linesPct":67.7,"linesHit":8986,"linesFound":13274,"functionsPct":75.72,"branchesPct":null}
 {"ts":"2026-07-21T21:19:02.866Z","workspace":"app","commit":"fbb33b2750bee0c5d8c20f89af3ff09e60130f73","linesPct":100,"linesHit":2923,"linesFound":2923,"functionsPct":99.53,"branchesPct":99.75}
+{"ts":"2026-07-21T21:19:13.571Z","workspace":"protocol-solidity","commit":"fbb33b2750bee0c5d8c20f89af3ff09e60130f73","linesPct":96.88,"linesHit":1490,"linesFound":1538,"functionsPct":null,"branchesPct":null}
+{"ts":"2026-07-21T21:19:13.653Z","workspace":"protocol-ts","commit":"fbb33b2750bee0c5d8c20f89af3ff09e60130f73","linesPct":39.97,"linesHit":920,"linesFound":2302,"functionsPct":51.22,"branchesPct":86.67}
