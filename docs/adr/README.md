@@ -23,13 +23,14 @@ to the frontend app or the Solidity protocol.
 | [0019](0019-ai-verdict-quality-program.md) | Accepted | Measure and harden AI review/resolution verdicts: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, and a CI consistency lane. |
 | [0020](0020-concurrent-local-dev-stacks.md) | Accepted | Run concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market. |
 | [0021](0021-live-market-updates.md) | Proposed | Make the app feel live: server-signalled, client-refetched updates over SSE, fed by a durable `change_feed` outbox written atomically with each indexed event. DB/REST stays the single source of truth; no message broker. |
+| [0022](0022-review-first-market-creation.md) | Proposed | Invert market creation to review-first: questions live as off-chain editable Drafts, on-chain `createMarket` is gated by an authorizer signature (trusted-creator bypass) so markets are born Active, the fee is paid at publish (not submit), and creators get drafts/templates + a wallet-scoped surface while the public board shows real markets only. |
 
 Progress toward the Arc Testnet launch is tracked in the checklists inside
 ADRs 0008–0015; ADR 0007 defines the process and milestone ordering. ADR 0016
 (originally filed as a second "0007") is the standalone architecture-cleanup
 program and is not part of the launch milestone chain; ADRs 0017 (test
-observability and coverage) and 0021 (live market updates) are likewise
-standalone tracked programs.
+observability and coverage), 0021 (live market updates), and 0022
+(review-first market creation) are likewise standalone tracked programs.
 
 ## Related ADRs
 
