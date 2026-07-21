@@ -819,6 +819,18 @@ targets + pinned subpath key set). Remaining G work: protocol TS coverage
 figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
 contracts-only).
 
+## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
+Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
+delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
+deploy, Postgres, API, indexer, keeper, heuristic AI review + resolution
+pairs) handing off to `server/src/lifecycle-nightly/` (sequential scenarios,
+forward-only chain-time jumps, market-scoped assertions, two-way chain<->DB
+money paper-trail reconciliation). One ADR wording amendment: receipt volume
+comes from deterministic balanced buys reusing the trading bot's receipt
+mechanics, not the interactive bot script. Unhappy-path scenarios and infra
+drills remain open (next C3 slices).
+
 ## [2026-07-21] ingest | repo ADR 0017 — Track G complete (protocol TS coverage figure)
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md
 Notes: Final G checkbox ticked. Fourth coverage figure Protocol (TS): c8
@@ -827,5 +839,6 @@ as lcov-ts.info inside the existing protocol-coverage artifact; registry
 gained lcovFile + workspacesForWorkflow (one workflow, many figures);
 observability workflow loops pairs with comment-body chaining (no upsert
 races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
-only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C at C1/6,
-E lacks CDK assertion tests.
+only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
+progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
+lacks CDK assertion tests.

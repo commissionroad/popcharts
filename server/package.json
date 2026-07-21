@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "nightly:lifecycle": "bun run src/lifecycle-nightly/run.ts",
     "openapi:check": "bun run scripts/generate-openapi.ts --check && bun run scripts/validate-openapi.ts",
     "openapi:generate": "bun run scripts/generate-openapi.ts && bun run scripts/validate-openapi.ts",
     "smoke:ai-review-runner": "bun run src/ai-review-runner/smoke.ts",

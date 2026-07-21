@@ -4,7 +4,7 @@ import { db, schema } from "src/db/client";
 
 const MAX_METADATA_BYTES = 64 * 1024;
 
-type MarketMetadataPayload = {
+export type MarketMetadataPayload = {
   category: string;
   createdAt: string;
   description: string;
@@ -113,11 +113,14 @@ function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   return metadata;
 }
 
-function hashMarketMetadata(metadata: MarketMetadataPayload) {
+export function hashMarketMetadata(metadata: MarketMetadataPayload) {
   return keccak256(stringToBytes(serializeMarketMetadata(metadata)));
 }
 
-function serializeMarketMetadata(metadata: MarketMetadataPayload) {
+// Key order is part of the hash commitment: the indexer recomputes the hash
+// from this exact serialization, so market creators (including the lifecycle
+// harness) must serialize through this function, never a reimplementation.
+export function serializeMarketMetadata(metadata: MarketMetadataPayload) {
   const ordered: Record<string, string | number | string[]> = {
     version: metadata.version,
     question: metadata.question,

@@ -36,20 +36,33 @@ regression risk.
 
 Harness:
 
-- [ ] Extend the local-dev orchestration so a single command boots the full
+- [x] Extend the local-dev orchestration so a single command boots the full
       stack — including the clearing keeper (ADR 0008) and resolution
       runner (ADR 0012) — with deterministic accounts and time control
       (devchain time-travel for `graduationTime`/`resolutionTime`).
-- [ ] Scenario utilities: seed markets with known-verdict metadata
+      (`pnpm local:lifecycle-nightly`; scenarios in
+      `server/src/lifecycle-nightly/`, run sequentially with forward-only
+      chain-time jumps and market-scoped assertions.)
+- [x] Scenario utilities: seed markets with known-verdict metadata
       (heuristic provider makes review and resolution deterministic), drive
-      receipt volume via the existing trading bot.
+      receipt volume with deterministic balanced buys through the trading
+      bot's receipt mechanics (the interactive bot itself stays a manual
+      dev tool — nightly scenarios need exact matched volume, not random
+      flow). Every scenario ends with a market-scoped money paper-trail
+      assertion (`lifecycle-nightly/paper-trail.ts`): chain logs ↔ event
+      tables reconciled in both directions, per-receipt
+      retained + refund = cost identities, and postgrad collateral
+      conservation.
 
 Happy path:
 
-- [ ] Lifecycle spec: create (injected wallet at the service layer) →
+- [x] Lifecycle spec: create (injected wallet at the service layer) →
       AI approve → receipt trading → graduation threshold reached →
       clearing → postgrad trading → resolution → redemption; asserting
       API, database, and on-chain state at each transition.
+      (`scenarios/happy-path.ts` — review approval, graduation/clearing,
+      and resolution all ride the real runner/keeper services, no dev
+      force endpoints.)
 
 UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 

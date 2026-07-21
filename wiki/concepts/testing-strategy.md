@@ -10,7 +10,7 @@ sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
-updated: 2026-07-17
+updated: 2026-07-21
 ---
 
 # Testing strategy
@@ -64,7 +64,7 @@ domain layer; honesty-rule copy is tested
 - `just server-ai-review-smoke` — DB→service→DB heuristic review cycle
 - CI freshness gates: `metadata:check`, `openapi:check`, `api:check`
 
-## Observability and enforcement ([root ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md), accepted 2026-07-14, all open)
+## Observability and enforcement ([root ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md), accepted 2026-07-14; A/B/D/F/G complete, C in progress, E lacks assertion tests)
 
 The 2026-07-14 audit found the suites healthy but unobserved: lcov artifacts
 uploaded and never read, coverage floors only in the app (server ~60% lines
@@ -110,10 +110,17 @@ wired to a dormant nightly/on-demand `verdict-evals.yml` workflow.
 Template/LLM dataset expansion and the reject-corroboration policy remain
 open.
 
-## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), all open)
+## Target ([root ADR 0014](../summaries/root-adr-0014-full-lifecycle-e2e-testing.md), harness + happy path landed 2026-07-20)
 
 One-command full-stack suite driving markets from creation to **every**
 terminal state (happy + unhappy paths + infra failure drills) on the
 [devchain](../entities/devchain.md); heuristic provider for determinism,
 real-Anthropic smoke opt-in only; default CI stays at smoke tier. This suite
 is the acceptance gate for milestones M1–M4 and the Arc launch.
+**Landed 2026-07-20** (ADR 0017 item C3 first slice): the boot-once
+orchestrator `pnpm local:lifecycle-nightly` plus the sequential scenario
+runner and money paper-trail assertion module in
+`server/src/lifecycle-nightly/`, with the happy path green end-to-end
+through the real review runner, keeper clearing, and resolution runner; it
+runs as the `lifecycle-scenarios` job of the Nightly Lifecycle workflow.
+Unhappy-path scenarios and infra drills are the open remainder.

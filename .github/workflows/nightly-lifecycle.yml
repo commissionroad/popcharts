@@ -99,6 +99,55 @@ jobs:
           path: smoke.log
           retention-days: 14
 
+  # ADR 0017 item C3: boots its own full stack (chain, contracts, Postgres,
+  # API, indexer, keeper, heuristic AI review + resolution) and drives the
+  # ADR 0014 lifecycle scenarios through it, ending each path with the money
+  # paper-trail assertion.
+  lifecycle-scenarios:
+    name: Lifecycle scenarios (harness, paper trail)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Run lifecycle scenarios
+        # pipefail so tee cannot swallow the runner's exit code.
+        run: |
+          set -euo pipefail
+          pnpm local:lifecycle-nightly 2>&1 | tee lifecycle-scenarios.log
+
+      - name: Upload scenario log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-lifecycle-scenarios-log
+          path: lifecycle-scenarios.log
+          retention-days: 14
 
   # Self-orchestrates its own stack plus the Next app and runs the
   # chain-backed Playwright spec.
@@ -157,7 +206,7 @@ jobs:
   # One tracking issue, refreshed while red, closed on the next green run.
   report:
     name: Update tracking issue
-    needs: [lifecycle-smoke, chain-e2e]
+    needs: [lifecycle-smoke, lifecycle-scenarios, chain-e2e]
     if: always()
     runs-on: ubuntu-latest
 
@@ -167,6 +216,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SMOKE_RESULT: ${{ needs.lifecycle-smoke.result }}
+          SCENARIOS_RESULT: ${{ needs.lifecycle-scenarios.result }}
           E2E_RESULT: ${{ needs.chain-e2e.result }}
         run: |
           set -euo pipefail
@@ -175,7 +225,7 @@ jobs:
             --state open --search "in:title \"$title\"" \
             --json number --jq '.[0].number // empty')
 
-          if [ "$SMOKE_RESULT" = "success" ] && [ "$E2E_RESULT" = "success" ]; then
+          if [ "$SMOKE_RESULT" = "success" ] && [ "$SCENARIOS_RESULT" = "success" ] && [ "$E2E_RESULT" = "success" ]; then
             if [ -n "$existing" ]; then
               gh issue close "$existing" --repo "$GITHUB_REPOSITORY" \
                 --comment "Green again: $RUN_URL"
@@ -185,6 +235,7 @@ jobs:
 
           body="Last red run: $RUN_URL
           - Chain smoke (deploy, index, trade, resolve): $SMOKE_RESULT
+          - Lifecycle scenarios (harness, paper trail): $SCENARIOS_RESULT
           - Chain-backed app e2e: $E2E_RESULT
 
           Auto-filed by the Nightly Lifecycle workflow (ADR 0017 Track C); closes itself on the next green run."
