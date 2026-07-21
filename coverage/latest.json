@@ -2,13 +2,13 @@
   "version": 1,
   "workspaces": {
     "app": {
-      "commit": "fbb33b2750bee0c5d8c20f89af3ff09e60130f73",
-      "updatedAt": "2026-07-21T21:19:02.866Z",
+      "commit": "60e205e3e2409b9889118517cdbc031c3ee4b054",
+      "updatedAt": "2026-07-21T21:51:04.474Z",
       "summary": {
         "files": 116,
         "lines": {
-          "hit": 2923,
-          "found": 2923,
+          "hit": 2921,
+          "found": 2921,
           "pct": 100
         },
         "functions": {
