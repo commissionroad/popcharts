@@ -3,14 +3,10 @@ import { describe, it } from "node:test";
 
 import { network } from "hardhat";
 
-import { COMPLETE_SET_PRICE_POLICY } from "../../scripts/shared/price/completeSetPricePolicy.js";
-import { displayPriceWadToTick } from "../../scripts/shared/price/displayPriceWadToTick.js";
-import {
-  MAX_TICK,
-  MIN_TICK,
-  tickToSqrtPriceX96,
-} from "../../scripts/shared/price/tickToSqrtPriceX96.js";
-import { sqrtPriceX96ToTick } from "../../scripts/shared/price/sqrtPriceX96ToTick.js";
+import { COMPLETE_SET_PRICE_POLICY } from "../../src/price/completeSetPricePolicy.js";
+import { displayPriceWadToTick } from "../../src/price/displayPriceWadToTick.js";
+import { MAX_TICK, MIN_TICK, tickToSqrtPriceX96 } from "../../src/price/tickToSqrtPriceX96.js";
+import { sqrtPriceX96ToTick } from "../../src/price/sqrtPriceX96ToTick.js";
 
 // On-chain parity anchor for the TypeScript TickMath ports (ADR 0016 C6):
 // the pools run v4-core TickMath, the scripts run these ports, and this test

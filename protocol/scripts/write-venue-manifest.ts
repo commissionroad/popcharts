@@ -7,7 +7,7 @@ import {
   requireNonNegativeInteger,
   requirePositiveInteger,
   requireString,
-} from "./shared/cli/requireCliValue.js";
+} from "../src/cli/requireCliValue.js";
 import {
   DEFAULT_VENUE_DEPLOYMENT_FILE,
   formatVenueContractEntry,
@@ -15,7 +15,7 @@ import {
   type VenueManifestContractEntry,
   type VenueContractSpec,
 } from "./shared/deployment/venueManifest.js";
-import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 
 export type WriteVenueManifestConfig = {
   readonly blockNumber?: number | string;

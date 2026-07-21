@@ -60,10 +60,16 @@ do not insert a standalone `--` before task options.
 
 Examples:
 
-- `shared/json/jsonFile.ts`
 - `shared/deployment/venueManifest.ts`
 - `shared/hardhat/assertHardhatNetwork.ts`
 - `tasks/venueDeployment.ts`
+
+Reusable pure helpers (JSON file IO, price/tick math, market manifest
+readers, CLI value validation) live in `protocol/src/` — the package's
+public SDK (e.g. `src/json/jsonFile.ts`, `src/price/`, `src/market/`) —
+and scripts import them from there. Never the reverse: `src/` must not
+import from `scripts/` (enforced by
+`protocol/test/nodejs/sdk-surface-guard.test.ts`, ADR 0017 Track G).
 
 Prefer these categories when they fit: `account`, `artifact`, `chain`, `cli`,
 `contract`, `explorer`, `json`, `log`, `time`, and `viem`. If a helper does not
