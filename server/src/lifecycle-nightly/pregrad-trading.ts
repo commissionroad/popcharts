@@ -1,12 +1,10 @@
 import {
-  outcomeTokenAbi,
+  mockCollateralAbi,
   pregradManagerAbi,
   SIDE_NO,
   SIDE_YES,
 } from "@popcharts/protocol";
 import { maxUint256, parseEventLogs } from "viem";
-
-import { DEV_COLLATERAL_ABI } from "src/api/services/dev-market-graduate";
 
 import {
   collateralAddress,
@@ -159,10 +157,8 @@ export async function claimRefundedReceipt({
   traderAccountIndex: number;
 }): Promise<{ refunded: bigint }> {
   const wallet = walletFor(traderAccountIndex);
-  // The generated OutcomeToken ABI doubles as the standard ERC-20 read
-  // surface for the mock collateral (same balanceOf selector).
   const balanceBefore = await publicClient.readContract({
-    abi: outcomeTokenAbi,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "balanceOf",
     args: [wallet.account.address],
@@ -182,7 +178,7 @@ export async function claimRefundedReceipt({
   }
 
   const balanceAfter = await publicClient.readContract({
-    abi: outcomeTokenAbi,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "balanceOf",
     args: [wallet.account.address],
@@ -197,7 +193,7 @@ async function fundTrader(
   amount: bigint,
 ): Promise<void> {
   const mintHash = await wallet.writeContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "mint",
     args: [wallet.account.address, amount],
@@ -205,7 +201,7 @@ async function fundTrader(
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
 
   const allowance = await publicClient.readContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "allowance",
     args: [wallet.account.address, pregradManagerAddress],
@@ -213,7 +209,7 @@ async function fundTrader(
 
   if (allowance < amount) {
     const approveHash = await wallet.writeContract({
-      abi: DEV_COLLATERAL_ABI,
+      abi: mockCollateralAbi,
       address: collateralAddress,
       functionName: "approve",
       args: [pregradManagerAddress, maxUint256],

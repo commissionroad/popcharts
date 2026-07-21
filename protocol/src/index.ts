@@ -44,6 +44,8 @@ export type {
   PostgradVenueSingletonKey,
 } from "./generated/postgrad-venue.js";
 
+export { mockCollateralAbi } from "./generated/mock-collateral.js";
+
 export { COMPLETE_SET_PRICE_POLICY } from "./price/completeSetPricePolicy.js";
 export { alignTickToSpacing } from "./price/alignTickToSpacing.js";
 export { clampDisplayPriceWad } from "./price/clampDisplayPriceWad.js";
