@@ -1,21 +1,18 @@
-import { pregradManagerAbi } from "@popcharts/protocol";
+import { MARKET_STATUS, pregradManagerAbi } from "@popcharts/protocol";
 
-import {
-  assertEqual,
-  assertReverts,
-  assertTruthy,
-  CHAIN_STATUS,
-} from "../asserts";
+import { config } from "src/config";
+import { and, db, eq, schema } from "src/db/client";
+
+import { assertEqual, assertReverts, assertTruthy } from "../asserts";
 import { createLifecycleMarket } from "../market-factory";
+import { assertChainStatus, waitForApiStatus } from "../market-checks";
 import { assertMarketPaperTrail } from "../paper-trail";
 import {
-  fetchApiMarket,
+  SCENARIO_ACCOUNTS,
   pregradManagerAddress,
   publicClient,
   walletFor,
-  FIRST_TRADER_ACCOUNT_INDEX,
 } from "../stack";
-import { waitForCondition } from "../wait";
 import type { Scenario } from "../report";
 
 /**
@@ -38,14 +35,9 @@ export const rejectedCreation: Scenario = {
     );
 
     await step("review runner rejects via heuristic hard flag", async () => {
-      const rejected = await waitForCondition(
-        `market ${market.marketId} rejected`,
-        async () => {
-          const current = await fetchApiMarket(market.marketId);
-          return current?.status === "rejected" ? current : null;
-        },
-        { tickChain: true, timeoutMs: 120_000 },
-      );
+      const rejected = await waitForApiStatus(market.marketId, "rejected", {
+        timeoutMs: 135_000,
+      });
 
       const review = assertTruthy("aiReview payload", rejected.aiReview);
       assertEqual("review verdict", review.verdict, "reject");
@@ -53,25 +45,19 @@ export const rejectedCreation: Scenario = {
         throw new Error("rejected market has no rejection reasons to show");
       }
 
-      const state = await publicClient.readContract({
-        abi: pregradManagerAbi,
-        address: pregradManagerAddress,
-        functionName: "getMarketState",
-        args: [market.marketId],
-      });
-      assertEqual(
+      await assertChainStatus(
         "on-chain status after rejection",
-        Number(state.status),
-        CHAIN_STATUS.rejected,
+        market.marketId,
+        MARKET_STATUS.rejected,
       );
     });
 
     await step("rejected market refuses receipts", async () => {
-      const trader = walletFor(FIRST_TRADER_ACCOUNT_INDEX);
+      const prober = walletFor(SCENARIO_ACCOUNTS.receiptProbe);
       await assertReverts("placeReceipt on a rejected market", () =>
         publicClient.simulateContract({
           abi: pregradManagerAbi,
-          account: trader.account,
+          account: prober.account,
           address: pregradManagerAddress,
           functionName: "placeReceipt",
           args: [
@@ -86,13 +72,27 @@ export const rejectedCreation: Scenario = {
       );
     });
 
-    await step("paper trail records no money movement", () =>
-      // No value ever moved, so the reconciliation proves the absence of
-      // fabricated rows for this market.
-      assertMarketPaperTrail({
+    await step("paper trail shows no collateral movement", async () => {
+      // The native-token creation fee is tracked by the contract
+      // (collectedCreationFees) outside the collateral ledger; the paper
+      // trail this suite guards is the collateral one. Zero receipt rows
+      // plus a clean two-way reconciliation proves no collateral moved and
+      // nothing was fabricated for this market.
+      const receipts = await db
+        .select()
+        .from(schema.receiptPlacedEvents)
+        .where(
+          and(
+            eq(schema.receiptPlacedEvents.chainId, config.chainId),
+            eq(schema.receiptPlacedEvents.marketId, market.marketId),
+          ),
+        );
+      assertEqual("receipt rows for a rejected market", receipts.length, 0);
+
+      await assertMarketPaperTrail({
         createdBlock: market.createdBlock,
         marketId: market.marketId,
-      }),
-    );
+      });
+    });
   },
 };

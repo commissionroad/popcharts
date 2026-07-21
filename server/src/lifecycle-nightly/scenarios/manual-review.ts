@@ -1,10 +1,14 @@
-import { pregradManagerAbi } from "@popcharts/protocol";
+import { MARKET_STATUS } from "@popcharts/protocol";
 
-import { assertEqual, assertTruthy, CHAIN_STATUS } from "../asserts";
+import { config } from "src/config";
+import { and, db, eq, schema } from "src/db/client";
+
+import { assertEqual, assertTruthy } from "../asserts";
 import { createLifecycleMarket } from "../market-factory";
+import { assertChainStatus, waitForApiStatus } from "../market-checks";
 import { approveMarketAsReviewManager } from "../operator";
 import { assertMarketPaperTrail } from "../paper-trail";
-import { fetchApiMarket, pregradManagerAddress, publicClient } from "../stack";
+import { fetchApiMarket } from "../stack";
 import { waitForCondition } from "../wait";
 import type { Scenario } from "../report";
 
@@ -42,7 +46,7 @@ export const manualReview: Scenario = {
           const current = await fetchApiMarket(market.marketId);
           return current?.aiReview ? current : null;
         },
-        { tickChain: true, timeoutMs: 120_000 },
+        { tickChain: true, timeoutMs: 135_000 },
       );
 
       const review = assertTruthy("aiReview payload", parked.aiReview);
@@ -50,51 +54,45 @@ export const manualReview: Scenario = {
       // The verdict must NOT have transitioned the market — parked means
       // parked until a human decides.
       assertEqual("status stays parked", parked.status, "under_review");
-
-      const state = await publicClient.readContract({
-        abi: pregradManagerAbi,
-        address: pregradManagerAddress,
-        functionName: "getMarketState",
-        args: [market.marketId],
-      });
-      assertEqual(
+      await assertChainStatus(
         "on-chain status stays under review",
-        Number(state.status),
-        CHAIN_STATUS.underReview,
+        market.marketId,
+        MARKET_STATUS.underReview,
       );
     });
 
     await step("operator approves with the review-manager key", async () => {
       await approveMarketAsReviewManager(market.marketId);
 
-      const approved = await waitForCondition(
-        `market ${market.marketId} proceeds to bootstrap`,
-        async () => {
-          const current = await fetchApiMarket(market.marketId);
-          return current?.status === "bootstrap" ? current : null;
-        },
-        { tickChain: true, timeoutMs: 60_000 },
-      );
-      assertEqual("post-approval status", approved.status, "bootstrap");
-
-      const state = await publicClient.readContract({
-        abi: pregradManagerAbi,
-        address: pregradManagerAddress,
-        functionName: "getMarketState",
-        args: [market.marketId],
+      await waitForApiStatus(market.marketId, "bootstrap", {
+        timeoutMs: 60_000,
       });
-      assertEqual(
+      await assertChainStatus(
         "on-chain status after operator approval",
-        Number(state.status),
-        CHAIN_STATUS.active,
+        market.marketId,
+        MARKET_STATUS.active,
       );
     });
 
-    await step("paper trail records no money movement", () =>
-      assertMarketPaperTrail({
+    await step("paper trail shows no collateral movement", async () => {
+      // The native-token creation fee lives outside the collateral ledger
+      // (contract-tracked); zero receipt rows plus a clean reconciliation
+      // proves no collateral moved for this market.
+      const receipts = await db
+        .select()
+        .from(schema.receiptPlacedEvents)
+        .where(
+          and(
+            eq(schema.receiptPlacedEvents.chainId, config.chainId),
+            eq(schema.receiptPlacedEvents.marketId, market.marketId),
+          ),
+        );
+      assertEqual("receipt rows for the parked market", receipts.length, 0);
+
+      await assertMarketPaperTrail({
         createdBlock: market.createdBlock,
         marketId: market.marketId,
-      }),
-    );
+      });
+    });
   },
 };

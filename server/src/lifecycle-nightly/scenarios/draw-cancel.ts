@@ -8,11 +8,13 @@ import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
 import { assertEqual, assertTruthy } from "../asserts";
-import { jumpChainTimeTo } from "../chain-time";
+import { jumpChainTimeTo, resolutionRunnerTimeoutMs } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
+import { waitForApiStatus, waitForIndexedRows } from "../market-checks";
 import { cancelPostgradMarketAsResolver } from "../operator";
 import { assertMarketPaperTrail } from "../paper-trail";
 import {
+  SCENARIO_ACCOUNTS,
   fetchApiMarket,
   collateralAddress,
   publicClient,
@@ -33,7 +35,7 @@ import type { Scenario } from "../report";
  * account ends up holding YES and NO retained tokens — the verified
  * both-legs redemption path.
  */
-const TRADER = 12;
+const TRADER = SCENARIO_ACCOUNTS.drawCancelHolder;
 
 export const drawCancel: Scenario = {
   name: "draw-cancel",
@@ -48,14 +50,12 @@ export const drawCancel: Scenario = {
     );
 
     await step("review runner approves via heuristic provider", async () => {
-      await waitForCondition(
-        `market ${market.marketId} approved`,
-        async () => {
-          const current = await fetchApiMarket(market.marketId);
-          return current?.status === "bootstrap" ? current : null;
-        },
-        { tickChain: true, timeoutMs: 90_000 },
-      );
+      // Budget covers creation-tx indexing plus the runner's poll and the
+      // approval round-trip — the same pipeline happy-path splits into a
+      // 45s indexing wait and a 90s review wait.
+      await waitForApiStatus(market.marketId, "bootstrap", {
+        timeoutMs: 135_000,
+      });
     });
 
     await step("one trader supplies both sides to threshold", () =>
@@ -67,17 +67,11 @@ export const drawCancel: Scenario = {
       }),
     );
 
-    const graduated = await step("keeper graduates the market", async () =>
-      waitForCondition(
-        `market ${market.marketId} graduated`,
-        async () => {
-          const api = await fetchApiMarket(market.marketId);
-          return api?.status === "graduated" && api.postgrad?.marketAddress
-            ? api
-            : null;
-        },
-        { tickChain: true, timeoutMs: 240_000 },
-      ),
+    const graduated = await step("keeper graduates the market", () =>
+      waitForApiStatus(market.marketId, "graduated", {
+        requirePostgrad: true,
+        timeoutMs: 240_000,
+      }),
     );
     const postgradMarketAddress = graduated.postgrad?.marketAddress as Address;
 
@@ -99,14 +93,13 @@ export const drawCancel: Scenario = {
             .limit(1);
           return row ?? null;
         },
-        // The runner's eligibility clock is wall time, so this waits out
-        // the market's resolution window in real time — PLUS the permanent
-        // chain-vs-wall offset left by every earlier jump (hardhat keeps
-        // jump offsets forever), because this market's resolutionTime was
-        // anchored to the already-ahead chain clock. With the happy path
-        // ahead of us that is ~300s of offset + the 300s window + runner
-        // overhead ≈ 620s; 780s leaves real margin.
-        { tickChain: true, timeoutMs: 780_000 },
+        // Derived, not hardcoded: the runner's eligibility clock is wall
+        // time against the chain-anchored gate (which carries every prior
+        // jump's permanent offset), so the bound is computed from the gate
+        // itself and stays correct regardless of suite order. No tick: this
+        // probe reads the runner's own DB row — nothing needs the indexer,
+        // and every idle mine would add a second of permanent chain offset.
+        { timeoutMs: resolutionRunnerTimeoutMs(market.resolutionTime) },
       );
       assertEqual("resolution outcome", verdict.outcome, "draw");
       assertEqual("resolution verdict", verdict.verdict, "cancel_draw");
@@ -124,14 +117,9 @@ export const drawCancel: Scenario = {
     await step("operator cancels with the resolver key", async () => {
       await cancelPostgradMarketAsResolver(postgradMarketAddress);
 
-      const cancelled = await waitForCondition(
-        `market ${market.marketId} cancelled`,
-        async () => {
-          const api = await fetchApiMarket(market.marketId);
-          return api?.status === "cancelled" ? api : null;
-        },
-        { tickChain: true, timeoutMs: 60_000 },
-      );
+      const cancelled = await waitForApiStatus(market.marketId, "cancelled", {
+        timeoutMs: 60_000,
+      });
       if (
         !cancelled.resolution ||
         cancelled.resolution.kind !== "cancelled" ||
@@ -224,21 +212,11 @@ export const drawCancel: Scenario = {
         (yesBalance + noBalance) / 2n,
       );
 
-      await waitForCondition(
+      await waitForIndexedRows(
         "cancelled redemption reaches the indexed paper trail",
-        async () => {
-          const rows = await db
-            .select()
-            .from(schema.postgradRedemptionEvents)
-            .where(
-              and(
-                eq(schema.postgradRedemptionEvents.chainId, config.chainId),
-                eq(schema.postgradRedemptionEvents.marketId, market.marketId),
-              ),
-            );
-          return rows.length > 0 ? rows : null;
-        },
-        { tickChain: true, timeoutMs: 30_000 },
+        schema.postgradRedemptionEvents,
+        market.marketId,
+        1,
       );
     });
 

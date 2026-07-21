@@ -19,13 +19,21 @@ type WaitOptions = {
    * block behind the tip, so on an idle chain the final transaction never
    * indexes until another block lands. The first poll mines immediately (to
    * flush that pending transaction); later mines are throttled to
-   * TICK_MINE_SPACING_MS so ticking never sustains chain-vs-wall drift.
+   * TICK_MINE_SPACING_MS, with one final flush-and-reprobe at the deadline
+   * so a service transaction landing after the last tick still gets its
+   * follower block before the wait is declared failed.
    */
   tickChain?: boolean;
   timeoutMs?: number;
 };
 
-/** Polls `probe` until it returns a truthy value or the timeout elapses. */
+/**
+ * Polls `probe` until it returns a truthy value or the timeout elapses. A
+ * throwing probe counts as "not ready yet" rather than aborting the wait —
+ * the multi-minute service waits must survive a transient API 5xx or
+ * database blip — but the last probe error is carried into the timeout
+ * message so a persistently failing probe still diagnoses itself.
+ */
 export async function waitForCondition<T>(
   label: string,
   probe: () => Promise<T | null | undefined | false>,
@@ -37,15 +45,43 @@ export async function waitForCondition<T>(
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let lastMineAt = 0;
+  let lastProbeError: unknown;
 
   for (;;) {
-    const value = await probe();
+    let value: T | null | undefined | false;
+    try {
+      value = await probe();
+      lastProbeError = undefined;
+    } catch (error) {
+      value = null;
+      lastProbeError = error;
+    }
     if (value) {
       return value;
     }
 
     if (Date.now() >= deadline) {
-      throw new Error(`Timed out after ${timeoutMs}ms waiting for ${label}.`);
+      if (tickChain) {
+        await mineBlock();
+        await new Promise((resolveSleep) =>
+          setTimeout(resolveSleep, intervalMs),
+        );
+        const flushed = await probe().catch(() => null);
+        if (flushed) {
+          return flushed;
+        }
+      }
+      const probeNote =
+        lastProbeError === undefined
+          ? ""
+          : ` Last probe error: ${
+              lastProbeError instanceof Error
+                ? lastProbeError.message
+                : String(lastProbeError)
+            }`;
+      throw new Error(
+        `Timed out after ${timeoutMs}ms waiting for ${label}.${probeNote}`,
+      );
     }
 
     if (tickChain && Date.now() - lastMineAt >= TICK_MINE_SPACING_MS) {

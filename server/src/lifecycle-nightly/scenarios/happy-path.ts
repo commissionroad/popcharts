@@ -1,8 +1,8 @@
 import {
   completeSetBinaryMarketAbi,
   executeCompleteSetArb,
+  MARKET_STATUS,
   outcomeTokenAbi,
-  pregradManagerAbi,
   SIDE_YES,
 } from "@popcharts/protocol";
 import { parseUnits, type Address, type PublicClient } from "viem";
@@ -14,21 +14,27 @@ import {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import { assertEqual, CHAIN_STATUS } from "../asserts";
-import { chainNowSeconds, jumpChainTimeTo } from "../chain-time";
+import { assertEqual } from "../asserts";
+import {
+  chainNowSeconds,
+  jumpChainTimeTo,
+  resolutionRunnerTimeoutMs,
+} from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
+import {
+  assertChainStatus,
+  waitForApiStatus,
+  waitForIndexedRows,
+} from "../market-checks";
 import { assertMarketPaperTrail } from "../paper-trail";
 import {
-  FIRST_TRADER_ACCOUNT_INDEX,
+  SCENARIO_ACCOUNTS,
   collateralAddress,
-  fetchApiMarket,
-  pregradManagerAddress,
   publicClient,
   walletFor,
   type ApiMarket,
 } from "../stack";
 import { placeGraduationLiquidity } from "../pregrad-trading";
-import { waitForCondition } from "../wait";
 import type { Scenario } from "../report";
 
 /**
@@ -65,12 +71,9 @@ export const happyPath: Scenario = {
     // refunded market: 45s indexing + 90s review + 30s receipt indexing
     // leaves ≥75s for the keeper's pass to start graduation.
     await step("indexer serves the market as under_review", async () => {
-      const indexed = await waitForCondition(
-        `market ${market.marketId} indexed`,
-        () => fetchApiMarket(market.marketId),
-        { tickChain: true, timeoutMs: 45_000 },
-      );
-      assertEqual("indexed status", indexed.status, "under_review");
+      const indexed = await waitForApiStatus(market.marketId, "under_review", {
+        timeoutMs: 45_000,
+      });
       assertEqual(
         "indexed metadata hash",
         indexed.metadataHash.toLowerCase(),
@@ -79,15 +82,9 @@ export const happyPath: Scenario = {
     });
 
     await step("review runner approves via heuristic provider", async () => {
-      const approved = await waitForCondition(
-        `market ${market.marketId} approved`,
-        async () => {
-          const current = await fetchApiMarket(market.marketId);
-          return current?.status === "bootstrap" ? current : null;
-        },
-        { tickChain: true, timeoutMs: 90_000 },
-      );
-      assertEqual("post-review status", approved.status, "bootstrap");
+      await waitForApiStatus(market.marketId, "bootstrap", {
+        timeoutMs: 90_000,
+      });
 
       const [review] = await db
         .select()
@@ -101,16 +98,10 @@ export const happyPath: Scenario = {
         .limit(1);
       assertEqual("review verdict", review?.verdict, "approve");
 
-      const state = await publicClient.readContract({
-        abi: pregradManagerAbi,
-        address: pregradManagerAddress,
-        functionName: "getMarketState",
-        args: [market.marketId],
-      });
-      assertEqual(
+      await assertChainStatus(
         "on-chain status after approval",
-        Number(state.status),
-        CHAIN_STATUS.active,
+        market.marketId,
+        MARKET_STATUS.active,
       );
     });
 
@@ -118,43 +109,27 @@ export const happyPath: Scenario = {
       placeGraduationLiquidity({
         marketId: market.marketId,
         thresholdWad: market.graduationThresholdWad,
-        yesTraderAccountIndex: FIRST_TRADER_ACCOUNT_INDEX,
-        noTraderAccountIndex: FIRST_TRADER_ACCOUNT_INDEX + 1,
+        yesTraderAccountIndex: SCENARIO_ACCOUNTS.happyPathYes,
+        noTraderAccountIndex: SCENARIO_ACCOUNTS.happyPathNo,
       }),
     );
 
-    await step("receipts reach the indexed paper trail", async () => {
-      await waitForCondition(
+    await step("receipts reach the indexed paper trail", () =>
+      waitForIndexedRows(
         `all ${trading.receiptCount} receipts indexed`,
-        async () => {
-          const rows = await db
-            .select()
-            .from(schema.receiptPlacedEvents)
-            .where(
-              and(
-                eq(schema.receiptPlacedEvents.chainId, config.chainId),
-                eq(schema.receiptPlacedEvents.marketId, market.marketId),
-              ),
-            );
-          return rows.length >= trading.receiptCount ? rows : null;
-        },
-        { tickChain: true, timeoutMs: 30_000 },
-      );
-    });
+        schema.receiptPlacedEvents,
+        market.marketId,
+        trading.receiptCount,
+      ),
+    );
 
     const graduated = await step(
       "keeper graduates the market (clearing, finalize, claims)",
       async () => {
-        const current = await waitForCondition(
-          `market ${market.marketId} graduated`,
-          async () => {
-            const api = await fetchApiMarket(market.marketId);
-            return api?.status === "graduated" && api.postgrad?.marketAddress
-              ? api
-              : null;
-          },
-          { tickChain: true, timeoutMs: 240_000 },
-        );
+        const current = await waitForApiStatus(market.marketId, "graduated", {
+          requirePostgrad: true,
+          timeoutMs: 240_000,
+        });
 
         const claims = await db
           .select()
@@ -185,7 +160,7 @@ export const happyPath: Scenario = {
         collateral: collateralAddress,
         postgradMarket: postgradMarketAddress,
       });
-      const trader = walletFor(FIRST_TRADER_ACCOUNT_INDEX + 2);
+      const trader = walletFor(SCENARIO_ACCOUNTS.happyPathPostgradTrader);
 
       await executeCompleteSetArb({
         account: trader.account.address,
@@ -203,17 +178,12 @@ export const happyPath: Scenario = {
     await step("resolution runner resolves YES after the gate", async () => {
       await jumpChainTimeTo(market.resolutionTime + 1n);
 
-      const resolved = await waitForCondition(
-        `market ${market.marketId} resolved`,
-        async () => {
-          const api = await fetchApiMarket(market.marketId);
-          return api?.status === "resolved" ? api : null;
-        },
-        // Upper bound: resolutionSeconds of wall-clock eligibility wait plus
-        // the runner's poll/lease cycle. Run 2 of the suite passed this step
-        // with under 4s to spare at 300s, so the bound carries real margin.
-        { tickChain: true, timeoutMs: 420_000 },
-      );
+      const resolved = await waitForApiStatus(market.marketId, "resolved", {
+        // Derived, not hardcoded: the runner's eligibility clock is wall
+        // time against the chain-anchored gate, so the bound is computed
+        // from the gate itself and stays correct regardless of suite order.
+        timeoutMs: resolutionRunnerTimeoutMs(market.resolutionTime),
+      });
       assertResolution(resolved);
 
       const [verdict] = await db
@@ -231,7 +201,7 @@ export const happyPath: Scenario = {
     });
 
     await step("winner redeems YES tokens for collateral", async () => {
-      const yesHolder = walletFor(FIRST_TRADER_ACCOUNT_INDEX);
+      const yesHolder = walletFor(SCENARIO_ACCOUNTS.happyPathYes);
       const yesToken = (await publicClient.readContract({
         abi: completeSetBinaryMarketAbi,
         address: postgradMarketAddress,
@@ -290,21 +260,11 @@ export const happyPath: Scenario = {
         balance,
       );
 
-      await waitForCondition(
+      await waitForIndexedRows(
         "redemption reaches the indexed paper trail",
-        async () => {
-          const rows = await db
-            .select()
-            .from(schema.postgradRedemptionEvents)
-            .where(
-              and(
-                eq(schema.postgradRedemptionEvents.chainId, config.chainId),
-                eq(schema.postgradRedemptionEvents.marketId, market.marketId),
-              ),
-            );
-          return rows.length > 0 ? rows : null;
-        },
-        { tickChain: true },
+        schema.postgradRedemptionEvents,
+        market.marketId,
+        1,
       );
     });
 

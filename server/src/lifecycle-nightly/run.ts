@@ -45,8 +45,9 @@ if (only && selected.length === 0) {
 }
 
 // A wedged I/O call (a fetch with no timeout, a stuck transaction-receipt
-// wait) would otherwise park the runner until the CI job's 45-minute kill
-// with no summary; the hard deadline turns any hang into a loud failure.
+// wait) would otherwise park the runner until the CI job's own kill with no
+// summary; the hard deadline turns any hang into a loud failure while the
+// step-level waitForCondition budgets handle ordinary slowness.
 const suiteTimeoutMs = Number(
   process.env.POPCHARTS_LIFECYCLE_SUITE_TIMEOUT_MS ?? 40 * 60 * 1000,
 );
