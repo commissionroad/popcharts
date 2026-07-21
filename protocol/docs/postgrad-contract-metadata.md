@@ -6,7 +6,7 @@ deployment manifests, and on-chain events without hidden local assumptions.
 
 ## Generated Module Layout
 
-`pnpm build` runs `scripts/export-contract-metadata.ts`, which emits two
+`pnpm build` runs `scripts/export-contract-metadata.ts`, which emits
 deterministic modules under `src/generated/` (checked by `pnpm metadata:check`):
 
 - `src/generated/pregrad-manager.ts` — `PregradManager` ABI plus the shared
@@ -16,8 +16,14 @@ deterministic modules under `src/generated/` (checked by `pnpm metadata:check`):
   below, sorted per-contract event-name constants (`postgradVenueEventNames`),
   manifest address sources (`postgradVenueAddressSources`), and typed
   singleton deployment placeholders (`postgradVenueDeployments`).
+- `src/generated/third-party/venue.ts` — compiled ABIs of the vendored
+  third-party venue contracts (`poolManagerAbi`, `stateViewAbi`,
+  `v4QuoterAbi`), so no workspace hand-writes fragments for them. Carries no
+  deployment addresses; those come from manifests and env config.
 
-Both modules are re-exported from the package root (`@popcharts/protocol`).
+The modules are re-exported from the package root (`@popcharts/protocol`);
+the third-party module is also exposed as the `./third-party/venue` subpath
+for consumers that avoid the root barrel.
 
 ### Joining ABIs To Manifest Addresses
 
@@ -213,7 +219,9 @@ function getSlot0(
 ) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 ```
 
-`scripts/create-complete-set-market.ts` uses exactly this fragment to read
+First-party consumers call this through the compiled `stateViewAbi` in
+`src/generated/third-party/venue.ts` (emitted by the metadata export alongside
+`poolManagerAbi` and `v4QuoterAbi`); the market-creation flow uses it to read
 back the opening price after `initialize`.
 
 ## Contracts

@@ -14,39 +14,23 @@ export {
   poolTickBoundsAbi,
 } from "@popcharts/protocol/postgrad-venue";
 export { tickToSqrtPriceX96 } from "@popcharts/protocol/tick-to-sqrt-price";
+// The vendored third-party venue contracts (v4 pool singleton, StateView
+// lens, quoter) are compiled by the protocol build, so their ABIs come from
+// the generated set too instead of hand-written fragments that drift.
+export { poolManagerAbi, stateViewAbi } from "@popcharts/protocol/third-party/venue";
+
+import { poolTickBoundsAbi } from "@popcharts/protocol/postgrad-venue";
+import { v4QuoterAbi as vendoredV4QuoterAbi } from "@popcharts/protocol/third-party/venue";
 
 /**
- * Minimal Uniswap v4 quoter surface used by the postgrad trade ticket. The
- * quote functions are nonpayable (they simulate a swap and revert internally),
- * so callers run them through `simulateContract`, never `writeContract`.
- * Signature verified against @uniswap/v4-periphery 1.0.3 IV4Quoter.sol.
+ * Quoter surface for the postgrad trade ticket. The quote functions are
+ * nonpayable (they simulate a swap and revert internally), so callers run
+ * them through `simulateContract`, never `writeContract`. The first-party
+ * PoolTickBounds ABI is appended so the bounded hook's PoolTickOutOfBounds
+ * revert — raised inside quote simulations — decodes into a readable error
+ * instead of a raw selector.
  */
-export const v4QuoterAbi = parseAbi([
-  "struct PoolKey { address currency0; address currency1; uint24 fee; int24 tickSpacing; address hooks; }",
-  "struct QuoteExactSingleParams { PoolKey poolKey; bool zeroForOne; uint128 exactAmount; bytes hookData; }",
-  "function quoteExactInputSingle(QuoteExactSingleParams params) returns (uint256 amountOut, uint256 gasEstimate)",
-  "error PoolTickOutOfBounds(bytes32 poolId, int24 tick, int24 lowerTick, int24 upperTick)",
-]);
-
-/**
- * The v4 PoolManager `Swap` event, used to read the actual fill amounts of a
- * confirmed swap from its transaction receipt. Signature verified against
- * @uniswap/v4-core 1.0.2 IPoolManager.sol; `PoolId` is a bytes32 wrapper.
- */
-export const poolManagerSwapEventAbi = parseAbi([
-  "event Swap(bytes32 indexed id, address indexed sender, int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee)",
-]);
-
-/**
- * Minimal StateView surface used to read a pool's live slot0 before placing a
- * maker order, so a limit that would cross the current tick is rejected
- * before any wallet signature. Signature verified against the server's
- * StateView read (server/src/api/services/postgrad-venue.ts) and
- * @uniswap/v4-periphery StateView.sol.
- */
-export const stateViewSlot0Abi = parseAbi([
-  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)",
-]);
+export const v4QuoterAbi = [...vendoredV4QuoterAbi, ...poolTickBoundsAbi] as const;
 
 /**
  * The order manager's token puller settles maker deposits through an

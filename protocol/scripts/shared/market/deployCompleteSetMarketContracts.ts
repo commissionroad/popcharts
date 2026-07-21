@@ -10,41 +10,18 @@ import {
 } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
-import { STATE_VIEW_SLOT0_ABI } from "../../../src/market/readPoolDisplayPrice.js";
+import { poolManagerAbi, stateViewAbi } from "../../../src/generated/third-party/venue.js";
 import { COMPLETE_SET_PRICE_POLICY } from "../../../src/price/completeSetPricePolicy.js";
 import { deriveEpsilonBoundTicks } from "../../../src/price/deriveEpsilonBoundTicks.js";
 import { displayPriceWadToSqrtPriceX96 } from "../../../src/price/displayPriceWadToSqrtPriceX96.js";
 import { sqrtPriceX96ToTick } from "../../../src/price/sqrtPriceX96ToTick.js";
-
-// Minimal ABIs for the vendored v4 venue contracts this flow touches; the
-// local Pop Charts contracts use typed Hardhat artifacts instead.
-const POOL_KEY_ABI_COMPONENTS = [
-  { name: "currency0", type: "address" },
-  { name: "currency1", type: "address" },
-  { name: "fee", type: "uint24" },
-  { name: "tickSpacing", type: "int24" },
-  { name: "hooks", type: "address" },
-] as const;
-
-const POOL_MANAGER_ABI = [
-  {
-    inputs: [
-      { components: POOL_KEY_ABI_COMPONENTS, name: "key", type: "tuple" },
-      { name: "sqrtPriceX96", type: "uint160" },
-    ],
-    name: "initialize",
-    outputs: [{ name: "tick", type: "int24" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 type LocalNetworkConnection = Awaited<ReturnType<typeof network.create>>;
 
 type MarketDeployWalletClient = {
   sendTransaction(parameters: { data: Hex }): Promise<Hex>;
   writeContract(parameters: {
-    abi: typeof POOL_MANAGER_ABI;
+    abi: typeof poolManagerAbi;
     address: Address;
     args: readonly [PoolKeyStruct, bigint];
     functionName: "initialize";
@@ -232,14 +209,14 @@ export async function configureOutcomePool({
     displayPriceWad: openingDisplayPriceWad,
   });
   const initializeHash = await walletClient.writeContract({
-    abi: POOL_MANAGER_ABI,
+    abi: poolManagerAbi,
     address: venue.poolManager,
     args: [poolKey, sqrtPriceX96],
     functionName: "initialize",
   });
   await publicClient.waitForTransactionReceipt({ hash: initializeHash });
   const [poolSqrtPriceX96, poolTick] = await publicClient.readContract({
-    abi: STATE_VIEW_SLOT0_ABI,
+    abi: stateViewAbi,
     address: venue.stateView,
     args: [poolId],
     functionName: "getSlot0",

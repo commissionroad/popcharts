@@ -11,7 +11,7 @@ import {
   computeVenuePoolId,
   getPostgradVenueContractConfig,
   minimalV4SwapRouterAbi,
-  poolManagerSwapEventAbi,
+  poolManagerAbi,
   poolTickBoundsAbi,
   type PostgradVenueContractConfig,
   tickToSqrtPriceX96,
@@ -285,7 +285,7 @@ export async function placeVenueSwap({
     hash,
   });
   const swapLogs = parseEventLogs({
-    abi: poolManagerSwapEventAbi,
+    abi: poolManagerAbi,
     eventName: "Swap",
     logs: transactionReceipt.logs,
   });
