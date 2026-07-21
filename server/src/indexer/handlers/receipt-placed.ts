@@ -4,6 +4,7 @@ import type { Log } from "viem";
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema, sql } from "src/db/client";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
+import { recordLiveChange } from "src/live/change-feed-writer";
 
 export type ReceiptPlacedLog = Log & {
   args: {
@@ -98,6 +99,19 @@ export async function persistReceiptPlacedRecord(
     if (!updated[0]) {
       throw new MarketNotIndexedError(record);
     }
+
+    // Signal the price/chart/graduation bar and the bettor's portfolio, atomic
+    // with the receipt+counter writes above.
+    await recordLiveChange(tx, {
+      sourceTable: "receipt_placed_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      owner: record.owner,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
 

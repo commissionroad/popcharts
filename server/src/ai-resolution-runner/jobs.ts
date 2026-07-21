@@ -5,6 +5,7 @@ import type {
   ResolutionVerdict,
 } from "src/ai-resolution/types";
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
+import { recordLiveChange } from "src/live/change-feed-writer";
 
 import { transitionResolvedMarketOnChain } from "./chain-resolution";
 import { resolveMarketWithService } from "./client";
@@ -501,6 +502,18 @@ async function persistResolutionJobResult({
     if (!updatedJob) {
       throw new Error(`Failed to mark resolution job ${job.id} succeeded.`);
     }
+
+    // Signal the market page + board badge that a resolution decision landed,
+    // atomic with the resolution/job writes. Off-chain: ordered by change_feed
+    // id, no block version. The on-chain MarketResolved event separately flips
+    // markets.status and carries its own signal.
+    await recordLiveChange(tx, {
+      sourceTable: "market_resolutions",
+      op: "insert",
+      chainId: job.chainId,
+      marketId: job.marketId,
+      rowId: resolution.id,
+    });
 
     return { job: updatedJob, resolution };
   });

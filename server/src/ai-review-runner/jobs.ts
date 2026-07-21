@@ -1,6 +1,7 @@
 import type { MarketStatus } from "src/api/models/markets";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
+import { recordLiveChange } from "src/live/change-feed-writer";
 import { reviewMarketWithService } from "./client";
 import { cancelReviewJob, markReviewJobFailure } from "./failures";
 import {
@@ -424,6 +425,17 @@ async function persistReviewJobResult({
 
       transitionedMarket = rows.length > 0;
     }
+
+    // Signal the market page + board badge that its review verdict landed —
+    // atomic with the review/job/status writes above. Off-chain, so no block
+    // version; the client orders these by change_feed id.
+    await recordLiveChange(tx, {
+      sourceTable: "market_ai_reviews",
+      op: "insert",
+      chainId: job.chainId,
+      marketId: job.marketId,
+      rowId: review.id,
+    });
 
     return {
       job: updatedJob,

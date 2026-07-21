@@ -8,6 +8,7 @@ import {
   unixSecondsToDate,
   type SettlementLog,
 } from "src/indexer/handlers/settlement-shared";
+import { recordLiveChange } from "src/live/change-feed-writer";
 
 export type GraduationStartedLog = SettlementLog<{
   graduationStartedAt?: bigint;
@@ -184,6 +185,16 @@ export async function persistGraduationStartedRecord(
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    await recordLiveChange(tx, {
+      sourceTable: "graduation_started_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
 
@@ -212,6 +223,16 @@ export async function persistClearingRootSubmittedRecord(
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    await recordLiveChange(tx, {
+      sourceTable: "clearing_root_submitted_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
 
@@ -241,5 +262,15 @@ export async function persistGraduationFinalizedRecord(
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    await recordLiveChange(tx, {
+      sourceTable: "graduation_finalized_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }

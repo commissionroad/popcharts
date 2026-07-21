@@ -14,6 +14,7 @@ import {
   createDynamicAddressWatcher,
   staticContractSet,
 } from "src/indexer/watchers/dynamic-address-watcher";
+import { recordLiveChange } from "src/live/change-feed-writer";
 
 /**
  * Watches MarketCreated on the PregradManager — the root of every market's
@@ -88,6 +89,17 @@ const watcher = createDynamicAddressWatcher({
             updatedAt: new Date(),
           },
         });
+
+      // New market: appears on the discovery board and opens its own page.
+      await recordLiveChange(tx, {
+        sourceTable: "market_created_events",
+        op: "insert",
+        chainId: records.event.chainId,
+        marketId: records.event.marketId,
+        rowId: inserted[0].id,
+        blockNumber: records.event.blockNumber,
+        logIndex: records.event.logIndex,
+      });
 
       return true;
     });

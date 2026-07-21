@@ -86,6 +86,7 @@ export {
   gt,
   inArray,
   isNull,
+  lt,
   lte,
   or,
   sql,
