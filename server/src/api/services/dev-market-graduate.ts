@@ -53,6 +53,7 @@ import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 import {
   computeBandPassClearing,
   hashReceiptClaim,
+  mockCollateralAbi,
   SIDE_NO,
   SIDE_YES,
   type BandPassClearingResult,
@@ -105,12 +106,6 @@ export const PREGRAD_DEV_GRADUATE_ABI = parseAbi([
 const RECEIPT_PLACED_EVENT = parseAbiItem(
   "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
 );
-
-export const DEV_COLLATERAL_ABI = parseAbi([
-  "function mint(address account, uint256 amount)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-]);
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
@@ -563,13 +558,6 @@ async function selectMarketForDevGraduate({
 }
 
 /**
- * Drives the full graduation settlement on the local chain with the dev
- * account (the PregradManager owner in local deployments). Mirrors every
- * emitted event through the indexer's idempotent persistence handlers so the
- * database projection is settled before the endpoint responds, regardless of
- * live-watcher latency.
- */
-/**
  * Runs the server's manager-keyed on-chain graduation for one market:
  * band-pass eligibility gate → startGraduation → clearing-root submission →
  * finalize → per-receipt claims. Chain-agnostic despite the name — the
@@ -883,7 +871,7 @@ async function fundDevCollateral({
   walletClient: BlockchainWalletClient;
 }) {
   const mintHash = await walletClient.writeContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateral,
     functionName: "mint",
     args: [account, amount],
@@ -893,7 +881,7 @@ async function fundDevCollateral({
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
 
   const allowance = await publicClient.readContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateral,
     functionName: "allowance",
     args: [account, config.contracts.pregradManager],
@@ -901,7 +889,7 @@ async function fundDevCollateral({
 
   if (allowance < amount) {
     const approveHash = await walletClient.writeContract({
-      abi: DEV_COLLATERAL_ABI,
+      abi: mockCollateralAbi,
       address: collateral,
       functionName: "approve",
       args: [config.contracts.pregradManager, maxUint256],
