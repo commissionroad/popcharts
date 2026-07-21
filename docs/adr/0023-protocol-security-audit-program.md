@@ -378,19 +378,19 @@ history.
 ## Running the loop
 
 The catalogue is walked one item per pass by the
-`engineering/protocol-security-audit` skill. To drive it to completion, run it
-in a self-paced loop that, each iteration, opens this ADR, takes the first
-unchecked `- [ ]` box (Phase 0 → A → B → C, in order), audits that one item,
-writes the finding note, ticks the box, and commits — stopping when every box is
-checked:
+`engineering/protocol-security-audit` skill. The `/audit-next` command
+(`.claude/commands/audit-next.md`) is the thin entry point: it runs that skill
+against the first unchecked `- [ ]` box (Phase 0 → A → B → C, in order), or a
+specific id you pass (`/audit-next B7`). To drive the whole catalogue to
+completion, one item per pass, run it under the loop:
 
 ```
-/loop Audit the next unchecked item in docs/adr/0023-protocol-security-audit-program.md
-      using the engineering/protocol-security-audit skill: threat-model it, read the
-      real protocol/contracts code, try to break it (Slither / Foundry PoC / invariant),
-      classify severity, write the finding note under protocol/docs/security/audit/, tick
-      the ADR box, and commit. If every box is already checked, stop the loop.
+/loop /audit-next
 ```
+
+Each pass opens this ADR, audits one item, writes the finding note, ticks the
+box, and commits; the loop stops when every box is checked. (Equivalently,
+`/audit-next` on its own does a single item.)
 
 Findings accumulate in `protocol/docs/security/audit/` (indexed by its
 `README.md`); PoC and invariant tests in `protocol/test/solidity/security/`.
