@@ -1,3 +1,5 @@
+import { requireDecimals } from "./requireDecimals.js";
+
 /** Pool-specific facts every display-price conversion must carry (ADR 0009). */
 export type DisplayPricePoolOrientation = {
   /** Decimal precision of the collateral token. */
@@ -10,7 +12,6 @@ export type DisplayPricePoolOrientation = {
 
 const WAD = 10n ** 18n;
 const Q192 = 1n << 192n;
-const MAX_SUPPORTED_DECIMALS = 77;
 
 /**
  * Converts a WAD display price (collateral paid per one outcome token) into
@@ -36,12 +37,6 @@ export function displayPriceWadToSqrtPriceX96(
   const denominator = args.outcomeIsCurrency0 ? outcomeRawScale : collateralRawScale;
 
   return floorSqrt((numerator * Q192) / denominator);
-}
-
-function requireDecimals(decimals: number, label: string): void {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_SUPPORTED_DECIMALS) {
-    throw new Error(`Expected ${label} to be an integer in [0, ${MAX_SUPPORTED_DECIMALS}].`);
-  }
 }
 
 // Newton's method floor square root; converges from an initial power-of-two

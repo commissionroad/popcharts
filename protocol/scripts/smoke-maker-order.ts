@@ -1,7 +1,7 @@
 import { relative, resolve } from "node:path";
 
 import hre, { network } from "hardhat";
-import { formatUnits, getAddress, parseEventLogs, type Abi, type Address, type Hex } from "viem";
+import { formatUnits, getAddress, parseEventLogs, type Abi, type Address } from "viem";
 
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
@@ -13,6 +13,7 @@ import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketSta
 import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "../src/market/ensureCollateralBalance.js";
 import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
+import { HOOK_DATA_NONE } from "../src/market/hookData.js";
 import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
 import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
 import type { SmokeMakerOrderManifest } from "./shared/market/readSmokeMakerOrderManifest.js";
@@ -24,7 +25,6 @@ import { approveErc20 } from "../src/viem/approveErc20.js";
 import { readErc20Balance } from "../src/viem/readErc20Balance.js";
 import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
 
-const HOOK_DATA_NONE: Hex = "0x";
 // Allowance lifetime when the token puller is the canonical transfer-approval
 // singleton; long enough for one smoke run, short enough to expire afterward.
 const ALLOWANCE_EXPIRATION_SECONDS = 3600;
