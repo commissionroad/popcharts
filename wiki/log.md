@@ -818,3 +818,14 @@ enforced by test/nodejs/sdk-surface-guard.test.ts (direction + exports-map
 targets + pinned subpath key set). Remaining G work: protocol TS coverage
 figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
 contracts-only).
+
+## [2026-07-21] ingest | repo ADR 0017 — Track G complete (protocol TS coverage figure)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md
+Notes: Final G checkbox ticked. Fourth coverage figure Protocol (TS): c8
+--all over `hardhat test nodejs`, scoped src/** minus generated/, shipped
+as lcov-ts.info inside the existing protocol-coverage artifact; registry
+gained lcovFile + workspacesForWorkflow (one workflow, many figures);
+observability workflow loops pairs with comment-body chaining (no upsert
+races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
+only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C at C1/6,
+E lacks CDK assertion tests.

@@ -1,6 +1,7 @@
 /artifacts/
 /cache/
 /coverage/
+/coverage-ts/
 coverage.json
 /deployments/*.local.json
 /ignition/deployments/*-local/

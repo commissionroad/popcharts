@@ -57,6 +57,7 @@
     "operator:postgrad-admin": "hardhat operator",
     "test": "hardhat test",
     "test:coverage": "hardhat test --coverage",
+    "test:coverage:ts": "c8 --all --src src --include 'src/**' --exclude 'src/generated/**' --exclude 'src/**/*.d.ts' --reporter=lcov --reporter=text-summary --report-dir coverage-ts hardhat test nodejs",
     "test:nodejs": "hardhat test nodejs",
     "test:solidity": "hardhat test solidity",
     "typecheck": "pnpm metadata:check && tsc --noEmit"
@@ -72,6 +73,7 @@
     "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
     "@nomicfoundation/ignition-core": "3.1.7",
     "@types/node": "22.19.21",
+    "c8": "^12.0.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.7",
     "hardhat": "3.9.0",
     "prettier": "3.8.4",

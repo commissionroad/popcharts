@@ -78,7 +78,9 @@ scheduled smoke tier (C, the harness skeleton for ADR 0014), dedicated
 v4-library tests, a `StdInvariant` escrow-conservation harness and the
 Solidity floor (D), an infra `cdk synth` gate (E), the band-pass
 invariant-test timeout fix (F), and the protocol TS SDK move out of
-`scripts/shared` into `protocol/src/` with its own figure and floor (G).
+`scripts/shared` into `protocol/src/` with its own figure and floor (G,
+complete 2026-07-21: c8-`--all` lcov shipped alongside the Solidity one,
+floored at the honest 36.3% baseline).
 Coverage figures use workspace-own denominators (`app/src`, `server/src`,
 protocol Solidity + protocol TS) with ratcheted floors for each; flake
 tracking is report-only until its history justifies alerting.
