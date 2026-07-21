@@ -3,7 +3,6 @@ import { localAiReviewRunnerPollMs } from "../aiReview/localAiReviewRunnerPollMs
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "../chain/defaultHardhatPrivateKey.ts";
 import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
 import type { StackPorts } from "../localStack/ports.ts";
-import { localDevIndexerHealthFile } from "./localDevEnvFiles.ts";
 
 /**
  * Environment for the local Bun API and indexer, shared by the local-dev and
@@ -22,7 +21,7 @@ export function buildLocalServerEnv(
     DATABASE_URL:
       process.env.DATABASE_URL ??
       `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`,
-    HEALTH_CHECK_FILE: localDevIndexerHealthFile,
+    HEALTH_CHECK_FILE: resources.indexerHealthFilePath,
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
     LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",

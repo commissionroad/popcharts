@@ -30,10 +30,7 @@ import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import {
   postgradServerEnvLines,
 } from "./shared/env/postgradEnv.ts";
-import {
-  appLocalDevEnvFile,
-  localDevIndexerHealthFile,
-} from "./shared/env/localDevEnvFiles.ts";
+import { appLocalDevEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
@@ -243,7 +240,7 @@ async function runInternal(name: string): Promise<void> {
   } else if (name === "api-ready") {
     process.exit((await probeUrl(`${apiBaseUrl}/health`)) ? 0 : 1);
   } else if (name === "indexer-ready") {
-    process.exit(existsSync(localDevIndexerHealthFile) ? 0 : 1);
+    process.exit(existsSync(resources.indexerHealthFilePath) ? 0 : 1);
   } else if (name === "app-ready") {
     // This probe re-runs every few seconds for the stack's whole lifetime
     // (local-dev.control-plane.yaml), so it must hit the dependency-free
@@ -293,7 +290,7 @@ Environment overrides:
 async function prepareDatabase(): Promise<void> {
   console.log(`[${LOG_LABEL}] preparing local database`);
   ensureDependenciesInstalled();
-  rmSync(localDevIndexerHealthFile, { force: true });
+  rmSync(resources.indexerHealthFilePath, { force: true });
 
   await ensureLocalPostgres({
     cwd: repoRoot,

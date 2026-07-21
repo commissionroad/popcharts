@@ -842,3 +842,14 @@ races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
 only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
 progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
 lacks CDK assertion tests.
+
+## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: the ADR's resource table gained an indexer-health-marker row
+(`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
+shared fixed path after the phased build: local-dev, lifecycle-nightly,
+the control-plane probe, and local-chain-smoke all rm'd/polled one file,
+so concurrent stacks could clear each other's marker or pass readiness
+against the wrong slot's indexer. Now derived per slot via
+StackPorts.indexerHealthFilePath; the smoke dropped its separate
+`.env.local-chain.indexer-health` name.

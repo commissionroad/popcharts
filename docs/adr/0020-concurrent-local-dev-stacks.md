@@ -101,6 +101,7 @@ Given slot `s`:
 | process-compose admin | `8080 + s` | 8080 | 8081 |
 | Postgres database | `popcharts` / `popcharts_<s>` | popcharts | popcharts_1 |
 | Env file | `.env.local-chain` / `.env.local-chain.<s>` | (legacy) | .env.local-chain.1 |
+| Indexer health marker | `.env.local-dev.indexer-health` / `….<s>` | (legacy) | .env.local-dev.indexer-health.1 |
 
 ### Mechanism: the registry
 
