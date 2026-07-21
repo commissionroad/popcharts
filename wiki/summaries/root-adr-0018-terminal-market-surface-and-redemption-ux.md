@@ -10,8 +10,9 @@ updated: 2026-07-14
 # Repo ADR 0018: Terminal-Market Surface and Redemption UX
 
 **Status: Accepted.** Dated 2026-07-14. Checklist ADR born from the
-2026-07-14 orchestrated full-lifecycle test session; five of six slices
-done (PRs #219/#234 + the slice-1 API PR), e2e coverage open.
+2026-07-14 orchestrated full-lifecycle test session; all six slices done
+(PRs #219/#234, the slice-1 API PR #256, and the lifecycle e2e lane) — the
+ADR is complete.
 
 ## Context
 
@@ -55,7 +56,7 @@ wallet-signed client pattern (injected viem clients like
 `refund-claim-service.ts`), not new API endpoints — the deployed API stays
 read-only ([root ADR 0009](root-adr-0009-server-api-hardening.md)).
 
-## Implementation slices (five of six done; each its own PR)
+## Implementation slices (all done; each its own PR)
 
 - [x] **API** (PR #219 + slice-1 PR): resolution outcome (`winningSide`,
       timestamps, tx hash) exposed on market reads; `postgrad` block kept
@@ -73,8 +74,10 @@ read-only ([root ADR 0009](root-adr-0009-server-api-hardening.md)).
       both-side 50c redemption.
 - [x] **Portfolio terminal position states** (PR #234): redemption payout
       rows (won/draw kinds) via the `portfolioRedemption` API model.
-- [ ] **E2E**: extend the chain e2e lane to walk resolve → redeem and
-      cancel → redeemCancelled with the test-wallet fixture.
+- [x] **E2E**: `@lifecycle` Playwright lane (`pnpm lifecycle:e2e`) — full
+      stack via `local:smoke --keep-running --fresh-db`, app-driven
+      create→graduate→resolve/cancel, browser redemption of both terminal
+      states with on-chain balance assertions; nightly `terminal-e2e` job.
 
 ## Exit criteria
 
