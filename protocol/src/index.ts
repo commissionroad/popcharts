@@ -99,3 +99,5 @@ export {
   SIDE_YES,
 } from "./market-side.js";
 export type { MarketSide } from "./market-side.js";
+export { MARKET_STATUS } from "./market-status.js";
+export type { MarketStatusCode } from "./market-status.js";

@@ -40,3 +40,23 @@ export async function jumpChainTimeTo(targetSeconds: bigint): Promise<void> {
 export async function mineBlock(): Promise<void> {
   await requestLocalRpc("evm_mine", []);
 }
+
+/**
+ * Post-verdict slack on top of the wall-clock eligibility wait: the runner's
+ * poll/lease cycle, the heuristic service call, an optional chain
+ * transition, and the indexer flip all happen after the gate opens.
+ */
+const RESOLUTION_RUNNER_MARGIN_MS = 120_000;
+
+/**
+ * Wall-clock bound for "the resolution runner acts on this market": its
+ * eligibility clock is `new Date()` against the market's (chain-anchored)
+ * resolution gate, so the wait is exactly the gate minus wall-now — which
+ * automatically absorbs whatever permanent chain-vs-wall offset earlier
+ * jumps left — plus a fixed runner margin. Deriving the bound here keeps
+ * scenario budgets independent of suite ordering.
+ */
+export function resolutionRunnerTimeoutMs(resolutionTime: bigint): number {
+  const untilEligibleMs = Number(resolutionTime) * 1000 - Date.now();
+  return Math.max(untilEligibleMs, 0) + RESOLUTION_RUNNER_MARGIN_MS;
+}

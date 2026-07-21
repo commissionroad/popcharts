@@ -852,6 +852,18 @@ contracts across protocol/server/app were replaced with the generated ABIs;
 fragments remain only for contracts outside the Hardhat build (the canonical
 transfer-approval singleton).
 
+## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
+Notes: Rejection, manual review, failed graduation, and draw/cancel are
+ticked; partial clearing and the infra drills remain the last open C3
+boxes. Mechanism notes captured in the summary: rejection reasons are
+served via the market API's aiReview payload; the manual_review verdict
+transitions nothing and the operator lever is a keyed approveMarket (the
+admin endpoint only re-queues reviews); failed graduation settles through
+the keeper sweep's markRefundable; the resolution runner parks draws
+(cancel_draw maps to no chain action) and the operator cancels with the
+resolver key, after which both legs redeem at half value.
+
 ## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
 Notes: the ADR's resource table gained an indexer-health-marker row

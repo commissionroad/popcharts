@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); harness + happy path landed 2026-07-20, unhappy scenarios open.
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); harness + happy path + four unhappy scenarios landed 2026-07-20/21, partial clearing + infra drills open.
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
-updated: 2026-07-20
+updated: 2026-07-21
 ---
 
 # Repo ADR 0014: Full-Lifecycle E2E Testing
@@ -29,7 +29,7 @@ terminal state through the real local stack (chain, contracts, API, indexer,
 AI services, app), covering happy and unhappy paths. The suite is the
 acceptance gate for milestones M1–M4 and, ultimately, the Arc launch.
 
-## Progress (harness + happy path landed 2026-07-20; unhappy paths open)
+## Progress (harness + happy path landed 2026-07-20; four unhappy paths 2026-07-21)
 
 Harness (**landed 2026-07-20**, ADR 0017 item C3 first slice):
 
@@ -53,17 +53,24 @@ Happy path (**landed 2026-07-20**):
   each transition — review, graduation/clearing, and resolution all through
   the real runner/keeper services, no dev force endpoints.
 
-Unhappy paths:
+Unhappy paths (four of six **landed 2026-07-21**):
 
-- [ ] AI rejection: policy-violating market → `rejected` → creator sees
-  rejection reasons.
-- [ ] Manual review: ambiguous market parks in `under_review` → operator
-  approves via admin path → proceeds.
-- [ ] Failed graduation: insufficient matched liquidity → refunds available →
-  user claims refund.
+- [x] AI rejection: heuristic hard flag → real runner rejects on-chain →
+  rejection reasons served on the market API (`aiReview` payload); receipts
+  refused (terminal).
+- [x] Manual review: retrospective soft flag parks the market — the
+  manual_review verdict transitions nothing; the operator approves with the
+  review-manager key (the admin API endpoint only re-queues AI reviews, it
+  cannot decide) and the market proceeds to bootstrap.
+- [x] Failed graduation: below-threshold receipts + deadline jump → the
+  keeper's sweep opens refunds (`markRefundable`); both owners claim full
+  cost back on-chain; double-claim rejected.
 - [ ] Partial clearing: some bands match, some refund; both claim paths
   verified against escrow accounting.
-- [ ] Draw resolution: `cancel()` path with both sides redeeming at cost.
+- [x] Draw resolution: the runner records the heuristic draw verdict and
+  deliberately parks it (`cancel_draw` maps to no chain action — draws are
+  always a human call); the operator cancels with the resolver key; both
+  legs redeem at half value via `redeemCancelled`.
 - [ ] Infrastructure failure drills: indexer restart mid-lifecycle and AI
   service outage with runner retries — lifecycle still completes.
 
