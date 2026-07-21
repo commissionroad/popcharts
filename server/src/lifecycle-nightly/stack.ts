@@ -77,6 +77,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 /** The market read model served by GET /markets/:chainId/:marketId. */
 export type ApiMarket = {
+  aiReview?: { reasons?: string[]; verdict: string };
   marketId: string;
   metadataHash: string;
   postgrad?: {

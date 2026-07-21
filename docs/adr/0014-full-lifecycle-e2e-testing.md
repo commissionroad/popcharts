@@ -78,15 +78,25 @@ UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
 Unhappy paths:
 
-- [ ] AI rejection: policy-violating market → `rejected` → creator sees
-      rejection reasons.
-- [ ] Manual review: ambiguous market parks in `under_review` → operator
-      approves via admin path → proceeds.
-- [ ] Failed graduation: insufficient matched liquidity → refunds available
-      → user claims refund.
+- [x] AI rejection: policy-violating market → `rejected` → creator sees
+      rejection reasons. (`scenarios/rejected-creation.ts` — heuristic hard
+      flag through the real review runner; terminal on-chain, receipts
+      refused.)
+- [x] Manual review: ambiguous market parks in `under_review` → operator
+      approves via admin path → proceeds. (`scenarios/manual-review.ts` —
+      the runner's manual_review verdict transitions nothing; the operator
+      lever is a keyed `approveMarket`, since the admin API endpoint only
+      re-queues AI reviews.)
+- [x] Failed graduation: insufficient matched liquidity → refunds available
+      → user claims refund. (`scenarios/failed-graduation.ts` — the
+      keeper's sweep opens refunds via `markRefundable`; both owners claim
+      full cost back; double-claim rejected.)
 - [ ] Partial clearing: some bands match, some refund; both claim paths
       verified against escrow accounting.
-- [ ] Draw resolution: `cancel()` path with both sides redeeming at cost.
+- [x] Draw resolution: `cancel()` path with both sides redeeming at cost.
+      (`scenarios/draw-cancel.ts` — the runner records the draw verdict and
+      deliberately parks; the operator cancels with the resolver key; both
+      legs redeem at half value via `redeemCancelled`.)
 - [ ] Infrastructure failure drills: indexer restart mid-lifecycle and AI
       service outage with runner retries — lifecycle still completes.
 

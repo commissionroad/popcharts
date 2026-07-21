@@ -14,6 +14,7 @@ import {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
+import { assertEqual, CHAIN_STATUS } from "../asserts";
 import { chainNowSeconds, jumpChainTimeTo } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import { assertMarketPaperTrail } from "../paper-trail";
@@ -29,9 +30,6 @@ import {
 import { placeGraduationLiquidity } from "../pregrad-trading";
 import { waitForCondition } from "../wait";
 import type { Scenario } from "../report";
-
-/** On-chain PregradManager status codes (MarketStatus enum order). */
-const CHAIN_STATUS_ACTIVE = 0;
 
 /**
  * ADR 0014 happy path: create → AI approve → receipt trading → graduation
@@ -112,7 +110,7 @@ export const happyPath: Scenario = {
       assertEqual(
         "on-chain status after approval",
         Number(state.status),
-        CHAIN_STATUS_ACTIVE,
+        CHAIN_STATUS.active,
       );
     });
 
@@ -212,8 +210,9 @@ export const happyPath: Scenario = {
           return api?.status === "resolved" ? api : null;
         },
         // Upper bound: resolutionSeconds of wall-clock eligibility wait plus
-        // the runner's poll/lease cycle.
-        { tickChain: true, timeoutMs: 300_000 },
+        // the runner's poll/lease cycle. Run 2 of the suite passed this step
+        // with under 4s to spare at 300s, so the bound carries real margin.
+        { tickChain: true, timeoutMs: 420_000 },
       );
       assertResolution(resolved);
 
@@ -330,12 +329,6 @@ export const happyPath: Scenario = {
     });
   },
 };
-
-function assertEqual<T>(label: string, actual: T, expected: T): void {
-  if (actual !== expected) {
-    throw new Error(`${label}: expected ${expected}, got ${actual}`);
-  }
-}
 
 function assertResolution(market: ApiMarket): void {
   if (

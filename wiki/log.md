@@ -830,3 +830,15 @@ money paper-trail reconciliation). One ADR wording amendment: receipt volume
 comes from deterministic balanced buys reusing the trading bot's receipt
 mechanics, not the interactive bot script. Unhappy-path scenarios and infra
 drills remain open (next C3 slices).
+
+## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
+Notes: Rejection, manual review, failed graduation, and draw/cancel are
+ticked; partial clearing and the infra drills remain the last open C3
+boxes. Mechanism notes captured in the summary: rejection reasons are
+served via the market API's aiReview payload; the manual_review verdict
+transitions nothing and the operator lever is a keyed approveMarket (the
+admin endpoint only re-queues reviews); failed graduation settles through
+the keeper sweep's markRefundable; the resolution runner parks draws
+(cancel_draw maps to no chain action) and the operator cancels with the
+resolver key, after which both legs redeem at half value.
