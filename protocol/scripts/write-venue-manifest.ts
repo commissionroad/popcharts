@@ -15,6 +15,7 @@ import {
   type VenueManifestContractEntry,
   type VenueContractSpec,
 } from "./shared/deployment/venueManifest.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
 import { writeJsonFile } from "../src/json/jsonFile.js";
 
 export type WriteVenueManifestConfig = {
@@ -61,7 +62,7 @@ export async function writeVenueManifest(
   const outputFile = resolve(
     config.protocolRoot,
     config.outputFile ||
-      config.env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
+      config.env[VENUE_STACK_DEPLOYMENT.deploymentFileEnvVar] ||
       DEFAULT_VENUE_DEPLOYMENT_FILE,
   );
   const blockNumber =
