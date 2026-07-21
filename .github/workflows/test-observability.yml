@@ -158,9 +158,12 @@ jobs:
           for pair in $PAIRS; do
             workspace="${pair%%:*}"
             lcov_file="${pair#*:}"
+            # A downloaded artifact missing an expected lcov means the
+            # producing CI broke its contract — fail loudly rather than
+            # leave this workspace's row silently stale.
             if [ ! -f "coverage-artifact/$lcov_file" ]; then
-              echo "no $lcov_file in artifact; skipping $workspace" >&2
-              continue
+              echo "expected $lcov_file missing from artifact for $workspace" >&2
+              exit 1
             fi
             args=(--workspace "$workspace" \
                   --lcov "coverage-artifact/$lcov_file" \
@@ -218,9 +221,11 @@ jobs:
           for pair in $PAIRS; do
             workspace="${pair%%:*}"
             lcov_file="${pair#*:}"
+            # Same producer contract as the comment step: a partial
+            # artifact must fail, not leave latest.json/badges stale.
             if [ ! -f "coverage-artifact/$lcov_file" ]; then
-              echo "no $lcov_file in artifact; skipping $workspace" >&2
-              continue
+              echo "expected $lcov_file missing from artifact for $workspace" >&2
+              exit 1
             fi
             node --experimental-strip-types scripts/ci-update-coverage-metrics.ts \
               --workspace "$workspace" \

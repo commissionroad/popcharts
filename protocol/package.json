@@ -14,7 +14,7 @@
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=22.10"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "hardhat build && node --experimental-strip-types scripts/export-contract-metadata.ts",
