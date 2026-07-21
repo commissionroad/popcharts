@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { boundedPoolOrderManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import type { BlockchainClient } from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
@@ -48,21 +49,26 @@ import {
 // retry below then only covers live-vs-sweep races.
 const CURSOR_NAME = "VenueOrders";
 
-const ORDER_CREATED_EVENT = parseAbiItem(
-  "event OrderCreated(bytes32 indexed poolId, uint32 indexed orderId, address indexed owner, bool zeroForOne, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 amountIn)",
-);
-const ORDER_CANCELLED_EVENT = parseAbiItem(
-  "event OrderCancelled(bytes32 indexed poolId, uint32 indexed orderId, address indexed owner, uint256 amount0, uint256 amount1)",
-);
-const ORDER_FILLED_EVENT = parseAbiItem(
-  "event OrderFilled(bytes32 indexed poolId, uint32 indexed orderId, address indexed owner, uint256 amount0, uint256 amount1)",
-);
-const ORDER_PARTIALLY_FILLED_EVENT = parseAbiItem(
-  "event OrderPartiallyFilled(bytes32 indexed poolId, uint32 indexed orderId, address indexed owner, uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper, int24 indexedTick, uint128 remainingLiquidity)",
-);
-const ORDER_REQUEUED_EVENT = parseAbiItem(
-  "event OrderRequeued(bytes32 indexed poolId, uint32 indexed orderId, int24 thresholdTick)",
-);
+const ORDER_CREATED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "OrderCreated",
+});
+const ORDER_CANCELLED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "OrderCancelled",
+});
+const ORDER_FILLED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "OrderFilled",
+});
+const ORDER_PARTIALLY_FILLED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "OrderPartiallyFilled",
+});
+const ORDER_REQUEUED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "OrderRequeued",
+});
 
 const ORDER_HANDLERS: Record<
   string,
