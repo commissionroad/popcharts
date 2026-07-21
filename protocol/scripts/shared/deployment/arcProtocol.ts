@@ -26,8 +26,10 @@ export const ARC_PROTOCOL_DEPLOYMENT = {
   ],
   defaultDeploymentFile: "deployments/arc-testnet.protocol.local.json",
   defaultDeploymentId: "arc-testnet-protocol",
+  deploymentFileEnvVar: "POPCHARTS_PROTOCOL_DEPLOYMENT_FILE",
 } as const satisfies {
   contracts: readonly IgnitionContractDescriptor[];
   defaultDeploymentFile: string;
   defaultDeploymentId: string;
+  deploymentFileEnvVar: string;
 };

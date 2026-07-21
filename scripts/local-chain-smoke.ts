@@ -15,8 +15,11 @@ import {
 } from "./shared/deployments/smokeMarket.ts";
 import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
+import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { localChainEnvFileForSlot } from "./shared/env/localDevEnvFiles.ts";
+import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
+import { SMOKE_READINESS_LINE } from "./shared/localStack/smokeReadinessLine.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
@@ -41,6 +44,7 @@ import { waitFor } from "./shared/wait/waitFor.ts";
 const LOG_LABEL = "local-smoke";
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const keepRunning = args.includes("--keep-running");
+const freshDb = args.includes("--fresh-db");
 const helpRequested = args.includes("--help") || args.includes("-h");
 const { resources } = await resolveAndRegisterStack(process.cwd());
 const databaseUrl =
@@ -108,6 +112,18 @@ async function main(): Promise<void> {
     logLabel: LOG_LABEL,
   });
 
+  // The smoke always boots a fresh chain, so a database kept from an earlier
+  // run holds stale projections whose status guards block re-projection of
+  // this chain's events (same market ids, earlier statuses). Lifecycle
+  // orchestration passes --fresh-db to start both sides from genesis.
+  if (freshDb) {
+    await resetLocalPostgresForFreshChain({
+      cwd: repoRoot,
+      dbName: resources.dbName,
+      logLabel: LOG_LABEL,
+    });
+  }
+
   // db:push keeps the smoke useful while migrations are evolving. The schema's
   // additive defaults keep this non-interactive against existing local data.
   const serverEnv = buildServerEnv();
@@ -162,12 +178,18 @@ async function main(): Promise<void> {
     },
   );
 
-  const configuredServerEnv = buildServerEnv({
-    collateralAddress: deploy.collateralAddress,
-    deployBlock: deploy.deployBlock,
-    postgradAdapterAddress: deploy.postgradAdapterAddress,
-    pregradManagerAddress: deploy.pregradManagerAddress,
-  });
+  // Venue addresses ride along so the indexer runs the postgrad watcher set
+  // (outcome-token transfers, pool ticks, resolution events) — without them
+  // graduated-market balances never index and portfolio reads stay empty.
+  const configuredServerEnv = {
+    ...buildServerEnv({
+      collateralAddress: deploy.collateralAddress,
+      deployBlock: deploy.deployBlock,
+      postgradAdapterAddress: deploy.postgradAdapterAddress,
+      pregradManagerAddress: deploy.pregradManagerAddress,
+    }),
+    ...postgradServerEnv(postgrad),
+  };
   writeLocalEnv(configuredServerEnv, deploy, postgrad);
 
   // The API is checked first because the final assertion goes through the
@@ -252,7 +274,7 @@ async function main(): Promise<void> {
 
   if (keepRunning) {
     console.log(
-      "\nKeeping Hardhat, API, and indexer running. Press Ctrl-C to stop.",
+      `\n${SMOKE_READINESS_LINE}. Press Ctrl-C to stop.`,
     );
     await new Promise(() => {});
   }
@@ -270,13 +292,16 @@ GET /markets?chainId=31337 returns the indexed market.
 
 Options:
   --keep-running  Keep Hardhat, API, and indexer running after verification.
+  --fresh-db      Recreate this stack's database before indexing (fresh chain).
   -h, --help      Show this help.`);
 }
 
 function rejectUnknownArgs(): void {
   // Keep this script deliberately small: one mode and one lifecycle flag. More
   // flags tend to hide setup drift that the smoke is supposed to catch.
-  const unknownArgs = args.filter((arg) => arg !== "--keep-running");
+  const unknownArgs = args.filter(
+    (arg) => arg !== "--keep-running" && arg !== "--fresh-db",
+  );
 
   if (unknownArgs.length > 0) {
     throw new Error(
@@ -324,6 +349,10 @@ function buildServerEnv(
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     NETWORK: "local",
     PORT: apiPort,
+    // The lifecycle e2e lane drives graduation/resolution through the local
+    // dev endpoints; they are local-network-only and additionally gated on
+    // this flag, so the smoke API opts in explicitly.
+    POPCHARTS_DEV_TOOLS_ENABLED: "true",
     PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     RPC_HTTP_URL: rpcHttpUrl,

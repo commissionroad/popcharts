@@ -2,7 +2,13 @@ import type { Address, Hex, PublicClient } from "viem";
 
 import { sqrtPriceX96ToDisplayPriceWad } from "../price/sqrtPriceX96ToDisplayPriceWad.js";
 
-const STATE_VIEW_SLOT0_ABI = [
+/**
+ * Hand-written getSlot0 fragment for the vendored third-party v4 StateView
+ * lens, which is not in the generated first-party ABI set. Shared through the
+ * package barrel so the deploy scripts and the server read slot0 through one
+ * definition instead of drifting copies.
+ */
+export const STATE_VIEW_SLOT0_ABI = [
   {
     inputs: [{ name: "poolId", type: "bytes32" }],
     name: "getSlot0",

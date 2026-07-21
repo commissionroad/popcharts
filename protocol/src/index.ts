@@ -66,7 +66,7 @@ export { ensureDevBackstopLiquidity } from "./market/ensureDevBackstopLiquidity.
 export { executeCompleteSetArb } from "./market/executeCompleteSetArb.js";
 export { findPendingDeferredExecutions } from "./market/findPendingDeferredExecutions.js";
 export type { PendingDeferredExecution } from "./market/findPendingDeferredExecutions.js";
-export { readPoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
+export { readPoolDisplayPrice, STATE_VIEW_SLOT0_ABI } from "./market/readPoolDisplayPrice.js";
 export type { PoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type {
   CompleteSetMarketManifestData,

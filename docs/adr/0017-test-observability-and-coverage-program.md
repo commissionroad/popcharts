@@ -265,9 +265,12 @@ behavior, and those modules' coverage is attributed to no enforced figure.
 - [x] `exports` map unchanged as the consumer allowlist (two targets
       retargeted from `scripts/shared/price/` to `src/price/`; no key
       renamed, added, or removed)
-- [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
+- [x] Protocol TS coverage figure (`protocol/src/**`, excluding
       `generated/`) added to the PR comment, trend, and badges, with a
-      floor at the measured baseline
+      floor at the measured baseline (36.3%; measured 36.37% — c8 `--all`
+      over the nodejs suite, so SDK modules no test loads count as 0%,
+      which is the honest denominator this track exists to expose. The
+      low starting floor is the point: it can only ratchet up)
 
 ### Exit criteria
 

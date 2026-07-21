@@ -19,7 +19,7 @@ import {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import { readDevPrivateKey } from "./local-dev-chain";
+import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import {
   selectMarketResolution,
@@ -33,6 +33,8 @@ const POSTGRAD_MARKET_STATUS_RESOLVED = 1;
 export const POSTGRAD_DEV_RESOLVE_ABI = parseAbi([
   "function status() view returns (uint8)",
   "function winningSide() view returns (uint8)",
+  "function yesNotBefore() view returns (uint64)",
+  "function noNotBefore() view returns (uint64)",
   "function resolve(uint8 side)",
 ]);
 
@@ -387,6 +389,16 @@ async function resolveLocalPostgradMarketOnChain(
       status,
     };
   }
+
+  // The contract's per-outcome floor guard (TooEarlyToResolve) is real even
+  // on a dev chain; a dev resolution jumps local chain time to the resolved
+  // side's gate instead of asking the caller to wait days of wall clock.
+  const notBefore = (await publicClient.readContract({
+    abi: POSTGRAD_DEV_RESOLVE_ABI,
+    address: postgradMarket,
+    functionName: side === "yes" ? "yesNotBefore" : "noNotBefore",
+  })) as bigint;
+  await fastForwardLocalRpc(publicClient, notBefore);
 
   const account = privateKeyToAccount(readDevPrivateKey());
   const walletClient = createWalletClient(account);

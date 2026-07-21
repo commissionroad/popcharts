@@ -58,4 +58,33 @@ describe("ci-check-coverage-floor", () => {
     const result = runFloor("not-a-number");
     assert.equal(result.status, 2);
   });
+
+  it("compares raw counts, not the two-decimal display rounding", () => {
+    // 816/2248 = 36.2989…%, which displays as 36.30% — a rounded
+    // comparison would wrongly pass a 36.3 floor.
+    const dir = mkdtempSync(join(tmpdir(), "floor-"));
+    const lcovPath = join(dir, "lcov.info");
+    writeFileSync(
+      lcovPath,
+      ["SF:contracts/PregradManager.sol", "LF:2248", "LH:816", "end_of_record"].join(
+        "\n",
+      ),
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        SCRIPT,
+        "--workspace",
+        "protocol-solidity",
+        "--lcov",
+        lcovPath,
+        "--min-lines",
+        "36.3",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /36\.30% \(816\/2248\) is BELOW the 36.3% floor/);
+  });
 });

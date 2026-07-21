@@ -7,6 +7,7 @@ import {
   collectVenueAddressEntries,
   DEFAULT_VENUE_DEPLOYMENT_FILE,
 } from "./shared/deployment/venueManifest.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
 import { readJsonFile } from "../src/json/jsonFile.js";
 
 export type CheckVenueDeploymentConfig = {
@@ -25,7 +26,7 @@ export async function checkVenueDeployment(config: CheckVenueDeploymentConfig): 
   const deploymentFile = resolve(
     config.protocolRoot,
     config.deploymentFile ||
-      config.env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
+      config.env[VENUE_STACK_DEPLOYMENT.deploymentFileEnvVar] ||
       DEFAULT_VENUE_DEPLOYMENT_FILE,
   );
   const manifest = await readJsonFile(deploymentFile);

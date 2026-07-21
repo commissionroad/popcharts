@@ -1,4 +1,4 @@
-const MAX_SUPPORTED_DECIMALS = 77;
+import { requireDecimals } from "../../../src/price/requireDecimals.js";
 
 /**
  * Converts a collateral balance into the outcome-token capacity it can back,
@@ -23,10 +23,4 @@ export function outcomeCapacityForCollateral(args: {
     return args.collateralAmount * 10n ** BigInt(args.outcomeDecimals - args.collateralDecimals);
   }
   return args.collateralAmount / 10n ** BigInt(args.collateralDecimals - args.outcomeDecimals);
-}
-
-function requireDecimals(decimals: number, label: string): void {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_SUPPORTED_DECIMALS) {
-    throw new Error(`Expected ${label} to be an integer in [0, ${MAX_SUPPORTED_DECIMALS}].`);
-  }
 }

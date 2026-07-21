@@ -19,8 +19,9 @@ import {
 } from "../shared/coverage-report/coverageMetrics.ts";
 import {
   COVERAGE_WORKSPACES,
+  workflowMapping,
   workspaceForKey,
-  workspaceForWorkflow,
+  workspacesForWorkflow,
 } from "../shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "../shared/coverage-report/parseLcovSummary.ts";
 import type { CoverageSummary } from "../shared/coverage-report/parseLcovSummary.ts";
@@ -98,14 +99,50 @@ describe("parseLcovSummary", () => {
 });
 
 describe("coverage workspaces", () => {
-  it("maps every CI workflow name to a workspace", () => {
-    assert.equal(workspaceForWorkflow("App CI")?.key, "app");
-    assert.equal(workspaceForWorkflow("Server CI")?.key, "server");
-    assert.equal(
-      workspaceForWorkflow("Protocol CI")?.key,
-      "protocol-solidity",
+  it("maps every CI workflow name to its workspaces", () => {
+    assert.deepEqual(
+      workspacesForWorkflow("App CI").map((w) => w.key),
+      ["app"],
     );
-    assert.equal(workspaceForWorkflow("Nope CI"), undefined);
+    assert.deepEqual(
+      workspacesForWorkflow("Server CI").map((w) => w.key),
+      ["server"],
+    );
+    assert.deepEqual(
+      workspacesForWorkflow("Protocol CI").map((w) => w.key),
+      ["protocol-solidity", "protocol-ts"],
+    );
+    assert.deepEqual(workspacesForWorkflow("Nope CI"), []);
+  });
+
+  it("prints the registry mapping the observability workflow consumes", () => {
+    // test-observability.yml feeds workflowMapping's output straight into
+    // $GITHUB_OUTPUT; this pins the exact shape bash loops over.
+    assert.deepEqual(workflowMapping("Protocol CI"), {
+      pairs: "protocol-solidity:lcov.info protocol-ts:lcov-ts.info",
+      artifact: "protocol-coverage",
+    });
+    assert.deepEqual(workflowMapping("App CI"), {
+      pairs: "app:lcov.info",
+      artifact: "app-coverage",
+    });
+    assert.equal(workflowMapping("Nope CI"), undefined);
+  });
+
+  it("workspaces sharing an artifact carry distinct lcov file names", () => {
+    const byArtifact = new Map<string, string[]>();
+    for (const w of COVERAGE_WORKSPACES) {
+      const files = byArtifact.get(w.artifactName) ?? [];
+      files.push(w.lcovFile);
+      byArtifact.set(w.artifactName, files);
+    }
+    for (const [artifact, files] of byArtifact) {
+      assert.equal(
+        new Set(files).size,
+        files.length,
+        `artifact ${artifact} has colliding lcov file names: ${files.join(", ")}`,
+      );
+    }
   });
 
   it("keeps keys unique and resolvable", () => {

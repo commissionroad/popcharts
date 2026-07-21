@@ -90,16 +90,30 @@ jobs:
       - name: Tests with coverage
         run: pnpm test:coverage
 
-      # Ratcheted floor (ADR 0017 Track D): never lower without reviewer
-      # sign-off; bump as coverage lands. Solidity-contract lines only —
-      # hardhat has no native threshold support, so the gate is this step.
-      - name: Enforce coverage floor
+      # TS SDK coverage (ADR 0017 Track G): c8 over the nodejs suite,
+      # scoped to src/ minus generated/. --all keeps the denominator
+      # honest — SDK modules no test ever loads still count as 0%, which
+      # is the whole point of the figure. The lcov is copied next to the
+      # Solidity one so both ship flat in the protocol-coverage artifact.
+      - name: TS coverage
+        run: |
+          pnpm test:coverage:ts
+          cp coverage-ts/lcov.info coverage/lcov-ts.info
+
+      # Ratcheted floors (ADR 0017 Tracks D and G): never lower without
+      # reviewer sign-off; bump as coverage lands. Hardhat and c8 have no
+      # native threshold support here, so the gate is this step.
+      - name: Enforce coverage floors
         working-directory: .
         run: |
           node --experimental-strip-types scripts/ci-check-coverage-floor.ts \
             --workspace protocol-solidity \
             --lcov protocol/coverage/lcov.info \
             --min-lines 96.67
+          node --experimental-strip-types scripts/ci-check-coverage-floor.ts \
+            --workspace protocol-ts \
+            --lcov protocol/coverage/lcov-ts.info \
+            --min-lines 36.3
 
       # protocol/src/generated is the ABI source of truth that server and app
       # import; a contract change that lands without regenerating it leaves
@@ -117,5 +131,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: protocol-coverage
-          path: protocol/coverage/lcov.info
+          # Both files share protocol/coverage/ so the artifact stays flat:
+          # lcov.info (Solidity) and lcov-ts.info (TS SDK) side by side.
+          path: |
+            protocol/coverage/lcov.info
+            protocol/coverage/lcov-ts.info
           retention-days: 14

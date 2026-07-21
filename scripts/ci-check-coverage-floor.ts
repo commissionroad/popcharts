@@ -47,13 +47,15 @@ if (summary.lines.pct === null) {
   process.exit(1);
 }
 
-const verdict = summary.lines.pct >= minLines ? "meets" : "is BELOW";
+// Compare on raw counts, not the display percentage: summary.lines.pct is
+// rounded to two decimals, which would let e.g. 36.2989% pass a 36.3 floor.
+const meetsFloor = summary.lines.hit * 100 >= minLines * summary.lines.found;
 console.log(
   `${workspace.label} line coverage ${summary.lines.pct.toFixed(2)}% ` +
-    `(${summary.lines.hit}/${summary.lines.found}) ${verdict} the ` +
-    `${minLines}% floor`,
+    `(${summary.lines.hit}/${summary.lines.found}) ` +
+    `${meetsFloor ? "meets" : "is BELOW"} the ${minLines}% floor`,
 );
-if (summary.lines.pct < minLines) {
+if (!meetsFloor) {
   console.error(
     "Coverage floor violated (ADR 0017): add tests or, with reviewer " +
       "sign-off, lower the floor where this step is wired in CI.",
