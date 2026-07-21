@@ -61,11 +61,10 @@ for (const f of inputs) {
     input: inp.input,
     output: outp.output,
   };
-  fs.writeFileSync(
-    path.join(work, "artifacts/build-info", f),
-    JSON.stringify(merged),
-  );
+  fs.writeFileSync(path.join(work, "artifacts/build-info", f), JSON.stringify(merged));
   units += 1;
 }
 
-console.log(`slither-prepare: ${units} build-info unit(s), ${sources} source(s) → ${path.relative(root, work)}`);
+console.log(
+  `slither-prepare: ${units} build-info unit(s), ${sources} source(s) → ${path.relative(root, work)}`,
+);
