@@ -44,6 +44,8 @@ export type {
   PostgradVenueSingletonKey,
 } from "./generated/postgrad-venue.js";
 
+export { mockCollateralAbi } from "./generated/mock-collateral.js";
+
 export { poolManagerAbi, stateViewAbi, v4QuoterAbi } from "./generated/third-party/venue.js";
 
 export { COMPLETE_SET_PRICE_POLICY } from "./price/completeSetPricePolicy.js";
