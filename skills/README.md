@@ -50,6 +50,11 @@ in their descriptions.
 - `engineering/protocol-deployment-scripts` — deploy entrypoints,
   `protocol/scripts/shared/` helper shape, Hardhat tasks, manifests, and
   Blockscout verification.
+- `engineering/protocol-security-audit` — audit the Solidity protocol against
+  one catalogued security check (a Trail of Bits building-secure-contracts
+  skill, a historical EVM-attack root-cause class, or a peer-protocol audit
+  category) end to end and record a finding note. The unit of work the ADR 0023
+  audit loop repeats.
 
 ## Provenance and updating
 

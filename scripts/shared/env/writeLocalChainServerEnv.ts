@@ -7,9 +7,10 @@ import { postgradServerEnvLines } from "./postgradEnv.ts";
 /**
  * Writes the generated local-chain server env file that downstream tools ride
  * (the AI runners wait on it before signing, bot-trade and the lifecycle
- * runner load it standalone). Shared by the local-dev and lifecycle-nightly
- * orchestrators so the key set cannot drift between them; local-chain-smoke
- * keeps its own smaller writer (no AI services in that stack).
+ * runner load it standalone). Shared by the local-dev, local-dev-control, and
+ * lifecycle-nightly orchestrators so the key set cannot drift between them;
+ * local-chain-smoke keeps its own smaller writer (no AI services in that
+ * stack).
  */
 export function writeLocalChainServerEnv({
   deploy,
