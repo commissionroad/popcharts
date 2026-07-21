@@ -15,7 +15,9 @@ of the M1–M5 launch milestone chain. Track A completed 2026-07-14 (PR #208
 core pipeline; the flake report and Playwright retry surfacing followed the
 same day); Track F (invariant-test timeout) and Track B (server floor +
 untested layers, five items) completed 2026-07-14; Track D (v4 value-path
-coverage) completed 2026-07-15; Tracks C/E/G open.**
+coverage) completed 2026-07-15; Track G (protocol TS SDK surface + TS
+coverage figure) completed 2026-07-21; open: Track C (C1 done, C3 slice 1
+landed; C2/C4/C5/C6 remain) and Track E's CDK assertion tests.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage

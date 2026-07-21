@@ -19,6 +19,7 @@ import {
 } from "../shared/coverage-report/coverageMetrics.ts";
 import {
   COVERAGE_WORKSPACES,
+  workflowMapping,
   workspaceForKey,
   workspacesForWorkflow,
 } from "../shared/coverage-report/coverageWorkspaces.ts";
@@ -112,6 +113,20 @@ describe("coverage workspaces", () => {
       ["protocol-solidity", "protocol-ts"],
     );
     assert.deepEqual(workspacesForWorkflow("Nope CI"), []);
+  });
+
+  it("prints the registry mapping the observability workflow consumes", () => {
+    // test-observability.yml feeds workflowMapping's output straight into
+    // $GITHUB_OUTPUT; this pins the exact shape bash loops over.
+    assert.deepEqual(workflowMapping("Protocol CI"), {
+      pairs: "protocol-solidity:lcov.info protocol-ts:lcov-ts.info",
+      artifact: "protocol-coverage",
+    });
+    assert.deepEqual(workflowMapping("App CI"), {
+      pairs: "app:lcov.info",
+      artifact: "app-coverage",
+    });
+    assert.equal(workflowMapping("Nope CI"), undefined);
   });
 
   it("workspaces sharing an artifact carry distinct lcov file names", () => {

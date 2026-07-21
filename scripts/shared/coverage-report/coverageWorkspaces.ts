@@ -61,12 +61,50 @@ export const COVERAGE_WORKSPACES: CoverageWorkspace[] = [
   },
 ];
 
+/**
+ * All coverage figures the named CI workflow produces (one workflow can
+ * carry several in one artifact — ADR 0017 Track G). Empty for unknown
+ * workflow names.
+ */
 export function workspacesForWorkflow(
   workflowName: string,
 ): CoverageWorkspace[] {
   return COVERAGE_WORKSPACES.filter((w) => w.workflowName === workflowName);
 }
 
+export interface WorkflowMapping {
+  /** Space-separated `key:lcovFile` pairs, bash-loop ready. */
+  pairs: string;
+  /** The single artifact all of the workflow's figures ship in. */
+  artifact: string;
+}
+
+/**
+ * The observability workflow's runtime view of the registry: which artifact
+ * to download for a CI workflow and which key:lcovFile pairs to report from
+ * it. Exists so the workflow never mirrors these literals in bash (the
+ * PR #210 incident class); `ci-workspaces-for-workflow.ts` prints it.
+ * Throws if the workflow's workspaces disagree on the artifact — the
+ * download-once design depends on there being exactly one.
+ */
+export function workflowMapping(
+  workflowName: string,
+): WorkflowMapping | undefined {
+  const workspaces = workspacesForWorkflow(workflowName);
+  if (workspaces.length === 0) return undefined;
+  const artifacts = new Set(workspaces.map((w) => w.artifactName));
+  if (artifacts.size !== 1) {
+    throw new Error(
+      `workflow ${workflowName} maps to multiple artifacts: ${[...artifacts].join(", ")}`,
+    );
+  }
+  return {
+    pairs: workspaces.map((w) => `${w.key}:${w.lcovFile}`).join(" "),
+    artifact: workspaces[0].artifactName,
+  };
+}
+
+/** The registry entry for a stable workspace key (`app`, `protocol-ts`, …). */
 export function workspaceForKey(key: string): CoverageWorkspace | undefined {
   return COVERAGE_WORKSPACES.find((w) => w.key === key);
 }

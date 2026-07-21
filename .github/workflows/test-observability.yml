@@ -54,24 +54,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       # One workflow can carry several coverage figures in one artifact
-      # (Protocol CI ships Solidity + TS lcovs). pairs is a space-separated
-      # list of key:lcovFile, mirroring scripts/shared/coverage-report/
-      # coverageWorkspaces.ts — keep the two in sync.
+      # (Protocol CI ships Solidity + TS lcovs). The mapping comes from the
+      # workspace registry so bash never mirrors its literals.
       - name: Map workflow to workspaces
         id: workspace
         env:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           set -euo pipefail
-          case "$WORKFLOW_NAME" in
-            "App CI")      pairs="app:lcov.info";    artifact=app-coverage ;;
-            "Protocol CI") pairs="protocol-solidity:lcov.info protocol-ts:lcov-ts.info"
-                           artifact=protocol-coverage ;;
-            "Server CI")   pairs="server:lcov.info"; artifact=server-coverage ;;
-            *) echo "unknown workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
-          esac
-          echo "pairs=$pairs" >> "$GITHUB_OUTPUT"
-          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          node --experimental-strip-types scripts/ci-workspaces-for-workflow.ts \
+            --workflow "$WORKFLOW_NAME" >> "$GITHUB_OUTPUT"
 
       # The CI job may have been skipped by its path filter, in which case
       # the run is a success with no coverage artifact — nothing to report.
@@ -201,7 +193,7 @@ jobs:
               "repos/$GITHUB_REPOSITORY/issues/$pr_number/comments" \
               -F body=@comment-body.md > /dev/null
           fi
-          echo "updated coverage comment on PR #$pr_number ($WORKSPACE)"
+          echo "updated coverage comment on PR #$pr_number ($PAIRS)"
 
       - name: Update ci-metrics branch
         if: >
