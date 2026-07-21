@@ -66,6 +66,28 @@
           "pct": null
         }
       }
+    },
+    "protocol-ts": {
+      "commit": "15588df1e1a2b3ab894a704377893faf39a4d1cf",
+      "updatedAt": "2026-07-21T18:43:55.017Z",
+      "summary": {
+        "files": 33,
+        "lines": {
+          "hit": 813,
+          "found": 2235,
+          "pct": 36.38
+        },
+        "functions": {
+          "hit": 41,
+          "found": 79,
+          "pct": 51.9
+        },
+        "branches": {
+          "hit": 117,
+          "found": 135,
+          "pct": 86.67
+        }
+      }
     }
   }
 }
