@@ -4,9 +4,9 @@
 // it is a dev-only harness excluded from production builds. Split it the
 // moment any part of it is imported by a non-dev code path.
 import {
+  getAbiItem,
   maxUint256,
   parseAbi,
-  parseAbiItem,
   parseEventLogs,
   type Hash,
   type Log,
@@ -54,6 +54,7 @@ import {
   computeBandPassClearing,
   hashReceiptClaim,
   mockCollateralAbi,
+  pregradManagerAbi,
   SIDE_NO,
   SIDE_YES,
   type BandPassClearingResult,
@@ -103,9 +104,10 @@ export const PREGRAD_DEV_GRADUATE_ABI = parseAbi([
   "event GraduatedReceiptClaimed(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund)",
 ]);
 
-const RECEIPT_PLACED_EVENT = parseAbiItem(
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-);
+const RECEIPT_PLACED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "ReceiptPlaced",
+});
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
