@@ -1,27 +1,14 @@
-import { relative, resolve } from "node:path";
-
 import hre, { network } from "hardhat";
 import type { Address } from "viem";
 
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { runScript } from "./shared/cli/runScript.js";
-import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
-import { readJsonFile } from "../src/json/jsonFile.js";
+import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
+import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
 import { parseMarketIdArgument } from "./shared/market/parseMarketIdArgument.js";
+import { PREGRAD_MARKET_STATUS_NAMES } from "./shared/market/pregradMarketStatus.js";
 import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
-
-// MarketTypes.MarketStatus enum order, for human-readable operator output.
-const MARKET_STATUS_NAMES = [
-  "Active",
-  "Frozen",
-  "Graduating",
-  "Graduated",
-  "Refunded",
-  "Resolved",
-  "Cancelled",
-  "UnderReview",
-  "Rejected",
-] as const;
 
 // The env var the just target sets; operators may also pass the id as the
 // trailing CLI argument when invoking the script directly.
@@ -108,7 +95,7 @@ function describeStatus(status: number | undefined): string {
   if (status === undefined) {
     return "unreadable (market id may not exist on this chain)";
   }
-  return `${MARKET_STATUS_NAMES[status] ?? `Unknown(${status})`} (${status})`;
+  return `${PREGRAD_MARKET_STATUS_NAMES[status] ?? `Unknown(${status})`} (${status})`;
 }
 
 // The PregradManager address lives in the postgrad deploy manifest, matching how
@@ -120,41 +107,15 @@ async function resolvePregradManagerAddress(args: {
   readonly env: NodeJS.ProcessEnv;
   readonly protocolRoot: string;
 }): Promise<Address> {
-  const manifestFile = resolve(
-    args.protocolRoot,
-    args.env.POPCHARTS_POSTGRAD_DEPLOYMENT_FILE ||
-      `deployments/${args.chainEnv}.postgrad.local.json`,
-  );
-  const manifestPath = relative(args.protocolRoot, manifestFile);
-
-  let manifest: unknown;
-  try {
-    manifest = await readJsonFile(manifestFile);
-  } catch {
-    throw new Error(
-      `Could not read postgrad manifest ${manifestPath}. Run the postgrad deploy first ` +
-        "(pnpm local:deploy-postgrad or pnpm arc:testnet:deploy-postgrad).",
-    );
-  }
-
-  const manifestChainId =
-    typeof manifest === "object" && manifest !== null && !Array.isArray(manifest)
-      ? (manifest as Record<string, unknown>).chainId
-      : undefined;
-  if (manifestChainId !== args.chainId) {
-    throw new Error(
-      `Postgrad manifest ${manifestPath} is for chain ${String(manifestChainId)}, ` +
-        `but the connected chain is ${args.chainId}.`,
-    );
-  }
-
-  const entry = collectVenueAddressEntries(manifest).find(
-    (candidate) => candidate.name === "pregradManager",
-  );
-  if (entry === undefined) {
-    throw new Error(`Postgrad manifest ${manifestPath} has no pregradManager address entry.`);
-  }
-  return entry.address;
+  const { pregradManager } = await readManifestAddresses({
+    deployHint: POSTGRAD_VENUE_DEPLOYMENT.deployHint,
+    expectedChainId: args.chainId,
+    kind: "postgrad",
+    manifestFile: resolveDeploymentManifestFile(POSTGRAD_VENUE_DEPLOYMENT, args),
+    names: ["pregradManager"],
+    protocolRoot: args.protocolRoot,
+  });
+  return pregradManager;
 }
 
 await runScript(main);

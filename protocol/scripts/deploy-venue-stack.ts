@@ -13,7 +13,8 @@ import {
   hasBytecode,
   LOCAL_DEVCHAIN_CHAIN_ID,
 } from "./shared/deployment/deterministicFactory.js";
-import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
+import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 import { writeVenueManifest } from "./write-venue-manifest.js";
@@ -149,11 +150,11 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
     `${VENUE_STACK_DEPLOYMENT.deploymentIdPrefix}-${profile.chainEnv}`;
 
   return {
-    deploymentFile: resolve(
-      hre.config.paths.root,
-      env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
-        VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(profile.chainEnv),
-    ),
+    deploymentFile: resolveDeploymentManifestFile(VENUE_STACK_DEPLOYMENT, {
+      chainEnv: profile.chainEnv,
+      env,
+      protocolRoot: hre.config.paths.root,
+    }),
     deploymentId,
     ignitionDeploymentDir: resolve(hre.config.paths.ignition, "deployments", deploymentId),
     rpcUrl: env.POPCHARTS_RPC_URL || profile.defaultRpcUrl,

@@ -1,16 +1,19 @@
 import { relative, resolve } from "node:path";
 
 import hre, { network } from "hardhat";
-import { erc20Abi, getAddress, type Address, type Hex, type PublicClient } from "viem";
+import { erc20Abi, type Address, type Hex, type PublicClient } from "viem";
 
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { requireAddress, requireString } from "../src/cli/requireCliValue.js";
+import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
-import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
-import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
-import { readJsonFile, writeJsonFile } from "../src/json/jsonFile.js";
+import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
+import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { COMPLETE_SET_MARKET_DEPLOYMENT } from "../src/market/completeSetMarketDeployment.js";
 import {
   configureOutcomePool,
@@ -105,14 +108,23 @@ async function main() {
     rpcUrl: config.rpcUrl,
   });
 
-  const venue = await readVenueStackAddresses({
-    chainId,
+  // The market's pools live on the v4 stack and its bounds/whitelisting are
+  // owned by the postgrad venue contracts, so fail with a pointer to the
+  // producing deploy instead of broadcasting partial state.
+  const venue = await readManifestAddresses({
+    deployHint: VENUE_STACK_DEPLOYMENT.deployHint,
+    expectedChainId: chainId,
+    kind: "venue",
+    manifestFile: config.venueDeploymentFile,
+    names: ["poolManager", "stateView"],
     protocolRoot: hre.config.paths.root,
-    venueDeploymentFile: config.venueDeploymentFile,
   });
-  const postgrad = await readPostgradVenueAddresses({
-    chainId,
-    postgradDeploymentFile: config.postgradDeploymentFile,
+  const postgrad = await readManifestAddresses({
+    deployHint: POSTGRAD_VENUE_DEPLOYMENT.deployHint,
+    expectedChainId: chainId,
+    kind: "postgrad",
+    manifestFile: config.postgradDeploymentFile,
+    names: ["boundedHook", "orderManager", "poolTickBounds"],
     protocolRoot: hre.config.paths.root,
   });
   for (const [name, address] of [
@@ -122,7 +134,7 @@ async function main() {
     ["orderManager", postgrad.orderManager],
     ["boundedHook", postgrad.boundedHook],
   ] as const) {
-    await assertBytecode(publicClient, name, address);
+    await assertDeployedBytecode(publicClient, name, address);
   }
 
   const collateral = await resolveCollateral({
@@ -253,82 +265,21 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
       env.POPCHARTS_MARKET_OWNER === undefined
         ? undefined
         : requireAddress(env.POPCHARTS_MARKET_OWNER, "POPCHARTS_MARKET_OWNER"),
-    postgradDeploymentFile: resolve(
-      hre.config.paths.root,
-      env.POPCHARTS_POSTGRAD_DEPLOYMENT_FILE ||
-        `deployments/${profile.chainEnv}.postgrad.local.json`,
-    ),
+    postgradDeploymentFile: resolveDeploymentManifestFile(POSTGRAD_VENUE_DEPLOYMENT, {
+      chainEnv: profile.chainEnv,
+      env,
+      protocolRoot: hre.config.paths.root,
+    }),
     resolverAddress:
       env.POPCHARTS_MARKET_RESOLVER === undefined
         ? undefined
         : requireAddress(env.POPCHARTS_MARKET_RESOLVER, "POPCHARTS_MARKET_RESOLVER"),
     rpcUrl: env.POPCHARTS_RPC_URL || profile.defaultRpcUrl,
-    venueDeploymentFile: resolve(
-      hre.config.paths.root,
-      env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
-        VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(profile.chainEnv),
-    ),
-  };
-}
-
-// The market's pools live on the v4 stack, so fail with a pointer to the
-// venue deploy instead of broadcasting partial state.
-async function readVenueStackAddresses({
-  chainId,
-  protocolRoot,
-  venueDeploymentFile,
-}: {
-  chainId: number;
-  protocolRoot: string;
-  venueDeploymentFile: string;
-}): Promise<{ poolManager: Address; stateView: Address }> {
-  const manifestPath = relative(protocolRoot, venueDeploymentFile);
-  let manifest: unknown;
-  try {
-    manifest = await readJsonFile(venueDeploymentFile);
-  } catch {
-    throw new Error(
-      `Could not read venue manifest ${manifestPath}. Run the venue-stack deploy first ` +
-        "(pnpm local:deploy-venue or pnpm arc:testnet:deploy-venue).",
-    );
-  }
-  assertManifestChainId(manifest, manifestPath, chainId);
-
-  const entries = collectVenueAddressEntries(manifest);
-  return {
-    poolManager: requireManifestAddress(entries, "poolManager", manifestPath),
-    stateView: requireManifestAddress(entries, "stateView", manifestPath),
-  };
-}
-
-// Bounds and whitelisting are owned by the postgrad venue contracts, so fail
-// with a pointer to the postgrad deploy when its manifest is missing.
-async function readPostgradVenueAddresses({
-  chainId,
-  postgradDeploymentFile,
-  protocolRoot,
-}: {
-  chainId: number;
-  postgradDeploymentFile: string;
-  protocolRoot: string;
-}): Promise<{ boundedHook: Address; orderManager: Address; poolTickBounds: Address }> {
-  const manifestPath = relative(protocolRoot, postgradDeploymentFile);
-  let manifest: unknown;
-  try {
-    manifest = await readJsonFile(postgradDeploymentFile);
-  } catch {
-    throw new Error(
-      `Could not read postgrad manifest ${manifestPath}. Run the postgrad deploy first ` +
-        "(pnpm local:deploy-postgrad or pnpm arc:testnet:deploy-postgrad).",
-    );
-  }
-  assertManifestChainId(manifest, manifestPath, chainId);
-
-  const entries = collectVenueAddressEntries(manifest);
-  return {
-    boundedHook: requireManifestAddress(entries, "boundedHook", manifestPath),
-    orderManager: requireManifestAddress(entries, "orderManager", manifestPath),
-    poolTickBounds: requireManifestAddress(entries, "poolTickBounds", manifestPath),
+    venueDeploymentFile: resolveDeploymentManifestFile(VENUE_STACK_DEPLOYMENT, {
+      chainEnv: profile.chainEnv,
+      env,
+      protocolRoot: hre.config.paths.root,
+    }),
   };
 }
 
@@ -352,70 +303,27 @@ async function resolveCollateral({
       "POPCHARTS_COLLATERAL_ADDRESS",
     );
   } else {
-    const protocolDeploymentFile = resolve(
+    ({ collateral: collateralAddress } = await readManifestAddresses({
+      deployHint:
+        "Set POPCHARTS_COLLATERAL_ADDRESS (pnpm local:deploy-pregrad prints a local " +
+        "MockCollateral address) or provide a protocol manifest with a collateral entry.",
+      expectedChainId: chainId,
+      kind: "protocol",
+      manifestFile: resolve(
+        protocolRoot,
+        env[ARC_PROTOCOL_DEPLOYMENT.deploymentFileEnvVar] ||
+          ARC_PROTOCOL_DEPLOYMENT.defaultDeploymentFile,
+      ),
+      names: ["collateral"],
       protocolRoot,
-      env.POPCHARTS_PROTOCOL_DEPLOYMENT_FILE || ARC_PROTOCOL_DEPLOYMENT.defaultDeploymentFile,
-    );
-    const manifestPath = relative(protocolRoot, protocolDeploymentFile);
-    let manifest: unknown;
-    try {
-      manifest = await readJsonFile(protocolDeploymentFile);
-    } catch {
-      throw new Error(
-        "No collateral token configured. Set POPCHARTS_COLLATERAL_ADDRESS " +
-          "(pnpm local:deploy-pregrad prints a local MockCollateral address) or provide a " +
-          `protocol manifest with a collateral entry at ${manifestPath}.`,
-      );
-    }
-    assertManifestChainId(manifest, manifestPath, chainId);
-    collateralAddress = requireManifestAddress(
-      collectVenueAddressEntries(manifest),
-      "collateral",
-      manifestPath,
-    );
+    }));
   }
 
-  await assertBytecode(publicClient, "collateral token", collateralAddress);
+  await assertDeployedBytecode(publicClient, "collateral token", collateralAddress);
   const decimals = await publicClient.readContract({
     abi: erc20Abi,
     address: collateralAddress,
     functionName: "decimals",
   });
   return { address: collateralAddress, decimals };
-}
-
-function assertManifestChainId(manifest: unknown, manifestPath: string, chainId: number): void {
-  const manifestChainId =
-    typeof manifest === "object" && manifest !== null && !Array.isArray(manifest)
-      ? (manifest as Record<string, unknown>).chainId
-      : undefined;
-  if (manifestChainId !== chainId) {
-    throw new Error(
-      `Manifest ${manifestPath} is for chain ${String(manifestChainId)}, ` +
-        `but the connected chain is ${chainId}.`,
-    );
-  }
-}
-
-function requireManifestAddress(
-  entries: readonly { address: Address; name: string }[],
-  name: string,
-  manifestPath: string,
-): Address {
-  const entry = entries.find((candidate) => candidate.name === name);
-  if (entry === undefined) {
-    throw new Error(`Manifest ${manifestPath} has no ${name} address entry.`);
-  }
-  return entry.address;
-}
-
-async function assertBytecode(
-  publicClient: PublicClient,
-  name: string,
-  address: Address,
-): Promise<void> {
-  const bytecode = await publicClient.getCode({ address });
-  if (bytecode === undefined || bytecode === "0x") {
-    throw new Error(`${name} has no deployed bytecode at ${address}.`);
-  }
 }

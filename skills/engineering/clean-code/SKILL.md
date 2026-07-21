@@ -18,8 +18,8 @@ protocol-side adaptation of the same source.
 ## Files and folders
 
 - **One exported concept per helper file**, named after its main export:
-  `marketFileSlug.ts` exports `marketFileSlug`. Types that only exist to
-  serve that export live in the same file.
+  `parseMarketIdArgument.ts` exports `parseMarketIdArgument`. Types that only
+  exist to serve that export live in the same file.
 - Shared helpers live under a `shared/<domain>/` tree grouped by domain
   (`chain/`, `market/`, `price/`, `json/`, `explorer/`), not by technical kind
   (`utils/`, `helpers/`, `misc/`). If you're about to create `utils.ts`, find

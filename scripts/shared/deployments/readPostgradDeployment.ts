@@ -1,7 +1,18 @@
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
+// Cross-workspace imports by relative path: these scripts run under
+// node --experimental-strip-types, which cannot resolve the protocol
+// package's exports map or the ".js"-suffixed relative imports its modules
+// use internally — so only dependency-free leaf modules are importable here.
+import { POSTGRAD_VENUE_DEPLOYMENT } from "../../../protocol/src/deployment/postgradVenueDeployment.ts";
+import { VENUE_STACK_DEPLOYMENT } from "../../../protocol/src/deployment/venueStackDeployment.ts";
+import { COMPLETE_SET_MARKET_DEPLOYMENT } from "../../../protocol/src/market/completeSetMarketDeployment.ts";
 import { readJsonFile } from "../json/readJsonFile.ts";
 import { protocolDir } from "../paths.ts";
+
+// The local-dev stack always targets the "local" chain env of the protocol
+// deploy scripts.
+const LOCAL_CHAIN_ENV = "local";
 
 /** Addresses and pool ids of a locally deployed postgrad venue and demo market. */
 export type PostgradDeployment = {
@@ -38,6 +49,14 @@ type MarketManifest = {
   };
 };
 
+// The protocol constants name manifests relative to the protocol root
+// ("deployments/<file>"); this reader resolves within an injectable
+// deployments directory (tests point it at fixtures), so it keeps only the
+// filename.
+function manifestFileName(protocolRelativePath: string): string {
+  return basename(protocolRelativePath);
+}
+
 /**
  * Reads the postgrad venue, v4 venue stack, and market manifests the protocol
  * deploy scripts write under `protocol/deployments/`. Manifests are the
@@ -49,15 +68,23 @@ export function readPostgradDeployment(
   deploymentsDir: string = resolve(protocolDir, "deployments"),
 ): PostgradDeployment {
   const venue = readJsonFile<ContractsManifest>(
-    resolve(deploymentsDir, "local.venue-stack.local.json"),
+    resolve(
+      deploymentsDir,
+      manifestFileName(VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV)),
+    ),
   ).contracts;
   const postgradContracts = readJsonFile<ContractsManifest>(
-    resolve(deploymentsDir, "local.postgrad.local.json"),
+    resolve(
+      deploymentsDir,
+      manifestFileName(POSTGRAD_VENUE_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV)),
+    ),
   ).contracts;
   const market = readJsonFile<MarketManifest>(
     resolve(
       deploymentsDir,
-      `local.market-${marketSymbol.toLowerCase()}.local.json`,
+      manifestFileName(
+        COMPLETE_SET_MARKET_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV, marketSymbol),
+      ),
     ),
   );
 
