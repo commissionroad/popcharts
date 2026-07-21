@@ -7,3 +7,4 @@ coverage.json
 /node_modules/
 /types/
 .env
+/.slither/
