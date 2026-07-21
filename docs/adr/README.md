@@ -23,6 +23,7 @@ to the frontend app or the Solidity protocol.
 | [0019](0019-ai-verdict-quality-program.md) | Accepted | Measure and harden AI review/resolution verdicts: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, and a CI consistency lane. |
 | [0020](0020-concurrent-local-dev-stacks.md) | Accepted | Run concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market. |
 | [0021](0021-live-market-updates.md) | Proposed | Make the app feel live: server-signalled, client-refetched updates over SSE, fed by a durable `change_feed` outbox written atomically with each indexed event. DB/REST stays the single source of truth; no message broker. |
+| [0022](0022-resolution-dispute-program.md) | Proposed | Land the on-chain resolution dispute window (protocol ADR 0013) across the stack: propose → 24h bonded public dispute → permissionless finalize, indexer/runner/keeper/UI slices, superseding ADR 0012's off-chain operator delay. |
 
 Progress toward the Arc Testnet launch is tracked in the checklists inside
 ADRs 0008–0015; ADR 0007 defines the process and milestone ordering. ADR 0016

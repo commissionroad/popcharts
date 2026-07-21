@@ -842,3 +842,15 @@ races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
 only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
 progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
 lacks CDK assertion tests.
+
+## [2026-07-20] ingest | dispute-window ADRs (protocol 0013 + root 0022)
+
+Pages: +summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
++summaries/root-adr-0022-resolution-dispute-program.md; index rows added
+to both ADR sections.
+Notes: Both Proposed. Protocol 0013 replaces single-shot resolve() with
+propose → bonded 24h public dispute → permissionless finalize (resolver
+self-dispute free; bond paper-trail events; book-compatible market-scoped
+state). Root 0022 is the phased cross-stack program and supersedes root
+ADR 0012's off-chain operator delay window. Phase 0 (bond sizing, forfeit
+sink, bounty, re-proposal semantics) awaits user decisions.

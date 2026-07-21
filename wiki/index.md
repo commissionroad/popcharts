@@ -58,6 +58,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0010](summaries/protocol-adr-0010-disable-the-clearing-challenge-window-by-default.md) — Accepted — the clearing challenge window becomes owner-configurable `clearingChallengePeriod`, default 0, capped at 7 days; re-enable (~5 minutes) only when third-party proposers and a dispute mechanism exist
 - [ADR 0011](summaries/protocol-adr-0011-admin-market-cancellation.md) — owner-only `cancelMarket` moderation kill switch: halts an Active market, opens full escrow refunds via the existing claim path, distinct `Cancelled` status (doc still says Proposed; the code has landed)
 - [ADR 0012](summaries/protocol-adr-0012-singleton-postgrad-position-book.md) — PROPOSED mainnet path: singleton ERC1155 `PostgradPositionBook` for all markets + per-market ERC20 wrapper clones as v4 pool currencies; scale-mandate driven, resolves ADR 0008's bounded deviation
+- [ADR 0013](summaries/protocol-adr-0013-bonded-optimistic-resolution.md) — PROPOSED: postgrad resolution becomes propose → 24h bonded public dispute → permissionless finalize; a dispute freezes the market for human adjudication, resolver self-dispute is free (operator override), bond movements are paper-trail events; market-scoped state transfers onto the ADR 0012 book
 
 ## Summaries — protocol design docs (protocol/docs/)
 
@@ -87,6 +88,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0019](summaries/root-adr-0019-ai-verdict-quality-program.md) — measured verdict-quality program for AI review + resolution: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, CI consistency lane, prompt-version eval policy (extends 0011/0012; core harness landed — review + resolution runners, datasets, pre-stages, CI regression lane; corroboration policy open)
 - [ADR 0020](summaries/root-adr-0020-concurrent-local-dev-stacks.md) — concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market (all build phases landed 2026-07-17, PRs #242/#247/#248/#260 — incl. the with-target-stack launcher routing the cross-workspace sibling scripts)
 - [ADR 0021](summaries/root-adr-0021-live-market-updates.md) — Proposed: make the app feel live via server-signalled, client-refetched updates over SSE fed by a durable `change_feed` outbox (trigger-written atomically with each indexed event); DB/REST stays the single source of truth, indexer stays pure, no message broker; NOTIFY demoted to an optional poll-first doorbell (all 7 slices open)
+- [ADR 0022](summaries/root-adr-0022-resolution-dispute-program.md) — Proposed: land protocol ADR 0013's bonded dispute window across the stack (protocol keystone → indexer → runner/keeper → API/UI → ops); supersedes ADR 0012's off-chain operator delay; every resolution waits one public 24h window before redemption (all phases open)
 
 ## Summaries — root docs
 
