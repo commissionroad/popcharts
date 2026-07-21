@@ -10,6 +10,7 @@ import {
 } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
+import { STATE_VIEW_SLOT0_ABI } from "../../../src/market/readPoolDisplayPrice.js";
 import { COMPLETE_SET_PRICE_POLICY } from "../../../src/price/completeSetPricePolicy.js";
 import { deriveEpsilonBoundTicks } from "../../../src/price/deriveEpsilonBoundTicks.js";
 import { displayPriceWadToSqrtPriceX96 } from "../../../src/price/displayPriceWadToSqrtPriceX96.js";
@@ -38,21 +39,6 @@ const POOL_MANAGER_ABI = [
   },
 ] as const;
 
-const STATE_VIEW_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getSlot0",
-    outputs: [
-      { name: "sqrtPriceX96", type: "uint160" },
-      { name: "tick", type: "int24" },
-      { name: "protocolFee", type: "uint24" },
-      { name: "lpFee", type: "uint24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
 type LocalNetworkConnection = Awaited<ReturnType<typeof network.create>>;
 
 type MarketDeployWalletClient = {
@@ -65,6 +51,7 @@ type MarketDeployWalletClient = {
   }): Promise<Hex>;
 };
 
+/** A v4 pool key struct with currencies pre-sorted by address, as the pool manager requires. */
 export type PoolKeyStruct = {
   readonly currency0: Address;
   readonly currency1: Address;
@@ -73,6 +60,11 @@ export type PoolKeyStruct = {
   readonly hooks: Address;
 };
 
+/**
+ * Everything the deploy manifest records about one configured outcome pool:
+ * identity, opening price state, tick bounds, and the transactions that
+ * produced them — each value read back on-chain before being recorded.
+ */
 export type MarketPoolManifestEntry = {
   readonly boundLowerTick: number;
   readonly boundUpperTick: number;
@@ -90,6 +82,7 @@ export type MarketPoolManifestEntry = {
   };
 };
 
+/** Addresses and deploy transaction of one freshly deployed complete-set market. */
 export type CompleteSetBinaryMarketDeployment = {
   marketAddress: Address;
   marketDeployHash: Hex;
@@ -246,7 +239,7 @@ export async function configureOutcomePool({
   });
   await publicClient.waitForTransactionReceipt({ hash: initializeHash });
   const [poolSqrtPriceX96, poolTick] = await publicClient.readContract({
-    abi: STATE_VIEW_ABI,
+    abi: STATE_VIEW_SLOT0_ABI,
     address: venue.stateView,
     args: [poolId],
     functionName: "getSlot0",
