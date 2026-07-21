@@ -1,4 +1,4 @@
-const MAX_SUPPORTED_DECIMALS = 77;
+import { requireDecimals } from "../price/requireDecimals.js";
 
 /**
  * Floors an outcome-token amount to the largest amount that converts into
@@ -22,10 +22,4 @@ export function floorOutcomeToCollateralUnit(args: {
   }
   const factor = 10n ** BigInt(args.outcomeDecimals - args.collateralDecimals);
   return args.outcomeAmount - (args.outcomeAmount % factor);
-}
-
-function requireDecimals(decimals: number, label: string): void {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_SUPPORTED_DECIMALS) {
-    throw new Error(`Expected ${label} to be an integer in [0, ${MAX_SUPPORTED_DECIMALS}].`);
-  }
 }

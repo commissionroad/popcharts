@@ -1,5 +1,6 @@
+import { requireDecimals } from "../../../src/price/requireDecimals.js";
+
 const DECIMAL_PATTERN = /^(\d+)(?:\.(\d+))?$/;
-const MAX_SUPPORTED_DECIMALS = 77;
 
 /**
  * Parses a decimal token-amount string from CLI or environment input into an
@@ -16,11 +17,7 @@ export function parseDecimalTokenAmount(
   },
 ): bigint {
   const { allowZero = false, decimals, label } = options;
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_SUPPORTED_DECIMALS) {
-    throw new Error(
-      `Expected ${label} decimals to be an integer in [0, ${MAX_SUPPORTED_DECIMALS}].`,
-    );
-  }
+  requireDecimals(decimals, `${label} decimals`);
 
   const match = DECIMAL_PATTERN.exec(value.trim());
   if (match === null) {

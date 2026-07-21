@@ -8,10 +8,10 @@ import VenueStackModule from "../ignition/modules/VenueStack.js";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../src/chain/localDevchain.js";
 import {
   ensureDeterministicFactory,
   hasBytecode,
-  LOCAL_DEVCHAIN_CHAIN_ID,
 } from "./shared/deployment/deterministicFactory.js";
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
