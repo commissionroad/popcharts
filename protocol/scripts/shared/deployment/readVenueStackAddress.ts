@@ -2,7 +2,7 @@ import { relative, resolve } from "node:path";
 
 import type { Address } from "viem";
 
-import { readJsonFile } from "../json/jsonFile.js";
+import { readJsonFile } from "../../../src/json/jsonFile.js";
 import { collectVenueAddressEntries } from "./venueManifest.js";
 import { VENUE_STACK_DEPLOYMENT } from "./venueStack.js";
 

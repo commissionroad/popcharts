@@ -3,7 +3,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -20,8 +19,8 @@ import {
   pruneDeadDescriptors,
   type StackDescriptor,
 } from "./shared/localStack/registry.ts";
+import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
-  describeTargetStack,
   resolveTargetStack,
   TargetStackResolutionError,
 } from "./shared/localStack/resolveTargetStack.ts";
@@ -287,51 +286,6 @@ async function resolveRegisteredStack(
     token: options.stack ?? process.env.POPCHARTS_STACK,
     chooseStack: process.stdin.isTTY ? promptForStack : undefined,
   });
-}
-
-/**
- * Prompts an interactive caller to choose one of the running local stacks.
- * Each attempt accepts either the displayed one-based list index or a stack's
- * slot number, and invalid choices are retried until a live stack is selected.
- */
-async function promptForStack(
-  stacks: readonly StackDescriptor[],
-): Promise<StackDescriptor> {
-  const readline = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  console.log("Multiple local dev stacks are running:");
-  stacks.forEach((stack, index) => {
-    console.log(`  ${index + 1}. ${describeTargetStack(stack)}`);
-  });
-
-  try {
-    while (true) {
-      const answer = (
-        await readline.question("Choose a stack (list number or slot): ")
-      ).trim();
-      const numericChoice = Number(answer);
-      const indexedStack = Number.isInteger(numericChoice)
-        ? stacks[numericChoice - 1]
-        : undefined;
-      const slottedStack = Number.isInteger(numericChoice)
-        ? stacks.find((stack) => stack.slot === numericChoice)
-        : undefined;
-      const selected = indexedStack ?? slottedStack;
-
-      if (selected !== undefined) {
-        return selected;
-      }
-
-      console.log(
-        "Invalid choice. Enter a displayed list number or stack slot.",
-      );
-    }
-  } finally {
-    readline.close();
-  }
 }
 
 async function validateLocalDeployment(

@@ -3,20 +3,20 @@ import { formatUnits, getAbiItem, type Address, type Hex, type PublicClient } fr
 
 import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
+import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
 import {
   detectBoundedOrderAnomalies,
   type BoundedOrderAnomaly,
   type BoundedPoolInspection,
 } from "./shared/market/detectBoundedOrderAnomalies.js";
-import { findPendingDeferredExecutions } from "./shared/market/findPendingDeferredExecutions.js";
+import { findPendingDeferredExecutions } from "../src/market/findPendingDeferredExecutions.js";
 import { readBoundedOrder } from "./shared/market/readBoundedOrder.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
-} from "./shared/market/readCompleteSetMarketManifest.js";
-import { readPoolDisplayPrice } from "./shared/market/readPoolDisplayPrice.js";
+} from "../src/market/readCompleteSetMarketManifest.js";
+import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
 import { boundedPoolOrderManagerAbi, poolTickBoundsAbi } from "../src/generated/postgrad-venue.js";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

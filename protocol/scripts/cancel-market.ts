@@ -6,9 +6,9 @@ import type { Address } from "viem";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { runScript } from "./shared/cli/runScript.js";
 import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
-import { readJsonFile } from "./shared/json/jsonFile.js";
+import { readJsonFile } from "../src/json/jsonFile.js";
 import { parseMarketIdArgument } from "./shared/market/parseMarketIdArgument.js";
-import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
+import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
 
 // MarketTypes.MarketStatus enum order, for human-readable operator output.
 const MARKET_STATUS_NAMES = [

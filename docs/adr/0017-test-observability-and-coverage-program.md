@@ -204,7 +204,7 @@ deployed stack via the stack-generated `server/.env.local-chain`.
 - [x] C1 — `nightly-lifecycle` workflow running the three chain smokes
       (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
       tracking-issue lifecycle and flake-report append
-- [ ] C2 — repair `server-ai-review-smoke` and add it to the nightly
+- [x] C2 — repair `server-ai-review-smoke` and add it to the nightly
       lifecycle job. Found broken on main during C1 pre-flight: it
       fabricates a synthetic market in the database, but the review
       runner now submits a real on-chain approval transition and reverts
@@ -253,12 +253,18 @@ specifier; app uses only declared subpath exports, enforced by the
 `scripts/shared` change silently alters the shipped app bundle and server
 behavior, and those modules' coverage is attributed to no enforced figure.
 
-- [ ] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
+- [x] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
       into `protocol/src/` (e.g. `src/price/`, `src/market/`); `scripts/`
-      imports from `src/`, never the reverse
-- [ ] Import-lint guard: `protocol/src/**` must not import from
-      `protocol/scripts/**` (same pattern as the indexer boundary guards)
-- [ ] `exports` map unchanged as the consumer allowlist
+      imports from `src/`, never the reverse. The closure came to 29 files:
+      the barreled price/market modules plus their transitive deps
+      (`src/viem/` ERC20/receipt wrappers, `src/cli/requireCliValue`,
+      `src/json/jsonFile`, reached via `readCompleteSetMarketManifest`)
+- [x] Import-lint guard: `protocol/src/**` must not import from
+      `protocol/scripts/**` (`test/nodejs/sdk-surface-guard.test.ts`; also
+      pins the exports-map targets to `src/` and the subpath key set)
+- [x] `exports` map unchanged as the consumer allowlist (two targets
+      retargeted from `scripts/shared/price/` to `src/price/`; no key
+      renamed, added, or removed)
 - [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
       `generated/`) added to the PR comment, trend, and badges, with a
       floor at the measured baseline

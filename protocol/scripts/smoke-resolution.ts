@@ -5,11 +5,11 @@ import { SIDE_NO, SIDE_YES } from "../src/market-side.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
-import { floorOutcomeToCollateralUnit } from "./shared/market/floorOutcomeToCollateralUnit.js";
+import { floorOutcomeToCollateralUnit } from "../src/market/floorOutcomeToCollateralUnit.js";
 import { outcomeCapacityForCollateral } from "./shared/market/outcomeCapacityForCollateral.js";
-import { readCompleteSetMarketManifest } from "./shared/market/readCompleteSetMarketManifest.js";
-import { readErc20Balance } from "./shared/viem/readErc20Balance.js";
-import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
+import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
+import { readErc20Balance } from "../src/viem/readErc20Balance.js";
+import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
 
 const LOSING_SIDE_ERROR = "LosingSideCannotRedeem";
 

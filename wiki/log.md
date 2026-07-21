@@ -766,3 +766,67 @@ nowhere in CI, exactly the gap Track C closes. Tracking-issue loop
 verified live (auto-filed #253). Spec now asserts the mode eyebrow
 (Wallet-signed|Devchain relay) with 30s tx headroom; e2e failure
 artifacts uploaded on red.
+
+## [2026-07-20] ingest | repo ADR 0017 — C2 landed (real-market ai-review smoke)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox only)
+Notes: the ai-review smoke no longer fabricates DB rows. New root
+orchestrator scripts/local-ai-review-smoke.ts creates a fresh on-chain
+market via the protocol helper and pins it to the server smoke by env; the
+smoke adopts it once indexed, heuristic-reviews it, submits the real
+approveMarket transaction, and asserts the bootstrap transition. Legacy
+fabricated rows (creator 0x...01) are swept so long-lived local DBs
+self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
+trade -> resolve -> review).
+
+## [2026-07-17] ingest | repo ADR 0020 — Phase 5 (sibling scripts) landed
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: The deferred sibling-targeting-scripts follow-up landed (#260): a single
+scripts/with-target-stack.ts launcher resolves the target stack and exports the
+env superset the cross-workspace bun/hardhat scripts read (local:bot-trade,
+deploy-venue/-postgrad, market-health/-smoke). promptForStack extracted to a
+shared module. Same-worktree scope; cross-slot deploy from one checkout still
+wants the deferred per-slot chainId (hardhat ignition state keyed by chainEnv).
+
+## [2026-07-20] ingest | protocol ADR 0012 — singleton postgrad position book (proposed)
+Pages: +summaries/protocol-adr-0012-singleton-postgrad-position-book.md,
+~concepts/complete-sets.md, ~entities/postgrad-market.md,
+~entities/postgrad-adapter.md, ~entities/indexer.md, ~index.md
+Notes: This is the "later ADR" ADR 0008 promised for mainnet tokenization.
+Status Proposed — under user review; entity pages phrase the book as
+conditional ("would absorb") until accepted. Watch for two collisions when
+it lands: the designkit's stale "CTF YES/NO tokens" language (already
+flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
+which shrink in scope if dynamic postgrad addresses become bounded.
+
+## [2026-07-20] ingest | protocol ADR 0012 — Codex design-review hardening (same PR)
+Pages: ~summaries/protocol-adr-0012-singleton-postgrad-position-book.md
+Notes: Independent design review surfaced 9 findings, all folded into the
+ADR pre-review: terminal retained-claim liabilities (stranding hazard),
+global collateral-conservation invariant, cancelled-draw invariant case,
+per-side resolution gates, wrapper ERC1155-receiver validation, terminal-
+market venue exit path, honest (narrowed) indexing claims, wrapper-
+registration discovery event, and outcome decimals promoted to a BLOCKING
+pre-acceptance question (v4 dust vs. exact-or-revert redemption).
+
+## [2026-07-20] ingest | repo ADR 0017 — Track G move + guard executed
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Three of four Track G boxes ticked. The SDK closure turned out to be
+29 files, not just price/market: readCompleteSetMarketManifest transitively
+pulls cli/requireCliValue and json/jsonFile, and the arb/backstop helpers
+pull three shared/viem wrappers — all now under protocol/src. Boundary
+enforced by test/nodejs/sdk-surface-guard.test.ts (direction + exports-map
+targets + pinned subpath key set). Remaining G work: protocol TS coverage
+figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
+contracts-only).
+
+## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
+Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
+delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
+deploy, Postgres, API, indexer, keeper, heuristic AI review + resolution
+pairs) handing off to `server/src/lifecycle-nightly/` (sequential scenarios,
+forward-only chain-time jumps, market-scoped assertions, two-way chain<->DB
+money paper-trail reconciliation). One ADR wording amendment: receipt volume
+comes from deterministic balanced buys reusing the trading bot's receipt
+mechanics, not the interactive bot script. Unhappy-path scenarios and infra
+drills remain open (next C3 slices).

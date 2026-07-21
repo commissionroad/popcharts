@@ -6,19 +6,16 @@ import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
-import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
-import { decideCompleteSetArbAction } from "./shared/market/decideCompleteSetArbAction.js";
-import { ensureDevBackstopLiquidity } from "./shared/market/ensureDevBackstopLiquidity.js";
-import { executeCompleteSetArb } from "./shared/market/executeCompleteSetArb.js";
+import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
+import { decideCompleteSetArbAction } from "../src/market/decideCompleteSetArbAction.js";
+import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
+import { executeCompleteSetArb } from "../src/market/executeCompleteSetArb.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
-} from "./shared/market/readCompleteSetMarketManifest.js";
-import {
-  readPoolDisplayPrice,
-  type PoolDisplayPrice,
-} from "./shared/market/readPoolDisplayPrice.js";
+} from "../src/market/readCompleteSetMarketManifest.js";
+import { readPoolDisplayPrice, type PoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
 
 /**
  * Smoke flow 3 (protocol MVP tracker item 3): reads YES and NO displayed

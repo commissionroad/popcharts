@@ -11,28 +11,25 @@ import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScript
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
-import { COMPLETE_SET_KEEPER_POLICY } from "./shared/market/completeSetKeeperPolicy.js";
+import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
-import { COMPLETE_SET_SMOKE_POLICY } from "./shared/market/completeSetSmokePolicy.js";
-import { decideCompleteSetArbAction } from "./shared/market/decideCompleteSetArbAction.js";
-import { ensureDevBackstopLiquidity } from "./shared/market/ensureDevBackstopLiquidity.js";
-import { executeCompleteSetArb } from "./shared/market/executeCompleteSetArb.js";
+import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
+import { decideCompleteSetArbAction } from "../src/market/decideCompleteSetArbAction.js";
+import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
+import { executeCompleteSetArb } from "../src/market/executeCompleteSetArb.js";
 import {
   findPendingDeferredExecutions,
   type PendingDeferredExecution,
-} from "./shared/market/findPendingDeferredExecutions.js";
+} from "../src/market/findPendingDeferredExecutions.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
-} from "./shared/market/readCompleteSetMarketManifest.js";
-import { readPoolActiveLiquidity } from "./shared/market/readPoolActiveLiquidity.js";
-import {
-  readPoolDisplayPrice,
-  type PoolDisplayPrice,
-} from "./shared/market/readPoolDisplayPrice.js";
+} from "../src/market/readCompleteSetMarketManifest.js";
+import { readPoolActiveLiquidity } from "../src/market/readPoolActiveLiquidity.js";
+import { readPoolDisplayPrice, type PoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
 import { summarizeKeeperRun, type KeeperRunSummary } from "./shared/market/summarizeKeeperRun.js";
-import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
+import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
 
 /**
  * Keeper pass for one complete-set market (protocol MVP tracker item 4).

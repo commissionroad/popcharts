@@ -1,6 +1,6 @@
-import { completeSetBinaryMarketAbi } from "@popcharts/protocol";
 import { type Abi, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 
+import { completeSetBinaryMarketAbi } from "@/integrations/contracts/postgrad-venue";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
 import { TEST_WALLET_ADDRESS } from "./test-wallet";

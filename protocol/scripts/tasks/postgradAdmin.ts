@@ -6,7 +6,7 @@ import { errorResult } from "hardhat/utils/result";
 
 import { getWalletClientAddress } from "../shared/account/getWalletClientAddress.js";
 import { resolveDeploymentChainProfile } from "../shared/chain/resolveDeploymentChainProfile.js";
-import { requireAddress } from "../shared/cli/requireCliValue.js";
+import { requireAddress } from "../../src/cli/requireCliValue.js";
 import { assertHardhatNetwork } from "../shared/hardhat/assertHardhatNetwork.js";
 import {
   runPostgradAdminAction,

@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); scenario items open.
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); harness + happy path landed 2026-07-20, unhappy scenarios open.
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
-updated: 2026-07-07
+updated: 2026-07-20
 ---
 
 # Repo ADR 0014: Full-Lifecycle E2E Testing
@@ -29,24 +29,29 @@ terminal state through the real local stack (chain, contracts, API, indexer,
 AI services, app), covering happy and unhappy paths. The suite is the
 acceptance gate for milestones M1–M4 and, ultimately, the Arc launch.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (harness + happy path landed 2026-07-20; unhappy paths open)
 
-Harness:
+Harness (**landed 2026-07-20**, ADR 0017 item C3 first slice):
 
-- [ ] Extend local-dev orchestration so one command boots the full stack —
-  including the clearing keeper (ADR 0008) and resolution runner (ADR 0012) —
-  with deterministic accounts and time control (devchain time-travel for
-  `graduationTime`/`resolutionTime`).
-- [ ] Scenario utilities: seed markets with known-verdict metadata (heuristic
-  provider makes review and resolution deterministic); drive receipt volume
-  via the existing trading bot.
+- [x] `pnpm local:lifecycle-nightly` boots the full stack — chain, protocol
+  deploy, Postgres, API, indexer, venue keeper, and the AI review +
+  resolution service/runner pairs pinned to the heuristic provider — then
+  hands it to a sequential scenario runner in `server/src/lifecycle-nightly/`
+  (forward-only chain-time jumps; every scenario leaves its markets
+  terminal; assertions market-scoped so dirty local state can't affect
+  verdicts).
+- [x] Scenario utilities: known-verdict metadata markers, deterministic
+  balanced receipt placement (the interactive trading bot stays a manual
+  tool), and a money paper-trail assertion module reconciling chain logs ↔
+  event tables both ways with per-receipt retained+refund=cost identities.
 
-Happy path:
+Happy path (**landed 2026-07-20**):
 
-- [ ] Lifecycle spec: create (Google/Privy test login or injected wallet) →
+- [x] Lifecycle spec: create (injected wallet at the service layer) →
   AI approve → receipt trading → graduation threshold → clearing → postgrad
   trading → resolution → redemption; asserting API, database, and on-chain state at
-  each transition.
+  each transition — review, graduation/clearing, and resolution all through
+  the real runner/keeper services, no dev force endpoints.
 
 Unhappy paths:
 

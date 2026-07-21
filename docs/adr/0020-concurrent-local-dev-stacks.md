@@ -199,12 +199,35 @@ never points a derived slot at the legacy shared database-reset behavior.
 
 - [x] `local-create-market.ts`: registry resolution + interactive prompt +
       `--stack` / `POPCHARTS_STACK`.
-- [ ] Apply the same resolution to the sibling scripts
-      (`local-bot-trade`, `local-smoke`, `local-dev-ai-review`,
-      `local-deploy-venue`, postgrad helpers).
-      These siblings remain a tracked follow-up; this phase's current PR is
-      scoped to `local-create-market`, the originally requested surface.
-- [ ] `just` recipe help text documents multi-stack usage.
+- [x] Apply the same resolution to the sibling scripts — done in Phase 5
+      below. (`local-smoke` / `local-dev-ai-review` are orchestrators that
+      *start* a stack, already slot-aware via Phase 2's
+      `resolveAndRegisterStack`; the cross-workspace *targeting* scripts route
+      through the Phase 5 launcher.)
+
+### Phase 5 — cross-workspace targeting scripts
+
+The remaining stack-targeting scripts live outside `scripts/` (the `bun` bot in
+`server/`, the hardhat deploy/market scripts in `protocol/`) and select their
+target through env vars, not the registry. Rather than teach each one the
+registry, a single launcher resolves the stack and exports the vars they read.
+
+- [x] `scripts/with-target-stack.ts` — resolves the target (reusing
+      `resolveTargetStack` + the shared `promptForStack` + `--stack` /
+      `POPCHARTS_STACK`), exports the slot's env superset
+      (`POPCHARTS_LOCAL_CHAIN_ENV_FILE`, `POPCHARTS_LOCAL_RPC_URL`,
+      `POPCHARTS_RPC_URL`, `RPC_HTTP_URL`/`RPC_WSS_URL`, `DATABASE_URL` from the
+      slot's env file, `LOCAL_API_PORT`), and execs the wrapped command.
+- [x] `promptForStack` extracted to `scripts/shared/localStack/promptForStack.ts`
+      and shared by `local-create-market` and the launcher (no duplication).
+- [x] Route `local:bot-trade`, `local:deploy-venue`, `local:deploy-postgrad`,
+      `local:market-health`, `local:market-smoke` through the launcher.
+- [x] Unit tests for `parseLauncherArgs` and `targetStackEnv`.
+- **Scope / caveat:** correct for the normal same-worktree case (an agent runs
+      these against its own slot). The hardhat deploy scripts key their
+      `deployments/<chainEnv>.*.json` state by `chainEnv`, not slot, so
+      deploying to a *different* slot's chain from the *same* checkout would mix
+      deployment state — the case that would need the deferred per-slot chainId.
 
 ### Verification
 

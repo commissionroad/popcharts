@@ -3,8 +3,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { dateTimeLocalAtMs } from "./support/datetime";
 import {
   approveMarket,
-  chainNowMs,
   cancelPostgradMarket,
+  chainNowMs,
   collateralBalance,
   graduateMarket,
   lifecycleEnv,
