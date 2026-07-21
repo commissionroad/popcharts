@@ -1,27 +1,7 @@
 import type { Address, Hex, PublicClient } from "viem";
 
+import { stateViewAbi } from "../generated/third-party/venue.js";
 import { sqrtPriceX96ToDisplayPriceWad } from "../price/sqrtPriceX96ToDisplayPriceWad.js";
-
-/**
- * Hand-written getSlot0 fragment for the vendored third-party v4 StateView
- * lens, which is not in the generated first-party ABI set. Shared through the
- * package barrel so the deploy scripts and the server read slot0 through one
- * definition instead of drifting copies.
- */
-export const STATE_VIEW_SLOT0_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getSlot0",
-    outputs: [
-      { name: "sqrtPriceX96", type: "uint160" },
-      { name: "tick", type: "int24" },
-      { name: "protocolFee", type: "uint24" },
-      { name: "lpFee", type: "uint24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
 
 /** Current pool price in raw v4 units and as an ADR 0009 display price. */
 export type PoolDisplayPrice = {
@@ -45,7 +25,7 @@ export async function readPoolDisplayPrice(args: {
   readonly stateView: Address;
 }): Promise<PoolDisplayPrice> {
   const [sqrtPriceX96, tick] = await args.publicClient.readContract({
-    abi: STATE_VIEW_SLOT0_ABI,
+    abi: stateViewAbi,
     address: args.stateView,
     args: [args.poolId],
     functionName: "getSlot0",

@@ -9,7 +9,7 @@ import {
   buildVenuePoolKey,
   computeVenuePoolId,
   getPostgradVenueContractConfig,
-  poolManagerSwapEventAbi,
+  poolManagerAbi,
   type PostgradVenueContractConfig,
   tickToSqrtPriceX96,
 } from "@/integrations/contracts/postgrad-venue";
@@ -495,7 +495,7 @@ function swapLog(
       ]
     ),
     topics: encodeEventTopics({
-      abi: poolManagerSwapEventAbi,
+      abi: poolManagerAbi,
       eventName: "Swap",
       args: {
         id: overrides.poolId ?? (pool.poolId as `0x${string}`),
