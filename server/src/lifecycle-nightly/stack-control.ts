@@ -11,7 +11,7 @@
 export type ControllableService =
   "indexer" | "keeper" | "ai-review" | "ai-resolution";
 
-type ControlAction = "stop" | "start" | "restart";
+type ControlAction = "stop" | "start";
 
 function controlBaseUrl(): string {
   const url = process.env.POPCHARTS_LIFECYCLE_CONTROL_URL;
@@ -51,9 +51,4 @@ export function stopService(service: ControllableService): Promise<void> {
 /** (Re)starts a stopped service and waits for it to report ready. */
 export function startService(service: ControllableService): Promise<void> {
   return control(service, "start");
-}
-
-/** Stops then starts a service, waiting for readiness. */
-export function restartService(service: ControllableService): Promise<void> {
-  return control(service, "restart");
 }

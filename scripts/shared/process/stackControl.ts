@@ -17,22 +17,20 @@ import type {
  * stays entirely in the orchestrator; the scenario only expresses intent.
  */
 
-/** A single service the control surface can bounce. */
+/**
+ * A single service the control surface can bounce. Drills stop then
+ * separately start a service (emitting events or observing retries in
+ * between), so the contract is stop + start; there is no combined restart.
+ */
 export type ServiceController = {
   /** Stops the service if it is running; a no-op if already stopped. */
   stop: () => Promise<void>;
   /** (Re)starts the service and waits for it to report ready. */
   start: () => Promise<void>;
-  /** Stops then starts, waiting for readiness. */
-  restart: () => Promise<void>;
 };
 
 type ControllerAction = keyof ServiceController;
-const CONTROLLER_ACTIONS: readonly ControllerAction[] = [
-  "stop",
-  "start",
-  "restart",
-];
+const CONTROLLER_ACTIONS: readonly ControllerAction[] = ["stop", "start"];
 
 /** How to (re)start one supervised service and confirm it is ready again. */
 export type SupervisedServiceSpec = {
@@ -100,12 +98,7 @@ export function createSupervisedController(
     await confirmReady();
   }
 
-  async function restart(): Promise<void> {
-    await stop();
-    await start();
-  }
-
-  return { restart, start, stop };
+  return { start, stop };
 }
 
 /**

@@ -8,8 +8,8 @@ import type { Address } from "viem";
 
 import { and, db, eq, inArray, schema } from "src/db/client";
 
-import { mineBlock } from "./chain-time";
 import { chainId, pregradManagerAddress, publicClient } from "./stack";
+import { waitForCondition } from "./wait";
 
 /**
  * Market-scoped verification of the money paper-trail invariant
@@ -46,31 +46,27 @@ type PaperTrailTarget = {
 };
 
 /**
- * Retries `assertMarketPaperTrail` until it holds or the timeout elapses,
- * mining a block between attempts to flush the indexer. The indexer's dynamic
- * postgrad watcher backfills a graduated venue's events (complete-set mints,
- * outcome-token transfers) a beat after graduation, so a reconciliation run
- * immediately after graduation can transiently see them as dropped. On
- * timeout the final failure propagates with its full diagnostic, so a genuine
- * dropped/fabricated transfer still fails loudly rather than being masked.
+ * Retries `assertMarketPaperTrail` until it holds or the timeout elapses. The
+ * indexer's dynamic postgrad watcher backfills a graduated venue's events
+ * (complete-set mints, outcome-token transfers) a beat after graduation, so a
+ * reconciliation run immediately after graduation can transiently see them as
+ * dropped. A throwing reconciliation counts as not-ready; on timeout
+ * waitForCondition surfaces the last failure (the full violations list), so a
+ * genuine dropped/fabricated transfer still fails loudly. tickChain flushes
+ * the indexer with the same throttled mining the other waits use.
  */
 export async function assertMarketPaperTrailEventually(
   target: PaperTrailTarget,
   { timeoutMs = 60_000 }: { timeoutMs?: number } = {},
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    try {
+  await waitForCondition(
+    `paper trail balances for market ${target.marketId}`,
+    async () => {
       await assertMarketPaperTrail(target);
-      return;
-    } catch (error) {
-      if (Date.now() >= deadline) {
-        throw error;
-      }
-      await mineBlock();
-      await new Promise((resolvePoll) => setTimeout(resolvePoll, 1_000));
-    }
-  }
+      return true;
+    },
+    { tickChain: true, timeoutMs },
+  );
 }
 
 export async function assertMarketPaperTrail({

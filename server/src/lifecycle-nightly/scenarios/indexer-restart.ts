@@ -37,64 +37,79 @@ export const indexerRestart: Scenario = {
       waitForApiStatus(market.marketId, "bootstrap", { timeoutMs: 135_000 }),
     );
 
-    await step("stop the indexer mid-lifecycle", () => stopService("indexer"));
-
-    const placed = await step(
-      "emit receipt events while the indexer is down",
-      async () => {
-        // Both below threshold — this drill proves feed recovery, not
-        // graduation. Same account: sequential nonces, no funding race.
-        const yes = await placeReceipt({
-          marketId: market.marketId,
-          sharesWad: parseUnits("40", 18),
-          side: SIDE_YES,
-          traderAccountIndex: SCENARIO_ACCOUNTS.indexerRestartTrader,
-        });
-        const no = await placeReceipt({
-          marketId: market.marketId,
-          sharesWad: parseUnits("40", 18),
-          side: SIDE_NO,
-          traderAccountIndex: SCENARIO_ACCOUNTS.indexerRestartTrader,
-        });
-        return [yes, no];
-      },
-    );
-
-    await step("confirm the events are unindexed while down", async () => {
-      const rows = await db
-        .select()
-        .from(schema.receiptPlacedEvents)
-        .where(
-          and(
-            eq(schema.receiptPlacedEvents.chainId, config.chainId),
-            eq(schema.receiptPlacedEvents.marketId, market.marketId),
-          ),
-        );
-      assertEqual(
-        "receipts indexed while the indexer is stopped",
-        rows.length,
-        0,
+    try {
+      await step("stop the indexer mid-lifecycle", () =>
+        stopService("indexer"),
       );
-    });
 
-    await step("restart the indexer (backfill before live)", () =>
-      startService("indexer"),
-    );
+      const placed = await step(
+        "emit receipt events while the indexer is down",
+        async () => {
+          // Both below threshold — this drill proves feed recovery, not
+          // graduation. Same account: sequential nonces, no funding race.
+          const yes = await placeReceipt({
+            marketId: market.marketId,
+            sharesWad: parseUnits("40", 18),
+            side: SIDE_YES,
+            traderAccountIndex: SCENARIO_ACCOUNTS.indexerRestartTrader,
+          });
+          const no = await placeReceipt({
+            marketId: market.marketId,
+            sharesWad: parseUnits("40", 18),
+            side: SIDE_NO,
+            traderAccountIndex: SCENARIO_ACCOUNTS.indexerRestartTrader,
+          });
+          return [yes, no];
+        },
+      );
 
-    await step("the missed events are backfilled after restart", () =>
-      waitForIndexedRows(
-        `both receipts backfilled for market ${market.marketId}`,
-        schema.receiptPlacedEvents,
-        market.marketId,
-        placed.length,
-      ),
-    );
+      await step("confirm the events are unindexed while down", async () => {
+        const rows = await db
+          .select()
+          .from(schema.receiptPlacedEvents)
+          .where(
+            and(
+              eq(schema.receiptPlacedEvents.chainId, config.chainId),
+              eq(schema.receiptPlacedEvents.marketId, market.marketId),
+            ),
+          );
+        assertEqual(
+          "receipts indexed while the indexer is stopped",
+          rows.length,
+          0,
+        );
+      });
 
-    await step("money paper trail balances end to end", () =>
-      assertMarketPaperTrail({
-        createdBlock: market.createdBlock,
-        marketId: market.marketId,
-      }),
-    );
+      await step("restart the indexer (backfill before live)", () =>
+        startService("indexer"),
+      );
+
+      await step("the missed events are backfilled after restart", () =>
+        waitForIndexedRows(
+          `both receipts backfilled for market ${market.marketId}`,
+          schema.receiptPlacedEvents,
+          market.marketId,
+          placed.length,
+        ),
+      );
+
+      await step("money paper trail balances end to end", () =>
+        assertMarketPaperTrail({
+          createdBlock: market.createdBlock,
+          marketId: market.marketId,
+        }),
+      );
+    } finally {
+      // Safety net: the indexer must be running for later scenarios even if a
+      // step above threw while it was stopped. Idempotent when already up;
+      // swallow its own failure so the original step error still propagates.
+      await startService("indexer").catch((error: unknown) => {
+        console.error(
+          `[indexer-restart] failed to restart the indexer during cleanup: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      });
+    }
   },
 };

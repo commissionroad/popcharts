@@ -48,11 +48,13 @@ export const partialClearing: Scenario = {
       waitForApiStatus(market.marketId, "bootstrap", { timeoutMs: 135_000 }),
     );
 
-    await step("pause the keeper to assemble the book atomically", () =>
-      stopService("keeper"),
-    );
-
     try {
+      // Pause inside the try so the finally always restarts the keeper, even
+      // if the stop request itself rejects mid-flight.
+      await step("pause the keeper to assemble the book atomically", () =>
+        stopService("keeper"),
+      );
+
       const balanced = await step(
         "place balanced liquidity to threshold (the retained band)",
         () =>
@@ -177,8 +179,15 @@ export const partialClearing: Scenario = {
     } finally {
       // Safety net: the keeper must be running for later scenarios even if a
       // step above threw while it was paused. startService is idempotent, so
-      // this is a no-op on the success path.
-      await startService("keeper");
+      // this is a no-op on the success path. Swallow its own failure so the
+      // original step error still propagates as the diagnostic.
+      await startService("keeper").catch((error: unknown) => {
+        console.error(
+          `[partial-clearing] failed to restart the keeper during cleanup: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      });
     }
   },
 };

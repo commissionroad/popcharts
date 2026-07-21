@@ -65,6 +65,12 @@ export function createProcessSupervisor(options: {
     args: readonly string[],
     startOptions: { readonly env?: NodeJS.ProcessEnv } = {},
   ): SupervisedProcess {
+    // Refuse to spawn once shutdown has begun: a child started after
+    // shutdown() snapshotted `children` would never be torn down and would
+    // orphan when the orchestrator exits.
+    if (shuttingDown) {
+      throw new Error(`Cannot start ${name}: supervisor is shutting down.`);
+    }
     console.log(
       `\n[${options.logLabel}] starting ${name}: ${command} ${args.join(" ")}`,
     );
@@ -130,17 +136,24 @@ export function createProcessSupervisor(options: {
     });
     processInfo.child.kill("SIGTERM");
 
-    // Escalate to SIGKILL if the child ignores SIGTERM (viem watchers can
-    // delay a graceful exit), but ALWAYS await the real exit — callers
-    // (the stack-control restart path) must be able to trust that the
-    // process is gone and `exited` is set when stop() resolves, otherwise a
-    // follow-on start() sees it as still running and no-ops.
-    void sleep(3_000).then(() => {
+    // Escalate to SIGKILL if the child ignores SIGTERM, then await the real
+    // exit so `exited` is set when stop() resolves — a follow-on start()
+    // must not see the service as still running and no-op. NOTE: kill()
+    // reaches only the direct child (the `bun run` wrapper), which reaps its
+    // script on SIGTERM, so every controllable service exits within the
+    // grace window today and the escalation never fires. A service that ever
+    // adds a >3s async shutdown would outlive the SIGKILL'd wrapper as an
+    // orphan; spawn detached and signal the process group if that changes.
+    const escalation = setTimeout(() => {
       if (!processInfo.exited) {
         processInfo.child.kill("SIGKILL");
       }
-    });
-    await exited;
+    }, 3_000);
+    try {
+      await exited;
+    } finally {
+      clearTimeout(escalation);
+    }
   }
 
   async function shutdown(code: number): Promise<never> {

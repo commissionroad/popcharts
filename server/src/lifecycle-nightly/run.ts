@@ -24,9 +24,12 @@ import { rejectedCreation } from "./scenarios/rejected-creation";
  * runner wait out wall-clock time equal to their resolution window plus
  * every offset accumulated before their market was created. So the
  * resolution-dependent scenarios run first — each later one budgets its
- * predecessors' jumps into its wait — and jump-only or jump-free scenarios
- * run last. The partial-clearing scenario and the two infrastructure drills
- * neither resolve nor jump, so they add no offset and trail the group.
+ * predecessors' jumps into its wait — and scenarios that need no resolution
+ * runner trail the group. (Partial clearing still advances the chain: its
+ * graduation fast-forwards past the clearing challenge deadline. That is a
+ * permanent forward offset, but nothing after it waits on the wall-clock
+ * resolution runner, so it only costs suite time, not correctness. Append a
+ * resolution-dependent scenario after it and that offset must be budgeted.)
  */
 const SCENARIOS: readonly Scenario[] = [
   happyPath,
