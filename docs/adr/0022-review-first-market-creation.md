@@ -63,18 +63,16 @@ Concretely:
    creation fee is paid by the creator when they publish (`createMarket`). Rejected and
    iterated drafts cost nothing.
 
-   **Anti-spam has two distinct targets, and the fee was silently protecting both.** (a)
-   *On-chain spam* (junk markets) — no longer possible pre-publish, since junk never reaches
-   the chain. (b) **Spam against the *paid* AI-review pipeline** — this is the real exposure:
-   each review that clears the cheap heuristic pre-gate invokes a costly provider (web
-   search + fetch + model), and because SSO users get free embedded wallets, *per-identity
-   rate limiting is not Sybil-resistant on its own*. So the review boundary needs a
-   **cost gate**, not just a rate limit: a deterministic heuristic-only pre-screen for
-   un-vetted drafts, a hard **provider-spend budget cap** (per identity and global), and
-   first-paid-review gated behind Privy email verification. This protection must land **with
-   P2** (when review moves to free drafts), not in a later phase. Per-wallet/per-user rate
-   limiting remains the coarse first layer. *(This refines the "rate limiting for now"
-   decision — see Open decisions.)*
+   **Anti-spam is per-wallet/per-user rate limiting, for now — an accepted risk.** On-chain
+   spam (junk markets) is no longer possible pre-publish; junk never reaches the chain. The
+   remaining exposure is the **paid AI-review pipeline**: once review runs on free drafts,
+   each review that clears the cheap heuristic pre-gate invokes a costly provider (web search
+   + fetch + model), and rate limiting is **not Sybil-resistant on its own** because SSO users
+   get free embedded wallets (a fresh identity is a fresh rate-limit bucket). This is a
+   **deliberately accepted risk** while the provider is self-hosted and early-stage spend is
+   small. The documented escalation path, if provider spend grows (P8): a heuristic-only
+   pre-screen for un-vetted drafts, a provider-spend budget cap (per-identity + global),
+   and/or a refundable submission deposit.
 
 4. **The creator publishes** (not a platform relay), and the **publish authorization is
    minted at publish time, not cached from approval.** Approval only marks the draft
@@ -263,15 +261,6 @@ the creation fee in `docs/portfolio-data-design.md`. Moving collection from subm
 does not make any transfer inferred, off-chain, or droppable; it now *gains* the
 event-sourced record it previously lacked.
 
-## Open decisions (need sign-off)
-
-1. **Anti-spam on the paid review pipeline (decision 3).** The plan adds a
-   heuristic-only pre-screen + provider-spend budget cap + email-gated first review, landing
-   in P2, on top of rate limiting — because rate limiting alone is not Sybil-resistant given
-   free embedded wallets, and each paid review costs real money. Confirm this is the shape
-   you want (vs. pure rate limiting, accepting the cost-amplification risk, or a small
-   refundable deposit instead).
-
 ## Phased build plan
 
 Ordered so each phase is independently shippable and the keystone (drafts + off-chain
@@ -285,9 +274,7 @@ review) lands before the contract change.
 - [ ] **P2 — Off-chain AI review on drafts.** New **draft-keyed** review + job tables and a
       reworked runner that enqueues from `market_drafts`; snapshot `metadataHash` on submit;
       `in_review → approved | rejected`; user-appropriate rejection reasons; edit → re-review.
-      **Anti-spam cost gate lands here**: heuristic-only pre-screen for un-vetted drafts,
-      provider-spend budget cap (per-identity + global), email-gated first paid review. Still
-      no chain change.
+      Per-wallet/per-user rate limiting on submission. Still no chain change.
 - [ ] **P3 — Gated `createMarket` + publish + fee indexing.** Contract: EIP-712 authorizer
       signature over the **full params** with an **on-chain single-use nonce** + expiry,
       trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer: project new
@@ -311,8 +298,10 @@ review) lands before the contract change.
       (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
       Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
       into SQL.
-- [ ] **P8 — Anti-spam hardening.** Broaden beyond the P2 cost gate: per-wallet/per-user rate
-      limits, and revisit a refundable deposit at adoption scale.
+- [ ] **P8 — Anti-spam hardening (deferred trigger).** Only if paid-review spend grows: a
+      heuristic-only pre-screen for un-vetted drafts, a provider-spend budget cap
+      (per-identity + global), and/or a refundable submission deposit. Not built until the
+      rate-limit-only approach shows strain.
 
 ## Deferred / out of scope
 
@@ -333,4 +322,4 @@ review) lands before the contract change.
 *This ADR was adversarially red-teamed (protocol/security, data-model/migration,
 product/economics, money-invariant lenses) before proposal; the review data-model section,
 the fee-indexing correction, publish-time authorization, the born-Active projection step, the
-identity-join specification, and the anti-spam cost gate are all folded-in findings.*
+identity-join specification, and the documented anti-spam risk are all folded-in findings.*
