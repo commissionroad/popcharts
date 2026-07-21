@@ -1,4 +1,9 @@
-import { mockCollateralAbi, pregradManagerAbi, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
+import {
+  mockCollateralAbi,
+  pregradManagerAbi,
+  SIDE_NO,
+  SIDE_YES,
+} from "@popcharts/protocol";
 import { maxUint256 } from "viem";
 
 import {
