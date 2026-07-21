@@ -843,6 +843,15 @@ only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
 progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
 lacks CDK assertion tests.
 
+## [2026-07-21] ingest | protocol postgrad contract metadata — generated third-party venue ABIs
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: export-contract-metadata.ts now also emits src/generated/third-party/venue.ts
+(compiled poolManagerAbi/stateViewAbi/v4QuoterAbi from the vendored v4 packages,
+new `./third-party/venue` package subpath). All hand-written fragments for those
+contracts across protocol/server/app were replaced with the generated ABIs;
+fragments remain only for contracts outside the Hardhat build (the canonical
+transfer-approval singleton).
+
 ## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
 Notes: Rejection, manual review, failed graduation, and draw/cancel are

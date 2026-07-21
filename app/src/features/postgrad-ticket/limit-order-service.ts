@@ -15,7 +15,7 @@ import {
   boundedPoolOrderManagerAbi,
   poolTickBoundsAbi,
   type PostgradVenueContractConfig,
-  stateViewSlot0Abi,
+  stateViewAbi,
   tokenPullerAllowanceAbi,
 } from "@/integrations/contracts/postgrad-venue";
 
@@ -394,7 +394,7 @@ async function readCurrentPoolTick({
 }): Promise<number> {
   if (venueConfig.stateViewAddress) {
     const slot0 = (await wallet.publicClient.readContract({
-      abi: stateViewSlot0Abi,
+      abi: stateViewAbi,
       address: venueConfig.stateViewAddress,
       functionName: "getSlot0",
       args: [pool.poolId],

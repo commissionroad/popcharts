@@ -1,14 +1,6 @@
 import type { Address, Hex, PublicClient } from "viem";
 
-const STATE_VIEW_LIQUIDITY_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getLiquidity",
-    outputs: [{ name: "liquidity", type: "uint128" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { stateViewAbi } from "../generated/third-party/venue.js";
 
 /**
  * Reads a pool's currently active liquidity through the venue StateView, so
@@ -21,7 +13,7 @@ export async function readPoolActiveLiquidity(args: {
   readonly stateView: Address;
 }): Promise<bigint> {
   return args.publicClient.readContract({
-    abi: STATE_VIEW_LIQUIDITY_ABI,
+    abi: stateViewAbi,
     address: args.stateView,
     args: [args.poolId],
     functionName: "getLiquidity",

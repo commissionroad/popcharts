@@ -46,6 +46,8 @@ export type {
 
 export { mockCollateralAbi } from "./generated/mock-collateral.js";
 
+export { poolManagerAbi, stateViewAbi, v4QuoterAbi } from "./generated/third-party/venue.js";
+
 export { COMPLETE_SET_PRICE_POLICY } from "./price/completeSetPricePolicy.js";
 export { alignTickToSpacing } from "./price/alignTickToSpacing.js";
 export { clampDisplayPriceWad } from "./price/clampDisplayPriceWad.js";
@@ -68,7 +70,7 @@ export { ensureDevBackstopLiquidity } from "./market/ensureDevBackstopLiquidity.
 export { executeCompleteSetArb } from "./market/executeCompleteSetArb.js";
 export { findPendingDeferredExecutions } from "./market/findPendingDeferredExecutions.js";
 export type { PendingDeferredExecution } from "./market/findPendingDeferredExecutions.js";
-export { readPoolDisplayPrice, STATE_VIEW_SLOT0_ABI } from "./market/readPoolDisplayPrice.js";
+export { readPoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type { PoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type {
   CompleteSetMarketManifestData,
