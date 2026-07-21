@@ -10,10 +10,7 @@ import type {
   CompleteSetMarketManifestData,
   CompleteSetMarketPool,
 } from "./readCompleteSetMarketManifest.js";
-import {
-  completeSetBinaryMarketAbi,
-  minimalV4SwapRouterAbi,
-} from "../../../src/generated/postgrad-venue.js";
+import { completeSetBinaryMarketAbi, minimalV4SwapRouterAbi } from "../generated/postgrad-venue.js";
 
 const HOOK_DATA_NONE: Hex = "0x";
 

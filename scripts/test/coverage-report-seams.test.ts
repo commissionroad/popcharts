@@ -35,7 +35,7 @@ const SAMPLE_LCOV = [
   "BRF:10",
   "BRH:5",
   "end_of_record",
-  "SF:../protocol/scripts/shared/price/tickToSqrtPriceX96.ts",
+  "SF:../protocol/src/price/tickToSqrtPriceX96.ts",
   "FNF:2",
   "FNH:2",
   "LF:50",

@@ -14,7 +14,7 @@ import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract
 // Shared with scripts/local-dev.ts so both deploy tools write the one
 // POPCHARTS APP ENV marker block instead of shadowing each other's keys.
 import { updateAppEnvMarkerBlock } from "../../scripts/shared/env/appEnvMarkerBlock.js";
-import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { createViemClients } from "./shared/viem/createViemClients.js";
 
 const DEFAULT_RPC_URL = "http://127.0.0.1:8545";

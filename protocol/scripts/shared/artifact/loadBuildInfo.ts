@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { isPlainJsonObject } from "../json/isPlainJsonObject.js";
-import { readJsonFile } from "../json/jsonFile.js";
+import { readJsonFile } from "../../../src/json/jsonFile.js";
 
 /**
  * The parts of a Hardhat build-info document that standard JSON verification

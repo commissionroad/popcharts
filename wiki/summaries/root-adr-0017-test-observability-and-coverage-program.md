@@ -4,7 +4,7 @@ title: ADR 0017 — Test observability and coverage program
 description: Make test health visible in-repo (informational-only PR coverage deltas, trend log, badges, report-only flake tracking) and ratchet per-workspace coverage floors over workspace-own denominators; seven tracks incl. the protocol TS SDK move, one concern per PR.
 sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
-updated: 2026-07-14
+updated: 2026-07-20
 ---
 
 # ADR 0017 — Test observability and coverage program
@@ -124,14 +124,17 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   [ADR 0015](root-adr-0015-deployment-and-infrastructure.md).
 - **F — Known flake fix** (**complete 2026-07-14**): explicit timeout for the band-pass clearing
   invariant test (~8s under coverage vs bun's 5s default).
-- **G — Protocol TS SDK surface** (added post-grill): the package barrel
-  re-exports ~25 symbols from `protocol/scripts/shared/{price,market}`, so
-  the TS SDK partially lives in the scripts tree. Consumers are already
-  clean (server imports only the bare specifier; app only declared subpath
-  exports; the `exports` map is the allowlist). Fix: move those modules
-  into `protocol/src/` (`src/price/`, `src/market/`), scripts import from
-  src (never the reverse, lint-guarded), and the protocol TS coverage
-  figure + floor comes with it.
+- **G — Protocol TS SDK surface** (added post-grill; **move + guard done
+  2026-07-20, coverage figure open**): the package barrel re-exported ~25
+  symbols from `protocol/scripts/shared/{price,market}`, so the TS SDK
+  partially lived in the scripts tree. Consumers were already clean
+  (server imports only the bare specifier; app only declared subpath
+  exports; the `exports` map is the allowlist). Executed: the 29-file
+  closure (price, market, and transitive viem/cli/json deps) moved into
+  `protocol/src/{price,market,viem,cli,json}/`, scripts now import from
+  src (never the reverse), and `test/nodejs/sdk-surface-guard.test.ts`
+  enforces the direction plus pins the exports-map targets and key set.
+  Remaining: the protocol TS coverage figure + floor.
 
 ## Touches
 

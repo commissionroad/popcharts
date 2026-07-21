@@ -1,6 +1,6 @@
 import type { Address, Hex, PublicClient } from "viem";
 
-import { boundedPoolOrderManagerAbi } from "../../../src/generated/postgrad-venue.js";
+import { boundedPoolOrderManagerAbi } from "../generated/postgrad-venue.js";
 
 /** One deferred crossed-order batch still awaiting resolver work. */
 export type PendingDeferredExecution = {

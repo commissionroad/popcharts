@@ -4,13 +4,13 @@ import { erc20Abi, formatUnits, getAddress, type Address, type Hex, type PublicC
 
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
-import { readJsonFile } from "./shared/json/jsonFile.js";
+import { readJsonFile } from "../src/json/jsonFile.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
-} from "./shared/market/readCompleteSetMarketManifest.js";
-import { requireSuccessfulReceipt } from "./shared/viem/requireSuccessfulReceipt.js";
+} from "../src/market/readCompleteSetMarketManifest.js";
+import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
 import { pregradManagerAbi } from "../src/generated/pregrad-manager.js";
 import {
   boundedPoolOrderManagerAbi,

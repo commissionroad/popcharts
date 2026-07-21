@@ -10,10 +10,10 @@ import {
 } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
-import { COMPLETE_SET_PRICE_POLICY } from "../price/completeSetPricePolicy.js";
-import { deriveEpsilonBoundTicks } from "../price/deriveEpsilonBoundTicks.js";
-import { displayPriceWadToSqrtPriceX96 } from "../price/displayPriceWadToSqrtPriceX96.js";
-import { sqrtPriceX96ToTick } from "../price/sqrtPriceX96ToTick.js";
+import { COMPLETE_SET_PRICE_POLICY } from "../../../src/price/completeSetPricePolicy.js";
+import { deriveEpsilonBoundTicks } from "../../../src/price/deriveEpsilonBoundTicks.js";
+import { displayPriceWadToSqrtPriceX96 } from "../../../src/price/displayPriceWadToSqrtPriceX96.js";
+import { sqrtPriceX96ToTick } from "../../../src/price/sqrtPriceX96ToTick.js";
 
 // Minimal ABIs for the vendored v4 venue contracts this flow touches; the
 // local Pop Charts contracts use typed Hardhat artifacts instead.

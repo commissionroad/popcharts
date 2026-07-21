@@ -7,7 +7,7 @@ import {TickMath} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/TickMath
 /// @title TickMathHarness
 /// @author Pop Charts
 /// @notice Exposes v4-core TickMath so Node.js parity tests can anchor the
-///   TypeScript tick-math ports in `protocol/scripts/shared/price/` against
+///   TypeScript tick-math ports in `protocol/src/price/` against
 ///   the exact math bounded pools run on-chain (ADR 0016 C6).
 contract TickMathHarness {
   /// @notice Canonical Q64.96 square-root price at a tick.

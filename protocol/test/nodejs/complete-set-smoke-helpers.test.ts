@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { parseDecimalTokenAmount } from "../../scripts/shared/cli/parseDecimalTokenAmount.js";
-import { decideCompleteSetArbAction } from "../../scripts/shared/market/decideCompleteSetArbAction.js";
-import { floorOutcomeToCollateralUnit } from "../../scripts/shared/market/floorOutcomeToCollateralUnit.js";
-import { displayPriceWadToSqrtPriceX96 } from "../../scripts/shared/price/displayPriceWadToSqrtPriceX96.js";
-import { liquidityForAmounts } from "../../scripts/shared/price/liquidityForAmounts.js";
-import { sqrtPriceX96ToDisplayPriceWad } from "../../scripts/shared/price/sqrtPriceX96ToDisplayPriceWad.js";
-import { tickToSqrtPriceX96 } from "../../scripts/shared/price/tickToSqrtPriceX96.js";
+import { decideCompleteSetArbAction } from "../../src/market/decideCompleteSetArbAction.js";
+import { floorOutcomeToCollateralUnit } from "../../src/market/floorOutcomeToCollateralUnit.js";
+import { displayPriceWadToSqrtPriceX96 } from "../../src/price/displayPriceWadToSqrtPriceX96.js";
+import { liquidityForAmounts } from "../../src/price/liquidityForAmounts.js";
+import { sqrtPriceX96ToDisplayPriceWad } from "../../src/price/sqrtPriceX96ToDisplayPriceWad.js";
+import { tickToSqrtPriceX96 } from "../../src/price/tickToSqrtPriceX96.js";
 
 const WAD = 10n ** 18n;
 const Q96 = 1n << 96n;

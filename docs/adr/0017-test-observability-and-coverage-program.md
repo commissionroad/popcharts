@@ -253,12 +253,18 @@ specifier; app uses only declared subpath exports, enforced by the
 `scripts/shared` change silently alters the shipped app bundle and server
 behavior, and those modules' coverage is attributed to no enforced figure.
 
-- [ ] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
+- [x] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
       into `protocol/src/` (e.g. `src/price/`, `src/market/`); `scripts/`
-      imports from `src/`, never the reverse
-- [ ] Import-lint guard: `protocol/src/**` must not import from
-      `protocol/scripts/**` (same pattern as the indexer boundary guards)
-- [ ] `exports` map unchanged as the consumer allowlist
+      imports from `src/`, never the reverse. The closure came to 29 files:
+      the barreled price/market modules plus their transitive deps
+      (`src/viem/` ERC20/receipt wrappers, `src/cli/requireCliValue`,
+      `src/json/jsonFile`, reached via `readCompleteSetMarketManifest`)
+- [x] Import-lint guard: `protocol/src/**` must not import from
+      `protocol/scripts/**` (`test/nodejs/sdk-surface-guard.test.ts`; also
+      pins the exports-map targets to `src/` and the subpath key set)
+- [x] `exports` map unchanged as the consumer allowlist (two targets
+      retargeted from `scripts/shared/price/` to `src/price/`; no key
+      renamed, added, or removed)
 - [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
       `generated/`) added to the PR comment, trend, and badges, with a
       floor at the measured baseline

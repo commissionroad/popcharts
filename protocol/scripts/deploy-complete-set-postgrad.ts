@@ -6,7 +6,7 @@ import { type Address, type Hex, type PublicClient } from "viem";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { requireAddress, requireNonNegativeInteger } from "./shared/cli/requireCliValue.js";
+import { requireAddress, requireNonNegativeInteger } from "../src/cli/requireCliValue.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import { deployCompleteSetPostgradContracts } from "./shared/deployment/deployCompleteSetPostgrad.js";
 import {
@@ -16,7 +16,7 @@ import {
   type VenueManifestContractEntry,
 } from "./shared/deployment/venueManifest.js";
 import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
-import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
+import { readJsonFile, writeJsonFile } from "../src/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 // Complete-set outcome tokens default to 18 decimals, matching the local v4

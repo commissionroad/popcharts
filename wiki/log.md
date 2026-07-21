@@ -807,3 +807,14 @@ per-side resolution gates, wrapper ERC1155-receiver validation, terminal-
 market venue exit path, honest (narrowed) indexing claims, wrapper-
 registration discovery event, and outcome decimals promoted to a BLOCKING
 pre-acceptance question (v4 dust vs. exact-or-revert redemption).
+
+## [2026-07-20] ingest | repo ADR 0017 — Track G move + guard executed
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Three of four Track G boxes ticked. The SDK closure turned out to be
+29 files, not just price/market: readCompleteSetMarketManifest transitively
+pulls cli/requireCliValue and json/jsonFile, and the arb/backstop helpers
+pull three shared/viem wrappers — all now under protocol/src. Boundary
+enforced by test/nodejs/sdk-surface-guard.test.ts (direction + exports-map
+targets + pinned subpath key set). Remaining G work: protocol TS coverage
+figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
+contracts-only).

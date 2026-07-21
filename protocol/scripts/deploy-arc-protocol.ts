@@ -15,7 +15,7 @@ import {
   type ContractDeploymentManifest,
 } from "./shared/ignition/buildContractDeployments.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
-import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 /**
