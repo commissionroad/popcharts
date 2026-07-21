@@ -16,7 +16,6 @@ import {
 import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
-import { localChainEnvFileForSlot } from "./shared/env/localDevEnvFiles.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { SMOKE_READINESS_LINE } from "./shared/localStack/smokeReadinessLine.ts";
@@ -62,9 +61,10 @@ const apiPort =
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 
 // The smoke writes these under server/ so a developer can reuse the exact same
-// deployed addresses after a successful run with --keep-running.
-const envFile = localChainEnvFileForSlot(resources.slot);
-const healthFile = resolve(serverDir, ".env.local-chain.indexer-health");
+// deployed addresses after a successful run with --keep-running. Both paths
+// are slot-scoped so concurrent stacks never clear each other's files.
+const envFile = resources.envFilePath;
+const healthFile = resources.indexerHealthFilePath;
 
 type IndexedMarket = {
   createdTransactionHash: string;

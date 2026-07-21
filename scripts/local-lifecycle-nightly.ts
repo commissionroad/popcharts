@@ -15,7 +15,6 @@ import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
-import { localDevIndexerHealthFile } from "./shared/env/localDevEnvFiles.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
 import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
@@ -91,7 +90,7 @@ async function main(): Promise<void> {
   rejectUnknownArgs();
   ensureDependenciesInstalled();
 
-  rmSync(localDevIndexerHealthFile, { force: true });
+  rmSync(resources.indexerHealthFilePath, { force: true });
 
   // Reusing a live Hardhat RPC keeps existing chain state so the database
   // rows still match; a fresh chain resets the database unless --keep-db
@@ -194,7 +193,7 @@ async function main(): Promise<void> {
   );
   await waitForWithProcesses(
     "Indexer health marker",
-    () => existsSync(localDevIndexerHealthFile),
+    () => existsSync(resources.indexerHealthFilePath),
     {
       processes: [api, indexer],
       timeoutMs: 45_000,

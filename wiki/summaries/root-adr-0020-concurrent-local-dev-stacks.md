@@ -4,7 +4,7 @@ title: Repo ADR 0020 — Concurrent local dev stacks
 description: Slot-addressed local dev instances (slot 0 human, 1..n agents, then auto-offset) with a home-dir registry, per-slot chain port / DB / env / process-compose admin, identity-scoped chain reuse, and stack-aware create-market — so a second stack no longer silently collides with the first.
 sources:
   - docs/adr/0020-concurrent-local-dev-stacks.md
-updated: 2026-07-17
+updated: 2026-07-21
 ---
 
 # Repo ADR 0020: Concurrent Local Dev Stacks
@@ -45,7 +45,13 @@ Key decisions:
 - **Per-slot resources**: chain port `8545 + 10s`, API `3001 + 10s`, app
   `3000 + 10s`, AI review `3002 + 10s`, AI resolution `3004 + 10s`,
   process-compose admin `8080 + s`, database `popcharts` / `popcharts_<s>`, env
-  file `.env.local-chain` / `.env.local-chain.<s>`.
+  file `.env.local-chain` / `.env.local-chain.<s>`, and indexer health marker
+  `.env.local-dev.indexer-health` / `….<s>`. The health marker was the last
+  shared-path holdout (every orchestrator deleted and polled one fixed file, so
+  concurrent stacks could clear each other's marker or pass readiness against
+  the wrong slot's indexer); it became a slot-derived `StackPorts` resource on
+  2026-07-21, and `local-chain-smoke` gave up its separate
+  `.env.local-chain.indexer-health` filename for the shared slot-scoped one.
 - **Isolate at the database, not the container.** Keep the one long-lived
   `popcharts-postgres` container; each slot gets its own database, and reset
   drops/recreates only that database (replacing the old whole-container nuke).
