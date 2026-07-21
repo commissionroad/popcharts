@@ -9,7 +9,7 @@ sources:
   - docs/architecture.md
   - docs/ai-review-runner-design.md
   - docs/portfolio-data-design.md
-updated: 2026-07-15
+updated: 2026-07-20
 ---
 
 # server/ workspace
@@ -47,19 +47,23 @@ Tables: `markets` (keyed chain_id+market_id, starts `under_review`),
 `market_ai_review_jobs`. viem client factories centralized in
 `src/blockchain/client.ts`.
 
-## Live-updates relay (planned, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
+## Live-updates relay (revised, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
 
 The API gains a sixth responsibility: an **SSE endpoint** that pushes live
 market updates to the browser. Because the API is the long-lived process that
-holds client connections (the indexer can't — separate process), it runs the
-**relay**: it tails a durable `change_feed` outbox table (written by DB triggers
-in the same transaction as each indexed event), maps each row `source_table →
-SSE channel + React Query key` in TypeScript, and fans out a signal-to-refetch
-nudge; browsers refetch the existing read endpoints (DB/REST stays the single
-source of truth). Reconnect resumes via `Last-Event-ID` = the last
-`change_feed.id`. Wake mechanism is poll-first (NOTIFY optional). Deployment
-pieces (SSE behind the ALB, cross-origin CORS, RDS-Proxy connection handling)
-belong to [ADR 0015](../summaries/root-adr-0015-deployment-and-infrastructure.md).
+holds client connections, it runs the relay over a durable semantic
+`change_feed` written explicitly by each owning DB transaction. Browsers refetch
+the existing read endpoints; DB/REST stays the single source of truth.
+
+Reconnect correctness is subscribe first, then refetch every authoritative
+query for the subscribed channels. `Last-Event-ID` is best-effort only because
+`bigserial` allocation is not commit order; PR #249 carries failing regressions
+for the old exact-replay claim. Incremental chart payloads snapshot-refetch and
+resume using their domain sequence. The relay and per-client queues must be
+bounded/coalesced. The outbox must be pruned by age (initially 24–48h), never on
+consumption, because browsers/API instances have independent cursors. Wake
+mechanism remains poll-first (`NOTIFY` optional). Deployment pieces belong to
+[ADR 0015](../summaries/root-adr-0015-deployment-and-infrastructure.md).
 Proposed, not yet built.
 
 ## Hardening gaps (all open, [root ADR 0009](../summaries/root-adr-0009-server-api-hardening.md))

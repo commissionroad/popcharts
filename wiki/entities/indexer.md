@@ -9,7 +9,7 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - docs/portfolio-data-design.md
   - infra/README.md
-updated: 2026-07-17
+updated: 2026-07-21
 ---
 
 # Indexer
@@ -70,21 +70,29 @@ failover, DB-backed leasing, cursor-lag metrics remain open. Balance
 projections raise the stakes on reorg handling: an orphaned Transfer leaves a
 wrong balance, not just a stale log row.
 
-## Live-updates emit seam (planned, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
+## Live-updates emit seam (built, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
 
-Live browser updates do **not** add code to the indexer or break its purity: a
-generic `AFTER INSERT` trigger on the append-only tables writes one
-`change_feed` outbox row in the *same transaction* as each event, which the API
-(a separate process) tails and fans out over SSE. The indexer keeps writing only
-its own DB rows — no network calls, no held connections, no dependency on the
-API. The trigger being DB-level makes the feed writer-agnostic (it also captures
-the AI-review runner's and keeper's writes, which an in-indexer emit would miss)
-and transactional (a rolled-back event — e.g. the `MarketNotIndexedError` retry
-path — produces no phantom signal). Proposed, not yet built.
+Live browser updates preserve indexer purity: each write seam calls
+`recordLiveChange(tx, change)` to append one `change_feed` row through the
+**same Drizzle transaction** as its authoritative raw event/projection change.
+The indexer still makes no API call, holds no browser connection, and has no API
+dependency. A rollback (including `MarketNotIndexedError`) suppresses both
+writes. The AI-review and resolution runners call the same shared module in
+their own transactions — the writer-agnostic case a pure-indexer emit would have
+missed — and a coverage test asserts the seams cover exactly the registry.
+
+This replaced PR #249's generic capture trigger: keeping live-feed logic in
+visible TypeScript, dropping the separate schema installer, and leaving routing
+(including future pool joins and per-owner transfer rows) to the seam. The
+larger `kind`/`owners[]`/`payload` redesign was trimmed as premature. Reconnect
+correctness comes from subscribe-then-refetch of authoritative REST state;
+`bigserial`/`Last-Event-ID` replay is a best-effort optimization, since a lower
+id can commit below an advanced cursor. No indexed blockchain data is at risk —
+only the secondary invalidation signal.
 
 ## Related pages
 
 - [Server workspace](server-workspace.md) — hosts it
 - [Market lifecycle](../concepts/market-lifecycle.md) — the projection semantics
 - [Postgrad v4 venue](postgrad-v4-venue.md) — the event surface it must learn
-- [Live market updates (ADR 0021)](../summaries/root-adr-0021-live-market-updates.md) — the change_feed emit seam
+- [Live market updates (ADR 0021)](../summaries/root-adr-0021-live-market-updates.md) — the explicit in-transaction change-feed seam

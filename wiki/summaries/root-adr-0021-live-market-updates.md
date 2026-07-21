@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0021 — Live market updates (SSE over a change-feed outbox)
-description: Proposed standalone program to make the app feel live — server-signalled, client-refetched updates over SSE, fed by a durable change_feed outbox written atomically with each indexed event; DB/REST stays the single source of truth, no message broker.
+description: Proposed live-update program — SSE invalidations over a transactional semantic outbox, with subscribe-then-refetch correctness, best-effort cursors, and mandatory age-based retention.
 sources:
   - docs/adr/0021-live-market-updates.md
-updated: 2026-07-17
+updated: 2026-07-21
 ---
 
 # Repo ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
@@ -42,27 +42,32 @@ of truth; the socket carries a small signal, not the data. Four axes:
   streaming everywhere (verified terminals research: justified only at their
   thousands-of-ticks/sec cadence, not ours).
 - **Transport — SSE on the long-running Bun/Elysia API.** Server→client only
-  (trades already POST), so SSE's free auto-reconnect + `Last-Event-ID` resume +
-  sequence ids beat WebSocket. Not hosted on Vercel (functions force-close at the
-  duration cap). WebSocket kept in reserve for a future bidirectional need.
-- **Emit point — a `change_feed` outbox table**, written in the *same
-  transaction* as each change by a generic trigger — `AFTER INSERT` on the
-  append-only tables (`*_events` + `market_ai_reviews` + `market_resolutions`)
-  and `AFTER UPDATE` on the few mutable projections whose in-place transition
-  is the signal (e.g. `market_ai_review_jobs` queue state).
-  Writer-agnostic (catches the [indexer](../entities/indexer.md), the AI-review
-  runner, and the keeper), fires only on committed rows, and auto-suppresses the
-  `MarketNotIndexedError` rollback path. Rejected: in-indexer emit (can't cross
-  the indexer/API process boundary; misses non-indexer writers).
-- **Delivery guarantee — the outbox table + a per-client cursor**
-  (`Last-Event-ID`), *not* `NOTIFY`. Rejected: a message broker (SQS/Rabbit/
-  Kafka). A broker's dividends — durable fan-out to **multiple independent
-  consumers**, cross-service decoupling, throughput beyond a single-Postgres
-  tail — don't apply: there is one consumer (the SSE relay) reading one indexed
-  table, the outbox already gives durability/ordering/replay, and a broker still
-  couldn't hold the SSE connections (the API stays in the path). First upgrade if
-  ever outgrown is Redis Streams / logical-decoding CDC feeding the same relay,
-  deferred until a second consumer or a measured bottleneck exists.
+  (trades already POST), so SSE's auto-reconnect and simple streaming model beat
+  WebSocket. Not hosted on Vercel. `Last-Event-ID` is only an optimization.
+- **Emit point — an explicit in-transaction outbox write.** Every production
+  writer calls a shared `recordLiveChange(tx, change)` module (built) through the
+  same Drizzle transaction as its authoritative write; rollback suppresses both.
+  The caller names a typed `sourceTable` (a registered source — unrouted tables
+  are a compile error) and passes the routing/version columns it already holds; a
+  coverage test asserts the seams cover exactly the registry. This replaced PR
+  #249's generic capture trigger, keeping live-feed logic in visible TypeScript
+  and dropping the second schema installer. The larger `kind`/`owners[]`/`payload`
+  redesign was trimmed as premature — a two-party transfer records one row per
+  owner, and a data-in-message payload column arrives only with the chart slice.
+- **Delivery guarantee — subscribe first, then refetch authoritative REST state
+  on every connect/reconnect.** A `bigserial` cursor is not commit order and
+  cannot guarantee exact replay. Incremental payloads use their domain sequence
+  and snapshot-refetch on reconnect/gap. A broker and raw `NOTIFY` remain
+  rejected for the original reasons.
+
+## PR #249 architecture correction
+
+Two checked-in regression tests demonstrate the failure: transaction A can
+reserve a lower sequence id, transaction B can commit a higher id and advance
+the browser cursor, then A can commit below that cursor. Both the authoritative
+event and outbox row exist, but `WHERE id > Last-Event-ID` cannot recover the
+late row. The relay lookback only helps a currently connected client. This is a
+missed invalidation, **not loss of indexed blockchain data**.
 
 ### Why the outbox, not raw NOTIFY
 
@@ -79,25 +84,25 @@ correctness because the table is the source of truth.
 
 ### The change_feed table
 
-`change_feed(id bigserial pk /* == Last-Event-ID */, created_at, source_table,
-row_id, chain_id, market_id, owner, block_number, log_index)`. Trigger writes one
-row atomically with the event; the relay tails `WHERE id > cursor`, maps
-`source_table → channel + React Query key` **in TypeScript** (trigger stays
-dumb); reconnect replays `WHERE id > Last-Event-ID`; retention ~24–48h
-(prune/partition, longer-offline clients cold-refetch). The Postgres
-sequence-visibility gap is handled explicitly (small lookback re-read + client
-dedup by id).
+Shape (as built): `change_feed(id bigserial pk, created_at, source_table, op,
+row_id, chain_id, market_id, owner, block_number, log_index)`. The id is a
+scan/dedup cursor, not a commit-order guarantee. Each write seam records one row
+atomically with authoritative state; the relay routes it via
+`CHANGE_FEED_SOURCES[source_table]`.
 
-**Mapping & completeness.** Route by *entity*, not by component: every row
-carries `market_id`/`owner`, so routing to `market:{id}` / `portfolio:{owner}`
-is a field read, and multi-table composition stays in the REST read (refetched
-fresh). "Did we drop something?" reduces to "is this table in the trigger set?"
-— an enumerable list plus a single TS `source_table → channel → query-key`
-registry and a coverage test (every triggered table maps to ≥1 channel; every
-page's query keys are reachable). Whole-slice refetch of authoritative state
-makes duplicate/out-of-order/replayed signals harmless (worst case: a redundant
-refetch). Deliberately does NOT trigger `markets` UPDATEs — the coupled event
-row already covers them (no double-signal).
+**Retention is part of the spine (built).** An always-on, bounded, age-based
+(~48h) prune runs with the API — not gated on SSE clients, since the indexer
+appends regardless. Delete rows by age in bounded, observable batches using the
+`created_at` index, or later drop time
+partitions. Never delete “when consumed”: browsers and API instances have
+independent cursors and there is no global acknowledgement. Reconnect refetch
+makes correctness independent of the retention horizon.
+
+**Mapping & completeness.** Route by entity, not component. Production writes
+go through persistence modules that record authoritative state and semantic live
+changes together. Contract tests cover every viewer-facing write and subscribed
+query key. This lets pool/token writers perform their lookup once and transfers
+name both owners without moving domain logic into PL/pgSQL.
 
 ### Scope boundaries
 
@@ -109,38 +114,42 @@ depth / reorg emit timing belongs to
 [ADR 0010](root-adr-0010-indexer-maturity.md); the signal-to-refetch model
 degrades gracefully on reorg (re-emit → client refetches corrected state).
 
-## Implementation slices (all open)
+## Implementation slices (slice 1 built; 2–7 open)
 
-1. Outbox + relay + SSE endpoint (server spine).
+1. Outbox + relay + SSE endpoint (server spine). **Built (PR #249).** change_feed
+   table + migration; poll-based relay + hub with lookback/dedup for the
+   sequence-visibility gap; `GET /events` SSE with best-effort `Last-Event-ID`;
+   always-on ~48h age-based pruning. Emit is an explicit `recordLiveChange(tx, …)`
+   at each write seam (no trigger), covering the market-keyed sources plus the
+   AI-review/resolution runners, with a coverage test enforcing completeness.
+   Subscribe-then-refetch is the reconnect contract; cursor replay is best-effort
+   (the two reconnect tests characterize that, not a red guarantee). Deferred
+   hardening: a txid low-watermark cursor for the below-cursor replay gap.
 2. Client transport layer (one shared `EventSource` provider, `invalidateQueries`).
 3. Pregrad live surfaces (discovery + detail prices/chart/graduation bar).
 4. Convert the three existing polls to push.
 5. Lifecycle toasts + AI-review push + clearing challenge-window countdown.
-6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, retention, optional NOTIFY.
+6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, optional partitioning beyond the mandatory bounded TTL prune, optional NOTIFY.
 7. E2E coverage (a second actor's trade moves a first actor's open page).
 
 ## Exit criteria
 
 A user on discovery, a market page, or their portfolio sees prices, graduation
-bar, order book, positions, and lifecycle transitions update in place — driven by
-other actors and chain events — without a refresh; a reconnected client recovers
-every missed update via `Last-Event-ID`; the indexer stays a pure chain→DB
+bar, order book, positions, and lifecycle transitions update in place. A
+reconnected client subscribes and refetches authoritative state, so missed or
+pruned invalidations cannot leave it stale. The indexer stays a pure chain→DB
 process with no dependency on the API.
 
 ## Consequences
 
-Postgres gains a per-event trigger write (`change_feed`) that is now part of the
-indexer's write path (atomic, must be tested). The delivery guarantee lives in
-the table, so the wake mechanism and even the transport can change later without
-touching correctness. The append-only tables become a change contract — the
-`source_table → channel` map is the one place new event types opt in. Multi-
-instance fan-out needs no new infra (each API instance tails the same table);
-Redis is deferred. The program leans on two open items elsewhere: finer-grained
-read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010).
+Postgres gains a semantic outbox write in each viewer-facing transaction, plus a
+relay tail and mandatory retention job. Correctness lives in authoritative
+refetch, so polling/NOTIFY, retention, cursor optimization, and transport remain
+replaceable. Multi-instance fan-out needs no new infra yet; Redis is deferred.
 
 ## Related pages
 
-- [../entities/indexer.md](../entities/indexer.md) — the change_feed trigger is its new (still pure) emit seam
+- [../entities/indexer.md](../entities/indexer.md) — production write modules record semantic outbox rows in the same DB transaction
 - [../entities/server-workspace.md](../entities/server-workspace.md) — hosts the relay + SSE endpoint
 - [../concepts/market-lifecycle.md](../concepts/market-lifecycle.md) — the transitions that become live; the coarse-status trap
 - [../concepts/deployment-and-infrastructure.md](../concepts/deployment-and-infrastructure.md) — where the SSE route/CORS/RDS-Proxy pieces land (M5)
