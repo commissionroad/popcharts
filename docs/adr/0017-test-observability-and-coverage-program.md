@@ -194,15 +194,22 @@ statistical flake alerting deliberately deferred in Track A. Revisit
 (noted 2026-07-15): move notifications to a project Discord once one
 exists. Cron ~09:00 UTC plus `workflow_dispatch`.
 
-Placement-rule correction from the grill: `server-ai-review-smoke` needs
-only Postgres, so it moves to Track B's per-PR integration step rather
-than running nightly.
+Placement note (corrected 2026-07-15 during C1 pre-flight): the grill
+assumed `server-ai-review-smoke` needs only Postgres and should move
+per-PR. Verification falsified that — the review runner submits a real
+on-chain approval transition (wallet client against PregradManager), so
+the smoke needs a chain and stays nightly, riding the lifecycle job's
+deployed stack via the stack-generated `server/.env.local-chain`.
 
-- [ ] C1 — `nightly-lifecycle` workflow running the three chain smokes
+- [x] C1 — `nightly-lifecycle` workflow running the three chain smokes
       (`local-smoke`, `local-market-smoke`, `devchain-e2e`) with the
       tracking-issue lifecycle and flake-report append
-- [ ] C2 — promote `server-ai-review-smoke` into `Check server`'s per-PR
-      integration step
+- [x] C2 — repair `server-ai-review-smoke` and add it to the nightly
+      lifecycle job. Found broken on main during C1 pre-flight: it
+      fabricates a synthetic market in the database, but the review
+      runner now submits a real on-chain approval transition and reverts
+      with `MarketDoesNotExist`. The repair seeds its market on-chain
+      (and rules out per-PR placement for good — it needs a chain)
 - [ ] C3 — lifecycle harness (boot once, heuristic providers, time-jump
       utilities) + service/chain scenarios, tracked scenario-by-scenario
       in ADR 0014's checklist
@@ -246,15 +253,24 @@ specifier; app uses only declared subpath exports, enforced by the
 `scripts/shared` change silently alters the shipped app bundle and server
 behavior, and those modules' coverage is attributed to no enforced figure.
 
-- [ ] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
+- [x] Move the pure-TS SDK modules from `protocol/scripts/shared/{price,market}`
       into `protocol/src/` (e.g. `src/price/`, `src/market/`); `scripts/`
-      imports from `src/`, never the reverse
-- [ ] Import-lint guard: `protocol/src/**` must not import from
-      `protocol/scripts/**` (same pattern as the indexer boundary guards)
-- [ ] `exports` map unchanged as the consumer allowlist
-- [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
+      imports from `src/`, never the reverse. The closure came to 29 files:
+      the barreled price/market modules plus their transitive deps
+      (`src/viem/` ERC20/receipt wrappers, `src/cli/requireCliValue`,
+      `src/json/jsonFile`, reached via `readCompleteSetMarketManifest`)
+- [x] Import-lint guard: `protocol/src/**` must not import from
+      `protocol/scripts/**` (`test/nodejs/sdk-surface-guard.test.ts`; also
+      pins the exports-map targets to `src/` and the subpath key set)
+- [x] `exports` map unchanged as the consumer allowlist (two targets
+      retargeted from `scripts/shared/price/` to `src/price/`; no key
+      renamed, added, or removed)
+- [x] Protocol TS coverage figure (`protocol/src/**`, excluding
       `generated/`) added to the PR comment, trend, and badges, with a
-      floor at the measured baseline
+      floor at the measured baseline (36.3%; measured 36.37% — c8 `--all`
+      over the nodejs suite, so SDK modules no test loads count as 0%,
+      which is the honest denominator this track exists to expose. The
+      low starting floor is the point: it can only ratchet up)
 
 ### Exit criteria
 

@@ -746,3 +746,142 @@ Notes: Architecture review disproved exact `bigserial`/`Last-Event-ID` replay wi
 ## [2026-07-21] ingest | repo ADR 0021 — trigger→TypeScript emit rewrite
 Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md
 Notes: Slice-1 emit reworked in review (PR #249): the generic to_jsonb(NEW) capture trigger and its ensure-script are removed in favour of an explicit `recordLiveChange(tx, change)` at each write seam (server/src/live/change-feed-writer.ts), keeping live-feed logic in visible TypeScript and dropping the second schema installer. 12 seams cover the 13 registered sources — the market-created watcher, receipt/settlement/postgrad indexer handlers, and (the writer-agnostic case) the AI-review and resolution runners; a coverage test (change-feed-coverage.test.ts) scans the seams' recorded sourceTable literals and asserts they equal the registry. Codex's larger kind/owners[]/payload semantic-outbox redesign was TRIMMED as premature: the change_feed schema is unchanged (single owner; a two-party transfer will record one row per owner; a data-in-message payload arrives only with the chart slice). Age-based (~48h) pruning moved into the spine (change-feed-retention.ts, started with the API, not gated on SSE clients). Codex's two reconnect regressions were recast — not made green by pulling hardening forward — to characterize the actual contract: Last-Event-ID replay is best-effort, correctness is subscribe-then-refetch on reconnect; a txid low-watermark cursor to close the below-cursor replay gap is deferred hardening. 414 server tests pass. Slice-1 checkbox flipped back to done. Follow-up (pre-existing, not from this change): the change-feed-service relay singleton leaks its poll interval across test files (noisy "relay poll failed: relation change_feed does not exist" when it polls a torn-down pglite DB) — worth resetting the singleton between test files.
+## [2026-07-17] ingest | repo ADR 0020 — phases 2–4 landed
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: All build phases of ADR 0020 landed 2026-07-17 (PRs #242, #247, #248):
+control-plane slot wiring (resolveAndRegisterStack), identity-scoped chain
+reuse (classifyChainPortOwnership), database-scoped reset, and stack-aware
+local-create-market (resolveTargetStack + "which stack?" prompt). Remaining
+open: applying the target resolver to sibling scripts (local-bot-trade,
+local-deploy-venue, postgrad helpers) — tracked as ADR follow-up. Env-seams
+note in the concept page updated to per-slot env files.
+## [2026-07-15] ingest | repo ADR 0017 — C2 premise correction (ai-review smoke needs a chain)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: The Track C grill note that server-ai-review-smoke "needs only
+Postgres -> per-PR" was falsified during C1 pre-flight: chain-review.ts
+requires PREGRAD_MANAGER_ADDRESS and submits the approval transition
+on-chain. Worse: the smoke is broken on main — it fabricates a synthetic
+market the chain doesn't have, so the transition reverts with
+MarketDoesNotExist. C2 reframed: repair the smoke to seed its market
+on-chain, then add it to the nightly job. Local-dev gotcha
+found on the way: a dev-stack ai-review server on :3012 makes the smoke's
+in-process service fail confusingly; the job error lands in
+market_ai_review_jobs.last_error, which the smoke doesn't print.
+
+## [2026-07-20] ingest | repo ADR 0017 — C1 landed; first nightly catch
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox state only)
+Notes: nightly-lifecycle live (PRs #251 + spec fix). Its FIRST dispatched
+run caught a real rotted spec: the @chain Playwright test asserted
+"On-chain created", copy the success-panel redesign removed — the spec ran
+nowhere in CI, exactly the gap Track C closes. Tracking-issue loop
+verified live (auto-filed #253). Spec now asserts the mode eyebrow
+(Wallet-signed|Devchain relay) with 30s tx headroom; e2e failure
+artifacts uploaded on red.
+
+## [2026-07-20] ingest | repo ADR 0017 — C2 landed (real-market ai-review smoke)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox only)
+Notes: the ai-review smoke no longer fabricates DB rows. New root
+orchestrator scripts/local-ai-review-smoke.ts creates a fresh on-chain
+market via the protocol helper and pins it to the server smoke by env; the
+smoke adopts it once indexed, heuristic-reviews it, submits the real
+approveMarket transaction, and asserts the bootstrap transition. Legacy
+fabricated rows (creator 0x...01) are swept so long-lived local DBs
+self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
+trade -> resolve -> review).
+
+## [2026-07-17] ingest | repo ADR 0020 — Phase 5 (sibling scripts) landed
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: The deferred sibling-targeting-scripts follow-up landed (#260): a single
+scripts/with-target-stack.ts launcher resolves the target stack and exports the
+env superset the cross-workspace bun/hardhat scripts read (local:bot-trade,
+deploy-venue/-postgrad, market-health/-smoke). promptForStack extracted to a
+shared module. Same-worktree scope; cross-slot deploy from one checkout still
+wants the deferred per-slot chainId (hardhat ignition state keyed by chainEnv).
+
+## [2026-07-20] ingest | protocol ADR 0012 — singleton postgrad position book (proposed)
+Pages: +summaries/protocol-adr-0012-singleton-postgrad-position-book.md,
+~concepts/complete-sets.md, ~entities/postgrad-market.md,
+~entities/postgrad-adapter.md, ~entities/indexer.md, ~index.md
+Notes: This is the "later ADR" ADR 0008 promised for mainnet tokenization.
+Status Proposed — under user review; entity pages phrase the book as
+conditional ("would absorb") until accepted. Watch for two collisions when
+it lands: the designkit's stale "CTF YES/NO tokens" language (already
+flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
+which shrink in scope if dynamic postgrad addresses become bounded.
+
+## [2026-07-20] ingest | protocol ADR 0012 — Codex design-review hardening (same PR)
+Pages: ~summaries/protocol-adr-0012-singleton-postgrad-position-book.md
+Notes: Independent design review surfaced 9 findings, all folded into the
+ADR pre-review: terminal retained-claim liabilities (stranding hazard),
+global collateral-conservation invariant, cancelled-draw invariant case,
+per-side resolution gates, wrapper ERC1155-receiver validation, terminal-
+market venue exit path, honest (narrowed) indexing claims, wrapper-
+registration discovery event, and outcome decimals promoted to a BLOCKING
+pre-acceptance question (v4 dust vs. exact-or-revert redemption).
+
+## [2026-07-20] ingest | repo ADR 0017 — Track G move + guard executed
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
+Notes: Three of four Track G boxes ticked. The SDK closure turned out to be
+29 files, not just price/market: readCompleteSetMarketManifest transitively
+pulls cli/requireCliValue and json/jsonFile, and the arb/backstop helpers
+pull three shared/viem wrappers — all now under protocol/src. Boundary
+enforced by test/nodejs/sdk-surface-guard.test.ts (direction + exports-map
+targets + pinned subpath key set). Remaining G work: protocol TS coverage
+figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
+contracts-only).
+
+## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
+Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
+delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
+deploy, Postgres, API, indexer, keeper, heuristic AI review + resolution
+pairs) handing off to `server/src/lifecycle-nightly/` (sequential scenarios,
+forward-only chain-time jumps, market-scoped assertions, two-way chain<->DB
+money paper-trail reconciliation). One ADR wording amendment: receipt volume
+comes from deterministic balanced buys reusing the trading bot's receipt
+mechanics, not the interactive bot script. Unhappy-path scenarios and infra
+drills remain open (next C3 slices).
+
+## [2026-07-21] ingest | repo ADR 0017 — Track G complete (protocol TS coverage figure)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md
+Notes: Final G checkbox ticked. Fourth coverage figure Protocol (TS): c8
+--all over `hardhat test nodejs`, scoped src/** minus generated/, shipped
+as lcov-ts.info inside the existing protocol-coverage artifact; registry
+gained lcovFile + workspacesForWorkflow (one workflow, many figures);
+observability workflow loops pairs with comment-body chaining (no upsert
+races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
+only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
+progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
+lacks CDK assertion tests.
+
+## [2026-07-21] ingest | protocol postgrad contract metadata — generated third-party venue ABIs
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: export-contract-metadata.ts now also emits src/generated/third-party/venue.ts
+(compiled poolManagerAbi/stateViewAbi/v4QuoterAbi from the vendored v4 packages,
+new `./third-party/venue` package subpath). All hand-written fragments for those
+contracts across protocol/server/app were replaced with the generated ABIs;
+fragments remain only for contracts outside the Hardhat build (the canonical
+transfer-approval singleton).
+
+## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
+Notes: Rejection, manual review, failed graduation, and draw/cancel are
+ticked; partial clearing and the infra drills remain the last open C3
+boxes. Mechanism notes captured in the summary: rejection reasons are
+served via the market API's aiReview payload; the manual_review verdict
+transitions nothing and the operator lever is a keyed approveMarket (the
+admin endpoint only re-queues reviews); failed graduation settles through
+the keeper sweep's markRefundable; the resolution runner parks draws
+(cancel_draw maps to no chain action) and the operator cancels with the
+resolver key, after which both legs redeem at half value.
+
+## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: the ADR's resource table gained an indexer-health-marker row
+(`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
+shared fixed path after the phased build: local-dev, lifecycle-nightly,
+the control-plane probe, and local-chain-smoke all rm'd/polled one file,
+so concurrent stacks could clear each other's marker or pass readiness
+against the wrong slot's indexer. Now derived per slot via
+StackPorts.indexerHealthFilePath; the smoke dropped its separate
+`.env.local-chain.indexer-health` name.

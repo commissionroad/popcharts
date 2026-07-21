@@ -6,17 +6,21 @@ import { type Address, type Hex, type PublicClient } from "viem";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { requireAddress, requireNonNegativeInteger } from "./shared/cli/requireCliValue.js";
+import { requireAddress, requireNonNegativeInteger } from "../src/cli/requireCliValue.js";
+import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import { deployCompleteSetPostgradContracts } from "./shared/deployment/deployCompleteSetPostgrad.js";
+import { hasBytecode } from "./shared/deployment/deterministicFactory.js";
+import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
+import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
 import {
-  collectVenueAddressEntries,
   formatVenueContractEntry,
   normalizeVenueContractEntries,
   type VenueManifestContractEntry,
 } from "./shared/deployment/venueManifest.js";
-import { VENUE_STACK_DEPLOYMENT } from "./shared/deployment/venueStack.js";
-import { readJsonFile, writeJsonFile } from "./shared/json/jsonFile.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 // Complete-set outcome tokens default to 18 decimals, matching the local v4
@@ -70,13 +74,22 @@ async function main() {
     rpcUrl: config.rpcUrl,
   });
 
-  const venueAddresses = await readVenueStackAddresses({
-    chainId,
+  // The postgrad venue is meaningless without the v4 stack, so fail with a
+  // pointer to the venue deploy instead of broadcasting partial state.
+  const venueAddresses = await readManifestAddresses({
+    deployHint: VENUE_STACK_DEPLOYMENT.deployHint,
+    expectedChainId: chainId,
+    kind: "venue",
+    manifestFile: config.venueDeploymentFile,
+    names: ["deterministicFactory", "poolManager", "transferApproval"],
     protocolRoot: hre.config.paths.root,
-    venueDeploymentFile: config.venueDeploymentFile,
   });
-  await assertBytecode(publicClient, "poolManager", venueAddresses.poolManager);
-  await assertBytecode(publicClient, "deterministicFactory", venueAddresses.deterministicFactory);
+  await assertDeployedBytecode(publicClient, "poolManager", venueAddresses.poolManager);
+  await assertDeployedBytecode(
+    publicClient,
+    "deterministicFactory",
+    venueAddresses.deterministicFactory,
+  );
   const pregradManagerAddress = await resolvePregradManagerAddress({
     chainId,
     env: process.env,
@@ -143,11 +156,11 @@ await main();
  */
 function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
   return {
-    deploymentFile: resolve(
-      hre.config.paths.root,
-      env.POPCHARTS_POSTGRAD_DEPLOYMENT_FILE ||
-        `deployments/${profile.chainEnv}.postgrad.local.json`,
-    ),
+    deploymentFile: resolveDeploymentManifestFile(POSTGRAD_VENUE_DEPLOYMENT, {
+      chainEnv: profile.chainEnv,
+      env,
+      protocolRoot: hre.config.paths.root,
+    }),
     outcomeDecimals: requireNonNegativeInteger(
       env.POPCHARTS_OUTCOME_DECIMALS ?? DEFAULT_OUTCOME_DECIMALS,
       "POPCHARTS_OUTCOME_DECIMALS",
@@ -157,53 +170,11 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
         ? undefined
         : requireAddress(env.POPCHARTS_POSTGRAD_RESOLVER, "POPCHARTS_POSTGRAD_RESOLVER"),
     rpcUrl: env.POPCHARTS_RPC_URL || profile.defaultRpcUrl,
-    venueDeploymentFile: resolve(
-      hre.config.paths.root,
-      env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
-        VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(profile.chainEnv),
-    ),
-  };
-}
-
-// The postgrad venue is meaningless without the v4 stack, so fail with a
-// pointer to the venue deploy instead of broadcasting partial state.
-async function readVenueStackAddresses({
-  chainId,
-  protocolRoot,
-  venueDeploymentFile,
-}: {
-  chainId: number;
-  protocolRoot: string;
-  venueDeploymentFile: string;
-}): Promise<{
-  deterministicFactory: Address;
-  poolManager: Address;
-  transferApproval: Address;
-}> {
-  const manifestPath = relative(protocolRoot, venueDeploymentFile);
-  let manifest: unknown;
-  try {
-    manifest = await readJsonFile(venueDeploymentFile);
-  } catch {
-    throw new Error(
-      `Could not read venue manifest ${manifestPath}. Run the venue-stack deploy first ` +
-        "(pnpm local:deploy-venue or pnpm arc:testnet:deploy-venue).",
-    );
-  }
-
-  const manifestChainId = readManifestField(manifest, "chainId");
-  if (manifestChainId !== chainId) {
-    throw new Error(
-      `Venue manifest ${manifestPath} is for chain ${String(manifestChainId)}, ` +
-        `but the connected chain is ${chainId}.`,
-    );
-  }
-
-  const entries = collectVenueAddressEntries(manifest);
-  return {
-    deterministicFactory: requireManifestAddress(entries, "deterministicFactory", manifestPath),
-    poolManager: requireManifestAddress(entries, "poolManager", manifestPath),
-    transferApproval: requireManifestAddress(entries, "transferApproval", manifestPath),
+    venueDeploymentFile: resolveDeploymentManifestFile(VENUE_STACK_DEPLOYMENT, {
+      chainEnv: profile.chainEnv,
+      env,
+      protocolRoot: hre.config.paths.root,
+    }),
   };
 }
 
@@ -220,76 +191,28 @@ async function resolvePregradManagerAddress({
   protocolRoot: string;
   publicClient: PublicClient;
 }): Promise<Address> {
-  let pregradManagerAddress: Address | undefined;
+  let pregradManagerAddress: Address;
   if (env.POPCHARTS_PREGRAD_MANAGER_ADDRESS !== undefined) {
     pregradManagerAddress = requireAddress(
       env.POPCHARTS_PREGRAD_MANAGER_ADDRESS,
       "POPCHARTS_PREGRAD_MANAGER_ADDRESS",
     );
   } else {
-    const protocolDeploymentFile = resolve(
+    ({ pregradManager: pregradManagerAddress } = await readManifestAddresses({
+      deployHint: "Set POPCHARTS_PREGRAD_MANAGER_ADDRESS or provide a protocol manifest.",
+      expectedChainId: chainId,
+      kind: "protocol",
+      manifestFile: resolve(
+        protocolRoot,
+        env[ARC_PROTOCOL_DEPLOYMENT.deploymentFileEnvVar] ||
+          ARC_PROTOCOL_DEPLOYMENT.defaultDeploymentFile,
+      ),
+      mismatchHint: "Set POPCHARTS_PREGRAD_MANAGER_ADDRESS instead.",
+      names: ["pregradManager"],
       protocolRoot,
-      env.POPCHARTS_PROTOCOL_DEPLOYMENT_FILE || ARC_PROTOCOL_DEPLOYMENT.defaultDeploymentFile,
-    );
-    let manifest: unknown;
-    try {
-      manifest = await readJsonFile(protocolDeploymentFile);
-    } catch {
-      throw new Error(
-        "No pregrad manager configured. Set POPCHARTS_PREGRAD_MANAGER_ADDRESS or provide a " +
-          `protocol manifest at ${relative(protocolRoot, protocolDeploymentFile)}.`,
-      );
-    }
-
-    const manifestChainId = readManifestField(manifest, "chainId");
-    if (manifestChainId !== chainId) {
-      throw new Error(
-        `Protocol manifest ${relative(protocolRoot, protocolDeploymentFile)} is for chain ` +
-          `${String(manifestChainId)}, but the connected chain is ${chainId}. ` +
-          "Set POPCHARTS_PREGRAD_MANAGER_ADDRESS instead.",
-      );
-    }
-    pregradManagerAddress = requireManifestAddress(
-      collectVenueAddressEntries(manifest),
-      "pregradManager",
-      relative(protocolRoot, protocolDeploymentFile),
-    );
+    }));
   }
 
-  await assertBytecode(publicClient, "pregradManager", pregradManagerAddress);
+  await assertDeployedBytecode(publicClient, "pregradManager", pregradManagerAddress);
   return pregradManagerAddress;
-}
-
-function requireManifestAddress(
-  entries: readonly { address: Address; name: string }[],
-  name: string,
-  manifestPath: string,
-): Address {
-  const entry = entries.find((candidate) => candidate.name === name);
-  if (entry === undefined) {
-    throw new Error(`Manifest ${manifestPath} has no ${name} address entry.`);
-  }
-  return entry.address;
-}
-
-function readManifestField(manifest: unknown, field: string): unknown {
-  if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
-    return undefined;
-  }
-  return (manifest as Record<string, unknown>)[field];
-}
-
-async function assertBytecode(
-  publicClient: PublicClient,
-  name: string,
-  address: Address,
-): Promise<void> {
-  if (!(await hasBytecode(publicClient, address))) {
-    throw new Error(`${name} has no deployed bytecode at ${address}.`);
-  }
-}
-
-async function hasBytecode(publicClient: PublicClient, address: Address): Promise<boolean> {
-  const bytecode = await publicClient.getCode({ address });
-  return bytecode !== undefined && bytecode !== "0x";
 }

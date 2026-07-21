@@ -2,12 +2,13 @@ import { relative, resolve } from "node:path";
 
 import { createPublicClient, http, type Hex } from "viem";
 
-import { requirePositiveInteger, requireString } from "./shared/cli/requireCliValue.js";
+import { requirePositiveInteger, requireString } from "../src/cli/requireCliValue.js";
 import {
   collectVenueAddressEntries,
   DEFAULT_VENUE_DEPLOYMENT_FILE,
 } from "./shared/deployment/venueManifest.js";
-import { readJsonFile } from "./shared/json/jsonFile.js";
+import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
+import { readJsonFile } from "../src/json/jsonFile.js";
 
 export type CheckVenueDeploymentConfig = {
   readonly deploymentFile?: string;
@@ -25,7 +26,7 @@ export async function checkVenueDeployment(config: CheckVenueDeploymentConfig): 
   const deploymentFile = resolve(
     config.protocolRoot,
     config.deploymentFile ||
-      config.env.POPCHARTS_VENUE_DEPLOYMENT_FILE ||
+      config.env[VENUE_STACK_DEPLOYMENT.deploymentFileEnvVar] ||
       DEFAULT_VENUE_DEPLOYMENT_FILE,
   );
   const manifest = await readJsonFile(deploymentFile);

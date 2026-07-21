@@ -10,61 +10,25 @@ import {
 } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
-import { COMPLETE_SET_PRICE_POLICY } from "../price/completeSetPricePolicy.js";
-import { deriveEpsilonBoundTicks } from "../price/deriveEpsilonBoundTicks.js";
-import { displayPriceWadToSqrtPriceX96 } from "../price/displayPriceWadToSqrtPriceX96.js";
-import { sqrtPriceX96ToTick } from "../price/sqrtPriceX96ToTick.js";
-
-// Minimal ABIs for the vendored v4 venue contracts this flow touches; the
-// local Pop Charts contracts use typed Hardhat artifacts instead.
-const POOL_KEY_ABI_COMPONENTS = [
-  { name: "currency0", type: "address" },
-  { name: "currency1", type: "address" },
-  { name: "fee", type: "uint24" },
-  { name: "tickSpacing", type: "int24" },
-  { name: "hooks", type: "address" },
-] as const;
-
-const POOL_MANAGER_ABI = [
-  {
-    inputs: [
-      { components: POOL_KEY_ABI_COMPONENTS, name: "key", type: "tuple" },
-      { name: "sqrtPriceX96", type: "uint160" },
-    ],
-    name: "initialize",
-    outputs: [{ name: "tick", type: "int24" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const STATE_VIEW_ABI = [
-  {
-    inputs: [{ name: "poolId", type: "bytes32" }],
-    name: "getSlot0",
-    outputs: [
-      { name: "sqrtPriceX96", type: "uint160" },
-      { name: "tick", type: "int24" },
-      { name: "protocolFee", type: "uint24" },
-      { name: "lpFee", type: "uint24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { poolManagerAbi, stateViewAbi } from "../../../src/generated/third-party/venue.js";
+import { COMPLETE_SET_PRICE_POLICY } from "../../../src/price/completeSetPricePolicy.js";
+import { deriveEpsilonBoundTicks } from "../../../src/price/deriveEpsilonBoundTicks.js";
+import { displayPriceWadToSqrtPriceX96 } from "../../../src/price/displayPriceWadToSqrtPriceX96.js";
+import { sqrtPriceX96ToTick } from "../../../src/price/sqrtPriceX96ToTick.js";
 
 type LocalNetworkConnection = Awaited<ReturnType<typeof network.create>>;
 
 type MarketDeployWalletClient = {
   sendTransaction(parameters: { data: Hex }): Promise<Hex>;
   writeContract(parameters: {
-    abi: typeof POOL_MANAGER_ABI;
+    abi: typeof poolManagerAbi;
     address: Address;
     args: readonly [PoolKeyStruct, bigint];
     functionName: "initialize";
   }): Promise<Hex>;
 };
 
+/** A v4 pool key struct with currencies pre-sorted by address, as the pool manager requires. */
 export type PoolKeyStruct = {
   readonly currency0: Address;
   readonly currency1: Address;
@@ -73,6 +37,11 @@ export type PoolKeyStruct = {
   readonly hooks: Address;
 };
 
+/**
+ * Everything the deploy manifest records about one configured outcome pool:
+ * identity, opening price state, tick bounds, and the transactions that
+ * produced them — each value read back on-chain before being recorded.
+ */
 export type MarketPoolManifestEntry = {
   readonly boundLowerTick: number;
   readonly boundUpperTick: number;
@@ -90,6 +59,7 @@ export type MarketPoolManifestEntry = {
   };
 };
 
+/** Addresses and deploy transaction of one freshly deployed complete-set market. */
 export type CompleteSetBinaryMarketDeployment = {
   marketAddress: Address;
   marketDeployHash: Hex;
@@ -239,14 +209,14 @@ export async function configureOutcomePool({
     displayPriceWad: openingDisplayPriceWad,
   });
   const initializeHash = await walletClient.writeContract({
-    abi: POOL_MANAGER_ABI,
+    abi: poolManagerAbi,
     address: venue.poolManager,
     args: [poolKey, sqrtPriceX96],
     functionName: "initialize",
   });
   await publicClient.waitForTransactionReceipt({ hash: initializeHash });
   const [poolSqrtPriceX96, poolTick] = await publicClient.readContract({
-    abi: STATE_VIEW_ABI,
+    abi: stateViewAbi,
     address: venue.stateView,
     args: [poolId],
     functionName: "getSlot0",

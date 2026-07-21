@@ -1,17 +1,96 @@
 {
-  "id": "94fc605d-073e-42f0-bc90-e82a1938288b",
+  "id": "1902b185-ceab-417b-b46c-744e509481f9",
   "prevId": "dfd8d2cb-dc60-4d62-9fbc-2252b6c33fda",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.change_feed": {
-      "name": "change_feed",
+    "public.complete_set_events": {
+      "name": "complete_set_events",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
-          "type": "bigserial",
+          "type": "serial",
           "primaryKey": true,
+          "notNull": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_number": {
+          "name": "block_number",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_timestamp": {
+          "name": "block_timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "market_id": {
+          "name": "market_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "postgrad_market": {
+          "name": "postgrad_market",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "complete_set_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account": {
+          "name": "account",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient": {
+          "name": "recipient",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "collateral_amount": {
+          "name": "collateral_amount",
+          "type": "numeric(78, 0)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome_amount": {
+          "name": "outcome_amount",
+          "type": "numeric(78, 0)",
+          "primaryKey": false,
           "notNull": true
         },
         "created_at": {
@@ -20,62 +99,47 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "source_table": {
-          "name": "source_table",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "op": {
-          "name": "op",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "row_id": {
-          "name": "row_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "owner": {
-          "name": "owner",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "block_number": {
-          "name": "block_number",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "log_index": {
-          "name": "log_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "change_feed_created_at_idx": {
-          "name": "change_feed_created_at_idx",
+        "complete_set_events_chain_tx_log_idx": {
+          "name": "complete_set_events_chain_tx_log_idx",
           "columns": [
             {
-              "expression": "created_at",
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "transaction_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "log_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "complete_set_events_chain_market_idx": {
+          "name": "complete_set_events_chain_market_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "market_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -87,7 +151,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "complete_set_events_contract_id_contracts_id_fk": {
+          "name": "complete_set_events_contract_id_contracts_id_fk",
+          "tableFrom": "complete_set_events",
+          "tableTo": "contracts",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -4198,6 +4276,14 @@
     }
   },
   "enums": {
+    "public.complete_set_kind": {
+      "name": "complete_set_kind",
+      "schema": "public",
+      "values": [
+        "minted",
+        "merged"
+      ]
+    },
     "public.ai_review_job_status": {
       "name": "ai_review_job_status",
       "schema": "public",

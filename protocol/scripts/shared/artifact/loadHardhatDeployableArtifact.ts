@@ -1,7 +1,7 @@
 import type { Abi, Hex } from "viem";
 
 import { isPlainJsonObject } from "../json/isPlainJsonObject.js";
-import { readJsonFile } from "../json/jsonFile.js";
+import { readJsonFile } from "../../../src/json/jsonFile.js";
 
 /**
  * The subset of a Hardhat contract artifact that deployment and verification

@@ -1,8 +1,9 @@
 import {
+  completeSetBinaryMarketAbi,
   contractSideToMarketSide,
   marketSideToContractSide,
 } from "@popcharts/protocol";
-import { parseAbi, type Hash } from "viem";
+import { type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type {
@@ -19,7 +20,7 @@ import {
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
-import { readDevPrivateKey } from "./local-dev-chain";
+import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import {
   selectMarketResolution,
@@ -29,12 +30,6 @@ import {
 
 const POSTGRAD_MARKET_STATUS_TRADING = 0;
 const POSTGRAD_MARKET_STATUS_RESOLVED = 1;
-
-export const POSTGRAD_DEV_RESOLVE_ABI = parseAbi([
-  "function status() view returns (uint8)",
-  "function winningSide() view returns (uint8)",
-  "function resolve(uint8 side)",
-]);
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
@@ -362,14 +357,14 @@ async function resolveLocalPostgradMarketOnChain(
 ): Promise<ChainResolveResult> {
   const publicClient = createReadOnlyClient();
   const status = (await publicClient.readContract({
-    abi: POSTGRAD_DEV_RESOLVE_ABI,
+    abi: completeSetBinaryMarketAbi,
     address: postgradMarket,
     functionName: "status",
   })) as number;
 
   if (status === POSTGRAD_MARKET_STATUS_RESOLVED) {
     const winningSide = (await publicClient.readContract({
-      abi: POSTGRAD_DEV_RESOLVE_ABI,
+      abi: completeSetBinaryMarketAbi,
       address: postgradMarket,
       functionName: "winningSide",
     })) as number;
@@ -388,10 +383,20 @@ async function resolveLocalPostgradMarketOnChain(
     };
   }
 
+  // The contract's per-outcome floor guard (TooEarlyToResolve) is real even
+  // on a dev chain; a dev resolution jumps local chain time to the resolved
+  // side's gate instead of asking the caller to wait days of wall clock.
+  const notBefore = (await publicClient.readContract({
+    abi: completeSetBinaryMarketAbi,
+    address: postgradMarket,
+    functionName: side === "yes" ? "yesNotBefore" : "noNotBefore",
+  })) as bigint;
+  await fastForwardLocalRpc(publicClient, notBefore);
+
   const account = privateKeyToAccount(readDevPrivateKey());
   const walletClient = createWalletClient(account);
   const transactionHash = await walletClient.writeContract({
-    abi: POSTGRAD_DEV_RESOLVE_ABI,
+    abi: completeSetBinaryMarketAbi,
     address: postgradMarket,
     functionName: "resolve",
     args: [marketSideToContractSide(side)],

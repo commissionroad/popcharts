@@ -1,0 +1,305 @@
+name: Nightly Lifecycle
+
+# ADR 0017 Track C: the full-fidelity market-lifecycle tier. Runs the real
+# stack (devchain, Postgres, API, indexer, heuristic AI services) nightly —
+# these paths need a chain, so per the placement rule they cannot gate PRs.
+# Failures auto-file/refresh the tracking issue below; the next green run
+# closes it. ADR 0014 holds the scenario checklist this tier delivers.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly-lifecycle
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  BUN_VERSION: "1.3.14"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.33.0"
+
+jobs:
+  # local-smoke deploys the whole protocol and boots Postgres/API/indexer,
+  # then market-smoke reuses that live stack (maker order, taker swap,
+  # complete-set arb, resolution) — it cannot self-orchestrate a chain.
+  lifecycle-smoke:
+    name: Chain smoke (deploy, index, trade, resolve)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      # --keep-running never exits by design (it parks on an unresolved
+      # promise), so the smoke runs in the background and the step polls
+      # for its readiness line — printed only after the created market is
+      # served by the API — before handing the live stack to market-smoke.
+      - name: Chain smoke sequence (create → index → trade → resolve → review)
+        run: |
+          set -euo pipefail
+          pnpm local:smoke -- --keep-running > smoke.log 2>&1 &
+          smoke_pid=$!
+          for i in $(seq 1 120); do
+            if grep -q "Keeping Hardhat, API, and indexer running" smoke.log; then
+              break
+            fi
+            if ! kill -0 "$smoke_pid" 2>/dev/null; then
+              echo "local:smoke exited before readiness:"
+              tail -80 smoke.log
+              exit 1
+            fi
+            if [ "$i" = "120" ]; then
+              echo "timed out waiting for stack readiness"
+              tail -80 smoke.log
+              exit 1
+            fi
+            sleep 5
+          done
+          pnpm local:market-smoke
+          pnpm local:ai-review-smoke
+          kill -TERM "$smoke_pid" 2>/dev/null || true
+          wait "$smoke_pid" 2>/dev/null || true
+
+      - name: Upload smoke log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-smoke-log
+          path: smoke.log
+          retention-days: 14
+
+  # ADR 0017 item C3: boots its own full stack (chain, contracts, Postgres,
+  # API, indexer, keeper, heuristic AI review + resolution) and drives the
+  # ADR 0014 lifecycle scenarios through it, ending each path with the money
+  # paper-trail assertion.
+  lifecycle-scenarios:
+    name: Lifecycle scenarios (harness, paper trail)
+    runs-on: ubuntu-latest
+    # Must exceed install/boot plus the suite's own hard deadline (40 min in
+    # run.ts): the second runner-dependent scenario waits out its resolution
+    # window PLUS the permanent chain-clock offset earlier jumps left behind.
+    timeout-minutes: 55
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Run lifecycle scenarios
+        # pipefail so tee cannot swallow the runner's exit code.
+        run: |
+          set -euo pipefail
+          pnpm local:lifecycle-nightly 2>&1 | tee lifecycle-scenarios.log
+
+      - name: Upload scenario log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-lifecycle-scenarios-log
+          path: lifecycle-scenarios.log
+          retention-days: 14
+
+  # Self-orchestrates its own stack plus the Next app and runs the
+  # chain-backed Playwright spec.
+  chain-e2e:
+    name: Chain-backed app e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browser
+        working-directory: app
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run chain-backed e2e
+        run: pnpm devchain:e2e
+
+      # Traces/screenshots are the only way to diagnose a red that doesn't
+      # reproduce locally.
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-results
+          path: |
+            app/test-results/
+            app/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Boots the full stack (chain, Postgres, API, indexer) via
+  # local:smoke --keep-running plus the Next app, then walks markets into
+  # the resolved and draw-cancelled terminal states and redeems through the
+  # browser with the injected test wallet (ADR 0018 slice 6).
+  terminal-e2e:
+    name: Terminal-state app e2e (resolve/cancel → redeem)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browser
+        working-directory: app
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run terminal-state lifecycle e2e
+        run: pnpm lifecycle:e2e
+
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-terminal-e2e-results
+          path: |
+            app/test-results/
+            app/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # One tracking issue, refreshed while red, closed on the next green run.
+  report:
+    name: Update tracking issue
+    needs: [lifecycle-smoke, lifecycle-scenarios, chain-e2e, terminal-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: File, refresh, or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SMOKE_RESULT: ${{ needs.lifecycle-smoke.result }}
+          SCENARIOS_RESULT: ${{ needs.lifecycle-scenarios.result }}
+          E2E_RESULT: ${{ needs.chain-e2e.result }}
+          TERMINAL_RESULT: ${{ needs.terminal-e2e.result }}
+        run: |
+          set -euo pipefail
+          title="Nightly lifecycle run is red"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" \
+            --state open --search "in:title \"$title\"" \
+            --json number --jq '.[0].number // empty')
+
+          if [ "$SMOKE_RESULT" = "success" ] && [ "$SCENARIOS_RESULT" = "success" ] && [ "$E2E_RESULT" = "success" ] && [ "$TERMINAL_RESULT" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$GITHUB_REPOSITORY" \
+                --comment "Green again: $RUN_URL"
+            fi
+            exit 0
+          fi
+
+          body="Last red run: $RUN_URL
+          - Chain smoke (deploy, index, trade, resolve): $SMOKE_RESULT
+          - Lifecycle scenarios (harness, paper trail): $SCENARIOS_RESULT
+          - Chain-backed app e2e: $E2E_RESULT
+          - Terminal-state app e2e (resolve/cancel → redeem): $TERMINAL_RESULT
+
+          Auto-filed by the Nightly Lifecycle workflow (ADR 0017 Track C); closes itself on the next green run."
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

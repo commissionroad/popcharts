@@ -1,9 +1,11 @@
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../../../src/chain/localDevchain.js";
+
 /**
  * Shared local devchain metadata for deployment scripts targeting `pnpm devchain:node`.
  */
 export const LOCAL_DEVCHAIN = {
   chainEnv: "local",
-  chainId: 31_337,
+  chainId: LOCAL_DEVCHAIN_CHAIN_ID,
   name: "Local Devchain",
   nativeCurrency: {
     decimals: 18,

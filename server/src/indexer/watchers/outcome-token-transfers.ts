@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { outcomeTokenAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import {
@@ -26,9 +27,10 @@ import { createDynamicAddressWatcher } from "src/indexer/watchers/dynamic-addres
  * cursor discipline live in the shared dynamic-address scaffolding.
  */
 
-const TRANSFER_EVENT = parseAbiItem(
-  "event Transfer(address indexed from, address indexed to, uint256 value)",
-);
+const TRANSFER_EVENT = getAbiItem({
+  abi: outcomeTokenAbi,
+  name: "Transfer",
+});
 const LABEL = "OutcomeTokenTransfer";
 
 const watcher = createDynamicAddressWatcher({

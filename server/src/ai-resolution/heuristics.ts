@@ -1,4 +1,8 @@
-import type { MarketResolutionMetadata, ResolutionFinding } from "./types";
+import type {
+  MarketResolutionMetadata,
+  ResolutionFinding,
+  ResolutionOutcome,
+} from "./types";
 
 /**
  * Deterministic offline resolution used for local development, tests, and the
@@ -9,6 +13,15 @@ import type { MarketResolutionMetadata, ResolutionFinding } from "./types";
  */
 const OUTCOME_MARKER =
   /\[heuristic-outcome:\s*(yes|no|draw|too_early|abstain)\s*\]/i;
+
+/**
+ * Formats the marker seeded into market text so OUTCOME_MARKER parses it
+ * back. Test harnesses must build the marker through this function — the
+ * format is a coordination point between market seeding and this provider.
+ */
+export function heuristicOutcomeMarker(outcome: ResolutionOutcome): string {
+  return `[heuristic-outcome: ${outcome}]`;
+}
 
 export function marketText(metadata: MarketResolutionMetadata): string {
   return [

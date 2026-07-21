@@ -1,6 +1,6 @@
 #!/usr/bin/env -S node --experimental-strip-types
 
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
@@ -9,28 +9,21 @@ import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts
 import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
+import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
   type PregradDeploy,
 } from "./shared/deployments/pregradDeploy.ts";
-import {
-  readPostgradDeployment,
-  type PostgradDeployment,
-} from "./shared/deployments/readPostgradDeployment.ts";
+import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
+import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
-import {
-  postgradAppEnv,
-  postgradServerEnv,
-  postgradServerEnvLines,
-} from "./shared/env/postgradEnv.ts";
-import {
-  appLocalDevEnvFile,
-  localDevIndexerHealthFile,
-} from "./shared/env/localDevEnvFiles.ts";
+import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
+import { appLocalDevEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
+import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
 import { urlOk } from "./shared/net/urlOk.ts";
@@ -106,7 +99,7 @@ async function main(): Promise<void> {
   rejectConflictingArgs();
   ensureDependenciesInstalled();
 
-  rmSync(localDevIndexerHealthFile, { force: true });
+  rmSync(resources.indexerHealthFilePath, { force: true });
 
   // Reusing a live Hardhat RPC keeps existing chain state, so the database
   // rows still match. A fresh chain invalidates old rows unless --keep-db
@@ -190,7 +183,7 @@ async function main(): Promise<void> {
     "local:deploy-pregrad",
   ]);
   const deploy = parsePregradDeploy(deployOutput.stdout);
-  const postgrad = noPostgrad ? null : await deployPostgradVenue(deploy);
+  const postgrad = noPostgrad ? null : await deployPostgradVenue(run, deploy);
   // The supervised server processes receive this object directly (not the
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
@@ -203,8 +196,14 @@ async function main(): Promise<void> {
     }),
     ...postgradServerEnv(postgrad),
   };
-  const appEnv = buildAppEnv(deploy, postgrad);
-  writeServerEnv(serverEnv, deploy, postgrad);
+  const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
+  writeLocalChainServerEnv({
+    deploy,
+    env: serverEnv,
+    envFilePath: resources.envFilePath,
+    generatedBy: "scripts/local-dev.ts",
+    postgrad,
+  });
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
 
   const aiReviewProcesses = aiReviewEnabled
@@ -238,7 +237,7 @@ async function main(): Promise<void> {
   );
   await waitForWithProcesses(
     "Indexer health marker",
-    () => existsSync(localDevIndexerHealthFile),
+    () => existsSync(resources.indexerHealthFilePath),
     {
       processes: [api, indexer],
       timeoutMs: 45_000,
@@ -459,99 +458,7 @@ async function startAiReviewStack(
   return [aiReview, runner];
 }
 
-// Deploys the postgrad venue on top of the fresh pregrad deployment: the v4
-// venue stack, the complete-set postgrad contracts, and one demo market so the
-// venue is immediately tradeable. The deploy scripts are idempotent against a
-// reused chain (the venue deploy clears stale Ignition journals itself), and
-// every failure rejects loudly through run().
-async function deployPostgradVenue(
-  deploy: PregradDeploy,
-): Promise<PostgradDeployment> {
-  await run("venue", "pnpm", [
-    "--dir",
-    "protocol",
-    "run",
-    "local:deploy-venue",
-  ]);
-  await run(
-    "postgrad",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:deploy-postgrad"],
-    {
-      env: { POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress },
-    },
-  );
-  await run(
-    "demo market",
-    "pnpm",
-    ["--dir", "protocol", "run", "local:create-complete-set-market"],
-    {
-      env: {
-        POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-        POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
-      },
-    },
-  );
 
-  return readPostgradDeployment(DEMO_MARKET_SYMBOL);
-}
-
-function buildAppEnv(
-  deploy: PregradDeploy,
-  postgrad: PostgradDeployment | null,
-): Record<string, string> {
-  return {
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "local",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE: "devchain",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER: "wallet",
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ID: String(deploy.chainId),
-    NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
-    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
-    NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
-    NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
-    POPCHARTS_INDEXER_API_URL: apiBaseUrl,
-    POPCHARTS_MARKET_DATA_SOURCE: "api",
-    POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
-    ...postgradAppEnv(postgrad),
-  };
-}
-
-function writeServerEnv(
-  env: NodeJS.ProcessEnv,
-  deploy: PregradDeploy,
-  postgrad: PostgradDeployment | null,
-): void {
-  const lines = [
-    "# Generated by scripts/local-dev.ts.",
-    "# Safe to delete; ignored by git.",
-    `DATABASE_URL=${env.DATABASE_URL}`,
-    `PORT=${env.PORT}`,
-    "NETWORK=local",
-    `POPCHARTS_ADMIN_REVIEW_ENABLED=${env.POPCHARTS_ADMIN_REVIEW_ENABLED}`,
-    `POPCHARTS_DEV_TOOLS_ENABLED=${env.POPCHARTS_DEV_TOOLS_ENABLED}`,
-    `AI_REVIEW_SERVICE_URL=${env.AI_REVIEW_SERVICE_URL}`,
-    `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
-    `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
-    `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
-    ...postgradServerEnvLines(postgrad),
-    `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
-    "",
-  ];
-
-  writeFileSync(resources.envFilePath, lines.join("\n"));
-}
 
 async function run(
   name: string,

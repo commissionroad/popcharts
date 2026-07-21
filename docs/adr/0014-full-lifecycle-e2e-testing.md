@@ -36,20 +36,33 @@ regression risk.
 
 Harness:
 
-- [ ] Extend the local-dev orchestration so a single command boots the full
+- [x] Extend the local-dev orchestration so a single command boots the full
       stack — including the clearing keeper (ADR 0008) and resolution
       runner (ADR 0012) — with deterministic accounts and time control
       (devchain time-travel for `graduationTime`/`resolutionTime`).
-- [ ] Scenario utilities: seed markets with known-verdict metadata
+      (`pnpm local:lifecycle-nightly`; scenarios in
+      `server/src/lifecycle-nightly/`, run sequentially with forward-only
+      chain-time jumps and market-scoped assertions.)
+- [x] Scenario utilities: seed markets with known-verdict metadata
       (heuristic provider makes review and resolution deterministic), drive
-      receipt volume via the existing trading bot.
+      receipt volume with deterministic balanced buys through the trading
+      bot's receipt mechanics (the interactive bot itself stays a manual
+      dev tool — nightly scenarios need exact matched volume, not random
+      flow). Every scenario ends with a market-scoped money paper-trail
+      assertion (`lifecycle-nightly/paper-trail.ts`): chain logs ↔ event
+      tables reconciled in both directions, per-receipt
+      retained + refund = cost identities, and postgrad collateral
+      conservation.
 
 Happy path:
 
-- [ ] Lifecycle spec: create (injected wallet at the service layer) →
+- [x] Lifecycle spec: create (injected wallet at the service layer) →
       AI approve → receipt trading → graduation threshold reached →
       clearing → postgrad trading → resolution → redemption; asserting
       API, database, and on-chain state at each transition.
+      (`scenarios/happy-path.ts` — review approval, graduation/clearing,
+      and resolution all ride the real runner/keeper services, no dev
+      force endpoints.)
 
 UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
@@ -65,15 +78,25 @@ UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
 Unhappy paths:
 
-- [ ] AI rejection: policy-violating market → `rejected` → creator sees
-      rejection reasons.
-- [ ] Manual review: ambiguous market parks in `under_review` → operator
-      approves via admin path → proceeds.
-- [ ] Failed graduation: insufficient matched liquidity → refunds available
-      → user claims refund.
+- [x] AI rejection: policy-violating market → `rejected` → creator sees
+      rejection reasons. (`scenarios/rejected-creation.ts` — heuristic hard
+      flag through the real review runner; terminal on-chain, receipts
+      refused.)
+- [x] Manual review: ambiguous market parks in `under_review` → operator
+      approves via admin path → proceeds. (`scenarios/manual-review.ts` —
+      the runner's manual_review verdict transitions nothing; the operator
+      lever is a keyed `approveMarket`, since the admin API endpoint only
+      re-queues AI reviews.)
+- [x] Failed graduation: insufficient matched liquidity → refunds available
+      → user claims refund. (`scenarios/failed-graduation.ts` — the
+      keeper's sweep opens refunds via `markRefundable`; both owners claim
+      full cost back; double-claim rejected.)
 - [ ] Partial clearing: some bands match, some refund; both claim paths
       verified against escrow accounting.
-- [ ] Draw resolution: `cancel()` path with both sides redeeming at cost.
+- [x] Draw resolution: `cancel()` path with both sides redeeming at cost.
+      (`scenarios/draw-cancel.ts` — the runner records the draw verdict and
+      deliberately parks; the operator cancels with the resolver key; both
+      legs redeem at half value via `redeemCancelled`.)
 - [ ] Infrastructure failure drills: indexer restart mid-lifecycle and AI
       service outage with runner retries — lifecycle still completes.
 

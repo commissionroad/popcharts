@@ -14,14 +14,14 @@ import { deployBytecodeContract } from "./shared/contract/deployBytecodeContract
 // Shared with scripts/local-dev.ts so both deploy tools write the one
 // POPCHARTS APP ENV marker block instead of shadowing each other's keys.
 import { updateAppEnvMarkerBlock } from "../../scripts/shared/env/appEnvMarkerBlock.js";
-import { writeJsonFile } from "./shared/json/jsonFile.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../src/chain/localDevchain.js";
+import { writeJsonFile } from "../src/json/jsonFile.js";
 import { createViemClients } from "./shared/viem/createViemClients.js";
 
 const DEFAULT_RPC_URL = "http://127.0.0.1:8545";
 // Hardhat's well-known dev account #0; only ever used against a local node.
 const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const HARDHAT_LOCAL_CHAIN_ID = 31337;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const protocolRoot = resolve(scriptDir, "..");
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   const chainId = await createPublicClient({ transport: http(rpcUrl) }).getChainId();
   const chain = defineEvmChain({
     chainId,
-    name: chainId === HARDHAT_LOCAL_CHAIN_ID ? "Hardhat Local" : `Pop Charts Devchain ${chainId}`,
+    name: chainId === LOCAL_DEVCHAIN_CHAIN_ID ? "Hardhat Local" : `Pop Charts Devchain ${chainId}`,
     nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
     rpcUrl,
   });

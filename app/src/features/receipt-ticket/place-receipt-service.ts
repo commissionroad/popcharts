@@ -11,6 +11,7 @@ import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import { marketSideToContractSide } from "@/integrations/contracts/market-side";
+import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseApiMarketAppId } from "@/lib/app-id";
 import { formatTokenAmount } from "@/lib/format";
@@ -326,7 +327,7 @@ export async function mintLocalCollateral({
 
   onStep?.("minting");
   const hash = await wallet.walletClient.writeContract({
-    abi: erc20Abi,
+    abi: mockCollateralAbi,
     account: wallet.accountAddress,
     address: config.collateralAddress,
     chain: wallet.walletClient.chain,

@@ -1,12 +1,12 @@
 import type { Address, Hex, PublicClient } from "viem";
 
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../../../src/chain/localDevchain.js";
+
 // Runtime bytecode of the keyless CREATE2 factory expected at
 // VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress. Source: Arachnid's
 // deterministic-deployment-proxy, read back from the canonical mainnet deploy.
 export const DETERMINISTIC_FACTORY_RUNTIME_BYTECODE: Hex =
   "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
-
-export const LOCAL_DEVCHAIN_CHAIN_ID = 31_337;
 
 type TestClientConnection = {
   viem: {

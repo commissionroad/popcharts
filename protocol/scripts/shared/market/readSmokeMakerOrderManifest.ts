@@ -2,8 +2,8 @@ import { relative, resolve } from "node:path";
 
 import type { Hex } from "viem";
 
-import { requireNonNegativeInteger, requireString } from "../cli/requireCliValue.js";
-import { readJsonFile } from "../json/jsonFile.js";
+import { requireNonNegativeInteger, requireString } from "../../../src/cli/requireCliValue.js";
+import { readJsonFile } from "../../../src/json/jsonFile.js";
 import { SMOKE_ORDER_DEPLOYMENT } from "./smokeOrderDeployment.js";
 
 const POOL_ID_PATTERN = /^0x[0-9a-fA-F]{64}$/;

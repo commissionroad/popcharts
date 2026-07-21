@@ -9,6 +9,7 @@ sources:
   - protocol/docs/postgrad-contract-metadata.md
   - docs/portfolio-data-design.md
   - infra/README.md
+  - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
 updated: 2026-07-21
 ---
 
@@ -62,6 +63,13 @@ cursor per token address, late discoveries backfilled from their market's
 graduation block, live subscription rebuilt on a discovery interval. It
 projects per-wallet `outcome_token_balances`; raw v4 `Swap` events remain
 deliberately unindexed (every swap surfaces as a Transfer).
+
+The dynamic-address machinery this requires is also the indexer's main scale
+exposure: watcher address sets, cursors, and sweep groups grow with cumulative
+graduations. [Protocol ADR 0012](../summaries/protocol-adr-0012-singleton-postgrad-position-book.md)
+(proposed) would bound this at the protocol — all postgrad money events from
+one singleton position book, leaving only wrapper ERC20 `Transfer` tracking
+dynamic, with terminal markets going quiet and prunable.
 
 ## Open maturity work ([root ADR 0010](../summaries/root-adr-0010-indexer-maturity.md))
 

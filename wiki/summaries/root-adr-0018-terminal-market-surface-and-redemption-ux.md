@@ -10,7 +10,9 @@ updated: 2026-07-14
 # Repo ADR 0018: Terminal-Market Surface and Redemption UX
 
 **Status: Accepted.** Dated 2026-07-14. Checklist ADR born from the
-2026-07-14 orchestrated full-lifecycle test session; all six slices open.
+2026-07-14 orchestrated full-lifecycle test session; all six slices done
+(PRs #219/#234, the slice-1 API PR #256, and the lifecycle e2e lane) — the
+ADR is complete.
 
 ## Context
 
@@ -54,27 +56,28 @@ wallet-signed client pattern (injected viem clients like
 `refund-claim-service.ts`), not new API endpoints — the deployed API stays
 read-only ([root ADR 0009](root-adr-0009-server-api-hardening.md)).
 
-## Implementation slices (all open; each its own PR)
+## Implementation slices (all done; each its own PR)
 
-- [ ] **API**: include `postgrad` for any market with a
-      `graduation_finalized_events` row and expose the resolution outcome
-      (`winningSide`, timestamps, tx hash) from `postgrad_resolution_events`;
-      route/service tests over all three statuses.
-- [ ] **Resolved market surface**: postgrad layout kept, outcome banner
-      (YES/NO won, when, tx), price history + review rubric stay, redemption
-      panel replaces tickets, "READY TO GRADUATE" stat removed for terminal
-      markets.
-- [ ] **Redemption panel (resolved)**: wallet-signed
-      `redeem(winningSide, amount)` with balance display, approve+redeem
-      flow, nothing-to-redeem / losing-side / redeemed states; contract
-      service + unit tests mirroring `refund-claim-service.ts`.
-- [ ] **Cancelled (draw) surface + `redeemCancelled` panel**: draw banner;
-      both sides at 50c per token, defaulting to full wallet balances.
-- [ ] **Portfolio terminal position states**: won/lost/draw + redeemable
-      value (winning × $1, any-side × $0.50, losing = $0) instead of last
-      pool price, linking to the redemption panel.
-- [ ] **E2E**: extend the chain e2e lane to walk resolve → redeem and
-      cancel → redeemCancelled with the test-wallet fixture.
+- [x] **API** (PR #219 + slice-1 PR): resolution outcome (`winningSide`,
+      timestamps, tx hash) exposed on market reads; `postgrad` block kept
+      for cancelled markets with route tests over all three statuses.
+- [x] **Resolved market surface** (PR #219): outcome summary, pre-grad
+      price history kept, graduation bar and pre-grad affordances removed
+      for settled states. Venue price history on terminal pages remains a
+      follow-up.
+- [x] **Redemption panel (resolved)** (PR #219 `claim-winnings-panel` +
+      `resolution-actions`): redeem flow with losing-side/nothing-to-claim
+      states and a resting-ask callout beside the open-orders cancel
+      surface.
+- [x] **Cancelled (draw) surface + `redeemCancelled` panel** (PR #219):
+      draw banner distinguishing postgrad draws from pregrad admin-cancels;
+      both-side 50c redemption.
+- [x] **Portfolio terminal position states** (PR #234): redemption payout
+      rows (won/draw kinds) via the `portfolioRedemption` API model.
+- [x] **E2E**: `@lifecycle` Playwright lane (`pnpm lifecycle:e2e`) — full
+      stack via `local:smoke --keep-running --fresh-db`, app-driven
+      create→graduate→resolve/cancel, browser redemption of both terminal
+      states with on-chain balance assertions; nightly `terminal-e2e` job.
 
 ## Exit criteria
 

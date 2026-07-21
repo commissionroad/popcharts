@@ -2,7 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 const appPort = process.env.PLAYWRIGHT_APP_PORT ?? "3000";
 const appBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${appPort}`;
-const chainE2eEnabled = process.env.POPCHARTS_E2E_CHAIN === "true";
+// Chain and lifecycle lanes both run the app against a real local stack, so
+// the webServer boots plain `next dev` reading the generated env block
+// instead of the fixture-mode overrides.
+const chainE2eEnabled =
+  process.env.POPCHARTS_E2E_CHAIN === "true" ||
+  process.env.POPCHARTS_E2E_LIFECYCLE === "true";
 const nextDevCommand = `pnpm exec next dev --port ${appPort}`;
 const webServerCommand = chainE2eEnabled
   ? nextDevCommand

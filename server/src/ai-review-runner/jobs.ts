@@ -70,10 +70,13 @@ export async function enqueueEligibleMarketReviewJobs({
   limit,
   maxAttempts,
   now = new Date(),
+  onlyMarket,
 }: {
   limit: number;
   maxAttempts: number;
   now?: Date;
+  /** Restrict eligibility to one market (the smoke pins its own). */
+  onlyMarket?: { chainId: number; marketId: bigint; metadataHash: string };
 }): Promise<MarketAiReviewJobRow[]> {
   const candidates = await db
     .select({
@@ -92,6 +95,13 @@ export async function enqueueEligibleMarketReviewJobs({
         eq(schema.markets.status, "under_review"),
         noActiveReviewJobForCurrentMarket(),
         noAiReviewForCurrentMarket(),
+        ...(onlyMarket
+          ? [
+              eq(schema.markets.chainId, onlyMarket.chainId),
+              eq(schema.markets.marketId, onlyMarket.marketId),
+              eq(schema.markets.metadataHash, onlyMarket.metadataHash),
+            ]
+          : []),
       ),
     )
     .orderBy(asc(schema.markets.createdAt), asc(schema.markets.id))

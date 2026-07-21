@@ -6,8 +6,9 @@ sources:
   - documents/whitepaper_v4.pdf
   - protocol/CONTEXT.md
   - protocol/docs/adr/0008-use-complete-set-erc20-v4-markets-on-arc-testnet.md
+  - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
   - protocol/docs/complete-set-v4-hook-order-manager-plan.md
-updated: 2026-07-07
+updated: 2026-07-20
 ---
 
 # Complete sets
@@ -38,9 +39,16 @@ launch from token launch — you cannot sell 100 YES at 0.05 and later owe 100.
 "CTF-style" means these economics, not Gnosis CTF ERC1155 tokens:
 [protocol ADR 0008](../summaries/protocol-adr-0008-complete-set-erc20-arc-testnet.md)
 chose per-market 18-decimal ERC20 YES/NO (dust-rejecting conversions) for Arc
-Testnet, a bounded deviation from ADR 0007's ERC1155 preference; mainnet
-tokenization is an open future ADR. (The designkit still says "CTF YES/NO
-tokens" — pre-decision language.)
+Testnet, a bounded deviation from ADR 0007's ERC1155 preference. (The
+designkit still says "CTF YES/NO tokens" — pre-decision language.)
+
+The mainnet path is now proposed:
+[protocol ADR 0012](../summaries/protocol-adr-0012-singleton-postgrad-position-book.md)
+(2026-07-20, under review) puts all markets' positions on one singleton
+ERC1155 `PostgradPositionBook` — driven by the launchpad scale mandate — with
+per-market ERC20 `WrappedOutcomeToken` minimal-proxy clones kept solely
+because v4 pool currencies must be ERC20s. The solvency invariant restates
+per market inside the book, counting wrapped + unwrapped supply together.
 
 ## Related pages
 

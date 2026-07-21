@@ -15,13 +15,9 @@ export {
   watchPoolPriceTickEvents,
 } from "./pool-price-ticks";
 export {
-  recoverPostgradRedemptionEvents,
-  watchPostgradRedemptionEvents,
-} from "./postgrad-redemption";
-export {
-  recoverPostgradResolutionEvents,
-  watchPostgradResolutionEvents,
-} from "./postgrad-resolution";
+  recoverPostgradMarketEvents,
+  watchPostgradMarketEvents,
+} from "./postgrad-market";
 export {
   recoverReceiptPlacedEvents,
   watchReceiptPlacedEvents,

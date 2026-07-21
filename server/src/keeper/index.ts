@@ -1,4 +1,9 @@
-import { parseAbiItem } from "viem";
+import {
+  boundedPoolOrderManagerAbi,
+  poolManagerAbi,
+  pregradManagerAbi,
+} from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { readDevPrivateKey } from "src/api/services/local-dev-chain";
@@ -33,15 +38,17 @@ import { createSingleFlightScheduler } from "./scheduler";
  * anything a watcher misses.
  */
 
-const SWAP_EVENT = parseAbiItem(
-  "event Swap(bytes32 indexed id, address indexed sender, int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee)",
-);
-const DEFERRED_STORED_EVENT = parseAbiItem(
-  "event DeferredExecutionStored(bytes32 indexed executionId, bytes32 indexed poolId, int24 fromTick, int24 toTick, uint256 orderCount)",
-);
-const RECEIPT_PLACED_EVENT = parseAbiItem(
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-);
+// Watcher subscription events extracted from the generated ABIs, so the
+// keeper's triggers cannot drift from the compiled contracts.
+const SWAP_EVENT = getAbiItem({ abi: poolManagerAbi, name: "Swap" });
+const DEFERRED_STORED_EVENT = getAbiItem({
+  abi: boundedPoolOrderManagerAbi,
+  name: "DeferredExecutionStored",
+});
+const RECEIPT_PLACED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "ReceiptPlaced",
+});
 
 const sweepIntervalMs = Number.parseInt(
   process.env.POPCHARTS_KEEPER_INTERVAL_MS ?? "30000",

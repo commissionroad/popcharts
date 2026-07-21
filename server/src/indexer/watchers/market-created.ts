@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import { db, schema } from "src/db/client";
@@ -25,9 +26,10 @@ import { recordLiveChange } from "src/live/change-feed-writer";
 
 const CURSOR_NAME = "MarketCreated";
 
-const MARKET_CREATED_EVENT = parseAbiItem(
-  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, string metadata, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution)",
-);
+const MARKET_CREATED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketCreated",
+});
 
 const watcher = createDynamicAddressWatcher({
   cursorName: CURSOR_NAME,

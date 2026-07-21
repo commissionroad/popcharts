@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   localChainEnvFile,
   localChainEnvFileForSlot,
+  localDevIndexerHealthFile,
+  localDevIndexerHealthFileForSlot,
 } from "../shared/env/localDevEnvFiles.ts";
 import {
   BASE_API_PORT,
@@ -32,6 +34,7 @@ test("slot 0 reproduces every legacy local stack resource", function () {
     chainRpcHttpUrl: "http://127.0.0.1:8545",
     chainRpcWssUrl: "ws://127.0.0.1:8545",
     envFilePath: localChainEnvFile,
+    indexerHealthFilePath: localDevIndexerHealthFile,
   });
 });
 
@@ -49,6 +52,7 @@ test("slots 1 and 2 apply the documented offsets", function () {
     chainRpcHttpUrl: "http://127.0.0.1:8555",
     chainRpcWssUrl: "ws://127.0.0.1:8555",
     envFilePath: `${localChainEnvFile}.1`,
+    indexerHealthFilePath: `${localDevIndexerHealthFile}.1`,
   });
   assert.deepEqual(deriveStackResources(2), {
     slot: 2,
@@ -63,6 +67,7 @@ test("slots 1 and 2 apply the documented offsets", function () {
     chainRpcHttpUrl: "http://127.0.0.1:8565",
     chainRpcWssUrl: "ws://127.0.0.1:8565",
     envFilePath: `${localChainEnvFile}.2`,
+    indexerHealthFilePath: `${localDevIndexerHealthFile}.2`,
   });
 });
 
@@ -103,4 +108,13 @@ test("slot-aware env paths preserve the legacy slot-0 filename", function () {
   assert.equal(localChainEnvFileForSlot(0), localChainEnvFile);
   assert.equal(localChainEnvFileForSlot(1), `${localChainEnvFile}.1`);
   assert.throws(() => localChainEnvFileForSlot(-1), /non-negative integer/);
+  assert.equal(localDevIndexerHealthFileForSlot(0), localDevIndexerHealthFile);
+  assert.equal(
+    localDevIndexerHealthFileForSlot(1),
+    `${localDevIndexerHealthFile}.1`,
+  );
+  assert.throws(
+    () => localDevIndexerHealthFileForSlot(-1),
+    /non-negative integer/,
+  );
 });
