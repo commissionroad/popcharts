@@ -91,14 +91,30 @@ Unhappy paths:
       → user claims refund. (`scenarios/failed-graduation.ts` — the
       keeper's sweep opens refunds via `markRefundable`; both owners claim
       full cost back; double-claim rejected.)
-- [ ] Partial clearing: some bands match, some refund; both claim paths
-      verified against escrow accounting.
+- [x] Partial clearing: some bands match, some refund; both claim paths
+      verified against escrow accounting. (`scenarios/partial-clearing.ts` —
+      a balanced book to the threshold plus a one-sided YES excess makes
+      YES the crowded side; band-pass clearing prorates the excess to
+      refund while the matched cap still graduates, so graduated-receipt
+      claims carry a genuine mix of fully-retained and refunded rows with
+      `retainedCost + refund == cost` each. The keeper is paused while the
+      book is assembled — its live `ReceiptPlaced` watcher would otherwise
+      graduate the balanced book before the excess lands.)
 - [x] Draw resolution: `cancel()` path with both sides redeeming at cost.
       (`scenarios/draw-cancel.ts` — the runner records the draw verdict and
       deliberately parks; the operator cancels with the resolver key; both
       legs redeem at half value via `redeemCancelled`.)
-- [ ] Infrastructure failure drills: indexer restart mid-lifecycle and AI
+- [x] Infrastructure failure drills: indexer restart mid-lifecycle and AI
       service outage with runner retries — lifecycle still completes.
+      (`scenarios/indexer-restart.ts` stops the indexer, emits receipt
+      events while it is down, restarts it and asserts the missed events are
+      backfilled by the cursor sweep; `scenarios/ai-outage.ts` stops the
+      review service, watches the runner record a failed attempt with
+      backoff, restarts the service, and asserts the market recovers to
+      bootstrap on its own — keyed off market status, never the job's
+      transient `terminal_failed`. Both bounce services through a stack
+      control server the orchestrator exposes; the scenario never touches
+      process lifecycles.)
 
 Gated variants:
 

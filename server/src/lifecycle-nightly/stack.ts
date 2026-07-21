@@ -52,6 +52,12 @@ export const SCENARIO_ACCOUNTS = {
   drawCancelHolder: 13,
   failedGraduationYes: 14,
   failedGraduationNo: 15,
+  partialClearingYes: 16,
+  partialClearingNo: 17,
+  /** Places the one-sided excess that lands out-of-band and refunds. */
+  partialClearingExcess: 18,
+  /** Places receipts while the indexer is stopped, for the catch-up drill. */
+  indexerRestartTrader: 19,
   /** Simulate-only prober for negative guards; never submits a transaction. */
   receiptProbe: 10,
 } as const;

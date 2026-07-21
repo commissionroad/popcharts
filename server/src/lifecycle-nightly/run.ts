@@ -3,10 +3,13 @@ import "./env";
 import { closeDb } from "src/db/client";
 
 import { runScenarios, type Scenario } from "./report";
+import { aiOutage } from "./scenarios/ai-outage";
 import { drawCancel } from "./scenarios/draw-cancel";
 import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
+import { indexerRestart } from "./scenarios/indexer-restart";
 import { manualReview } from "./scenarios/manual-review";
+import { partialClearing } from "./scenarios/partial-clearing";
 import { rejectedCreation } from "./scenarios/rejected-creation";
 
 /**
@@ -22,14 +25,18 @@ import { rejectedCreation } from "./scenarios/rejected-creation";
  * every offset accumulated before their market was created. So the
  * resolution-dependent scenarios run first — each later one budgets its
  * predecessors' jumps into its wait — and jump-only or jump-free scenarios
- * run last.
+ * run last. The partial-clearing scenario and the two infrastructure drills
+ * neither resolve nor jump, so they add no offset and trail the group.
  */
 const SCENARIOS: readonly Scenario[] = [
   happyPath,
   drawCancel,
+  partialClearing,
   failedGraduation,
   manualReview,
   rejectedCreation,
+  indexerRestart,
+  aiOutage,
 ];
 
 const only = process.env.POPCHARTS_LIFECYCLE_SCENARIO;

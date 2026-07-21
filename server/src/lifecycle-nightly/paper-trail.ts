@@ -8,6 +8,7 @@ import type { Address } from "viem";
 
 import { and, db, eq, inArray, schema } from "src/db/client";
 
+import { mineBlock } from "./chain-time";
 import { chainId, pregradManagerAddress, publicClient } from "./stack";
 
 /**
@@ -38,15 +39,45 @@ type LedgerEntry = {
   key: string;
 };
 
+type PaperTrailTarget = {
+  createdBlock: bigint;
+  marketId: bigint;
+  postgradMarketAddress?: Address;
+};
+
+/**
+ * Retries `assertMarketPaperTrail` until it holds or the timeout elapses,
+ * mining a block between attempts to flush the indexer. The indexer's dynamic
+ * postgrad watcher backfills a graduated venue's events (complete-set mints,
+ * outcome-token transfers) a beat after graduation, so a reconciliation run
+ * immediately after graduation can transiently see them as dropped. On
+ * timeout the final failure propagates with its full diagnostic, so a genuine
+ * dropped/fabricated transfer still fails loudly rather than being masked.
+ */
+export async function assertMarketPaperTrailEventually(
+  target: PaperTrailTarget,
+  { timeoutMs = 60_000 }: { timeoutMs?: number } = {},
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await assertMarketPaperTrail(target);
+      return;
+    } catch (error) {
+      if (Date.now() >= deadline) {
+        throw error;
+      }
+      await mineBlock();
+      await new Promise((resolvePoll) => setTimeout(resolvePoll, 1_000));
+    }
+  }
+}
+
 export async function assertMarketPaperTrail({
   createdBlock,
   marketId,
   postgradMarketAddress,
-}: {
-  createdBlock: bigint;
-  marketId: bigint;
-  postgradMarketAddress?: Address;
-}): Promise<void> {
+}: PaperTrailTarget): Promise<void> {
   const failures: string[] = [];
 
   const pregradLogs = await publicClient.getContractEvents({
