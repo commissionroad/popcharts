@@ -10,7 +10,7 @@ sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
-updated: 2026-07-17
+updated: 2026-07-21
 ---
 
 # Testing strategy
@@ -64,7 +64,7 @@ domain layer; honesty-rule copy is tested
 - `just server-ai-review-smoke` — DB→service→DB heuristic review cycle
 - CI freshness gates: `metadata:check`, `openapi:check`, `api:check`
 
-## Observability and enforcement ([root ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md), accepted 2026-07-14, all open)
+## Observability and enforcement ([root ADR 0017](../summaries/root-adr-0017-test-observability-and-coverage-program.md), accepted 2026-07-14; A/B/D/F/G complete, C in progress, E lacks assertion tests)
 
 The 2026-07-14 audit found the suites healthy but unobserved: lcov artifacts
 uploaded and never read, coverage floors only in the app (server ~60% lines
@@ -78,7 +78,9 @@ scheduled smoke tier (C, the harness skeleton for ADR 0014), dedicated
 v4-library tests, a `StdInvariant` escrow-conservation harness and the
 Solidity floor (D), an infra `cdk synth` gate (E), the band-pass
 invariant-test timeout fix (F), and the protocol TS SDK move out of
-`scripts/shared` into `protocol/src/` with its own figure and floor (G).
+`scripts/shared` into `protocol/src/` with its own figure and floor (G,
+complete 2026-07-21: c8-`--all` lcov shipped alongside the Solidity one,
+floored at the honest 36.3% baseline).
 Coverage figures use workspace-own denominators (`app/src`, `server/src`,
 protocol Solidity + protocol TS) with ratcheted floors for each; flake
 tracking is report-only until its history justifies alerting.
