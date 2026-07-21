@@ -106,7 +106,10 @@ jobs:
   lifecycle-scenarios:
     name: Lifecycle scenarios (harness, paper trail)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Must exceed install/boot plus the suite's own hard deadline (40 min in
+    # run.ts): the second runner-dependent scenario waits out its resolution
+    # window PLUS the permanent chain-clock offset earlier jumps left behind.
+    timeout-minutes: 55
 
     steps:
       - name: Checkout
