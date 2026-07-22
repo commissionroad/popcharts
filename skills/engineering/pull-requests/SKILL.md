@@ -16,9 +16,11 @@ no memory of the session that produced it.
   with **behavioral** changes in the same commit. Ideally not in the same PR;
   when unavoidable, separate commits so the reviewer can skim the mechanical
   one and read the behavioral one.
-- Target a few hundred lines of hand-written diff. Mechanical/generated diffs
-  may be far larger, but say so in the description and point at the small
-  hand-written core.
+- **Hard cap: 500 lines of hand-written diff.** Aim for a few hundred; past
+  500, split it — or, if the change is genuinely atomic and cannot be cut,
+  justify why in the description. Mechanical/generated output (codegen,
+  migration snapshots, lockfiles) does not count toward the cap, but say so and
+  point at the small hand-written core so the reviewer skips it.
 - Dependent changes stack: land the prerequisite PR first, branch the next one
   from it. Don't hold a mega-branch open.
 
