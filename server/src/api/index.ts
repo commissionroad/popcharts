@@ -3,7 +3,7 @@ import { openapi } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
 
 import { config } from "src/config";
-import { startChangeFeedRetention } from "src/live/change-feed-retention";
+import { startChangeFeedRetention } from "src/change-feed/retention";
 import { marketRoutes } from "./routes/markets";
 import { portfolioRoutes } from "./routes/portfolio";
 import { systemRoutes } from "./routes/system";

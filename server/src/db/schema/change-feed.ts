@@ -11,7 +11,7 @@ import {
 /**
  * The live-updates outbox (repo ADR 0021). One append-only row per committed
  * viewer-facing change, written by an explicit `recordLiveChange(tx, …)` call in
- * the SAME transaction as the change (src/live/change-feed-writer.ts) — so a row
+ * the SAME transaction as the change (src/change-feed/writer.ts) — so a row
  * exists if and only if the change committed (a rolled-back indexer event, e.g.
  * the MarketNotIndexedError retry path, leaves no signal). The API relay tails
  * this table and fans the rows out to SSE clients; nothing here is authoritative
@@ -23,7 +23,7 @@ import {
  * a source that has no holder simply records NULL `owner`. The seam records the
  * live change last in its transaction so no later statement can fail after the
  * signal is written; the insert is still atomic with — and rolls back alongside
- * — the underlying write. See src/live/change-feed-sources.ts for the
+ * — the underlying write. See src/change-feed/sources.ts for the
  * source→channel routing set.
  */
 export const changeFeed = pgTable(

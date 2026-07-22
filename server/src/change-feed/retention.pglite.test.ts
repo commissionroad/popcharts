@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import type { db as productionDb } from "src/db/client";
 import * as schema from "src/db/schema";
-import { pruneChangeFeed } from "src/live/change-feed-retention";
+import { pruneChangeFeed } from "src/change-feed/retention";
 import { createPgliteDb } from "src/test-support/pglite-db";
 
 let dbc: typeof productionDb;

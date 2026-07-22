@@ -1,9 +1,6 @@
 import { db, schema } from "src/db/client";
 
-import type {
-  ChangeFeedOp,
-  ChangeFeedSourceTable,
-} from "./change-feed-sources";
+import type { ChangeFeedOp, ChangeFeedSourceTable } from "./sources";
 
 /**
  * A database handle that can insert a `change_feed` row — either the process
