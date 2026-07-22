@@ -1,3 +1,9 @@
+import {
+  readBooleanOrFallback,
+  readNonNegativeIntegerOrFallback,
+  readPositiveIntegerOrFallback,
+} from "src/shared/config-env";
+
 import type { InternetAccessMode } from "src/ai-review/types";
 
 /**
@@ -51,35 +57,47 @@ export const aiResolutionConfig: AiResolutionConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   anthropicBaseUrl:
     process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com",
-  anthropicMaxOutputTokens: readPositiveInteger(
-    "AI_RESOLUTION_ANTHROPIC_MAX_OUTPUT_TOKENS",
+  anthropicMaxOutputTokens: readPositiveIntegerOrFallback(
+    process.env.AI_RESOLUTION_ANTHROPIC_MAX_OUTPUT_TOKENS,
     2_048,
   ),
-  anthropicMaxWebFetches: readNonNegativeInteger(
-    "AI_RESOLUTION_ANTHROPIC_MAX_WEB_FETCHES",
+  anthropicMaxWebFetches: readNonNegativeIntegerOrFallback(
+    process.env.AI_RESOLUTION_ANTHROPIC_MAX_WEB_FETCHES,
     2,
   ),
-  anthropicMaxWebSearches: readNonNegativeInteger(
-    "AI_RESOLUTION_ANTHROPIC_MAX_WEB_SEARCHES",
+  anthropicMaxWebSearches: readNonNegativeIntegerOrFallback(
+    process.env.AI_RESOLUTION_ANTHROPIC_MAX_WEB_SEARCHES,
     3,
   ),
   anthropicModel:
     process.env.AI_RESOLUTION_ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
-  anthropicWebFetchMaxContentTokens: readPositiveInteger(
-    "AI_RESOLUTION_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS",
+  anthropicWebFetchMaxContentTokens: readPositiveIntegerOrFallback(
+    process.env.AI_RESOLUTION_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS,
     12_000,
   ),
-  fetchSearchResults: readBoolean("AI_RESOLUTION_FETCH_SEARCH_RESULTS", false),
+  fetchSearchResults: readBooleanOrFallback(
+    process.env.AI_RESOLUTION_FETCH_SEARCH_RESULTS,
+    false,
+  ),
   internetAccess: readInternetAccessMode(
     process.env.AI_RESOLUTION_INTERNET_ACCESS ?? "search",
   ),
-  maxFetchBytes: readPositiveInteger("AI_RESOLUTION_MAX_FETCH_BYTES", 80_000),
-  maxSearchResults: readPositiveInteger("AI_RESOLUTION_MAX_SEARCH_RESULTS", 5),
+  maxFetchBytes: readPositiveIntegerOrFallback(
+    process.env.AI_RESOLUTION_MAX_FETCH_BYTES,
+    80_000,
+  ),
+  maxSearchResults: readPositiveIntegerOrFallback(
+    process.env.AI_RESOLUTION_MAX_SEARCH_RESULTS,
+    5,
+  ),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_RESOLUTION_OLLAMA_MODEL ?? "gpt-oss:20b",
-  port: readPositiveInteger("AI_RESOLUTION_PORT", 3004),
+  port: readPositiveIntegerOrFallback(process.env.AI_RESOLUTION_PORT, 3004),
   provider: readProvider(process.env.AI_RESOLUTION_PROVIDER ?? "ollama"),
-  requestTimeoutMs: readPositiveInteger("AI_RESOLUTION_TIMEOUT_MS", 8_000),
+  requestTimeoutMs: readPositiveIntegerOrFallback(
+    process.env.AI_RESOLUTION_TIMEOUT_MS,
+    8_000,
+  ),
   userAgent:
     process.env.AI_RESOLUTION_USER_AGENT ??
     "PopChartsLocalAiResolution/0.1 (+https://popcharts.local)",
@@ -95,35 +113,6 @@ function readUnitInterval(name: string, fallback: number) {
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1
     ? parsed
     : fallback;
-}
-
-function readPositiveInteger(name: string, fallback: number) {
-  const value = process.env[name];
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function readBoolean(name: string, fallback: boolean) {
-  const value = process.env[name];
-  if (!value) {
-    return fallback;
-  }
-
-  return value === "true" || value === "1";
-}
-
-function readNonNegativeInteger(name: string, fallback: number) {
-  const value = process.env[name];
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function readInternetAccessMode(value: string): InternetAccessMode {
