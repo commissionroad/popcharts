@@ -1,3 +1,4 @@
+export * from "./change-feed";
 export * from "./complete-set-events";
 export * from "./contracts";
 export * from "./indexer-state";

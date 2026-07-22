@@ -6,6 +6,12 @@
 export type AiReviewRunnerConfig = {
   backoffMs: number;
   batchSize: number;
+  /**
+   * When true (default), terminal verdicts (approve / model reject) must be
+   * corroborated by agreeing service runs before committing on-chain (ADR
+   * 0019). Disable only for smoke tests and deterministic-provider setups.
+   */
+  corroborationEnabled: boolean;
   leaseMs: number;
   maxAttempts: number;
   pollMs: number;
@@ -37,6 +43,11 @@ export function getAiReviewRunnerConfig(
       env.AI_REVIEW_RUNNER_BATCH_SIZE,
       DEFAULT_BATCH_SIZE,
       "AI_REVIEW_RUNNER_BATCH_SIZE",
+    ),
+    corroborationEnabled: readBoolean(
+      env.AI_REVIEW_RUNNER_CORROBORATION,
+      true,
+      "AI_REVIEW_RUNNER_CORROBORATION",
     ),
     leaseMs: readPositiveInteger(
       env.AI_REVIEW_RUNNER_LEASE_MS,
@@ -81,6 +92,26 @@ function readPositiveInteger(
   }
 
   return parsed;
+}
+
+function readBoolean(
+  value: string | undefined,
+  fallback: boolean,
+  name: string,
+) {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0") {
+    return false;
+  }
+
+  throw new Error(`${name} must be true or false.`);
 }
 
 function normalizeServiceUrl(value: string) {

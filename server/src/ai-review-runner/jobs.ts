@@ -2,6 +2,7 @@ import type { MarketStatus } from "src/api/models/markets";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import { reviewMarketWithService } from "./client";
+import { corroborateReview, type CorroboratedReview } from "./corroboration";
 import { cancelReviewJob, markReviewJobFailure } from "./failures";
 import {
   claimableReviewJobCondition,
@@ -245,10 +246,22 @@ export async function processReviewJob({
   }
 
   try {
-    const result = await dependencies.reviewMarketWithService({
-      config,
-      request: buildMarketReviewRequest(claimed),
-    });
+    const request = buildMarketReviewRequest(claimed);
+    const corroborated = config.corroborationEnabled
+      ? await corroborateReview({
+          callService: () =>
+            dependencies.reviewMarketWithService({ config, request }),
+          // A corroborated review may spend up to three service-call budgets,
+          // which can outlive one lease window — renew before each extra run
+          // so another runner cannot claim the job mid-corroboration.
+          onBeforeRun: async () => {
+            await renewReviewJobLease({ config, job: claimed.job });
+          },
+        })
+      : singleRunReview(
+          await dependencies.reviewMarketWithService({ config, request }),
+        );
+    const { result } = corroborated;
     const targetMarketStatus = marketStatusForReviewVerdict(result.verdict);
     const chainTransition = targetMarketStatus
       ? await dependencies.transitionReviewedMarketOnChain({
@@ -260,8 +273,8 @@ export async function processReviewJob({
 
     const persisted = await persistReviewJobResult({
       chainTransition,
+      corroborated,
       job: claimed.job,
-      result,
       reviewedAt: now,
     });
 
@@ -348,20 +361,93 @@ export function marketStatusForReviewVerdict(
   return null;
 }
 
+/**
+ * Wraps a single service result in the corroboration shape so the persistence
+ * path is uniform whether corroboration is enabled or not.
+ */
+function singleRunReview(result: ReviewResult): CorroboratedReview {
+  return { outcome: "single_pass", result, runs: [result] };
+}
+
+/**
+ * Pushes the job's lease out by one more lease window. Used between
+ * corroboration runs; a no-op failure here is not acceptable — losing the
+ * lease mid-corroboration would let a second runner double-review the market.
+ */
+async function renewReviewJobLease({
+  config,
+  job,
+  now = new Date(),
+}: {
+  config: Pick<AiReviewRunnerConfig, "leaseMs" | "runnerId">;
+  job: MarketAiReviewJobRow;
+  now?: Date;
+}): Promise<void> {
+  const rows = await db
+    .update(schema.marketAiReviewJobs)
+    .set({
+      leaseUntil: new Date(now.getTime() + config.leaseMs),
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(schema.marketAiReviewJobs.id, job.id),
+        // Only the holder may renew; if the lease was reclaimed the update
+        // matches nothing and the corroboration attempt aborts loudly.
+        eq(schema.marketAiReviewJobs.lockedBy, config.runnerId),
+        eq(schema.marketAiReviewJobs.status, "running"),
+      ),
+    )
+    .returning({ id: schema.marketAiReviewJobs.id });
+
+  if (rows.length === 0) {
+    throw new Error(
+      `Lost the lease on AI review job ${job.id} mid-corroboration.`,
+    );
+  }
+}
+
 async function persistReviewJobResult({
   chainTransition,
+  corroborated,
   job,
-  result,
   reviewedAt,
 }: {
   chainTransition: MarketReviewChainTransitionResult | null;
+  corroborated: CorroboratedReview;
   job: MarketAiReviewJobRow;
-  result: ReviewResult;
   reviewedAt: Date;
 }) {
+  const { result } = corroborated;
   return await db.transaction(async (tx) => {
-    // The review row is append-only audit evidence. The job row is mutable queue
-    // state and simply points at the review that completed it.
+    // Review rows are append-only audit evidence: every corroboration run is
+    // persisted in call order, and the deciding result is inserted LAST so
+    // readers that pick the latest row (reviewedAt DESC, id DESC) always see
+    // the verdict that actually governed the market. The job row is mutable
+    // queue state and points at that deciding row.
+    // Identity, not equality: a demoted decision synthesizes a new result
+    // object, so every actual run (including the overruled one) persists as a
+    // supporting row.
+    const supportingRuns = corroborated.runs.filter((run) => run !== result);
+    for (const run of supportingRuns) {
+      await tx.insert(schema.marketAiReviews).values({
+        chainId: job.chainId,
+        evidence: run.evidence,
+        hardFlags: run.hardFlags,
+        marketId: job.marketId,
+        metadataHash: job.metadataHash,
+        modelId: run.modelId ?? null,
+        promptVersion: run.promptVersion,
+        provider: run.provider,
+        reasons: run.reasons,
+        reviewedAt,
+        scoreRationales: run.scoreRationales,
+        scores: run.scores,
+        sourceChecks: run.sourceChecks,
+        verdict: run.verdict,
+      });
+    }
+
     const [review] = await tx
       .insert(schema.marketAiReviews)
       .values({

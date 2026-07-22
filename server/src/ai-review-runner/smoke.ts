@@ -153,6 +153,10 @@ function buildSmokeRunnerConfig(serviceUrl: string): AiReviewRunnerConfig {
   return {
     backoffMs: 1_000,
     batchSize: 1,
+    // Enabled so the smoke exercises the corroborated multi-row persistence
+    // path; the heuristic provider is deterministic, so the approve always
+    // confirms on the second run.
+    corroborationEnabled: true,
     leaseMs: 30_000,
     maxAttempts: 2,
     pollMs: 500,
