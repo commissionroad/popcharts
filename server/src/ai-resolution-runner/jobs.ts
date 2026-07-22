@@ -5,11 +5,11 @@ import type {
   ResolutionVerdict,
 } from "src/ai-resolution/types";
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
+import { recordLiveChange } from "src/change-feed/writer";
 
 import { transitionResolvedMarketOnChain } from "./chain-resolution";
 import { resolveMarketWithService } from "./client";
 import type { AiResolutionRunnerConfig } from "./config";
-import { corroborateResolution } from "./corroboration";
 import {
   cancelResolutionJob,
   markResolutionJobFailure,
@@ -331,51 +331,16 @@ export async function processResolutionJob({
   }
 
   try {
-    const request = buildMarketResolutionRequest(claimed);
-    const firstResult = await dependencies.resolveMarketWithService({
+    const result = await dependencies.resolveMarketWithService({
       config,
-      request,
+      request: buildMarketResolutionRequest(claimed),
     });
-    let result = firstResult;
-    let supportingRuns: ResolutionResult[] = [];
-    let decision = decideResolutionAction({
+    const decision = decideResolutionAction({
       backoffMs: config.backoffMs,
       market: claimed.market,
       now,
       result,
     });
-
-    // Only a run that is actually about to submit resolve() on-chain needs
-    // corroboration; re-queues and parks are safe single-run states.
-    if (
-      config.corroborationEnabled &&
-      decision.kind === "persist" &&
-      decision.submit
-    ) {
-      const corroborated = await corroborateResolution({
-        callService: () =>
-          dependencies.resolveMarketWithService({ config, request }),
-        first: firstResult,
-        // A corroborated resolution can outlive one lease window — renew
-        // before each extra run so another runner cannot double-claim.
-        onBeforeRun: async () => {
-          await renewResolutionJobLease({ config, job: claimed.job });
-        },
-      });
-      result = corroborated.result;
-      // Identity, not equality: a demoted decision synthesizes a new result
-      // object, so every actual run (including the overruled one) persists
-      // as a supporting audit row.
-      supportingRuns = corroborated.runs.filter((run) => run !== result);
-      // Re-apply the time gates: a tiebreak may have flipped YES→NO, and the
-      // winning verdict must pass its own gate, not inherit the original's.
-      decision = decideResolutionAction({
-        backoffMs: config.backoffMs,
-        market: claimed.market,
-        now,
-        result,
-      });
-    }
 
     if (decision.kind === "requeue") {
       const job = await requeueResolutionJob({
@@ -400,7 +365,6 @@ export async function processResolutionJob({
       postgradMarketAddress: claimed.postgradMarketAddress,
       resolvedAt: chainTransition?.blockTimestamp ?? now,
       result,
-      supportingRuns,
       verdict: decision.verdict,
     });
 
@@ -478,55 +442,17 @@ export function buildMarketResolutionRequest({
   };
 }
 
-/**
- * Pushes the job's lease out by one more window between corroboration runs.
- * Only the holder may renew; losing the lease mid-corroboration aborts the
- * attempt loudly rather than risking a double-submitted resolve().
- */
-async function renewResolutionJobLease({
-  config,
-  job,
-  now = new Date(),
-}: {
-  config: Pick<AiResolutionRunnerConfig, "leaseMs" | "runnerId">;
-  job: MarketResolutionJobRow;
-  now?: Date;
-}): Promise<void> {
-  const rows = await db
-    .update(schema.marketResolutionJobs)
-    .set({
-      leaseUntil: new Date(now.getTime() + config.leaseMs),
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(schema.marketResolutionJobs.id, job.id),
-        eq(schema.marketResolutionJobs.lockedBy, config.runnerId),
-        eq(schema.marketResolutionJobs.status, "running"),
-      ),
-    )
-    .returning({ id: schema.marketResolutionJobs.id });
-
-  if (rows.length === 0) {
-    throw new Error(
-      `Lost the lease on resolution job ${job.id} mid-corroboration.`,
-    );
-  }
-}
-
 async function persistResolutionJobResult({
   job,
   postgradMarketAddress,
   resolvedAt,
   result,
-  supportingRuns = [],
   verdict,
 }: {
   job: MarketResolutionJobRow;
   postgradMarketAddress: string;
   resolvedAt: Date;
   result: ResolutionResult;
-  supportingRuns?: ResolutionResult[];
   verdict: ResolutionVerdict;
 }) {
   return await db.transaction(async (tx) => {
@@ -534,30 +460,6 @@ async function persistResolutionJobResult({
     // queue state and points at the resolution that completed it. The runner
     // does NOT flip markets.status — a MarketResolved indexer watcher is the
     // canonical projector, since operator/self-resolve paths also resolve.
-    // Corroboration runs are persisted first, in call order, so the deciding
-    // row is always the newest (readers pick resolvedAt DESC, id DESC).
-    for (const run of supportingRuns) {
-      await tx.insert(schema.marketResolutions).values({
-        chainId: job.chainId,
-        confidence: run.confidence ?? null,
-        evidence: run.evidence,
-        hardFlags: run.hardFlags,
-        marketId: job.marketId,
-        metadataHash: job.metadataHash,
-        modelId: run.modelId ?? null,
-        outcome: run.outcome,
-        postgradMarketAddress,
-        promptVersion: run.promptVersion,
-        provider: run.provider,
-        reasons: run.reasons,
-        resolvedAt,
-        sourceChecks: run.sourceChecks,
-        // Supporting rows record the run's own pipeline verdict, not the
-        // corroborated decision that only the deciding row carries.
-        verdict: run.verdict,
-      });
-    }
-
     const [resolution] = await tx
       .insert(schema.marketResolutions)
       .values({
@@ -600,6 +502,18 @@ async function persistResolutionJobResult({
     if (!updatedJob) {
       throw new Error(`Failed to mark resolution job ${job.id} succeeded.`);
     }
+
+    // Signal the market page + board badge that a resolution decision landed,
+    // atomic with the resolution/job writes. Off-chain: ordered by change_feed
+    // id, no block version. The on-chain MarketResolved event separately flips
+    // markets.status and carries its own signal.
+    await recordLiveChange(tx, {
+      sourceTable: "market_resolutions",
+      op: "insert",
+      chainId: job.chainId,
+      marketId: job.marketId,
+      rowId: resolution.id,
+    });
 
     return { job: updatedJob, resolution };
   });

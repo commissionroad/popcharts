@@ -295,6 +295,13 @@ describe.skipIf(!INT_DB_URL)("settlement money paper trail", () => {
         updatedAt: BLOCK_TIMESTAMP,
         yesShares: 0n,
       });
+      // Records exactly one live change routed to the market + claimant.
+      const feed = await changeFeedRowsFor(
+        "graduated_receipt_claimed_events",
+        record.marketId,
+      );
+      expect(feed).toHaveLength(1);
+      expect(feed[0]).toMatchObject({ op: "insert", owner: OWNER_A });
 
       await persistGraduatedReceiptClaimedRecord(record, dbc);
 
@@ -311,6 +318,13 @@ describe.skipIf(!INT_DB_URL)("settlement money paper trail", () => {
         updatedAt: BLOCK_TIMESTAMP,
         yesShares: 0n,
       });
+      // Replay is a no-op: still exactly one live change, not a second.
+      expect(
+        await changeFeedRowsFor(
+          "graduated_receipt_claimed_events",
+          record.marketId,
+        ),
+      ).toHaveLength(1);
     });
 
     it("rolls back the receipt claim when its market projection is missing", async () => {
@@ -358,6 +372,13 @@ describe.skipIf(!INT_DB_URL)("settlement money paper trail", () => {
         updatedAt: BLOCK_TIMESTAMP,
         yesShares: 0n,
       });
+      // Records exactly one live change routed to the market + claimant.
+      const feed = await changeFeedRowsFor(
+        "refunded_receipt_claimed_events",
+        record.marketId,
+      );
+      expect(feed).toHaveLength(1);
+      expect(feed[0]).toMatchObject({ op: "insert", owner: OWNER_B });
 
       await persistRefundedReceiptClaimedRecord(record, dbc);
 
@@ -374,6 +395,13 @@ describe.skipIf(!INT_DB_URL)("settlement money paper trail", () => {
         updatedAt: BLOCK_TIMESTAMP,
         yesShares: 0n,
       });
+      // Replay is a no-op: still exactly one live change, not a second.
+      expect(
+        await changeFeedRowsFor(
+          "refunded_receipt_claimed_events",
+          record.marketId,
+        ),
+      ).toHaveLength(1);
     });
 
     it("rolls back the receipt claim when its market projection is missing", async () => {
@@ -759,6 +787,18 @@ function eventWhere(
     eq(table.transactionHash, record.transactionHash),
     eq(table.logIndex, record.logIndex),
   );
+}
+
+async function changeFeedRowsFor(sourceTable: string, marketId: bigint) {
+  return dbc
+    .select()
+    .from(schema.changeFeed)
+    .where(
+      and(
+        eq(schema.changeFeed.sourceTable, sourceTable),
+        eq(schema.changeFeed.marketId, marketId.toString()),
+      ),
+    );
 }
 
 async function marketProjection(marketId: bigint) {

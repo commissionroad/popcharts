@@ -7,6 +7,8 @@ import {
   requireValue,
   type SettlementLog,
 } from "src/indexer/handlers/settlement-shared";
+import { recordLiveChange } from "src/change-feed/writer";
+import type { ChangeFeedSourceTable } from "src/change-feed/sources";
 
 export type GraduatedReceiptClaimedLog = SettlementLog<{
   marketId?: bigint;
@@ -78,6 +80,7 @@ export async function persistGraduatedReceiptClaimedRecord(
   await persistReceiptSettlementRecord({
     dbc,
     record,
+    sourceTable: "graduated_receipt_claimed_events",
     table: schema.graduatedReceiptClaimedEvents,
   });
 }
@@ -89,6 +92,7 @@ export async function persistRefundedReceiptClaimedRecord(
   await persistReceiptSettlementRecord({
     dbc,
     record,
+    sourceTable: "refunded_receipt_claimed_events",
     table: schema.refundedReceiptClaimedEvents,
   });
 }
@@ -96,10 +100,12 @@ export async function persistRefundedReceiptClaimedRecord(
 async function persistReceiptSettlementRecord({
   dbc,
   record,
+  sourceTable,
   table,
 }: {
   dbc: typeof db;
   record: GraduatedReceiptClaimedRecord | RefundedReceiptClaimedRecord;
+  sourceTable: ChangeFeedSourceTable;
   table:
     | typeof schema.graduatedReceiptClaimedEvents
     | typeof schema.refundedReceiptClaimedEvents;
@@ -126,5 +132,18 @@ async function persistReceiptSettlementRecord({
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    // Money paper trail: signal the market and the claimant's portfolio, atomic
+    // with the claim row + escrow decrement.
+    await recordLiveChange(tx, {
+      sourceTable,
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      owner: record.owner,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
