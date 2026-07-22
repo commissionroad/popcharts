@@ -182,6 +182,16 @@ export async function forceReview(
 }
 
 /**
+ * Dev graduation WITHOUT force: runs the real band-pass clearing over the
+ * current book with no top-up, so a pre-assembled crowded book graduates on a
+ * genuine partial split (retained + refunded). The market must already cover
+ * its graduation threshold, or the endpoint reports it ineligible.
+ */
+export async function graduateMarketPartial(env: LifecycleEnv, marketId: bigint) {
+  await devEndpoint(env, marketId, "/graduate");
+}
+
+/**
  * Dev close: jumps chain time to the graduation deadline and calls
  * markRefundable on-chain, opening full refunds for a sub-threshold bootstrap
  * market (the failed-graduation path). The indexed status becomes `refunded`
