@@ -15,7 +15,6 @@ import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
-import { localDevIndexerHealthFile } from "./shared/env/localDevEnvFiles.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
 import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
@@ -194,7 +193,9 @@ async function main(): Promise<void> {
 
   // The indexer and both AI services are booted through controllers so the
   // infrastructure-drill scenarios can bounce them via the control server
-  // below, using the exact same (re)start + readiness path as the boot.
+  // below, using the exact same (re)start + readiness path as the boot. The
+  // health marker is slot-scoped (resources.indexerHealthFilePath) so
+  // concurrent stacks don't collide on it.
   const controllers = new Map<string, ServiceController>();
 
   const indexerController = createSupervisedController(supervisor, {
@@ -203,9 +204,9 @@ async function main(): Promise<void> {
     args: ["run", "--cwd", "server", "start:indexer"],
     env: serverEnv,
     beforeStart: () => {
-      rmSync(localDevIndexerHealthFile, { force: true });
+      rmSync(resources.indexerHealthFilePath, { force: true });
     },
-    waitReady: async () => existsSync(localDevIndexerHealthFile),
+    waitReady: async () => existsSync(resources.indexerHealthFilePath),
   });
   controllers.set("indexer", indexerController);
   await indexerController.start();

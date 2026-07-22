@@ -21,10 +21,7 @@ import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostg
 import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
-import {
-  appLocalDevEnvFile,
-  localDevIndexerHealthFile,
-} from "./shared/env/localDevEnvFiles.ts";
+import { appLocalDevEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
 import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
@@ -102,7 +99,7 @@ async function main(): Promise<void> {
   rejectConflictingArgs();
   ensureDependenciesInstalled();
 
-  rmSync(localDevIndexerHealthFile, { force: true });
+  rmSync(resources.indexerHealthFilePath, { force: true });
 
   // Reusing a live Hardhat RPC keeps existing chain state, so the database
   // rows still match. A fresh chain invalidates old rows unless --keep-db
@@ -240,7 +237,7 @@ async function main(): Promise<void> {
   );
   await waitForWithProcesses(
     "Indexer health marker",
-    () => existsSync(localDevIndexerHealthFile),
+    () => existsSync(resources.indexerHealthFilePath),
     {
       processes: [api, indexer],
       timeoutMs: 45_000,

@@ -1,4 +1,5 @@
-import { parseAbi, parseEventLogs, type Hash, type Log } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { parseEventLogs, type Hash, type Log } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -21,13 +22,6 @@ import {
 
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 const PREGRAD_MARKET_STATUS_REFUNDED = 4;
-
-export const PREGRAD_REFUND_ABI = parseAbi([
-  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution))",
-  "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
-  "function markRefundable(uint256 marketId)",
-  "event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed)",
-]);
 
 /**
  * Outcome of driving PregradManager.markRefundable on-chain for one market.
@@ -69,7 +63,7 @@ export async function markPregradMarketRefundableOnChain(
 ): Promise<MarkRefundableOnChainResult> {
   const publicClient = createReadOnlyClient();
   const state = await publicClient.readContract({
-    abi: PREGRAD_REFUND_ABI,
+    abi: pregradManagerAbi,
     address: config.contracts.pregradManager,
     functionName: "getMarketState",
     args: [marketId],
@@ -91,7 +85,7 @@ export async function markPregradMarketRefundableOnChain(
 
   if (fastForwardToDeadline) {
     const marketConfig = await publicClient.readContract({
-      abi: PREGRAD_REFUND_ABI,
+      abi: pregradManagerAbi,
       address: config.contracts.pregradManager,
       functionName: "getMarketConfig",
       args: [marketId],
@@ -102,7 +96,7 @@ export async function markPregradMarketRefundableOnChain(
   const account = privateKeyToAccount(readDevPrivateKey());
   const walletClient = createWalletClient(account);
   const transactionHash = await walletClient.writeContract({
-    abi: PREGRAD_REFUND_ABI,
+    abi: pregradManagerAbi,
     address: config.contracts.pregradManager,
     functionName: "markRefundable",
     args: [marketId],
@@ -211,7 +205,7 @@ function extractMarketRefundsAvailableLog(
 ): MarketRefundsAvailableLog {
   const managerAddress = config.contracts.pregradManager.toLowerCase();
   const parsed = parseEventLogs({
-    abi: PREGRAD_REFUND_ABI,
+    abi: pregradManagerAbi,
     eventName: "MarketRefundsAvailable",
     logs,
   });

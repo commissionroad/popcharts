@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import {
@@ -20,12 +21,14 @@ import {
 // from the deploy-block heuristic, which the status-guarded persist absorbs.
 const CURSOR_NAME = "MarketReview";
 
-const MARKET_REVIEW_APPROVED_EVENT = parseAbiItem(
-  "event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer)",
-);
-const MARKET_REVIEW_REJECTED_EVENT = parseAbiItem(
-  "event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer)",
-);
+const MARKET_REVIEW_APPROVED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketReviewApproved",
+});
+const MARKET_REVIEW_REJECTED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketReviewRejected",
+});
 
 const STATUS_BY_EVENT: Record<string, MarketReviewStatus> = {
   MarketReviewApproved: "bootstrap",

@@ -4,9 +4,8 @@
 // it is a dev-only harness excluded from production builds. Split it the
 // moment any part of it is imported by a non-dev code path.
 import {
+  getAbiItem,
   maxUint256,
-  parseAbi,
-  parseAbiItem,
   parseEventLogs,
   type Hash,
   type Log,
@@ -54,6 +53,7 @@ import {
   computeBandPassClearing,
   hashReceiptClaim,
   mockCollateralAbi,
+  pregradManagerAbi,
   SIDE_NO,
   SIDE_YES,
   type BandPassClearingResult,
@@ -85,27 +85,10 @@ const PREGRAD_MARKET_STATUS_GRADUATED = 3;
 const ZERO_HASH = `0x${"0".repeat(64)}` as const;
 const MAX_TOPUP_ROUNDS = 6;
 
-export const PREGRAD_DEV_GRADUATE_ABI = parseAbi([
-  "function getMarketConfig(uint256 marketId) view returns ((address collateral, address creator, bytes32 metadataHash, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution))",
-  "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
-  "function getClearingRoot(uint256 marketId) view returns ((bytes32 merkleRoot, address submitter, bytes32 snapshotHash, uint64 submittedAt, uint64 challengeDeadline, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount))",
-  "function hashReceiptClaim((uint256 marketId, uint256 receiptId, address owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund) claim) pure returns (bytes32)",
-  "function quoteReceipt(uint256 marketId, uint8 side, uint256 shares) view returns ((uint256 cost, int256 rLow, int256 rHigh))",
-  "function placeReceipt((uint256 marketId, uint8 side, uint256 shares, uint256 maxCost) params) returns (uint256)",
-  "function startGraduation(uint256 marketId) returns (bytes32)",
-  "function submitClearingRoot((uint256 marketId, bytes32 merkleRoot, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount) params) returns (bytes32)",
-  "function finalizeGraduation(uint256 marketId, address postgradAdapter)",
-  "function claimGraduatedReceipt((uint256 marketId, uint256 receiptId, address owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund) claim, bytes32[] proof)",
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-  "event GraduationStarted(uint256 indexed marketId, address indexed manager, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt, bytes32 snapshotHash)",
-  "event ClearingRootSubmitted(uint256 indexed marketId, address indexed submitter, bytes32 indexed merkleRoot, bytes32 snapshotHash, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount, uint64 submittedAt, uint64 challengeDeadline)",
-  "event GraduationFinalized(uint256 indexed marketId, address indexed postgradAdapter, address indexed postgradMarket, uint256 completeSetCount, uint256 retainedCostTotal, uint256 refundTotal)",
-  "event GraduatedReceiptClaimed(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund)",
-]);
-
-const RECEIPT_PLACED_EVENT = parseAbiItem(
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-);
+const RECEIPT_PLACED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "ReceiptPlaced",
+});
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
@@ -580,7 +563,7 @@ export async function graduateLocalMarketOnChain(
 
   const readState = () =>
     publicClient.readContract({
-      abi: PREGRAD_DEV_GRADUATE_ABI,
+      abi: pregradManagerAbi,
       address: manager,
       functionName: "getMarketState",
       args: [marketId],
@@ -595,7 +578,7 @@ export async function graduateLocalMarketOnChain(
     args: unknown[],
   ) => {
     const hash = await walletClient.writeContract({
-      abi: PREGRAD_DEV_GRADUATE_ABI,
+      abi: pregradManagerAbi,
       address: manager,
       functionName,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -627,7 +610,7 @@ export async function graduateLocalMarketOnChain(
   }
 
   const marketConfig = await publicClient.readContract({
-    abi: PREGRAD_DEV_GRADUATE_ABI,
+    abi: pregradManagerAbi,
     address: manager,
     functionName: "getMarketConfig",
     args: [marketId],
@@ -682,7 +665,7 @@ export async function graduateLocalMarketOnChain(
 
   const receipts = await collectMarketReceipts(publicClient, marketId);
   let clearingRoot = await publicClient.readContract({
-    abi: PREGRAD_DEV_GRADUATE_ABI,
+    abi: pregradManagerAbi,
     address: manager,
     functionName: "getClearingRoot",
     args: [marketId],
@@ -715,7 +698,7 @@ export async function graduateLocalMarketOnChain(
       },
     ]);
     clearingRoot = await publicClient.readContract({
-      abi: PREGRAD_DEV_GRADUATE_ABI,
+      abi: pregradManagerAbi,
       address: manager,
       functionName: "getClearingRoot",
       args: [marketId],
@@ -826,7 +809,7 @@ async function topUpToGraduationThreshold({
 
     for (const buy of buys) {
       const quote = await publicClient.readContract({
-        abi: PREGRAD_DEV_GRADUATE_ABI,
+        abi: pregradManagerAbi,
         address: config.contracts.pregradManager,
         functionName: "quoteReceipt",
         args: [marketId, buy.side, buy.shares],
@@ -1000,7 +983,7 @@ async function assertLeafHashMatchesContract(
   claim: ReceiptClaim,
 ) {
   const contractLeaf = await publicClient.readContract({
-    abi: PREGRAD_DEV_GRADUATE_ABI,
+    abi: pregradManagerAbi,
     address: config.contracts.pregradManager,
     functionName: "hashReceiptClaim",
     args: [
@@ -1033,7 +1016,7 @@ async function mirrorSettlementLogs(
   logs: Log[],
 ) {
   const parsed = parseEventLogs({
-    abi: PREGRAD_DEV_GRADUATE_ABI,
+    abi: pregradManagerAbi,
     logs,
   });
   const managerAddress = config.contracts.pregradManager.toLowerCase();

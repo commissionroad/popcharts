@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
 import { buildLocalServerEnv } from "../shared/env/buildLocalServerEnv.ts";
+import { localDevIndexerHealthFile } from "../shared/env/localDevEnvFiles.ts";
 import { parsePregradDeploy } from "../shared/deployments/pregradDeploy.ts";
 import { deriveStackResources } from "../shared/localStack/ports.ts";
 
@@ -157,5 +158,7 @@ describe("buildLocalServerEnv", function () {
       "postgresql://postgres:postgres@localhost:5433/popcharts_2",
     );
     assert.equal(env.AI_REVIEW_SERVICE_URL, "http://127.0.0.1:3022");
+    // Slot-scoped so concurrent stacks never wait on each other's indexer.
+    assert.equal(env.HEALTH_CHECK_FILE, `${localDevIndexerHealthFile}.2`);
   });
 });

@@ -864,6 +864,17 @@ the keeper sweep's markRefundable; the resolution runner parks draws
 (cancel_draw maps to no chain action) and the operator cancels with the
 resolver key, after which both legs redeem at half value.
 
+## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: the ADR's resource table gained an indexer-health-marker row
+(`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
+shared fixed path after the phased build: local-dev, lifecycle-nightly,
+the control-plane probe, and local-chain-smoke all rm'd/polled one file,
+so concurrent stacks could clear each other's marker or pass readiness
+against the wrong slot's indexer. Now derived per slot via
+StackPorts.indexerHealthFilePath; the smoke dropped its separate
+`.env.local-chain.indexer-health` name.
+
 ## [2026-07-21] ingest | root ADR 0014 + 0017 — C3 complete (partial clearing + infra drills)
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: The final two ADR 0014 unhappy paths land, completing ADR 0017 C3

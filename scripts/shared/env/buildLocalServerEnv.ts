@@ -3,14 +3,14 @@ import { localAiReviewRunnerPollMs } from "../aiReview/localAiReviewRunnerPollMs
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "../chain/defaultHardhatPrivateKey.ts";
 import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
 import type { StackPorts } from "../localStack/ports.ts";
-import { localDevIndexerHealthFile } from "./localDevEnvFiles.ts";
 
 /**
  * Environment for the local Bun API and indexer, shared by the local-dev and
  * control-plane orchestrators. RPC URLs, default API port, Postgres database,
- * and review endpoint come from one slot resource set; explicit DATABASE_URL
- * and LOCAL_API_PORT overrides remain honored. Deployment address overrides
- * are blank before deployment and populated after it completes.
+ * review endpoint, and indexer health marker come from one slot resource set;
+ * explicit DATABASE_URL and LOCAL_API_PORT overrides remain honored.
+ * Deployment address overrides are blank before deployment and populated
+ * after it completes.
  */
 export function buildLocalServerEnv(
   resources: StackPorts,
@@ -22,7 +22,7 @@ export function buildLocalServerEnv(
     DATABASE_URL:
       process.env.DATABASE_URL ??
       `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`,
-    HEALTH_CHECK_FILE: localDevIndexerHealthFile,
+    HEALTH_CHECK_FILE: resources.indexerHealthFilePath,
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
     LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
