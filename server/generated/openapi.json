@@ -375,6 +375,153 @@
         }
       }
     },
+    "/dev/markets/{chainId}/{marketId}/review": {
+      "post": {
+        "operationId": "forceMarketReview",
+        "summary": "Dev-only force a market review verdict",
+        "description": "Local-only development tool gated on POPCHARTS_DEV_TOOLS_ENABLED. Records a deterministic market review without invoking the AI review service or runner, transitioning approved or rejected markets on-chain before persisting the review.",
+        "tags": [
+          "Development"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "verdict"
+                ],
+                "properties": {
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "manual_review"
+                    ]
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "verdict"
+                ],
+                "properties": {
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "manual_review"
+                    ]
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "verdict"
+                ],
+                "properties": {
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "manual_review"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketReviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMarketReviewIneligible"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dev/markets/{chainId}/{marketId}/resolve/{side}": {
       "post": {
         "operationId": "resolveDevMarket",
@@ -1273,6 +1420,61 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "DevMarketReviewIneligible": {
+        "type": "object",
+        "required": [
+          "message",
+          "market",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "chain_status",
+              "wrong_status"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ineligible"
+            ]
+          }
+        }
+      },
+      "DevMarketReviewResponse": {
+        "type": "object",
+        "required": [
+          "market",
+          "status",
+          "verdict"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reviewed"
+            ]
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/AiReviewVerdict"
           }
         }
       },
