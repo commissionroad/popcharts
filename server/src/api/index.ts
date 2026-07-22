@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 
 import { config } from "src/config";
 import { startChangeFeedRetention } from "src/change-feed/retention";
+import { eventsRoutes } from "./routes/events";
 import { marketRoutes } from "./routes/markets";
 import { portfolioRoutes } from "./routes/portfolio";
 import { systemRoutes } from "./routes/system";
@@ -22,6 +23,7 @@ export const app = new Elysia()
     }),
   )
   .use(systemRoutes)
+  .use(eventsRoutes)
   .use(marketRoutes)
   .use(portfolioRoutes);
 
