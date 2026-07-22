@@ -66,9 +66,13 @@ Happy path:
 
 UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
-- [ ] Golden journey: UI create → approval → pregrad trade → graduation →
+- [x] Golden journey: UI create → approval → pregrad trade → graduation →
       postgrad trade → resolution → redeem winnings, asserting the
-      user-visible balances.
+      user-visible balances. (`golden-journey.spec.ts` — the review verdict is
+      forced deterministically through the dev review endpoint (review is a
+      controlled input, not an AI dependency); graduation and resolution use the
+      dev endpoints too, and the postgrad trade and redemption run through the
+      injected wallet.)
 - [ ] Rejected creation: creator sees `rejected` with reasons.
 - [ ] Failed graduation: full refund claimed through the UI.
 - [ ] Partial clearing: retained + refunded portions itemized in the UI

@@ -10,7 +10,7 @@ sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - README.md
-updated: 2026-07-21
+updated: 2026-07-22
 ---
 
 # Testing strategy
@@ -123,4 +123,12 @@ runner and money paper-trail assertion module in
 `server/src/lifecycle-nightly/`, with the happy path green end-to-end
 through the real review runner, keeper clearing, and resolution runner; it
 runs as the `lifecycle-scenarios` job of the Nightly Lifecycle workflow.
-Unhappy-path scenarios and infra drills are the open remainder.
+**All eight service/chain paths landed by 2026-07-21** (C3 complete: happy
+path, rejection, manual review, failed graduation, draw/cancel, partial
+clearing, and two infra drills). On top, **five Playwright `@lifecycle` UI
+journeys (C4)** assert the user-visible money-out moment with an injected
+wallet: the **golden journey landed 2026-07-22**
+(`app/src/tests/e2e/golden-journey.spec.ts`, run by the `lifecycle:e2e` lane's
+`terminal-e2e` nightly job, review via the real runner booted by `local:smoke
+--with-ai-review`); rejected-creation, failed-graduation, partial-clearing,
+and cancelled/draw remain.

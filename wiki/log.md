@@ -889,3 +889,17 @@ lifecycles. Fixed a latent supervisor bug: a signal-terminated child exits
 with code=null (same as running), so liveness now uses an explicit `exited`
 flag. AI-outage recovery keys off market status / the review audit row,
 never the job's transient terminal_failed. UI journeys (C4) remain.
+
+## [2026-07-22] ingest | repo ADR 0014 — golden UI journey (ADR 0017 C4) landed
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: First of the five `@lifecycle` Playwright UI journeys landed
+(`app/src/tests/e2e/golden-journey.spec.ts`): UI create → review approval →
+pregrad receipt → graduation → postgrad trade → resolution → redeem winnings,
+asserting the rendered claim + a risen balance. Enabling change: `local:smoke`
+gained `--with-ai-review`, which boots the heuristic review service + runner;
+the runner auto-discovers under_review markets, so UI-lane approval is now the
+real review path (the operator `approveMarket` shortcut was dropped). Corrected
+a stale line in testing-strategy.md that still called C3's unhappy paths the
+"open remainder" (C3 completed 2026-07-21). Rejected-creation, failed-graduation,
+partial-clearing, and cancelled/draw UI journeys remain (C4).

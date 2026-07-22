@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete), five UI journeys (C4) open.
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete); the first of five UI journeys (C4, the golden path) landed 2026-07-22, four open.
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
-updated: 2026-07-21
+updated: 2026-07-22
 ---
 
 # Repo ADR 0014: Full-Lifecycle E2E Testing
@@ -85,6 +85,22 @@ Unhappy paths (all six **landed 2026-07-21**):
   (keyed off market status, never the job's transient terminal_failed).
   Both bounce services through a stack control server the orchestrator
   exposes — the scenario never owns process lifecycles.
+
+UI journeys (five full-E2E Playwright `@lifecycle` paths, injected wallet, no
+auth-vendor login; ADR 0017 item C4 — the user-visible money-out moment, not
+the paper trail):
+
+- [x] Golden journey (**landed 2026-07-22**, `app/src/tests/e2e/golden-journey.spec.ts`):
+  UI create → review approval → pregrad receipt → graduation → postgrad trade
+  → resolution → redeem winnings, asserting the rendered claim and a risen
+  balance. The review verdict is forced deterministically through a dev review
+  endpoint (review is a controlled test input, not an AI dependency);
+  graduation and resolution use the local dev endpoints too.
+- [ ] Rejected creation: creator sees `rejected` with reasons.
+- [ ] Failed graduation: full refund claimed through the UI.
+- [ ] Partial clearing: retained + refunded itemized in the claim flow.
+- [ ] Cancelled/draw: redeem at cost through the ADR 0018 surface (an
+  `@lifecycle` draw test already exists; C4 finalizes it as journey 5).
 
 Gated variants:
 
