@@ -874,3 +874,18 @@ so concurrent stacks could clear each other's marker or pass readiness
 against the wrong slot's indexer. Now derived per slot via
 StackPorts.indexerHealthFilePath; the smoke dropped its separate
 `.env.local-chain.indexer-health` name.
+
+## [2026-07-21] ingest | root ADR 0014 + 0017 — C3 complete (partial clearing + infra drills)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: The final two ADR 0014 unhappy paths land, completing ADR 0017 C3
+(all eight service/chain lifecycle paths). Partial clearing: band-pass
+clearing prorates the crowded side, so a one-sided excess spreads its refund
+across that side's receipts (no single fully-refunded receipt) — the split
+shows as a mix of fully-retained and partially/fully-refunded graduated
+claims. The infra drills introduced a stack control server the orchestrator
+exposes (scripts/shared/process/stackControl.ts) so a scenario can bounce
+supervised services (indexer, keeper, AI services) without owning process
+lifecycles. Fixed a latent supervisor bug: a signal-terminated child exits
+with code=null (same as running), so liveness now uses an explicit `exited`
+flag. AI-outage recovery keys off market status / the review audit row,
+never the job's transient terminal_failed. UI journeys (C4) remain.

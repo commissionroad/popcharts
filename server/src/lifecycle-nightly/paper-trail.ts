@@ -9,6 +9,7 @@ import type { Address } from "viem";
 import { and, db, eq, inArray, schema } from "src/db/client";
 
 import { chainId, pregradManagerAddress, publicClient } from "./stack";
+import { waitForCondition } from "./wait";
 
 /**
  * Market-scoped verification of the money paper-trail invariant
@@ -38,15 +39,41 @@ type LedgerEntry = {
   key: string;
 };
 
+type PaperTrailTarget = {
+  createdBlock: bigint;
+  marketId: bigint;
+  postgradMarketAddress?: Address;
+};
+
+/**
+ * Retries `assertMarketPaperTrail` until it holds or the timeout elapses. The
+ * indexer's dynamic postgrad watcher backfills a graduated venue's events
+ * (complete-set mints, outcome-token transfers) a beat after graduation, so a
+ * reconciliation run immediately after graduation can transiently see them as
+ * dropped. A throwing reconciliation counts as not-ready; on timeout
+ * waitForCondition surfaces the last failure (the full violations list), so a
+ * genuine dropped/fabricated transfer still fails loudly. tickChain flushes
+ * the indexer with the same throttled mining the other waits use.
+ */
+export async function assertMarketPaperTrailEventually(
+  target: PaperTrailTarget,
+  { timeoutMs = 60_000 }: { timeoutMs?: number } = {},
+): Promise<void> {
+  await waitForCondition(
+    `paper trail balances for market ${target.marketId}`,
+    async () => {
+      await assertMarketPaperTrail(target);
+      return true;
+    },
+    { tickChain: true, timeoutMs },
+  );
+}
+
 export async function assertMarketPaperTrail({
   createdBlock,
   marketId,
   postgradMarketAddress,
-}: {
-  createdBlock: bigint;
-  marketId: bigint;
-  postgradMarketAddress?: Address;
-}): Promise<void> {
+}: PaperTrailTarget): Promise<void> {
   const failures: string[] = [];
 
   const pregradLogs = await publicClient.getContractEvents({
