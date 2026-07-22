@@ -4,7 +4,7 @@ import type { schema } from "src/db/client";
  * The single source of truth for the live-updates change feed (repo ADR 0021):
  * which tables emit `change_feed` rows and, for each, which SSE channels a row
  * routes to. The write seams that call `recordLiveChange` name a `sourceTable`
- * from this map, and the relay's routing (src/live/change-feed-relay.ts) reads
+ * from this map, and the relay's routing (src/change-feed/relay.ts) reads
  * routes back out of it, so a table can never be signalled-but-unrouted — the
  * `sourceTable` argument is typed as {@link ChangeFeedSourceTable}, and the
  * coverage test asserts every entry is reached by a real seam.

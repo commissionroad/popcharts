@@ -13,7 +13,7 @@ import {
   marketChannel,
   portfolioChannel,
   type ChangeFeedRow,
-} from "src/live/change-feed-sources";
+} from "src/change-feed/sources";
 
 function row(overrides: Partial<ChangeFeedRow> = {}): ChangeFeedRow {
   return {
