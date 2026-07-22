@@ -4,6 +4,7 @@ import {
   normalizeServiceUrl,
   readBoolean,
   readBooleanOrFallback,
+  readEnumOrFallback,
   readNonNegativeIntegerOrFallback,
   readPositiveInteger,
   readPositiveIntegerOrFallback,
@@ -90,6 +91,22 @@ describe("readBooleanOrFallback", () => {
     expect(readBooleanOrFallback("false", true)).toBe(false);
     expect(readBooleanOrFallback("TRUE", true)).toBe(false);
     expect(readBooleanOrFallback("yes", true)).toBe(false);
+  });
+});
+
+describe("readEnumOrFallback", () => {
+  const MODES = ["off", "provided_urls", "search"] as const;
+
+  it("returns an allowed literal", () => {
+    expect(readEnumOrFallback("off", MODES, "search")).toBe("off");
+    expect(readEnumOrFallback("search", MODES, "off")).toBe("search");
+  });
+
+  it("falls back on unset, empty, and unknown values", () => {
+    expect(readEnumOrFallback(undefined, MODES, "search")).toBe("search");
+    expect(readEnumOrFallback("", MODES, "search")).toBe("search");
+    expect(readEnumOrFallback("everything", MODES, "search")).toBe("search");
+    expect(readEnumOrFallback("OFF", MODES, "search")).toBe("search");
   });
 });
 

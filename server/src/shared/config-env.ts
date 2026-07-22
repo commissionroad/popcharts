@@ -108,6 +108,22 @@ export function readBooleanOrFallback(
 }
 
 /**
+ * Lenient enum knob: returns the value only when it is one of the allowed
+ * literals; anything else (unset, empty, unknown) returns the fallback. Never
+ * throws.
+ */
+export function readEnumOrFallback<T extends string>(
+  value: string | undefined,
+  allowed: readonly T[],
+  // NoInfer: infer T from `allowed` alone, so a fallback outside the allowed
+  // set is a type error instead of silently widening the union.
+  fallback: NoInfer<T>,
+): T {
+  const match = allowed.find((candidate) => candidate === value);
+  return match ?? fallback;
+}
+
+/**
  * Normalizes a service base URL: unset/blank returns the fallback; otherwise
  * trims whitespace and strips all trailing slashes so callers can append
  * paths without producing `//`.
