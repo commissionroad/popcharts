@@ -834,3 +834,16 @@ the creation fee has never had an event-sourced record (the ADR adds one) —
 worth a lint pass against portfolio-data-design's money invariant. Deferred the
 pregrad-manager/creation-fee-vault entity-page edits (cross-linked from the
 summary; entity bodies still describe current on-chain-first behavior).
+
+## [2026-07-21] ingest | repo ADR 0022 — anti-spam revised to a prepaid review bond
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/creation-fee-custody.md
+Notes: The rate-limiting-only anti-spam stance (an "accepted risk") was superseded
+after review by a prepaid, refundable **review bond** in a separate standalone
+`ReviewBondVault` escrow — min $5, drawn down $1/submission (incl. 5 reviews) then
+$0.20/review, no slashing, native-USDC msg.value (on Arc USDC is the native token),
+fees metered off-chain with on-chain deposit/settle/withdraw money-trail events. New
+phase P3 (bond escrow) opens public submission; phases renumbered to 8. A second
+money contract now exists alongside the creation fee — noted on creation-fee-custody.
+Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, and no
+dedicated ReviewBondVault entity page yet (single source until built).

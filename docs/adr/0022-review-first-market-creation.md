@@ -59,20 +59,32 @@ Concretely:
    deleted = soft-delete flag, valid from any state
    ```
 
-3. **Fee-on-accept.** No fee and no gas are charged until publish. The existing on-chain
-   creation fee is paid by the creator when they publish (`createMarket`). Rejected and
-   iterated drafts cost nothing.
+3. **Two separate charges: the creation fee (at publish) and the review bond (at submit).**
+   The existing **creation fee** stays fee-on-accept — paid by the creator when they publish
+   (`createMarket`); rejected/iterated drafts never pay it. Separately, a **prepaid, refundable
+   review bond** funds the AI-review pipeline and is the Sybil defence (rate limiting alone is
+   not Sybil-resistant, because SSO users get free embedded wallets, and each review spends
+   real provider money):
 
-   **Anti-spam is per-wallet/per-user rate limiting, for now — an accepted risk.** On-chain
-   spam (junk markets) is no longer possible pre-publish; junk never reaches the chain. The
-   remaining exposure is the **paid AI-review pipeline**: once review runs on free drafts,
-   each review that clears the cheap heuristic pre-gate invokes a costly provider (web search
-   + fetch + model), and rate limiting is **not Sybil-resistant on its own** because SSO users
-   get free embedded wallets (a fresh identity is a fresh rate-limit bucket). This is a
-   **deliberately accepted risk** while the provider is self-hosted and early-stage spend is
-   small. The documented escalation path, if provider spend grows (P8): a heuristic-only
-   pre-screen for un-vetted drafts, a provider-spend budget cap (per-identity + global),
-   and/or a refundable submission deposit.
+   - A creator posts a **standing bond** (minimum **$5**) into a separate escrow contract; it
+     is a prepaid balance, **refundable** — withdraw the unused remainder anytime. **No
+     slashing** (a "we kept your bond because we judged you abusive" flow is a contentious
+     moderation-money decision; the per-use fees below already price out spam).
+   - **Submitting a draft for review costs $1**, which bundles **up to 5 review runs** (so the
+     reject → edit → resubmit loop of that draft is covered for its first 5 cycles). The **6th+
+     review of the same draft costs $0.20** each.
+   - These fees are **metered off-chain** (in the DB, against the bonded balance) so submitting
+     and iterating stay free-feeling and never touch the chain; only the bond **deposit,
+     settlement, and withdrawal** are on-chain (see "Review-bond escrow contract").
+   - **Denomination is the chain's native USDC**, collected via `msg.value` exactly like the
+     existing creation fee (on Arc, USDC *is* the native token; dev reuses the existing
+     "native devchain token stands in for USDC" convention). So $5 = `5e18`, $1 = `1e18`,
+     $0.20 = `2e17` — **no ERC-20 `approve` step**. (The real-dollar peg of `1e18` is the
+     inherited ADR 0009 Q1, unchanged.)
+
+   Net anti-spam: a fresh identity must fund ≥$5 and pay $1/submission (+$0.20/extra review),
+   so free embedded wallets no longer make review free — closing the exposure the red-team
+   flagged. Coarse per-wallet/per-user rate limiting stays as a cheap first layer.
 
 4. **The creator publishes** (not a platform relay), and the **publish authorization is
    minted at publish time, not cached from approval.** Approval only marks the draft
@@ -183,7 +195,43 @@ metadata in and returns a verdict). The published market keeps its existing revi
 only if we later choose to copy the winning draft-review into a market-scoped audit row at
 publish; the ADR does not require that.
 
-## Considered options
+## Review-bond escrow contract
+
+The review bond is a **separate, standalone deployed contract** — not folded into
+`PregradManager`. The existing creation fee lives as an abstract base (`CreationFeeVault`)
+mixed into `PregradManager` and is keyed to `marketId`, because it is collected *inside*
+`createMarket` when a market exists. The bond is different on both axes: it is collected at
+**submit time, when there is no market and no `marketId`**, and it is keyed to the
+**submitter**, not a market. So it does not belong in the market contract's inheritance chain
+(the market contract's job is markets, not pre-market submissions), and a standalone contract
+gives a clean money-trail, a tight security-audit surface (ADR 0023), and independent
+evolution — mirroring the existing custody/policy split. Provisional name `ReviewBondVault`
+(descriptive, per the no-third-party-names rule); it is a *prepaid refundable balance*, not a
+slashable bond.
+
+**On-chain surface (native USDC via `msg.value`):**
+
+- `depositBond()` payable — credits `msg.value` to the caller's bonded balance
+  (emits `ReviewBondDeposited`).
+- `settle(user, consumedTotal, …)` `onlyResolver` — records the off-chain-metered consumed
+  total and moves the newly-consumed delta from the user's bonded balance into the platform's
+  collected pool (emits `ReviewFeesSettled`). The **resolver** is an owner-set key, the same
+  trust model as the `createMarket` authorizer.
+- `withdrawBond(amount)` — the user withdraws up to `deposited − settledConsumed`
+  (emits `ReviewBondWithdrawn`). Withdrawal is gated on settlement being current — either the
+  resolver settles first, or the call carries a resolver-signed `consumedTotal` — so a user
+  cannot withdraw the un-settled consumed portion.
+- `withdrawCollectedFees(recipient)` `onlyOwner` — platform sweeps collected review fees
+  (emits `ReviewFeesWithdrawn`).
+
+**Why metering is off-chain.** A $0.20 on-chain debit per review would cost more in gas than
+the fee, and per-review transactions would reintroduce exactly the per-iteration on-chain
+friction the whole draft flow removes. So the bond is **on-chain collateral**, review
+consumption is **metered in the DB** against the bonded balance (submit = $1/5-reviews, then
+$0.20/review), and the resolver **settles on-chain** in batches (or attests the consumed total
+at withdraw). The server gates draft submission on sufficient bonded balance. This is a
+prepaid-meter / one-way-channel pattern; the on-chain money events are deposit → settlement →
+withdrawal, and the $0.20 granularity lives in the meter, not on-chain.
 
 - **On-chain-first with refund-on-reject (rejected).** Keep creating on-chain in
   `UnderReview` with the fee paid up front, but make `rejectMarket` refund the fee. Rejected
@@ -222,6 +270,22 @@ publish; the ADR does not require that.
   per-user token and the user is already logged in through it, so it is the least new
   surface. SIWE remains a fallback if we later want auth decoupled from the wallet provider.
 
+- **Rate-limiting-only anti-spam (rejected).** Per-wallet/per-user rate limiting is not
+  Sybil-resistant: SSO users get free embedded wallets, so a fresh identity is a fresh
+  rate-limit bucket, and each review that clears the cheap heuristic gate spends real
+  provider money. Kept only as a cheap first layer under the bond.
+
+- **Per-submission on-chain deposit (rejected in favour of the standing bond).** A deposit
+  taken on *every* submit (refunded minus a fee) is a strong deterrent but makes every submit
+  and every re-submit-after-edit an on-chain tx + gas + funding — taxing exactly the iteration
+  the draft flow exists to enable. The standing bond amortises that to a single on-chain
+  deposit, after which iteration is metered off-chain.
+
+- **Folding the bond into `PregradManager` / an on-chain per-review debit (rejected).** The
+  bond is collected pre-market (no `marketId`) and a $0.20 on-chain debit per review costs
+  more than the fee; both point to a standalone contract with off-chain metering (see
+  "Review-bond escrow contract").
+
 ## Consequences
 
 - **Creation becomes permissioned.** Public `createMarket` requires our authorizer
@@ -246,25 +310,39 @@ publish; the ADR does not require that.
   (`UnderReview`=7, `Rejected`=8) and never renumbered, because server code hand-decodes raw
   `uint8` status ordinals (`pregrad-refund.ts`, `dev-market-graduate.ts`) that ABI
   regeneration would not catch.
-- **SSO users must fund their embedded wallet** with the fee + gas before they can publish —
-  a funding-UX problem to solve separately (onramp/faucet), out of scope here.
+- **A new money contract + flow: the review-bond escrow.** A standalone contract holding
+  user funds, with an owner-set resolver that settles off-chain-metered consumption on-chain.
+  Its deposit/settlement/withdrawal events must be indexed (money-invariant), and the
+  off-chain meter is now a correctness-critical accounting surface (over-metering strands a
+  user's refund; under-metering leaks review cost).
+- **SSO users must fund their embedded wallet twice over** — the review bond (≥$5) before
+  submitting, and the creation fee + gas before publishing — a funding-UX problem to solve
+  separately (onramp/faucet), out of scope here.
 - **Draft content is private and mutable**, so draft endpoints are the app's first surface
   needing real authenticated writes; get the Privy JWT verification right or drafts leak.
 
 ## Money invariant
 
-The creation fee is an on-chain value transfer. Today it is emitted (`MarketCreationFeePaid`)
-but **not** indexed, so it does not yet satisfy the repo money paper-trail invariant. This
-ADR (P3) adds a fee-events table populated by a `MarketCreationFeePaid` watcher, keyed by
-`(chainId, marketId, transactionHash, logIndex)`, covered by the paper-trail test, and lists
-the creation fee in `docs/portfolio-data-design.md`. Moving collection from submit to publish
-does not make any transfer inferred, off-chain, or droppable; it now *gains* the
-event-sourced record it previously lacked.
+Two on-chain value flows must each leave an event-sourced DB record:
+
+- **Creation fee.** Today it is emitted (`MarketCreationFeePaid`) but **not** indexed — no
+  watcher, no table, absent from `docs/portfolio-data-design.md` — so it does not yet satisfy
+  the invariant. This ADR adds a fee-events table populated by a `MarketCreationFeePaid`
+  watcher keyed by `(chainId, marketId, transactionHash, logIndex)`, covered by the paper-trail
+  test. Moving collection from submit to publish makes no transfer inferred or droppable; it
+  *gains* the record it previously lacked.
+- **Review bond.** New flow: `ReviewBondDeposited` / `ReviewFeesSettled` / `ReviewBondWithdrawn`
+  / `ReviewFeesWithdrawn` are each indexed into their own events table keyed by
+  `(chainId, user, transactionHash, logIndex)`. The **actual value transfers are the on-chain
+  deposit/settlement/withdrawal**; the per-review $0.20 metering is DB accounting that nets out
+  at settlement, so no value moves without an on-chain event. The off-chain meter reconciles to
+  the on-chain `settledConsumed` at every settlement.
 
 ## Phased build plan
 
 Ordered so each phase is independently shippable and the keystone (drafts + off-chain
-review) lands before the contract change.
+review) lands before the contract changes. **Public draft submission does not open until the
+review bond (P3) is live** — until then P2's review runs internally/allow-listed.
 
 - [ ] **P1 — Draft entity + Privy-authenticated CRUD.** `market_drafts` table (content with
       relative-duration deadlines + bookkeeping columns, `is_template`, `visibility`,
@@ -274,34 +352,36 @@ review) lands before the contract change.
 - [ ] **P2 — Off-chain AI review on drafts.** New **draft-keyed** review + job tables and a
       reworked runner that enqueues from `market_drafts`; snapshot `metadataHash` on submit;
       `in_review → approved | rejected`; user-appropriate rejection reasons; edit → re-review.
-      Per-wallet/per-user rate limiting on submission. Still no chain change.
-- [ ] **P3 — Gated `createMarket` + publish + fee indexing.** Contract: EIP-712 authorizer
-      signature over the **full params** with an **on-chain single-use nonce** + expiry,
-      trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer: project new
-      markets as **`bootstrap`** (change `market-created.ts` + column default). Server: mint
-      the publish authorization **at publish time** (re-check approved + unchanged; resolve
-      durations → absolute deadlines); add the `MarketCreationFeePaid` watcher + fee-events
-      table + `portfolio-data-design.md` entry. App: "Publish & pay" step, `publishing`
-      transient state, `published_market_id` back-link.
-- [ ] **P4 — Retire on-chain review machinery.** Remove `UnderReview` / `approveMarket` /
+      Keystone; runs internally/allow-listed until P3 gates public submission.
+- [ ] **P3 — Review-bond escrow + off-chain meter.** Standalone `ReviewBondVault` contract
+      (native-USDC `msg.value`: `depositBond` / `settle`(onlyResolver) / `withdrawBond` /
+      `withdrawCollectedFees`; regenerate ABIs); the off-chain fee meter ($5 min bond, $1/submit
+      incl. 5 reviews, $0.20/review after) gating submission on bonded balance; the resolver
+      settlement path; and indexing of the four bond events + `portfolio-data-design.md`
+      entries. **Opens public draft submission.**
+- [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** Contract: EIP-712
+      authorizer signature over the **full params** with an **on-chain single-use nonce** +
+      expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer:
+      project new markets as **`bootstrap`** (change `market-created.ts` + column default).
+      Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
+      resolve durations → absolute deadlines); add the `MarketCreationFeePaid` watcher +
+      fee-events table + `portfolio-data-design.md` entry. App: "Publish & pay" step,
+      `publishing` transient state, `published_market_id` back-link.
+- [ ] **P5 — Retire on-chain review machinery.** Remove `UnderReview` / `approveMarket` /
       `rejectMarket` (tail-only enum removal, no renumber), the review-manager key, and the
       indexer market-review watcher; migrate existing `under_review` / `rejected` rows to a
       chosen surviving status (enum type rewrite or dead-label); audit the hand-written
       ordinal decoders.
-- [ ] **P5 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
+- [ ] **P6 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
       `MarketCreated` event the indexer already reads; drop the best-effort off-chain
       metadata POST.
-- [ ] **P6 — Templates + clone.** Universal clone (own drafts / own markets / any market by
+- [ ] **P7 — Templates + clone.** Universal clone (own drafts / own markets / any market by
       id) → new `editing` draft, verbatim copy; `is_template` shelf; schema ready for future
       sharing.
-- [ ] **P7 — Discovery filters, server-side.** Real-markets-only board; status filters
+- [ ] **P8 — Discovery filters, server-side.** Real-markets-only board; status filters
       (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
       Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
       into SQL.
-- [ ] **P8 — Anti-spam hardening (deferred trigger).** Only if paid-review spend grows: a
-      heuristic-only pre-screen for un-vetted drafts, a provider-spend budget cap
-      (per-identity + global), and/or a refundable submission deposit. Not built until the
-      rate-limit-only approach shows strain.
 
 ## Deferred / out of scope
 
@@ -309,9 +389,14 @@ review) lands before the contract change.
   sharing UX and access model are not built now.
 - **Metadata in contract storage** for on-chain-contract-readable question text — deferred
   to a concrete optimistic-oracle design.
-- **Embedded-wallet funding** (onramp/faucet) for SSO creators at publish time.
-- **Fee denomination sign-off** (the `1e18` native vs 6-decimal USDC question, protocol
-  ADR 0009 Q1) — inherited open item, not resolved here.
+- **Embedded-wallet funding** (onramp/faucet) for SSO users — needed for both the review bond
+  (≥$5, before submitting) and the creation fee + gas (before publishing).
+- **The `1e18`-native real-dollar peg** (protocol ADR 0009 Q1) — this ADR fixes the bond in
+  the *same* native-USDC unit as the existing creation fee (so $1 = `1e18`), but whether that
+  native unit is exactly $1 on Arc is the inherited open item, unchanged.
+- **Resolver settlement cadence for the bond** (batched on-chain `settle` vs a resolver-signed
+  consumed-total at withdraw) — an implementation choice for P3, not decided here; both keep
+  the money invariant.
 - **Keyset pagination** for the discovery board (pre-existing 200-row cap) — not made worse
   by this ADR; the portfolio surface already covers claim-finding.
 - **Reject-corroboration policy** (ADR 0019) still governs when an LLM-only reject is
@@ -321,5 +406,7 @@ review) lands before the contract change.
 
 *This ADR was adversarially red-teamed (protocol/security, data-model/migration,
 product/economics, money-invariant lenses) before proposal; the review data-model section,
-the fee-indexing correction, publish-time authorization, the born-Active projection step, the
-identity-join specification, and the documented anti-spam risk are all folded-in findings.*
+the fee-indexing correction, publish-time authorization, the born-Active projection step, and
+the identity-join specification are all folded-in findings. The anti-spam exposure the
+red-team flagged is now closed by the prepaid review-bond escrow (decision 3 + the "Review-bond
+escrow contract" section), replacing the earlier rate-limiting-only stance.*

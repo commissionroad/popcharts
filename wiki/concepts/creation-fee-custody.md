@@ -42,3 +42,11 @@ already-approved off-chain draft, not at submit, so a rejected market never pays
 (removing the reject-burns-the-fee pain). It also notes the fee currently has **no
 event-sourced record** — `MarketCreationFeePaid` is emitted but indexed nowhere —
 and adds that indexing so the fee finally satisfies the money-paper-trail invariant.
+
+ADR 0022 also introduces a **second, separate fee flow**: a prepaid refundable
+**review bond** in a standalone `ReviewBondVault` escrow (min $5, drawn down by
+$1/submission-incl.-5-reviews then $0.20/review, no slashing), funding the AI-review
+pipeline as the Sybil defence. Unlike the creation fee (an abstract base mixed into
+`PregradManager`, keyed to `marketId`), the bond is a standalone contract keyed to
+the submitter and collected at submit-time when no market exists — same native-USDC
+`msg.value` denomination, its own deposit/settlement/withdrawal money-trail events.

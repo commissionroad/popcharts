@@ -37,12 +37,19 @@ Rejected/in-progress drafts are free, editable, and private.
   bookkeeping adds owner (Privy user), `status`, `is_template`, `visibility`,
   `deleted` soft-delete, `published_market_id` back-link, latest-rejection
   pointer. Drafts **linger forever**; soft-delete to hide.
-- **Fee-on-accept.** The existing creation fee is paid by the creator at
-  **publish** (`createMarket`), not submit; rejected/iterated drafts cost nothing.
-  Anti-spam = **per-wallet/per-user rate limiting only, an accepted risk** — it is
-  not Sybil-resistant against free SSO embedded wallets, and the paid-review
-  pipeline's cost-amplification escalation (heuristic pre-screen / spend cap /
-  refundable deposit) is deferred to P8.
+- **Two charges: creation fee (at publish) + review bond (at submit).** The
+  existing creation fee stays fee-on-accept — paid at **publish** (`createMarket`),
+  not submit; rejected/iterated drafts never pay it. Separately, a **prepaid
+  refundable review bond** funds the AI-review pipeline and is the Sybil defence:
+  a standing bond (min **$5**) into a **separate `ReviewBondVault` escrow
+  contract**, drawn down by fees ($1/submission incl. 5 reviews, $0.20/review
+  after), **no slashing**, withdraw the unused remainder anytime. Denominated in
+  **native USDC via `msg.value`** (on Arc, USDC is the native token — no ERC-20
+  `approve`; $1 = `1e18`). Fees are **metered off-chain** (submitting/iterating
+  stay off-chain and free-feeling); only the bond **deposit / resolver-settlement /
+  withdrawal** are on-chain events. This closes the paid-pipeline Sybil exposure
+  the red-team flagged (rate limiting alone was not Sybil-resistant vs free
+  embedded wallets); coarse rate limiting stays as a cheap first layer.
 - **Creator publishes** (not a platform relay). The **publish authorization is
   minted at publish time, not cached from approval**: the server re-checks the
   draft is still approved + unchanged, resolves the relative durations into
@@ -95,30 +102,38 @@ the review tables are on-chain-market-bound (the data-model section above); abso
 deadlines went stale for lingering approved drafts (fixed via publish-time auth over
 durations); the born-Active indexer projection flip was un-itemized; and the
 Privy-user vs wallet-address identity join for "my published markets" was
-unspecified.
+unspecified. The red-team also flagged that removing the submission fee left the
+paid AI-review pipeline Sybil-exposed under rate-limiting-only — now closed by the
+prepaid review-bond escrow (decision above), which superseded the initial
+rate-limiting-only stance.
 
 ## Phased build plan (all open)
 
+Public draft submission opens at P3 (the bond); until then P2 review runs internally.
+
 1. **P1** Draft entity + Privy-authenticated CRUD + "my drafts" surface.
-2. **P2** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) + rate limiting.
-3. **P3** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
-4. **P4** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
-5. **P5** Populate `market_metadata` from the event; drop the off-chain POST.
-6. **P6** Templates + clone.
-7. **P7** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
-8. **P8** Anti-spam hardening — only if paid-review spend grows (deferred trigger).
+2. **P2** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
+3. **P3** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. **Opens public submission.**
+4. **P4** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
+5. **P5** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
+6. **P6** Populate `market_metadata` from the event; drop the off-chain POST.
+7. **P7** Templates + clone.
+8. **P8** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
 
 ## Consequences
 
 Creation becomes **permissioned** (authorizer key = security-critical
-infrastructure: custody, rotation, on-chain single-use nonce). The creation fee
-finally gains an event-sourced record (it had none). The AI-review runner + tables
-are reworked, not re-pointed. Existing on-chain `under_review`/`rejected` markets
-need a migration; the Postgres `market_status` enum can't drop a value in place and
-the on-chain enum values must be removed only from the tail (server code
-hand-decodes `uint8` ordinals). SSO creators must fund their embedded wallet before
-publish. Draft endpoints are the app's first surface needing real authenticated
-writes.
+infrastructure: custody, rotation, on-chain single-use nonce). A **new money
+contract** appears — the `ReviewBondVault` escrow with an owner-set resolver that
+settles off-chain-metered consumption on-chain (the off-chain meter becomes a
+correctness-critical accounting surface). The creation fee finally gains an
+event-sourced record (it had none). The AI-review runner + tables are reworked, not
+re-pointed. Existing on-chain `under_review`/`rejected` markets need a migration; the
+Postgres `market_status` enum can't drop a value in place and the on-chain enum
+values must be removed only from the tail (server code hand-decodes `uint8`
+ordinals). SSO users must fund their embedded wallet twice — the review bond before
+submitting, the creation fee before publishing. Draft endpoints are the app's first
+surface needing real authenticated writes.
 
 ## Related pages
 
