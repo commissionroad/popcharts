@@ -127,8 +127,9 @@ runs as the `lifecycle-scenarios` job of the Nightly Lifecycle workflow.
 path, rejection, manual review, failed graduation, draw/cancel, partial
 clearing, and two infra drills). On top, **five Playwright `@lifecycle` UI
 journeys (C4)** assert the user-visible money-out moment with an injected
-wallet: the **golden journey landed 2026-07-22**
-(`app/src/tests/e2e/golden-journey.spec.ts`, run by the `lifecycle:e2e` lane's
-`terminal-e2e` nightly job, review via the real runner booted by `local:smoke
---with-ai-review`); rejected-creation, failed-graduation, partial-clearing,
-and cancelled/draw remain.
+wallet, run by the `lifecycle:e2e` lane's `terminal-e2e` nightly job with
+review via the real runner booted by `local:smoke --with-ai-review`. **Three
+landed 2026-07-22**: golden (`golden-journey.spec.ts`), rejected creation
+(`rejected-creation.spec.ts` — a hard-flag market the runner rejects), and
+failed graduation (`failed-graduation.spec.ts` — a sub-threshold market refunded
+through the UI). Partial clearing and cancelled/draw remain.

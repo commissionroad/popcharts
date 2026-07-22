@@ -73,8 +73,14 @@ UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
       controlled input, not an AI dependency); graduation and resolution use the
       dev endpoints too, and the postgrad trade and redemption run through the
       injected wallet.)
-- [ ] Rejected creation: creator sees `rejected` with reasons.
-- [ ] Failed graduation: full refund claimed through the UI.
+- [x] Rejected creation: creator sees `rejected` with reasons.
+      (`rejected-creation.spec.ts` — the dev review endpoint forces a `reject`
+      verdict with a known reason; the market page renders the rejected status
+      and that reason in the AI review card.)
+- [x] Failed graduation: full refund claimed through the UI.
+      (`failed-graduation.spec.ts` — a single unmatched YES receipt keeps the
+      market below threshold; the dev close opens refunds via `markRefundable`
+      and the holder claims the full cost back on the market page.)
 - [ ] Partial clearing: retained + refunded portions itemized in the UI
       claim flow.
 - [ ] Cancelled/draw: redeem at cost through the ADR 0018 redemption

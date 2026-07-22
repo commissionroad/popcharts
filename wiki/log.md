@@ -932,3 +932,13 @@ phase P3 (bond escrow) opens public submission; phases renumbered to 8. A second
 money contract now exists alongside the creation fee — noted on creation-fee-custody.
 Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, and no
 dedicated ReviewBondVault entity page yet (single source until built).
+## [2026-07-22] ingest | repo ADR 0014 — rejected + failed-graduation UI journeys (C4)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: Journeys 2 and 3 of C4 landed (three of five now). Rejected creation
+(`rejected-creation.spec.ts`): a "hacked" market trips the illegal-activity
+hard flag, the real heuristic runner rejects it on-chain, and the market page
+renders the AI review card's reasons. Failed graduation
+(`failed-graduation.spec.ts`): one unmatched YES receipt keeps the market
+sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
+holder claims the full cost back. Partial clearing and cancelled/draw remain.
