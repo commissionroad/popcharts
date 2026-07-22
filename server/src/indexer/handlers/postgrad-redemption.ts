@@ -3,6 +3,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
+import { recordLiveChange } from "src/change-feed/writer";
 
 export type PostgradRedemptionKind = "redeemed" | "cancelled_redeemed";
 
@@ -112,15 +113,37 @@ export function buildPostgradRedemptionRecord({
  * Persists the raw redemption row. Append-only: the wallet's balance change is
  * projected independently from the outcome-token Transfer stream, so there is
  * no projection to update here. The insert dedupes on (chain, tx, log) so a
- * recovery replay or a second indexer never double-records a payout.
+ * recovery replay or a second indexer never double-records a payout. Wrapped in
+ * a transaction only so the live-change signal is atomic with — and fires only
+ * on — a genuinely new payout row.
  */
 export async function persistPostgradRedemptionRecord(
   record: PostgradRedemptionRecord,
+  dbc: typeof db = db,
 ) {
-  await db
-    .insert(schema.postgradRedemptionEvents)
-    .values(record.event)
-    .onConflictDoNothing();
+  await dbc.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(schema.postgradRedemptionEvents)
+      .values(record.event)
+      .onConflictDoNothing()
+      .returning({ id: schema.postgradRedemptionEvents.id });
+
+    if (!inserted[0]) {
+      return;
+    }
+
+    // Money paper trail: signal the market and the redeemer's portfolio.
+    await recordLiveChange(tx, {
+      sourceTable: "postgrad_redemption_events",
+      op: "insert",
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      owner: record.event.account,
+      rowId: inserted[0].id,
+      blockNumber: record.event.blockNumber,
+      logIndex: record.event.logIndex,
+    });
+  });
 }
 
 function requireValue<T>(value: T | null | undefined, name: string): T {

@@ -3,6 +3,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, and, eq, schema } from "src/db/client";
+import { recordLiveChange } from "src/change-feed/writer";
 
 export type PostgradResolutionKind = "resolved" | "cancelled";
 
@@ -79,13 +80,14 @@ export function buildPostgradResolutionRecord({
  */
 export async function persistPostgradResolutionRecord(
   record: PostgradResolutionRecord,
+  dbc: typeof db = db,
 ) {
   const targetStatus =
     record.event.kind === "resolved"
       ? ("resolved" as const)
       : ("cancelled" as const);
 
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.postgradResolutionEvents)
       .values(record.event)
@@ -111,6 +113,16 @@ export async function persistPostgradResolutionRecord(
           eq(schema.markets.status, "graduated"),
         ),
       );
+
+    await recordLiveChange(tx, {
+      sourceTable: "postgrad_resolution_events",
+      op: "insert",
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.event.blockNumber,
+      logIndex: record.event.logIndex,
+    });
   });
 }
 

@@ -7,6 +7,7 @@ import {
   requireValue,
   type SettlementLog,
 } from "src/indexer/handlers/settlement-shared";
+import { recordLiveChange } from "src/change-feed/writer";
 
 export type MarketRefundsAvailableLog = SettlementLog<{
   marketId?: bigint;
@@ -83,6 +84,16 @@ export async function persistMarketRefundsAvailableRecord(
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    await recordLiveChange(tx, {
+      sourceTable: "market_refunds_available_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
 
@@ -112,5 +123,15 @@ export async function persistMarketCancelledRecord(
       .returning({ id: schema.markets.id });
 
     requireMarketUpdated(updated, record);
+
+    await recordLiveChange(tx, {
+      sourceTable: "market_cancelled_events",
+      op: "insert",
+      chainId: record.chainId,
+      marketId: record.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.blockNumber,
+      logIndex: record.logIndex,
+    });
   });
 }
