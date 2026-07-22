@@ -889,3 +889,17 @@ lifecycles. Fixed a latent supervisor bug: a signal-terminated child exits
 with code=null (same as running), so liveness now uses an explicit `exited`
 flag. AI-outage recovery keys off market status / the review audit row,
 never the job's transient terminal_failed. UI journeys (C4) remain.
+
+## [2026-07-22] ingest | ADR 0021 revised — live-updates server spine built (trigger → recordLiveChange)
+Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
+Notes: The emit point shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
+each write handler, NOT the generic AFTER-INSERT DB trigger the original draft proposed —
+decision reversed on separation-of-concerns grounds (no business logic / invisible
+side-effect / second schema installer in the data layer). Writer-agnostic completeness is
+recovered by a typed sourceTable + a coverage test scanning the seam dirs. Server spine
+(slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/ (#281 table+
+registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream, #291 GET /events
++service, #293 emit wiring, + a folder rename); ADR status Proposed → Accepted. Slices 2–7
+(client transport, pregrad surfaces, poll conversion, lifecycle/AI-review, hardening, e2e)
+remain open. Note: market_ai_review_jobs queue-state UPDATE signals deferred to the
+lifecycle/AI-review surface slice (need join-based routing).

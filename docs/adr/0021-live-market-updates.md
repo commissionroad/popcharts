@@ -1,8 +1,9 @@
 # ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
-Status: Proposed
+Status: Accepted — server spine built 2026-07-22
 
-Date: 2026-07-17
+Date: 2026-07-17 (revised 2026-07-22: the emit point ships as explicit
+TypeScript `recordLiveChange` seams, not a DB trigger — see Emit point below)
 
 ## Context
 
@@ -83,7 +84,7 @@ Four decisions, with the alternatives we rejected:
 | --- | --- | --- |
 | **Payload** | **Signal-to-refetch by default**: the message carries the changed entity's channel + a version; the client invalidates its React Query key and refetches the existing REST slice (multi-table composition stays server-side). **One data-in-message exception, from day one — the price/chart channel** (see below), which pushes the new point itself. | Additive delta streaming *everywhere* (exchange-style book reconstruction, checksums, resync) — unjustified at our cadence outside the append-mostly chart. |
 | **Transport** | SSE on the long-running Bun/Elysia API. | WebSocket — we have no client→server stream (trades already POST); SSE gives auto-reconnect + `Last-Event-ID` resume + sequence ids for free. Kept in reserve for a future bidirectional need. Hosting on Vercel — its functions force-close at the duration cap with no reconnect affinity. |
-| **Emit point** | A durable `change_feed` outbox table, written **in the same transaction** as each event by an `AFTER INSERT` trigger on the append-only tables. | In-indexer emit (can't cross processes; misses the AI-review runner's and keeper's writes). A trigger is writer-agnostic and fires only on committed rows, auto-suppressing the `MarketNotIndexedError` rollback path. |
+| **Emit point** | A durable `change_feed` outbox table, written **in the same transaction** as each event by an explicit `recordLiveChange(tx, …)` call at every write seam (the indexer handlers plus the AI-review and resolution runners). | A DB **trigger** — writer-agnostic, but it buries an invisible side-effect in the data layer and needs a second schema installer outside the ORM; we keep the routing/business logic in TypeScript where it is visible and tested (separation of concerns). In-indexer-only emit — misses the two off-chain runners' writes. Completeness that the trigger would give for free is recovered by a typed `sourceTable` plus a coverage test that scans the seam directories. |
 | **Delivery guarantee** | The **outbox table + a per-client cursor** (`Last-Event-ID`). | A message broker (SQS/RabbitMQ/Kafka) — duplicates what the outbox already provides, adds infra, and still cannot hold the browsers' SSE connections. `NOTIFY` as the guarantee — it has none. |
 
 ### The change-feed outbox
@@ -96,6 +97,7 @@ change_feed(
   id            bigserial primary key,   -- monotonic cursor == SSE Last-Event-ID
   created_at    timestamptz not null default now(),
   source_table  text    not null,        -- e.g. 'receipt_placed_events'
+  op            text    not null,        -- 'insert' | 'update'
   row_id        bigint  not null,        -- PK of the changed row
   chain_id      integer not null,
   market_id     numeric,                 -- routes to channel  market:{chainId}:{marketId}
@@ -104,18 +106,24 @@ change_feed(
 )
 ```
 
-1. **Write (atomic).** A single generic trigger function copies raw provenance
-   into one `change_feed` row in the *same* transaction as the change. It is
-   attached `AFTER INSERT` on the append-only tables that carry viewer-facing
-   changes (the `*_events` set plus `market_ai_reviews` and
-   `market_resolutions`), and `AFTER UPDATE` on the few mutable projections
-   whose in-place transitions are themselves the signal (notably
-   `market_ai_review_jobs` queue state — `queued→running→complete` — which is
-   what the current 2s full-page AI-review refresh reflects). If the change
-   commits, the feed row commits; if it rolls back, so does the feed row. The
-   trigger stays dumb — the mapping from `source_table` to SSE channel and
-   React Query key lives in TypeScript in the relay, not in PL/pgSQL, so it is
-   testable and versioned with the app.
+1. **Write (atomic).** Each write seam calls `recordLiveChange(tx, …)` — one
+   line at the end of the persist transaction, on the branch that actually
+   commits a new row — appending one `change_feed` row in the *same*
+   transaction as the change. If the change commits, the feed row commits; if
+   it rolls back (e.g. the `MarketNotIndexedError` retry path), so does the feed
+   row. The seams that emit are the append-only writers of viewer-facing rows:
+   the indexer handlers for the `*_events` set (receipts, settlement,
+   graduation, postgrad) and the two off-chain runners that append
+   `market_ai_reviews` and `market_resolutions`. The call site stays dumb — it
+   passes raw provenance (`sourceTable`, `market_id`, `owner`, block/log); the
+   mapping from `source_table` to SSE channel and React Query key lives in a
+   TypeScript registry (`change-feed/sources.ts`), testable and versioned with
+   the app. Mutable-projection UPDATE signals whose in-place transition is
+   itself the event — notably `market_ai_review_jobs` queue state
+   (`queued→running→complete`), which the current 2s full-page AI-review refresh
+   reflects — are **not** emitted by the spine; they are wired in the
+   lifecycle/AI-review surface slice, since they need join-based routing rather
+   than a single-row append.
 2. **Relay.** The API keeps a cursor, reads
    `SELECT … FROM change_feed WHERE id > $cursor ORDER BY id`, maps each row to
    a channel + version, and pushes a nudge to subscribed SSE clients.
@@ -134,8 +142,8 @@ a matched-cap computed from `receipt_placed_events`, …). We do **not** map a
 table to a component. Two indirections keep this tractable and hard to get
 wrong:
 
-- **Route by entity, not by component.** The trigger extracts `market_id` and
-  `owner` from the changed row, so every `change_feed` row already names its
+- **Route by entity, not by component.** The seam records `market_id` and
+  `owner` on the `change_feed` row, so every row already names its
   entity — routing to `market:{chainId}:{marketId}` and/or `portfolio:{owner}`
   is a direct field read, no join, no inference. The relay maps
   `source_table → channel(s)`; the client maps `channel → the React Query keys
@@ -143,24 +151,25 @@ wrong:
   in the REST read, recomputed fresh on refetch. The signal only ever says
   "entity X changed; re-read it," so we never decompose a slice into its tables.
 - **Completeness is an enumerable set, not per-wiring diligence.** "Did we drop
-  something?" reduces to one auditable question: *is this table in the trigger
-  set?* The invariant we lean on (verified in the write-path) is that every
-  meaningful projection mutation is coupled to an append in the same
-  transaction, so triggering the append-only tables (plus the handful of
-  mutable projections whose UPDATE *is* the signal) catches every viewer-facing
-  change exactly once — and, deliberately, we do **not** also trigger `markets`
-  UPDATEs, which would double-signal what the coupled event row already covers.
-  The `source_table → channel → query-key` map is a single TypeScript registry,
-  and a **coverage test** enforces both directions: every triggered table maps
-  to ≥1 channel, and every React Query key a page subscribes to is reachable
-  from some channel that page subscribes to. Adding a new indexed table is a
-  visible checklist item ("route it in the change-feed map"), caught in review
-  and by the test — not a silent omission.
+  something?" reduces to one auditable question: *does this write seam call
+  `recordLiveChange`?* The invariant we lean on (verified in the write-path) is
+  that every meaningful projection mutation is coupled to an append in the same
+  transaction, so emitting from the append-only writers catches every
+  viewer-facing change exactly once — and, deliberately, we do **not** also emit
+  from `markets` UPDATEs, which would double-signal what the coupled event row
+  already covers. The `source_table → channel → query-key` map is a single
+  TypeScript registry, and a **coverage test** scans the seam directories
+  (`src/indexer` and both runners) to enforce that every registered
+  `source_table` is reached by a real `recordLiveChange` seam — the
+  writer-agnostic completeness a trigger would have given for free. Adding a new
+  indexed table is a visible checklist item ("register it and emit from its
+  seam"), caught in review and by the test — not a silent omission.
 
 Because a signal triggers a whole-slice refetch of authoritative state,
 duplicate, out-of-order, or replayed-after-reconnect signals cannot corrupt or
 drop anything — worst case is a redundant refetch. The only true drop risk is a
-table missing from the trigger set, which the coverage test exists to catch.
+registered source whose seam fails to emit, which the coverage test exists to
+catch.
 
 ### The one data-in-message surface: price and chart
 
@@ -229,15 +238,18 @@ with no schema or client impact. **We ship polling first** and add coalesced
 
 ## Implementation slices (each its own PR)
 
-- [ ] **Outbox + relay + SSE endpoint (server spine).** The `change_feed`
-      table and migration; the generic `AFTER INSERT` trigger applied to the
-      append-only tables; the relay (poll-based) with the `source_table →
-      channel + React Query key` map in TypeScript; a `GET /events` SSE route
-      on the API that honours `Last-Event-ID` and filters by subscribed
-      channel. Unit tests: trigger fires once per committed row and not on
-      rollback; relay maps and orders correctly; resume replays exactly the
-      gap. Handle the Postgres sequence-visibility gap explicitly (small
-      lookback re-read + client dedup by `id`).
+- [x] **Outbox + relay + SSE endpoint (server spine).** Delivered 2026-07-22 as
+      a 7-PR stack under `server/src/change-feed/` (#281 table + registry, #283
+      write primitive + retention, #287 relay + hub, #289 SSE stream, #291
+      `GET /events` + service, #293 emit wiring at the seams, plus a folder
+      rename). The `change_feed` table and migration; `recordLiveChange(tx, …)`
+      at every write seam (no trigger); the poll-based relay with the
+      `source_table → channel` map in TypeScript; a `GET /events` SSE route that
+      honours `Last-Event-ID` and filters by subscribed channel. Tests:
+      `recordLiveChange` writes once and rolls back with its transaction; a
+      coverage test proves every registered source is reached by a seam; relay
+      maps/orders/recovers the sequence-visibility gap (small lookback re-read +
+      client dedup by `id`); the stream handshake replays exactly the gap.
 - [ ] **Client transport layer.** One shared `EventSource` in a top-level
       provider (never per-component); a `useLiveChannel(channel)` hook that
       subscribes/unsubscribes on mount/route change; messages call
@@ -282,11 +294,11 @@ no dependency on the API.
 ## Consequences
 
 - **Postgres gains a new write on every indexed event** (the `change_feed`
-  row via trigger) and a new read pattern (the relay tail). Both are cheap,
-  but `change_feed` growth must be pruned/partitioned, and the trigger is now
-  part of the indexer's write path — a failure there fails the event
-  transaction (which is the correct, atomic behaviour, but must be covered by
-  tests).
+  row via `recordLiveChange`) and a new read pattern (the relay tail). Both are
+  cheap, but `change_feed` growth must be pruned (shipped: age-based retention),
+  and the `recordLiveChange` call is now part of each seam's write path — a
+  failure there fails the event transaction (which is the correct, atomic
+  behaviour, but must be covered by tests).
 - **The delivery guarantee lives in the table, not the transport**, so the
   wake mechanism (poll vs. `NOTIFY`) and even the transport can change later
   without touching correctness — a deliberate hedge against the RDS-Proxy and

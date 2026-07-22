@@ -47,17 +47,20 @@ Tables: `markets` (keyed chain_id+market_id, starts `under_review`),
 `market_ai_review_jobs`. viem client factories centralized in
 `src/blockchain/client.ts`.
 
-## Live-updates relay (planned, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
+## Live-updates relay (built 2026-07-22, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
 
-The API gains a sixth responsibility: an **SSE endpoint** that pushes live
-market updates to the browser. Because the API is the long-lived process that
-holds client connections (the indexer can't — separate process), it runs the
-**relay**: it tails a durable `change_feed` outbox table (written by DB triggers
-in the same transaction as each indexed event), maps each row `source_table →
-SSE channel + React Query key` in TypeScript, and fans out a signal-to-refetch
-nudge; browsers refetch the existing read endpoints (DB/REST stays the single
-source of truth). Reconnect resumes via `Last-Event-ID` = the last
-`change_feed.id`. Wake mechanism is poll-first (NOTIFY optional). Deployment
+The API gains a sixth responsibility: an **SSE endpoint** (`GET /events`) that
+pushes live market updates to the browser. Because the API is the long-lived
+process that holds client connections (the indexer can't — separate process), it
+runs the **relay**: it tails a durable `change_feed` outbox table (written by an
+explicit `recordLiveChange` seam in the same transaction as each indexed event,
+not a DB trigger), maps each row `source_table → SSE channel + React Query key`
+in TypeScript, and fans out a signal-to-refetch nudge; browsers refetch the
+existing read endpoints (DB/REST stays the single source of truth). Reconnect
+resumes via `Last-Event-ID` = the last `change_feed.id`. The relay is
+ref-counted (polls only while a client is connected) and each autoscaled API
+instance runs its own over the shared table — no Redis. Wake mechanism is
+poll-first (NOTIFY optional). Deployment
 pieces (SSE behind the ALB, cross-origin CORS, RDS-Proxy connection handling)
 belong to [ADR 0015](../summaries/root-adr-0015-deployment-and-infrastructure.md).
 Proposed, not yet built.

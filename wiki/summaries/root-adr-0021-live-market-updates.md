@@ -1,18 +1,20 @@
 ---
 type: summary
 title: Repo ADR 0021 — Live market updates (SSE over a change-feed outbox)
-description: Proposed standalone program to make the app feel live — server-signalled, client-refetched updates over SSE, fed by a durable change_feed outbox written atomically with each indexed event; DB/REST stays the single source of truth, no message broker.
+description: Standalone program to make the app feel live — server-signalled, client-refetched updates over SSE, fed by a durable change_feed outbox written atomically with each indexed event via explicit recordLiveChange seams (not a DB trigger); DB/REST stays the single source of truth, no message broker. Server spine built 2026-07-22.
 sources:
   - docs/adr/0021-live-market-updates.md
-updated: 2026-07-17
+updated: 2026-07-22
 ---
 
 # Repo ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
-**Status: Proposed.** Dated 2026-07-17. A standalone tracked program (like
+**Status: Accepted — server spine built 2026-07-22.** Dated 2026-07-17. A
+standalone tracked program (like
 [0016](root-adr-0016-monorepo-architecture-cleanup-program.md)/
 [0017](root-adr-0017-test-observability-and-coverage-program.md)), not part of
-the M1–M5 launch chain.
+the M1–M5 launch chain. The emit point ships as explicit TypeScript
+`recordLiveChange` seams, **not** the DB trigger the original draft proposed.
 
 ## Context
 
@@ -46,14 +48,17 @@ of truth; the socket carries a small signal, not the data. Four axes:
   sequence ids beat WebSocket. Not hosted on Vercel (functions force-close at the
   duration cap). WebSocket kept in reserve for a future bidirectional need.
 - **Emit point — a `change_feed` outbox table**, written in the *same
-  transaction* as each change by a generic trigger — `AFTER INSERT` on the
-  append-only tables (`*_events` + `market_ai_reviews` + `market_resolutions`)
-  and `AFTER UPDATE` on the few mutable projections whose in-place transition
-  is the signal (e.g. `market_ai_review_jobs` queue state).
-  Writer-agnostic (catches the [indexer](../entities/indexer.md), the AI-review
-  runner, and the keeper), fires only on committed rows, and auto-suppresses the
-  `MarketNotIndexedError` rollback path. Rejected: in-indexer emit (can't cross
-  the indexer/API process boundary; misses non-indexer writers).
+  transaction* as each change by an explicit `recordLiveChange(tx, …)` at every
+  write seam: the [indexer](../entities/indexer.md) handlers for the `*_events`
+  set plus the two off-chain runners that append `market_ai_reviews` /
+  `market_resolutions`. Rejected: a **DB trigger** — writer-agnostic, but it
+  buries an invisible side-effect in the data layer and needs a second schema
+  installer outside the ORM; keeping the routing/logic in TypeScript (separation
+  of concerns) won out. Also rejected: in-indexer-only emit (misses the off-chain
+  runners' writes). The trigger's free completeness is recovered by a typed
+  `sourceTable` + a coverage test scanning the seam dirs. Mutable-projection
+  UPDATE signals (e.g. `market_ai_review_jobs` queue state) are deferred to the
+  lifecycle/AI-review surface slice — they need join-based routing.
 - **Delivery guarantee — the outbox table + a per-client cursor**
   (`Last-Event-ID`), *not* `NOTIFY`. Rejected: a message broker (SQS/Rabbit/
   Kafka). A broker's dividends — durable fan-out to **multiple independent
@@ -80,24 +85,24 @@ correctness because the table is the source of truth.
 ### The change_feed table
 
 `change_feed(id bigserial pk /* == Last-Event-ID */, created_at, source_table,
-row_id, chain_id, market_id, owner, block_number, log_index)`. Trigger writes one
-row atomically with the event; the relay tails `WHERE id > cursor`, maps
-`source_table → channel + React Query key` **in TypeScript** (trigger stays
-dumb); reconnect replays `WHERE id > Last-Event-ID`; retention ~24–48h
-(prune/partition, longer-offline clients cold-refetch). The Postgres
-sequence-visibility gap is handled explicitly (small lookback re-read + client
-dedup by id).
+row_id, chain_id, market_id, owner, block_number, log_index)`. Each seam writes
+one row via `recordLiveChange` atomically with the event; the relay tails
+`WHERE id > cursor`, maps `source_table → channel + React Query key` **in
+TypeScript** (`change-feed/sources.ts`); reconnect replays
+`WHERE id > Last-Event-ID`; retention is age-based (~48h; longer-offline clients
+cold-refetch). The Postgres sequence-visibility gap is handled explicitly (small
+lookback re-read + client dedup by id).
 
 **Mapping & completeness.** Route by *entity*, not by component: every row
 carries `market_id`/`owner`, so routing to `market:{id}` / `portfolio:{owner}`
 is a field read, and multi-table composition stays in the REST read (refetched
-fresh). "Did we drop something?" reduces to "is this table in the trigger set?"
-— an enumerable list plus a single TS `source_table → channel → query-key`
-registry and a coverage test (every triggered table maps to ≥1 channel; every
-page's query keys are reachable). Whole-slice refetch of authoritative state
-makes duplicate/out-of-order/replayed signals harmless (worst case: a redundant
-refetch). Deliberately does NOT trigger `markets` UPDATEs — the coupled event
-row already covers them (no double-signal).
+fresh). "Did we drop something?" reduces to "does this seam call
+`recordLiveChange`?" — a coverage test scans the seam dirs (`src/indexer` + both
+runners) and asserts every registered `source_table` is reached by a seam.
+Whole-slice refetch of authoritative state makes duplicate/out-of-order/replayed
+signals harmless (worst case: a redundant refetch). Deliberately does NOT emit
+from `markets` UPDATEs — the coupled event row already covers them (no
+double-signal).
 
 ### Scope boundaries
 
@@ -109,9 +114,12 @@ depth / reorg emit timing belongs to
 [ADR 0010](root-adr-0010-indexer-maturity.md); the signal-to-refetch model
 degrades gracefully on reorg (re-emit → client refetches corrected state).
 
-## Implementation slices (all open)
+## Implementation slices
 
-1. Outbox + relay + SSE endpoint (server spine).
+1. ✅ Outbox + relay + SSE endpoint (server spine) — **built 2026-07-22** as a
+   7-PR stack under `server/src/change-feed/` (#281, #283, #287, #289, #291,
+   #293 + a folder rename); explicit `recordLiveChange` seams, poll-based relay,
+   `GET /events` with `Last-Event-ID`, coverage test.
 2. Client transport layer (one shared `EventSource` provider, `invalidateQueries`).
 3. Pregrad live surfaces (discovery + detail prices/chart/graduation bar).
 4. Convert the three existing polls to push.
@@ -129,10 +137,10 @@ process with no dependency on the API.
 
 ## Consequences
 
-Postgres gains a per-event trigger write (`change_feed`) that is now part of the
-indexer's write path (atomic, must be tested). The delivery guarantee lives in
-the table, so the wake mechanism and even the transport can change later without
-touching correctness. The append-only tables become a change contract — the
+Postgres gains a per-event `recordLiveChange` write (`change_feed`) that is now
+part of each seam's write path (atomic, must be tested). The delivery guarantee
+lives in the table, so the wake mechanism and even the transport can change
+later without touching correctness. The append-only tables become a change contract — the
 `source_table → channel` map is the one place new event types opt in. Multi-
 instance fan-out needs no new infra (each API instance tails the same table);
 Redis is deferred. The program leans on two open items elsewhere: finer-grained
@@ -140,7 +148,7 @@ read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010).
 
 ## Related pages
 
-- [../entities/indexer.md](../entities/indexer.md) — the change_feed trigger is its new (still pure) emit seam
+- [../entities/indexer.md](../entities/indexer.md) — its handlers gain the `recordLiveChange` emit seam (still pure chain→DB)
 - [../entities/server-workspace.md](../entities/server-workspace.md) — hosts the relay + SSE endpoint
 - [../concepts/market-lifecycle.md](../concepts/market-lifecycle.md) — the transitions that become live; the coarse-status trap
 - [../concepts/deployment-and-infrastructure.md](../concepts/deployment-and-infrastructure.md) — where the SSE route/CORS/RDS-Proxy pieces land (M5)
