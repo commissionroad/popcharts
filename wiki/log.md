@@ -818,3 +818,19 @@ enforced by test/nodejs/sdk-surface-guard.test.ts (direction + exports-map
 targets + pinned subpath key set). Remaining G work: protocol TS coverage
 figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
 contracts-only).
+
+## [2026-07-21] ingest | repo ADR 0022 — review-first market creation
+Pages: +summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md,
+~entities/ai-review-service.md
+Notes: Proposed (grill-designed + adversarially red-teamed). Inverts creation
+to review-first (off-chain Drafts → gated publish; fee-on-accept; born Active;
+on-chain review path retired). Added "Proposed change" forward-refs to the two
+concept pages + the ai-review-service entity rather than rewriting their
+current-state descriptions, since the ADR is not built (code is still
+on-chain-first). Red-team surfaced a real wiki-relevant fact now recorded on
+creation-fee-custody: MarketCreationFeePaid is emitted but indexed nowhere, so
+the creation fee has never had an event-sourced record (the ADR adds one) —
+worth a lint pass against portfolio-data-design's money invariant. Deferred the
+pregrad-manager/creation-fee-vault entity-page edits (cross-linked from the
+summary; entity bodies still describe current on-chain-first behavior).
