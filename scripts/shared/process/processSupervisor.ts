@@ -51,13 +51,63 @@ export type ProcessSupervisor = {
  * shutdown stops them in reverse start order so upstream dependencies (the
  * chain) outlive their consumers (the indexer), and SIGTERM escalates to
  * SIGKILL after a grace period so a wedged watcher cannot hang the terminal.
+ *
+ * Each child is spawned `detached`, making it the leader of its own process
+ * group, and stop()/shutdown() signal the whole group. This matters because a
+ * child is usually a `bun run <script>` wrapper that spawns the real service
+ * as a grandchild: signalling only the wrapper's PID would let a SIGKILL
+ * (which the wrapper cannot forward) orphan the service. A `process.on("exit")`
+ * backstop group-kills any survivors so detached children never outlive the
+ * orchestrator — the one gap is a SIGKILL of the orchestrator itself, which is
+ * uncatchable (unchanged from before).
+ *
+ * `killGraceMs` (default 3s) is the SIGTERM→SIGKILL escalation delay; tests
+ * override it to keep the wedged-child path fast.
  */
 export function createProcessSupervisor(options: {
   readonly cwd: string;
+  readonly killGraceMs?: number;
   readonly logLabel: string;
 }): ProcessSupervisor {
   const children = new Set<SupervisedProcess>();
+  const killGraceMs = options.killGraceMs ?? 3_000;
   let shuttingDown = false;
+
+  // Backstop: if the orchestrator exits without draining `children` through
+  // shutdown() (an uncaught throw routed past it, a stray process.exit), kill
+  // the surviving detached groups synchronously so they don't become orphans.
+  // Does not fire on a SIGKILL of the orchestrator (uncatchable) — the same
+  // limitation the whole stack had before groups.
+  process.on("exit", () => {
+    for (const processInfo of children) {
+      signalProcessGroup(processInfo, "SIGKILL");
+    }
+  });
+
+  function signalProcessGroup(
+    processInfo: SupervisedProcess,
+    signal: "SIGTERM" | "SIGKILL",
+  ): void {
+    const pid = processInfo.child.pid;
+    if (processInfo.exited || pid === undefined) {
+      return;
+    }
+    try {
+      // Negative PID targets the process group. Children are detached group
+      // leaders, so this reaches the wrapper AND the service it spawned.
+      process.kill(-pid, signal);
+    } catch (error) {
+      // ESRCH: the group is already gone — expected when the child raced us
+      // to exit. Anything else must not break teardown, so log and continue.
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+        console.error(
+          `[${options.logLabel}] failed to ${signal} ${processInfo.name}: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      }
+    }
+  }
 
   function start(
     name: string,
@@ -76,6 +126,10 @@ export function createProcessSupervisor(options: {
     );
     const child = spawn(command, [...args], {
       cwd: options.cwd,
+      // Detached makes the child its own process-group leader so stop() can
+      // signal the whole group (wrapper + service) rather than the wrapper
+      // alone. Output is still captured through the pipes below.
+      detached: true,
       env: { ...process.env, ...startOptions.env },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -134,21 +188,15 @@ export function createProcessSupervisor(options: {
     const exited = new Promise<void>((resolveStop) => {
       processInfo.child.once("exit", () => resolveStop());
     });
-    processInfo.child.kill("SIGTERM");
 
-    // Escalate to SIGKILL if the child ignores SIGTERM, then await the real
-    // exit so `exited` is set when stop() resolves — a follow-on start()
-    // must not see the service as still running and no-op. NOTE: kill()
-    // reaches only the direct child (the `bun run` wrapper), which reaps its
-    // script on SIGTERM, so every controllable service exits within the
-    // grace window today and the escalation never fires. A service that ever
-    // adds a >3s async shutdown would outlive the SIGKILL'd wrapper as an
-    // orphan; spawn detached and signal the process group if that changes.
+    // Signal the whole group (wrapper + the service it spawned), escalating to
+    // SIGKILL if SIGTERM doesn't take within the grace window, then await the
+    // real exit so `exited` is set when stop() resolves — a follow-on start()
+    // must not see the service as still running and no-op.
+    signalProcessGroup(processInfo, "SIGTERM");
     const escalation = setTimeout(() => {
-      if (!processInfo.exited) {
-        processInfo.child.kill("SIGKILL");
-      }
-    }, 3_000);
+      signalProcessGroup(processInfo, "SIGKILL");
+    }, killGraceMs);
     try {
       await exited;
     } finally {
