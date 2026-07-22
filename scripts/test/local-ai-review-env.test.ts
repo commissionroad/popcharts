@@ -29,7 +29,13 @@ describe("local AI review timing", () => {
     assert.equal(service.AI_REVIEW_FALLBACK_APPROVE, "false");
     assert.equal(service.AI_REVIEW_RETRY_PROVIDER_FAILURES, "true");
     assert.equal(runner.AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS, "360000");
-    assert.equal(runner.AI_REVIEW_RUNNER_LEASE_MS, "600000");
+    // Lease covers a worst-case corroborated review: three service-call
+    // budgets (3 × 360s), and the runner renews between runs as a belt.
+    assert.equal(runner.AI_REVIEW_RUNNER_LEASE_MS, "1200000");
+    assert.ok(
+      Number(runner.AI_REVIEW_RUNNER_LEASE_MS) >=
+        3 * Number(runner.AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS),
+    );
   });
 
   it("honors explicit local timing overrides", () => {
