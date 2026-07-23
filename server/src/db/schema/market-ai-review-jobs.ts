@@ -18,12 +18,12 @@ import { aiReviewProvider, marketAiReviews } from "./market-ai-reviews";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
-/** Postgres enum for a review job's JobStatus, derived from the shared array. */
+/** Postgres enum for a review job's queue state, derived from the shared array. */
 export const aiReviewJobStatus = pgEnum("ai_review_job_status", [
   ...JOB_STATUSES,
 ]);
 
-/** Postgres enum for a review job's JobTrigger, derived from the shared array. */
+/** Postgres enum for a review job's trigger, derived from the shared array. */
 export const aiReviewJobTrigger = pgEnum("ai_review_job_trigger", [
   ...JOB_TRIGGERS,
 ]);

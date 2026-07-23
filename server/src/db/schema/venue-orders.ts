@@ -21,10 +21,7 @@ import { uint256 } from "./uint256";
  */
 export const VENUE_ORDER_STATUSES = ["open", "filled", "cancelled"] as const;
 
-/** One of {@link VENUE_ORDER_STATUSES}. */
-export type VenueOrderStatus = (typeof VENUE_ORDER_STATUSES)[number];
-
-/** Postgres enum for VenueOrderStatus, derived from the same const array. */
+/** Postgres enum for the order status, derived from the same const array. */
 export const venueOrderStatus = pgEnum("venue_order_status", [
   ...VENUE_ORDER_STATUSES,
 ]);

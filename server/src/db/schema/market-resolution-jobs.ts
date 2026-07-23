@@ -19,7 +19,7 @@ import { marketResolutions, resolutionProvider } from "./market-resolutions";
 import { markets } from "./markets";
 
 /**
- * Postgres enum for a resolution job's JobStatus, derived from the shared
+ * Postgres enum for a resolution job's queue state, derived from the shared
  * array — the same value list as ai_review_job_status (ADR 0012).
  */
 export const resolutionJobStatus = pgEnum("resolution_job_status", [
@@ -27,7 +27,7 @@ export const resolutionJobStatus = pgEnum("resolution_job_status", [
 ]);
 
 /**
- * Postgres enum for a resolution job's JobTrigger, derived from the shared
+ * Postgres enum for a resolution job's trigger, derived from the shared
  * array — the same value list as ai_review_job_trigger.
  */
 export const resolutionJobTrigger = pgEnum("resolution_job_trigger", [

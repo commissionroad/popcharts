@@ -23,14 +23,8 @@ export const JOB_STATUSES = [
   "cancelled",
 ] as const;
 
-/** One of {@link JOB_STATUSES}. */
-export type JobStatus = (typeof JOB_STATUSES)[number];
-
 /**
  * Who queued the job: the runner's automatic sweep, an operator action, or a
  * retry.
  */
 export const JOB_TRIGGERS = ["automatic", "manual", "retry"] as const;
-
-/** One of {@link JOB_TRIGGERS}. */
-export type JobTrigger = (typeof JOB_TRIGGERS)[number];

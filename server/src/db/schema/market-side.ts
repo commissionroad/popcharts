@@ -1,4 +1,4 @@
-import type { MarketSide } from "@popcharts/protocol";
+import type { MARKET_SIDES } from "@popcharts/protocol";
 
 /**
  * The "yes"/"no" side labels, for the Postgres enums that store them.
@@ -10,8 +10,13 @@ import type { MarketSide } from "@popcharts/protocol";
  * `db:generate` die with `Invalid target "es2023"` when it reads that
  * workspace's tsconfig. The type-only import above is erased before bundling,
  * so it costs nothing at build time while still tying this list to the
- * protocol: `satisfies` makes a rename or removal in `MarketSide` a compile
- * error here.
+ * protocol.
+ *
+ * `satisfies typeof MARKET_SIDES` is what makes that tie total: matching the
+ * array's *type* rather than `readonly MarketSide[]` pins the exact tuple, so
+ * an addition, removal, rename, reorder, or duplicate upstream all fail to
+ * compile here. A `readonly MarketSide[]` bound would only have caught
+ * removals and renames, letting a newly added side silently skip these enums.
  *
  * Bumping drizzle-kit past its esbuild 0.19 pin would let this spread
  * `MARKET_SIDES` directly, like the other sets do.
@@ -19,4 +24,4 @@ import type { MarketSide } from "@popcharts/protocol";
 export const MARKET_SIDE_VALUES = [
   "yes",
   "no",
-] as const satisfies readonly MarketSide[];
+] as const satisfies typeof MARKET_SIDES;
