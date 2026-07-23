@@ -1,6 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative } from "node:path";
 
 /**
  * Fails (exit 1) when the drizzle migrations committed under `drizzle/` are
@@ -46,15 +52,31 @@ function readTree(directory: string): Map<string, Buffer> {
   return tree;
 }
 
-/** Puts `drizzle/` back exactly as it was, dropping anything generate added. */
+/**
+ * Puts `drizzle/` back exactly as it was: drops what generate added, rewrites
+ * what it modified, and recreates anything it removed. Restoring deletions is
+ * defensive — `generate` only appends today — but this script's whole promise
+ * is that running it never changes the tree, so it must not depend on that.
+ */
 function restoreTree(directory: string, before: Map<string, Buffer>) {
-  for (const [path, contents] of readTree(directory)) {
+  const after = readTree(directory);
+
+  for (const [path, contents] of after) {
     const original = before.get(path);
 
     if (original === undefined) {
       rmSync(join(directory, path));
     } else if (!original.equals(contents)) {
       writeFileSync(join(directory, path), original);
+    }
+  }
+
+  for (const [path, original] of before) {
+    if (!after.has(path)) {
+      const absolute = join(directory, path);
+
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, original);
     }
   }
 }
