@@ -8,8 +8,22 @@ YES/NO complete sets.
 
 **Market**:
 A binary question with a lifecycle, displayed probability, receipts, and a path
-toward graduation.
+toward graduation. A Market exists on-chain; it begins only when a Draft is
+approved and published.
 _Avoid_: Pool, event
+
+**Draft**:
+An off-chain, editable, owner-private question that has not yet been published
+on-chain. It carries the same content a Market needs, moves through review
+(editing → in review → rejected or approved), and becomes a Market only when the
+owner publishes it. A rejected Draft is reworked and resubmitted, never lost.
+_Avoid_: Market (a Draft is not yet a Market), submission
+
+**Template**:
+A Draft kept as a reusable starting point. Cloning any Draft or Market seeds a
+new editing Draft pre-filled from it; a Template is simply a Draft flagged to
+keep and clone from.
+_Avoid_: Preset, boilerplate
 
 **Virtual LMSR**:
 The pre-graduation pricing curve. Its `b` parameter controls smoothness but is

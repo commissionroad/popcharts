@@ -54,9 +54,11 @@ pushes live market updates to the browser. Because the API is the long-lived
 process that holds client connections (the indexer can't — separate process), it
 runs the **relay**: it tails a durable `change_feed` outbox table (written by an
 explicit `recordLiveChange` seam in the same transaction as each indexed event,
-not a DB trigger), maps each row `source_table → SSE channel + React Query key`
-in TypeScript, and fans out a signal-to-refetch nudge; browsers refetch the
-existing read endpoints (DB/REST stays the single source of truth). Reconnect
+not a DB trigger), maps each row `source_table → SSE channel`
+in TypeScript, and fans out a signal-to-refetch nudge; the browser's
+`useLiveChannel` hook passes that nudge to a caller-supplied callback and the
+subscribing surface re-reads the existing read endpoint itself (DB/REST stays
+the single source of truth). Reconnect
 resumes via `Last-Event-ID` = the last `change_feed.id`. The relay is
 ref-counted (polls only while a client is connected) and each autoscaled API
 instance runs its own over the shared table — no Redis. Wake mechanism is

@@ -890,16 +890,120 @@ with code=null (same as running), so liveness now uses an explicit `exited`
 flag. AI-outage recovery keys off market status / the review audit row,
 never the job's transient terminal_failed. UI journeys (C4) remain.
 
-## [2026-07-22] ingest | ADR 0021 revised — live-updates server spine built (trigger → recordLiveChange)
+## [2026-07-22] ingest | repo ADR 0014 — golden UI journey (ADR 0017 C4) landed
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: First of the five `@lifecycle` Playwright UI journeys landed
+(`app/src/tests/e2e/golden-journey.spec.ts`): UI create → review approval →
+pregrad receipt → graduation → postgrad trade → resolution → redeem winnings,
+asserting the rendered claim + a risen balance. Enabling change: the review
+verdict is forced deterministically through a dev endpoint (see the 2026-07-23
+correction below — this entry originally described an `--with-ai-review` runner
+boot that was reverted before anything landed). Corrected
+a stale line in testing-strategy.md that still called C3's unhappy paths the
+"open remainder" (C3 completed 2026-07-21). Rejected-creation, failed-graduation,
+partial-clearing, and cancelled/draw UI journeys remain (C4).
+
+## [2026-07-21] ingest | repo ADR 0022 — review-first market creation
+Pages: +summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md,
+~entities/ai-review-service.md
+Notes: Proposed (grill-designed + adversarially red-teamed). Inverts creation
+to review-first (off-chain Drafts → gated publish; fee-on-accept; born Active;
+on-chain review path retired). Added "Proposed change" forward-refs to the two
+concept pages + the ai-review-service entity rather than rewriting their
+current-state descriptions, since the ADR is not built (code is still
+on-chain-first). Red-team surfaced a real wiki-relevant fact now recorded on
+creation-fee-custody: MarketCreationFeePaid is emitted but indexed nowhere, so
+the creation fee has never had an event-sourced record (the ADR adds one) —
+worth a lint pass against portfolio-data-design's money invariant. Deferred the
+pregrad-manager/creation-fee-vault entity-page edits (cross-linked from the
+summary; entity bodies still describe current on-chain-first behavior).
+
+## [2026-07-21] ingest | repo ADR 0022 — anti-spam revised to a prepaid review bond
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/creation-fee-custody.md
+Notes: The rate-limiting-only anti-spam stance (an "accepted risk") was superseded
+after review by a prepaid, refundable **review bond** in a separate standalone
+`ReviewBondVault` escrow — min $5, drawn down $1/submission (incl. 5 reviews) then
+$0.20/review, no slashing, native-USDC msg.value (on Arc USDC is the native token),
+fees metered off-chain with on-chain deposit/settle/withdraw money-trail events. New
+phase P3 (bond escrow) opens public submission; phases renumbered to 8. A second
+money contract now exists alongside the creation fee — noted on creation-fee-custody.
+Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, and no
+dedicated ReviewBondVault entity page yet (single source until built).
+
+## [2026-07-22] ingest | repo ADR 0014 — rejected + failed-graduation UI journeys (C4)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: Journeys 2 and 3 of C4 landed (three of five now). Rejected creation
+(`rejected-creation.spec.ts`): the dev review endpoint forces a `reject` verdict
+with a known reason and the market page renders it (see the 2026-07-23
+correction below — this entry originally described a "hacked" market tripping
+the illegal-activity hard flag via the real runner, which was reverted before
+anything landed). Failed graduation
+(`failed-graduation.spec.ts`): one unmatched YES receipt keeps the market
+sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
+holder claims the full cost back. Partial clearing and cancelled/draw remain.
+
+## [2026-07-22] ingest | repo ADR 0014 + 0017 — C4 complete (all five UI journeys)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~summaries/root-adr-0017-test-observability-and-coverage-program.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: The last two C4 UI journeys landed, so ADR 0017 item C4 is complete.
+Partial clearing (`partial-clearing.spec.ts`): a balanced book to the threshold
+plus a one-sided YES excess is placed by share count from the injected wallet
+(the UI ticket is budget-based, too coarse for band sizing); dev graduation with
+`force=false` runs the real band-pass clearing, and the settled YES receipt on
+`/portfolio` shows "N YES tokens + $X refunded". Cancelled/draw was already the
+ADR 0018 draw test — C4 finalizes it as journey 5. Track C now has only C5
+(`nightly-ai-verdicts`) and C6 (`TRENDS.md`) open.
+
+## [2026-07-23] ingest | correction — C4 review is forced, not run by the AI runner
+Pages: ~log.md (the three 2026-07-22 C4 entries above)
+Notes: The three C4 entries above were written mid-build, while the UI lane
+booted the real heuristic review service + runner (`local:smoke
+--with-ai-review`) and journey 2 relied on a "hacked" market tripping the
+illegal-activity hard flag. **That approach was reverted before any of it
+landed**, on the principle that these tests exercise UI and protocol behavior,
+not AI quality — a review the test cannot control is a dependency, not a
+fixture. What actually landed (PRs #285/#290/#292, 2026-07-23) forces the
+verdict through a dev-only endpoint,
+`POST /dev/markets/:chainId/:marketId/review { verdict, reasons }`
+(`server/src/api/services/dev-market-review.ts`), which writes the review record
+and submits the matching on-chain approve/reject by reusing the runner's own
+`transitionReviewedMarketOnChain`. No AI review service or runner boots in the
+lane. The entries above now carry inline pointers here; the ADR 0014/0017
+summaries and the testing-strategy concept were already corrected at land time.
+
+## [2026-07-23] ingest | ADR 0021 revised — live-updates spine + client transport built (two design reversals)
 Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
-Notes: The emit point shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
-each write handler, NOT the generic AFTER-INSERT DB trigger the original draft proposed —
-decision reversed on separation-of-concerns grounds (no business logic / invisible
+Notes: Two things the shipped code decided differently from the original draft.
+(1) **Emit point.** Shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
+each write handler, NOT the generic AFTER-INSERT DB trigger the draft proposed —
+reversed on separation-of-concerns grounds (no business logic / invisible
 side-effect / second schema installer in the data layer). Writer-agnostic completeness is
-recovered by a typed sourceTable + a coverage test scanning the seam dirs. Server spine
-(slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/ (#281 table+
-registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream, #291 GET /events
-+service, #293 emit wiring, + a folder rename); ADR status Proposed → Accepted. Slices 2–7
-(client transport, pregrad surfaces, poll conversion, lifecycle/AI-review, hardening, e2e)
-remain open. Note: market_ai_review_jobs queue-state UPDATE signals deferred to the
-lifecycle/AI-review surface slice (need join-based routing).
+recovered by a typed sourceTable + a coverage test scanning the seam dirs.
+(2) **Client payload handling.** The draft said a signal would call
+`queryClient.invalidateQueries({ queryKey })` against a `channel → query-key` map.
+The shipped `useLiveChannel(channel, onSignal)` instead hands the signal to a
+**caller-supplied callback** and holds it in a ref; there is no React Query import
+in `app/src/integrations/live-updates/` at all. Reason: the app does not keep its
+market data in React Query, so a hook that invalidated query keys would have had
+nothing to invalidate — each surface already owns its own re-read (`load()`, or
+`router.refresh()` for server components). The signal stays a nudge, which is what
+makes a duplicate or replayed signal harmless. The `channel → query-key` map is
+therefore *not* part of the design; only the server-side `source_table → channel`
+map exists.
+Server spine (slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/
+(#281 table+registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream,
+#291 GET /events +service, #293 emit wiring, + a folder rename). Client transport
+(slice 2) landed 2026-07-23 (#299 connection/provider/hook, #302 React binding) under
+app/src/integrations/live-updates/ — the browser connects **directly to the API origin**,
+not through a Next route, because a serverless proxy force-closes long-lived responses at
+its duration cap. ADR status Proposed → Accepted. Slices 3–7 (pregrad surfaces, poll
+conversion, lifecycle/AI-review, hardening, e2e) remain open — **the app still renders no
+live UI**, and no signal has yet crossed a live SSE connection end-to-end. Notes:
+market_ai_review_jobs queue-state UPDATE signals deferred to the lifecycle/AI-review
+surface slice (need join-based routing); the channel-string coordination constant
+(`market:{chainId}:{marketId}`, currently mirrored server↔client) is deferred to slice 3.

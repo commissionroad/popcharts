@@ -207,11 +207,13 @@ jobs:
           if-no-files-found: ignore
 
   # Boots the full stack (chain, Postgres, API, indexer) via
-  # local:smoke --keep-running plus the Next app, then walks markets into
-  # the resolved and draw-cancelled terminal states and redeems through the
-  # browser with the injected test wallet (ADR 0018 slice 6).
+  # local:smoke --keep-running plus the Next app, then drives the ADR 0017 C4
+  # @lifecycle UI journeys — create, review, trade, graduate, and every terminal
+  # state — with review verdicts forced deterministically through a dev endpoint
+  # (no AI), redeeming through the browser with the injected test wallet
+  # (ADR 0014 UI-journeys checklist).
   terminal-e2e:
-    name: Terminal-state app e2e (resolve/cancel → redeem)
+    name: Lifecycle UI journeys (@lifecycle)
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -246,7 +248,7 @@ jobs:
         working-directory: app
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run terminal-state lifecycle e2e
+      - name: Run lifecycle UI journeys
         run: pnpm lifecycle:e2e
 
       - name: Upload e2e failure artifacts
@@ -295,7 +297,7 @@ jobs:
           - Chain smoke (deploy, index, trade, resolve): $SMOKE_RESULT
           - Lifecycle scenarios (harness, paper trail): $SCENARIOS_RESULT
           - Chain-backed app e2e: $E2E_RESULT
-          - Terminal-state app e2e (resolve/cancel → redeem): $TERMINAL_RESULT
+          - Lifecycle UI journeys (@lifecycle): $TERMINAL_RESULT
 
           Auto-filed by the Nightly Lifecycle workflow (ADR 0017 Track C); closes itself on the next green run."
           if [ -n "$existing" ]; then

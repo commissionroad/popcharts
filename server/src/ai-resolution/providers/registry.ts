@@ -1,8 +1,8 @@
+import type { AiResolutionConfig } from "../config";
 import type {
-  AiResolutionConfig,
+  ConfigValidationResult,
   ResolutionModelProviderName,
-} from "../config";
-import type { ConfigValidationResult } from "../types";
+} from "../types";
 import { anthropicProvider } from "./anthropic";
 import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";

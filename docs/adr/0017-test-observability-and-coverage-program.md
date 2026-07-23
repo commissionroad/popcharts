@@ -220,7 +220,15 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       orchestrator exposes (`scripts/shared/process/stackControl.ts`), so a
       scenario expresses intent without owning process lifecycles. The five
       `@lifecycle` UI journeys remain C4.
-- [ ] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014)
+- [x] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014).
+      Golden, rejected creation, failed graduation, partial clearing, and
+      cancelled/draw, all through the injected wallet, with review verdicts
+      forced deterministically through a dev endpoint (review is a controlled
+      test input, not an AI dependency). They run in the
+      `lifecycle:e2e` lane's nightly job (`pnpm lifecycle:e2e`); the golden
+      journey and the two refund/redeem journeys assert the user-visible
+      money-out moment, and partial clearing itemizes retained + refunded on
+      `/portfolio`.
 - [ ] C5 — `nightly-ai-verdicts` workflow (executes ADR 0019's CI lane)
 - [ ] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
       alongside coverage (the operator-side heads-up agent is personal

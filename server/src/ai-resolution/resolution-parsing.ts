@@ -4,7 +4,7 @@ import {
   parseSourceChecks,
 } from "src/ai-review/response-parsing";
 
-import type { ResolutionOutcome } from "./types";
+import { RESOLUTION_OUTCOMES, type ResolutionOutcome } from "./types";
 
 /**
  * Untrusted-model-output parsing shared by every resolution provider. This is a
@@ -49,13 +49,7 @@ export function parseModelResolution(
 
 /** Unrecognized outcomes fall back to `abstain` (park for a human). */
 export function parseOutcome(value: unknown): ResolutionOutcome {
-  return value === "yes" ||
-    value === "no" ||
-    value === "draw" ||
-    value === "too_early" ||
-    value === "abstain"
-    ? value
-    : "abstain";
+  return RESOLUTION_OUTCOMES.find((outcome) => outcome === value) ?? "abstain";
 }
 
 /** Confidence must be a finite number in [0,1]; anything else becomes null. */

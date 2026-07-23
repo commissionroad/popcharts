@@ -1,9 +1,12 @@
 # ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
-Status: Accepted — server spine built 2026-07-22
+Status: Accepted — server spine built 2026-07-22, client transport 2026-07-23
+(no live UI yet: slices 3–7 open)
 
-Date: 2026-07-17 (revised 2026-07-22: the emit point ships as explicit
-TypeScript `recordLiveChange` seams, not a DB trigger — see Emit point below)
+Date: 2026-07-17 (revised 2026-07-23 to match what shipped, on two points: the
+emit point is explicit TypeScript `recordLiveChange` seams, not a DB trigger —
+see Emit point below; and the client hook delivers a **callback**, not a React
+Query invalidation — see Client transport layer below)
 
 ## Context
 
@@ -82,7 +85,7 @@ Four decisions, with the alternatives we rejected:
 
 | Axis | Decision | Rejected |
 | --- | --- | --- |
-| **Payload** | **Signal-to-refetch by default**: the message carries the changed entity's channel + a version; the client invalidates its React Query key and refetches the existing REST slice (multi-table composition stays server-side). **One data-in-message exception, from day one — the price/chart channel** (see below), which pushes the new point itself. | Additive delta streaming *everywhere* (exchange-style book reconstruction, checksums, resync) — unjustified at our cadence outside the append-mostly chart. |
+| **Payload** | **Signal-to-refetch by default**: the message carries the changed entity's channel + a version; the client hands it to the subscribing surface, which re-reads the existing REST slice by its own means (multi-table composition stays server-side). **One data-in-message exception, from day one — the price/chart channel** (see below), which pushes the new point itself. | Additive delta streaming *everywhere* (exchange-style book reconstruction, checksums, resync) — unjustified at our cadence outside the append-mostly chart. |
 | **Transport** | SSE on the long-running Bun/Elysia API. | WebSocket — we have no client→server stream (trades already POST); SSE gives auto-reconnect + `Last-Event-ID` resume + sequence ids for free. Kept in reserve for a future bidirectional need. Hosting on Vercel — its functions force-close at the duration cap with no reconnect affinity. |
 | **Emit point** | A durable `change_feed` outbox table, written **in the same transaction** as each event by an explicit `recordLiveChange(tx, …)` call at every write seam (the indexer handlers plus the AI-review and resolution runners). | A DB **trigger** — writer-agnostic, but it buries an invisible side-effect in the data layer and needs a second schema installer outside the ORM; we keep the routing/business logic in TypeScript where it is visible and tested (separation of concerns). In-indexer-only emit — misses the two off-chain runners' writes. Completeness that the trigger would give for free is recovered by a typed `sourceTable` plus a coverage test that scans the seam directories. |
 | **Delivery guarantee** | The **outbox table + a per-client cursor** (`Last-Event-ID`). | A message broker (SQS/RabbitMQ/Kafka) — duplicates what the outbox already provides, adds infra, and still cannot hold the browsers' SSE connections. `NOTIFY` as the guarantee — it has none. |
@@ -116,7 +119,7 @@ change_feed(
    graduation, postgrad) and the two off-chain runners that append
    `market_ai_reviews` and `market_resolutions`. The call site stays dumb — it
    passes raw provenance (`sourceTable`, `market_id`, `owner`, block/log); the
-   mapping from `source_table` to SSE channel and React Query key lives in a
+   mapping from `source_table` to SSE channel lives in a
    TypeScript registry (`change-feed/sources.ts`), testable and versioned with
    the app. Mutable-projection UPDATE signals whose in-place transition is
    itself the event — notably `market_ai_review_jobs` queue state
@@ -146,8 +149,9 @@ wrong:
   `owner` on the `change_feed` row, so every row already names its
   entity — routing to `market:{chainId}:{marketId}` and/or `portfolio:{owner}`
   is a direct field read, no join, no inference. The relay maps
-  `source_table → channel(s)`; the client maps `channel → the React Query keys
-  to invalidate`. The multi-table *composition* stays where it already lives —
+  `source_table → channel(s)`; on the client there is no second map — each
+  surface subscribes to the channel it already cares about and re-reads itself.
+  The multi-table *composition* stays where it already lives —
   in the REST read, recomputed fresh on refetch. The signal only ever says
   "entity X changed; re-read it," so we never decompose a slice into its tables.
 - **Completeness is an enumerable set, not per-wiring diligence.** "Did we drop
@@ -157,7 +161,7 @@ wrong:
   transaction, so emitting from the append-only writers catches every
   viewer-facing change exactly once — and, deliberately, we do **not** also emit
   from `markets` UPDATEs, which would double-signal what the coupled event row
-  already covers. The `source_table → channel → query-key` map is a single
+  already covers. The `source_table → channel` map is a single
   TypeScript registry, and a **coverage test** scans the seam directories
   (`src/indexer` and both runners) to enforce that every registered
   `source_table` is reached by a real `recordLiveChange` seam — the
@@ -250,12 +254,36 @@ with no schema or client impact. **We ship polling first** and add coalesced
       coverage test proves every registered source is reached by a seam; relay
       maps/orders/recovers the sequence-visibility gap (small lookback re-read +
       client dedup by `id`); the stream handshake replays exactly the gap.
-- [ ] **Client transport layer.** One shared `EventSource` in a top-level
-      provider (never per-component); a `useLiveChannel(channel)` hook that
-      subscribes/unsubscribes on mount/route change; messages call
-      `queryClient.invalidateQueries({ queryKey })`; `staleTime` raised since
-      the server now owns freshness; pause on tab-hidden (Page Visibility);
-      jittered reconnect backoff; dedup/ordering by the `id` field.
+- [x] **Client transport layer.** Delivered 2026-07-23 (#299 connection +
+      provider + hook, #302 the React binding) under
+      `app/src/integrations/live-updates/`. One shared `EventSource` in a
+      top-level provider (never per-component); a
+      `useLiveChannel(channel, onSignal)` hook that subscribes/unsubscribes on
+      mount/route change; pause on tab-hidden (Page Visibility); jittered
+      reconnect backoff; dedup/ordering by the `id` field.
+
+      Two things shipped differently from this ADR's original plan, both
+      deliberate:
+
+      - **The hook delivers a callback, not a cache invalidation.** The draft
+        said messages would call `queryClient.invalidateQueries({ queryKey })`
+        against a `channel → query-key` map, with `staleTime` raised. They do
+        not: `useLiveChannel` hands the signal to a caller-supplied `onSignal`
+        (held in a ref, so an inline closure does not churn the subscription)
+        and imports nothing from React Query. The app does not hold its market
+        data in React Query, so there is no query key to invalidate — each
+        surface already owns its own re-read (its existing `load()`, or
+        `router.refresh()` for a server component). The signal stays a nudge,
+        which is exactly what makes a duplicate or replayed one harmless.
+      - **The browser connects straight to the API origin**, not through a Next
+        route: a serverless proxy force-closes long-lived responses at its
+        duration cap, turning one stream into endless reconnect churn. With no
+        API origin configured (the fixture-backed sample-data build) the
+        context is null and every `useLiveChannel` call is inert.
+
+      Not yet proven end-to-end: every test here is a unit test against a fake
+      `EventSource`. No signal has crossed a real SSE connection into a real
+      browser — the first slice that can show that is the one below.
 - [ ] **Pregrad live surfaces (biggest gap).** Put discovery and pregrad
       market-detail on live channels so any trader's `ReceiptPlaced` updates
       them for all viewers, replacing the own-trade-only `router.refresh()`.

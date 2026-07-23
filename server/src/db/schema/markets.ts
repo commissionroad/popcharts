@@ -19,8 +19,17 @@ import { uint256 } from "./uint256";
  * Lifecycle of a market as tracked off-chain: AI review gates under_review
  * into bootstrap (or rejected), and the chain watchers drive the
  * graduating/graduated/resolved/refunded transitions.
+ *
+ * Single definition of the status set — the Postgres enum, the `MarketStatus`
+ * union, and the API's `MarketStatusSchema` all derive from this array. It
+ * lives here rather than in `src/api/models/markets` because the persistence
+ * layer never imports the API layer. Order is part of the stored enum:
+ * appending is free, reordering or removing needs a migration.
+ *
+ * Not to be confused with `@popcharts/protocol`'s `MARKET_STATUS`, which is
+ * the on-chain MarketTypes.MarketStatus encoding and a different set.
  */
-export const marketStatus = pgEnum("market_status", [
+export const MARKET_STATUSES = [
   "under_review",
   "bootstrap",
   "graduating",
@@ -29,7 +38,13 @@ export const marketStatus = pgEnum("market_status", [
   "refunded",
   "cancelled",
   "rejected",
-]);
+] as const;
+
+/** One of {@link MARKET_STATUSES}. */
+export type MarketStatus = (typeof MARKET_STATUSES)[number];
+
+/** Postgres enum for MarketStatus, derived from the same const array. */
+export const marketStatus = pgEnum("market_status", [...MARKET_STATUSES]);
 
 /**
  * Current state of each pregrad market — one row per (chainId, marketId),

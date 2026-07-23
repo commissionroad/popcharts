@@ -66,15 +66,31 @@ Happy path:
 
 UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
-- [ ] Golden journey: UI create → approval → pregrad trade → graduation →
+- [x] Golden journey: UI create → approval → pregrad trade → graduation →
       postgrad trade → resolution → redeem winnings, asserting the
-      user-visible balances.
-- [ ] Rejected creation: creator sees `rejected` with reasons.
-- [ ] Failed graduation: full refund claimed through the UI.
-- [ ] Partial clearing: retained + refunded portions itemized in the UI
-      claim flow.
-- [ ] Cancelled/draw: redeem at cost through the ADR 0018 redemption
-      surface.
+      user-visible balances. (`golden-journey.spec.ts` — the review verdict is
+      forced deterministically through the dev review endpoint (review is a
+      controlled input, not an AI dependency); graduation and resolution use the
+      dev endpoints too, and the postgrad trade and redemption run through the
+      injected wallet.)
+- [x] Rejected creation: creator sees `rejected` with reasons.
+      (`rejected-creation.spec.ts` — the dev review endpoint forces a `reject`
+      verdict with a known reason; the market page renders the rejected status
+      and that reason in the AI review card.)
+- [x] Failed graduation: full refund claimed through the UI.
+      (`failed-graduation.spec.ts` — a single unmatched YES receipt keeps the
+      market below threshold; the dev close opens refunds via `markRefundable`
+      and the holder claims the full cost back on the market page.)
+- [x] Partial clearing: retained + refunded portions itemized in the UI
+      claim flow. (`partial-clearing.spec.ts` — a balanced book to the
+      threshold plus a one-sided YES excess is placed by share count from the
+      injected wallet; dev graduation with `force=false` runs the real
+      band-pass clearing, and the settled YES receipt on `/portfolio` shows
+      "N YES tokens + $X refunded".)
+- [x] Cancelled/draw: redeem at cost through the ADR 0018 redemption
+      surface. (`terminal-market-lifecycle.spec.ts` — a graduated market is
+      cancelled by the resolver; both legs redeem at half value via
+      `redeemCancelled`.)
 
 Unhappy paths:
 

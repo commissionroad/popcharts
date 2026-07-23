@@ -9,12 +9,15 @@ updated: 2026-07-22
 
 # Repo ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
-**Status: Accepted — server spine built 2026-07-22.** Dated 2026-07-17. A
-standalone tracked program (like
+**Status: Accepted — server spine built 2026-07-22, client transport
+2026-07-23; slices 3–7 open, so the app still shows no live UI.** Dated
+2026-07-17. A standalone tracked program (like
 [0016](root-adr-0016-monorepo-architecture-cleanup-program.md)/
 [0017](root-adr-0017-test-observability-and-coverage-program.md)), not part of
-the M1–M5 launch chain. The emit point ships as explicit TypeScript
-`recordLiveChange` seams, **not** the DB trigger the original draft proposed.
+the M1–M5 launch chain. Two points where the shipped code overrode the original
+draft: the emit point is explicit TypeScript `recordLiveChange` seams, **not** a
+DB trigger; and the client hook delivers a **caller-supplied callback**, **not**
+a React Query invalidation.
 
 ## Context
 
@@ -33,8 +36,8 @@ durable **`change_feed` outbox**. The DB/REST projection stays the single source
 of truth; the socket carries a small signal, not the data. Four axes:
 
 - **Payload — signal-to-refetch by default.** The message carries the changed
-  entity's channel + a version; the client invalidates its React Query key and
-  refetches the existing REST slice (multi-table composition stays server-side).
+  entity's channel + a version; the subscribing surface re-reads the existing
+  REST slice by its own means (multi-table composition stays server-side).
   **One data-in-message exception from day one — the price/chart channel**: it
   pushes the new point `{ t, yesPrice, noPrice, sequence }` (client appends;
   headline price + graduation bar ride along in the same message; full chart
@@ -87,7 +90,7 @@ correctness because the table is the source of truth.
 `change_feed(id bigserial pk /* == Last-Event-ID */, created_at, source_table,
 row_id, chain_id, market_id, owner, block_number, log_index)`. Each seam writes
 one row via `recordLiveChange` atomically with the event; the relay tails
-`WHERE id > cursor`, maps `source_table → channel + React Query key` **in
+`WHERE id > cursor`, maps `source_table → channel` **in
 TypeScript** (`change-feed/sources.ts`); reconnect replays
 `WHERE id > Last-Event-ID`; retention is age-based (~48h; longer-offline clients
 cold-refetch). The Postgres sequence-visibility gap is handled explicitly (small
@@ -120,8 +123,18 @@ degrades gracefully on reorg (re-emit → client refetches corrected state).
    7-PR stack under `server/src/change-feed/` (#281, #283, #287, #289, #291,
    #293 + a folder rename); explicit `recordLiveChange` seams, poll-based relay,
    `GET /events` with `Last-Event-ID`, coverage test.
-2. Client transport layer (one shared `EventSource` provider, `invalidateQueries`).
-3. Pregrad live surfaces (discovery + detail prices/chart/graduation bar).
+2. ✅ Client transport layer — **built 2026-07-23** (#299, #302) under
+   `app/src/integrations/live-updates/`: one shared `EventSource` provider
+   (connecting **directly to the API origin**, since a serverless proxy would
+   force-close the stream at its duration cap), `useLiveChannel(channel,
+   onSignal)`, tab-hidden pause, jittered backoff, dedup by `id`. The hook hands
+   each signal to a **caller-supplied callback** — it does *not* call
+   `invalidateQueries`, and imports nothing from React Query, because the app
+   does not keep market data there; each surface re-reads itself (`load()`, or
+   `router.refresh()` for a server component). Unit-tested against a fake
+   `EventSource` only — nothing has yet crossed a real SSE connection.
+3. Pregrad live surfaces (discovery + detail prices/chart/graduation bar) —
+   the first slice that renders anything live, and the first end-to-end proof.
 4. Convert the three existing polls to push.
 5. Lifecycle toasts + AI-review push + clearing challenge-window countdown.
 6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, retention, optional NOTIFY.
