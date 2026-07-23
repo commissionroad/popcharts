@@ -36,6 +36,9 @@ devchain-deploy:
 devchain-e2e:
     pnpm run devchain:e2e
 
+observability:
+    pnpm run observability
+
 protocol-build:
     pnpm run protocol:build
 
