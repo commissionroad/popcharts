@@ -8,6 +8,10 @@
   Opus/Fable) belongs in that model's own file (`CLAUDE.md`), not here. When
   adding a command, write the skill once under `skills/`, then add one
   delegating adapter per harness that needs native discovery.
+- **Contain agent worktrees in the repository.** Create dedicated worktrees
+  under the primary checkout's ignored `.worktrees/<slug>/` directory. Keep
+  legacy harness-managed `.claude/worktrees/` checkouts in place until their
+  owning sessions clean them up; do not move another agent's live worktree.
 - `wiki/` is an LLM-maintained knowledge wiki over this repo's design docs
   (ADRs, whitepapers, architecture docs). When you need design context, read
   `wiki/index.md` first and open only the pages it points to, instead of

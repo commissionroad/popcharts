@@ -1021,3 +1021,10 @@ line left on the built relay in server-workspace.md; and `market:{id}` for the c
 format in the summary. Retention moved out of the open hardening slice (it shipped in
 slice 1, started by the API). One stale `React Query key` comment in
 server/src/db/schema/change-feed.ts was corrected too — same false claim, in code.
+
+## [2026-07-23] ingest | repo ADR 0020 — contained agent worktrees
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md,
+~concepts/local-dev-orchestration.md, ~index.md
+Notes: `.worktrees/` is the canonical ignored directory under the primary
+checkout. Legacy `.claude/worktrees/` paths remain recognized during migration,
+so existing agent stacks keep their nonzero slot behavior.
