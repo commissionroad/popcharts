@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  OPEN_ORDERS_FALLBACK_POLL_INTERVAL_MS,
   OPEN_ORDERS_POLL_INTERVAL_MS,
   useOpenVenueOrders,
 } from "./use-open-venue-orders";
@@ -10,7 +11,30 @@ import {
 const OWNER = "0x1111111111111111111111111111111111111111";
 const YES_POOL_ID = `0x${"11".repeat(32)}`;
 
+const liveMocks = vi.hoisted(() => ({
+  connection: null as Record<string, never> | null,
+  useLiveChannel: vi.fn(),
+}));
+
+vi.mock("@/integrations/live-updates/live-provider", () => ({
+  useLiveConnection: () => liveMocks.connection,
+}));
+
+vi.mock("@/integrations/live-updates/use-live-channel", () => ({
+  useLiveChannel: liveMocks.useLiveChannel,
+}));
+
+/** The (channel, handler) the hook passed to useLiveChannel this render. */
+function lastSubscription() {
+  const call = liveMocks.useLiveChannel.mock.calls.at(-1);
+  if (!call) {
+    throw new Error("useLiveChannel was never called");
+  }
+  return { channel: call[0] as string | null, handler: call[1] as () => void };
+}
+
 beforeEach(() => {
+  liveMocks.connection = null;
   stubFetch({
     book: {
       chainId: 31337,
@@ -169,6 +193,51 @@ describe("useOpenVenueOrders", () => {
     // scheduled yet, so cleanup runs without a timer to clear.
     expect(() => unmount()).not.toThrow();
   });
+
+  it("subscribes to the market channel and re-reads on a signal", async () => {
+    liveMocks.connection = {};
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+
+    // The market channel, not the owner's: the panel's data (open orders plus
+    // the pool prices it crosses them against) moves on any order or swap on
+    // this market, and a redundant re-read from someone else's order is a
+    // harmless nudge.
+    const { channel, handler } = lastSubscription();
+    expect(channel).toBe("market:31337:7");
+
+    act(() => {
+      handler();
+    });
+
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(4));
+  });
+
+  it("subscribes to no channel while the market is unknown", () => {
+    renderHook(() =>
+      useOpenVenueOrders({
+        chainId: 31337,
+        marketId: null,
+        owner: OWNER,
+        refreshKey: 0,
+      })
+    );
+
+    expect(lastSubscription().channel).toBeNull();
+  });
+
+  it("slows the poll to the fallback cadence when live updates are connected", async () => {
+    liveMocks.connection = {};
+    const timers = interceptPollTimeouts(OPEN_ORDERS_FALLBACK_POLL_INTERVAL_MS);
+    const { result } = renderHook(() => useOpenOrdersArgs());
+
+    await waitFor(() => expect(result.current.orders).not.toBeNull());
+
+    // The schedule survives as a safety net, at the slow fallback cadence.
+    expect(timers.scheduled()).toBe(1);
+  });
 });
 
 function useOpenOrdersArgs() {
@@ -199,7 +268,7 @@ function stubFetch({ book, orders }: { book: unknown; orders: VenueOrder[] }) {
   );
 }
 
-function interceptPollTimeouts() {
+function interceptPollTimeouts(intervalMs = OPEN_ORDERS_POLL_INTERVAL_MS) {
   const scheduled: (() => void)[] = [];
   const original = window.setTimeout.bind(window);
 
@@ -208,7 +277,7 @@ function interceptPollTimeouts() {
     timeout?: number,
     ...args: unknown[]
   ) => {
-    if (timeout === OPEN_ORDERS_POLL_INTERVAL_MS) {
+    if (timeout === intervalMs) {
       scheduled.push(handler as () => void);
       return scheduled.length as unknown as ReturnType<typeof window.setTimeout>;
     }

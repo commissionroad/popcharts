@@ -2,11 +2,38 @@ import type { Portfolio } from "@popcharts/api-client/models";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PORTFOLIO_POLL_INTERVAL_MS, usePortfolio } from "./use-portfolio";
+import {
+  PORTFOLIO_FALLBACK_POLL_INTERVAL_MS,
+  PORTFOLIO_POLL_INTERVAL_MS,
+  usePortfolio,
+} from "./use-portfolio";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 
+const liveMocks = vi.hoisted(() => ({
+  connection: null as Record<string, never> | null,
+  useLiveChannel: vi.fn(),
+}));
+
+vi.mock("@/integrations/live-updates/live-provider", () => ({
+  useLiveConnection: () => liveMocks.connection,
+}));
+
+vi.mock("@/integrations/live-updates/use-live-channel", () => ({
+  useLiveChannel: liveMocks.useLiveChannel,
+}));
+
+/** The (channel, handler) the hook passed to useLiveChannel this render. */
+function lastSubscription() {
+  const call = liveMocks.useLiveChannel.mock.calls.at(-1);
+  if (!call) {
+    throw new Error("useLiveChannel was never called");
+  }
+  return { channel: call[0] as string | null, handler: call[1] as () => void };
+}
+
 beforeEach(() => {
+  liveMocks.connection = null;
   stubFetch(emptyPortfolio());
 });
 
@@ -120,6 +147,42 @@ describe("usePortfolio", () => {
     expect(() => unmount()).not.toThrow();
   });
 
+  it("subscribes to the owner's portfolio channel and re-reads on a signal", async () => {
+    liveMocks.connection = {};
+    const { result } = renderHook(() => usePortfolioArgs());
+
+    await waitFor(() => expect(result.current.portfolio).not.toBeNull());
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+
+    const { channel, handler } = lastSubscription();
+    expect(channel).toBe(`portfolio:${OWNER}`);
+
+    // The signal is a nudge, never data: it drives the hook's own re-read.
+    act(() => {
+      handler();
+    });
+
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toHaveLength(2));
+    expect(result.current.portfolio).toEqual(emptyPortfolio());
+  });
+
+  it("subscribes to no channel while the owner is unknown", () => {
+    renderHook(() => usePortfolio({ chainId: 31337, owner: null }));
+
+    expect(lastSubscription().channel).toBeNull();
+  });
+
+  it("slows the poll to the fallback cadence when live updates are connected", async () => {
+    liveMocks.connection = {};
+    const timers = interceptPollTimeouts(PORTFOLIO_FALLBACK_POLL_INTERVAL_MS);
+    const { result } = renderHook(() => usePortfolioArgs());
+
+    await waitFor(() => expect(result.current.portfolio).not.toBeNull());
+
+    // The schedule survives as a safety net, at the slow fallback cadence.
+    expect(timers.scheduled()).toBe(1);
+  });
+
   it("ignores a failure that settles after unmount", async () => {
     let rejectRead!: (error: unknown) => void;
     vi.stubGlobal(
@@ -164,7 +227,7 @@ function stubFetch(portfolio: Portfolio) {
   );
 }
 
-function interceptPollTimeouts() {
+function interceptPollTimeouts(intervalMs = PORTFOLIO_POLL_INTERVAL_MS) {
   const scheduled: (() => void)[] = [];
   const original = window.setTimeout.bind(window);
 
@@ -173,7 +236,7 @@ function interceptPollTimeouts() {
     timeout?: number,
     ...args: unknown[]
   ) => {
-    if (timeout === PORTFOLIO_POLL_INTERVAL_MS) {
+    if (timeout === intervalMs) {
       scheduled.push(handler as () => void);
       return scheduled.length as unknown as ReturnType<typeof window.setTimeout>;
     }

@@ -35,7 +35,7 @@ export function OrderBookCard({ market }: { market: Market }) {
             Order book
           </div>
           <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-            Resting maker orders on the bounded venue. Refreshes every 5 seconds.
+            Resting maker orders on the bounded venue. Updates as orders and swaps land.
           </p>
         </div>
         <SegmentedControl

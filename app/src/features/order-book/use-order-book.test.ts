@@ -2,11 +2,34 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ORDER_BOOK_FALLBACK_POLL_INTERVAL_MS,
   ORDER_BOOK_POLL_INTERVAL_MS,
   type OrderBookLookup,
   orderBookRequestPath,
   useOrderBook,
 } from "./use-order-book";
+
+const liveMocks = vi.hoisted(() => ({
+  connection: null as Record<string, never> | null,
+  useLiveChannel: vi.fn(),
+}));
+
+vi.mock("@/integrations/live-updates/live-provider", () => ({
+  useLiveConnection: () => liveMocks.connection,
+}));
+
+vi.mock("@/integrations/live-updates/use-live-channel", () => ({
+  useLiveChannel: liveMocks.useLiveChannel,
+}));
+
+/** The (channel, handler) the hook passed to useLiveChannel this render. */
+function lastSubscription() {
+  const call = liveMocks.useLiveChannel.mock.calls.at(-1);
+  if (!call) {
+    throw new Error("useLiveChannel was never called");
+  }
+  return { channel: call[0] as string | null, handler: call[1] as () => void };
+}
 
 // vi.useFakeTimers breaks React act flushing (see frontend-testing skill), so
 // polling is driven by capturing the interval callback and invoking it.
@@ -14,6 +37,8 @@ let intervalHandlers: Array<() => void>;
 let clearedIntervalIds: number[];
 
 beforeEach(() => {
+  liveMocks.connection = null;
+  liveMocks.useLiveChannel.mockReset();
   intervalHandlers = [];
   clearedIntervalIds = [];
   vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler) => {
@@ -160,6 +185,102 @@ describe("useOrderBook", () => {
 
     expect(clearedIntervalIds).toEqual([1]);
     expect(result.current.book).toBeNull();
+  });
+
+  it("subscribes to the market channel and refetches on a signal", async () => {
+    liveMocks.connection = {};
+    const fetchMock = vi.fn(async () => jsonResponse(bookPayload()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useOrderBook(lookup()));
+    await flushAsync();
+    expect(result.current.book).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const { channel, handler } = lastSubscription();
+    expect(channel).toBe("market:31337:0xabc");
+
+    // The signal is a nudge, never data: it drives the hook's own refetch.
+    await act(async () => {
+      handler();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("subscribes to no channel for a null lookup", () => {
+    vi.stubGlobal("fetch", vi.fn());
+
+    renderHook(() => useOrderBook(null));
+
+    expect(lastSubscription().channel).toBeNull();
+  });
+
+  it("slows the poll to the fallback cadence when live updates are connected", async () => {
+    liveMocks.connection = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(bookPayload()))
+    );
+
+    renderHook(() => useOrderBook(lookup()));
+    await flushAsync();
+
+    // The interval survives as a safety net, at the slow fallback cadence.
+    expect(window.setInterval).toHaveBeenCalledWith(
+      expect.any(Function),
+      ORDER_BOOK_FALLBACK_POLL_INTERVAL_MS
+    );
+  });
+
+  it("ignores a stale response that resolves after a newer refetch", async () => {
+    liveMocks.connection = {};
+    const staleBook = { chainId: 31337, marketId: "stale" };
+    const freshBook = { chainId: 31337, marketId: "fresh" };
+    let resolveFirst: (response: Response) => void = () => {};
+    const fetchMock = vi
+      .fn(async () => jsonResponse(freshBook))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useOrderBook(lookup()));
+    const { handler } = lastSubscription();
+
+    // A live signal starts a second fetch while the first is still in flight;
+    // the newer response commits first.
+    await act(async () => {
+      handler();
+    });
+    expect(result.current.book).toEqual(freshBook);
+
+    // The slow original response must not overwrite the fresher book.
+    await act(async () => {
+      resolveFirst(jsonResponse(staleBook));
+    });
+    expect(result.current.book).toEqual(freshBook);
+  });
+
+  it("ignores a live signal after unmount", async () => {
+    liveMocks.connection = {};
+    const fetchMock = vi.fn(async () => jsonResponse(bookPayload()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { unmount } = renderHook(() => useOrderBook(lookup()));
+    await flushAsync();
+    const { handler } = lastSubscription();
+    unmount();
+
+    await act(async () => {
+      handler();
+    });
+
+    // Cleanup nulled the loader, so the late signal fetches nothing.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("ignores an in-flight failure after unmount", async () => {

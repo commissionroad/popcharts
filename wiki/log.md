@@ -1038,3 +1038,15 @@ Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
 view from both datastores; idempotent by run id so the push-race retry can't
 duplicate a row. HTML stays an on-demand render of the committed JSON (no
 standing deploy). Track C now C1–C4 + C6 done; C5 (`nightly-ai-verdicts`) open.
+
+## [2026-07-23] ingest | root ADR 0021 — slice 4 (convert the three polls to push)
+Pages: ~summaries/root-adr-0021-live-market-updates.md, ~index.md
+Notes: the order book, open-orders panel, and portfolio now subscribe to live
+channels and refetch on signal; new registered sources venue_order_events
+(market + owner, pool→market resolved at the seam via venue_pools),
+pool_price_ticks (market-only, unmapped pools record nothing), and
+outcome_token_transfer_events (one row per non-zero holder). The old polls
+survive as slow safety nets (60s/60s/120s) with the transport configured, and
+at their original cadences without it. venue_orders projection UPDATEs stay
+deliberately unregistered — they only change alongside a signalling
+venue_order_events append.
