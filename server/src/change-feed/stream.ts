@@ -1,3 +1,9 @@
+import {
+  RESET_REASON_CURSOR_TOO_OLD,
+  serializeChangeSignal,
+  type ResetSignalWire,
+} from "@popcharts/live-channels";
+
 import type { ChangeFeedHub } from "./hub";
 import type { ChangeFeedReplay } from "./relay";
 import { channelsIntersect, type ChangeFeedEvent } from "./sources";
@@ -48,26 +54,13 @@ export interface ChangeFeedStreamOptions {
 
 const DEFAULT_HEARTBEAT_MS = 15_000;
 
-function serializeEvent(event: ChangeFeedEvent) {
-  return {
-    id: event.id.toString(),
-    channels: event.channels,
-    source: event.sourceTable,
-    op: event.op,
-    chainId: event.chainId,
-    marketId: event.marketId,
-    owner: event.owner,
-    blockNumber:
-      event.blockNumber === null ? null : event.blockNumber.toString(),
-    logIndex: event.logIndex,
-  };
-}
-
 function changeMessage(event: ChangeFeedEvent): ChangeFeedStreamMessage {
   return {
     id: event.id.toString(),
     event: "change",
-    data: serializeEvent(event),
+    // The frame body is built by @popcharts/live-channels, which the browser
+    // parses with — the field names are declared once, for both directions.
+    data: serializeChangeSignal(event),
   };
 }
 
@@ -109,7 +102,8 @@ export async function* changeFeedEventStream(
     if (truncated) {
       // The cursor predates the retention window; the client has a gap only a
       // full refetch can close.
-      yield { event: "reset", data: { reason: "cursor-too-old" } };
+      const reset: ResetSignalWire = { reason: RESET_REASON_CURSOR_TOO_OLD };
+      yield { event: "reset", data: reset };
     }
 
     while (!signal?.aborted) {

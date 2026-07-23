@@ -16,6 +16,13 @@
  *    or replayed signal costs at most one redundant refetch.
  */
 
+import {
+  type ChangeSignalWire,
+  parseChangeSignal,
+  parseResetReason,
+  RESET_REASON_CURSOR_TOO_OLD,
+} from "@popcharts/live-channels";
+
 /** The subset of `EventSource` this module uses, so tests can supply a fake. */
 export interface EventSourceLike {
   addEventListener(type: string, listener: (event: MessageEvent) => void): void;
@@ -26,18 +33,13 @@ export interface EventSourceLike {
  * What a subscriber receives. `change` means "this entity changed, re-read it";
  * `reset` means the resume cursor fell outside the server's retention window,
  * so only a cold refetch can close the gap.
+ *
+ * The `change` fields are the server's frame body verbatim
+ * ({@link ChangeSignalWire}), not a re-listing of it — a field renamed on the
+ * relay becomes a compile error here rather than a silent `undefined`.
  */
 export type LiveSignal =
-  | {
-      type: "change";
-      /** `change_feed.id` — the resume cursor, and the client dedup key. */
-      id: string;
-      channels: string[];
-      /** Originating table, e.g. `receipt_placed_events`. */
-      source: string;
-      marketId: string | null;
-      owner: string | null;
-    }
+  | ({ type: "change" } & ChangeSignalWire)
   | { type: "reset"; reason: string };
 
 export type LiveSignalHandler = (signal: LiveSignal) => void;
@@ -211,53 +213,34 @@ export class LiveConnection {
   }
 
   private handleChange(event: MessageEvent): void {
-    let payload: {
-      id?: unknown;
-      channels?: unknown;
-      source?: unknown;
-      marketId?: unknown;
-      owner?: unknown;
-    };
+    let raw: unknown;
     try {
-      payload = JSON.parse(String(event.data ?? "")) as typeof payload;
+      raw = JSON.parse(String(event.data ?? ""));
     } catch (error) {
       this.onError?.(error);
       return;
     }
 
-    const id = typeof payload.id === "string" ? payload.id : null;
-    if (id === null || this.seenIds.has(id)) {
+    // Field-level validation belongs to the shared contract, which the relay
+    // serializes with; a frame with no usable id is unresumable and dropped.
+    const frame = parseChangeSignal(raw);
+    if (frame === null || this.seenIds.has(frame.id)) {
       return;
     }
-    this.rememberId(id);
-    this.advanceCursor(id);
+    this.rememberId(frame.id);
+    this.advanceCursor(frame.id);
 
-    const channels = Array.isArray(payload.channels)
-      ? payload.channels.filter((c): c is string => typeof c === "string")
-      : [];
-    const signal: LiveSignal = {
-      type: "change",
-      id,
-      channels,
-      source: typeof payload.source === "string" ? payload.source : "",
-      marketId: typeof payload.marketId === "string" ? payload.marketId : null,
-      owner: typeof payload.owner === "string" ? payload.owner : null,
-    };
+    const signal: LiveSignal = { type: "change", ...frame };
 
-    for (const channel of channels) {
+    for (const channel of frame.channels) {
       this.emit(channel, signal);
     }
   }
 
   private handleReset(event: MessageEvent): void {
-    let reason = "cursor-too-old";
+    let reason = RESET_REASON_CURSOR_TOO_OLD;
     try {
-      const parsed = JSON.parse(String(event.data ?? "{}")) as {
-        reason?: unknown;
-      };
-      if (typeof parsed.reason === "string") {
-        reason = parsed.reason;
-      }
+      reason = parseResetReason(JSON.parse(String(event.data ?? "{}")));
     } catch {
       // Keep the default reason; a reset is actionable without its payload.
     }

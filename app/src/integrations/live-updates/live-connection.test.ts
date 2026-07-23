@@ -242,6 +242,10 @@ describe("LiveConnection", () => {
     expect(onSignal).not.toHaveBeenCalled();
   });
 
+  // Field-by-field defaulting is the shared contract's job and is covered
+  // exhaustively in @popcharts/live-channels' own suite; re-listing all nine
+  // fields here would just mirror the wire shape a third time. What this
+  // asserts is the client's half: a degraded frame still reaches subscribers.
   it("tolerates missing/oddly-typed optional fields", async () => {
     const { connection, latest } = setup();
     const onSignal = vi.fn();
@@ -250,13 +254,12 @@ describe("LiveConnection", () => {
 
     latest().emit("change", { id: "3", channels: ["markets"], source: 42 });
 
-    expect(onSignal).toHaveBeenCalledWith({
+    expect(onSignal).toHaveBeenCalledTimes(1);
+    expect(onSignal.mock.calls[0]?.[0]).toMatchObject({
       type: "change",
       id: "3",
       channels: ["markets"],
       source: "",
-      marketId: null,
-      owner: null,
     });
   });
 

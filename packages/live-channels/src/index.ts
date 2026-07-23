@@ -1,36 +1,31 @@
 /**
- * The live-updates channel vocabulary (repo ADR 0021): the exact channel
- * strings the API's SSE relay routes rows to and the browser subscribes with.
+ * The live-updates contract shared by the API's SSE relay and the browser
+ * client (repo ADR 0021): the channel vocabulary, and the frame bodies that
+ * travel over those channels.
  *
  * This is a package rather than a constant in either codebase because the two
  * sides share no other code path — the server is a bun project outside the
  * pnpm workspace, and `GET /events` is a stream, so it is absent from the
- * generated OpenAPI client the app otherwise imports. Left mirrored, a
- * divergence here **fails silently**: the client subscribes to a channel the
- * server never publishes to, no error is raised at either end, and the only
- * symptom is a surface that quietly stops updating. Importing one definition
- * makes that mismatch a type error instead.
+ * generated OpenAPI client the app otherwise imports. Every mismatch this
+ * package prevents is one that would otherwise **fail silently**, since JSON
+ * validates nothing and an unmatched channel raises no error at either end.
  *
- * Keep this module free of routing logic and dependencies. Which tables emit,
- * and which channels a given row fans out to, are server concerns and live in
- * `server/src/change-feed/sources.ts`.
+ * Routing logic is not here: which tables emit, and which channels a given row
+ * fans out to, are server concerns in `server/src/change-feed/sources.ts`.
  */
 
-/** The single global discovery-board channel — every market-list transition. */
-export const MARKET_LIST_CHANNEL = "markets";
+export {
+  MARKET_LIST_CHANNEL,
+  marketChannel,
+  portfolioChannel,
+} from "./channels";
 
-/** One market's channel: its page, price, and graduation progress. */
-export function marketChannel(chainId: number, marketId: string): string {
-  return `market:${chainId}:${marketId}`;
-}
-
-/**
- * One holder's portfolio channel. Lower-cased so a subscription matches
- * regardless of the address checksum casing either side happened to hold — the
- * server routes from a stored column, the client from a connected wallet, and
- * the two disagree on casing often enough that this has to be normalised in
- * the shared builder rather than at each call site.
- */
-export function portfolioChannel(owner: string): string {
-  return `portfolio:${owner.toLowerCase()}`;
-}
+export {
+  RESET_REASON_CURSOR_TOO_OLD,
+  parseChangeSignal,
+  parseResetReason,
+  serializeChangeSignal,
+  type ChangeSignalSource,
+  type ChangeSignalWire,
+  type ResetSignalWire,
+} from "./wire";

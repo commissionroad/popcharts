@@ -130,6 +130,17 @@ jobs:
       - name: Tests with coverage
         run: bun run test:coverage
 
+      # The shared live-updates contract has no lane of its own; it runs here
+      # because this job already has bun, and because a break in it breaks the
+      # relay. Its lines are excluded from the server's coverage denominator
+      # (see server/bunfig.toml), so this is where they are checked at all.
+      - name: Shared live-updates contract checks
+        working-directory: packages/live-channels
+        run: |
+          bun run format:check
+          bun run typecheck
+          bun run test:coverage
+
       - name: Integration tests (real Postgres)
         env:
           POPCHARTS_INT_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres

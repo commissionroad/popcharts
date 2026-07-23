@@ -1,3 +1,4 @@
+import { serializeChangeSignal } from "@popcharts/live-channels";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -61,11 +62,17 @@ describe("useLiveChannel", () => {
 
     const signal: LiveSignal = {
       type: "change",
-      id: "1",
-      channels: [CHANNEL],
-      source: "receipt_placed_events",
-      marketId: "42",
-      owner: null,
+      ...serializeChangeSignal({
+        id: 1n,
+        channels: [CHANNEL],
+        sourceTable: "receipt_placed_events",
+        op: "insert",
+        chainId: 31337,
+        marketId: "42",
+        owner: null,
+        blockNumber: null,
+        logIndex: null,
+      }),
     };
     firstHandler(handlers)(signal);
 
