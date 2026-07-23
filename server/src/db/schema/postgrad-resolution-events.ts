@@ -9,8 +9,9 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { MARKET_SIDES } from "@popcharts/protocol";
+
 import { contracts } from "./contracts";
-import { MARKET_SIDE_VALUES } from "./market-side";
 
 /**
  * Which terminal event the postgrad market emitted: MarketResolved(side) or
@@ -29,7 +30,7 @@ export const postgradResolutionKind = pgEnum("postgrad_resolution_kind", [
 
 /** Winning side carried by MarketResolved; null for a cancelled draw. */
 export const postgradWinningSide = pgEnum("postgrad_winning_side", [
-  ...MARKET_SIDE_VALUES,
+  ...MARKET_SIDES,
 ]);
 
 /**
