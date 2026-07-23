@@ -9,6 +9,8 @@ import type {
   AiReviewSourceTier,
   AiReviewVerdict,
   MarketStatus,
+  MarketVenue as ApiMarketVenue,
+  MarketVenuePool as ApiMarketVenuePool,
 } from "@popcharts/api-client/models";
 
 /**
@@ -85,28 +87,22 @@ export type PricePathPoint = {
   cents: number;
 };
 
-/** One outcome-token pool on the bounded postgrad venue. */
-export type MarketVenuePool = {
-  /**
-   * Current pool price as a WAD decimal string (collateral per one outcome
-   * token). Absent while the pool is uninitialized.
-   */
-  displayPriceWad?: string;
-  initialized: boolean;
-  outcomeTokenAddress: string;
-  poolId: string;
-  whitelisted: boolean;
-};
+/**
+ * One outcome-token pool on the bounded postgrad venue. `apiMarketToMarket`
+ * passes the wire value straight through, so this aliases the contract type
+ * rather than copying it: a restated copy would keep compiling while silently
+ * omitting any field the API later adds.
+ *
+ * `displayPriceWad` is a WAD decimal string (collateral per one outcome token)
+ * and is absent while the pool is uninitialized.
+ */
+export type MarketVenuePool = ApiMarketVenuePool;
 
-/** Venue wiring for a graduated market's YES and NO outcome pools. */
-export type MarketVenueInfo = {
-  boundedHookAddress: string;
-  live: boolean;
-  noPool: MarketVenuePool;
-  orderManagerAddress: string;
-  poolManagerAddress: string;
-  yesPool: MarketVenuePool;
-};
+/**
+ * Venue wiring for a graduated market's YES and NO outcome pools. Aliased for
+ * the same pass-through reason as {@link MarketVenuePool}.
+ */
+export type MarketVenueInfo = ApiMarketVenue;
 
 /**
  * Terminal resolution of a graduated market, from the postgrad market's
