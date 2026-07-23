@@ -12,20 +12,23 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import type {
-  EvidenceItem,
-  ReviewScoreRationales,
-  ReviewScores,
-  SourceCheck,
+import {
+  REVIEW_PROVIDER_NAMES,
+  type EvidenceItem,
+  type ReviewScoreRationales,
+  type ReviewScores,
+  type SourceCheck,
 } from "src/ai-review/types";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
-/** Postgres enum mirroring ReviewProviderName from src/ai-review/types. */
+/**
+ * Postgres enum for ReviewProviderName, derived from the same const array so
+ * adding a provider surfaces here as a drizzle schema diff (migration needed)
+ * instead of an enum-insert error at runtime.
+ */
 export const aiReviewProvider = pgEnum("ai_review_provider", [
-  "anthropic",
-  "heuristic",
-  "ollama",
+  ...REVIEW_PROVIDER_NAMES,
 ]);
 
 /** Postgres enum mirroring ReviewVerdict from src/ai-review/types. */

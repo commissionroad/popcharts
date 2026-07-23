@@ -3,10 +3,20 @@
  * resolution URLs, or full web search. Each step widens the attack surface,
  * so the mode is set by config/job — never by market text.
  */
-export type InternetAccessMode = "off" | "provided_urls" | "search";
+export const INTERNET_ACCESS_MODES = [
+  "off",
+  "provided_urls",
+  "search",
+] as const;
+export type InternetAccessMode = (typeof INTERNET_ACCESS_MODES)[number];
 
 /** The review backends the service can route a market to. */
-export type ReviewProviderName = "anthropic" | "heuristic" | "ollama";
+export const REVIEW_PROVIDER_NAMES = [
+  "anthropic",
+  "heuristic",
+  "ollama",
+] as const;
+export type ReviewProviderName = (typeof REVIEW_PROVIDER_NAMES)[number];
 
 /**
  * Static traits of a provider that the pipeline uses to decide what work to do

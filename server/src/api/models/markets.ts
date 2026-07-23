@@ -1,6 +1,9 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
 
+import { REVIEW_PROVIDER_NAMES } from "src/ai-review/types";
+import { literalUnion } from "src/shared/typebox-literals";
+
 /**
  * Market and AI-review API schemas.
  *
@@ -95,10 +98,9 @@ export const MarketMetadataWriteSchema = t.Object(
 );
 
 /** Backend that produced an AI review. */
-export const AiReviewProviderSchema = t.Union(
-  [t.Literal("anthropic"), t.Literal("heuristic"), t.Literal("ollama")],
-  { $id: "AiReviewProvider" },
-);
+export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
+  $id: "AiReviewProvider",
+});
 
 /** Overall AI-review outcome for a market's metadata. */
 export const AiReviewVerdictSchema = t.Union(

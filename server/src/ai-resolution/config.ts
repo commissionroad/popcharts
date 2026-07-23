@@ -1,10 +1,18 @@
 import {
   readBooleanOrFallback,
+  readEnumOrFallback,
   readNonNegativeIntegerOrFallback,
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
-import type { InternetAccessMode } from "src/ai-review/types";
+import {
+  INTERNET_ACCESS_MODES,
+  type InternetAccessMode,
+} from "src/ai-review/types";
+import {
+  RESOLUTION_MODEL_PROVIDER_NAMES,
+  type ResolutionModelProviderName,
+} from "./types";
 
 /**
  * Version tag persisted with every resolution so stored verdicts can be traced
@@ -12,10 +20,6 @@ import type { InternetAccessMode } from "src/ai-review/types";
  * output contract changes meaning.
  */
 export const AI_RESOLUTION_PROMPT_VERSION = "market-ai-resolution-v1";
-
-/** Model providers the resolution service can call. `manual` (operator /
- * self-resolve) is a valid audit-row provider but never a service selection. */
-export type ResolutionModelProviderName = "anthropic" | "heuristic" | "ollama";
 
 /**
  * Full runtime configuration of the AI Resolution service. Mirrors the AI
@@ -79,8 +83,10 @@ export const aiResolutionConfig: AiResolutionConfig = {
     process.env.AI_RESOLUTION_FETCH_SEARCH_RESULTS,
     false,
   ),
-  internetAccess: readInternetAccessMode(
-    process.env.AI_RESOLUTION_INTERNET_ACCESS ?? "search",
+  internetAccess: readEnumOrFallback(
+    process.env.AI_RESOLUTION_INTERNET_ACCESS,
+    INTERNET_ACCESS_MODES,
+    "search",
   ),
   maxFetchBytes: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_MAX_FETCH_BYTES,
@@ -93,7 +99,11 @@ export const aiResolutionConfig: AiResolutionConfig = {
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_RESOLUTION_OLLAMA_MODEL ?? "gpt-oss:20b",
   port: readPositiveIntegerOrFallback(process.env.AI_RESOLUTION_PORT, 3004),
-  provider: readProvider(process.env.AI_RESOLUTION_PROVIDER ?? "ollama"),
+  provider: readEnumOrFallback(
+    process.env.AI_RESOLUTION_PROVIDER,
+    RESOLUTION_MODEL_PROVIDER_NAMES,
+    "ollama",
+  ),
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_TIMEOUT_MS,
     8_000,
@@ -113,20 +123,4 @@ function readUnitInterval(name: string, fallback: number) {
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1
     ? parsed
     : fallback;
-}
-
-function readInternetAccessMode(value: string): InternetAccessMode {
-  if (value === "off" || value === "provided_urls" || value === "search") {
-    return value;
-  }
-
-  return "search";
-}
-
-function readProvider(value: string): ResolutionModelProviderName {
-  if (value === "anthropic" || value === "heuristic" || value === "ollama") {
-    return value;
-  }
-
-  return "ollama";
 }
