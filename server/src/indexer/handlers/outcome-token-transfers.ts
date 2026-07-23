@@ -1,6 +1,7 @@
 import type { MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
+import { recordLiveChange } from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
 import { ZERO_ADDRESS } from "src/config";
 import { db, schema, sql } from "src/db/client";
@@ -78,6 +79,26 @@ export async function persistOutcomeTokenTransferRecord(
 
     await applyBalanceDelta(tx, record, record.fromAddress, -record.value);
     await applyBalanceDelta(tx, record, record.toAddress, record.value);
+
+    // Signal each holder whose position moved (repo ADR 0021): one row per
+    // non-zero holder, so a wallet-to-wallet transfer nudges both portfolios,
+    // a mint/burn only the real holder, and a self-transfer just one row.
+    for (const holder of new Set([record.fromAddress, record.toAddress])) {
+      if (holder === ZERO_ADDRESS) {
+        continue;
+      }
+
+      await recordLiveChange(tx, {
+        sourceTable: "outcome_token_transfer_events",
+        op: "insert",
+        chainId: record.chainId,
+        marketId: record.marketId,
+        owner: holder,
+        rowId: inserted[0].id,
+        blockNumber: record.blockNumber,
+        logIndex: record.logIndex,
+      });
+    }
   });
 }
 

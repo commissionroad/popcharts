@@ -230,8 +230,8 @@ describe("persistOrderCreatedRecord", () => {
     });
   });
 
-  it("skips the projection for a replayed event", async () => {
-    const { dbc, orderInserts } = fakeVenueOrderDb({
+  it("skips the projection and the live signal for a replayed event", async () => {
+    const { dbc, liveChanges, orderInserts } = fakeVenueOrderDb({
       insertedRows: [],
       orderRow: null,
     });
@@ -239,6 +239,45 @@ describe("persistOrderCreatedRecord", () => {
     await persistOrderCreatedRecord(record, dbc);
 
     expect(orderInserts()).toHaveLength(0);
+    expect(liveChanges()).toHaveLength(0);
+  });
+
+  it("signals the market and the maker for a fresh event on a mapped pool", async () => {
+    const { dbc, liveChanges } = fakeVenueOrderDb({
+      insertedRows: [{ id: 5 }],
+      orderRow: null,
+      poolMarketId: 42n,
+    });
+
+    await persistOrderCreatedRecord(record, dbc);
+
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({
+      sourceTable: "venue_order_events",
+      op: "insert",
+      chainId: 5042002,
+      marketId: "42",
+      owner: "0x00000000000000000000000000000000000000aa",
+      rowId: "5",
+      blockNumber: 321n,
+      logIndex: 7,
+    });
+  });
+
+  it("still signals the maker when the pool maps to no market", async () => {
+    const { dbc, liveChanges } = fakeVenueOrderDb({
+      insertedRows: [{ id: 5 }],
+      orderRow: null,
+      poolMarketId: null,
+    });
+
+    await persistOrderCreatedRecord(record, dbc);
+
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({
+      marketId: null,
+      owner: "0x00000000000000000000000000000000000000aa",
+    });
   });
 });
 
@@ -416,7 +455,7 @@ describe("post-creation order event persistence", () => {
         thresholdTick: 45,
       }) as OrderRequeuedLog,
     });
-    const { dbc, updates } = fakeVenueOrderDb({
+    const { dbc, liveChanges, updates } = fakeVenueOrderDb({
       insertedRows: [{ id: 1 }],
       orderRow: openOrderRow(),
     });
@@ -427,6 +466,60 @@ describe("post-creation order event persistence", () => {
       indexedTick: 45,
       updatedBlockNumber: 321n,
     });
+    // A requeue carries no owner, so it signals the market channel only.
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({ marketId: "42", owner: null });
+  });
+
+  it("signals the market and the maker on a fresh fill", async () => {
+    const { dbc, liveChanges } = fakeVenueOrderDb({
+      insertedRows: [{ id: 8 }],
+      orderRow: openOrderRow(),
+    });
+
+    await persistOrderFilledRecord(filledRecord, dbc);
+
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({
+      sourceTable: "venue_order_events",
+      marketId: "42",
+      owner: "0x00000000000000000000000000000000000000aa",
+      rowId: "8",
+    });
+  });
+
+  it("skips the live signal for a replayed fill", async () => {
+    const { dbc, liveChanges } = fakeVenueOrderDb({
+      insertedRows: [],
+      orderRow: openOrderRow(),
+    });
+
+    await persistOrderFilledRecord(filledRecord, dbc);
+
+    expect(liveChanges()).toHaveLength(0);
+  });
+
+  it("records nothing for an ownerless event on an unmapped pool", async () => {
+    const record = buildOrderRequeuedRecord({
+      blockTimestamp,
+      config,
+      contractId,
+      log: baseLog({
+        orderId: 3,
+        poolId,
+        thresholdTick: 45,
+      }) as OrderRequeuedLog,
+    });
+    const { dbc, liveChanges } = fakeVenueOrderDb({
+      insertedRows: [{ id: 1 }],
+      orderRow: openOrderRow(),
+      poolMarketId: null,
+    });
+
+    await persistOrderRequeuedRecord(record, dbc);
+
+    // Neither route resolves, so no unroutable change_feed row is written.
+    expect(liveChanges()).toHaveLength(0);
   });
 });
 
@@ -464,17 +557,22 @@ function openOrderRow(overrides: Partial<FakeOrderRow> = {}): FakeOrderRow {
  * Minimal stand-in for the transactional drizzle handle used by venue order
  * persists: `insertedRows` is what the event insert returns (empty means the
  * dedup conflict fired), `orderRow` is what the locked projection SELECT
- * finds. Captures projection inserts and updates for assertions.
+ * finds, and `poolMarketId` is what the venue_pools pool→market lookup
+ * resolves (null = unmapped pool). Captures projection inserts, updates, and
+ * change_feed live-signal rows for assertions.
  */
 function fakeVenueOrderDb({
   insertedRows,
   orderRow,
+  poolMarketId = 42n,
 }: {
   insertedRows: Array<{ id: number }>;
   orderRow: FakeOrderRow | null;
+  poolMarketId?: bigint | null;
 }) {
   const orderInserts: Array<Record<string, unknown>> = [];
   const updates: Array<Record<string, unknown>> = [];
+  const liveChanges: Array<Record<string, unknown>> = [];
   const tx = {
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => {
@@ -486,10 +584,21 @@ function fakeVenueOrderDb({
           };
         }
 
+        if (table === schema.changeFeed) {
+          liveChanges.push(values);
+          return Promise.resolve();
+        }
+
         orderInserts.push(values);
         return { onConflictDoNothing: async () => undefined };
       },
     }),
+    query: {
+      venuePools: {
+        findFirst: async () =>
+          poolMarketId === null ? undefined : { marketId: poolMarketId },
+      },
+    },
     select: () => ({
       from: () => ({
         where: () => ({
@@ -511,6 +620,7 @@ function fakeVenueOrderDb({
 
   return {
     dbc,
+    liveChanges: () => liveChanges,
     orderInserts: () => orderInserts,
     updates: () => updates,
   };

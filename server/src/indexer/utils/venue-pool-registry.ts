@@ -112,6 +112,30 @@ export async function registerVenuePoolsForGraduatedMarket({
 }
 
 /**
+ * Best-effort wrapper around {@link ensureVenuePoolIndexed} for the event
+ * watchers: the mapping is an enrichment re-attempted on every event for
+ * still-unknown pools, and a failure here must never block event indexing or
+ * park a sweep.
+ */
+export async function ensurePoolMappingIndexed(
+  client: BlockchainClient,
+  poolId: string | undefined,
+): Promise<void> {
+  if (!poolId) {
+    return;
+  }
+
+  try {
+    await ensureVenuePoolIndexed(client, poolId);
+  } catch (error) {
+    console.warn(
+      `[VenuePools] Mapping registration failed for pool ${poolId}:`,
+      error,
+    );
+  }
+}
+
+/**
  * Pool ids hash the bounded hook address into the pool key, so without it any
  * derived mapping would be wrong; environments without the venue skip
  * registration entirely.
