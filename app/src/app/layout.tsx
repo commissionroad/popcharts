@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono, Unbounded } from "next/font/google";
 
 import { AppNav } from "@/components/layout/app-nav";
-import { LiveProvider } from "@/integrations/live/live-provider";
+import { LiveProvider } from "@/integrations/live-updates/live-provider";
 import { WalletProviders } from "@/integrations/wallet/wallet-provider";
 
 const unbounded = Unbounded({
