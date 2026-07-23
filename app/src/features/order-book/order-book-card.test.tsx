@@ -52,7 +52,7 @@ describe("OrderBookCard", () => {
     expect(screen.getByText("Order book")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Resting maker orders on the bounded venue. Refreshes every 5 seconds."
+        "Resting maker orders on the bounded venue. Updates as orders and swaps land."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Loading order book…")).toBeInTheDocument();

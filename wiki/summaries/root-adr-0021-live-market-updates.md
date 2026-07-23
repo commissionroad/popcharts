@@ -4,13 +4,14 @@ title: Repo ADR 0021 — Live market updates (SSE over a change-feed outbox)
 description: Standalone program to make the app feel live — server-signalled, client-refetched updates over SSE, fed by a durable change_feed outbox written atomically with each indexed event via explicit recordLiveChange seams (not a DB trigger); DB/REST stays the single source of truth, no message broker. Server spine built 2026-07-22.
 sources:
   - docs/adr/0021-live-market-updates.md
-updated: 2026-07-22
+updated: 2026-07-23
 ---
 
 # Repo ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
 **Status: Accepted — server spine built 2026-07-22, client transport
-2026-07-23; slices 3–7 open, so the app still shows no live UI.** Dated
+2026-07-23, the three polls converted to push 2026-07-23 (slice 4); slices 3
+and 5–7 open.** Dated
 2026-07-17. A standalone tracked program (like
 [0016](root-adr-0016-monorepo-architecture-cleanup-program.md)/
 [0017](root-adr-0017-test-observability-and-coverage-program.md)), not part of
@@ -108,11 +109,13 @@ does not prove the literal sits on a call the write path reaches.
 Whole-slice refetch of authoritative state makes duplicate/out-of-order/replayed
 signals harmless (worst case: a redundant refetch). Deliberately does NOT emit
 from `markets` UPDATEs — the coupled event row already covers them (no
-double-signal). **The registered set is only slice 1's market-keyed append-only
-tables**: `pool_price_ticks` / `venue_order_events` / `venue_orders`,
-`outcome_token_transfer_events`, and the two job-queue UPDATE sources are
-deferred to the slices that need them (each wants join-based or dual-party
-routing).
+double-signal). **The registered set is slice 1's market-keyed append-only
+tables plus slice 4's seam-routed sources**: `venue_order_events` and
+`pool_price_ticks` resolve pool→market through `venue_pools` at the seam
+(best-effort), and `outcome_token_transfer_events` records one row per
+non-zero holder. Still deferred: `venue_orders` projection UPDATEs (they only
+change alongside a signalling `venue_order_events` append) and the two
+job-queue UPDATE sources.
 
 ### Scope boundaries
 
@@ -142,7 +145,14 @@ degrades gracefully on reorg (re-emit → client refetches corrected state).
    `EventSource` only — nothing has yet crossed a real SSE connection.
 3. Pregrad live surfaces (discovery + detail prices/chart/graduation bar) —
    the first slice that renders anything live, and the first end-to-end proof.
-4. Convert the three existing polls to push.
+4. ✅ Convert the three existing polls to push — **built 2026-07-23** (two-PR
+   stack): emits for `venue_order_events` (market + owner), `pool_price_ticks`
+   (market), `outcome_token_transfer_events` (per non-zero holder); the order
+   book and open-orders panel subscribe to the market channel (the panel takes
+   the market channel deliberately — its pool prices move on anyone's swap),
+   the portfolio to the owner's channel. Polls survive as safety nets (5s→60s,
+   8s→60s, 15s→120s with the transport configured; original cadences without
+   it, so nothing degrades below the old behaviour).
 5. Lifecycle toasts + AI-review push + clearing challenge-window countdown.
 6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, `change_feed` partitioning, optional NOTIFY. (Age-based retention already shipped in slice 1 — `startChangeFeedRetention`, started by the API.)
 7. E2E coverage (a second actor's trade moves a first actor's open page).

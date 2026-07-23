@@ -1060,3 +1060,14 @@ taken by review-first creation and the security audit while the PR was
 open). Both dispute ADRs flipped to Accepted with the user's Phase 0
 decisions: flat ~100-unit bond via prepareMarket, forfeits to owner, no
 bounty in v1, operator settlement final in v1.
+## [2026-07-23] ingest | root ADR 0021 — slice 4 (convert the three polls to push)
+Pages: ~summaries/root-adr-0021-live-market-updates.md, ~index.md
+Notes: the order book, open-orders panel, and portfolio now subscribe to live
+channels and refetch on signal; new registered sources venue_order_events
+(market + owner, pool→market resolved at the seam via venue_pools),
+pool_price_ticks (market-only, unmapped pools record nothing), and
+outcome_token_transfer_events (one row per non-zero holder). The old polls
+survive as slow safety nets (60s/60s/120s) with the transport configured, and
+at their original cadences without it. venue_orders projection UPDATEs stay
+deliberately unregistered — they only change alongside a signalling
+venue_order_events append.

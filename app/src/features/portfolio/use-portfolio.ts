@@ -1,12 +1,23 @@
 "use client";
 
 import type { Portfolio } from "@popcharts/api-client/models";
+import { portfolioChannel } from "@popcharts/live-channels";
 import { useCallback, useEffect, useState } from "react";
 
+import { useLiveConnection } from "@/integrations/live-updates/live-provider";
+import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { presentError } from "@/lib/error-handling";
 
-/** Poll cadence for the portfolio page while it is mounted and visible. */
+/** Poll cadence when no live transport is configured — the whole update path. */
 export const PORTFOLIO_POLL_INTERVAL_MS = 15_000;
+/**
+ * Poll cadence when live signals drive refetches (repo ADR 0021): a safety
+ * net for a missed signal or a down SSE stream, not the update path. The
+ * portfolio is money-bearing, so it keeps a fallback even though every
+ * balance, receipt, order, claim, and redemption change signals the owner's
+ * channel.
+ */
+export const PORTFOLIO_FALLBACK_POLL_INTERVAL_MS = 120_000;
 
 /**
  * One wallet's indexed portfolio. `portfolio` stays null until the first
@@ -30,9 +41,12 @@ const EMPTY_RESULT: PortfolioReadResult = {
 };
 
 /**
- * Polls the indexer for a wallet's portfolio (receipts, positions, open
- * orders). Orders fill and markets graduate while the page is open, so the
- * hook re-reads on a modest interval while the tab is visible (hidden tabs
+ * Reads a wallet's portfolio (receipts, positions, open orders) from the
+ * indexer and keeps it fresh. With the live transport configured (repo ADR
+ * 0021) the owner's portfolio channel nudges a re-read whenever a receipt,
+ * balance transfer, maker order, claim, or redemption touches the wallet, and
+ * the poll drops to a slow safety net; without it, the original interval is
+ * the whole update path. Re-reads run while the tab is visible (hidden tabs
  * skip the fetch but keep the schedule) and immediately after `refresh()`.
  * Returns a disabled state until an owner is available — the page renders its
  * connect-wallet empty state from that.
@@ -59,6 +73,12 @@ export function usePortfolio({
   const requestKey =
     chainId !== null && owner ? [chainId, owner, pollTick].join(":") : null;
   const refresh = useCallback(() => setPollTick((value) => value + 1), []);
+  const live = useLiveConnection() !== null;
+  const pollIntervalMs = live
+    ? PORTFOLIO_FALLBACK_POLL_INTERVAL_MS
+    : PORTFOLIO_POLL_INTERVAL_MS;
+
+  useLiveChannel(owner ? portfolioChannel(owner) : null, refresh);
 
   useEffect(() => {
     if (!requestKey || chainId === null || !owner) {
@@ -78,7 +98,7 @@ export function usePortfolio({
         }
 
         setPollTick((value) => value + 1);
-      }, PORTFOLIO_POLL_INTERVAL_MS);
+      }, pollIntervalMs);
     };
 
     readPortfolio({ chainId, owner })
@@ -112,7 +132,7 @@ export function usePortfolio({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [chainId, owner, requestKey]);
+  }, [chainId, owner, pollIntervalMs, requestKey]);
 
   if (requestKey === null) {
     return { ...EMPTY_RESULT, loading: false, refresh };

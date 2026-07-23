@@ -1,12 +1,20 @@
 "use client";
 
 import type { MarketOrderBook, VenueOrder } from "@popcharts/api-client/models";
+import { marketChannel } from "@popcharts/live-channels";
 import { useCallback, useEffect, useState } from "react";
 
+import { useLiveConnection } from "@/integrations/live-updates/live-provider";
+import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { presentError } from "@/lib/error-handling";
 
-/** Poll cadence for the open-orders panel while it is mounted and visible. */
+/** Poll cadence when no live transport is configured — the whole update path. */
 export const OPEN_ORDERS_POLL_INTERVAL_MS = 8_000;
+/**
+ * Poll cadence when live signals drive refetches (repo ADR 0021): a safety
+ * net for a missed signal or a down SSE stream, not the update path.
+ */
+export const OPEN_ORDERS_FALLBACK_POLL_INTERVAL_MS = 60_000;
 
 /**
  * One wallet's open maker orders on a market, plus the freshest pool prices
@@ -34,12 +42,15 @@ const EMPTY_RESULT: OrdersReadResult = {
 };
 
 /**
- * Polls the indexer for a wallet's open maker orders on one market. Deferred
- * keeper fills mean a crossed order can stay open for a few seconds, so the
- * panel re-reads on a modest interval while the tab is visible (hidden tabs
- * skip the fetch but keep the schedule) and re-reads immediately after
- * `refresh()` or a `refreshKey` bump. Returns a disabled state until the
- * chain id, market id, and owner are all available.
+ * Reads a wallet's open maker orders on one market from the indexer and keeps
+ * them fresh. With the live transport configured (repo ADR 0021) the market's
+ * channel nudges a re-read whenever any order or swap touches the market —
+ * the orders *and* the pool prices this panel crosses them against move on
+ * exactly that activity — and the poll drops to a slow safety net; without
+ * it, the original interval is the whole update path. Re-reads run while the
+ * tab is visible (hidden tabs skip the fetch but keep the schedule) and
+ * immediately after `refresh()` or a `refreshKey` bump. Returns a disabled
+ * state until the chain id, market id, and owner are all available.
  *
  * Reads go through the same-origin `/api/indexer/venue-orders` and
  * `/api/indexer/orderbook` proxies (like the portfolio page), so the indexer
@@ -70,6 +81,15 @@ export function useOpenVenueOrders({
       ? [chainId, marketId, owner, refreshKey, pollTick].join(":")
       : null;
   const refresh = useCallback(() => setPollTick((value) => value + 1), []);
+  const live = useLiveConnection() !== null;
+  const pollIntervalMs = live
+    ? OPEN_ORDERS_FALLBACK_POLL_INTERVAL_MS
+    : OPEN_ORDERS_POLL_INTERVAL_MS;
+
+  useLiveChannel(
+    chainId !== null && marketId ? marketChannel(chainId, marketId) : null,
+    refresh
+  );
 
   useEffect(() => {
     if (!requestKey || chainId === null || !marketId || !owner) {
@@ -89,7 +109,7 @@ export function useOpenVenueOrders({
         }
 
         setPollTick((value) => value + 1);
-      }, OPEN_ORDERS_POLL_INTERVAL_MS);
+      }, pollIntervalMs);
     };
 
     readOpenVenueOrders({ chainId, marketId, owner })
@@ -123,7 +143,7 @@ export function useOpenVenueOrders({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [chainId, marketId, owner, requestKey]);
+  }, [chainId, marketId, owner, pollIntervalMs, requestKey]);
 
   if (requestKey === null) {
     return { ...EMPTY_RESULT, loading: false, refresh };

@@ -1,7 +1,7 @@
 # ADR 0021: Live Market Updates (SSE over a Change-Feed Outbox)
 
-Status: Accepted — server spine built 2026-07-22, client transport 2026-07-23
-(no live UI yet: slices 3–7 open)
+Status: Accepted — server spine built 2026-07-22, client transport 2026-07-23,
+the three polls converted to push 2026-07-23 (slice 4); slices 3 and 5–7 open
 
 Date: 2026-07-17 (revised 2026-07-23 to match what shipped, on two points: the
 emit point is explicit TypeScript `recordLiveChange` seams, not a DB trigger —
@@ -175,14 +175,17 @@ wrong:
 
   **The registered set is not yet the whole viewer-facing set.** Slice 1
   registered only the market-keyed append-only tables, whose rows carry
-  `chain_id` + `market_id` and so route with no join. Deliberately deferred to
-  the slices that need them, because each needs join-based or dual-party
-  routing: `pool_price_ticks` / `venue_order_events` / `venue_orders`
-  (pool→market via `venue_pools` — the price/chart and order-book slices),
-  `outcome_token_transfer_events` (routes to *both* the `from` and `to` holders
-  — the portfolio slice), and the `market_ai_review_jobs` /
-  `market_resolution_jobs` UPDATE progress (the AI-review and resolution
-  slices). The `source_table → channel` map is a single
+  `chain_id` + `market_id` and so route with no join. Slice 4 added the
+  sources that need join-based or dual-party routing done at the seam:
+  `venue_order_events` and `pool_price_ticks` resolve pool→market through
+  `venue_pools` before recording (best-effort — an unmapped pool still
+  signals the maker, and a tick on one records nothing), and
+  `outcome_token_transfer_events` records one row per non-zero holder so both
+  sides of a transfer hear about it. Still deliberately deferred:
+  `venue_orders` projection UPDATEs (they only ever change alongside a
+  `venue_order_events` append that already signals) and the
+  `market_ai_review_jobs` / `market_resolution_jobs` UPDATE progress (the
+  AI-review and resolution slices). The `source_table → channel` map is a single
   TypeScript registry, and a **coverage test** scans the seam directories
   (`src/indexer` and both runners) to enforce that the set of `sourceTable`
   literals there is exactly the registry — the
@@ -335,9 +338,19 @@ with no schema or client impact. **We ship polling first** and add coalesced
       updates the headline number + graduation bar from the same message, with
       a full chart refetch as the gap/reconnect resync). Everything else on the
       page (status, review, volume/receipt counts) stays signal-to-refetch.
-- [ ] **Convert the three existing polls to push.** Order book (5s), open
-      venue orders (8s), and portfolio (15s) subscribe to their channels and
-      refetch on signal; keep a slow poll only as a backstop.
+- [x] **Convert the three existing polls to push.** Delivered 2026-07-23 as a
+      two-PR stack: the emit half registers `venue_order_events`
+      (market + owner), `pool_price_ticks` (market), and
+      `outcome_token_transfer_events` (one row per non-zero holder) and
+      records them at their indexer seams; the surface half subscribes the
+      order book and the open-orders panel to `market:{chainId}:{marketId}`
+      (the panel deliberately takes the market channel, not the owner's — its
+      pool prices move on anyone's swap) and the portfolio to
+      `portfolio:{owner}`, refetching on signal. The polls survive as safety
+      nets (order book 5s→60s, open orders 8s→60s, portfolio 15s→120s when
+      the live transport is configured); with no transport configured the
+      original cadences remain the whole update path, so nothing degrades
+      below today's behaviour.
 - [ ] **Lifecycle + AI review.** Toasts / list insert-remove on create,
       graduate, resolve, cancel; replace the 2s full-page AI-review refresh
       with a targeted review-progress channel; surface the clearing
