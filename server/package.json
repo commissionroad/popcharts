@@ -39,6 +39,7 @@
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/openapi": "^1.4.15",
+    "@popcharts/live-channels": "file:../packages/live-channels",
     "@popcharts/protocol": "file:../protocol",
     "@sinclair/typebox": "^0.34.47",
     "drizzle-orm": "^0.38.0",

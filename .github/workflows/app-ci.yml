@@ -44,6 +44,9 @@ jobs:
             relevant:
             - app/**
             - packages/api-client/**
+            # The live-updates channel strings the app subscribes with; a
+            # change here alters which channels the client asks for.
+            - packages/live-channels/**
             - protocol/src/**
             # App domain imports @popcharts/protocol subpaths that resolve to
             # protocol/scripts/shared (price policy, tick math) via package
