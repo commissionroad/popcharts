@@ -14,7 +14,6 @@ import {
   historyRow,
   parseHistory,
   parseLatestCoverage,
-  renderTrends,
   upsertLatestCoverage,
 } from "../shared/coverage-report/coverageMetrics.ts";
 import {
@@ -25,6 +24,7 @@ import {
 } from "../shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "../shared/coverage-report/parseLcovSummary.ts";
 import type { CoverageSummary } from "../shared/coverage-report/parseLcovSummary.ts";
+import { renderTrends } from "../shared/trends/renderTrends.ts";
 import { parsePlaywrightReport } from "../shared/coverage-report/parsePlaywrightReport.ts";
 
 const SAMPLE_LCOV = [

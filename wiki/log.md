@@ -1028,3 +1028,13 @@ Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md,
 Notes: `.worktrees/` is the canonical ignored directory under the primary
 checkout. Legacy `.claude/worktrees/` paths remain recognized during migration,
 so existing agent stacks keep their nonzero slot behavior.
+
+## [2026-07-23] ingest | root ADR 0017 — Track C item C6 (nightly outcomes in TRENDS.md)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md,
+~concepts/testing-strategy.md
+Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
+`nightly/latest.json` + `nightly/history.jsonl` on `ci-metrics` and co-renders
+`TRENDS.md` (nightly section above coverage). Both writers render the shared
+view from both datastores; idempotent by run id so the push-race retry can't
+duplicate a row. HTML stays an on-demand render of the committed JSON (no
+standing deploy). Track C now C1–C4 + C6 done; C5 (`nightly-ai-verdicts`) open.

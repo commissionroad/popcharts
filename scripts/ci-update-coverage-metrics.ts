@@ -19,11 +19,13 @@ import {
   historyRow,
   parseHistory,
   parseLatestCoverage,
-  renderTrends,
   upsertLatestCoverage,
 } from "./shared/coverage-report/coverageMetrics.ts";
 import { workspaceForKey } from "./shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "./shared/coverage-report/parseLcovSummary.ts";
+import { readTextOrNull } from "./shared/json/readTextOrNull.ts";
+import { parseNightlyHistory } from "./shared/nightly-report/nightlyMetrics.ts";
+import { renderTrends } from "./shared/trends/renderTrends.ts";
 
 const { values } = parseArgs({
   options: {
@@ -54,14 +56,6 @@ if (!workspace) {
 
 const timestamp = values.timestamp ?? new Date().toISOString();
 
-function readOptional(path: string): string | null {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-}
-
 const summary = parseLcovSummary(readFileSync(lcovPath, "utf8"), workspace.filter);
 
 mkdirSync(join(dir, "coverage"), { recursive: true });
@@ -69,7 +63,7 @@ mkdirSync(join(dir, "badges"), { recursive: true });
 
 const latestPath = join(dir, "coverage", "latest.json");
 const latest = upsertLatestCoverage(
-  parseLatestCoverage(readOptional(latestPath)),
+  parseLatestCoverage(readTextOrNull(latestPath)),
   workspace.key,
   { commit, updatedAt: timestamp, summary },
 );
@@ -77,12 +71,20 @@ writeFileSync(latestPath, `${JSON.stringify(latest, null, 2)}\n`);
 
 const historyPath = join(dir, "coverage", "history.jsonl");
 const history = appendHistory(
-  readOptional(historyPath),
+  readTextOrNull(historyPath),
   historyRow(workspace.key, commit, timestamp, summary),
 );
 writeFileSync(historyPath, history);
 
-writeFileSync(join(dir, "TRENDS.md"), renderTrends(parseHistory(history)));
+// Read the nightly log too so regenerating TRENDS.md preserves its section —
+// this writer owns coverage, but the file is a shared view of both datastores.
+const nightlyRuns = parseNightlyHistory(
+  readTextOrNull(join(dir, "nightly", "history.jsonl")),
+);
+writeFileSync(
+  join(dir, "TRENDS.md"),
+  renderTrends(parseHistory(history), nightlyRuns),
+);
 
 writeFileSync(
   join(dir, "badges", `${workspace.key}.json`),

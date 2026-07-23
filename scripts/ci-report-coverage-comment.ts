@@ -21,6 +21,7 @@ import { parseLatestCoverage } from "./shared/coverage-report/coverageMetrics.ts
 import { workspaceForKey } from "./shared/coverage-report/coverageWorkspaces.ts";
 import { parseLcovSummary } from "./shared/coverage-report/parseLcovSummary.ts";
 import { parsePlaywrightReport } from "./shared/coverage-report/parsePlaywrightReport.ts";
+import { readTextOrNull } from "./shared/json/readTextOrNull.ts";
 
 const { values } = parseArgs({
   options: {
@@ -49,18 +50,9 @@ if (!workspace) {
   process.exit(2);
 }
 
-function readOptional(path: string | undefined): string | null {
-  if (!path) return null;
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-}
-
 const summary = parseLcovSummary(readFileSync(lcovPath, "utf8"), workspace.filter);
 
-const latest = parseLatestCoverage(readOptional(values.baseline));
+const latest = parseLatestCoverage(readTextOrNull(values.baseline));
 const baselineEntry = latest.workspaces[workspace.key];
 const baseline = baselineEntry
   ? {
@@ -69,10 +61,10 @@ const baseline = baselineEntry
     }
   : null;
 
-const e2e = parsePlaywrightReport(readOptional(values["playwright-report"]));
+const e2e = parsePlaywrightReport(readTextOrNull(values["playwright-report"]));
 
 const payload = upsertCommentEntry(
-  parseCommentPayload(readOptional(values["existing-body"])),
+  parseCommentPayload(readTextOrNull(values["existing-body"])),
   workspace.key,
   { summary, headSha, baseline, ...(e2e ? { e2e } : {}) },
 );

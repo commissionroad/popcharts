@@ -230,9 +230,16 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       money-out moment, and partial clearing itemizes retained + refunded on
       `/portfolio`.
 - [ ] C5 — `nightly-ai-verdicts` workflow (executes ADR 0019's CI lane)
-- [ ] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
+- [x] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
       alongside coverage (the operator-side heads-up agent is personal
-      tooling, outside the repo)
+      tooling, outside the repo). The `record` job in `nightly-lifecycle`
+      appends each run's per-suite outcome to `nightly/latest.json` +
+      `nightly/history.jsonl` on `ci-metrics` — the durable trend the tracking
+      issue can't be — and regenerates `TRENDS.md` with the nightly section
+      above coverage. Both writers render the shared view from both datastores;
+      the write is idempotent by run id so the push-race retry can't duplicate a
+      row. An HTML view is an on-demand render of the same committed JSON, not a
+      standing deployment (keeps the no-vendor stance).
 
 **Track D — Protocol value-path coverage.**
 

@@ -4,7 +4,7 @@ title: ADR 0017 — Test observability and coverage program
 description: Make test health visible in-repo (informational-only PR coverage deltas, trend log, badges, report-only flake tracking) and ratchet per-workspace coverage floors over workspace-own denominators; seven tracks incl. the protocol TS SDK move, one concern per PR.
 sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
-updated: 2026-07-22
+updated: 2026-07-23
 ---
 
 # ADR 0017 — Test observability and coverage program
@@ -16,9 +16,11 @@ core pipeline; the flake report and Playwright retry surfacing followed the
 same day); Track F (invariant-test timeout) and Track B (server floor +
 untested layers, five items) completed 2026-07-14; Track D (v4 value-path
 coverage) completed 2026-07-15; Track G (protocol TS SDK surface + TS
-coverage figure) completed 2026-07-21; open: Track C (C1–C4 done — all eight
-service/chain lifecycle paths plus all five `@lifecycle` UI journeys land
-(C4 done 2026-07-22); C5/C6 remain) and Track E's CDK assertion tests.**
+coverage figure) completed 2026-07-21; open: Track C (C1–C4 + C6 done — all
+eight service/chain lifecycle paths, all five `@lifecycle` UI journeys (C4
+done 2026-07-22), and nightly outcomes recorded to the `ci-metrics` datastore
+and rendered in `TRENDS.md` beside coverage (C6 done 2026-07-23); C5 remains)
+and Track E's CDK assertion tests.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage
@@ -91,7 +93,7 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   projection/serialization logic. **Track B complete 2026-07-14** — floor
   ratcheted twice on the way (70.09→74.52→76.73 functions).
 - **C — Nightly full-fidelity tier** (design settled by the 2026-07-15
-  grill; items C1–C6 open): **two separate nightly suites** so a slow/red
+  grill; C1–C4 + C6 done, C5 open): **two separate nightly suites** so a slow/red
   AI lane never masks a lifecycle regression. `nightly-lifecycle` = the
   three chain smokes plus the full market-lifecycle regression net at the
   service/chain layer (heuristic providers, devchain time-jumps, every
@@ -110,6 +112,14 @@ seam tests in `scripts/test/` (protocol CI's `scripts:check`).
   day: the runner submits a real on-chain approval transition — needs a
   chain) and was found broken on main during pre-flight (fabricated
   market → MarketDoesNotExist); C2 is now its repair + nightly wiring.
+  **C6 (done 2026-07-23)**: a `record` job appends each run's per-suite
+  outcome to `nightly/latest.json` + `nightly/history.jsonl` on `ci-metrics`
+  and regenerates `TRENDS.md` with the nightly section above coverage —
+  making the outcome a durable trend rather than only a tracking issue. Both
+  writers render the shared `TRENDS.md` view from both datastores; the write
+  is idempotent by run id so the push-race retry can't duplicate a row. An
+  HTML dashboard is an on-demand render of the same committed JSON, keeping
+  the no-vendor stance (no standing deployment).
 - **D — Protocol value-path coverage** (**complete 2026-07-15**): dedicated
   harness-backed suites for the three v4 libraries (boundary + fuzz), a
   `StdInvariant` escrow-conservation harness over `BoundedPoolOrderManager`
