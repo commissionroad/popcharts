@@ -30,8 +30,13 @@ import { installTestWallet, TEST_WALLET_ADDRESS } from "./test-wallet";
 export const DEFAULT_RESOLUTION_CRITERIA =
   "Resolves by the lifecycle e2e harness after graduation.";
 
-/** Forced approval is one on-chain tx plus its indexer projection; budget for
- * that, not for an off-thread AI review. */
+/** The reason the rejected-creation journey forces and then asserts on the
+ * market page — a controlled string, not something the AI produced. */
+export const FORCED_REJECTION_REASON =
+  "Rejected by the lifecycle e2e harness for testing the rejection surface.";
+
+/** Forced approval/rejection is one on-chain tx plus its indexer projection;
+ * budget for that, not for an off-thread AI review. */
 const REVIEW_INDEXING_TIMEOUT_MS = 30_000;
 
 /**
@@ -66,10 +71,11 @@ export async function connectTestWallet(page: Page): Promise<void> {
 }
 
 /**
- * Creates a market through the real create flow, forces an `approve` review,
- * and waits for the market to reach `bootstrap`. Returns the on-chain id.
+ * Creates a market through the real create flow and returns its on-chain id
+ * once the success panel confirms creation. The review verdict is forced
+ * afterward by the caller (createApprovedMarket / createRejectedMarket).
  */
-export async function createApprovedMarket(
+export async function createMarketViaUi(
   page: Page,
   env: LifecycleEnv,
   question: string,
@@ -101,15 +107,46 @@ export async function createApprovedMarket(
   });
   await expect(page.getByText("Market ID")).toBeVisible();
 
-  const marketId = await readCreatedMarketId(page);
+  return readCreatedMarketId(page);
+}
 
+/**
+ * Creates a market, forces an `approve` review, and waits for the market to
+ * reach `bootstrap`. Returns the on-chain id.
+ */
+export async function createApprovedMarket(
+  page: Page,
+  env: LifecycleEnv,
+  question: string,
+  resolutionCriteria = DEFAULT_RESOLUTION_CRITERIA
+): Promise<bigint> {
+  const marketId = await createMarketViaUi(page, env, question, resolutionCriteria);
   // Force an approve verdict (record + on-chain approveMarket) rather than
   // waiting on the AI runner; the indexer then projects bootstrap.
   await forceReview(env, marketId, "approve");
   await waitForMarketStatus(env, marketId, "bootstrap", {
     timeoutMs: REVIEW_INDEXING_TIMEOUT_MS,
   });
+  return marketId;
+}
 
+/**
+ * Creates a market and forces a `reject` review with a known reason. Waits for
+ * `rejected` and for the `aiReview` payload so the market page can render the
+ * reason on its first fetch.
+ */
+export async function createRejectedMarket(
+  page: Page,
+  env: LifecycleEnv,
+  question: string,
+  resolutionCriteria = DEFAULT_RESOLUTION_CRITERIA
+): Promise<bigint> {
+  const marketId = await createMarketViaUi(page, env, question, resolutionCriteria);
+  await forceReview(env, marketId, "reject", [FORCED_REJECTION_REASON]);
+  await waitForMarketStatus(env, marketId, "rejected", {
+    timeoutMs: REVIEW_INDEXING_TIMEOUT_MS,
+    until: (market) => Boolean(market.aiReview),
+  });
   return marketId;
 }
 
@@ -126,9 +163,9 @@ export async function readCreatedMarketId(page: Page): Promise<bigint> {
 }
 
 /**
- * Places one pre-graduation receipt through the real ticket: selects the side,
- * funds it with the collateral budget, and confirms placement. Defaults to YES
- * so the holder wins a YES resolution.
+ * Places one pre-graduation receipt through the real ticket: funds it with the
+ * collateral budget and confirms placement. Defaults to the YES side so the
+ * holder wins a YES resolution.
  */
 export async function placeReceiptViaUi(
   page: Page,

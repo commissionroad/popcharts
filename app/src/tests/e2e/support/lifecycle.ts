@@ -181,6 +181,16 @@ export async function forceReview(
   }
 }
 
+/**
+ * Dev close: jumps chain time to the graduation deadline and calls
+ * markRefundable on-chain, opening full refunds for a sub-threshold bootstrap
+ * market (the failed-graduation path). The indexed status becomes `refunded`
+ * and each receipt becomes `refund_claimable`.
+ */
+export async function closeMarketForRefund(env: LifecycleEnv, marketId: bigint) {
+  await devEndpoint(env, marketId, "/close");
+}
+
 /** Dev resolution: jumps chain time past the resolution gate and resolves. */
 export async function resolveMarket(
   env: LifecycleEnv,
@@ -191,6 +201,7 @@ export async function resolveMarket(
 }
 
 type ApiMarket = {
+  aiReview?: { reasons?: string[] } | null;
   postgrad?: { marketAddress: string };
   resolution?: { kind: string; winningSide?: string };
   status: string;
