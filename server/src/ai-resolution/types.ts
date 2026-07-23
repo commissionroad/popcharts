@@ -47,7 +47,16 @@ export type ResolutionProviderName = (typeof RESOLUTION_PROVIDER_NAMES)[number];
  * - `too_early`: the event has not concluded; re-queue with backoff.
  * - `abstain`: cannot determine from available evidence; park for a human.
  */
-export type ResolutionOutcome = "yes" | "no" | "draw" | "too_early" | "abstain";
+export const RESOLUTION_OUTCOMES = [
+  "yes",
+  "no",
+  "draw",
+  "too_early",
+  "abstain",
+] as const;
+
+/** One of {@link RESOLUTION_OUTCOMES}. */
+export type ResolutionOutcome = (typeof RESOLUTION_OUTCOMES)[number];
 
 /**
  * The action derived from an outcome plus the confidence/evidence/time gates.
@@ -57,12 +66,16 @@ export type ResolutionOutcome = "yes" | "no" | "draw" | "too_early" | "abstain";
  * - `requeue_too_early`: bump `run_after` and try again later.
  * - `manual_review`: park for an operator (low confidence, abstain, error).
  */
-export type ResolutionVerdict =
-  | "resolve_yes"
-  | "resolve_no"
-  | "cancel_draw"
-  | "requeue_too_early"
-  | "manual_review";
+export const RESOLUTION_VERDICTS = [
+  "resolve_yes",
+  "resolve_no",
+  "cancel_draw",
+  "requeue_too_early",
+  "manual_review",
+] as const;
+
+/** One of {@link RESOLUTION_VERDICTS}. */
+export type ResolutionVerdict = (typeof RESOLUTION_VERDICTS)[number];
 
 /**
  * The submitter-authored market text plus the resolution timing the market

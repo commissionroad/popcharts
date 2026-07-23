@@ -14,6 +14,7 @@ import {
 
 import {
   REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
   type EvidenceItem,
   type ReviewScoreRationales,
   type ReviewScores,
@@ -31,11 +32,9 @@ export const aiReviewProvider = pgEnum("ai_review_provider", [
   ...REVIEW_PROVIDER_NAMES,
 ]);
 
-/** Postgres enum mirroring ReviewVerdict from src/ai-review/types. */
+/** Postgres enum for ReviewVerdict, derived from the same const array. */
 export const aiReviewVerdict = pgEnum("ai_review_verdict", [
-  "approve",
-  "reject",
-  "manual_review",
+  ...REVIEW_VERDICTS,
 ]);
 
 /**
