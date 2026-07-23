@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { lifecycleEnv, marketPath } from "./support/lifecycle";
-import {
-  createRejectedMarket,
-  FORCED_REJECTION_REASON,
-} from "./support/lifecycle-ui";
+import { createRejectedMarket, FORCED_REJECTION_REASON } from "./support/lifecycle-ui";
 
 /**
  * ADR 0017 C4 journey 2 — rejected creation. The dev review endpoint forces a

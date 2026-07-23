@@ -120,12 +120,7 @@ export async function createApprovedMarket(
   question: string,
   resolutionCriteria = DEFAULT_RESOLUTION_CRITERIA
 ): Promise<bigint> {
-  const marketId = await createMarketViaUi(
-    page,
-    env,
-    question,
-    resolutionCriteria
-  );
+  const marketId = await createMarketViaUi(page, env, question, resolutionCriteria);
   // Force an approve verdict (record + on-chain approveMarket) rather than
   // waiting on the AI runner; the indexer then projects bootstrap.
   await forceReview(env, marketId, "approve");
@@ -146,12 +141,7 @@ export async function createRejectedMarket(
   question: string,
   resolutionCriteria = DEFAULT_RESOLUTION_CRITERIA
 ): Promise<bigint> {
-  const marketId = await createMarketViaUi(
-    page,
-    env,
-    question,
-    resolutionCriteria
-  );
+  const marketId = await createMarketViaUi(page, env, question, resolutionCriteria);
   await forceReview(env, marketId, "reject", [FORCED_REJECTION_REASON]);
   await waitForMarketStatus(env, marketId, "rejected", {
     timeoutMs: REVIEW_INDEXING_TIMEOUT_MS,
