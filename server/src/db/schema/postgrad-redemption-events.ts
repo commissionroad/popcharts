@@ -18,9 +18,17 @@ import { uint256 } from "./uint256";
  * exchanged 1:1 for collateral after MarketResolved) or CancelledRedeemed
  * (YES+NO redeemed at half value after a MarketCancelled draw).
  */
-export const postgradRedemptionKind = pgEnum("postgrad_redemption_kind", [
+export const POSTGRAD_REDEMPTION_KINDS = [
   "redeemed",
   "cancelled_redeemed",
+] as const;
+
+/** One of {@link POSTGRAD_REDEMPTION_KINDS}. */
+export type PostgradRedemptionKind = (typeof POSTGRAD_REDEMPTION_KINDS)[number];
+
+/** Postgres enum for PostgradRedemptionKind, derived from the same const array. */
+export const postgradRedemptionKind = pgEnum("postgrad_redemption_kind", [
+  ...POSTGRAD_REDEMPTION_KINDS,
 ]);
 
 /** Side of the outcome tokens a Redeemed log burned; null for a draw. */

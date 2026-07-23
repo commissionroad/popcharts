@@ -17,9 +17,14 @@ import { uint256 } from "./uint256";
  * Which direction the complete-set collateral moved: minted (collateral in,
  * YES+NO sets out) or merged (YES+NO sets in, collateral out).
  */
+export const COMPLETE_SET_KINDS = ["minted", "merged"] as const;
+
+/** One of {@link COMPLETE_SET_KINDS}. */
+export type CompleteSetKind = (typeof COMPLETE_SET_KINDS)[number];
+
+/** Postgres enum for CompleteSetKind, derived from the same const array. */
 export const completeSetKind = pgEnum("complete_set_kind", [
-  "minted",
-  "merged",
+  ...COMPLETE_SET_KINDS,
 ]);
 
 /**

@@ -14,6 +14,7 @@ import type {
   VenueOrderStatusResponse,
 } from "src/api/models/markets";
 import { and, db, desc, eq, inArray, schema } from "src/db/client";
+import { VENUE_ORDER_STATUSES } from "src/db/schema/venue-orders";
 
 import { selectLiveMarketRow, type MarketRow } from "./markets";
 import {
@@ -311,8 +312,20 @@ export function serializeVenueOrder({
   };
 }
 
-/** Status filter accepted by the market orders read. */
-export type VenueOrderStatusFilter = VenueOrderStatusResponse | "all";
+/**
+ * Status filter accepted by the market orders read: any indexed order status,
+ * plus `all` to opt out of the default open-only filter. Extends
+ * VENUE_ORDER_STATUSES rather than restating it, so a new order status becomes
+ * filterable without a second edit here.
+ */
+export const VENUE_ORDER_STATUS_FILTERS = [
+  ...VENUE_ORDER_STATUSES,
+  "all",
+] as const;
+
+/** One of {@link VENUE_ORDER_STATUS_FILTERS}. */
+export type VenueOrderStatusFilter =
+  (typeof VENUE_ORDER_STATUS_FILTERS)[number];
 
 /** Outcome of a market venue orders read. */
 export type MarketVenueOrdersResult =

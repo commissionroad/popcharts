@@ -74,7 +74,9 @@ import {
 import {
   getMarketOrderBook,
   getMarketVenueOrders,
+  VENUE_ORDER_STATUS_FILTERS,
 } from "src/api/services/venue-orderbook";
+import { literalUnion } from "src/shared/typebox-literals";
 
 /**
  * Market, graduation, and AI-review routes.
@@ -634,14 +636,7 @@ export const marketRoutes = marketRoutesWithDevTools
       }),
       query: t.Object({
         owner: t.String(),
-        status: t.Optional(
-          t.Union([
-            t.Literal("open"),
-            t.Literal("filled"),
-            t.Literal("cancelled"),
-            t.Literal("all"),
-          ]),
-        ),
+        status: t.Optional(literalUnion(VENUE_ORDER_STATUS_FILTERS)),
       }),
       response: {
         200: "VenueOrderList",

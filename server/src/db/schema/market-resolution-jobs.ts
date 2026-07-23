@@ -13,32 +13,25 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { JOB_STATUSES, JOB_TRIGGERS } from "./job-queue";
 import { marketMetadata } from "./market-metadata";
 import { marketResolutions, resolutionProvider } from "./market-resolutions";
 import { markets } from "./markets";
 
 /**
- * Queue lifecycle of a resolution job. queued/running/retryable_failed are the
- * "active" states that block a duplicate job for the same market metadata.
- * Mirrors ai_review_job_status (ADR 0012).
+ * Postgres enum for a resolution job's JobStatus, derived from the shared
+ * array — the same value list as ai_review_job_status (ADR 0012).
  */
 export const resolutionJobStatus = pgEnum("resolution_job_status", [
-  "queued",
-  "running",
-  "succeeded",
-  "retryable_failed",
-  "terminal_failed",
-  "cancelled",
+  ...JOB_STATUSES,
 ]);
 
 /**
- * Who queued the job: the runner's automatic sweep, an operator/self-resolve
- * action, or a retry.
+ * Postgres enum for a resolution job's JobTrigger, derived from the shared
+ * array — the same value list as ai_review_job_trigger.
  */
 export const resolutionJobTrigger = pgEnum("resolution_job_trigger", [
-  "automatic",
-  "manual",
-  "retry",
+  ...JOB_TRIGGERS,
 ]);
 
 // Mutable queue state for resolution work. The durable resolution output lives

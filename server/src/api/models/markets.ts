@@ -7,7 +7,10 @@ import {
   REVIEW_VERDICTS,
   SOURCE_TIERS,
 } from "src/ai-review/types";
+import { JOB_STATUSES, JOB_TRIGGERS } from "src/db/schema/job-queue";
 import { MARKET_STATUSES } from "src/db/schema/markets";
+import { POSTGRAD_RESOLUTION_KINDS } from "src/db/schema/postgrad-resolution-events";
+import { VENUE_ORDER_STATUSES } from "src/db/schema/venue-orders";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -262,23 +265,14 @@ export const AiReviewProgressSchema = t.Object(
 );
 
 /** Queue state of an AI-review job. */
-export const AiReviewJobStatusSchema = t.Union(
-  [
-    t.Literal("queued"),
-    t.Literal("running"),
-    t.Literal("succeeded"),
-    t.Literal("retryable_failed"),
-    t.Literal("terminal_failed"),
-    t.Literal("cancelled"),
-  ],
-  { $id: "AiReviewJobStatus" },
-);
+export const AiReviewJobStatusSchema = literalUnion(JOB_STATUSES, {
+  $id: "AiReviewJobStatus",
+});
 
 /** What caused an AI-review job to be enqueued. */
-export const AiReviewJobTriggerSchema = t.Union(
-  [t.Literal("automatic"), t.Literal("manual"), t.Literal("retry")],
-  { $id: "AiReviewJobTrigger" },
-);
+export const AiReviewJobTriggerSchema = literalUnion(JOB_TRIGGERS, {
+  $id: "AiReviewJobTrigger",
+});
 
 /** An AI-review job as tracked by the runner queue. */
 export const MarketAiReviewJobSchema = t.Object(
@@ -353,10 +347,9 @@ export const DevMarketResolveSideSchema = t.Union(
 );
 
 /** Lifecycle status of an indexed bounded-venue maker order. */
-export const VenueOrderStatusSchema = t.Union(
-  [t.Literal("open"), t.Literal("filled"), t.Literal("cancelled")],
-  { $id: "VenueOrderStatus" },
-);
+export const VenueOrderStatusSchema = literalUnion(VENUE_ORDER_STATUSES, {
+  $id: "VenueOrderStatus",
+});
 
 /**
  * Which side of the outcome's book a maker order rests on: an ask sells
@@ -473,7 +466,7 @@ export const MarketPostgradSchema = t.Object(
  */
 export const MarketResolutionSchema = t.Object(
   {
-    kind: t.Union([t.Literal("resolved"), t.Literal("cancelled")]),
+    kind: literalUnion(POSTGRAD_RESOLUTION_KINDS),
     postgradMarket: t.String(),
     resolvedAt: t.String(),
     transactionHash: t.String(),
