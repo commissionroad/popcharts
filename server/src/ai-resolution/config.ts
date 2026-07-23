@@ -31,6 +31,8 @@ export type AiResolutionConfig = {
   anthropicMaxWebFetches: number;
   anthropicMaxWebSearches: number;
   anthropicModel: string;
+  claudeCliCommand: string;
+  claudeCliModel: string;
   anthropicWebFetchMaxContentTokens: number;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
@@ -71,6 +73,8 @@ export const aiResolutionConfig: AiResolutionConfig = {
   ),
   anthropicModel:
     process.env.AI_RESOLUTION_ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+  claudeCliCommand: process.env.AI_RESOLUTION_CLAUDE_CLI_COMMAND ?? "claude",
+  claudeCliModel: process.env.AI_RESOLUTION_CLAUDE_CLI_MODEL ?? "sonnet",
   anthropicWebFetchMaxContentTokens: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS,
     12_000,

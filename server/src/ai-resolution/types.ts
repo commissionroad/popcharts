@@ -18,6 +18,7 @@ export type { ConfigValidationResult, InternetAccessMode };
  * the sets may drift deliberately. */
 export const RESOLUTION_MODEL_PROVIDER_NAMES = [
   "anthropic",
+  "claude-cli",
   "heuristic",
   "ollama",
 ] as const;
