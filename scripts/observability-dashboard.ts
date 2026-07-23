@@ -48,12 +48,32 @@ const server = createServer((req, res) => {
   }
   if (req.url === "/" || req.url === "/index.html") {
     // Read the page from disk per request so edits show on a plain refresh.
+    // Read before writing the status so a missing/unreadable asset returns 500
+    // rather than throwing out of the callback and killing the server.
+    let page: string;
+    try {
+      page = readFileSync(pagePath, "utf8");
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain" });
+      res.end(`dashboard page not found at ${pagePath}: ${String(error)}`);
+      return;
+    }
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(readFileSync(pagePath, "utf8"));
+    res.end(page);
     return;
   }
   res.writeHead(404, { "content-type": "text/plain" });
   res.end("not found");
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Port ${PORT} is already in use — another dashboard may be running. Set OBSERVABILITY_PORT to pick a different one.`,
+    );
+    process.exit(1);
+  }
+  throw error;
 });
 
 server.listen(PORT, () => {
