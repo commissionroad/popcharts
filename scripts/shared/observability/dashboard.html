@@ -240,15 +240,23 @@
     }
 
     async function refresh() {
+      // Abort a stalled request so the page shows a clear state and the next
+      // poll can retry, instead of sitting on "Loading…" forever.
+      const ctl = new AbortController();
+      const abort = setTimeout(() => ctl.abort(), 15_000);
       try {
-        const snap = await (await fetch("/api/observability", { cache: "no-store" })).json();
+        const res = await fetch("/api/observability", { cache: "no-store", signal: ctl.signal });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const snap = await res.json();
         renderFreshness(snap);
         renderNightly(snap);
         renderCoverage(snap);
         $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
       } catch (err) {
-        $("freshness-text").textContent = "dashboard server unreachable";
+        $("freshness-text").textContent = "server not responding — retrying…";
         $("freshness").className = "freshness offline";
+      } finally {
+        clearTimeout(abort);
       }
     }
 

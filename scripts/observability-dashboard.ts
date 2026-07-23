@@ -6,8 +6,9 @@
 // exposure of internal metrics — so run it whenever you want the current
 // picture: `pnpm run observability` (or `just observability`).
 //
-// The page polls /api/observability; each read git-fetches ci-metrics (cached
-// briefly) so the dashboard tracks whatever CI has pushed.
+// The page polls /api/observability; the server refreshes from ci-metrics in
+// the background (stale-while-revalidate) so the dashboard tracks what CI has
+// pushed without a git call ever blocking a request.
 
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -25,25 +26,56 @@ const CACHE_TTL_MS = 15_000;
 const here = dirname(fileURLToPath(import.meta.url));
 const pagePath = join(here, "shared", "observability", "dashboard.html");
 
-// Cache the snapshot so many polling tabs don't each trigger a git fetch; the
-// data changes at CI cadence (minutes), so a 15s floor is plenty fresh.
+// Stale-while-revalidate cache. `readCiMetrics` is async and git-timeout-bound,
+// so it never blocks the event loop; on top of that, once any snapshot exists a
+// request returns it instantly and the refresh runs in the background. Only the
+// very first request awaits — and even that is bounded by the git timeout and
+// falls back to the last-known ref. The dashboard can never hang on git again.
 let cached: { at: number; snapshot: ObservabilitySnapshot } | null = null;
+let inflight: Promise<ObservabilitySnapshot> | null = null;
 
-function snapshot(): ObservabilitySnapshot {
-  const now = Date.now();
-  if (cached && now - cached.at < CACHE_TTL_MS) return cached.snapshot;
-  const fresh = readCiMetrics(repoRoot);
-  cached = { at: now, snapshot: fresh };
-  return fresh;
+function refresh(): Promise<ObservabilitySnapshot> {
+  if (!inflight) {
+    inflight = readCiMetrics(repoRoot)
+      .then((fresh) => {
+        cached = { at: Date.now(), snapshot: fresh };
+        return fresh;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  }
+  return inflight;
 }
 
-const server = createServer((req, res) => {
+async function snapshot(): Promise<ObservabilitySnapshot> {
+  const fresh = cached && Date.now() - cached.at < CACHE_TTL_MS;
+  if (fresh) return cached!.snapshot;
+  const pending = refresh();
+  if (cached) {
+    // Serving stale: the background refresh has no awaiter here, so swallow any
+    // unexpected rejection or it becomes an unhandled rejection that can
+    // terminate the process. (Expected git/parse failures already resolve.)
+    pending.catch(() => {});
+    return cached.snapshot;
+  }
+  // First-ever load: awaited by the handler, which catches and returns 503.
+  return pending;
+}
+
+const server = createServer(async (req, res) => {
   if (req.url === "/api/observability") {
-    res.writeHead(200, {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    });
-    res.end(JSON.stringify(snapshot()));
+    try {
+      const snap = await snapshot();
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(snap));
+    } catch (error) {
+      res.writeHead(503, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: `ci-metrics read failed: ${String(error)}` }));
+    }
     return;
   }
   if (req.url === "/" || req.url === "/index.html") {

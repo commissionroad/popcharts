@@ -1,4 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import {
   parseHistory,
@@ -9,6 +10,8 @@ import {
   parseNightlyHistory,
   type NightlyRun,
 } from "../nightly-report/nightlyMetrics.ts";
+
+const run = promisify(execFile);
 
 /**
  * A point-in-time read of the ci-metrics datastore for the local dashboard
@@ -22,7 +25,7 @@ export interface ObservabilitySnapshot {
   readAt: string;
   /** ci-metrics branch tip: the freshness the data itself carries. */
   source: { commit: string | null; committedAt: string | null };
-  /** False when the git fetch failed (offline) — data may be stale. */
+  /** False when the git fetch failed or timed out — data may be stale. */
   online: boolean;
   coverage: { latest: CoverageLatest | null; history: HistoryRow[] };
   nightly: { latest: NightlyRun | null; history: NightlyRun[] };
@@ -47,51 +50,89 @@ export interface CoverageLatest {
 }
 
 const REF = "origin/ci-metrics";
+// Every git call is async and time-bounded, and git is forbidden from
+// prompting, so a lock race (e.g. a concurrent `land`), a slow network, or a
+// credential prompt can never block the event loop or hang a request — it fails
+// fast and the last-known ref is served instead.
+const GIT_TIMEOUT_MS = 10_000;
+const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+// git show of a history log is small today but grows; lift execFile's 1MB cap.
+const GIT_MAX_BUFFER = 32 * 1024 * 1024;
 
 /** Reads one file from the ci-metrics ref, or null when it isn't there yet. */
-function readRefFile(repoRoot: string, path: string): string | null {
+async function readRefFile(
+  repoRoot: string,
+  path: string,
+): Promise<string | null> {
   try {
-    return execFileSync("git", ["show", `${REF}:${path}`], {
+    const { stdout } = await run("git", ["show", `${REF}:${path}`], {
       cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
+      env: GIT_ENV,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
     });
+    return stdout;
   } catch {
-    // Absent path (e.g. nightly/* before the first nightly records) or no ref.
+    // Absent path (e.g. nightly/* before the first nightly records), no ref,
+    // or a timeout — all mean "no data to show for this file".
     return null;
   }
 }
 
-function gitLine(repoRoot: string, args: string[]): string | null {
+async function gitLine(
+  repoRoot: string,
+  args: string[],
+): Promise<string | null> {
   try {
-    return execFileSync("git", args, {
+    const { stdout } = await run("git", args, {
       cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+      env: GIT_ENV,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
+    });
+    return stdout.trim();
   } catch {
     return null;
   }
 }
 
 /**
- * Fetches the latest ci-metrics ref and reads it into a snapshot. The fetch is
- * best-effort: offline, `online` is false and the last-fetched ref is served
- * rather than failing. JSON is parsed through the same helpers the CI writers
- * use, so a malformed row is dropped, never fatal.
+ * Fetches the latest ci-metrics ref and reads it into a snapshot. Async and
+ * time-bounded so it never blocks the server's event loop or hangs a request.
+ * The fetch is best-effort: on failure/timeout `online` is false and the
+ * last-fetched ref is served rather than erroring. JSON is parsed through the
+ * same helpers the CI writers use, so a malformed row is dropped, never fatal.
  */
-export function readCiMetrics(repoRoot: string): ObservabilitySnapshot {
+export async function readCiMetrics(
+  repoRoot: string,
+): Promise<ObservabilitySnapshot> {
   let online = true;
   try {
-    execFileSync("git", ["fetch", "--quiet", "origin", "ci-metrics"], {
+    await run("git", ["fetch", "--quiet", "origin", "ci-metrics"], {
       cwd: repoRoot,
-      stdio: "ignore",
+      env: GIT_ENV,
+      timeout: GIT_TIMEOUT_MS,
     });
   } catch {
     online = false;
   }
 
-  const coverageLatestText = readRefFile(repoRoot, "coverage/latest.json");
+  const [
+    commit,
+    committedAt,
+    coverageLatestText,
+    coverageHistoryText,
+    nightlyLatestText,
+    nightlyHistoryText,
+  ] = await Promise.all([
+    gitLine(repoRoot, ["rev-parse", "--short", REF]),
+    gitLine(repoRoot, ["show", "-s", "--format=%cI", REF]),
+    readRefFile(repoRoot, "coverage/latest.json"),
+    readRefFile(repoRoot, "coverage/history.jsonl"),
+    readRefFile(repoRoot, "nightly/latest.json"),
+    readRefFile(repoRoot, "nightly/history.jsonl"),
+  ]);
+
   let coverageLatest: CoverageLatest | null = null;
   try {
     coverageLatest = coverageLatestText
@@ -103,19 +144,15 @@ export function readCiMetrics(repoRoot: string): ObservabilitySnapshot {
 
   return {
     readAt: new Date().toISOString(),
-    source: {
-      commit: gitLine(repoRoot, ["rev-parse", "--short", REF]),
-      committedAt: gitLine(repoRoot, ["show", "-s", "--format=%cI", REF]),
-    },
+    source: { commit, committedAt },
     online,
     coverage: {
       latest: coverageLatest,
-      history: parseHistory(readRefFile(repoRoot, "coverage/history.jsonl")),
+      history: parseHistory(coverageHistoryText),
     },
     nightly: {
-      latest: parseLatestNightly(readRefFile(repoRoot, "nightly/latest.json"))
-        .run,
-      history: parseNightlyHistory(readRefFile(repoRoot, "nightly/history.jsonl")),
+      latest: parseLatestNightly(nightlyLatestText).run,
+      history: parseNightlyHistory(nightlyHistoryText),
     },
   };
 }
