@@ -1,13 +1,49 @@
-export type MarketStatus =
-  | "under_review"
-  | "bootstrap"
-  | "graduating"
-  | "graduated"
-  | "resolved"
-  | "refunded"
-  | "cancelled"
-  | "rejected";
+import type {
+  AiReviewEvidence,
+  AiReviewEvidenceKind,
+  AiReviewProgress,
+  AiReviewProvider,
+  AiReviewScoreRationales,
+  AiReviewScores as ApiAiReviewScores,
+  AiReviewSourceCheck,
+  AiReviewSourceTier,
+  AiReviewVerdict,
+  MarketStatus,
+} from "@popcharts/api-client/models";
 
+/**
+ * Contract types the app consumes verbatim. They are re-exported rather than
+ * restated so the OpenAPI schema stays their single definition: a member added
+ * or removed server-side arrives here on the next client generation instead of
+ * leaving a stale copy behind.
+ */
+export type {
+  AiReviewEvidence,
+  AiReviewEvidenceKind,
+  AiReviewProgress,
+  AiReviewProvider,
+  AiReviewScoreRationales,
+  AiReviewSourceCheck,
+  AiReviewSourceTier,
+  AiReviewVerdict,
+  MarketStatus,
+};
+
+/**
+ * Reviewer dimension scores on a 0-5 scale. Higher is better for every
+ * dimension except disputeRisk and promptInjectionRisk, where higher means
+ * more risk. Aliased rather than re-exported only so this note survives: the
+ * server states the range in a JSDoc comment, which never reaches the OpenAPI
+ * description and so is absent from the generated model.
+ */
+export type AiReviewScores = ApiAiReviewScores;
+
+/**
+ * App-side display taxonomy, deliberately not a contract type: the API carries
+ * `MarketMetadata.category` as a free-form string, and `apiMarketToMarket`
+ * narrows it to this list (falling back to a derived category) at the mapping
+ * seam.
+ */
 export type MarketCategory =
   | "Crypto"
   | "Politics"
@@ -17,68 +53,18 @@ export type MarketCategory =
   | "Tech"
   | "Econ";
 
+/**
+ * The app's own outcome vocabulary, used well beyond API reads (LMSR pricing,
+ * trade tickets, contract calls). The contract has no single side component to
+ * alias — it spells the pair out per endpoint.
+ */
 export type MarketSide = "yes" | "no";
 
-export type AiReviewVerdict = "approve" | "reject" | "manual_review";
-
-export type AiReviewProvider = "anthropic" | "heuristic" | "ollama";
-
-export type AiReviewSourceTier =
-  | "primary"
-  | "major_news"
-  | "specialist"
-  | "ugc"
-  | "suspicious"
-  | "unreachable"
-  | "unknown";
-
-export type AiReviewEvidenceKind = "provided_url" | "search_result" | "fetched_page";
-
 /**
- * Reviewer dimension scores on a 0-5 scale. Higher is better for every
- * dimension except disputeRisk and promptInjectionRisk, where higher means
- * more risk.
+ * The subset of a stored AI review the UI renders. Deliberately narrower than
+ * the contract's `MarketAiReview`, which also carries persistence columns
+ * (`id`, `createdAt`, `metadataHash`, `promptVersion`) no surface reads.
  */
-export type AiReviewScores = {
-  contentSafety: number;
-  corroboration: number;
-  disputeRisk: number;
-  objectivity: number;
-  promptInjectionRisk: number;
-  publicKnowability: number;
-  sourceQuality: number;
-};
-
-export type AiReviewScoreRationales = Record<keyof AiReviewScores, string>;
-
-export type AiReviewProgress = {
-  phase:
-    | "awaiting_queue"
-    | "queued"
-    | "running"
-    | "retrying"
-    | "complete"
-    | "attention_required";
-  status: "pending" | "complete" | "attention_required";
-};
-
-export type AiReviewEvidence = {
-  domain: string;
-  kind: AiReviewEvidenceKind;
-  sourceTier: AiReviewSourceTier;
-  summary: string;
-  title?: string;
-  url: string;
-};
-
-export type AiReviewSourceCheck = {
-  domain: string;
-  notes: string;
-  relevant: boolean;
-  sourceTier: AiReviewSourceTier;
-  url: string;
-};
-
 export type MarketAiReview = {
   evidence: AiReviewEvidence[];
   hardFlags: string[];

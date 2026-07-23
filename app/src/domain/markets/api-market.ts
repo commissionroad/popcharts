@@ -17,7 +17,6 @@ import type {
   MarketCategory,
   MarketPostgradHandoff,
   MarketResolution,
-  MarketStatus,
   PricePathPoint,
 } from "./types";
 
@@ -96,7 +95,7 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     pricePath: buildPricePath(openingProbability, yesPriceCents),
     question: metadata?.question?.trim() || `Market #${apiMarket.marketId}`,
     receiptCount: bigintStringToNumber(apiMarket.receiptCount),
-    status: apiMarket.status satisfies MarketStatus,
+    status: apiMarket.status,
     volumeUsd: totalEscrowed,
     yesPriceCents,
     ...(apiMarket.aiReview ? { aiReview: apiMarket.aiReview } : {}),
