@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Testing Observability — Pop Charts</title>
+  <style>
+    :root {
+      --bg: #f4f6f9; --surface: #fff; --surface-2: #fbfcfe;
+      --border: #e3e7ef; --border-strong: #d3d9e4;
+      --text: #1b2432; --muted: #5b6678; --faint: #8a93a4;
+      --accent: #4c5ad6; --accent-soft: rgba(76,90,214,.10);
+      --pass: #1f9d63; --pass-soft: rgba(31,157,99,.12);
+      --warn: #b5790f; --warn-soft: rgba(181,121,15,.13);
+      --fail: #d8353f; --fail-soft: rgba(216,53,63,.11);
+      --neutral: #798499; --neutral-soft: rgba(121,132,153,.14);
+      --shadow: 0 1px 2px rgba(20,30,50,.04), 0 8px 24px rgba(20,30,50,.05);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1117; --surface: #151b24; --surface-2: #1a212c;
+        --border: #262f3d; --border-strong: #313c4d;
+        --text: #e7ebf3; --muted: #8792a4; --faint: #677386;
+        --accent: #7e8cf8; --accent-soft: rgba(126,140,248,.14);
+        --pass: #3bb984; --pass-soft: rgba(59,185,132,.15);
+        --warn: #e0a835; --warn-soft: rgba(224,168,53,.15);
+        --fail: #f26571; --fail-soft: rgba(242,101,113,.15);
+        --neutral: #7a8598; --neutral-soft: rgba(122,133,152,.18);
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.28);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(20px,4vw,40px) clamp(16px,4vw,36px) 64px; }
+
+    .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .masthead h1 { font-size: clamp(19px,3vw,25px); font-weight: 640; letter-spacing: -.02em; margin: 0; }
+    .masthead .sub { color: var(--muted); font-size: 14px; }
+    .freshness { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+    .freshness .beacon { width: 8px; height: 8px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 0 4px var(--pass-soft); }
+    .freshness.stale .beacon { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+    .freshness.offline .beacon { background: var(--fail); box-shadow: 0 0 0 4px var(--fail-soft); }
+
+    h2.section { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 30px 0 12px; }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .empty { padding: 28px; color: var(--muted); font-size: 14px; text-align: center; }
+    .empty b { color: var(--text); font-weight: 600; }
+
+    /* Nightly hero + timeline */
+    .nightly { display: grid; grid-template-columns: 1.1fr 1fr; }
+    @media (max-width: 720px) { .nightly { grid-template-columns: 1fr; } }
+    .nightly .lede { padding: 24px 26px; border-right: 1px solid var(--border); }
+    @media (max-width: 720px) { .nightly .lede { border-right: none; border-bottom: 1px solid var(--border); } }
+    .nightly .status { display: inline-flex; align-items: center; gap: 9px; font-size: 20px; font-weight: 640; letter-spacing: -.01em; }
+    .nightly .status .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+    .nightly .meta { color: var(--muted); font-size: 13.5px; margin-top: 8px; }
+    .nightly .meta a { color: var(--accent); text-decoration: none; }
+    .nightly .meta a:hover { text-decoration: underline; }
+    .suites { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .suite { font-size: 12px; padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); }
+    .suite .m { font-weight: 700; }
+    .timeline { padding: 22px 24px; background: var(--surface-2); }
+    .timeline .cap { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin-bottom: 12px; }
+    .runs { display: flex; gap: 6px; align-items: flex-end; }
+    .run { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; }
+    .run .bar { width: 100%; height: 40px; border-radius: 6px; border: 1px solid transparent; }
+    .run .d { font-size: 10px; color: var(--faint); }
+    .run.success .bar { background: var(--pass-soft); border-color: color-mix(in srgb, var(--pass) 40%, transparent); }
+    .run.failed .bar { background: var(--fail-soft); border-color: color-mix(in srgb, var(--fail) 45%, transparent); }
+
+    /* Coverage rows */
+    .cov-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "id spark" "meter meter" "sub sub"; gap: 7px 14px; padding: 16px 22px; align-items: center; }
+    .cov-row + .cov-row { border-top: 1px solid var(--border); }
+    .cov-id { grid-area: id; } .cov-id .ws { font-size: 14.5px; font-weight: 580; } .cov-id .rule { font-size: 11.5px; color: var(--faint); margin-left: 8px; }
+    .cov-spark { grid-area: spark; display: flex; align-items: center; gap: 12px; }
+    .cov-pct { font-size: 18px; font-weight: 600; }
+    .cov-meter { grid-area: meter; height: 6px; border-radius: 4px; background: var(--border); position: relative; overflow: hidden; }
+    .cov-meter i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
+    .cov-meter .floor { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .5; }
+    .cov-sub { grid-area: sub; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+    .chip.ok { color: var(--pass); background: var(--pass-soft); border-color: transparent; font-weight: 600; }
+    .chip.bad { color: var(--fail); background: var(--fail-soft); border-color: transparent; font-weight: 600; }
+    svg.spark { display: block; }
+    .note { padding: 13px 22px; font-size: 12px; color: var(--muted); background: var(--surface-2); border-top: 1px solid var(--border); }
+    .note b { color: var(--text); font-weight: 600; }
+    footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="masthead">
+      <h1>Testing Observability</h1>
+      <span class="sub">Pop Charts &middot; live from <span class="mono">ci-metrics</span></span>
+      <span class="freshness" id="freshness"><span class="beacon"></span><span id="freshness-text">loading…</span></span>
+    </header>
+
+    <h2 class="section">Nightly lifecycle</h2>
+    <div class="panel" id="nightly"><div class="empty">Loading…</div></div>
+
+    <h2 class="section">Coverage</h2>
+    <div class="panel" id="coverage"><div class="empty">Loading…</div></div>
+    <div class="panel note" id="coverage-note" hidden>
+      <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
+    </div>
+
+    <footer id="footer"></footer>
+  </div>
+
+  <script>
+    const WORKSPACES = [
+      { key: "app", floor: null, ruler: "vitest · never-regress" },
+      { key: "server", floor: null, ruler: "floor on unit ruler" },
+      { key: "protocol-solidity", floor: 96.67, ruler: "lcov · floor 96.67%" },
+      { key: "protocol-ts", floor: 36.3, ruler: "lcov · floor 36.3%" },
+    ];
+    const SUITES = [
+      { key: "smoke", label: "Chain smoke" },
+      { key: "scenarios", label: "Lifecycle scenarios" },
+      { key: "chainE2e", label: "Chain-backed e2e" },
+      { key: "terminal", label: "UI journeys" },
+    ];
+    const MARK = { success: "✓", failure: "✗", cancelled: "⊘", skipped: "–" };
+    const POLL_MS = 30_000;
+
+    const $ = (id) => document.getElementById(id);
+
+    function relTime(iso) {
+      if (!iso) return "unknown";
+      const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+      if (secs < 60) return `${secs}s ago`;
+      if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
+      if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
+      return `${Math.round(secs / 86400)}d ago`;
+    }
+
+    function spark(series, color) {
+      const w = 130, h = 34, pad = 3;
+      if (!series.length) return "";
+      const min = Math.min(...series), max = Math.max(...series), range = (max - min) || 1, n = series.length;
+      const X = (i) => pad + (n === 1 ? 0 : (i / (n - 1)) * (w - 2 * pad));
+      const Y = (v) => (max === min ? h / 2 : pad + (1 - (v - min) / range) * (h - 2 * pad));
+      const pts = series.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+      const area = `${X(0).toFixed(1)},${(h - pad).toFixed(1)} ${pts} ${X(n - 1).toFixed(1)},${(h - pad).toFixed(1)}`;
+      return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+        <polygon points="${area}" fill="${color}" opacity="0.10" />
+        <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+        <circle cx="${X(n - 1).toFixed(1)}" cy="${Y(series[n - 1]).toFixed(1)}" r="2.6" fill="${color}" /></svg>`;
+    }
+
+    function renderFreshness(snap) {
+      const el = $("freshness");
+      el.className = "freshness" + (!snap.online ? " offline" : "");
+      const src = snap.source.commit ? `ci-metrics @ ${snap.source.commit} · ${relTime(snap.source.committedAt)}` : "no ci-metrics data";
+      $("freshness-text").textContent = (snap.online ? "" : "offline · ") + src;
+    }
+
+    function renderNightly(snap) {
+      const { latest, history } = snap.nightly;
+      const el = $("nightly");
+      if (!latest) {
+        el.innerHTML = `<div class="empty"><b>No nightly run recorded yet.</b><br />The first scheduled run (~09:00 UTC) will populate this once C6's <span class="mono">record</span> job lands its data on <span class="mono">ci-metrics</span>.</div>`;
+        return;
+      }
+      const ok = latest.conclusion === "success";
+      const color = ok ? "var(--pass)" : "var(--fail)";
+      const suites = SUITES.map((s) => {
+        const r = latest.suites[s.key] ?? "skipped";
+        return `<span class="suite"><span class="m" style="color:${r === "success" ? "var(--pass)" : r === "failure" ? "var(--fail)" : "var(--neutral)"}">${MARK[r] ?? r}</span> ${s.label}</span>`;
+      }).join("");
+      // Oldest→newest so the newest bar sits on the right, like a timeline.
+      const recent = history.slice(-14);
+      const runs = recent.map((r) => `<a class="run ${r.conclusion}" href="${r.runUrl}" target="_blank" rel="noopener" title="${r.ts} · ${r.conclusion}"><span class="bar"></span><span class="d mono">${r.ts.slice(5, 10)}</span></a>`).join("");
+      el.innerHTML = `<div class="nightly">
+        <div class="lede">
+          <div class="status"><span class="dot" style="background:${color}"></span>${ok ? "Passing" : "Failing"}</div>
+          <div class="meta"><a href="${latest.runUrl}" target="_blank" rel="noopener">Run</a> at <span class="mono">${latest.commit.slice(0, 7)}</span> · ${relTime(latest.ts)}</div>
+          <div class="suites">${suites}</div>
+        </div>
+        <div class="timeline"><div class="cap">Last ${recent.length} runs</div><div class="runs">${runs}</div></div>
+      </div>`;
+    }
+
+    // The status chip must reflect the real number, never assert green blindly.
+    //  - floored workspaces (protocol): compare pct to the floor (✓ / ✗).
+    //  - app (never-regress): compare to its own best-so-far; a drop is a ✗.
+    //  - server: its floor is on the unit-tier ruler, a different denominator
+    //    than this badge %, so make NO pass/fail claim — a neutral chip.
+    // (Floor values are annotated below; single source is protocol-ci.yml — see
+    //  the config-driven follow-up. Never show a green floor without checking.)
+    function coverageChip(ws, pct, series) {
+      if (ws.floor != null) {
+        const ok = pct != null && pct >= ws.floor;
+        return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} floor ${ws.floor}%</span>`;
+      }
+      if (ws.key === "app") {
+        const best = series.length ? Math.max(...series) : (pct ?? 0);
+        const ok = pct != null && pct >= best;
+        return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "↓"} never-regress</span>`;
+      }
+      return `<span class="chip">floor on unit ruler</span>`;
+    }
+
+    function renderCoverage(snap) {
+      const { latest, history } = snap.coverage;
+      const el = $("coverage");
+      if (!latest || !latest.workspaces) {
+        el.innerHTML = `<div class="empty">No coverage data on <span class="mono">ci-metrics</span> yet.</div>`;
+        return;
+      }
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      el.innerHTML = WORKSPACES.map((ws) => {
+        const w = latest.workspaces[ws.key];
+        // Skip a workspace whose row is absent or wrong-shape rather than throw
+        // and blank the whole panel — one bad row must not sink the refresh.
+        if (!w || !w.summary || !w.summary.lines) return "";
+        const pct = w.summary.lines.pct;
+        const series = history.filter((r) => r.workspace === ws.key).map((r) => r.linesPct).filter((v) => v != null);
+        const lo = ws.floor ? Math.min(ws.floor, ...(series.length ? series : [pct])) - 4 : Math.max(0, Math.min(...(series.length ? series : [pct])) - 6);
+        const span = (100 - lo) || 1;
+        const fill = Math.max(0, Math.min(100, ((pct - lo) / span) * 100));
+        const floorPct = ws.floor ? Math.max(0, Math.min(100, ((ws.floor - lo) / span) * 100)) : null;
+        const chip = coverageChip(ws, pct, series);
+        const extra = `${w.summary.functions && w.summary.functions.pct != null ? w.summary.functions.pct.toFixed(2) + "% fn · " : ""}${w.summary.lines.hit}/${w.summary.lines.found} lines`;
+        return `<div class="cov-row">
+          <div class="cov-id"><span class="ws mono">${ws.key}</span><span class="rule">${ws.ruler}</span></div>
+          <div class="cov-spark">${spark(series, accent)}<span class="cov-pct mono">${pct == null ? "—" : pct.toFixed(2) + "%"}</span></div>
+          <div class="cov-meter"><i style="width:${fill}%"></i>${floorPct != null ? `<span class="floor" style="left:${floorPct}%"></span>` : ""}</div>
+          <div class="cov-sub"><div class="chips">${chip}<span class="chip">${extra}</span></div></div>
+        </div>`;
+      }).join("");
+      $("coverage-note").hidden = false;
+    }
+
+    async function refresh() {
+      try {
+        const snap = await (await fetch("/api/observability", { cache: "no-store" })).json();
+        renderFreshness(snap);
+        renderNightly(snap);
+        renderCoverage(snap);
+        $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
+      } catch (err) {
+        $("freshness-text").textContent = "dashboard server unreachable";
+        $("freshness").className = "freshness offline";
+      }
+    }
+
+    refresh();
+    setInterval(refresh, POLL_MS);
+  </script>
+</body>
+</html>
