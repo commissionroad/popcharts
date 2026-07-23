@@ -1,9 +1,11 @@
 import {
   readBooleanOrFallback,
+  readEnumOrFallback,
   readNonNegativeIntegerOrFallback,
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
+import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
 import type { InternetAccessMode, ReviewProviderName } from "./types";
 
 /**
@@ -81,8 +83,10 @@ export const aiReviewConfig: AiReviewConfig = {
     process.env.AI_REVIEW_FETCH_SEARCH_RESULTS,
     false,
   ),
-  internetAccess: readInternetAccessMode(
-    process.env.AI_REVIEW_INTERNET_ACCESS ?? "search",
+  internetAccess: readEnumOrFallback(
+    process.env.AI_REVIEW_INTERNET_ACCESS,
+    INTERNET_ACCESS_MODES,
+    "search",
   ),
   maxFetchBytes: readPositiveIntegerOrFallback(
     process.env.AI_REVIEW_MAX_FETCH_BYTES,
@@ -95,7 +99,11 @@ export const aiReviewConfig: AiReviewConfig = {
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_REVIEW_OLLAMA_MODEL ?? "gpt-oss:20b",
   port: readPositiveIntegerOrFallback(process.env.AI_REVIEW_PORT, 3002),
-  provider: readProvider(process.env.AI_REVIEW_PROVIDER ?? "ollama"),
+  provider: readEnumOrFallback(
+    process.env.AI_REVIEW_PROVIDER,
+    REVIEW_PROVIDER_NAMES,
+    "ollama",
+  ),
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_REVIEW_TIMEOUT_MS,
     8_000,
@@ -108,19 +116,3 @@ export const aiReviewConfig: AiReviewConfig = {
     process.env.AI_REVIEW_USER_AGENT ??
     "PopChartsLocalAiReview/0.1 (+https://popcharts.local)",
 };
-
-function readInternetAccessMode(value: string): InternetAccessMode {
-  if (value === "off" || value === "provided_urls" || value === "search") {
-    return value;
-  }
-
-  return "search";
-}
-
-function readProvider(value: string): ReviewProviderName {
-  if (value === "anthropic" || value === "heuristic" || value === "ollama") {
-    return value;
-  }
-
-  return "ollama";
-}
