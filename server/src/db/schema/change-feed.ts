@@ -34,7 +34,9 @@ export const changeFeed = pgTable(
     id: bigserial("id", { mode: "bigint" }).primaryKey(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     // The table whose row changed, as the seam recorded it; the relay maps this
-    // to a channel + React Query key in TypeScript via CHANGE_FEED_SOURCES.
+    // to a channel in TypeScript via CHANGE_FEED_SOURCES. There is no
+    // client-side query-key map — the browser hook hands each signal to a
+    // caller-supplied callback and the surface re-reads itself (repo ADR 0021).
     sourceTable: text("source_table").notNull(),
     // "insert" or "update"; most sources are insert-only, the review/resolution
     // job queues are the update case (deferred to a later slice).

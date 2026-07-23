@@ -97,15 +97,22 @@ cold-refetch). The Postgres sequence-visibility gap is handled explicitly (small
 lookback re-read + client dedup by id).
 
 **Mapping & completeness.** Route by *entity*, not by component: every row
-carries `market_id`/`owner`, so routing to `market:{id}` / `portfolio:{owner}`
+carries `market_id`/`owner`, so routing to `market:{chainId}:{marketId}` /
+`portfolio:{owner}`
 is a field read, and multi-table composition stays in the REST read (refetched
 fresh). "Did we drop something?" reduces to "does this seam call
 `recordLiveChange`?" — a coverage test scans the seam dirs (`src/indexer` + both
-runners) and asserts every registered `source_table` is reached by a seam.
+runners) and asserts the set of `sourceTable` literals there is exactly the
+registry — a literal scan, so it catches a registered source with no seam, but
+does not prove the literal sits on a call the write path reaches.
 Whole-slice refetch of authoritative state makes duplicate/out-of-order/replayed
 signals harmless (worst case: a redundant refetch). Deliberately does NOT emit
 from `markets` UPDATEs — the coupled event row already covers them (no
-double-signal).
+double-signal). **The registered set is only slice 1's market-keyed append-only
+tables**: `pool_price_ticks` / `venue_order_events` / `venue_orders`,
+`outcome_token_transfer_events`, and the two job-queue UPDATE sources are
+deferred to the slices that need them (each wants join-based or dual-party
+routing).
 
 ### Scope boundaries
 
@@ -137,7 +144,7 @@ degrades gracefully on reorg (re-emit → client refetches corrected state).
    the first slice that renders anything live, and the first end-to-end proof.
 4. Convert the three existing polls to push.
 5. Lifecycle toasts + AI-review push + clearing challenge-window countdown.
-6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, retention, optional NOTIFY.
+6. Hardening/efficiency: finer-grained REST slices, optional scoped-value payloads, `change_feed` partitioning, optional NOTIFY. (Age-based retention already shipped in slice 1 — `startChangeFeedRetention`, started by the API.)
 7. E2E coverage (a second actor's trade moves a first actor's open page).
 
 ## Exit criteria

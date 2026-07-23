@@ -65,7 +65,9 @@ instance runs its own over the shared table — no Redis. Wake mechanism is
 poll-first (NOTIFY optional). Deployment
 pieces (SSE behind the ALB, cross-origin CORS, RDS-Proxy connection handling)
 belong to [ADR 0015](../summaries/root-adr-0015-deployment-and-infrastructure.md).
-Proposed, not yet built.
+Built 2026-07-22 under `src/change-feed/`; age-based retention runs with the API
+(`startChangeFeedRetention` in `src/api/index.ts`). No app surface consumes it
+yet — see [ADR 0021](../summaries/root-adr-0021-live-market-updates.md).
 
 ## Hardening gaps (all open, [root ADR 0009](../summaries/root-adr-0009-server-api-hardening.md))
 

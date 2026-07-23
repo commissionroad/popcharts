@@ -1007,3 +1007,17 @@ live UI**, and no signal has yet crossed a live SSE connection end-to-end. Notes
 market_ai_review_jobs queue-state UPDATE signals deferred to the lifecycle/AI-review
 surface slice (need join-based routing); the channel-string coordination constant
 (`market:{chainId}:{marketId}`, currently mirrored server↔client) is deferred to slice 3.
+Same pass also corrected six accuracy drifts an independent review caught by reading the
+shipped code against the doc: the documented `change_feed` DDL (created_at is `timestamp`
+not `timestamptz`; `row_id`/`chain_id`/`market_id` are nullable `text`/`integer`/`text`,
+not non-null `bigint`/`integer`/`numeric`; `op` was missing from the summary); "replays
+exactly the gap" (resume is gap-free only *above* the client's cursor — an `id <= sinceId`
+is dropped, and a cursor past the retention window gets `reset{cursor-too-old}`, which the
+client does not yet act on); "dedup/ordering by id" (dedup yes, ordering no — no reordering
+buffer); "catches every viewer-facing change" (only the *registered* set — five sources are
+deferred to later slices); "a coverage test proves every source is reached by a real seam"
+(it is a `sourceTable:` literal scan, not a call-graph proof); a "Proposed, not yet built"
+line left on the built relay in server-workspace.md; and `market:{id}` for the channel
+format in the summary. Retention moved out of the open hardening slice (it shipped in
+slice 1, started by the API). One stale `React Query key` comment in
+server/src/db/schema/change-feed.ts was corrected too — same false claim, in code.

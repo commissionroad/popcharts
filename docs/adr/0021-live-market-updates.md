@@ -98,15 +98,25 @@ with the data change so the two can never disagree:
 ```
 change_feed(
   id            bigserial primary key,   -- monotonic cursor == SSE Last-Event-ID
-  created_at    timestamptz not null default now(),
+  created_at    timestamp not null default now(),
   source_table  text    not null,        -- e.g. 'receipt_placed_events'
   op            text    not null,        -- 'insert' | 'update'
-  row_id        bigint  not null,        -- PK of the changed row
-  chain_id      integer not null,
-  market_id     numeric,                 -- routes to channel  market:{chainId}:{marketId}
+  row_id        text,                    -- PK of the changed row, as text so one
+                                         -- column serves int4 and int8 keys;
+                                         -- diagnostic, not load-bearing
+  chain_id      integer,
+  market_id     text,                    -- routes to channel  market:{chainId}:{marketId}
+                                         -- (text: spans bigint and numeric(78,0)
+                                         -- sources, only ever concatenated)
   owner         text,                    -- routes to channel  portfolio:{owner}
-  block_number  bigint,  log_index integer  -- version, for client dedup/ordering
+  block_number  bigint,  log_index integer  -- on-chain version, for client dedup;
+                                            -- null on the two off-chain runner
+                                            -- sources, which order by id
 )
+-- index on created_at: the retention prune deletes by age; the PK index already
+-- serves the relay's `WHERE id > cursor ORDER BY id` tail.
+-- Everything except id / created_at / source_table / op is nullable: a source
+-- with no holder simply records NULL owner.
 ```
 
 1. **Write (atomic).** Each write seam calls `recordLiveChange(tx, …)` — one
@@ -158,13 +168,24 @@ wrong:
   something?" reduces to one auditable question: *does this write seam call
   `recordLiveChange`?* The invariant we lean on (verified in the write-path) is
   that every meaningful projection mutation is coupled to an append in the same
-  transaction, so emitting from the append-only writers catches every
-  viewer-facing change exactly once — and, deliberately, we do **not** also emit
-  from `markets` UPDATEs, which would double-signal what the coupled event row
-  already covers. The `source_table → channel` map is a single
+  transaction, so emitting from the append-only writers catches each
+  *registered* source's change exactly once — and, deliberately, we do **not**
+  also emit from `markets` UPDATEs, which would double-signal what the coupled
+  event row already covers.
+
+  **The registered set is not yet the whole viewer-facing set.** Slice 1
+  registered only the market-keyed append-only tables, whose rows carry
+  `chain_id` + `market_id` and so route with no join. Deliberately deferred to
+  the slices that need them, because each needs join-based or dual-party
+  routing: `pool_price_ticks` / `venue_order_events` / `venue_orders`
+  (pool→market via `venue_pools` — the price/chart and order-book slices),
+  `outcome_token_transfer_events` (routes to *both* the `from` and `to` holders
+  — the portfolio slice), and the `market_ai_review_jobs` /
+  `market_resolution_jobs` UPDATE progress (the AI-review and resolution
+  slices). The `source_table → channel` map is a single
   TypeScript registry, and a **coverage test** scans the seam directories
-  (`src/indexer` and both runners) to enforce that every registered
-  `source_table` is reached by a real `recordLiveChange` seam — the
+  (`src/indexer` and both runners) to enforce that the set of `sourceTable`
+  literals there is exactly the registry — the
   writer-agnostic completeness a trigger would have given for free. Adding a new
   indexed table is a visible checklist item ("register it and emit from its
   seam"), caught in review and by the test — not a silent omission.
@@ -251,16 +272,38 @@ with no schema or client impact. **We ship polling first** and add coalesced
       `source_table → channel` map in TypeScript; a `GET /events` SSE route that
       honours `Last-Event-ID` and filters by subscribed channel. Tests:
       `recordLiveChange` writes once and rolls back with its transaction; a
-      coverage test proves every registered source is reached by a seam; relay
+      coverage guardrail (see the caveat below); relay
       maps/orders/recovers the sequence-visibility gap (small lookback re-read +
-      client dedup by `id`); the stream handshake replays exactly the gap.
+      client dedup by `id`); the stream handshake replays the gap above the
+      client's cursor.
+
+      Two limits of the shipped guarantee, both deliberate and worth stating
+      plainly, since "delivery guarantee" above reads stronger than what the
+      code does:
+
+      - **Resume is gap-free only *above* the client's cursor.** The stream
+        drops any event whose `id <= sinceId`, so a row that commits late with
+        an id the client has already advanced past is never delivered. The
+        recovered case — the one the relay's lookback re-read exists for — is a
+        late-committing id *above* the cursor. And when the cursor predates the
+        retention window the stream gives up honestly: it emits
+        `reset { reason: "cursor-too-old" }` and the client must do a full
+        refetch, which it does not currently do on its own.
+      - **The coverage test is a literal scan, not a call-graph proof.** It
+        regex-scans the seam directories for `sourceTable: "…"` literals and
+        asserts that set equals the registry. That catches a registered source
+        with no seam, and a seam naming an unregistered table — it does *not*
+        prove the literal sits on a `recordLiveChange` call that the write path
+        actually reaches.
 - [x] **Client transport layer.** Delivered 2026-07-23 (#299 connection +
       provider + hook, #302 the React binding) under
       `app/src/integrations/live-updates/`. One shared `EventSource` in a
       top-level provider (never per-component); a
       `useLiveChannel(channel, onSignal)` hook that subscribes/unsubscribes on
       mount/route change; pause on tab-hidden (Page Visibility); jittered
-      reconnect backoff; dedup/ordering by the `id` field.
+      reconnect backoff; dedup by the `id` field (a `seenIds` set plus a
+      max-`id` resume cursor — there is no reordering buffer, so a late lower
+      id is delivered out of order, which the nudge semantics make harmless).
 
       Two things shipped differently from this ADR's original plan, both
       deliberate:
@@ -304,8 +347,9 @@ with no schema or client impact. **We ship polling first** and add coalesced
       refetch is heavy (per-market portfolio slice, a standalone current-price
       endpoint, `since`/cursor on `/receipts` and `/orders`); optional
       Coinbase-style scoped-value payloads for the single hottest surface;
-      `change_feed` retention/partitioning; optional coalesced `NOTIFY`
-      doorbell.
+      `change_feed` partitioning (age-based retention already shipped in slice
+      1); a client-side full refetch on the stream's `reset` event; optional
+      coalesced `NOTIFY` doorbell.
 - [ ] **E2E coverage.** Extend the chain e2e lane so a second actor's trade
       moves a first actor's open market page, and a graduation/resolution
       surfaces live, without a reload.
