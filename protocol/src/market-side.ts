@@ -10,8 +10,16 @@ export const SIDE_YES = 0;
 /** MarketTypes.Side.No contract encoding. */
 export const SIDE_NO = 1;
 
-/** Human-readable market side label used by off-chain domains. */
-export type MarketSide = "yes" | "no";
+/**
+ * Human-readable market side labels used by off-chain domains, in contract
+ * encoding order (YES first). This is the single definition of the label set:
+ * off-chain validation schemas and Postgres enums derive from it rather than
+ * restating the two literals.
+ */
+export const MARKET_SIDES = ["yes", "no"] as const;
+
+/** One of {@link MARKET_SIDES}. */
+export type MarketSide = (typeof MARKET_SIDES)[number];
 
 /**
  * Decodes a MarketTypes.Side value from a contract event or read. The

@@ -1,5 +1,6 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
+import { MARKET_SIDES, type MarketSide } from "@popcharts/protocol";
 
 import {
   EVIDENCE_KINDS,
@@ -36,14 +37,11 @@ export const MarketStatusSchema = literalUnion(MARKET_STATUSES, {
 });
 
 /**
- * Binary side accepted by the dev-only force resolve endpoint.
- *
- * Still hand-written, unlike the sets below: this and `VenuePoolSideSchema`
- * restate `@popcharts/protocol`'s `MarketSide`, so the const array for
- * "yes"/"no" belongs beside that type rather than here, and converting it
- * means changing the protocol workspace too.
+ * Binary side accepted by the dev-only force resolve endpoint. An alias of
+ * the protocol's `MarketSide` rather than its own set: a binary market has
+ * exactly the two sides the contracts encode.
  */
-export type DevMarketResolveSide = "yes" | "no";
+export type DevMarketResolveSide = MarketSide;
 
 /** Why a graduation attempt was refused. */
 export const GRADUATION_INELIGIBLE_REASONS = [
@@ -331,20 +329,18 @@ export const MarketVenueSchema = t.Object(
 );
 
 /** Which binary outcome a bounded-venue pool trades against collateral. */
-export const VenuePoolSideSchema = t.Union(
-  [t.Literal("yes"), t.Literal("no")],
-  {
-    $id: "VenuePoolSide",
-  },
-);
+export const VenuePoolSideSchema = literalUnion(MARKET_SIDES, {
+  $id: "VenuePoolSide",
+});
 
-/** Binary side accepted by the dev-only force resolve endpoint. */
-export const DevMarketResolveSideSchema = t.Union(
-  [t.Literal("yes"), t.Literal("no")],
-  {
-    $id: "DevMarketResolveSide",
-  },
-);
+/**
+ * Binary side accepted by the dev-only force resolve endpoint. Shares
+ * MARKET_SIDES with VenuePoolSideSchema but keeps its own `$id`, so the two
+ * stay distinct named components in the OpenAPI spec and the generated client.
+ */
+export const DevMarketResolveSideSchema = literalUnion(MARKET_SIDES, {
+  $id: "DevMarketResolveSide",
+});
 
 /** Lifecycle status of an indexed bounded-venue maker order. */
 export const VenueOrderStatusSchema = literalUnion(VENUE_ORDER_STATUSES, {

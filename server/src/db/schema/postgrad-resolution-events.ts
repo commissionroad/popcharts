@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { contracts } from "./contracts";
+import { MARKET_SIDE_VALUES } from "./market-side";
 
 /**
  * Which terminal event the postgrad market emitted: MarketResolved(side) or
@@ -28,8 +29,7 @@ export const postgradResolutionKind = pgEnum("postgrad_resolution_kind", [
 
 /** Winning side carried by MarketResolved; null for a cancelled draw. */
 export const postgradWinningSide = pgEnum("postgrad_winning_side", [
-  "yes",
-  "no",
+  ...MARKET_SIDE_VALUES,
 ]);
 
 /**

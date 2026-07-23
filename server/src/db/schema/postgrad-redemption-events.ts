@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { contracts } from "./contracts";
+import { MARKET_SIDE_VALUES } from "./market-side";
 import { uint256 } from "./uint256";
 
 /**
@@ -33,8 +34,7 @@ export const postgradRedemptionKind = pgEnum("postgrad_redemption_kind", [
 
 /** Side of the outcome tokens a Redeemed log burned; null for a draw. */
 export const postgradRedemptionSide = pgEnum("postgrad_redemption_side", [
-  "yes",
-  "no",
+  ...MARKET_SIDE_VALUES,
 ]);
 
 /**
