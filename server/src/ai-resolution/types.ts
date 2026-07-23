@@ -4,7 +4,6 @@ import type {
   InternetAccessMode,
   SourceCheck,
 } from "src/ai-review/types";
-import type { ResolutionModelProviderName } from "./config";
 
 export type { ConfigValidationResult, InternetAccessMode };
 
@@ -14,13 +13,32 @@ export type { ConfigValidationResult, InternetAccessMode };
  * `src/ai-review/types`; only the verdict semantics differ.
  */
 
+/** Model providers the resolution service can call. Mirrors the review
+ * backends by design (sibling architecture) but is a separate registry, so
+ * the sets may drift deliberately. */
+export const RESOLUTION_MODEL_PROVIDER_NAMES = [
+  "anthropic",
+  "heuristic",
+  "ollama",
+] as const;
+
+/** One of {@link RESOLUTION_MODEL_PROVIDER_NAMES}. */
+export type ResolutionModelProviderName =
+  (typeof RESOLUTION_MODEL_PROVIDER_NAMES)[number];
+
 /**
- * Who produced a resolution row. Mirrors the review providers plus `manual`
- * for operator override / trusted-creator self-resolve, which are audited with
- * the same table but never come from a model.
+ * Who produced a resolution row. The model providers plus `manual` for
+ * operator override / trusted-creator self-resolve, which are audited with
+ * the same table but never come from a model — `manual` is a valid audit-row
+ * provider but never a service selection.
  */
-export type ResolutionProviderName =
-  "anthropic" | "heuristic" | "ollama" | "manual";
+export const RESOLUTION_PROVIDER_NAMES = [
+  ...RESOLUTION_MODEL_PROVIDER_NAMES,
+  "manual",
+] as const;
+
+/** One of {@link RESOLUTION_PROVIDER_NAMES}. */
+export type ResolutionProviderName = (typeof RESOLUTION_PROVIDER_NAMES)[number];
 
 /**
  * The model/heuristic determination of a market's outcome.

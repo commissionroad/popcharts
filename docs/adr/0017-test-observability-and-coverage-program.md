@@ -210,9 +210,16 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       runner now submits a real on-chain approval transition and reverts
       with `MarketDoesNotExist`. The repair seeds its market on-chain
       (and rules out per-PR placement for good — it needs a chain)
-- [ ] C3 — lifecycle harness (boot once, heuristic providers, time-jump
+- [x] C3 — lifecycle harness (boot once, heuristic providers, time-jump
       utilities) + service/chain scenarios, tracked scenario-by-scenario
-      in ADR 0014's checklist
+      in ADR 0014's checklist. All eight service/chain paths land
+      (`server/src/lifecycle-nightly/`): happy path, rejection, manual
+      review, failed graduation, draw/cancel, partial clearing, and two
+      infrastructure drills (indexer restart, AI-service outage). The
+      drills bounce supervised services through a stack control server the
+      orchestrator exposes (`scripts/shared/process/stackControl.ts`), so a
+      scenario expresses intent without owning process lifecycles. The five
+      `@lifecycle` UI journeys remain C4.
 - [ ] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014)
 - [ ] C5 — `nightly-ai-verdicts` workflow (executes ADR 0019's CI lane)
 - [ ] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
@@ -265,9 +272,12 @@ behavior, and those modules' coverage is attributed to no enforced figure.
 - [x] `exports` map unchanged as the consumer allowlist (two targets
       retargeted from `scripts/shared/price/` to `src/price/`; no key
       renamed, added, or removed)
-- [ ] Protocol TS coverage figure (`protocol/src/**`, excluding
+- [x] Protocol TS coverage figure (`protocol/src/**`, excluding
       `generated/`) added to the PR comment, trend, and badges, with a
-      floor at the measured baseline
+      floor at the measured baseline (36.3%; measured 36.37% — c8 `--all`
+      over the nodejs suite, so SDK modules no test loads count as 0%,
+      which is the honest denominator this track exists to expose. The
+      low starting floor is the point: it can only ratchet up)
 
 ### Exit criteria
 

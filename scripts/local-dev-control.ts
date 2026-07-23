@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv.ts";
@@ -12,14 +12,8 @@ import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import {
-  parsePregradDeploy,
-  type PregradDeploy,
-} from "./shared/deployments/pregradDeploy.ts";
-import {
-  readPostgradDeployment,
-  type PostgradDeployment,
-} from "./shared/deployments/readPostgradDeployment.ts";
+import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import { readPostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import {
   POSTGRES_CONTAINER_NAME,
   POSTGRES_VOLUME_NAME,
@@ -27,16 +21,11 @@ import {
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
-import {
-  postgradAppEnv,
-  postgradServerEnvLines,
-} from "./shared/env/postgradEnv.ts";
-import {
-  appLocalDevEnvFile,
-  localDevIndexerHealthFile,
-} from "./shared/env/localDevEnvFiles.ts";
+import { appLocalDevEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
+import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
+import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { classifyChainPortOwnership } from "./shared/localStack/classifyChainPortOwnership.ts";
 import { deriveInstanceId } from "./shared/localStack/identity.ts";
 import { deriveStackResources } from "./shared/localStack/ports.ts";
@@ -243,7 +232,7 @@ async function runInternal(name: string): Promise<void> {
   } else if (name === "api-ready") {
     process.exit((await probeUrl(`${apiBaseUrl}/health`)) ? 0 : 1);
   } else if (name === "indexer-ready") {
-    process.exit(existsSync(localDevIndexerHealthFile) ? 0 : 1);
+    process.exit(existsSync(resources.indexerHealthFilePath) ? 0 : 1);
   } else if (name === "app-ready") {
     // This probe re-runs every few seconds for the stack's whole lifetime
     // (local-dev.control-plane.yaml), so it must hit the dependency-free
@@ -293,7 +282,7 @@ Environment overrides:
 async function prepareDatabase(): Promise<void> {
   console.log(`[${LOG_LABEL}] preparing local database`);
   ensureDependenciesInstalled();
-  rmSync(localDevIndexerHealthFile, { force: true });
+  rmSync(resources.indexerHealthFilePath, { force: true });
 
   await ensureLocalPostgres({
     cwd: repoRoot,
@@ -443,9 +432,15 @@ async function deployContracts(): Promise<void> {
     postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
   });
-  const appEnv = { ...buildAppEnv(deploy), ...postgradAppEnv(postgrad) };
+  const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 
-  writeServerEnv(serverEnv, deploy, postgrad);
+  writeLocalChainServerEnv({
+    deploy,
+    env: serverEnv,
+    envFilePath: resources.envFilePath,
+    generatedBy: "scripts/local-dev-control.ts",
+    postgrad,
+  });
   writeEnvMarkerBlock({ env: appEnv, filePath: appLocalDevEnvFile });
 
   console.log(`[${LOG_LABEL}] local protocol deployed`);
@@ -616,59 +611,6 @@ async function postgresReady(): Promise<boolean> {
     ],
     { cwd: repoRoot },
   );
-}
-
-function buildAppEnv(deploy: PregradDeploy): Record<string, string> {
-  return {
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "local",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE: "devchain",
-    NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER: "wallet",
-    NEXT_PUBLIC_POPCHARTS_CHAIN_ID: String(deploy.chainId),
-    NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
-    NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
-    NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
-    NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
-    NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_ENABLED: "true",
-    POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
-    POPCHARTS_INDEXER_API_URL: apiBaseUrl,
-    POPCHARTS_MARKET_DATA_SOURCE: "api",
-    POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
-  };
-}
-
-function writeServerEnv(
-  env: NodeJS.ProcessEnv,
-  deploy: PregradDeploy,
-  postgrad: PostgradDeployment | null,
-): void {
-  const lines = [
-    "# Generated by scripts/local-dev-control.ts.",
-    "# Safe to delete; ignored by git.",
-    `DATABASE_URL=${env.DATABASE_URL}`,
-    `PORT=${env.PORT}`,
-    "NETWORK=local",
-    `POPCHARTS_ADMIN_REVIEW_ENABLED=${env.POPCHARTS_ADMIN_REVIEW_ENABLED}`,
-    `POPCHARTS_DEV_TOOLS_ENABLED=${env.POPCHARTS_DEV_TOOLS_ENABLED}`,
-    `AI_REVIEW_SERVICE_URL=${env.AI_REVIEW_SERVICE_URL}`,
-    `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
-    `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
-    `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
-    ...postgradServerEnvLines(postgrad),
-    `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
-    "",
-  ];
-
-  writeFileSync(localChainEnvFile, lines.join("\n"));
 }
 
 function readGeneratedServerEnv(): NodeJS.ProcessEnv {

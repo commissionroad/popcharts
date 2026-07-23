@@ -4,7 +4,7 @@ title: Postgrad Contract Metadata
 description: Reference for how server/indexer/UI discover the postgrad venue — generated ABI modules, the three deployment manifest shapes, manifest-first vs event-first discovery, and the event/read surface of all seven venue contracts.
 sources:
   - protocol/docs/postgrad-contract-metadata.md
-updated: 2026-07-07
+updated: 2026-07-21
 ---
 
 # Postgrad Contract Metadata
@@ -18,7 +18,7 @@ local assumptions."
 
 ## Generated modules
 
-`pnpm build` runs `protocol/scripts/export-contract-metadata.ts`, emitting two
+`pnpm build` runs `protocol/scripts/export-contract-metadata.ts`, emitting
 deterministic modules under `protocol/src/generated/` (checked by
 `pnpm metadata:check`, re-exported from `@popcharts/protocol`):
 
@@ -28,6 +28,10 @@ deterministic modules under `protocol/src/generated/` (checked by
   event-name constants (`postgradVenueEventNames`), manifest address sources
   (`postgradVenueAddressSources`), and typed singleton deployment
   placeholders (`postgradVenueDeployments`).
+- `third-party/venue.ts` — compiled ABIs of the vendored third-party venue
+  contracts (`poolManagerAbi`, `stateViewAbi`, `v4QuoterAbi`), so no
+  workspace hand-writes fragments for them; no deployment addresses (those
+  come from manifests and env config).
 
 Each contract's address-source entry names its manifest (`venueStack`,
 `postgrad`, or `market`) and a dot-notation field path. Per-market contracts

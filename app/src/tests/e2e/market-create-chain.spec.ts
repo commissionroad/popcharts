@@ -1,13 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-function dateTimeLocalAfter(milliseconds: number) {
-  const date = new Date(Date.now() + milliseconds);
-  const pad = (value: number) => value.toString().padStart(2, "0");
-
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate()
-  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+import { dateTimeLocalAfter } from "./support/datetime";
 
 test("@chain user can create a market on the configured devchain", async ({ page }) => {
   test.skip(

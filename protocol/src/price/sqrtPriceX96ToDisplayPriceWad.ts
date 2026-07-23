@@ -1,8 +1,8 @@
 import type { DisplayPricePoolOrientation } from "./displayPriceWadToSqrtPriceX96.js";
+import { requireDecimals } from "./requireDecimals.js";
 
 const WAD = 10n ** 18n;
 const Q192 = 1n << 192n;
-const MAX_SUPPORTED_DECIMALS = 77;
 
 /**
  * Converts a pool's v4 Q64.96 sqrt price back into the WAD display price
@@ -28,10 +28,4 @@ export function sqrtPriceX96ToDisplayPriceWad(
     return (priceX192 * WAD * outcomeScale) / (Q192 * collateralScale);
   }
   return (Q192 * WAD * outcomeScale) / (priceX192 * collateralScale);
-}
-
-function requireDecimals(decimals: number, label: string): void {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_SUPPORTED_DECIMALS) {
-    throw new Error(`Expected ${label} to be an integer in [0, ${MAX_SUPPORTED_DECIMALS}].`);
-  }
 }

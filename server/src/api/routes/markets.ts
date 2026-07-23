@@ -17,6 +17,8 @@ import {
   DevMarketCloseResponseSchema,
   DevMarketGraduateIneligibleSchema,
   DevMarketGraduateResponseSchema,
+  DevMarketReviewIneligibleSchema,
+  DevMarketReviewResponseSchema,
   DevMarketResolveIneligibleSchema,
   DevMarketResolveResponseSchema,
   DevMarketResolveSideSchema,
@@ -60,6 +62,7 @@ import {
   graduateLocalMarketOnChain,
 } from "src/api/services/dev-market-graduate";
 import { resolveDevMarket } from "src/api/services/dev-market-resolve";
+import { forceMarketReview } from "src/api/services/dev-market-review";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -97,6 +100,8 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     DevMarketCloseResponse: DevMarketCloseResponseSchema,
     DevMarketGraduateIneligible: DevMarketGraduateIneligibleSchema,
     DevMarketGraduateResponse: DevMarketGraduateResponseSchema,
+    DevMarketReviewIneligible: DevMarketReviewIneligibleSchema,
+    DevMarketReviewResponse: DevMarketReviewResponseSchema,
     DevMarketResolveIneligible: DevMarketResolveIneligibleSchema,
     DevMarketResolveResponse: DevMarketResolveResponseSchema,
     DevMarketResolveSide: DevMarketResolveSideSchema,
@@ -339,6 +344,73 @@ const marketRoutesWithDevTools =
               summary: "Dev-only close pre-grad market for refunds",
               description:
                 "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+              tags: ["Development"],
+            },
+          },
+        )
+        .post(
+          "/dev/markets/:chainId/:marketId/review",
+          async ({ body, params, set }) => {
+            const result = await forceMarketReview({
+              chainId: Number.parseInt(params.chainId, 10),
+              marketId: params.marketId,
+              reasons: body.reasons,
+              verdict: body.verdict,
+            });
+
+            if (result.kind === "reviewed") {
+              return {
+                market: result.market,
+                status: "reviewed" as const,
+                ...(result.transactionHash
+                  ? { transactionHash: result.transactionHash }
+                  : {}),
+                verdict: result.verdict,
+              };
+            }
+
+            if (result.kind === "ineligible") {
+              set.status = 409;
+              return {
+                market: result.market,
+                message: result.message,
+                reason: result.reason,
+                status: "ineligible" as const,
+              };
+            }
+
+            if (result.kind === "dev_disabled") {
+              set.status = 404;
+              return "Not found";
+            }
+
+            set.status = result.kind === "invalid_market_id" ? 400 : 404;
+            return result.message;
+          },
+          {
+            body: t.Object({
+              reasons: t.Optional(t.Array(t.String())),
+              verdict: t.Union([
+                t.Literal("approve"),
+                t.Literal("reject"),
+                t.Literal("manual_review"),
+              ]),
+            }),
+            params: t.Object({
+              chainId: t.String(),
+              marketId: t.String(),
+            }),
+            response: {
+              200: "DevMarketReviewResponse",
+              400: t.String(),
+              404: t.String(),
+              409: "DevMarketReviewIneligible",
+            },
+            detail: {
+              operationId: "forceMarketReview",
+              summary: "Dev-only force a market review verdict",
+              description:
+                "Local-only development tool gated on POPCHARTS_DEV_TOOLS_ENABLED. Records a deterministic market review without invoking the AI review service or runner, transitioning approved or rejected markets on-chain before persisting the review.",
               tags: ["Development"],
             },
           },

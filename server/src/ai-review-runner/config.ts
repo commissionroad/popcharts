@@ -1,3 +1,9 @@
+import {
+  normalizeServiceUrl,
+  readBoolean,
+  readPositiveInteger,
+} from "src/shared/config-env";
+
 /**
  * Tuning knobs for the review job runner: queue timing (poll, lease, backoff,
  * attempts, batch size), the AI Review service endpoint, and the runner
@@ -6,6 +12,12 @@
 export type AiReviewRunnerConfig = {
   backoffMs: number;
   batchSize: number;
+  /**
+   * When true (default), terminal verdicts (approve / model reject) must be
+   * corroborated by agreeing service runs before committing on-chain (ADR
+   * 0019). Disable only for smoke tests and deterministic-provider setups.
+   */
+  corroborationEnabled: boolean;
   leaseMs: number;
   maxAttempts: number;
   pollMs: number;
@@ -22,8 +34,12 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_POLL_MS = 5_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
-// Defaults make the runner useful in local development with the review service
-// on port 3002, while every timing/lease knob can be tuned per environment.
+/**
+ * Reads the runner config from the given env record (Bun.env by default).
+ * Defaults make the runner useful in local development with the review service
+ * on port 3002, while every timing/lease knob can be tuned per environment;
+ * malformed knob values throw at startup rather than being papered over.
+ */
 export function getAiReviewRunnerConfig(
   env: Record<string, string | undefined> = Bun.env,
 ): AiReviewRunnerConfig {
@@ -37,6 +53,11 @@ export function getAiReviewRunnerConfig(
       env.AI_REVIEW_RUNNER_BATCH_SIZE,
       DEFAULT_BATCH_SIZE,
       "AI_REVIEW_RUNNER_BATCH_SIZE",
+    ),
+    corroborationEnabled: readBoolean(
+      env.AI_REVIEW_RUNNER_CORROBORATION,
+      true,
+      "AI_REVIEW_RUNNER_CORROBORATION",
     ),
     leaseMs: readPositiveInteger(
       env.AI_REVIEW_RUNNER_LEASE_MS,
@@ -61,33 +82,8 @@ export function getAiReviewRunnerConfig(
     runnerId:
       env.AI_REVIEW_RUNNER_ID?.trim() || `ai-review-runner-${process.pid}`,
     serviceUrl: normalizeServiceUrl(
-      env.AI_REVIEW_SERVICE_URL ?? DEFAULT_SERVICE_URL,
+      env.AI_REVIEW_SERVICE_URL,
+      DEFAULT_SERVICE_URL,
     ),
   };
-}
-
-function readPositiveInteger(
-  value: string | undefined,
-  fallback: number,
-  name: string,
-) {
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return parsed;
-}
-
-function normalizeServiceUrl(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return DEFAULT_SERVICE_URL;
-  }
-
-  return trimmed.replace(/\/+$/, "");
 }

@@ -76,10 +76,13 @@ deployed API stays read-only for these flows (ADR 0009).
 - [x] **Portfolio: terminal position states** (PR #234): redemption payout
       rows on the portfolio with won/draw kinds, backed by the
       `portfolioRedemption` API model.
-- [ ] **E2E coverage.** Extend the chain e2e lane to walk resolve → redeem
-      and cancel → redeemCancelled with the test-wallet fixture (see the
-      wallet-injection work from the same session) so the surfaces stay
-      exercised.
+- [x] **E2E coverage.** `@lifecycle` Playwright lane
+      (`terminal-market-lifecycle.spec.ts` + `pnpm lifecycle:e2e`): boots the
+      full stack via `local:smoke --keep-running --fresh-db`, walks a market
+      create → approve → receipt → graduate → resolve/cancel entirely through
+      the app with the test-wallet fixture, and redeems both terminal states
+      in the browser with on-chain balance assertions. Runs nightly as the
+      `terminal-e2e` job in `nightly-lifecycle.yml`.
 
 ## Exit criteria
 

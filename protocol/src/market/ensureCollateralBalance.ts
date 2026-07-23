@@ -1,23 +1,11 @@
 import { erc20Abi, type Address, type Hex, type PublicClient } from "viem";
 
-const LOCAL_DEVCHAIN_CHAIN_ID = 31_337;
-
-const MINTABLE_COLLATERAL_ABI = [
-  {
-    inputs: [
-      { name: "account", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    name: "mint",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../chain/localDevchain.js";
+import { mockCollateralAbi } from "../generated/mock-collateral.js";
 
 type CollateralMintWriter = {
   writeContract(parameters: {
-    abi: typeof MINTABLE_COLLATERAL_ABI;
+    abi: typeof mockCollateralAbi;
     address: Address;
     args: readonly [Address, bigint];
     functionName: "mint";
@@ -56,7 +44,7 @@ export async function ensureCollateralBalance(args: {
   let mintHash: Hex;
   try {
     mintHash = await args.walletClient.writeContract({
-      abi: MINTABLE_COLLATERAL_ABI,
+      abi: mockCollateralAbi,
       address: args.collateral,
       args: [args.owner, shortfall],
       functionName: "mint",

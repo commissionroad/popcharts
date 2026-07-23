@@ -1,6 +1,9 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
 
+import { REVIEW_PROVIDER_NAMES } from "src/ai-review/types";
+import { literalUnion } from "src/shared/typebox-literals";
+
 /**
  * Market and AI-review API schemas.
  *
@@ -43,6 +46,7 @@ export type GraduationIneligibleReason =
   | "onchain_settlement_required"
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
+export type DevMarketReviewIneligibleReason = "chain_status" | "wrong_status";
 export type DevMarketGraduateIneligibleReason =
   | "adapter_unconfigured"
   | "below_threshold"
@@ -95,10 +99,9 @@ export const MarketMetadataWriteSchema = t.Object(
 );
 
 /** Backend that produced an AI review. */
-export const AiReviewProviderSchema = t.Union(
-  [t.Literal("anthropic"), t.Literal("heuristic"), t.Literal("ollama")],
-  { $id: "AiReviewProvider" },
-);
+export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
+  $id: "AiReviewProvider",
+});
 
 /** Overall AI-review outcome for a market's metadata. */
 export const AiReviewVerdictSchema = t.Union(
@@ -600,6 +603,28 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   { $id: "DevMarketCloseIneligible" },
 );
 
+/** Result of a dev-only forced market review. */
+export const DevMarketReviewResponseSchema = t.Object(
+  {
+    market: t.Ref(MarketSchema),
+    status: t.Literal("reviewed"),
+    transactionHash: t.Optional(t.String()),
+    verdict: t.Ref(AiReviewVerdictSchema),
+  },
+  { $id: "DevMarketReviewResponse" },
+);
+
+/** Dev-only forced-review refusal, with the reason. */
+export const DevMarketReviewIneligibleSchema = t.Object(
+  {
+    message: t.String(),
+    market: t.Ref(MarketSchema),
+    reason: t.Union([t.Literal("chain_status"), t.Literal("wrong_status")]),
+    status: t.Literal("ineligible"),
+  },
+  { $id: "DevMarketReviewIneligible" },
+);
+
 /** Result of a dev-only end-to-end market graduation. */
 export const DevMarketGraduateResponseSchema = t.Object(
   {
@@ -737,6 +762,12 @@ export type DevMarketCloseResponse = Static<
 >;
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
+>;
+export type DevMarketReviewResponse = Static<
+  typeof DevMarketReviewResponseSchema
+>;
+export type DevMarketReviewIneligibleResponse = Static<
+  typeof DevMarketReviewIneligibleSchema
 >;
 export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
 export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;

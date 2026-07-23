@@ -1,3 +1,9 @@
+import {
+  normalizeServiceUrl,
+  readBoolean,
+  readPositiveInteger,
+} from "src/shared/config-env";
+
 /**
  * Tuning knobs for the resolution job runner: queue timing (poll, lease,
  * backoff, attempts, batch size), the AI Resolution service endpoint, and the
@@ -6,6 +12,12 @@
 export type AiResolutionRunnerConfig = {
   backoffMs: number;
   batchSize: number;
+  /**
+   * When true (default), resolve_yes / resolve_no must be corroborated by
+   * agreeing service runs before submitting resolve() on-chain (ADR 0019).
+   * Disable only for smoke tests and deterministic-provider setups.
+   */
+  corroborationEnabled: boolean;
   leaseMs: number;
   maxAttempts: number;
   pollMs: number;
@@ -22,9 +34,13 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_POLL_MS = 5_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
-// Defaults make the runner useful in local development with the resolution
-// service on port 3004, while every timing/lease knob can be tuned per
-// environment.
+/**
+ * Reads the runner config from the given env record (Bun.env by default).
+ * Defaults make the runner useful in local development with the resolution
+ * service on port 3004, while every timing/lease knob can be tuned per
+ * environment; malformed knob values throw at startup rather than being
+ * papered over.
+ */
 export function getAiResolutionRunnerConfig(
   env: Record<string, string | undefined> = Bun.env,
 ): AiResolutionRunnerConfig {
@@ -38,6 +54,11 @@ export function getAiResolutionRunnerConfig(
       env.AI_RESOLUTION_RUNNER_BATCH_SIZE,
       DEFAULT_BATCH_SIZE,
       "AI_RESOLUTION_RUNNER_BATCH_SIZE",
+    ),
+    corroborationEnabled: readBoolean(
+      env.AI_RESOLUTION_RUNNER_CORROBORATION,
+      true,
+      "AI_RESOLUTION_RUNNER_CORROBORATION",
     ),
     leaseMs: readPositiveInteger(
       env.AI_RESOLUTION_RUNNER_LEASE_MS,
@@ -63,33 +84,8 @@ export function getAiResolutionRunnerConfig(
       env.AI_RESOLUTION_RUNNER_ID?.trim() ||
       `ai-resolution-runner-${process.pid}`,
     serviceUrl: normalizeServiceUrl(
-      env.AI_RESOLUTION_SERVICE_URL ?? DEFAULT_SERVICE_URL,
+      env.AI_RESOLUTION_SERVICE_URL,
+      DEFAULT_SERVICE_URL,
     ),
   };
-}
-
-function readPositiveInteger(
-  value: string | undefined,
-  fallback: number,
-  name: string,
-) {
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return parsed;
-}
-
-function normalizeServiceUrl(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return DEFAULT_SERVICE_URL;
-  }
-
-  return trimmed.replace(/\/+$/, "");
 }

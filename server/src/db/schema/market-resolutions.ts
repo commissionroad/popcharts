@@ -14,19 +14,19 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { EvidenceItem, SourceCheck } from "src/ai-review/types";
+import { RESOLUTION_PROVIDER_NAMES } from "src/ai-resolution/types";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
 /**
- * Postgres enum mirroring ResolutionProviderName from src/ai-resolution/types.
- * Includes `manual` for operator override / trusted-creator self-resolve rows,
- * which is why this is a distinct enum rather than a reuse of ai_review_provider.
+ * Postgres enum for ResolutionProviderName, derived from the same const array
+ * so adding a provider surfaces here as a drizzle schema diff (migration
+ * needed) instead of an enum-insert error at runtime. Includes `manual` for
+ * operator override / trusted-creator self-resolve rows, which is why this is
+ * a distinct enum rather than a reuse of ai_review_provider.
  */
 export const resolutionProvider = pgEnum("resolution_provider", [
-  "anthropic",
-  "heuristic",
-  "ollama",
-  "manual",
+  ...RESOLUTION_PROVIDER_NAMES,
 ]);
 
 /** Postgres enum mirroring ResolutionOutcome from src/ai-resolution/types. */

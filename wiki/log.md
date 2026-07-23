@@ -819,6 +819,91 @@ targets + pinned subpath key set). Remaining G work: protocol TS coverage
 figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
 contracts-only).
 
+## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
+Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
+delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
+deploy, Postgres, API, indexer, keeper, heuristic AI review + resolution
+pairs) handing off to `server/src/lifecycle-nightly/` (sequential scenarios,
+forward-only chain-time jumps, market-scoped assertions, two-way chain<->DB
+money paper-trail reconciliation). One ADR wording amendment: receipt volume
+comes from deterministic balanced buys reusing the trading bot's receipt
+mechanics, not the interactive bot script. Unhappy-path scenarios and infra
+drills remain open (next C3 slices).
+
+## [2026-07-21] ingest | repo ADR 0017 — Track G complete (protocol TS coverage figure)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md
+Notes: Final G checkbox ticked. Fourth coverage figure Protocol (TS): c8
+--all over `hardhat test nodejs`, scoped src/** minus generated/, shipped
+as lcov-ts.info inside the existing protocol-coverage artifact; registry
+gained lcovFile + workspacesForWorkflow (one workflow, many figures);
+observability workflow loops pairs with comment-body chaining (no upsert
+races). Floor 36.3 (measured 36.37 — honest --all denominator; 60% if
+only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
+progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
+lacks CDK assertion tests.
+
+## [2026-07-21] ingest | protocol postgrad contract metadata — generated third-party venue ABIs
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: export-contract-metadata.ts now also emits src/generated/third-party/venue.ts
+(compiled poolManagerAbi/stateViewAbi/v4QuoterAbi from the vendored v4 packages,
+new `./third-party/venue` package subpath). All hand-written fragments for those
+contracts across protocol/server/app were replaced with the generated ABIs;
+fragments remain only for contracts outside the Hardhat build (the canonical
+transfer-approval singleton).
+
+## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
+Notes: Rejection, manual review, failed graduation, and draw/cancel are
+ticked; partial clearing and the infra drills remain the last open C3
+boxes. Mechanism notes captured in the summary: rejection reasons are
+served via the market API's aiReview payload; the manual_review verdict
+transitions nothing and the operator lever is a keyed approveMarket (the
+admin endpoint only re-queues reviews); failed graduation settles through
+the keeper sweep's markRefundable; the resolution runner parks draws
+(cancel_draw maps to no chain action) and the operator cancels with the
+resolver key, after which both legs redeem at half value.
+
+## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: the ADR's resource table gained an indexer-health-marker row
+(`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
+shared fixed path after the phased build: local-dev, lifecycle-nightly,
+the control-plane probe, and local-chain-smoke all rm'd/polled one file,
+so concurrent stacks could clear each other's marker or pass readiness
+against the wrong slot's indexer. Now derived per slot via
+StackPorts.indexerHealthFilePath; the smoke dropped its separate
+`.env.local-chain.indexer-health` name.
+
+## [2026-07-21] ingest | root ADR 0014 + 0017 — C3 complete (partial clearing + infra drills)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: The final two ADR 0014 unhappy paths land, completing ADR 0017 C3
+(all eight service/chain lifecycle paths). Partial clearing: band-pass
+clearing prorates the crowded side, so a one-sided excess spreads its refund
+across that side's receipts (no single fully-refunded receipt) — the split
+shows as a mix of fully-retained and partially/fully-refunded graduated
+claims. The infra drills introduced a stack control server the orchestrator
+exposes (scripts/shared/process/stackControl.ts) so a scenario can bounce
+supervised services (indexer, keeper, AI services) without owning process
+lifecycles. Fixed a latent supervisor bug: a signal-terminated child exits
+with code=null (same as running), so liveness now uses an explicit `exited`
+flag. AI-outage recovery keys off market status / the review audit row,
+never the job's transient terminal_failed. UI journeys (C4) remain.
+
+## [2026-07-22] ingest | repo ADR 0014 — golden UI journey (ADR 0017 C4) landed
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: First of the five `@lifecycle` Playwright UI journeys landed
+(`app/src/tests/e2e/golden-journey.spec.ts`): UI create → review approval →
+pregrad receipt → graduation → postgrad trade → resolution → redeem winnings,
+asserting the rendered claim + a risen balance. Enabling change: `local:smoke`
+gained `--with-ai-review`, which boots the heuristic review service + runner;
+the runner auto-discovers under_review markets, so UI-lane approval is now the
+real review path (the operator `approveMarket` shortcut was dropped). Corrected
+a stale line in testing-strategy.md that still called C3's unhappy paths the
+"open remainder" (C3 completed 2026-07-21). Rejected-creation, failed-graduation,
+partial-clearing, and cancelled/draw UI journeys remain (C4).
+
 ## [2026-07-21] ingest | repo ADR 0022 — review-first market creation
 Pages: +summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
 ~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md,

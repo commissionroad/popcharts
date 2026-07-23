@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import { db, schema } from "src/db/client";
@@ -14,6 +15,7 @@ import {
   createDynamicAddressWatcher,
   staticContractSet,
 } from "src/indexer/watchers/dynamic-address-watcher";
+import { recordLiveChange } from "src/change-feed/writer";
 
 /**
  * Watches MarketCreated on the PregradManager — the root of every market's
@@ -24,9 +26,10 @@ import {
 
 const CURSOR_NAME = "MarketCreated";
 
-const MARKET_CREATED_EVENT = parseAbiItem(
-  "event MarketCreated(uint256 indexed marketId, address indexed creator, bytes32 indexed metadataHash, string metadata, address collateral, uint256 openingProbabilityWad, uint256 liquidityParameter, uint256 graduationThreshold, uint64 graduationDeadline, uint64 resolutionTime, uint64 yesNotBefore, bool bypassAiResolution)",
-);
+const MARKET_CREATED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketCreated",
+});
 
 const watcher = createDynamicAddressWatcher({
   cursorName: CURSOR_NAME,
@@ -88,6 +91,17 @@ const watcher = createDynamicAddressWatcher({
             updatedAt: new Date(),
           },
         });
+
+      // New market: appears on the discovery board and opens its own page.
+      await recordLiveChange(tx, {
+        sourceTable: "market_created_events",
+        op: "insert",
+        chainId: records.event.chainId,
+        marketId: records.event.marketId,
+        rowId: inserted[0].id,
+        blockNumber: records.event.blockNumber,
+        logIndex: records.event.logIndex,
+      });
 
       return true;
     });

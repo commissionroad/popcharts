@@ -53,20 +53,17 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Map workflow to workspace
+      # One workflow can carry several coverage figures in one artifact
+      # (Protocol CI ships Solidity + TS lcovs). The mapping comes from the
+      # workspace registry so bash never mirrors its literals.
+      - name: Map workflow to workspaces
         id: workspace
         env:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           set -euo pipefail
-          case "$WORKFLOW_NAME" in
-            "App CI")      key=app;               artifact=app-coverage ;;
-            "Protocol CI") key=protocol-solidity; artifact=protocol-coverage ;;
-            "Server CI")   key=server;            artifact=server-coverage ;;
-            *) echo "unknown workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
-          esac
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          node --experimental-strip-types scripts/ci-workspaces-for-workflow.ts \
+            --workflow "$WORKFLOW_NAME" >> "$GITHUB_OUTPUT"
 
       # The CI job may have been skipped by its path filter, in which case
       # the run is a success with no coverage artifact — nothing to report.
@@ -92,7 +89,7 @@ jobs:
         id: e2e
         if: >
           steps.artifact.outputs.found == 'true' &&
-          steps.workspace.outputs.key == 'app' &&
+          github.event.workflow_run.name == 'App CI' &&
           github.event.workflow_run.event == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -128,7 +125,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          WORKSPACE: ${{ steps.workspace.outputs.key }}
+          PAIRS: ${{ steps.workspace.outputs.pairs }}
           BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
           E2E_FOUND: ${{ steps.e2e.outputs.found }}
         run: |
@@ -152,19 +149,43 @@ jobs:
               > existing-body.md
           fi
 
-          args=(--workspace "$WORKSPACE" --lcov coverage-artifact/lcov.info \
-                --head-sha "$HEAD_SHA")
-          if [ "$BASELINE_FOUND" = "true" ]; then
-            args+=(--baseline baseline.json)
-          fi
-          if [ "$E2E_FOUND" = "true" ]; then
-            args+=(--playwright-report e2e-artifact/report.json)
-          fi
+          # Each workspace's invocation folds into the previous body, so a
+          # multi-figure workflow (Protocol CI) lands as one comment update.
+          body_file=""
           if [ -n "$existing_id" ]; then
-            args+=(--existing-body existing-body.md)
+            body_file=existing-body.md
           fi
-          node --experimental-strip-types scripts/ci-report-coverage-comment.ts \
-            "${args[@]}" > comment-body.md
+          for pair in $PAIRS; do
+            workspace="${pair%%:*}"
+            lcov_file="${pair#*:}"
+            # A downloaded artifact missing an expected lcov means the
+            # producing CI broke its contract — fail loudly rather than
+            # leave this workspace's row silently stale.
+            if [ ! -f "coverage-artifact/$lcov_file" ]; then
+              echo "expected $lcov_file missing from artifact for $workspace" >&2
+              exit 1
+            fi
+            args=(--workspace "$workspace" \
+                  --lcov "coverage-artifact/$lcov_file" \
+                  --head-sha "$HEAD_SHA")
+            if [ "$BASELINE_FOUND" = "true" ]; then
+              args+=(--baseline baseline.json)
+            fi
+            if [ "$E2E_FOUND" = "true" ] && [ "$workspace" = "app" ]; then
+              args+=(--playwright-report e2e-artifact/report.json)
+            fi
+            if [ -n "$body_file" ]; then
+              args+=(--existing-body "$body_file")
+            fi
+            node --experimental-strip-types scripts/ci-report-coverage-comment.ts \
+              "${args[@]}" > "comment-body-$workspace.md"
+            body_file="comment-body-$workspace.md"
+          done
+          if [ -z "$body_file" ] || [ "$body_file" = "existing-body.md" ]; then
+            echo "no workspace produced a comment body; nothing to post"
+            exit 0
+          fi
+          cp "$body_file" comment-body.md
 
           if [ -n "$existing_id" ]; then
             gh api --method PATCH \
@@ -175,7 +196,7 @@ jobs:
               "repos/$GITHUB_REPOSITORY/issues/$pr_number/comments" \
               -F body=@comment-body.md > /dev/null
           fi
-          echo "updated coverage comment on PR #$pr_number ($WORKSPACE)"
+          echo "updated coverage comment on PR #$pr_number ($PAIRS)"
 
       - name: Update ci-metrics branch
         if: >
@@ -183,7 +204,7 @@ jobs:
           github.event.workflow_run.event == 'push'
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          WORKSPACE: ${{ steps.workspace.outputs.key }}
+          PAIRS: ${{ steps.workspace.outputs.pairs }}
         run: |
           set -euo pipefail
           if git fetch --depth 1 origin ci-metrics; then
@@ -196,17 +217,33 @@ jobs:
               "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git"
           fi
 
-          node --experimental-strip-types scripts/ci-update-coverage-metrics.ts \
-            --workspace "$WORKSPACE" \
-            --lcov coverage-artifact/lcov.info \
-            --commit "$HEAD_SHA" \
-            --dir ../ci-metrics
+          updated=""
+          for pair in $PAIRS; do
+            workspace="${pair%%:*}"
+            lcov_file="${pair#*:}"
+            # Same producer contract as the comment step: a partial
+            # artifact must fail, not leave latest.json/badges stale.
+            if [ ! -f "coverage-artifact/$lcov_file" ]; then
+              echo "expected $lcov_file missing from artifact for $workspace" >&2
+              exit 1
+            fi
+            node --experimental-strip-types scripts/ci-update-coverage-metrics.ts \
+              --workspace "$workspace" \
+              --lcov "coverage-artifact/$lcov_file" \
+              --commit "$HEAD_SHA" \
+              --dir ../ci-metrics
+            updated="$updated $workspace"
+          done
+          if [ -z "$updated" ]; then
+            echo "no workspace lcov present; nothing to commit"
+            exit 0
+          fi
 
           cd ../ci-metrics
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "coverage: $WORKSPACE @ ${HEAD_SHA:0:7}" || {
+          git commit -m "coverage:$updated @ ${HEAD_SHA:0:7}" || {
             echo "no changes to commit"; exit 0; }
 
           # The three CI workflows finish independently, so pushes can race
