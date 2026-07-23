@@ -1038,3 +1038,25 @@ Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
 view from both datastores; idempotent by run id so the push-race retry can't
 duplicate a row. HTML stays an on-demand render of the committed JSON (no
 standing deploy). Track C now C1–C4 + C6 done; C5 (`nightly-ai-verdicts`) open.
+## [2026-07-20] ingest | dispute-window ADRs (protocol 0013 + root 0024)
+
+Pages: +summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
++summaries/root-adr-0024-resolution-dispute-program.md; index rows added
+to both ADR sections.
+Notes: Both Proposed. Protocol 0013 replaces single-shot resolve() with
+propose → bonded 24h public dispute → permissionless finalize (resolver
+self-dispute free; bond paper-trail events; book-compatible market-scoped
+state). Root 0024 is the phased cross-stack program and supersedes root
+ADR 0012's off-chain operator delay window. Phase 0 (bond sizing, forfeit
+sink, bounty, re-proposal semantics) awaits user decisions.
+
+## [2026-07-23] ingest | dispute ADRs renumbered + Phase 0 locked
+
+Pages: ~summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
+~summaries/root-adr-0024-resolution-dispute-program.md (renamed from
+root-adr-0022-…), ~index.md
+Notes: Repo dispute-program ADR renumbered 0022→0024 (0022/0023 were
+taken by review-first creation and the security audit while the PR was
+open). Both dispute ADRs flipped to Accepted with the user's Phase 0
+decisions: flat ~100-unit bond via prepareMarket, forfeits to owner, no
+bounty in v1, operator settlement final in v1.
