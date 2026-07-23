@@ -8,12 +8,17 @@ import {
   aiReviewConfig,
   type AiReviewConfig,
 } from "./config";
+import { EvidenceSchema, SourceCheckSchema } from "./evidence-schemas";
 import {
   getAllReviewProviderStatuses,
   getReviewProviderStatus,
 } from "./providers/registry";
 import { reviewMarket, ReviewUnavailableError } from "./reviewer";
-import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
+import {
+  INTERNET_ACCESS_MODES,
+  REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
+} from "./types";
 import { literalUnion } from "src/shared/typebox-literals";
 
 const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
@@ -172,37 +177,6 @@ const ScoreRationalesSchema = t.Object({
   sourceQuality: t.String(),
 });
 
-const SourceTierSchema = t.Union([
-  t.Literal("primary"),
-  t.Literal("major_news"),
-  t.Literal("specialist"),
-  t.Literal("ugc"),
-  t.Literal("suspicious"),
-  t.Literal("unreachable"),
-  t.Literal("unknown"),
-]);
-
-const EvidenceSchema = t.Object({
-  domain: t.String(),
-  kind: t.Union([
-    t.Literal("provided_url"),
-    t.Literal("search_result"),
-    t.Literal("fetched_page"),
-  ]),
-  sourceTier: SourceTierSchema,
-  summary: t.String(),
-  title: t.Optional(t.String()),
-  url: t.String(),
-});
-
-const SourceCheckSchema = t.Object({
-  domain: t.String(),
-  notes: t.String(),
-  relevant: t.Boolean(),
-  sourceTier: SourceTierSchema,
-  url: t.String(),
-});
-
 const ReviewResultSchema = t.Object({
   evidence: t.Array(EvidenceSchema),
   hardFlags: t.Array(t.String()),
@@ -213,11 +187,7 @@ const ReviewResultSchema = t.Object({
   scoreRationales: ScoreRationalesSchema,
   scores: ScoresSchema,
   sourceChecks: t.Array(SourceCheckSchema),
-  verdict: t.Union([
-    t.Literal("approve"),
-    t.Literal("reject"),
-    t.Literal("manual_review"),
-  ]),
+  verdict: literalUnion(REVIEW_VERDICTS),
 });
 
 const MarketReviewRequestSchema = t.Object(

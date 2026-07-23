@@ -14,7 +14,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { EvidenceItem, SourceCheck } from "src/ai-review/types";
-import { RESOLUTION_PROVIDER_NAMES } from "src/ai-resolution/types";
+import {
+  RESOLUTION_OUTCOMES,
+  RESOLUTION_PROVIDER_NAMES,
+  RESOLUTION_VERDICTS,
+} from "src/ai-resolution/types";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
@@ -29,22 +33,14 @@ export const resolutionProvider = pgEnum("resolution_provider", [
   ...RESOLUTION_PROVIDER_NAMES,
 ]);
 
-/** Postgres enum mirroring ResolutionOutcome from src/ai-resolution/types. */
+/** Postgres enum for ResolutionOutcome, derived from the same const array. */
 export const resolutionOutcome = pgEnum("resolution_outcome", [
-  "yes",
-  "no",
-  "draw",
-  "too_early",
-  "abstain",
+  ...RESOLUTION_OUTCOMES,
 ]);
 
-/** Postgres enum mirroring ResolutionVerdict from src/ai-resolution/types. */
+/** Postgres enum for ResolutionVerdict, derived from the same const array. */
 export const resolutionVerdict = pgEnum("resolution_verdict", [
-  "resolve_yes",
-  "resolve_no",
-  "cancel_draw",
-  "requeue_too_early",
-  "manual_review",
+  ...RESOLUTION_VERDICTS,
 ]);
 
 /**

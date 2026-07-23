@@ -1,7 +1,12 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
 
-import { REVIEW_PROVIDER_NAMES } from "src/ai-review/types";
+import {
+  EVIDENCE_KINDS,
+  REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
+  SOURCE_TIERS,
+} from "src/ai-review/types";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -103,10 +108,9 @@ export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
 });
 
 /** Overall AI-review outcome for a market's metadata. */
-export const AiReviewVerdictSchema = t.Union(
-  [t.Literal("approve"), t.Literal("reject"), t.Literal("manual_review")],
-  { $id: "AiReviewVerdict" },
-);
+export const AiReviewVerdictSchema = literalUnion(REVIEW_VERDICTS, {
+  $id: "AiReviewVerdict",
+});
 
 /** Per-dimension AI-review scores, each in [0, 5]. */
 export const AiReviewScoresSchema = t.Object(
@@ -137,18 +141,9 @@ export const AiReviewScoreRationalesSchema = t.Object(
 );
 
 /** Trust tier assigned to a cited source domain. */
-export const AiReviewSourceTierSchema = t.Union(
-  [
-    t.Literal("primary"),
-    t.Literal("major_news"),
-    t.Literal("specialist"),
-    t.Literal("ugc"),
-    t.Literal("suspicious"),
-    t.Literal("unreachable"),
-    t.Literal("unknown"),
-  ],
-  { $id: "AiReviewSourceTier" },
-);
+export const AiReviewSourceTierSchema = literalUnion(SOURCE_TIERS, {
+  $id: "AiReviewSourceTier",
+});
 
 /** Reviewer assessment of a single resolution source URL. */
 export const AiReviewSourceCheckSchema = t.Object(
@@ -166,11 +161,7 @@ export const AiReviewSourceCheckSchema = t.Object(
 export const AiReviewEvidenceSchema = t.Object(
   {
     domain: t.String(),
-    kind: t.Union([
-      t.Literal("provided_url"),
-      t.Literal("search_result"),
-      t.Literal("fetched_page"),
-    ]),
+    kind: literalUnion(EVIDENCE_KINDS),
     sourceTier: t.Ref(AiReviewSourceTierSchema),
     summary: t.String(),
     title: t.Optional(t.String()),
