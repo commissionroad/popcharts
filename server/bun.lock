@@ -7,6 +7,7 @@
       "dependencies": {
         "@elysiajs/cors": "^1.4.1",
         "@elysiajs/openapi": "^1.4.15",
+        "@popcharts/live-channels": "file:../packages/live-channels",
         "@popcharts/protocol": "file:../protocol",
         "@sinclair/typebox": "^0.34.47",
         "drizzle-orm": "^0.38.0",
@@ -269,6 +270,8 @@
     "@pnpm/network.ca-file": ["@pnpm/network.ca-file@1.0.2", "", { "dependencies": { "graceful-fs": "4.2.10" } }, "sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA=="],
 
     "@pnpm/npm-conf": ["@pnpm/npm-conf@3.0.3", "", { "dependencies": { "@pnpm/config.env-replace": "^1.1.0", "@pnpm/network.ca-file": "^1.0.1", "config-chain": "^1.1.11" } }, "sha512-//0sR/cow/s4ICQaYoAobOl4aU8cjU6x/V24V7XkKotb9+O+3zySIYp146vpaobYHnxa4pZX8NkV54Z5AwbDKA=="],
+
+    "@popcharts/live-channels": ["@popcharts/live-channels@file:../packages/live-channels", { "devDependencies": { "typescript": "^5" } }],
 
     "@popcharts/protocol": ["@popcharts/protocol@file:../protocol", { "dependencies": { "@openzeppelin/contracts": "5.6.1", "@prb/math": "4.1.2", "@uniswap/v4-core": "1.0.2", "@uniswap/v4-periphery": "1.0.3" }, "devDependencies": { "@nomicfoundation/hardhat-ignition": "3.1.7", "@nomicfoundation/hardhat-toolbox-viem": "5.0.7", "@nomicfoundation/ignition-core": "3.1.7", "@types/node": "22.19.21", "forge-std": "github:foundry-rs/forge-std#v1.9.7", "hardhat": "3.9.0", "prettier": "3.8.4", "prettier-plugin-solidity": "2.3.1", "solhint": "6.2.1", "typescript": "6.0.3", "viem": "2.52.2" } }],
 
@@ -805,6 +808,8 @@
     "@nomicfoundation/hardhat-keystore/@noble/hashes": ["@noble/hashes@1.7.1", "", {}, "sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ=="],
 
     "@nomicfoundation/hardhat-utils/env-paths": ["env-paths@2.2.1", "", {}, "sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A=="],
+
+    "@popcharts/live-channels/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@popcharts/protocol/prettier": ["prettier@3.8.4", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-N2MylSdi48+5N/6S5j+maeHbUSIzzZ5uOcX5Hm4QpV8Dkb1HFjfAKTKX6yNPJQD9AhcT3ifHNB66tWTTJDi11Q=="],
 

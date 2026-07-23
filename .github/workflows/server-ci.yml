@@ -50,6 +50,9 @@ jobs:
             # (venue ABIs, price/tick helpers), so protocol changes must
             # re-run the server checks.
             - protocol/**
+            # The live-updates channel strings the SSE relay routes rows to;
+            # both sides import this, so a change must re-run both lanes.
+            - packages/live-channels/**
             - pnpm-lock.yaml
             - .github/workflows/server-ci.yml
 

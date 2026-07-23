@@ -7,8 +7,20 @@ coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
 # ../protocol imports are excluded so bun's own totals (and the threshold
 # below) match the workspace-own denominator rule from ADR 0017 — protocol
-# files are protocol CI's figure, not the server's.
-coveragePathIgnorePatterns = ["scripts/**", "../protocol/**"]
+# files are protocol CI's figure, not the server's. ../packages/live-channels
+# is excluded for the same reason, and it is doing real work: bun resolves a
+# `file:` dep to this relative path and would otherwise count it here (measured
+# — dropping the pattern puts it in the table at 100/100 and lifts the totals).
+# Excluding is both rule-consistent and the conservative choice, since those
+# free 100% lines would inflate the ratcheted floor below. One consequence
+# worth stating: with no CI lane of its own, that package's lines land in no
+# workspace's figure. Its behaviour is still verified here (sources.test.ts
+# exercises every export). Give it a lane if it ever grows real logic.
+coveragePathIgnorePatterns = [
+  "scripts/**",
+  "../protocol/**",
+  "../packages/live-channels/**",
+]
 
 # Ratcheted floor (ADR 0017 Track B): never lower these; bump manually as
 # coverage lands. Baseline measured 2026-07-14 (post-route-tests): functions

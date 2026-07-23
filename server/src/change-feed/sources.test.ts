@@ -3,15 +3,17 @@
 // missing columns. That every source is also reached by a real write seam (the
 // completeness the removed trigger gave for free) is proven behaviourally in
 // change-feed-writer.pglite.test.ts.
+import {
+  MARKET_LIST_CHANNEL,
+  marketChannel,
+  portfolioChannel,
+} from "@popcharts/live-channels";
 import { describe, expect, it } from "bun:test";
 
 import {
   CHANGE_FEED_SOURCES,
-  MARKET_LIST_CHANNEL,
   changeFeedRowToEvent,
   channelsForRow,
-  marketChannel,
-  portfolioChannel,
   type ChangeFeedRow,
 } from "src/change-feed/sources";
 

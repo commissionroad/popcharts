@@ -1,3 +1,9 @@
+import {
+  MARKET_LIST_CHANNEL,
+  marketChannel,
+  portfolioChannel,
+} from "@popcharts/live-channels";
+
 import type { schema } from "src/db/client";
 
 /**
@@ -46,21 +52,6 @@ export type ChangeFeedRoute = "market" | "market-list" | "owner";
 export interface ChangeFeedSource {
   op: ChangeFeedOp;
   routes: ChangeFeedRoute[];
-}
-
-/** The single global discovery-board channel name (the `market-list` route). */
-export const MARKET_LIST_CHANNEL = "markets";
-
-/** Builds the per-market SSE channel id from a row's chain + market — the same
- * `market:{chainId}:{marketId}` key a client subscribes with. */
-export function marketChannel(chainId: number, marketId: string): string {
-  return `market:${chainId}:${marketId}`;
-}
-
-/** Portfolio channels are lower-cased so a client subscription matches
- * regardless of the address checksum casing the source row happened to store. */
-export function portfolioChannel(owner: string): string {
-  return `portfolio:${owner.toLowerCase()}`;
 }
 
 /**

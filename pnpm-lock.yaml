@@ -20,6 +20,9 @@ importers:
       '@popcharts/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
+      '@popcharts/live-channels':
+        specifier: workspace:*
+        version: link:../packages/live-channels
       '@popcharts/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -138,6 +141,12 @@ importers:
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/live-channels:
+    devDependencies:
       typescript:
         specifier: ^5
         version: 5.9.3
