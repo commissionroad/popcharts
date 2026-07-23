@@ -5,12 +5,8 @@ import {
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
-import {
-  INTERNET_ACCESS_MODES,
-  REVIEW_PROVIDER_NAMES,
-  type InternetAccessMode,
-  type ReviewProviderName,
-} from "./types";
+import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
+import type { InternetAccessMode, ReviewProviderName } from "./types";
 
 /**
  * Version tag persisted with every review so stored verdicts can be traced to

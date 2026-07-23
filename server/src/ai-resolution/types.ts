@@ -21,6 +21,8 @@ export const RESOLUTION_MODEL_PROVIDER_NAMES = [
   "heuristic",
   "ollama",
 ] as const;
+
+/** One of {@link RESOLUTION_MODEL_PROVIDER_NAMES}. */
 export type ResolutionModelProviderName =
   (typeof RESOLUTION_MODEL_PROVIDER_NAMES)[number];
 
@@ -34,6 +36,8 @@ export const RESOLUTION_PROVIDER_NAMES = [
   ...RESOLUTION_MODEL_PROVIDER_NAMES,
   "manual",
 ] as const;
+
+/** One of {@link RESOLUTION_PROVIDER_NAMES}. */
 export type ResolutionProviderName = (typeof RESOLUTION_PROVIDER_NAMES)[number];
 
 /**

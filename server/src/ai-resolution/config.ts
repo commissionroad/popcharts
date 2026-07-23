@@ -5,14 +5,10 @@ import {
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
-import {
-  INTERNET_ACCESS_MODES,
-  type InternetAccessMode,
-} from "src/ai-review/types";
-import {
-  RESOLUTION_MODEL_PROVIDER_NAMES,
-  type ResolutionModelProviderName,
-} from "./types";
+import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
+import type { InternetAccessMode } from "src/ai-review/types";
+import { RESOLUTION_MODEL_PROVIDER_NAMES } from "./types";
+import type { ResolutionModelProviderName } from "./types";
 
 /**
  * Version tag persisted with every resolution so stored verdicts can be traced

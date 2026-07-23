@@ -108,19 +108,19 @@ export function readBooleanOrFallback(
 }
 
 /**
- * Lenient string-enum knob: returns the value only when it is one of
- * `allowed`, and the fallback for anything else (unset, empty, unknown).
- * Never throws. Pass the const array that defines the enum's union type so
- * the accepted set has exactly one definition.
+ * Lenient enum knob: returns the value only when it is one of the allowed
+ * literals; anything else (unset, empty, unknown) returns the fallback. Never
+ * throws.
  */
 export function readEnumOrFallback<T extends string>(
   value: string | undefined,
   allowed: readonly T[],
-  fallback: T,
+  // NoInfer: infer T from `allowed` alone, so a fallback outside the allowed
+  // set is a type error instead of silently widening the union.
+  fallback: NoInfer<T>,
 ): T {
-  return value !== undefined && (allowed as readonly string[]).includes(value)
-    ? (value as T)
-    : fallback;
+  const match = allowed.find((candidate) => candidate === value);
+  return match ?? fallback;
 }
 
 /**
