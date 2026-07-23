@@ -25,7 +25,7 @@ import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 import { retryUntilIndexed } from "src/indexer/utils/retry-until-indexed";
-import { ensureVenuePoolIndexed } from "src/indexer/utils/venue-pool-registry";
+import { ensurePoolMappingIndexed } from "src/indexer/utils/venue-pool-registry";
 import {
   createDynamicAddressWatcher,
   staticContractSet,
@@ -192,27 +192,4 @@ function retryUntilOrderIndexed<T>(operation: () => Promise<T>, label: string) {
     label,
     waitingFor: "OrderCreated",
   });
-}
-
-/**
- * The mapping is a best-effort enrichment re-attempted on every event for
- * still-unknown pools; a failure here must never block order indexing or park
- * the sweep.
- */
-async function ensurePoolMappingIndexed(
-  client: BlockchainClient,
-  poolId: `0x${string}` | undefined,
-) {
-  if (!poolId) {
-    return;
-  }
-
-  try {
-    await ensureVenuePoolIndexed(client, poolId);
-  } catch (error) {
-    console.warn(
-      `[VenuePools] Mapping registration failed for pool ${poolId}:`,
-      error,
-    );
-  }
 }

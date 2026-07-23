@@ -112,12 +112,55 @@ describe("persistOutcomeTokenTransferRecord", () => {
     });
   });
 
-  it("applies no balance deltas when the event insert dedups a replay", async () => {
-    const { balanceUpserts, dbc } = fakeTransferDb({ insertedRows: [] });
+  it("applies no balance deltas and no live signals when the event insert dedups a replay", async () => {
+    const { balanceUpserts, dbc, liveChanges } = fakeTransferDb({
+      insertedRows: [],
+    });
 
     await persistOutcomeTokenTransferRecord(record(), dbc);
 
     expect(balanceUpserts()).toHaveLength(0);
+    expect(liveChanges()).toHaveLength(0);
+  });
+
+  it("signals both holders' portfolios on a wallet-to-wallet transfer", async () => {
+    const { dbc, liveChanges } = fakeTransferDb({ insertedRows: [{ id: 3 }] });
+
+    await persistOutcomeTokenTransferRecord(record(), dbc);
+
+    expect(liveChanges()).toHaveLength(2);
+    expect(liveChanges()[0]).toMatchObject({
+      sourceTable: "outcome_token_transfer_events",
+      op: "insert",
+      chainId: CHAIN_ID,
+      marketId: "42",
+      owner: ALICE.toLowerCase(),
+      rowId: "3",
+      blockNumber: 321n,
+      logIndex: 7,
+    });
+    expect(liveChanges()[1]).toMatchObject({ owner: BOB.toLowerCase() });
+  });
+
+  it("signals only the real holder on a mint", async () => {
+    const { dbc, liveChanges } = fakeTransferDb({ insertedRows: [{ id: 3 }] });
+
+    await persistOutcomeTokenTransferRecord(record({ fromAddress: ZERO }), dbc);
+
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({ owner: BOB.toLowerCase() });
+  });
+
+  it("signals a self-transfer's holder once", async () => {
+    const { dbc, liveChanges } = fakeTransferDb({ insertedRows: [{ id: 3 }] });
+
+    await persistOutcomeTokenTransferRecord(
+      record({ toAddress: ALICE.toLowerCase() }),
+      dbc,
+    );
+
+    expect(liveChanges()).toHaveLength(1);
+    expect(liveChanges()[0]).toMatchObject({ owner: ALICE.toLowerCase() });
   });
 });
 
@@ -154,8 +197,9 @@ function record(
 
 /**
  * Minimal stand-in for the transactional drizzle handle: `insertedRows` is
- * what the event insert returns (empty means the dedup conflict fired), and
- * balance upserts are captured for assertions.
+ * what the event insert returns (empty means the dedup conflict fired);
+ * balance upserts and change_feed live-signal rows are captured for
+ * assertions.
  */
 function fakeTransferDb({
   insertedRows,
@@ -166,6 +210,7 @@ function fakeTransferDb({
     set: Record<string, unknown>;
     values: Record<string, unknown>;
   }> = [];
+  const liveChanges: Array<Record<string, unknown>> = [];
   const tx = {
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => {
@@ -175,6 +220,11 @@ function fakeTransferDb({
               returning: async () => insertedRows,
             }),
           };
+        }
+
+        if (table === schema.changeFeed) {
+          liveChanges.push(values);
+          return Promise.resolve();
         }
 
         return {
@@ -195,5 +245,6 @@ function fakeTransferDb({
   return {
     balanceUpserts: () => balanceUpserts,
     dbc,
+    liveChanges: () => liveChanges,
   };
 }

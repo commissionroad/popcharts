@@ -18,16 +18,14 @@ import type { schema } from "src/db/client";
  *
  * Slice 1 (the server spine) covers the market-keyed, append-only tables, whose
  * rows carry `chain_id` + `market_id` (and `owner`/`account` for the holder),
- * so a seam routes them with no join. Deliberately DEFERRED to later slices,
- * because they need join-based or dual-party routing the seam would have to do
- * itself:
- *   - pool/token-keyed price + trading tables (`pool_price_ticks`,
- *     `venue_order_events`, `venue_orders`) → pool→market via `venue_pools`
- *     (price/chart + order-book slices);
- *   - `outcome_token_transfer_events` → both the `from` and `to` holders
- *     (portfolio slice);
- *   - `market_ai_review_jobs` / `market_resolution_jobs` UPDATE progress
- *     (AI-review / resolution slices).
+ * so a seam routes them with no join. Slice 4 (convert the three polls) added
+ * the pool-keyed postgrad trading tables — their seams resolve pool→market via
+ * `venue_pools` before recording — and `outcome_token_transfer_events`, whose
+ * seam records one row per non-zero holder (`from` and `to`). Deliberately
+ * still DEFERRED: the `market_ai_review_jobs` / `market_resolution_jobs`
+ * UPDATE progress (AI-review / resolution slices), and `venue_orders`
+ * projection UPDATEs, which only ever change alongside a `venue_order_events`
+ * append that already signals — emitting both would double-signal every fill.
  */
 
 /** The exact drizzle row shape the relay reads from the change_feed outbox
@@ -125,6 +123,16 @@ export const CHANGE_FEED_SOURCES = {
   // Off-chain review verdict / resolution decision: the market and its board badge.
   market_ai_reviews: { op: "insert", routes: ["market", "market-list"] },
   market_resolutions: { op: "insert", routes: ["market", "market-list"] },
+  // Postgrad maker-order lifecycle: the market's order book and the maker's
+  // open-orders/portfolio surfaces. The seam resolves pool→market from
+  // `venue_pools` (best-effort), so an unmapped pool still signals the owner.
+  venue_order_events: { op: "insert", routes: ["market", "owner"] },
+  // A taker swap's post-swap tick: the order book's pool prices. Market-only,
+  // and the seam skips recording entirely when the pool maps to no market.
+  pool_price_ticks: { op: "insert", routes: ["market"] },
+  // Outcome-token balance changes: the seam records one row per non-zero
+  // holder (`from` and `to`), each routing to that holder's portfolio.
+  outcome_token_transfer_events: { op: "insert", routes: ["owner"] },
 } satisfies Record<string, ChangeFeedSource>;
 
 /** The registered source table names — the literal union a `recordLiveChange`

@@ -65,6 +65,11 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
   let dbc: typeof productionDb;
   let teardownDb: () => Promise<void>;
 
+  // POOL_ID deliberately has no venue_pools row; MAPPED_POOL_ID does, so the
+  // suite covers both sides of the live-signal routing decision.
+  const MAPPED_POOL_ID = `0x${"ef".repeat(32)}`;
+  const MARKET_ID = 42n;
+
   beforeAll(async () => {
     ({ dbc, teardown: teardownDb } = await createPgliteDb());
 
@@ -72,6 +77,15 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
       address: "0x00000000000000000000000000000000000000cc",
       chainId: CHAIN_ID,
       name: "BoundedPredictionHook",
+    });
+    await dbc.insert(schema.venuePools).values({
+      chainId: CHAIN_ID,
+      marketId: MARKET_ID,
+      outcomeIsCurrency0: true,
+      outcomeToken: "0x00000000000000000000000000000000000000ee",
+      poolId: MAPPED_POOL_ID,
+      postgradMarket: "0x00000000000000000000000000000000000000ff",
+      side: "yes",
     });
   });
 
@@ -86,10 +100,17 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
     return row.value;
   }
 
-  it("persists the tick row", async () => {
+  async function liveSignals() {
+    return dbc.select().from(schema.changeFeed);
+  }
+
+  it("persists the tick row without a live signal for an unmapped pool", async () => {
     await persistPoolPriceTickRecord(tickRecord(), dbc);
 
     expect(await tickCount()).toBe(1);
+    // The market route is a tick's only one, so an unmapped pool records no
+    // unroutable change_feed row.
+    expect(await liveSignals()).toHaveLength(0);
   });
 
   it("dedups a replay via the real unique index", async () => {
@@ -102,6 +123,34 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
     await persistPoolPriceTickRecord(tickRecord({ logIndex: 8 }), dbc);
 
     expect(await tickCount()).toBe(2);
+  });
+
+  it("signals the pool's market for a fresh tick on a mapped pool", async () => {
+    await persistPoolPriceTickRecord(
+      tickRecord({ logIndex: 9, poolId: MAPPED_POOL_ID }),
+      dbc,
+    );
+
+    const signals = await liveSignals();
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      sourceTable: "pool_price_ticks",
+      op: "insert",
+      chainId: CHAIN_ID,
+      marketId: String(MARKET_ID),
+      owner: null,
+      blockNumber: 321n,
+      logIndex: 9,
+    });
+  });
+
+  it("does not re-signal a replayed mapped-pool tick", async () => {
+    await persistPoolPriceTickRecord(
+      tickRecord({ logIndex: 9, poolId: MAPPED_POOL_ID }),
+      dbc,
+    );
+
+    expect(await liveSignals()).toHaveLength(1);
   });
 
   function tickRecord(

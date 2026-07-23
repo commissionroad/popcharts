@@ -10,6 +10,7 @@ import {
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
+import { ensurePoolMappingIndexed } from "src/indexer/utils/venue-pool-registry";
 import {
   createDynamicAddressWatcher,
   staticContractSet,
@@ -53,6 +54,13 @@ const watcher = createDynamicAddressWatcher({
       contractId,
       log: tickLog,
     });
+
+    // Register the pool→market mapping before persisting (mirrors the
+    // venue-orders watcher): the persist routes a market-channel live signal
+    // through venue_pools, and a tick committed while the pool is unmapped
+    // never re-signals — the replay dedups on the event row. Best-effort by
+    // design: a failure here must never block tick indexing.
+    await ensurePoolMappingIndexed(client, record.poolId);
 
     await persistPoolPriceTickRecord(record);
   },

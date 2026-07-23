@@ -4,7 +4,8 @@ import {
   buildOutcomePoolKey,
   computePoolId,
 } from "src/api/services/postgrad-venue";
-import { db, schema } from "src/db/client";
+import type { LiveChangeWriter } from "src/change-feed/writer";
+import { and, db, eq, schema } from "src/db/client";
 
 export type VenuePoolRecord = typeof schema.venuePools.$inferInsert;
 
@@ -62,4 +63,25 @@ export async function persistVenuePoolRecords(
   dbc: typeof db = db,
 ) {
   await dbc.insert(schema.venuePools).values(records).onConflictDoNothing();
+}
+
+/**
+ * Resolves which graduated market a venue pool trades, for routing pool-keyed
+ * events to the market's live channel (repo ADR 0021). The mapping is
+ * best-effort by design (see ensureVenuePoolIndexed), so callers must treat
+ * null as "no market channel to signal", not as an error.
+ */
+export async function findVenuePoolMarketId(
+  dbc: LiveChangeWriter,
+  { chainId, poolId }: { chainId: number; poolId: string },
+): Promise<bigint | null> {
+  const pool = await dbc.query.venuePools.findFirst({
+    columns: { marketId: true },
+    where: and(
+      eq(schema.venuePools.chainId, chainId),
+      eq(schema.venuePools.poolId, poolId),
+    ),
+  });
+
+  return pool?.marketId ?? null;
 }

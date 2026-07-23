@@ -1,7 +1,12 @@
 import type { Log } from "viem";
 
+import {
+  recordLiveChange,
+  type LiveChangeWriter,
+} from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
+import { findVenuePoolMarketId } from "src/indexer/handlers/venue-pools";
 
 type BaseOrderArgs = {
   orderId?: number;
@@ -251,6 +256,8 @@ export async function persistOrderCreatedRecord(
         zeroForOne: record.zeroForOne,
       })
       .onConflictDoNothing();
+
+    await recordVenueOrderLiveChange(tx, record, inserted[0].id);
   });
 }
 
@@ -401,6 +408,42 @@ async function applyVenueOrderEvent({
         updatedAt: new Date(),
       })
       .where(orderWhere(record));
+
+    await recordVenueOrderLiveChange(tx, record, inserted[0].id);
+  });
+}
+
+/**
+ * Signals the market's order book and the maker's open-orders/portfolio
+ * surfaces (repo ADR 0021), atomic with the order event's transaction. The
+ * pool→market mapping is best-effort, so an unmapped pool still signals the
+ * owner; an event with neither route (a requeue on an unmapped pool — requeues
+ * carry no owner) records nothing rather than an unroutable row.
+ */
+async function recordVenueOrderLiveChange(
+  tx: LiveChangeWriter,
+  record: VenueOrderEventRecord,
+  rowId: number,
+) {
+  const marketId = await findVenuePoolMarketId(tx, {
+    chainId: record.chainId,
+    poolId: record.poolId,
+  });
+  const owner = record.owner ?? null;
+
+  if (marketId === null && owner === null) {
+    return;
+  }
+
+  await recordLiveChange(tx, {
+    sourceTable: "venue_order_events",
+    op: "insert",
+    chainId: record.chainId,
+    marketId,
+    owner,
+    rowId,
+    blockNumber: record.blockNumber,
+    logIndex: record.logIndex,
   });
 }
 
