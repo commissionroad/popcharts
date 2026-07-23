@@ -1,5 +1,6 @@
 import { getMarkets, usesFixtureMarkets } from "@/domain/markets/queries";
 import { DiscoveryBoard } from "@/features/market-discovery/discovery-board";
+import { DiscoveryLiveRefresh } from "@/features/market-discovery/discovery-live-refresh";
 
 export async function DiscoveryPage() {
   const markets = await getMarkets();
@@ -7,6 +8,10 @@ export async function DiscoveryPage() {
 
   return (
     <div>
+      {/* Lifecycle transitions and new markets land for every viewer, not just
+          the actor who caused them. Card prices/bars still settle on reload —
+          bets do not route to this channel (see the island). */}
+      <DiscoveryLiveRefresh />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-[var(--accent)] uppercase">
