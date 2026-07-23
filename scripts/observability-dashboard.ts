@@ -90,7 +90,13 @@ const server = createServer(async (req, res) => {
       res.end(`dashboard page not found at ${pagePath}: ${String(error)}`);
       return;
     }
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    // `no-store`: this shell is a live dashboard, and a browser that caches it
+    // will keep serving an old page (with old client JS) across restarts — which
+    // is exactly how a fixed dashboard still looked broken until a hard reload.
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store, must-revalidate",
+    });
     res.end(page);
     return;
   }
