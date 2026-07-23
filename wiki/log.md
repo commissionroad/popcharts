@@ -896,10 +896,10 @@ Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
 Notes: First of the five `@lifecycle` Playwright UI journeys landed
 (`app/src/tests/e2e/golden-journey.spec.ts`): UI create → review approval →
 pregrad receipt → graduation → postgrad trade → resolution → redeem winnings,
-asserting the rendered claim + a risen balance. Enabling change: `local:smoke`
-gained `--with-ai-review`, which boots the heuristic review service + runner;
-the runner auto-discovers under_review markets, so UI-lane approval is now the
-real review path (the operator `approveMarket` shortcut was dropped). Corrected
+asserting the rendered claim + a risen balance. Enabling change: the review
+verdict is forced deterministically through a dev endpoint (see the 2026-07-23
+correction below — this entry originally described an `--with-ai-review` runner
+boot that was reverted before anything landed). Corrected
 a stale line in testing-strategy.md that still called C3's unhappy paths the
 "open remainder" (C3 completed 2026-07-21). Rejected-creation, failed-graduation,
 partial-clearing, and cancelled/draw UI journeys remain (C4).
@@ -932,13 +932,16 @@ phase P3 (bond escrow) opens public submission; phases renumbered to 8. A second
 money contract now exists alongside the creation fee — noted on creation-fee-custody.
 Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, and no
 dedicated ReviewBondVault entity page yet (single source until built).
+
 ## [2026-07-22] ingest | repo ADR 0014 — rejected + failed-graduation UI journeys (C4)
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
 ~concepts/testing-strategy.md, ~index.md
 Notes: Journeys 2 and 3 of C4 landed (three of five now). Rejected creation
-(`rejected-creation.spec.ts`): a "hacked" market trips the illegal-activity
-hard flag, the real heuristic runner rejects it on-chain, and the market page
-renders the AI review card's reasons. Failed graduation
+(`rejected-creation.spec.ts`): the dev review endpoint forces a `reject` verdict
+with a known reason and the market page renders it (see the 2026-07-23
+correction below — this entry originally described a "hacked" market tripping
+the illegal-activity hard flag via the real runner, which was reverted before
+anything landed). Failed graduation
 (`failed-graduation.spec.ts`): one unmatched YES receipt keeps the market
 sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
 holder claims the full cost back. Partial clearing and cancelled/draw remain.
@@ -955,3 +958,20 @@ plus a one-sided YES excess is placed by share count from the injected wallet
 `/portfolio` shows "N YES tokens + $X refunded". Cancelled/draw was already the
 ADR 0018 draw test — C4 finalizes it as journey 5. Track C now has only C5
 (`nightly-ai-verdicts`) and C6 (`TRENDS.md`) open.
+
+## [2026-07-23] ingest | correction — C4 review is forced, not run by the AI runner
+Pages: ~log.md (the three 2026-07-22 C4 entries above)
+Notes: The three C4 entries above were written mid-build, while the UI lane
+booted the real heuristic review service + runner (`local:smoke
+--with-ai-review`) and journey 2 relied on a "hacked" market tripping the
+illegal-activity hard flag. **That approach was reverted before any of it
+landed**, on the principle that these tests exercise UI and protocol behavior,
+not AI quality — a review the test cannot control is a dependency, not a
+fixture. What actually landed (PRs #285/#290/#292, 2026-07-23) forces the
+verdict through a dev-only endpoint,
+`POST /dev/markets/:chainId/:marketId/review { verdict, reasons }`
+(`server/src/api/services/dev-market-review.ts`), which writes the review record
+and submits the matching on-chain approve/reject by reusing the runner's own
+`transitionReviewedMarketOnChain`. No AI review service or runner boots in the
+lane. The entries above now carry inline pointers here; the ADR 0014/0017
+summaries and the testing-strategy concept were already corrected at land time.
