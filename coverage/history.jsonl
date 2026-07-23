@@ -103,3 +103,4 @@
 {"ts":"2026-07-23T14:43:45.444Z","workspace":"app","commit":"ad9fe8996d776511019771060913705f82fc5790","linesPct":100,"linesHit":2921,"linesFound":2921,"functionsPct":99.53,"branchesPct":99.75}
 {"ts":"2026-07-23T14:54:30.643Z","workspace":"app","commit":"5401c48e5ae0435d82ea9b66b41d209372fa1d31","linesPct":100,"linesHit":3052,"linesFound":3052,"functionsPct":99.54,"branchesPct":99.76}
 {"ts":"2026-07-23T15:01:20.846Z","workspace":"app","commit":"05b25b7c39cc8fa50cdfd638023a58dd5ff40e9e","linesPct":100,"linesHit":3084,"linesFound":3084,"functionsPct":99.55,"branchesPct":99.76}
+{"ts":"2026-07-23T15:12:02.234Z","workspace":"server","commit":"4ef63063c5d2b32f17bc16d2882d37a7134eab1f","linesPct":68.39,"linesHit":9797,"linesFound":14325,"functionsPct":77.12,"branchesPct":null}
