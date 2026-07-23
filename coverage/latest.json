@@ -46,14 +46,14 @@
       }
     },
     "server": {
-      "commit": "341e0880b47cc9f57f88f9b0a1fde46c84401477",
-      "updatedAt": "2026-07-22T23:30:08.166Z",
+      "commit": "6a5fe152e0a0d62f19c88087c4c893176dd17883",
+      "updatedAt": "2026-07-23T00:04:45.953Z",
       "summary": {
-        "files": 124,
+        "files": 125,
         "lines": {
-          "hit": 9639,
-          "found": 14048,
-          "pct": 68.61
+          "hit": 9663,
+          "found": 14064,
+          "pct": 68.71
         },
         "functions": {
           "hit": 615,
