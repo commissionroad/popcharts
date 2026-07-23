@@ -18,7 +18,7 @@ That resolver is the AI resolution pipeline (repo ADR 0012, built and
 measured under repo ADR 0019). The measured reality is that the resolver
 will sometimes be wrong — the eval suite has produced wrong-direction
 verdicts from criteria-literalism failures — and the deployed design
-acknowledges this with an *off-chain* operator delay window (24h between
+acknowledges this with an _off-chain_ operator delay window (24h between
 verdict and submission). An off-chain delay protects only against failure
 modes the operator notices; it gives market participants — the people with
 both the strongest incentive and often the best information — no mechanism
@@ -26,11 +26,11 @@ to halt a wrong resolution.
 
 Two sibling decisions frame the design:
 
-- **ADR 0010** disabled the *graduation clearing* challenge window by
+- **ADR 0010** disabled the _graduation clearing_ challenge window by
   default because clearing correctness is machine-checkable and the keeper
   is trusted. Resolution is different in kind: correctness depends on
   real-world facts no deterministic checker can verify, so the case against
-  a challenge window there is the case *for* one here.
+  a challenge window there is the case _for_ one here.
 - **ADR 0012** (singleton position book, Proposed) moves resolution,
   cancellation, and the time gates into `marketId`-keyed state on
   `PostgradPositionBook` for the mainnet path. Any dispute mechanism must
@@ -179,7 +179,7 @@ ADR 0012 lands.
   motivates this).
 - Repo ADR 0019 — the measured-verdict-quality program quantifying that
   fallibility.
-- Protocol ADR 0010 — why graduation clearing has *no* challenge window;
+- Protocol ADR 0010 — why graduation clearing has _no_ challenge window;
   the contrast case.
 - Protocol ADR 0012 — the singleton book this design must (and does)
   transfer onto.
