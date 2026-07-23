@@ -13,6 +13,13 @@ vi.mock("@/domain/markets/queries", () => ({
   usesFixtureMarkets,
 }));
 
+// The page mounts the live-refresh island, which calls useRouter(); these
+// cases assert the page's own markup, and the island's behaviour has its own
+// test. Without a mounted app router, useRouter throws an invariant.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 describe("DiscoveryPage", () => {
   it("renders the heading and the fetched markets", async () => {
     getMarkets.mockResolvedValueOnce([
