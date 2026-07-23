@@ -975,3 +975,49 @@ and submits the matching on-chain approve/reject by reusing the runner's own
 `transitionReviewedMarketOnChain`. No AI review service or runner boots in the
 lane. The entries above now carry inline pointers here; the ADR 0014/0017
 summaries and the testing-strategy concept were already corrected at land time.
+
+## [2026-07-23] ingest | ADR 0021 revised — live-updates spine + client transport built (two design reversals)
+Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
+Notes: Two things the shipped code decided differently from the original draft.
+(1) **Emit point.** Shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
+each write handler, NOT the generic AFTER-INSERT DB trigger the draft proposed —
+reversed on separation-of-concerns grounds (no business logic / invisible
+side-effect / second schema installer in the data layer). Writer-agnostic completeness is
+recovered by a typed sourceTable + a coverage test scanning the seam dirs.
+(2) **Client payload handling.** The draft said a signal would call
+`queryClient.invalidateQueries({ queryKey })` against a `channel → query-key` map.
+The shipped `useLiveChannel(channel, onSignal)` instead hands the signal to a
+**caller-supplied callback** and holds it in a ref; there is no React Query import
+in `app/src/integrations/live-updates/` at all. Reason: the app does not keep its
+market data in React Query, so a hook that invalidated query keys would have had
+nothing to invalidate — each surface already owns its own re-read (`load()`, or
+`router.refresh()` for server components). The signal stays a nudge, which is what
+makes a duplicate or replayed signal harmless. The `channel → query-key` map is
+therefore *not* part of the design; only the server-side `source_table → channel`
+map exists.
+Server spine (slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/
+(#281 table+registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream,
+#291 GET /events +service, #293 emit wiring, + a folder rename). Client transport
+(slice 2) landed 2026-07-23 (#299 connection/provider/hook, #302 React binding) under
+app/src/integrations/live-updates/ — the browser connects **directly to the API origin**,
+not through a Next route, because a serverless proxy force-closes long-lived responses at
+its duration cap. ADR status Proposed → Accepted. Slices 3–7 (pregrad surfaces, poll
+conversion, lifecycle/AI-review, hardening, e2e) remain open — **the app still renders no
+live UI**, and no signal has yet crossed a live SSE connection end-to-end. Notes:
+market_ai_review_jobs queue-state UPDATE signals deferred to the lifecycle/AI-review
+surface slice (need join-based routing); the channel-string coordination constant
+(`market:{chainId}:{marketId}`, currently mirrored server↔client) is deferred to slice 3.
+Same pass also corrected six accuracy drifts an independent review caught by reading the
+shipped code against the doc: the documented `change_feed` DDL (created_at is `timestamp`
+not `timestamptz`; `row_id`/`chain_id`/`market_id` are nullable `text`/`integer`/`text`,
+not non-null `bigint`/`integer`/`numeric`; `op` was missing from the summary); "replays
+exactly the gap" (resume is gap-free only *above* the client's cursor — an `id <= sinceId`
+is dropped, and a cursor past the retention window gets `reset{cursor-too-old}`, which the
+client does not yet act on); "dedup/ordering by id" (dedup yes, ordering no — no reordering
+buffer); "catches every viewer-facing change" (only the *registered* set — five sources are
+deferred to later slices); "a coverage test proves every source is reached by a real seam"
+(it is a `sourceTable:` literal scan, not a call-graph proof); a "Proposed, not yet built"
+line left on the built relay in server-workspace.md; and `market:{id}` for the channel
+format in the summary. Retention moved out of the open hardening slice (it shipped in
+slice 1, started by the API). One stale `React Query key` comment in
+server/src/db/schema/change-feed.ts was corrected too — same false claim, in code.
