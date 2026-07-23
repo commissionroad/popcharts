@@ -90,7 +90,19 @@ hard-flag agreement or second-run concurrence; lone LLM rejects park as
 manual_review) and the `AI_REVIEW_PROMPT_VERSION` eval policy that closes
 the 0011 checkbox.
 
+## Proposed change (ADR 0022, Proposed — not yet built)
+
+[Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) would
+relocate review **off-chain, onto Drafts, before any market exists**. The runner
+and its tables (`market_ai_reviews`/`market_ai_review_jobs`) are on-chain-market-
+bound (`marketId NOT NULL`, FKs to `markets`/`market_metadata`), so this needs
+**new draft-keyed tables + a reworked runner** that applies verdicts as draft-state
+transitions with no on-chain `approveMarket`/`rejectMarket`. The reusable part is
+the *pattern* (content-addressed metadata keyed to the draft's snapshot hash, the
+leased-job queue, the stateless service), not the tables.
+
 ## Related pages
 
 - [Market lifecycle](../concepts/market-lifecycle.md) — the gate it operates
+- [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) — Proposed: review moves off-chain onto drafts
 - [Server workspace](server-workspace.md), [indexer](indexer.md)
