@@ -64,10 +64,6 @@ describe("change feed registry", () => {
     expect(channelsForRow(row({ owner: null }), ["owner"])).toEqual([]);
   });
 
-  it("lower-cases the portfolio channel so subscriptions match any casing", () => {
-    expect(portfolioChannel("0xABC")).toBe("portfolio:0xabc");
-  });
-
   it("maps a known row to an event and drops unknown/unroutable rows", () => {
     const event = changeFeedRowToEvent(row());
     expect(event).not.toBeNull();

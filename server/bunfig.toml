@@ -8,14 +8,13 @@ coverageDir = "coverage"
 # ../protocol imports are excluded so bun's own totals (and the threshold
 # below) match the workspace-own denominator rule from ADR 0017 — protocol
 # files are protocol CI's figure, not the server's. ../packages/live-channels
-# is excluded for the same reason, and it is doing real work: bun resolves a
-# `file:` dep to this relative path and would otherwise count it here (measured
-# — dropping the pattern puts it in the table at 100/100 and lifts the totals).
-# Excluding is both rule-consistent and the conservative choice, since those
-# free 100% lines would inflate the ratcheted floor below. One consequence
-# worth stating: with no CI lane of its own, that package's lines land in no
-# workspace's figure. Its behaviour is still verified here (sources.test.ts
-# exercises every export). Give it a lane if it ever grows real logic.
+# is excluded for the same reason, and the pattern is load-bearing: bun
+# resolves a `file:` dep to this relative path and would otherwise count it
+# here (measured — dropping the pattern puts it in the table at 100/100 and
+# lifts the totals, which would inflate the ratcheted floor below). The package
+# is not going uncovered: it has its own test suite run under its own server-ci
+# step (`Shared live-updates contract checks`), so this exclusion only keeps
+# its lines out of the *server's* figure, not out of CI.
 coveragePathIgnorePatterns = [
   "scripts/**",
   "../protocol/**",
