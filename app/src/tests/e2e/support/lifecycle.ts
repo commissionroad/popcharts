@@ -156,6 +156,51 @@ export async function graduateMarket(env: LifecycleEnv, marketId: bigint) {
   await devEndpoint(env, marketId, "/graduate?force=true");
 }
 
+/**
+ * Forces a review verdict deterministically through the dev review endpoint:
+ * it writes a review record with the given reasons and submits the matching
+ * on-chain approve/reject. This is how the UI journeys set the review outcome —
+ * review is a controlled test input here, not a dependency on the AI runner.
+ */
+export async function forceReview(
+  env: LifecycleEnv,
+  marketId: bigint,
+  verdict: "approve" | "reject" | "manual_review",
+  reasons?: string[]
+): Promise<void> {
+  const url = `${env.apiBaseUrl}/dev/markets/${env.chainId}/${marketId}/review`;
+  const response = await fetch(url, {
+    body: JSON.stringify(reasons ? { reasons, verdict } : { verdict }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(
+      `POST ${url} failed (${response.status}): ${await response.text()}`
+    );
+  }
+}
+
+/**
+ * Dev graduation WITHOUT force: runs the real band-pass clearing over the
+ * current book with no top-up, so a pre-assembled crowded book graduates on a
+ * genuine partial split (retained + refunded). The market must already cover
+ * its graduation threshold, or the endpoint reports it ineligible.
+ */
+export async function graduateMarketPartial(env: LifecycleEnv, marketId: bigint) {
+  await devEndpoint(env, marketId, "/graduate");
+}
+
+/**
+ * Dev close: jumps chain time to the graduation deadline and calls
+ * markRefundable on-chain, opening full refunds for a sub-threshold bootstrap
+ * market (the failed-graduation path). The indexed status becomes `refunded`
+ * and each receipt becomes `refund_claimable`.
+ */
+export async function closeMarketForRefund(env: LifecycleEnv, marketId: bigint) {
+  await devEndpoint(env, marketId, "/close");
+}
+
 /** Dev resolution: jumps chain time past the resolution gate and resolves. */
 export async function resolveMarket(
   env: LifecycleEnv,
@@ -166,6 +211,7 @@ export async function resolveMarket(
 }
 
 type ApiMarket = {
+  aiReview?: { reasons?: string[] } | null;
   postgrad?: { marketAddress: string };
   resolution?: { kind: string; winningSide?: string };
   status: string;

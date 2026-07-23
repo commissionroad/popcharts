@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete), five UI journeys (C4) open.
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete); all five UI journeys landed 2026-07-22 (ADR 0017 C4 complete — golden, rejected creation, failed graduation, partial clearing, cancelled/draw).
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
-updated: 2026-07-21
+updated: 2026-07-22
 ---
 
 # Repo ADR 0014: Full-Lifecycle E2E Testing
@@ -29,7 +29,7 @@ terminal state through the real local stack (chain, contracts, API, indexer,
 AI services, app), covering happy and unhappy paths. The suite is the
 acceptance gate for milestones M1–M4 and, ultimately, the Arc launch.
 
-## Progress (all eight service/chain paths landed; UI journeys open)
+## Progress (all eight service/chain paths + all five UI journeys landed)
 
 Harness (**landed 2026-07-20**, ADR 0017 item C3 first slice):
 
@@ -85,6 +85,33 @@ Unhappy paths (all six **landed 2026-07-21**):
   (keyed off market status, never the job's transient terminal_failed).
   Both bounce services through a stack control server the orchestrator
   exposes — the scenario never owns process lifecycles.
+
+UI journeys (five full-E2E Playwright `@lifecycle` paths, injected wallet, no
+auth-vendor login; ADR 0017 item C4 — the user-visible money-out moment, not
+the paper trail):
+
+- [x] Golden journey (**landed 2026-07-22**, `app/src/tests/e2e/golden-journey.spec.ts`):
+  UI create → review approval → pregrad receipt → graduation → postgrad trade
+  → resolution → redeem winnings, asserting the rendered claim and a risen
+  balance. The review verdict is forced deterministically through a dev review
+  endpoint (review is a controlled test input, not an AI dependency);
+  graduation and resolution use the local dev endpoints too.
+- [x] Rejected creation (**landed 2026-07-22**, `rejected-creation.spec.ts`):
+  the dev review endpoint forces a `reject` verdict with a known reason; the
+  market page renders the rejected status and that reason in the AI review card.
+- [x] Failed graduation (**landed 2026-07-22**, `failed-graduation.spec.ts`):
+  a single unmatched YES receipt keeps the market sub-threshold; the dev close
+  opens refunds via `markRefundable` and the holder claims the full cost back
+  on the market page.
+- [x] Partial clearing (**landed 2026-07-22**, `partial-clearing.spec.ts`): a
+  balanced book to the threshold plus a one-sided YES excess is placed by share
+  count from the injected wallet; dev graduation with `force=false` runs the
+  real band-pass clearing, and the settled YES receipt on `/portfolio` shows
+  "N YES tokens + $X refunded".
+- [x] Cancelled/draw (**landed 2026-07-22**, `terminal-market-lifecycle.spec.ts`):
+  a graduated market is cancelled by the resolver; both legs redeem at half
+  value via `redeemCancelled`. (Built under ADR 0018; C4 finalizes it as
+  journey 5.)
 
 Gated variants:
 

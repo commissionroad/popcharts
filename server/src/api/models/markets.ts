@@ -1,7 +1,12 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
 
-import { REVIEW_PROVIDER_NAMES } from "src/ai-review/types";
+import {
+  EVIDENCE_KINDS,
+  REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
+  SOURCE_TIERS,
+} from "src/ai-review/types";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -46,6 +51,7 @@ export type GraduationIneligibleReason =
   | "onchain_settlement_required"
   | "wrong_status";
 export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
+export type DevMarketReviewIneligibleReason = "chain_status" | "wrong_status";
 export type DevMarketGraduateIneligibleReason =
   | "adapter_unconfigured"
   | "below_threshold"
@@ -103,10 +109,9 @@ export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
 });
 
 /** Overall AI-review outcome for a market's metadata. */
-export const AiReviewVerdictSchema = t.Union(
-  [t.Literal("approve"), t.Literal("reject"), t.Literal("manual_review")],
-  { $id: "AiReviewVerdict" },
-);
+export const AiReviewVerdictSchema = literalUnion(REVIEW_VERDICTS, {
+  $id: "AiReviewVerdict",
+});
 
 /** Per-dimension AI-review scores, each in [0, 5]. */
 export const AiReviewScoresSchema = t.Object(
@@ -137,18 +142,9 @@ export const AiReviewScoreRationalesSchema = t.Object(
 );
 
 /** Trust tier assigned to a cited source domain. */
-export const AiReviewSourceTierSchema = t.Union(
-  [
-    t.Literal("primary"),
-    t.Literal("major_news"),
-    t.Literal("specialist"),
-    t.Literal("ugc"),
-    t.Literal("suspicious"),
-    t.Literal("unreachable"),
-    t.Literal("unknown"),
-  ],
-  { $id: "AiReviewSourceTier" },
-);
+export const AiReviewSourceTierSchema = literalUnion(SOURCE_TIERS, {
+  $id: "AiReviewSourceTier",
+});
 
 /** Reviewer assessment of a single resolution source URL. */
 export const AiReviewSourceCheckSchema = t.Object(
@@ -166,11 +162,7 @@ export const AiReviewSourceCheckSchema = t.Object(
 export const AiReviewEvidenceSchema = t.Object(
   {
     domain: t.String(),
-    kind: t.Union([
-      t.Literal("provided_url"),
-      t.Literal("search_result"),
-      t.Literal("fetched_page"),
-    ]),
+    kind: literalUnion(EVIDENCE_KINDS),
     sourceTier: t.Ref(AiReviewSourceTierSchema),
     summary: t.String(),
     title: t.Optional(t.String()),
@@ -602,6 +594,28 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   { $id: "DevMarketCloseIneligible" },
 );
 
+/** Result of a dev-only forced market review. */
+export const DevMarketReviewResponseSchema = t.Object(
+  {
+    market: t.Ref(MarketSchema),
+    status: t.Literal("reviewed"),
+    transactionHash: t.Optional(t.String()),
+    verdict: t.Ref(AiReviewVerdictSchema),
+  },
+  { $id: "DevMarketReviewResponse" },
+);
+
+/** Dev-only forced-review refusal, with the reason. */
+export const DevMarketReviewIneligibleSchema = t.Object(
+  {
+    message: t.String(),
+    market: t.Ref(MarketSchema),
+    reason: t.Union([t.Literal("chain_status"), t.Literal("wrong_status")]),
+    status: t.Literal("ineligible"),
+  },
+  { $id: "DevMarketReviewIneligible" },
+);
+
 /** Result of a dev-only end-to-end market graduation. */
 export const DevMarketGraduateResponseSchema = t.Object(
   {
@@ -739,6 +753,12 @@ export type DevMarketCloseResponse = Static<
 >;
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
+>;
+export type DevMarketReviewResponse = Static<
+  typeof DevMarketReviewResponseSchema
+>;
+export type DevMarketReviewIneligibleResponse = Static<
+  typeof DevMarketReviewIneligibleSchema
 >;
 export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
 export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;
