@@ -222,8 +222,9 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       `@lifecycle` UI journeys remain C4.
 - [x] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014).
       Golden, rejected creation, failed graduation, partial clearing, and
-      cancelled/draw, all through the injected wallet with review via the real
-      heuristic runner (`local:smoke --with-ai-review`). They run in the
+      cancelled/draw, all through the injected wallet, with review verdicts
+      forced deterministically through a dev endpoint (review is a controlled
+      test input, not an AI dependency). They run in the
       `lifecycle:e2e` lane's nightly job (`pnpm lifecycle:e2e`); the golden
       journey and the two refund/redeem journeys assert the user-visible
       money-out moment, and partial clearing itemizes retained + refunded on
