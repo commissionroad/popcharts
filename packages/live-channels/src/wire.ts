@@ -29,8 +29,13 @@ export interface ChangeSignalWire {
   logIndex: number | null;
 }
 
-/** The relay-side event this is built from — structural, so the server's richer
- * `ChangeFeedEvent` satisfies it without this package depending on the server. */
+/**
+ * The relay-side event a frame is built from: the same fields before
+ * serialization, while the bigints are still bigints and the table keeps its
+ * column name. The server aliases this as `ChangeFeedEvent` rather than
+ * declaring its own copy, so the pre- and post-serialization shapes cannot
+ * drift apart from each other either.
+ */
 export interface ChangeSignalSource {
   id: bigint;
   channels: string[];

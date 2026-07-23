@@ -2,6 +2,7 @@ import {
   MARKET_LIST_CHANNEL,
   marketChannel,
   portfolioChannel,
+  type ChangeSignalSource,
 } from "@popcharts/live-channels";
 
 import type { schema } from "src/db/client";
@@ -157,18 +158,13 @@ export function channelsIntersect(
  * as Last-Event-ID), the channels it belongs to, and the on-chain coordinates a
  * client uses to decide which query to refetch. It carries no domain data — it
  * is a "re-read entity X" signal, per ADR 0021.
+ *
+ * An alias, not a second declaration: this is exactly what
+ * `serializeChangeSignal` consumes, so the fields are declared once in
+ * @popcharts/live-channels and named locally here. Adding a field to the wire
+ * contract adds it here, with no chance of the two drifting.
  */
-export interface ChangeFeedEvent {
-  id: bigint;
-  channels: string[];
-  sourceTable: string;
-  op: string;
-  chainId: number | null;
-  marketId: string | null;
-  owner: string | null;
-  blockNumber: bigint | null;
-  logIndex: number | null;
-}
+export type ChangeFeedEvent = ChangeSignalSource;
 
 /**
  * Maps a raw change_feed row to its routed event, or null when the row's table
