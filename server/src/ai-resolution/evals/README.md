@@ -94,3 +94,27 @@ Conclusions for the next attempt:
   clear-case evidence starvation); (2) the ADR 0012 operator delay window
   before on-chain submission — the production backstop that makes any
   residual wrong-resolve recoverable; (3) only then further prompt work.
+
+### 2026-07-23: claude-cli provider baseline — the failures were evidence-bound
+
+Full 35×3 run through the `claude-cli` provider (headless Claude Code,
+sonnet, native WebSearch, subscription auth): **accuracy 100%, strict
+94.3%, unanimous 100%** (105/105 runs agreed; the two non-strict cases
+landed on acceptable alternates). Ollama gpt-oss:20b baseline on the same
+prompt: 62.9% / 57.1% / 60%.
+
+Every class the local model failed passes with a real model + real search
+on the UNTOUCHED v1 prompt: criteria-literalism (Paul–Tyson void clause →
+draw 3/3, Copa regulation-only → draw 3/3), evidence starvation (all 18
+clear YES/NO cases resolved with high confidence), ephemeral sources,
+undefined entities, and all four adversarial injections. This confirms the
+v2–v2d postmortem: the failures were evidence-bound, not prompt-bound.
+Prompt work on the local provider should stop; local dev keeps ollama for
+plumbing only, evals use claude-cli, and prod uses the anthropic API
+provider (expected to match or beat this baseline — validate when API
+credits exist).
+
+Run it: `AI_RESOLUTION_PROVIDER=claude-cli AI_RESOLUTION_TIMEOUT_MS=300000
+bun run start:ai-resolution` (requires a logged-in Claude Code install;
+the provider strips ANTHROPIC_API_KEY from the child env), then the runner
+as above. Committed as `baselines/claude-cli-sonnet.json`.

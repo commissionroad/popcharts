@@ -1,6 +1,6 @@
-# ADR 0022: Resolution Dispute Program
+# ADR 0024: Resolution Dispute Program
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-07-20
 
@@ -34,9 +34,10 @@ and the on-chain window *is* the delay.
 
 Phase 0 — decisions (user):
 
-- [ ] Settle protocol ADR 0013's open questions: bond sizing,
-      forfeited-bond sink, disputer bounty (proposed: none in v1),
-      re-proposal semantics (proposed: operator finality in v1).
+- [x] Settled 2026-07-23 (recorded in protocol ADR 0013 §Phase 0
+      decisions): flat ~100-unit bond configured at graduation, forfeits
+      to the protocol owner, no disputer bounty in v1, operator settlement
+      is final in v1.
 
 Phase 1 — protocol (human-reviewed, keystone):
 

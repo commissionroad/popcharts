@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import type { Address, Hex, PublicClient } from "viem";
 
-import { LOCAL_DEVCHAIN_CHAIN_ID } from "./deterministicFactory.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "../../../src/chain/localDevchain.js";
 
 export type TokenPullerMode = "mockPuller" | "transferApproval";
 

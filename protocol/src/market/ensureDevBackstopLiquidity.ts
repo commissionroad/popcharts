@@ -4,25 +4,17 @@ import { alignTickToSpacing } from "../price/alignTickToSpacing.js";
 import { liquidityForAmounts } from "../price/liquidityForAmounts.js";
 import { tickToSqrtPriceX96 } from "../price/tickToSqrtPriceX96.js";
 import { approveErc20 } from "../viem/approveErc20.js";
+import type { ContractWriter } from "../viem/contractWriter.js";
 import { requireSuccessfulReceipt } from "../viem/requireSuccessfulReceipt.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "./completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "./ensureCollateralBalance.js";
+import { HOOK_DATA_NONE } from "./hookData.js";
 import { readPoolActiveLiquidity } from "./readPoolActiveLiquidity.js";
 import { readPoolDisplayPrice } from "./readPoolDisplayPrice.js";
 import { completeSetBinaryMarketAbi, minimalV4SwapRouterAbi } from "../generated/postgrad-venue.js";
 import type { CompleteSetMarketManifestData } from "./readCompleteSetMarketManifest.js";
 
-const HOOK_DATA_NONE: Hex = "0x";
 const ZERO_SALT: Hex = "0x0000000000000000000000000000000000000000000000000000000000000000";
-
-type SmokeContractWriter = {
-  writeContract(parameters: {
-    abi: readonly unknown[];
-    address: Address;
-    args: readonly unknown[];
-    functionName: string;
-  }): Promise<Hex>;
-};
 
 /**
  * Seeds one clearly-labelled dev backstop liquidity position in each listed
@@ -41,7 +33,7 @@ export async function ensureDevBackstopLiquidity(args: {
   readonly publicClient: PublicClient;
   readonly sides: readonly ("no" | "yes")[];
   readonly swapRouter: Address;
-  readonly walletClient: SmokeContractWriter;
+  readonly walletClient: ContractWriter;
 }): Promise<void> {
   for (const side of args.sides) {
     const pool = args.manifest.pools[side];

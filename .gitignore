@@ -34,6 +34,9 @@ yarn-error.log*
 # OS/editor
 .DS_Store
 
+# Agent worktrees
+/.worktrees/
+
 # Obsidian vault config (wiki/ opened as a vault)
 .obsidian/
 
@@ -43,3 +46,6 @@ yarn-error.log*
 # Session-local browser-preview dev-server config written by the Claude Code
 # harness; untracked it makes scripts/land refuse to update the base worktree
 /.claude/launch.json
+
+# Local DB backups / snapshots — never commit
+.local-backups/

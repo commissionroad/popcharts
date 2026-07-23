@@ -6,12 +6,20 @@ import {
   detectStackKind,
 } from "../shared/localStack/identity.ts";
 
-test("stack kind detects only the .claude/worktrees path segment", function () {
+test("stack kind detects contained agent worktree path segments", function () {
+  assert.equal(
+    detectStackKind("/src/popcharts/.worktrees/contained-worktrees"),
+    "agent",
+  );
   assert.equal(
     detectStackKind("/src/popcharts/.claude/worktrees/adr-0020"),
     "agent",
   );
   assert.equal(detectStackKind("/src/popcharts"), "human");
+  assert.equal(
+    detectStackKind("/src/popcharts/.worktrees-extra/contained-worktrees"),
+    "human",
+  );
   assert.equal(
     detectStackKind("/src/popcharts/.claude/worktrees-extra/adr-0020"),
     "human",

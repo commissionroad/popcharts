@@ -1,7 +1,10 @@
-import { pregradManagerAbi, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
-import { maxUint256 } from "viem";
-
-import { DEV_COLLATERAL_ABI } from "src/api/services/dev-market-graduate";
+import {
+  mockCollateralAbi,
+  pregradManagerAbi,
+  SIDE_NO,
+  SIDE_YES,
+} from "@popcharts/protocol";
+import { maxUint256, parseEventLogs } from "viem";
 
 import {
   collateralAddress,
@@ -14,8 +17,9 @@ const QUOTE_SLIPPAGE_BPS = 1_000n;
 
 /**
  * Places one pregrad receipt from a trader account: quote, fund with freshly
- * minted dev collateral, approve, and buy. Returns the placed receipt's cost
- * so scenarios can assert against the indexed paper trail.
+ * minted dev collateral, approve, and buy. Returns the receipt id and its
+ * actual on-chain cost (from the ReceiptPlaced event, not the quote) so
+ * scenarios can claim it later and assert against the indexed paper trail.
  */
 export async function placeReceipt({
   marketId,
@@ -27,7 +31,7 @@ export async function placeReceipt({
   sharesWad: bigint;
   side: number;
   traderAccountIndex: number;
-}): Promise<{ cost: bigint; owner: `0x${string}` }> {
+}): Promise<{ cost: bigint; owner: `0x${string}`; receiptId: bigint }> {
   const wallet = walletFor(traderAccountIndex);
 
   const quote = await publicClient.readContract({
@@ -54,7 +58,22 @@ export async function placeReceipt({
     throw new Error(`placeReceipt reverted: ${transactionHash}`);
   }
 
-  return { cost: quote.cost, owner: wallet.account.address };
+  const placed = parseEventLogs({
+    abi: pregradManagerAbi,
+    eventName: "ReceiptPlaced",
+    logs: receipt.logs,
+  }).find((log) => log.args.marketId === marketId);
+  if (!placed) {
+    throw new Error(
+      `placeReceipt succeeded but no ReceiptPlaced event for market ${marketId}: ${transactionHash}`,
+    );
+  }
+
+  return {
+    cost: placed.args.cost,
+    owner: wallet.account.address,
+    receiptId: placed.args.receiptId,
+  };
 }
 
 /**
@@ -125,13 +144,56 @@ export async function placeGraduationLiquidity({
   );
 }
 
+/**
+ * Claims a refunded receipt from its owner's account and returns the
+ * collateral actually received, measured by balance delta rather than
+ * trusted from any service.
+ */
+export async function claimRefundedReceipt({
+  receiptId,
+  traderAccountIndex,
+}: {
+  receiptId: bigint;
+  traderAccountIndex: number;
+}): Promise<{ refunded: bigint }> {
+  const wallet = walletFor(traderAccountIndex);
+  const balanceBefore = await publicClient.readContract({
+    abi: mockCollateralAbi,
+    address: collateralAddress,
+    functionName: "balanceOf",
+    args: [wallet.account.address],
+  });
+
+  const transactionHash = await wallet.writeContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "claimRefundedReceipt",
+    args: [receiptId],
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: transactionHash,
+  });
+  if (receipt.status !== "success") {
+    throw new Error(`claimRefundedReceipt reverted: ${transactionHash}`);
+  }
+
+  const balanceAfter = await publicClient.readContract({
+    abi: mockCollateralAbi,
+    address: collateralAddress,
+    functionName: "balanceOf",
+    args: [wallet.account.address],
+  });
+
+  return { refunded: balanceAfter - balanceBefore };
+}
+
 /** Mints dev collateral for the trade and grants the manager allowance. */
 async function fundTrader(
   wallet: ReturnType<typeof walletFor>,
   amount: bigint,
 ): Promise<void> {
   const mintHash = await wallet.writeContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "mint",
     args: [wallet.account.address, amount],
@@ -139,7 +201,7 @@ async function fundTrader(
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
 
   const allowance = await publicClient.readContract({
-    abi: DEV_COLLATERAL_ABI,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "allowance",
     args: [wallet.account.address, pregradManagerAddress],
@@ -147,7 +209,7 @@ async function fundTrader(
 
   if (allowance < amount) {
     const approveHash = await wallet.writeContract({
-      abi: DEV_COLLATERAL_ABI,
+      abi: mockCollateralAbi,
       address: collateralAddress,
       functionName: "approve",
       args: [pregradManagerAddress, maxUint256],

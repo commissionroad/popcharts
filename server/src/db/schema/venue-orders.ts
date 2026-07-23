@@ -19,10 +19,11 @@ import { uint256 } from "./uint256";
  * OrderFilled / a partial fill that empties the range / OrderCancelled
  * terminate it.
  */
+export const VENUE_ORDER_STATUSES = ["open", "filled", "cancelled"] as const;
+
+/** Postgres enum for the order status, derived from the same const array. */
 export const venueOrderStatus = pgEnum("venue_order_status", [
-  "open",
-  "filled",
-  "cancelled",
+  ...VENUE_ORDER_STATUSES,
 ]);
 
 /**

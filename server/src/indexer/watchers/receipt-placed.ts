@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import {
@@ -17,9 +18,10 @@ import {
 
 const CURSOR_NAME = "ReceiptPlaced";
 
-const RECEIPT_PLACED_EVENT = parseAbiItem(
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-);
+const RECEIPT_PLACED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "ReceiptPlaced",
+});
 
 const watcher = createDynamicAddressWatcher({
   cursorName: CURSOR_NAME,

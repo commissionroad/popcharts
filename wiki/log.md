@@ -843,14 +843,220 @@ only-loaded files counted). ADR 0017 now: A/B/D/F/G complete, C in
 progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
 lacks CDK assertion tests.
 
-## [2026-07-20] ingest | dispute-window ADRs (protocol 0013 + root 0022)
+## [2026-07-21] ingest | protocol postgrad contract metadata — generated third-party venue ABIs
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: export-contract-metadata.ts now also emits src/generated/third-party/venue.ts
+(compiled poolManagerAbi/stateViewAbi/v4QuoterAbi from the vendored v4 packages,
+new `./third-party/venue` package subpath). All hand-written fragments for those
+contracts across protocol/server/app were replaced with the generated ABIs;
+fragments remain only for contracts outside the Hardhat build (the canonical
+transfer-approval singleton).
+
+## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
+Notes: Rejection, manual review, failed graduation, and draw/cancel are
+ticked; partial clearing and the infra drills remain the last open C3
+boxes. Mechanism notes captured in the summary: rejection reasons are
+served via the market API's aiReview payload; the manual_review verdict
+transitions nothing and the operator lever is a keyed approveMarket (the
+admin endpoint only re-queues reviews); failed graduation settles through
+the keeper sweep's markRefundable; the resolution runner parks draws
+(cancel_draw maps to no chain action) and the operator cancels with the
+resolver key, after which both legs redeem at half value.
+
+## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: the ADR's resource table gained an indexer-health-marker row
+(`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
+shared fixed path after the phased build: local-dev, lifecycle-nightly,
+the control-plane probe, and local-chain-smoke all rm'd/polled one file,
+so concurrent stacks could clear each other's marker or pass readiness
+against the wrong slot's indexer. Now derived per slot via
+StackPorts.indexerHealthFilePath; the smoke dropped its separate
+`.env.local-chain.indexer-health` name.
+
+## [2026-07-21] ingest | root ADR 0014 + 0017 — C3 complete (partial clearing + infra drills)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
+Notes: The final two ADR 0014 unhappy paths land, completing ADR 0017 C3
+(all eight service/chain lifecycle paths). Partial clearing: band-pass
+clearing prorates the crowded side, so a one-sided excess spreads its refund
+across that side's receipts (no single fully-refunded receipt) — the split
+shows as a mix of fully-retained and partially/fully-refunded graduated
+claims. The infra drills introduced a stack control server the orchestrator
+exposes (scripts/shared/process/stackControl.ts) so a scenario can bounce
+supervised services (indexer, keeper, AI services) without owning process
+lifecycles. Fixed a latent supervisor bug: a signal-terminated child exits
+with code=null (same as running), so liveness now uses an explicit `exited`
+flag. AI-outage recovery keys off market status / the review audit row,
+never the job's transient terminal_failed. UI journeys (C4) remain.
+
+## [2026-07-22] ingest | repo ADR 0014 — golden UI journey (ADR 0017 C4) landed
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: First of the five `@lifecycle` Playwright UI journeys landed
+(`app/src/tests/e2e/golden-journey.spec.ts`): UI create → review approval →
+pregrad receipt → graduation → postgrad trade → resolution → redeem winnings,
+asserting the rendered claim + a risen balance. Enabling change: the review
+verdict is forced deterministically through a dev endpoint (see the 2026-07-23
+correction below — this entry originally described an `--with-ai-review` runner
+boot that was reverted before anything landed). Corrected
+a stale line in testing-strategy.md that still called C3's unhappy paths the
+"open remainder" (C3 completed 2026-07-21). Rejected-creation, failed-graduation,
+partial-clearing, and cancelled/draw UI journeys remain (C4).
+
+## [2026-07-21] ingest | repo ADR 0022 — review-first market creation
+Pages: +summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md,
+~entities/ai-review-service.md
+Notes: Proposed (grill-designed + adversarially red-teamed). Inverts creation
+to review-first (off-chain Drafts → gated publish; fee-on-accept; born Active;
+on-chain review path retired). Added "Proposed change" forward-refs to the two
+concept pages + the ai-review-service entity rather than rewriting their
+current-state descriptions, since the ADR is not built (code is still
+on-chain-first). Red-team surfaced a real wiki-relevant fact now recorded on
+creation-fee-custody: MarketCreationFeePaid is emitted but indexed nowhere, so
+the creation fee has never had an event-sourced record (the ADR adds one) —
+worth a lint pass against portfolio-data-design's money invariant. Deferred the
+pregrad-manager/creation-fee-vault entity-page edits (cross-linked from the
+summary; entity bodies still describe current on-chain-first behavior).
+
+## [2026-07-21] ingest | repo ADR 0022 — anti-spam revised to a prepaid review bond
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
+~concepts/creation-fee-custody.md
+Notes: The rate-limiting-only anti-spam stance (an "accepted risk") was superseded
+after review by a prepaid, refundable **review bond** in a separate standalone
+`ReviewBondVault` escrow — min $5, drawn down $1/submission (incl. 5 reviews) then
+$0.20/review, no slashing, native-USDC msg.value (on Arc USDC is the native token),
+fees metered off-chain with on-chain deposit/settle/withdraw money-trail events. New
+phase P3 (bond escrow) opens public submission; phases renumbered to 8. A second
+money contract now exists alongside the creation fee — noted on creation-fee-custody.
+Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, and no
+dedicated ReviewBondVault entity page yet (single source until built).
+
+## [2026-07-22] ingest | repo ADR 0014 — rejected + failed-graduation UI journeys (C4)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: Journeys 2 and 3 of C4 landed (three of five now). Rejected creation
+(`rejected-creation.spec.ts`): the dev review endpoint forces a `reject` verdict
+with a known reason and the market page renders it (see the 2026-07-23
+correction below — this entry originally described a "hacked" market tripping
+the illegal-activity hard flag via the real runner, which was reverted before
+anything landed). Failed graduation
+(`failed-graduation.spec.ts`): one unmatched YES receipt keeps the market
+sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
+holder claims the full cost back. Partial clearing and cancelled/draw remain.
+
+## [2026-07-22] ingest | repo ADR 0014 + 0017 — C4 complete (all five UI journeys)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~summaries/root-adr-0017-test-observability-and-coverage-program.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: The last two C4 UI journeys landed, so ADR 0017 item C4 is complete.
+Partial clearing (`partial-clearing.spec.ts`): a balanced book to the threshold
+plus a one-sided YES excess is placed by share count from the injected wallet
+(the UI ticket is budget-based, too coarse for band sizing); dev graduation with
+`force=false` runs the real band-pass clearing, and the settled YES receipt on
+`/portfolio` shows "N YES tokens + $X refunded". Cancelled/draw was already the
+ADR 0018 draw test — C4 finalizes it as journey 5. Track C now has only C5
+(`nightly-ai-verdicts`) and C6 (`TRENDS.md`) open.
+
+## [2026-07-23] ingest | correction — C4 review is forced, not run by the AI runner
+Pages: ~log.md (the three 2026-07-22 C4 entries above)
+Notes: The three C4 entries above were written mid-build, while the UI lane
+booted the real heuristic review service + runner (`local:smoke
+--with-ai-review`) and journey 2 relied on a "hacked" market tripping the
+illegal-activity hard flag. **That approach was reverted before any of it
+landed**, on the principle that these tests exercise UI and protocol behavior,
+not AI quality — a review the test cannot control is a dependency, not a
+fixture. What actually landed (PRs #285/#290/#292, 2026-07-23) forces the
+verdict through a dev-only endpoint,
+`POST /dev/markets/:chainId/:marketId/review { verdict, reasons }`
+(`server/src/api/services/dev-market-review.ts`), which writes the review record
+and submits the matching on-chain approve/reject by reusing the runner's own
+`transitionReviewedMarketOnChain`. No AI review service or runner boots in the
+lane. The entries above now carry inline pointers here; the ADR 0014/0017
+summaries and the testing-strategy concept were already corrected at land time.
+
+## [2026-07-23] ingest | ADR 0021 revised — live-updates spine + client transport built (two design reversals)
+Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
+Notes: Two things the shipped code decided differently from the original draft.
+(1) **Emit point.** Shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
+each write handler, NOT the generic AFTER-INSERT DB trigger the draft proposed —
+reversed on separation-of-concerns grounds (no business logic / invisible
+side-effect / second schema installer in the data layer). Writer-agnostic completeness is
+recovered by a typed sourceTable + a coverage test scanning the seam dirs.
+(2) **Client payload handling.** The draft said a signal would call
+`queryClient.invalidateQueries({ queryKey })` against a `channel → query-key` map.
+The shipped `useLiveChannel(channel, onSignal)` instead hands the signal to a
+**caller-supplied callback** and holds it in a ref; there is no React Query import
+in `app/src/integrations/live-updates/` at all. Reason: the app does not keep its
+market data in React Query, so a hook that invalidated query keys would have had
+nothing to invalidate — each surface already owns its own re-read (`load()`, or
+`router.refresh()` for server components). The signal stays a nudge, which is what
+makes a duplicate or replayed signal harmless. The `channel → query-key` map is
+therefore *not* part of the design; only the server-side `source_table → channel`
+map exists.
+Server spine (slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/
+(#281 table+registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream,
+#291 GET /events +service, #293 emit wiring, + a folder rename). Client transport
+(slice 2) landed 2026-07-23 (#299 connection/provider/hook, #302 React binding) under
+app/src/integrations/live-updates/ — the browser connects **directly to the API origin**,
+not through a Next route, because a serverless proxy force-closes long-lived responses at
+its duration cap. ADR status Proposed → Accepted. Slices 3–7 (pregrad surfaces, poll
+conversion, lifecycle/AI-review, hardening, e2e) remain open — **the app still renders no
+live UI**, and no signal has yet crossed a live SSE connection end-to-end. Notes:
+market_ai_review_jobs queue-state UPDATE signals deferred to the lifecycle/AI-review
+surface slice (need join-based routing); the channel-string coordination constant
+(`market:{chainId}:{marketId}`, currently mirrored server↔client) is deferred to slice 3.
+Same pass also corrected six accuracy drifts an independent review caught by reading the
+shipped code against the doc: the documented `change_feed` DDL (created_at is `timestamp`
+not `timestamptz`; `row_id`/`chain_id`/`market_id` are nullable `text`/`integer`/`text`,
+not non-null `bigint`/`integer`/`numeric`; `op` was missing from the summary); "replays
+exactly the gap" (resume is gap-free only *above* the client's cursor — an `id <= sinceId`
+is dropped, and a cursor past the retention window gets `reset{cursor-too-old}`, which the
+client does not yet act on); "dedup/ordering by id" (dedup yes, ordering no — no reordering
+buffer); "catches every viewer-facing change" (only the *registered* set — five sources are
+deferred to later slices); "a coverage test proves every source is reached by a real seam"
+(it is a `sourceTable:` literal scan, not a call-graph proof); a "Proposed, not yet built"
+line left on the built relay in server-workspace.md; and `market:{id}` for the channel
+format in the summary. Retention moved out of the open hardening slice (it shipped in
+slice 1, started by the API). One stale `React Query key` comment in
+server/src/db/schema/change-feed.ts was corrected too — same false claim, in code.
+
+## [2026-07-23] ingest | repo ADR 0020 — contained agent worktrees
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md,
+~concepts/local-dev-orchestration.md, ~index.md
+Notes: `.worktrees/` is the canonical ignored directory under the primary
+checkout. Legacy `.claude/worktrees/` paths remain recognized during migration,
+so existing agent stacks keep their nonzero slot behavior.
+
+## [2026-07-23] ingest | root ADR 0017 — Track C item C6 (nightly outcomes in TRENDS.md)
+Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md,
+~concepts/testing-strategy.md
+Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
+`nightly/latest.json` + `nightly/history.jsonl` on `ci-metrics` and co-renders
+`TRENDS.md` (nightly section above coverage). Both writers render the shared
+view from both datastores; idempotent by run id so the push-race retry can't
+duplicate a row. HTML stays an on-demand render of the committed JSON (no
+standing deploy). Track C now C1–C4 + C6 done; C5 (`nightly-ai-verdicts`) open.
+## [2026-07-20] ingest | dispute-window ADRs (protocol 0013 + root 0024)
 
 Pages: +summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
-+summaries/root-adr-0022-resolution-dispute-program.md; index rows added
++summaries/root-adr-0024-resolution-dispute-program.md; index rows added
 to both ADR sections.
 Notes: Both Proposed. Protocol 0013 replaces single-shot resolve() with
 propose → bonded 24h public dispute → permissionless finalize (resolver
 self-dispute free; bond paper-trail events; book-compatible market-scoped
-state). Root 0022 is the phased cross-stack program and supersedes root
+state). Root 0024 is the phased cross-stack program and supersedes root
 ADR 0012's off-chain operator delay window. Phase 0 (bond sizing, forfeit
 sink, bounty, re-proposal semantics) awaits user decisions.
+
+## [2026-07-23] ingest | dispute ADRs renumbered + Phase 0 locked
+
+Pages: ~summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
+~summaries/root-adr-0024-resolution-dispute-program.md (renamed from
+root-adr-0022-…), ~index.md
+Notes: Repo dispute-program ADR renumbered 0022→0024 (0022/0023 were
+taken by review-first creation and the security audit while the PR was
+open). Both dispute ADRs flipped to Accepted with the user's Phase 0
+decisions: flat ~100-unit bond via prepareMarket, forfeits to owner, no
+bounty in v1, operator settlement final in v1.

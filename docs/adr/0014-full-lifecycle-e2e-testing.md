@@ -66,29 +66,71 @@ Happy path:
 
 UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
 
-- [ ] Golden journey: UI create → approval → pregrad trade → graduation →
+- [x] Golden journey: UI create → approval → pregrad trade → graduation →
       postgrad trade → resolution → redeem winnings, asserting the
-      user-visible balances.
-- [ ] Rejected creation: creator sees `rejected` with reasons.
-- [ ] Failed graduation: full refund claimed through the UI.
-- [ ] Partial clearing: retained + refunded portions itemized in the UI
-      claim flow.
-- [ ] Cancelled/draw: redeem at cost through the ADR 0018 redemption
-      surface.
+      user-visible balances. (`golden-journey.spec.ts` — the review verdict is
+      forced deterministically through the dev review endpoint (review is a
+      controlled input, not an AI dependency); graduation and resolution use the
+      dev endpoints too, and the postgrad trade and redemption run through the
+      injected wallet.)
+- [x] Rejected creation: creator sees `rejected` with reasons.
+      (`rejected-creation.spec.ts` — the dev review endpoint forces a `reject`
+      verdict with a known reason; the market page renders the rejected status
+      and that reason in the AI review card.)
+- [x] Failed graduation: full refund claimed through the UI.
+      (`failed-graduation.spec.ts` — a single unmatched YES receipt keeps the
+      market below threshold; the dev close opens refunds via `markRefundable`
+      and the holder claims the full cost back on the market page.)
+- [x] Partial clearing: retained + refunded portions itemized in the UI
+      claim flow. (`partial-clearing.spec.ts` — a balanced book to the
+      threshold plus a one-sided YES excess is placed by share count from the
+      injected wallet; dev graduation with `force=false` runs the real
+      band-pass clearing, and the settled YES receipt on `/portfolio` shows
+      "N YES tokens + $X refunded".)
+- [x] Cancelled/draw: redeem at cost through the ADR 0018 redemption
+      surface. (`terminal-market-lifecycle.spec.ts` — a graduated market is
+      cancelled by the resolver; both legs redeem at half value via
+      `redeemCancelled`.)
 
 Unhappy paths:
 
-- [ ] AI rejection: policy-violating market → `rejected` → creator sees
-      rejection reasons.
-- [ ] Manual review: ambiguous market parks in `under_review` → operator
-      approves via admin path → proceeds.
-- [ ] Failed graduation: insufficient matched liquidity → refunds available
-      → user claims refund.
-- [ ] Partial clearing: some bands match, some refund; both claim paths
-      verified against escrow accounting.
-- [ ] Draw resolution: `cancel()` path with both sides redeeming at cost.
-- [ ] Infrastructure failure drills: indexer restart mid-lifecycle and AI
+- [x] AI rejection: policy-violating market → `rejected` → creator sees
+      rejection reasons. (`scenarios/rejected-creation.ts` — heuristic hard
+      flag through the real review runner; terminal on-chain, receipts
+      refused.)
+- [x] Manual review: ambiguous market parks in `under_review` → operator
+      approves via admin path → proceeds. (`scenarios/manual-review.ts` —
+      the runner's manual_review verdict transitions nothing; the operator
+      lever is a keyed `approveMarket`, since the admin API endpoint only
+      re-queues AI reviews.)
+- [x] Failed graduation: insufficient matched liquidity → refunds available
+      → user claims refund. (`scenarios/failed-graduation.ts` — the
+      keeper's sweep opens refunds via `markRefundable`; both owners claim
+      full cost back; double-claim rejected.)
+- [x] Partial clearing: some bands match, some refund; both claim paths
+      verified against escrow accounting. (`scenarios/partial-clearing.ts` —
+      a balanced book to the threshold plus a one-sided YES excess makes
+      YES the crowded side; band-pass clearing prorates the excess to
+      refund while the matched cap still graduates, so graduated-receipt
+      claims carry a genuine mix of fully-retained and refunded rows with
+      `retainedCost + refund == cost` each. The keeper is paused while the
+      book is assembled — its live `ReceiptPlaced` watcher would otherwise
+      graduate the balanced book before the excess lands.)
+- [x] Draw resolution: `cancel()` path with both sides redeeming at cost.
+      (`scenarios/draw-cancel.ts` — the runner records the draw verdict and
+      deliberately parks; the operator cancels with the resolver key; both
+      legs redeem at half value via `redeemCancelled`.)
+- [x] Infrastructure failure drills: indexer restart mid-lifecycle and AI
       service outage with runner retries — lifecycle still completes.
+      (`scenarios/indexer-restart.ts` stops the indexer, emits receipt
+      events while it is down, restarts it and asserts the missed events are
+      backfilled by the cursor sweep; `scenarios/ai-outage.ts` stops the
+      review service, watches the runner record a failed attempt with
+      backoff, restarts the service, and asserts the market recovers to
+      bootstrap on its own — keyed off market status, never the job's
+      transient `terminal_failed`. Both bounce services through a stack
+      control server the orchestrator exposes; the scenario never touches
+      process lifecycles.)
 
 Gated variants:
 

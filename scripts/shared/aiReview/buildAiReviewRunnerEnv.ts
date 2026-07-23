@@ -18,8 +18,10 @@ export function buildAiReviewRunnerEnv(
     AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
     AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS:
       process.env.LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS ?? "360000",
+    // Must cover a worst-case corroborated review (three service-call
+    // budgets); the runner also renews mid-corroboration as a belt.
     AI_REVIEW_RUNNER_LEASE_MS:
-      process.env.LOCAL_AI_REVIEW_RUNNER_LEASE_MS ?? "600000",
+      process.env.LOCAL_AI_REVIEW_RUNNER_LEASE_MS ?? "1200000",
     AI_REVIEW_SERVICE_URL: localAiReviewBaseUrl(resources),
   };
 }

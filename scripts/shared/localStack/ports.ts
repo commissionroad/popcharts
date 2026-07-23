@@ -1,4 +1,7 @@
-import { localChainEnvFileForSlot } from "../env/localDevEnvFiles.ts";
+import {
+  localChainEnvFileForSlot,
+  localDevIndexerHealthFileForSlot,
+} from "../env/localDevEnvFiles.ts";
 import { assertValidSlot } from "./assertValidSlot.ts";
 
 /**
@@ -21,7 +24,8 @@ export const BASE_DATABASE_NAME = "popcharts";
 /**
  * The fully-derived set of resources a single local dev stack owns for a given
  * slot: the ports it binds, the devchain it talks to, its Postgres database,
- * and the generated env file it writes. Produced by `deriveStackResources`.
+ * the generated env file it writes, and the indexer health marker it waits on.
+ * Produced by `deriveStackResources`.
  */
 export type StackPorts = {
   slot: number;
@@ -36,6 +40,7 @@ export type StackPorts = {
   chainRpcHttpUrl: string;
   chainRpcWssUrl: string;
   envFilePath: string;
+  indexerHealthFilePath: string;
 };
 
 /**
@@ -67,5 +72,6 @@ export function deriveStackResources(slot: number): StackPorts {
     chainRpcHttpUrl: `http://127.0.0.1:${chainPort}`,
     chainRpcWssUrl: `ws://127.0.0.1:${chainPort}`,
     envFilePath: localChainEnvFileForSlot(slot),
+    indexerHealthFilePath: localDevIndexerHealthFileForSlot(slot),
   };
 }

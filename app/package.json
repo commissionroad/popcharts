@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@popcharts/api-client": "workspace:*",
+    "@popcharts/live-channels": "workspace:*",
     "@popcharts/protocol": "workspace:*",
     "@privy-io/chains": "^0.3.0",
     "@privy-io/react-auth": "^3.30.0",

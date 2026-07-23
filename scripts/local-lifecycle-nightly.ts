@@ -15,7 +15,6 @@ import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { buildLocalServerEnv } from "./shared/env/buildLocalServerEnv.ts";
-import { localDevIndexerHealthFile } from "./shared/env/localDevEnvFiles.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
 import { writeLocalChainServerEnv } from "./shared/env/writeLocalChainServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
@@ -27,6 +26,11 @@ import {
   createProcessSupervisor,
   type SupervisedProcess,
 } from "./shared/process/processSupervisor.ts";
+import {
+  createStackControlServer,
+  createSupervisedController,
+  type ServiceController,
+} from "./shared/process/stackControl.ts";
 import { waitFor } from "./shared/wait/waitFor.ts";
 
 /**
@@ -91,7 +95,8 @@ async function main(): Promise<void> {
   rejectUnknownArgs();
   ensureDependenciesInstalled();
 
-  rmSync(localDevIndexerHealthFile, { force: true });
+  // The indexer controller's beforeStart deletes the health marker before
+  // every (re)start, so the initial boot and the restart drill share one path.
 
   // Reusing a live Hardhat RPC keeps existing chain state so the database
   // rows still match; a fresh chain resets the database unless --keep-db
@@ -186,38 +191,59 @@ async function main(): Promise<void> {
     },
   );
 
-  const indexer = supervisor.start(
-    "indexer",
-    "bun",
-    ["run", "--cwd", "server", "start:indexer"],
-    { env: serverEnv },
-  );
-  await waitForWithProcesses(
-    "Indexer health marker",
-    () => existsSync(localDevIndexerHealthFile),
-    {
-      processes: [api, indexer],
-      timeoutMs: 45_000,
+  // The indexer and both AI services are booted through controllers so the
+  // infrastructure-drill scenarios can bounce them via the control server
+  // below, using the exact same (re)start + readiness path as the boot. The
+  // health marker is slot-scoped (resources.indexerHealthFilePath) so
+  // concurrent stacks don't collide on it.
+  const controllers = new Map<string, ServiceController>();
+
+  const indexerController = createSupervisedController(supervisor, {
+    name: "indexer",
+    command: "bun",
+    args: ["run", "--cwd", "server", "start:indexer"],
+    env: serverEnv,
+    beforeStart: () => {
+      rmSync(resources.indexerHealthFilePath, { force: true });
     },
-  );
+    waitReady: async () => existsSync(resources.indexerHealthFilePath),
+  });
+  controllers.set("indexer", indexerController);
+  await indexerController.start();
 
-  const keeper = supervisor.start(
-    "keeper",
-    "bun",
-    ["run", "--cwd", "server", "start:keeper"],
-    { env: serverEnv },
-  );
+  // The keeper is controllable so the partial-clearing scenario can pause it
+  // while it assembles a split receipt book — otherwise the keeper's live
+  // ReceiptPlaced watcher could graduate the balanced book before the
+  // out-of-band excess is placed. It has no readiness endpoint; it starts
+  // sweeping on its own once spawned.
+  const keeperController = createSupervisedController(supervisor, {
+    name: "keeper",
+    command: "bun",
+    args: ["run", "--cwd", "server", "start:keeper"],
+    env: serverEnv,
+    waitReady: async () => true,
+  });
+  controllers.set("keeper", keeperController);
+  await keeperController.start();
 
-  const aiProcesses = await startAiServices(serverEnv);
+  const runnerProcesses = await startAiServices(serverEnv, controllers);
+
+  const controlServer = await createStackControlServer(controllers, {
+    logLabel: LOG_LABEL,
+  });
+
+  // Controllable services (indexer, keeper, AI services) are owned by their
+  // controllers and may be bounced by drills, so the keep-running monitor
+  // watches only the stable core.
   const stackProcesses = [
     api,
-    indexer,
-    keeper,
-    ...aiProcesses,
+    ...runnerProcesses,
     ...(localChainNode ? [localChainNode] : []),
   ];
 
-  console.log(`\n[${LOG_LABEL}] stack is up; running scenarios\n`);
+  console.log(
+    `\n[${LOG_LABEL}] stack is up (control at ${controlServer.url}); running scenarios\n`,
+  );
 
   let scenariosFailed = false;
   try {
@@ -229,6 +255,7 @@ async function main(): Promise<void> {
         env: {
           ...serverEnv,
           POPCHARTS_LOCAL_CHAIN_ENV_FILE: resources.envFilePath,
+          POPCHARTS_LIFECYCLE_CONTROL_URL: controlServer.url,
           ...(scenarioFilter
             ? { POPCHARTS_LIFECYCLE_SCENARIO: scenarioFilter }
             : {}),
@@ -240,6 +267,8 @@ async function main(): Promise<void> {
     console.error(
       `\n[${LOG_LABEL}] scenarios FAILED: ${error instanceof Error ? error.message : error}`,
     );
+  } finally {
+    await controlServer.close();
   }
 
   if (keepRunning) {
@@ -257,20 +286,28 @@ async function main(): Promise<void> {
   await supervisor.shutdown(scenariosFailed ? 1 : 0);
 }
 
+/**
+ * Starts both AI service/runner pairs. The two services are booted through
+ * controllers (registered in `controllers` for the outage drill to bounce);
+ * the runners stay plain supervised children — the drills stop the SERVICE,
+ * never the runner, so the runner is the thing whose retries are observed.
+ * Returns the runner handles for the keep-running monitor.
+ */
 async function startAiServices(
   serverEnv: NodeJS.ProcessEnv,
+  controllers: Map<string, ServiceController>,
 ): Promise<SupervisedProcess[]> {
-  const reviewService = supervisor.start(
-    "ai-review",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-review"],
-    { env: buildAiReviewEnv(serverEnv, resources) },
-  );
-  await waitForWithProcesses(
-    "AI review service readiness",
-    () => urlOk(`${localAiReviewBaseUrl(resources)}/ready`),
-    { processes: [reviewService], timeoutMs: 30_000 },
-  );
+  const reviewController = createSupervisedController(supervisor, {
+    name: "ai-review",
+    command: "bun",
+    args: ["run", "--cwd", "server", "start:ai-review"],
+    env: buildAiReviewEnv(serverEnv, resources),
+    waitReady: () => urlOk(`${localAiReviewBaseUrl(resources)}/ready`),
+    readyTimeoutMs: 30_000,
+  });
+  controllers.set("ai-review", reviewController);
+  await reviewController.start();
+
   const reviewRunner = supervisor.start(
     "ai-review-runner",
     "bun",
@@ -278,17 +315,17 @@ async function startAiServices(
     { env: buildAiReviewRunnerEnv(serverEnv, resources) },
   );
 
-  const resolutionService = supervisor.start(
-    "ai-resolution",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-resolution"],
-    { env: buildAiResolutionEnv(serverEnv, resources) },
-  );
-  await waitForWithProcesses(
-    "AI resolution service readiness",
-    () => urlOk(`${localAiResolutionBaseUrl(resources)}/ready`),
-    { processes: [resolutionService], timeoutMs: 30_000 },
-  );
+  const resolutionController = createSupervisedController(supervisor, {
+    name: "ai-resolution",
+    command: "bun",
+    args: ["run", "--cwd", "server", "start:ai-resolution"],
+    env: buildAiResolutionEnv(serverEnv, resources),
+    waitReady: () => urlOk(`${localAiResolutionBaseUrl(resources)}/ready`),
+    readyTimeoutMs: 30_000,
+  });
+  controllers.set("ai-resolution", resolutionController);
+  await resolutionController.start();
+
   const resolutionRunner = supervisor.start(
     "ai-resolution-runner",
     "bun",
@@ -296,7 +333,7 @@ async function startAiServices(
     { env: buildAiResolutionRunnerEnv(serverEnv, resources) },
   );
 
-  return [reviewService, reviewRunner, resolutionService, resolutionRunner];
+  return [reviewRunner, resolutionRunner];
 }
 
 function printUsage(): void {

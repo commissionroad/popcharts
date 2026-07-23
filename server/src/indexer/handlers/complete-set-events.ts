@@ -3,7 +3,7 @@ import type { Log } from "viem";
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
 
-export type CompleteSetEventKind = "minted" | "merged";
+import type { CompleteSetKind } from "src/db/schema/complete-set-events";
 
 export type CompleteSetsMintedLog = Log & {
   args: {
@@ -49,7 +49,7 @@ export function buildCompleteSetEventRecord({
   blockTimestamp: Date;
   config: Pick<NetworkConfig, "chainId">;
   contractId: number;
-  kind: CompleteSetEventKind;
+  kind: CompleteSetKind;
   log: CompleteSetsMergedLog | CompleteSetsMintedLog;
   marketId: bigint;
 }): CompleteSetEventRecord {

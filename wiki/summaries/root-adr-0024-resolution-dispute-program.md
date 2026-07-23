@@ -1,22 +1,21 @@
 ---
 type: summary
-title: ADR 0022 — Resolution Dispute Program (docs/adr/0022-resolution-dispute-program.md)
+title: ADR 0024 — Resolution Dispute Program (docs/adr/0024-resolution-dispute-program.md)
 description: PROPOSED cross-stack program landing protocol ADR 0013's dispute window — phased protocol/indexer/runner+keeper/API+UI/ops checklist, superseding ADR 0012's off-chain operator delay; every resolution waits one public 24h window before redemption.
 sources:
-  - docs/adr/0022-resolution-dispute-program.md
+  - docs/adr/0024-resolution-dispute-program.md
 updated: 2026-07-20
 ---
 
-# ADR 0022 — Resolution Dispute Program
+# ADR 0024 — Resolution Dispute Program
 
-PROPOSED 2026-07-20 (all boxes open). The program ADR for
+ACCEPTED (Phase 0 locked 2026-07-23: flat ~100-unit bond, forfeits to owner, no bounty, operator finality; Phases 1-5 open). The program ADR for
 [protocol ADR 0013's mechanism](protocol-adr-0013-bonded-optimistic-resolution.md):
 propose → bonded 24h public dispute → permissionless finalize.
 
 ## Phases
 
-**0 — decisions (user):** protocol ADR 0013's open questions (bond sizing,
-forfeit sink, bounty, re-proposal). **1 — protocol (keystone,
+**0 — decisions: DONE** (flat bond ~100 units set via prepareMarket, forfeit→owner, no bounty v1, operator finality v1). **1 — protocol (keystone,
 human-reviewed):** market-contract status machine + bonds + events, adapter
 plumbing for per-market window/bond, full test matrix, ABI/fixture
 regeneration. **2 — indexer:** raw tables + watchers for the proposal/

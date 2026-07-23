@@ -210,14 +210,36 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       runner now submits a real on-chain approval transition and reverts
       with `MarketDoesNotExist`. The repair seeds its market on-chain
       (and rules out per-PR placement for good — it needs a chain)
-- [ ] C3 — lifecycle harness (boot once, heuristic providers, time-jump
+- [x] C3 — lifecycle harness (boot once, heuristic providers, time-jump
       utilities) + service/chain scenarios, tracked scenario-by-scenario
-      in ADR 0014's checklist
-- [ ] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014)
+      in ADR 0014's checklist. All eight service/chain paths land
+      (`server/src/lifecycle-nightly/`): happy path, rejection, manual
+      review, failed graduation, draw/cancel, partial clearing, and two
+      infrastructure drills (indexer restart, AI-service outage). The
+      drills bounce supervised services through a stack control server the
+      orchestrator exposes (`scripts/shared/process/stackControl.ts`), so a
+      scenario expresses intent without owning process lifecycles. The five
+      `@lifecycle` UI journeys remain C4.
+- [x] C4 — the five `@lifecycle` UI journeys (also ticked in ADR 0014).
+      Golden, rejected creation, failed graduation, partial clearing, and
+      cancelled/draw, all through the injected wallet, with review verdicts
+      forced deterministically through a dev endpoint (review is a controlled
+      test input, not an AI dependency). They run in the
+      `lifecycle:e2e` lane's nightly job (`pnpm lifecycle:e2e`); the golden
+      journey and the two refund/redeem journeys assert the user-visible
+      money-out moment, and partial clearing itemizes retained + refunded on
+      `/portfolio`.
 - [ ] C5 — `nightly-ai-verdicts` workflow (executes ADR 0019's CI lane)
-- [ ] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
+- [x] C6 — morning visibility: nightly outcomes summarized in `TRENDS.md`
       alongside coverage (the operator-side heads-up agent is personal
-      tooling, outside the repo)
+      tooling, outside the repo). The `record` job in `nightly-lifecycle`
+      appends each run's per-suite outcome to `nightly/latest.json` +
+      `nightly/history.jsonl` on `ci-metrics` — the durable trend the tracking
+      issue can't be — and regenerates `TRENDS.md` with the nightly section
+      above coverage. Both writers render the shared view from both datastores;
+      the write is idempotent by run id so the push-race retry can't duplicate a
+      row. An HTML view is an on-demand render of the same committed JSON, not a
+      standing deployment (keeps the no-vendor stance).
 
 **Track D — Protocol value-path coverage.**
 

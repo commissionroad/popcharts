@@ -60,8 +60,11 @@ describe("protocol SDK surface guard (ADR 0017 Track G)", function () {
     assert.deepEqual(exportsMap, {
       ".": "./src/index.ts",
       "./market-side": "./src/market-side.ts",
+      "./market-status": "./src/market-status.ts",
       "./pregrad-manager": "./src/generated/pregrad-manager.ts",
       "./postgrad-venue": "./src/generated/postgrad-venue.ts",
+      "./mock-collateral": "./src/generated/mock-collateral.ts",
+      "./third-party/venue": "./src/generated/third-party/venue.ts",
       "./complete-set-price-policy": "./src/price/completeSetPricePolicy.ts",
       "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts",
     });

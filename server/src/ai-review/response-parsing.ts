@@ -1,9 +1,13 @@
 import type { normalizeScores } from "./scoring";
-import type {
-  EvidenceItem,
-  ReviewScoreRationales,
-  ReviewScores,
-  SourceCheck,
+import {
+  REVIEW_VERDICTS,
+  SOURCE_TIERS,
+  type EvidenceItem,
+  type ReviewScoreRationales,
+  type ReviewScores,
+  type ReviewVerdict,
+  type SourceCheck,
+  type SourceTier,
 } from "./types";
 
 /**
@@ -14,6 +18,11 @@ import type {
  * implementation of these rules.
  */
 
+/**
+ * A model's reply as received, before any parsing. Every field is `unknown`
+ * because nothing about the shape is guaranteed — the parsers below are what
+ * turn it into a trusted `PolicyFinding`.
+ */
 export type RawModelReview = {
   hardFlags?: unknown;
   reasons?: unknown;
@@ -33,6 +42,11 @@ const SCORE_KEYS = [
   "sourceQuality",
 ] as const satisfies readonly (keyof ReviewScores)[];
 
+/**
+ * Returns a rationale for every score dimension, substituting a placeholder
+ * for any the model omitted or left blank, so the stored review always
+ * explains all seven scores. Rationales are trimmed to 500 characters.
+ */
 export function parseScoreRationales(value: unknown): ReviewScoreRationales {
   const record =
     typeof value === "object" && value !== null
@@ -73,12 +87,23 @@ export function parseModelReview(
   }
 }
 
-export function parseVerdict(value: unknown) {
-  return value === "approve" || value === "reject" || value === "manual_review"
-    ? value
-    : "manual_review";
+/**
+ * Narrows untrusted model output to a known verdict, falling back to
+ * `manual_review` — the safe default whenever the model's answer is
+ * unrecognized.
+ */
+export function parseVerdict(value: unknown): ReviewVerdict {
+  return (
+    REVIEW_VERDICTS.find((verdict) => verdict === value) ?? "manual_review"
+  );
 }
 
+/**
+ * Parses the model's sourceChecks, dropping any entry that is not an object
+ * or lacks both a url and a domain — those two fields are what
+ * `filterSourceChecksByEvidence` matches on, so an entry without them could
+ * never be corroborated.
+ */
 export function parseSourceChecks(value: unknown): SourceCheck[] {
   if (!Array.isArray(value)) {
     return [];
@@ -200,28 +225,22 @@ function appendNormalizationNote(rationale: string, note: string) {
   return `${rationale} ${note}`.slice(0, 500);
 }
 
-export function parseSourceTier(value: unknown) {
-  if (
-    value === "primary" ||
-    value === "major_news" ||
-    value === "specialist" ||
-    value === "ugc" ||
-    value === "suspicious" ||
-    value === "unreachable" ||
-    value === "unknown"
-  ) {
-    return value;
-  }
-
-  return "unknown";
+/**
+ * Narrows untrusted model output to a known source tier, falling back to
+ * `unknown` so an unrecognized tier can never reach stored evidence.
+ */
+export function parseSourceTier(value: unknown): SourceTier {
+  return SOURCE_TIERS.find((tier) => tier === value) ?? "unknown";
 }
 
+/** Keeps only the string members of an untrusted value, or none if it is not an array. */
 export function arrayOfStrings(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
 }
 
+/** Deduplicates while dropping undefined and empty entries, preserving first-seen order. */
 export function unique(values: Array<string | undefined>) {
   return Array.from(
     new Set(values.filter((value): value is string => Boolean(value))),

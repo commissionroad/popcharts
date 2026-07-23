@@ -9,7 +9,7 @@ updated: 2026-07-20
 
 # Protocol ADR 0013 — Bonded Optimistic Resolution
 
-PROPOSED 2026-07-20. Motivated by the measured fallibility of the AI
+ACCEPTED — Phase 0 decisions locked 2026-07-23 (flat ~100-unit bond via prepareMarket, forfeits to owner, no bounty in v1, operator finality in v1). Motivated by the measured fallibility of the AI
 resolver ([root ADR 0019](root-adr-0019-ai-verdict-quality-program.md)):
 today `resolve(side)` is terminal the instant it lands, and the only
 mitigation was an off-chain operator delay that participants cannot see or
@@ -43,14 +43,14 @@ dependent → window). All dispute state is market-scoped so it transfers
 unchanged onto the [protocol ADR 0012 singleton book](protocol-adr-0012-singleton-postgrad-position-book.md).
 Breaking ABI change to a funds-holding contract → human review required.
 
-## Open questions (Phase 0 of root ADR 0022)
+## Phase 0 decisions (locked)
 
-Bond sizing (flat constant proposed), forfeited-bond sink (owner
-proposed), disputer bounty (proposed none in v1), re-proposal semantics
-(operator finality proposed in v1).
+Flat protocol-wide bond (~100 collateral units) configured per market at
+graduation; forfeited bonds to the protocol owner; no disputer bounty in
+v1; operator settlement final in v1.
 
 ## Related pages
 
-- [Root ADR 0022 — the cross-stack program](root-adr-0022-resolution-dispute-program.md)
+- [Root ADR 0024 — the cross-stack program](root-adr-0024-resolution-dispute-program.md)
 - [AI-assisted resolution](../concepts/ai-assisted-resolution.md)
 - [Graduation and clearing](../concepts/graduation-and-clearing.md)

@@ -3,10 +3,24 @@
  * resolution URLs, or full web search. Each step widens the attack surface,
  * so the mode is set by config/job — never by market text.
  */
-export type InternetAccessMode = "off" | "provided_urls" | "search";
+export const INTERNET_ACCESS_MODES = [
+  "off",
+  "provided_urls",
+  "search",
+] as const;
+
+/** One of {@link INTERNET_ACCESS_MODES}. */
+export type InternetAccessMode = (typeof INTERNET_ACCESS_MODES)[number];
 
 /** The review backends the service can route a market to. */
-export type ReviewProviderName = "anthropic" | "heuristic" | "ollama";
+export const REVIEW_PROVIDER_NAMES = [
+  "anthropic",
+  "heuristic",
+  "ollama",
+] as const;
+
+/** One of {@link REVIEW_PROVIDER_NAMES}. */
+export type ReviewProviderName = (typeof REVIEW_PROVIDER_NAMES)[number];
 
 /**
  * Static traits of a provider that the pipeline uses to decide what work to do
@@ -76,17 +90,24 @@ export type MarketReviewRequest = {
  * Final review decision. approve moves the market to bootstrap, reject ends
  * it, and manual_review is the safe default whenever the pipeline is unsure.
  */
-export type ReviewVerdict = "approve" | "reject" | "manual_review";
+export const REVIEW_VERDICTS = ["approve", "reject", "manual_review"] as const;
+
+/** One of {@link REVIEW_VERDICTS}. */
+export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number];
 
 /** Trust classification of an evidence source, from best to worst. */
-export type SourceTier =
-  | "primary"
-  | "major_news"
-  | "specialist"
-  | "ugc"
-  | "suspicious"
-  | "unreachable"
-  | "unknown";
+export const SOURCE_TIERS = [
+  "primary",
+  "major_news",
+  "specialist",
+  "ugc",
+  "suspicious",
+  "unreachable",
+  "unknown",
+] as const;
+
+/** One of {@link SOURCE_TIERS}. */
+export type SourceTier = (typeof SOURCE_TIERS)[number];
 
 /**
  * The seven 0-5 policy dimensions every review must score, matching
@@ -119,7 +140,14 @@ export type SourceCheck = {
 };
 
 /** How a piece of evidence entered the review pipeline. */
-export type EvidenceKind = "provided_url" | "search_result" | "fetched_page";
+export const EVIDENCE_KINDS = [
+  "provided_url",
+  "search_result",
+  "fetched_page",
+] as const;
+
+/** One of {@link EVIDENCE_KINDS}. */
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 /**
  * One retrieved (or unreachable) public source, recorded with its trust tier

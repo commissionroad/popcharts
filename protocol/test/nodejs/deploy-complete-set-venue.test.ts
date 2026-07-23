@@ -13,7 +13,7 @@ import {
   ensureDeterministicFactory,
   hasBytecode,
 } from "../../scripts/shared/deployment/deterministicFactory.js";
-import { VENUE_STACK_DEPLOYMENT } from "../../scripts/shared/deployment/venueStack.js";
+import { VENUE_STACK_DEPLOYMENT } from "../../src/deployment/venueStackDeployment.js";
 import {
   configureOutcomePool,
   deployCompleteSetBinaryMarket,

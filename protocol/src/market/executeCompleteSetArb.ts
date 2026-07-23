@@ -1,27 +1,18 @@
-import { formatUnits, type Address, type Hex, type PublicClient } from "viem";
+import { formatUnits, type Address, type PublicClient } from "viem";
 
 import { tickToSqrtPriceX96 } from "../price/tickToSqrtPriceX96.js";
 import { approveErc20 } from "../viem/approveErc20.js";
+import type { ContractWriter } from "../viem/contractWriter.js";
 import { readErc20Balance } from "../viem/readErc20Balance.js";
 import { requireSuccessfulReceipt } from "../viem/requireSuccessfulReceipt.js";
 import { ensureCollateralBalance } from "./ensureCollateralBalance.js";
 import { floorOutcomeToCollateralUnit } from "./floorOutcomeToCollateralUnit.js";
+import { HOOK_DATA_NONE } from "./hookData.js";
 import type {
   CompleteSetMarketManifestData,
   CompleteSetMarketPool,
 } from "./readCompleteSetMarketManifest.js";
 import { completeSetBinaryMarketAbi, minimalV4SwapRouterAbi } from "../generated/postgrad-venue.js";
-
-const HOOK_DATA_NONE: Hex = "0x";
-
-type ArbContractWriter = {
-  writeContract(parameters: {
-    abi: readonly unknown[];
-    address: Address;
-    args: readonly unknown[];
-    functionName: string;
-  }): Promise<Hex>;
-};
 
 type ArbContext = {
   readonly account: Address;
@@ -31,7 +22,7 @@ type ArbContext = {
   readonly manifest: CompleteSetMarketManifestData;
   readonly publicClient: PublicClient;
   readonly swapRouter: Address;
-  readonly walletClient: ArbContractWriter;
+  readonly walletClient: ContractWriter;
 };
 
 /**
@@ -52,7 +43,7 @@ export async function executeCompleteSetArb(args: {
   readonly manifest: CompleteSetMarketManifestData;
   readonly publicClient: PublicClient;
   readonly swapRouter: Address;
-  readonly walletClient: ArbContractWriter;
+  readonly walletClient: ContractWriter;
 }): Promise<{ readonly collateralDelta: bigint }> {
   if (args.arbCollateral <= 0n) {
     throw new Error(`Expected a positive arbCollateral, received ${args.arbCollateral}.`);

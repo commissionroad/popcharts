@@ -22,6 +22,7 @@ import { AiReviewRefresh } from "./ai-review-refresh";
 import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
+import { MarketLiveRefresh } from "./market-live-refresh";
 import { MarketPositionPanel } from "./market-position-panel";
 
 export function MarketDetailPage({
@@ -61,6 +62,10 @@ export function MarketDetailPage({
 
   return (
     <div>
+      {/* Live for every actor's activity on this market, not just the viewer's
+          own trade — mounted unconditionally so lifecycle transitions
+          (graduation, resolution) refresh the page too, not only pregrad bets. */}
+      <MarketLiveRefresh marketAppId={market.id} />
       <Link
         className="mb-6 inline-flex items-center gap-2 font-mono text-[13px] text-[var(--text-secondary)] transition-opacity hover:opacity-70"
         href="/"

@@ -1,0 +1,6 @@
+{
+  "filter_paths": "node_modules|artifacts|/test/|/mocks/|npm/|forge-std",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_optimization": true
+}

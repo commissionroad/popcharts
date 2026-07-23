@@ -1,10 +1,12 @@
-import { contractSideToMarketSide } from "@popcharts/protocol";
+import { contractSideToMarketSide, type MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, and, eq, schema } from "src/db/client";
+import type { PostgradResolutionKind } from "src/db/schema/postgrad-resolution-events";
+import { recordLiveChange } from "src/change-feed/writer";
 
-export type PostgradResolutionKind = "resolved" | "cancelled";
+export type { PostgradResolutionKind };
 
 export type PostgradMarketResolvedLog = Log & {
   args: {
@@ -46,7 +48,7 @@ export function buildPostgradResolutionRecord({
   const transactionHash = requireValue(log.transactionHash, "transactionHash");
   const logIndex = requireValue(log.logIndex, "logIndex");
 
-  let winningSide: "yes" | "no" | null = null;
+  let winningSide: MarketSide | null = null;
   if (kind === "resolved") {
     const side = requireValue(
       (log as PostgradMarketResolvedLog).args.side,
@@ -79,13 +81,14 @@ export function buildPostgradResolutionRecord({
  */
 export async function persistPostgradResolutionRecord(
   record: PostgradResolutionRecord,
+  dbc: typeof db = db,
 ) {
   const targetStatus =
     record.event.kind === "resolved"
       ? ("resolved" as const)
       : ("cancelled" as const);
 
-  await db.transaction(async (tx) => {
+  await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.postgradResolutionEvents)
       .values(record.event)
@@ -111,6 +114,16 @@ export async function persistPostgradResolutionRecord(
           eq(schema.markets.status, "graduated"),
         ),
       );
+
+    await recordLiveChange(tx, {
+      sourceTable: "postgrad_resolution_events",
+      op: "insert",
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.event.blockNumber,
+      logIndex: record.event.logIndex,
+    });
   });
 }
 

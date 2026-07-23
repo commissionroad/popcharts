@@ -8,11 +8,18 @@ import {
   aiReviewConfig,
   type AiReviewConfig,
 } from "./config";
+import { EvidenceSchema, SourceCheckSchema } from "./evidence-schemas";
 import {
   getAllReviewProviderStatuses,
   getReviewProviderStatus,
 } from "./providers/registry";
 import { reviewMarket, ReviewUnavailableError } from "./reviewer";
+import {
+  INTERNET_ACCESS_MODES,
+  REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
+} from "./types";
+import { literalUnion } from "src/shared/typebox-literals";
 
 const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
   context: {
@@ -170,56 +177,17 @@ const ScoreRationalesSchema = t.Object({
   sourceQuality: t.String(),
 });
 
-const SourceTierSchema = t.Union([
-  t.Literal("primary"),
-  t.Literal("major_news"),
-  t.Literal("specialist"),
-  t.Literal("ugc"),
-  t.Literal("suspicious"),
-  t.Literal("unreachable"),
-  t.Literal("unknown"),
-]);
-
-const EvidenceSchema = t.Object({
-  domain: t.String(),
-  kind: t.Union([
-    t.Literal("provided_url"),
-    t.Literal("search_result"),
-    t.Literal("fetched_page"),
-  ]),
-  sourceTier: SourceTierSchema,
-  summary: t.String(),
-  title: t.Optional(t.String()),
-  url: t.String(),
-});
-
-const SourceCheckSchema = t.Object({
-  domain: t.String(),
-  notes: t.String(),
-  relevant: t.Boolean(),
-  sourceTier: SourceTierSchema,
-  url: t.String(),
-});
-
 const ReviewResultSchema = t.Object({
   evidence: t.Array(EvidenceSchema),
   hardFlags: t.Array(t.String()),
   modelId: t.Optional(t.String()),
-  provider: t.Union([
-    t.Literal("anthropic"),
-    t.Literal("heuristic"),
-    t.Literal("ollama"),
-  ]),
+  provider: literalUnion(REVIEW_PROVIDER_NAMES),
   promptVersion: t.String(),
   reasons: t.Array(t.String()),
   scoreRationales: ScoreRationalesSchema,
   scores: ScoresSchema,
   sourceChecks: t.Array(SourceCheckSchema),
-  verdict: t.Union([
-    t.Literal("approve"),
-    t.Literal("reject"),
-    t.Literal("manual_review"),
-  ]),
+  verdict: literalUnion(REVIEW_VERDICTS),
 });
 
 const MarketReviewRequestSchema = t.Object(
@@ -244,22 +212,10 @@ const MarketReviewRequestSchema = t.Object(
     options: t.Optional(
       t.Object({
         fetchSearchResults: t.Optional(t.Boolean()),
-        internetAccess: t.Optional(
-          t.Union([
-            t.Literal("off"),
-            t.Literal("provided_urls"),
-            t.Literal("search"),
-          ]),
-        ),
+        internetAccess: t.Optional(literalUnion(INTERNET_ACCESS_MODES)),
         maxSearchResults: t.Optional(t.Number()),
         model: t.Optional(t.String()),
-        provider: t.Optional(
-          t.Union([
-            t.Literal("anthropic"),
-            t.Literal("heuristic"),
-            t.Literal("ollama"),
-          ]),
-        ),
+        provider: t.Optional(literalUnion(REVIEW_PROVIDER_NAMES)),
       }),
     ),
   },

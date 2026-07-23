@@ -1,0 +1,1 @@
+ALTER TYPE "public"."resolution_provider" ADD VALUE 'claude-cli' BEFORE 'heuristic';

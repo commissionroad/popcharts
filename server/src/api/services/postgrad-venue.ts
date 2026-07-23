@@ -5,8 +5,10 @@ import {
   boundedPoolOrderManagerAbi,
   deriveEpsilonBoundTicks,
   displayPriceWadToSqrtPriceX96,
+  poolManagerAbi,
   poolTickBoundsAbi,
   sqrtPriceX96ToDisplayPriceWad,
+  stateViewAbi,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
@@ -34,12 +36,6 @@ import { config, ZERO_ADDRESS } from "src/config";
 
 const WAD = 10n ** 18n;
 
-const POOL_MANAGER_ABI = parseAbi([
-  "function initialize((address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint160 sqrtPriceX96) returns (int24)",
-]);
-const STATE_VIEW_ABI = parseAbi([
-  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)",
-]);
 const ERC20_DECIMALS_ABI = parseAbi([
   "function decimals() view returns (uint8)",
 ]);
@@ -274,7 +270,7 @@ async function wireOutcomePool({
 
   const [slot0, bounds, whitelisted] = await Promise.all([
     publicClient.readContract({
-      abi: STATE_VIEW_ABI,
+      abi: stateViewAbi,
       address: config.contracts.stateView,
       functionName: "getSlot0",
       args: [poolId],
@@ -307,7 +303,7 @@ async function wireOutcomePool({
   }
 
   if ((slot0 as readonly [bigint, number, number, number])[0] === 0n) {
-    await write(config.contracts.poolManager, POOL_MANAGER_ABI, "initialize", [
+    await write(config.contracts.poolManager, poolManagerAbi, "initialize", [
       key,
       displayPriceWadToSqrtPriceX96({ ...orientation, displayPriceWad }),
     ]);
@@ -422,7 +418,7 @@ async function readOutcomePool({
   const poolId = computePoolId(key);
   const [slot0, whitelisted] = await Promise.all([
     publicClient.readContract({
-      abi: STATE_VIEW_ABI,
+      abi: stateViewAbi,
       address: config.contracts.stateView,
       functionName: "getSlot0",
       args: [poolId],
@@ -492,7 +488,7 @@ export async function readPoolSqrtPricesX96(
       poolIds.map(
         (poolId) =>
           publicClient.readContract({
-            abi: STATE_VIEW_ABI,
+            abi: stateViewAbi,
             address: config.contracts.stateView,
             functionName: "getSlot0",
             args: [poolId as `0x${string}`],

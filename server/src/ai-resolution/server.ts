@@ -10,6 +10,18 @@ import {
 } from "./config";
 import { getResolutionProviderStatus } from "./providers/registry";
 import { resolveMarket } from "./resolver";
+import {
+  RESOLUTION_MODEL_PROVIDER_NAMES,
+  RESOLUTION_OUTCOMES,
+  RESOLUTION_PROVIDER_NAMES,
+  RESOLUTION_VERDICTS,
+} from "./types";
+import {
+  EvidenceSchema,
+  SourceCheckSchema,
+} from "src/ai-review/evidence-schemas";
+import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
+import { literalUnion } from "src/shared/typebox-literals";
 
 const KNOWN_OUTCOME_RESOLUTION_EXAMPLE = {
   context: {
@@ -34,65 +46,17 @@ const KNOWN_OUTCOME_RESOLUTION_EXAMPLE = {
   },
 } as const;
 
-const SourceTierSchema = t.Union([
-  t.Literal("primary"),
-  t.Literal("major_news"),
-  t.Literal("specialist"),
-  t.Literal("ugc"),
-  t.Literal("suspicious"),
-  t.Literal("unreachable"),
-  t.Literal("unknown"),
-]);
-
-const EvidenceSchema = t.Object({
-  domain: t.String(),
-  kind: t.Union([
-    t.Literal("provided_url"),
-    t.Literal("search_result"),
-    t.Literal("fetched_page"),
-  ]),
-  sourceTier: SourceTierSchema,
-  summary: t.String(),
-  title: t.Optional(t.String()),
-  url: t.String(),
-});
-
-const SourceCheckSchema = t.Object({
-  domain: t.String(),
-  notes: t.String(),
-  relevant: t.Boolean(),
-  sourceTier: SourceTierSchema,
-  url: t.String(),
-});
-
 const ResolutionResultSchema = t.Object({
   confidence: t.Union([t.Number(), t.Null()]),
   evidence: t.Array(EvidenceSchema),
   hardFlags: t.Array(t.String()),
   modelId: t.Optional(t.String()),
-  outcome: t.Union([
-    t.Literal("yes"),
-    t.Literal("no"),
-    t.Literal("draw"),
-    t.Literal("too_early"),
-    t.Literal("abstain"),
-  ]),
+  outcome: literalUnion(RESOLUTION_OUTCOMES),
   promptVersion: t.String(),
-  provider: t.Union([
-    t.Literal("anthropic"),
-    t.Literal("heuristic"),
-    t.Literal("ollama"),
-    t.Literal("manual"),
-  ]),
+  provider: literalUnion(RESOLUTION_PROVIDER_NAMES),
   reasons: t.Array(t.String()),
   sourceChecks: t.Array(SourceCheckSchema),
-  verdict: t.Union([
-    t.Literal("resolve_yes"),
-    t.Literal("resolve_no"),
-    t.Literal("cancel_draw"),
-    t.Literal("requeue_too_early"),
-    t.Literal("manual_review"),
-  ]),
+  verdict: literalUnion(RESOLUTION_VERDICTS),
 });
 
 const MarketResolutionRequestSchema = t.Object(
@@ -119,22 +83,10 @@ const MarketResolutionRequestSchema = t.Object(
     options: t.Optional(
       t.Object({
         fetchSearchResults: t.Optional(t.Boolean()),
-        internetAccess: t.Optional(
-          t.Union([
-            t.Literal("off"),
-            t.Literal("provided_urls"),
-            t.Literal("search"),
-          ]),
-        ),
+        internetAccess: t.Optional(literalUnion(INTERNET_ACCESS_MODES)),
         maxSearchResults: t.Optional(t.Number()),
         model: t.Optional(t.String()),
-        provider: t.Optional(
-          t.Union([
-            t.Literal("anthropic"),
-            t.Literal("heuristic"),
-            t.Literal("ollama"),
-          ]),
-        ),
+        provider: t.Optional(literalUnion(RESOLUTION_MODEL_PROVIDER_NAMES)),
       }),
     ),
   },

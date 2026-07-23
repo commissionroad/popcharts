@@ -8,7 +8,7 @@ sources:
   - docs/architecture.md
   - server/README.md
   - docs/adr/0020-concurrent-local-dev-stacks.md
-updated: 2026-07-17
+updated: 2026-07-23
 ---
 
 # Local dev orchestration
@@ -51,8 +51,9 @@ the generated `server/.env.local-chain`, the `popcharts` database, and
 process-compose admin `:8080` — so a second stack silently collided with the
 first (see [Repo ADR 0020](../summaries/root-adr-0020-concurrent-local-dev-stacks.md)).
 Stacks are becoming slot-addressed **instances**: each claims a slot (0 = a
-human on the primary checkout, 1..n = agents in `.claude/worktrees/`, then
-auto-offset), and every resource derives from it — chain port `8545 + 10·slot`,
+human on the primary checkout, 1..n = agents in the canonical contained
+`.worktrees/` directory, then auto-offset), and every resource derives from it
+— chain port `8545 + 10·slot`,
 API `3001 + 10·slot`, app `3000 + 10·slot`, admin `8080 + slot`, database
 `popcharts_<slot>`, env file `.env.local-chain.<slot>`. Slot 0 keeps today's
 exact values. A home-dir registry (`~/.popcharts/local-stacks/`) tracks running
@@ -67,6 +68,9 @@ reset, stack-aware `local-create-market`, and the `with-target-stack` launcher
 that routes the cross-workspace targeting scripts — `local-bot-trade`,
 `local-deploy-venue`/`-postgrad`, `local-market-health`/`-smoke` — at a chosen
 slot).
+
+Legacy harness-managed `.claude/worktrees/` paths remain recognized as agent
+stacks while those worktrees are still active.
 
 ## Related pages
 

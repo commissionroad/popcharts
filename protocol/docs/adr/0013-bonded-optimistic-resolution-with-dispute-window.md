@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (Phase 0 decisions locked 2026-07-23)
 
 ## Context
 
@@ -155,27 +155,25 @@ ADR 0012 lands.
   generated ABI surface regenerate, and `dev-market-resolve` tooling and
   the lifecycle harness must drive the new flow.
 
-## Open questions (decide before implementation)
+## Phase 0 decisions (locked 2026-07-23)
 
-1. **Bond sizing** — flat constant (proposed), per-market creator-set, or
-   escrow-proportional? Flat is simplest and spam-relevant; a whale-sized
-   market may warrant a larger shield.
-2. **Forfeited-bond sink** — protocol owner (proposed, mirrors creation
-   fees) vs. burning vs. distributing to winning-side redeemers (sweeter,
-   but couples bond accounting into redemption math).
-3. **Disputer reward** — should a *successful* disputer earn a bounty
-   (e.g., matched from the treasury) on top of their refund? Proposed: not
-   in v1; being right protects the disputer's own position, and a bounty
-   invites adversarial verdict-flipping games against the operator.
+1. **Bond sizing** — a flat protocol-wide constant on the order of 100
+   collateral units, configured per market at graduation via
+   `prepareMarket` (so the constant can be tuned without touching deployed
+   markets). Escrow-proportional sizing rejected for v1: predictable UX
+   and spam economics beat whale-proportional shielding.
+2. **Forfeited-bond sink** — the protocol owner, mirroring creation fees.
+   Never enters the market's redemption collateral.
+3. **Disputer reward** — none in v1. A correct dispute already protects
+   the disputer's own position; a bounty invites adversarial
+   verdict-flipping games against the operator.
 4. **Re-proposal after settlement** — settlement from `Disputed` is final
-   by resolver fiat in v1. An alternative (settle back into a fresh
-   `ResolutionPending` window) gives the crowd a check on the operator too,
-   at the cost of unbounded cycles. Proposed: v1 keeps operator finality;
-   revisit if operator trust assumptions change.
+   by resolver fiat in v1. Revisit only if operator trust assumptions
+   change.
 
 ## Related
 
-- Repo ADR 0022 — the cross-stack program (indexer, runner, keeper, API,
+- Repo ADR 0024 — the cross-stack program (indexer, runner, keeper, API,
   UI slices) that lands this mechanism.
 - Repo ADR 0012 — AI-assisted resolution (the resolver whose fallibility
   motivates this).

@@ -13,28 +13,19 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { JOB_STATUSES, JOB_TRIGGERS } from "./job-queue";
 import { aiReviewProvider, marketAiReviews } from "./market-ai-reviews";
 import { marketMetadata } from "./market-metadata";
 import { markets } from "./markets";
 
-/**
- * Queue lifecycle of a review job. queued/running/retryable_failed are the
- * "active" states that block a duplicate job for the same market metadata.
- */
+/** Postgres enum for a review job's queue state, derived from the shared array. */
 export const aiReviewJobStatus = pgEnum("ai_review_job_status", [
-  "queued",
-  "running",
-  "succeeded",
-  "retryable_failed",
-  "terminal_failed",
-  "cancelled",
+  ...JOB_STATUSES,
 ]);
 
-/** Who queued the job: the runner's automatic sweep, an admin, or a retry. */
+/** Postgres enum for a review job's trigger, derived from the shared array. */
 export const aiReviewJobTrigger = pgEnum("ai_review_job_trigger", [
-  "automatic",
-  "manual",
-  "retry",
+  ...JOB_TRIGGERS,
 ]);
 
 // Mutable queue state for AI review work. The durable review output itself

@@ -3,7 +3,6 @@ import { unique } from "src/ai-review/response-parsing";
 import {
   AI_RESOLUTION_PROMPT_VERSION,
   type AiResolutionConfig,
-  type ResolutionModelProviderName,
 } from "./config";
 import { collectEvidence } from "./evidence";
 import { runHeuristicResolution } from "./heuristics";
@@ -12,6 +11,7 @@ import { filterSourceChecksByEvidence } from "./resolution-parsing";
 import type {
   MarketResolutionRequest,
   ResolutionFindingWithEvidence,
+  ResolutionModelProviderName,
   ResolutionOutcome,
   ResolutionResult,
   ResolutionVerdict,

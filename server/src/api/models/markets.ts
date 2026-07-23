@@ -1,5 +1,18 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
+import { MARKET_SIDES } from "@popcharts/protocol";
+
+import {
+  EVIDENCE_KINDS,
+  REVIEW_PROVIDER_NAMES,
+  REVIEW_VERDICTS,
+  SOURCE_TIERS,
+} from "src/ai-review/types";
+import { JOB_STATUSES, JOB_TRIGGERS } from "src/db/schema/job-queue";
+import { MARKET_STATUSES } from "src/db/schema/markets";
+import { POSTGRAD_RESOLUTION_KINDS } from "src/db/schema/postgrad-resolution-events";
+import { VENUE_ORDER_STATUSES } from "src/db/schema/venue-orders";
+import { literalUnion } from "src/shared/typebox-literals";
 
 /**
  * Market and AI-review API schemas.
@@ -12,48 +25,87 @@ import type { Static } from "@sinclair/typebox";
  * Register new schemas in `src/api/routes/markets.ts` under the same name.
  */
 
-export type MarketStatus =
-  | "under_review"
-  | "bootstrap"
-  | "graduating"
-  | "graduated"
-  | "resolved"
-  | "refunded"
-  | "cancelled"
-  | "rejected";
+/**
+ * Re-exported from the schema module, which owns the status set so the
+ * Postgres enum and this API schema cannot drift apart.
+ */
+export type { MarketStatus } from "src/db/schema/markets";
 
 /** Lifecycle status of an indexed market, from creation through settlement. */
-export const MarketStatusSchema = t.Union(
-  [
-    t.Literal("under_review"),
-    t.Literal("bootstrap"),
-    t.Literal("graduating"),
-    t.Literal("graduated"),
-    t.Literal("resolved"),
-    t.Literal("refunded"),
-    t.Literal("cancelled"),
-    t.Literal("rejected"),
-  ],
-  { $id: "MarketStatus" },
-);
+export const MarketStatusSchema = literalUnion(MARKET_STATUSES, {
+  $id: "MarketStatus",
+});
 
+/** Why a graduation attempt was refused. */
+export const GRADUATION_INELIGIBLE_REASONS = [
+  "below_threshold",
+  "clearing_pending",
+  "onchain_settlement_required",
+  "wrong_status",
+] as const;
+
+/** One of {@link GRADUATION_INELIGIBLE_REASONS}. */
 export type GraduationIneligibleReason =
-  | "below_threshold"
-  | "clearing_pending"
-  | "onchain_settlement_required"
-  | "wrong_status";
-export type DevMarketCloseIneligibleReason = "chain_status" | "wrong_status";
+  (typeof GRADUATION_INELIGIBLE_REASONS)[number];
+
+/** Why a dev-only pre-grad close was refused. */
+export const DEV_MARKET_CLOSE_INELIGIBLE_REASONS = [
+  "chain_status",
+  "wrong_status",
+] as const;
+
+/** One of {@link DEV_MARKET_CLOSE_INELIGIBLE_REASONS}. */
+export type DevMarketCloseIneligibleReason =
+  (typeof DEV_MARKET_CLOSE_INELIGIBLE_REASONS)[number];
+
+/**
+ * Why a dev-only forced review was refused. Deliberately its own set rather
+ * than a reuse of the close reasons it currently matches: the two endpoints
+ * refuse for unrelated conditions and are free to diverge.
+ */
+export const DEV_MARKET_REVIEW_INELIGIBLE_REASONS = [
+  "chain_status",
+  "wrong_status",
+] as const;
+
+/** One of {@link DEV_MARKET_REVIEW_INELIGIBLE_REASONS}. */
+export type DevMarketReviewIneligibleReason =
+  (typeof DEV_MARKET_REVIEW_INELIGIBLE_REASONS)[number];
+
+/** Why a dev-only end-to-end graduation was refused. */
+export const DEV_MARKET_GRADUATE_INELIGIBLE_REASONS = [
+  "adapter_unconfigured",
+  "below_threshold",
+  "chain_status",
+  "past_deadline",
+  "wrong_status",
+] as const;
+
+/** One of {@link DEV_MARKET_GRADUATE_INELIGIBLE_REASONS}. */
 export type DevMarketGraduateIneligibleReason =
-  | "adapter_unconfigured"
-  | "below_threshold"
-  | "chain_status"
-  | "past_deadline"
-  | "wrong_status";
-export type DevMarketResolveSide = "yes" | "no";
+  (typeof DEV_MARKET_GRADUATE_INELIGIBLE_REASONS)[number];
+
+/** Why a dev-only postgrad resolution was refused. */
+export const DEV_MARKET_RESOLVE_INELIGIBLE_REASONS = [
+  "already_resolved",
+  "chain_status",
+  "postgrad_missing",
+  "wrong_status",
+] as const;
+
+/** One of {@link DEV_MARKET_RESOLVE_INELIGIBLE_REASONS}. */
 export type DevMarketResolveIneligibleReason =
-  "already_resolved" | "chain_status" | "postgrad_missing" | "wrong_status";
+  (typeof DEV_MARKET_RESOLVE_INELIGIBLE_REASONS)[number];
+
+/** Why a manual AI review request was refused. */
+export const MANUAL_AI_REVIEW_INELIGIBLE_REASONS = [
+  "missing_metadata",
+  "wrong_status",
+] as const;
+
+/** One of {@link MANUAL_AI_REVIEW_INELIGIBLE_REASONS}. */
 export type ManualAiReviewIneligibleReason =
-  "missing_metadata" | "wrong_status";
+  (typeof MANUAL_AI_REVIEW_INELIGIBLE_REASONS)[number];
 
 /** Off-chain market metadata as returned by the read API. */
 export const MarketMetadataSchema = t.Object(
@@ -95,16 +147,14 @@ export const MarketMetadataWriteSchema = t.Object(
 );
 
 /** Backend that produced an AI review. */
-export const AiReviewProviderSchema = t.Union(
-  [t.Literal("anthropic"), t.Literal("heuristic"), t.Literal("ollama")],
-  { $id: "AiReviewProvider" },
-);
+export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
+  $id: "AiReviewProvider",
+});
 
 /** Overall AI-review outcome for a market's metadata. */
-export const AiReviewVerdictSchema = t.Union(
-  [t.Literal("approve"), t.Literal("reject"), t.Literal("manual_review")],
-  { $id: "AiReviewVerdict" },
-);
+export const AiReviewVerdictSchema = literalUnion(REVIEW_VERDICTS, {
+  $id: "AiReviewVerdict",
+});
 
 /** Per-dimension AI-review scores, each in [0, 5]. */
 export const AiReviewScoresSchema = t.Object(
@@ -135,18 +185,9 @@ export const AiReviewScoreRationalesSchema = t.Object(
 );
 
 /** Trust tier assigned to a cited source domain. */
-export const AiReviewSourceTierSchema = t.Union(
-  [
-    t.Literal("primary"),
-    t.Literal("major_news"),
-    t.Literal("specialist"),
-    t.Literal("ugc"),
-    t.Literal("suspicious"),
-    t.Literal("unreachable"),
-    t.Literal("unknown"),
-  ],
-  { $id: "AiReviewSourceTier" },
-);
+export const AiReviewSourceTierSchema = literalUnion(SOURCE_TIERS, {
+  $id: "AiReviewSourceTier",
+});
 
 /** Reviewer assessment of a single resolution source URL. */
 export const AiReviewSourceCheckSchema = t.Object(
@@ -164,11 +205,7 @@ export const AiReviewSourceCheckSchema = t.Object(
 export const AiReviewEvidenceSchema = t.Object(
   {
     domain: t.String(),
-    kind: t.Union([
-      t.Literal("provided_url"),
-      t.Literal("search_result"),
-      t.Literal("fetched_page"),
-    ]),
+    kind: literalUnion(EVIDENCE_KINDS),
     sourceTier: t.Ref(AiReviewSourceTierSchema),
     summary: t.String(),
     title: t.Optional(t.String()),
@@ -219,23 +256,14 @@ export const AiReviewProgressSchema = t.Object(
 );
 
 /** Queue state of an AI-review job. */
-export const AiReviewJobStatusSchema = t.Union(
-  [
-    t.Literal("queued"),
-    t.Literal("running"),
-    t.Literal("succeeded"),
-    t.Literal("retryable_failed"),
-    t.Literal("terminal_failed"),
-    t.Literal("cancelled"),
-  ],
-  { $id: "AiReviewJobStatus" },
-);
+export const AiReviewJobStatusSchema = literalUnion(JOB_STATUSES, {
+  $id: "AiReviewJobStatus",
+});
 
 /** What caused an AI-review job to be enqueued. */
-export const AiReviewJobTriggerSchema = t.Union(
-  [t.Literal("automatic"), t.Literal("manual"), t.Literal("retry")],
-  { $id: "AiReviewJobTrigger" },
-);
+export const AiReviewJobTriggerSchema = literalUnion(JOB_TRIGGERS, {
+  $id: "AiReviewJobTrigger",
+});
 
 /** An AI-review job as tracked by the runner queue. */
 export const MarketAiReviewJobSchema = t.Object(
@@ -294,26 +322,23 @@ export const MarketVenueSchema = t.Object(
 );
 
 /** Which binary outcome a bounded-venue pool trades against collateral. */
-export const VenuePoolSideSchema = t.Union(
-  [t.Literal("yes"), t.Literal("no")],
-  {
-    $id: "VenuePoolSide",
-  },
-);
+export const VenuePoolSideSchema = literalUnion(MARKET_SIDES, {
+  $id: "VenuePoolSide",
+});
 
-/** Binary side accepted by the dev-only force resolve endpoint. */
-export const DevMarketResolveSideSchema = t.Union(
-  [t.Literal("yes"), t.Literal("no")],
-  {
-    $id: "DevMarketResolveSide",
-  },
-);
+/**
+ * Binary side accepted by the dev-only force resolve endpoint. Shares
+ * MARKET_SIDES with VenuePoolSideSchema but keeps its own `$id`, so the two
+ * stay distinct named components in the OpenAPI spec and the generated client.
+ */
+export const DevMarketResolveSideSchema = literalUnion(MARKET_SIDES, {
+  $id: "DevMarketResolveSide",
+});
 
 /** Lifecycle status of an indexed bounded-venue maker order. */
-export const VenueOrderStatusSchema = t.Union(
-  [t.Literal("open"), t.Literal("filled"), t.Literal("cancelled")],
-  { $id: "VenueOrderStatus" },
-);
+export const VenueOrderStatusSchema = literalUnion(VENUE_ORDER_STATUSES, {
+  $id: "VenueOrderStatus",
+});
 
 /**
  * Which side of the outcome's book a maker order rests on: an ask sells
@@ -430,7 +455,7 @@ export const MarketPostgradSchema = t.Object(
  */
 export const MarketResolutionSchema = t.Object(
   {
-    kind: t.Union([t.Literal("resolved"), t.Literal("cancelled")]),
+    kind: literalUnion(POSTGRAD_RESOLUTION_KINDS),
     postgradMarket: t.String(),
     resolvedAt: t.String(),
     transactionHash: t.String(),
@@ -566,12 +591,7 @@ export const GraduationIneligibleSchema = t.Object(
   {
     message: t.String(),
     market: t.Ref(MarketSchema),
-    reason: t.Union([
-      t.Literal("below_threshold"),
-      t.Literal("clearing_pending"),
-      t.Literal("onchain_settlement_required"),
-      t.Literal("wrong_status"),
-    ]),
+    reason: literalUnion(GRADUATION_INELIGIBLE_REASONS),
     status: t.Literal("ineligible"),
     summary: t.Ref(GraduationSummarySchema),
   },
@@ -594,10 +614,32 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   {
     message: t.String(),
     market: t.Ref(MarketSchema),
-    reason: t.Union([t.Literal("chain_status"), t.Literal("wrong_status")]),
+    reason: literalUnion(DEV_MARKET_CLOSE_INELIGIBLE_REASONS),
     status: t.Literal("ineligible"),
   },
   { $id: "DevMarketCloseIneligible" },
+);
+
+/** Result of a dev-only forced market review. */
+export const DevMarketReviewResponseSchema = t.Object(
+  {
+    market: t.Ref(MarketSchema),
+    status: t.Literal("reviewed"),
+    transactionHash: t.Optional(t.String()),
+    verdict: t.Ref(AiReviewVerdictSchema),
+  },
+  { $id: "DevMarketReviewResponse" },
+);
+
+/** Dev-only forced-review refusal, with the reason. */
+export const DevMarketReviewIneligibleSchema = t.Object(
+  {
+    message: t.String(),
+    market: t.Ref(MarketSchema),
+    reason: literalUnion(DEV_MARKET_REVIEW_INELIGIBLE_REASONS),
+    status: t.Literal("ineligible"),
+  },
+  { $id: "DevMarketReviewIneligible" },
 );
 
 /** Result of a dev-only end-to-end market graduation. */
@@ -617,13 +659,7 @@ export const DevMarketGraduateIneligibleSchema = t.Object(
   {
     message: t.String(),
     market: t.Ref(MarketSchema),
-    reason: t.Union([
-      t.Literal("adapter_unconfigured"),
-      t.Literal("below_threshold"),
-      t.Literal("chain_status"),
-      t.Literal("past_deadline"),
-      t.Literal("wrong_status"),
-    ]),
+    reason: literalUnion(DEV_MARKET_GRADUATE_INELIGIBLE_REASONS),
     status: t.Literal("ineligible"),
   },
   { $id: "DevMarketGraduateIneligible" },
@@ -645,12 +681,7 @@ export const DevMarketResolveIneligibleSchema = t.Object(
   {
     message: t.String(),
     market: t.Ref(MarketSchema),
-    reason: t.Union([
-      t.Literal("already_resolved"),
-      t.Literal("chain_status"),
-      t.Literal("postgrad_missing"),
-      t.Literal("wrong_status"),
-    ]),
+    reason: literalUnion(DEV_MARKET_RESOLVE_INELIGIBLE_REASONS),
     status: t.Literal("ineligible"),
   },
   { $id: "DevMarketResolveIneligible" },
@@ -701,7 +732,7 @@ export const ManualAiReviewIneligibleSchema = t.Object(
   {
     marketStatus: t.Optional(t.Ref(MarketStatusSchema)),
     message: t.String(),
-    reason: t.Union([t.Literal("missing_metadata"), t.Literal("wrong_status")]),
+    reason: literalUnion(MANUAL_AI_REVIEW_INELIGIBLE_REASONS),
     status: t.Literal("ineligible"),
   },
   { $id: "ManualAiReviewIneligible" },
@@ -715,6 +746,13 @@ export const ManualAiReviewConflictSchema = t.Union(
   ],
   { $id: "ManualAiReviewConflict" },
 );
+
+/**
+ * Response and request body types, each the `Static` projection of the
+ * like-named schema above. Services and route handlers type their return
+ * values with these so a handler that stops matching its schema fails to
+ * compile rather than failing validation at runtime.
+ */
 
 export type MarketResponse = Static<typeof MarketSchema>;
 export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
@@ -737,6 +775,12 @@ export type DevMarketCloseResponse = Static<
 >;
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
+>;
+export type DevMarketReviewResponse = Static<
+  typeof DevMarketReviewResponseSchema
+>;
+export type DevMarketReviewIneligibleResponse = Static<
+  typeof DevMarketReviewIneligibleSchema
 >;
 export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
 export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;

@@ -106,7 +106,10 @@ jobs:
   lifecycle-scenarios:
     name: Lifecycle scenarios (harness, paper trail)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Must exceed install/boot plus the suite's own hard deadline (40 min in
+    # run.ts): the second runner-dependent scenario waits out its resolution
+    # window PLUS the permanent chain-clock offset earlier jumps left behind.
+    timeout-minutes: 55
 
     steps:
       - name: Checkout
@@ -204,11 +207,13 @@ jobs:
           if-no-files-found: ignore
 
   # Boots the full stack (chain, Postgres, API, indexer) via
-  # local:smoke --keep-running plus the Next app, then walks markets into
-  # the resolved and draw-cancelled terminal states and redeems through the
-  # browser with the injected test wallet (ADR 0018 slice 6).
+  # local:smoke --keep-running plus the Next app, then drives the ADR 0017 C4
+  # @lifecycle UI journeys — create, review, trade, graduate, and every terminal
+  # state — with review verdicts forced deterministically through a dev endpoint
+  # (no AI), redeeming through the browser with the injected test wallet
+  # (ADR 0014 UI-journeys checklist).
   terminal-e2e:
-    name: Terminal-state app e2e (resolve/cancel → redeem)
+    name: Lifecycle UI journeys (@lifecycle)
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -243,7 +248,7 @@ jobs:
         working-directory: app
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run terminal-state lifecycle e2e
+      - name: Run lifecycle UI journeys
         run: pnpm lifecycle:e2e
 
       - name: Upload e2e failure artifacts
@@ -292,7 +297,7 @@ jobs:
           - Chain smoke (deploy, index, trade, resolve): $SMOKE_RESULT
           - Lifecycle scenarios (harness, paper trail): $SCENARIOS_RESULT
           - Chain-backed app e2e: $E2E_RESULT
-          - Terminal-state app e2e (resolve/cancel → redeem): $TERMINAL_RESULT
+          - Lifecycle UI journeys (@lifecycle): $TERMINAL_RESULT
 
           Auto-filed by the Nightly Lifecycle workflow (ADR 0017 Track C); closes itself on the next green run."
           if [ -n "$existing" ]; then
@@ -300,3 +305,80 @@ jobs:
           else
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
           fi
+
+  # Record this run's outcome in the ci-metrics datastore so it lands in
+  # TRENDS.md next to coverage (ADR 0017 Track C, item C6). Runs `always()` so a
+  # red or cancelled night is recorded, not only green ones — the datastore is
+  # the durable trend the tracking issue can't be.
+  record:
+    name: Record outcome in ci-metrics
+    needs: [lifecycle-smoke, lifecycle-scenarios, chain-e2e, terminal-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update ci-metrics branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          SMOKE_RESULT: ${{ needs.lifecycle-smoke.result }}
+          SCENARIOS_RESULT: ${{ needs.lifecycle-scenarios.result }}
+          E2E_RESULT: ${{ needs.chain-e2e.result }}
+          TERMINAL_RESULT: ${{ needs.terminal-e2e.result }}
+        run: |
+          set -euo pipefail
+          ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          overall=failed
+          if [ "$SMOKE_RESULT" = success ] && [ "$SCENARIOS_RESULT" = success ] \
+            && [ "$E2E_RESULT" = success ] && [ "$TERMINAL_RESULT" = success ]; then
+            overall=success
+          fi
+
+          # Rebuild-and-push, retried against the refetched branch. Regenerating
+          # from the datastore (rather than rebasing) is what keeps a concurrent
+          # coverage push from conflicting on the shared TRENDS.md; the update is
+          # idempotent by run id, so a retry can never duplicate the night's row.
+          for attempt in 1 2 3; do
+            git worktree remove --force ../ci-metrics 2>/dev/null || true
+            rm -rf ../ci-metrics
+            if git fetch --depth 1 origin ci-metrics; then
+              git worktree add ../ci-metrics FETCH_HEAD
+            else
+              mkdir ../ci-metrics
+              git -C ../ci-metrics init --initial-branch ci-metrics
+            fi
+
+            node --experimental-strip-types scripts/ci-update-nightly-metrics.ts \
+              --run-id "$RUN_ID" --commit "$HEAD_SHA" --run-url "$RUN_URL" \
+              --dir ../ci-metrics --timestamp "$ts" \
+              --smoke "$SMOKE_RESULT" --scenarios "$SCENARIOS_RESULT" \
+              --chain-e2e "$E2E_RESULT" --terminal "$TERMINAL_RESULT"
+
+            git -C ../ci-metrics config user.name "github-actions[bot]"
+            git -C ../ci-metrics config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git -C ../ci-metrics add -A
+            if ! git -C ../ci-metrics commit -m "nightly:$overall @ ${HEAD_SHA:0:7}"; then
+              echo "no changes to commit"
+              exit 0
+            fi
+            if git -C ../ci-metrics push \
+                "https://x-access-token:${GH_TOKEN}@github.com/$GITHUB_REPOSITORY.git" \
+                HEAD:refs/heads/ci-metrics; then
+              exit 0
+            fi
+            echo "push raced another writer; rebuilding against the remote (attempt $attempt)"
+          done
+          echo "failed to push ci-metrics after 3 attempts" >&2
+          exit 1

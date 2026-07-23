@@ -1,4 +1,5 @@
-import { parseAbiItem } from "viem";
+import { pregradManagerAbi } from "@popcharts/protocol";
+import { getAbiItem } from "viem";
 
 import { config } from "src/config";
 import type { BlockchainClient } from "src/blockchain/client";
@@ -44,27 +45,34 @@ import {
 // lands before its ClearingRootSubmitted.
 const CURSOR_NAME = "Settlement";
 
-const GRADUATION_STARTED_EVENT = parseAbiItem(
-  "event GraduationStarted(uint256 indexed marketId, address indexed manager, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt, bytes32 snapshotHash)",
-);
-const CLEARING_ROOT_SUBMITTED_EVENT = parseAbiItem(
-  "event ClearingRootSubmitted(uint256 indexed marketId, address indexed submitter, bytes32 indexed merkleRoot, bytes32 snapshotHash, uint256 matchedMarketCap, uint256 retainedCostTotal, uint256 refundTotal, uint256 completeSetCount, uint64 submittedAt, uint64 challengeDeadline)",
-);
-const GRADUATION_FINALIZED_EVENT = parseAbiItem(
-  "event GraduationFinalized(uint256 indexed marketId, address indexed postgradAdapter, address indexed postgradMarket, uint256 completeSetCount, uint256 retainedCostTotal, uint256 refundTotal)",
-);
-const MARKET_REFUNDS_AVAILABLE_EVENT = parseAbiItem(
-  "event MarketRefundsAvailable(uint256 indexed marketId, uint256 totalEscrowed)",
-);
-const MARKET_CANCELLED_EVENT = parseAbiItem(
-  "event MarketCancelled(uint256 indexed marketId, uint256 totalEscrowed)",
-);
-const GRADUATED_RECEIPT_CLAIMED_EVENT = parseAbiItem(
-  "event GraduatedReceiptClaimed(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 retainedShares, uint256 retainedCost, uint256 refund)",
-);
-const REFUNDED_RECEIPT_CLAIMED_EVENT = parseAbiItem(
-  "event RefundedReceiptClaimed(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint256 refund)",
-);
+const GRADUATION_STARTED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "GraduationStarted",
+});
+const CLEARING_ROOT_SUBMITTED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "ClearingRootSubmitted",
+});
+const GRADUATION_FINALIZED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "GraduationFinalized",
+});
+const MARKET_REFUNDS_AVAILABLE_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketRefundsAvailable",
+});
+const MARKET_CANCELLED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "MarketCancelled",
+});
+const GRADUATED_RECEIPT_CLAIMED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "GraduatedReceiptClaimed",
+});
+const REFUNDED_RECEIPT_CLAIMED_EVENT = getAbiItem({
+  abi: pregradManagerAbi,
+  name: "RefundedReceiptClaimed",
+});
 
 /**
  * Build + persist per event type; every persist dedupes on (chain, tx, log)

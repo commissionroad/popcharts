@@ -1,14 +1,12 @@
 import type { EvidenceItem } from "src/ai-review/types";
 
-import type {
-  AiResolutionConfig,
-  ResolutionModelProviderName,
-} from "../config";
+import type { AiResolutionConfig } from "../config";
 import type {
   ConfigValidationResult,
   MarketResolutionRequest,
   ResolutionFinding,
   ResolutionFindingWithEvidence,
+  ResolutionModelProviderName,
   ResolutionProviderCapabilities,
 } from "../types";
 

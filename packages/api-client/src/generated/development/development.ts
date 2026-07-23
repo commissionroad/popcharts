@@ -12,6 +12,11 @@ import type {
   DevMarketGraduateResponse,
   DevMarketResolveIneligible,
   DevMarketResolveResponse,
+  DevMarketReviewIneligible,
+  DevMarketReviewResponse,
+  ForceMarketReviewBodyOne,
+  ForceMarketReviewBodyThree,
+  ForceMarketReviewBodyTwo,
   GraduateDevMarketParams,
 } from ".././models";
 
@@ -72,6 +77,74 @@ export const closeDevMarket = async (
 
   const data: closeDevMarketResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as closeDevMarketResponse;
+};
+
+/**
+ * Local-only development tool gated on POPCHARTS_DEV_TOOLS_ENABLED. Records a deterministic market review without invoking the AI review service or runner, transitioning approved or rejected markets on-chain before persisting the review.
+ * @summary Dev-only force a market review verdict
+ */
+export type forceMarketReviewResponse200 = {
+  data: DevMarketReviewResponse;
+  status: 200;
+};
+
+export type forceMarketReviewResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type forceMarketReviewResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type forceMarketReviewResponse409 = {
+  data: DevMarketReviewIneligible;
+  status: 409;
+};
+
+export type forceMarketReviewResponseSuccess = forceMarketReviewResponse200 & {
+  headers: Headers;
+};
+export type forceMarketReviewResponseError = (
+  | forceMarketReviewResponse400
+  | forceMarketReviewResponse404
+  | forceMarketReviewResponse409
+) & {
+  headers: Headers;
+};
+
+export type forceMarketReviewResponse =
+  | forceMarketReviewResponseSuccess
+  | forceMarketReviewResponseError;
+
+export const getForceMarketReviewUrl = (chainId: string, marketId: string) => {
+  return `/dev/markets/${chainId}/${marketId}/review`;
+};
+
+export const forceMarketReview = async (
+  chainId: string,
+  marketId: string,
+  forceMarketReviewBody:
+    | ForceMarketReviewBodyOne
+    | ForceMarketReviewBodyTwo
+    | ForceMarketReviewBodyThree,
+  options?: RequestInit
+): Promise<forceMarketReviewResponse> => {
+  const res = await fetch(getForceMarketReviewUrl(chainId, marketId), {
+    ...options,
+    method: "POST",
+    body: JSON.stringify(forceMarketReviewBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: forceMarketReviewResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as forceMarketReviewResponse;
 };
 
 /**

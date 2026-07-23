@@ -1,10 +1,9 @@
-import { relative, resolve } from "node:path";
-
 import { erc20Abi, formatUnits, getAddress, type Address, type Hex, type PublicClient } from "viem";
 
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
-import { collectVenueAddressEntries } from "./shared/deployment/venueManifest.js";
-import { readJsonFile } from "../src/json/jsonFile.js";
+import { readManifestAddress } from "./shared/deployment/readManifestAddresses.js";
+import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
 import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
 import {
   readCompleteSetMarketManifest,
@@ -543,34 +542,12 @@ async function resolvePostgradManifestAddress(
   context: PostgradAdminContext,
   name: string,
 ): Promise<Address> {
-  const manifestFile = resolve(
-    context.protocolRoot,
-    context.env.POPCHARTS_POSTGRAD_DEPLOYMENT_FILE ||
-      `deployments/${context.chainEnv}.postgrad.local.json`,
-  );
-  const manifestPath = relative(context.protocolRoot, manifestFile);
-  let manifest: unknown;
-  try {
-    manifest = await readJsonFile(manifestFile);
-  } catch {
-    throw new Error(
-      `Could not read postgrad manifest ${manifestPath}. Run the postgrad deploy first ` +
-        "(pnpm local:deploy-postgrad or pnpm arc:testnet:deploy-postgrad).",
-    );
-  }
-  const manifestChainId =
-    typeof manifest === "object" && manifest !== null && !Array.isArray(manifest)
-      ? (manifest as Record<string, unknown>).chainId
-      : undefined;
-  if (manifestChainId !== context.chainId) {
-    throw new Error(
-      `Postgrad manifest ${manifestPath} is for chain ${String(manifestChainId)}, ` +
-        `but the connected chain is ${context.chainId}.`,
-    );
-  }
-  const entry = collectVenueAddressEntries(manifest).find((candidate) => candidate.name === name);
-  if (entry === undefined) {
-    throw new Error(`Postgrad manifest ${manifestPath} has no ${name} address entry.`);
-  }
-  return entry.address;
+  return readManifestAddress({
+    deployHint: POSTGRAD_VENUE_DEPLOYMENT.deployHint,
+    expectedChainId: context.chainId,
+    kind: "postgrad",
+    manifestFile: resolveDeploymentManifestFile(POSTGRAD_VENUE_DEPLOYMENT, context),
+    name,
+    protocolRoot: context.protocolRoot,
+  });
 }

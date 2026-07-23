@@ -33,7 +33,14 @@ export function buildLocalAppEnv(args: {
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
       process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
       DEFAULT_HARDHAT_PRIVATE_KEY,
+    // Two spellings on purpose. Server-side reads (SSR market fetch, the
+    // indexer proxy routes) prefer the non-public var, mirroring prod where the
+    // browser's API origin differs from the internal SSR origin. The live
+    // updates SSE connection runs in the BROWSER and can only see NEXT_PUBLIC_*
+    // — without this the connection is inert and no page ever goes live. Both
+    // point at the one local API here (repo ADR 0021).
     POPCHARTS_INDEXER_API_URL: apiBaseUrl,
+    NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL: apiBaseUrl,
     POPCHARTS_MARKET_DATA_SOURCE: "api",
     POPCHARTS_MARKETS_CHAIN_ID: String(deploy.chainId),
     ...postgradAppEnv(postgrad),

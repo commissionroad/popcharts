@@ -3,6 +3,7 @@ import "./env";
 import { mnemonicToAccount } from "viem/accounts";
 import type { Address } from "viem";
 
+import type { MarketResponse } from "src/api/models/markets";
 import {
   createReadOnlyClient,
   createWalletClient,
@@ -24,15 +25,42 @@ import { config } from "src/config";
 // without the server config env), so the two copies cannot share a module.
 const LOCAL_DEV_MNEMONIC =
   "test test test test test test test test test test test junk";
+export const LOCAL_DEV_ACCOUNT_COUNT = 20;
 
 /**
  * Account allocation. Index 0 signs for every server-side service (deployer,
- * manager, keeper, review/resolution runners) — scenarios must never send
- * from it or they race service nonces. The creator index is distinct from the
- * trader range so creation-fee accounting never mixes into trade balances.
+ * manager, keeper, review/resolution runners) — ordinary scenario traffic
+ * must never send from it or it races service nonces; the sole exception is
+ * operator.ts, whose keyed operator actions intentionally use service
+ * identities behind a nonce-collision retry. The creator index is distinct
+ * from the trader range so creation-fee accounting never mixes into trade
+ * balances.
  */
 export const CREATOR_ACCOUNT_INDEX = 5;
-export const FIRST_TRADER_ACCOUNT_INDEX = 10;
+
+/**
+ * Per-scenario trader indexes, allocated in one place so uniqueness is
+ * reviewable here rather than discovered as cross-scenario contamination.
+ * Scenarios assert balance deltas, not absolutes, so reuse is survivable —
+ * but every index below is intentionally distinct anyway, except
+ * `receiptProbe`, which only simulates (never sends) and may alias.
+ */
+export const SCENARIO_ACCOUNTS = {
+  happyPathYes: 10,
+  happyPathNo: 11,
+  happyPathPostgradTrader: 12,
+  drawCancelHolder: 13,
+  failedGraduationYes: 14,
+  failedGraduationNo: 15,
+  partialClearingYes: 16,
+  partialClearingNo: 17,
+  /** Places the one-sided excess that lands out-of-band and refunds. */
+  partialClearingExcess: 18,
+  /** Places receipts while the indexer is stopped, for the catch-up drill. */
+  indexerRestartTrader: 19,
+  /** Simulate-only prober for negative guards; never submits a transaction. */
+  receiptProbe: 10,
+} as const;
 
 export const chainId = config.chainId;
 export const pregradManagerAddress = config.contracts.pregradManager;
@@ -75,19 +103,12 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** The market read model served by GET /markets/:chainId/:marketId. */
-export type ApiMarket = {
-  marketId: string;
-  metadataHash: string;
-  postgrad?: {
-    marketAddress?: string;
-    noTokenAddress?: string;
-    yesTokenAddress?: string;
-  };
-  resolution?: { kind: string; winningSide?: string | null };
-  status: string;
-  totalEscrowed: string;
-};
+/**
+ * The market read model served by GET /markets/:chainId/:marketId — the
+ * API's own response type, imported rather than mirrored so schema changes
+ * surface as harness type errors instead of silent assertion drift.
+ */
+export type ApiMarket = MarketResponse;
 
 export async function fetchApiMarket(
   marketId: bigint,

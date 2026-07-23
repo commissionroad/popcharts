@@ -8,7 +8,7 @@ Date: 2026-07-17
 
 The local dev stack was built for one instance at a time. Running a second
 stack — a human on the primary checkout plus one or more agents in
-`.claude/worktrees/` — silently corrupts both, with no error at any layer.
+contained worktrees — silently corrupts both, with no error at any layer.
 A 2026-07-17 incident made this concrete: a leftover
 `local:smoke --keep-running` chain from one worktree was still bound to
 `:8545` when a process-compose stack started on the primary checkout. The new
@@ -56,8 +56,10 @@ Scoping decisions (2026-07-17 grill):
 
 - **Slot 0 is reserved for humans; slots 1..n are for agents; then
   auto-offset.** Agent-ness is keyed off the working directory: a stack whose
-  cwd is under `.claude/worktrees/` is an agent and claims the lowest free
-  slot ≥ 1; otherwise it is the human default, slot 0. An explicit
+  cwd is under the canonical `.worktrees/` directory is an agent and claims
+  the lowest free slot ≥ 1; otherwise it is the human default, slot 0.
+  Legacy harness-managed `.claude/worktrees/` paths remain recognized during
+  migration. An explicit
   `--slot N` / `POPCHARTS_STACK_SLOT` always wins. If a claimed slot's ports
   are occupied by a live foreign process, advance to the next free slot
   rather than adopting it.
@@ -101,6 +103,7 @@ Given slot `s`:
 | process-compose admin | `8080 + s` | 8080 | 8081 |
 | Postgres database | `popcharts` / `popcharts_<s>` | popcharts | popcharts_1 |
 | Env file | `.env.local-chain` / `.env.local-chain.<s>` | (legacy) | .env.local-chain.1 |
+| Indexer health marker | `.env.local-dev.indexer-health` / `….<s>` | (legacy) | .env.local-dev.indexer-health.1 |
 
 ### Mechanism: the registry
 
@@ -146,8 +149,9 @@ One concern per PR; this checklist is updated in the same PR as the work
 ### Phase 1 — slot + registry core
 
 - [x] `scripts/shared/localStack/slot.ts` — slot resolution (explicit flag →
-      cwd-under-`.claude/worktrees/` agent heuristic → human slot 0), with the
-      foreign-port advance rule.
+      cwd-under-`.worktrees/` agent heuristic, with legacy
+      `.claude/worktrees/` support → human slot 0), with the foreign-port
+      advance rule.
 - [x] `scripts/shared/localStack/ports.ts` — the slot → ports/chainId/dbName/
       env-file derivation table above, single source of truth.
 - [x] `scripts/shared/localStack/registry.ts` — read/write/prune descriptors
@@ -257,7 +261,8 @@ registry, a single launcher resolves the stack and exports the vars they read.
       safe to share across slots, a future change could run one and save
       ports; deferred because per-slot isolation is the safer default now.
 - [ ] **Explicit `POPCHARTS_STACK_KIND` override** if the cwd heuristic ever
-      misclassifies (e.g. an agent working outside `.claude/worktrees/`).
+      misclassifies (e.g. an agent working outside the recognized worktree
+      directories).
 
 ## Exit criteria
 

@@ -3,7 +3,14 @@ import "./env";
 import { closeDb } from "src/db/client";
 
 import { runScenarios, type Scenario } from "./report";
+import { aiOutage } from "./scenarios/ai-outage";
+import { drawCancel } from "./scenarios/draw-cancel";
+import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
+import { indexerRestart } from "./scenarios/indexer-restart";
+import { manualReview } from "./scenarios/manual-review";
+import { partialClearing } from "./scenarios/partial-clearing";
+import { rejectedCreation } from "./scenarios/rejected-creation";
 
 /**
  * Entry point for the lifecycle nightly suite (ADR 0017 Track C item C3;
@@ -11,12 +18,29 @@ import { happyPath } from "./scenarios/happy-path";
  * stack — chain, API, indexer, keeper, and the heuristic review/resolution
  * services — normally provided by `pnpm local:lifecycle-nightly`.
  *
- * Scenario order matters twice over: chain-time jumps are global and
- * forward-only, and scenarios needing an AI runner to pick a market up wait
- * out real wall-clock time that grows with accumulated chain drift — so
- * runner-dependent scenarios come first, while drift is smallest.
+ * Scenario order matters twice over: chain-time jumps are global,
+ * forward-only, and leave a PERMANENT chain-vs-wall offset (hardhat keeps
+ * jump offsets; they never decay), and scenarios needing the resolution
+ * runner wait out wall-clock time equal to their resolution window plus
+ * every offset accumulated before their market was created. So the
+ * resolution-dependent scenarios run first — each later one budgets its
+ * predecessors' jumps into its wait — and scenarios that need no resolution
+ * runner trail the group. (Partial clearing still advances the chain: its
+ * graduation fast-forwards past the clearing challenge deadline. That is a
+ * permanent forward offset, but nothing after it waits on the wall-clock
+ * resolution runner, so it only costs suite time, not correctness. Append a
+ * resolution-dependent scenario after it and that offset must be budgeted.)
  */
-const SCENARIOS: readonly Scenario[] = [happyPath];
+const SCENARIOS: readonly Scenario[] = [
+  happyPath,
+  drawCancel,
+  partialClearing,
+  failedGraduation,
+  manualReview,
+  rejectedCreation,
+  indexerRestart,
+  aiOutage,
+];
 
 const only = process.env.POPCHARTS_LIFECYCLE_SCENARIO;
 const selected = only
@@ -31,10 +55,11 @@ if (only && selected.length === 0) {
 }
 
 // A wedged I/O call (a fetch with no timeout, a stuck transaction-receipt
-// wait) would otherwise park the runner until the CI job's 45-minute kill
-// with no summary; the hard deadline turns any hang into a loud failure.
+// wait) would otherwise park the runner until the CI job's own kill with no
+// summary; the hard deadline turns any hang into a loud failure while the
+// step-level waitForCondition budgets handle ordinary slowness.
 const suiteTimeoutMs = Number(
-  process.env.POPCHARTS_LIFECYCLE_SUITE_TIMEOUT_MS ?? 30 * 60 * 1000,
+  process.env.POPCHARTS_LIFECYCLE_SUITE_TIMEOUT_MS ?? 40 * 60 * 1000,
 );
 setTimeout(() => {
   console.error(
