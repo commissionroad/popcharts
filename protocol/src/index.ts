@@ -94,6 +94,7 @@ export {
 export type { BandPassClearingResult, ClearingReceipt } from "./clearing/band-pass-clearing.js";
 export {
   contractSideToMarketSide,
+  MARKET_SIDES,
   marketSideToContractSide,
   SIDE_NO,
   SIDE_YES,

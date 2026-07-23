@@ -1,11 +1,12 @@
-import { contractSideToMarketSide } from "@popcharts/protocol";
+import { contractSideToMarketSide, type MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, and, eq, schema } from "src/db/client";
+import type { PostgradResolutionKind } from "src/db/schema/postgrad-resolution-events";
 import { recordLiveChange } from "src/change-feed/writer";
 
-export type PostgradResolutionKind = "resolved" | "cancelled";
+export type { PostgradResolutionKind };
 
 export type PostgradMarketResolvedLog = Log & {
   args: {
@@ -47,7 +48,7 @@ export function buildPostgradResolutionRecord({
   const transactionHash = requireValue(log.transactionHash, "transactionHash");
   const logIndex = requireValue(log.logIndex, "logIndex");
 
-  let winningSide: "yes" | "no" | null = null;
+  let winningSide: MarketSide | null = null;
   if (kind === "resolved") {
     const side = requireValue(
       (log as PostgradMarketResolvedLog).args.side,

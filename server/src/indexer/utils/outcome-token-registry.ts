@@ -1,3 +1,5 @@
+import type { MarketSide } from "@popcharts/protocol";
+
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
@@ -6,7 +8,7 @@ export type IndexedOutcomeToken = {
   /** Lowercased token contract address. */
   address: string;
   marketId: bigint;
-  side: "yes" | "no";
+  side: MarketSide;
   /**
    * Block of the market's GraduationFinalized event. OutcomeToken minting is
    * market-only and the market deploys at graduation, so no transfer can

@@ -10,21 +10,26 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { contracts } from "./contracts";
+import { MARKET_SIDE_VALUES } from "./market-side";
 
 /**
  * Which terminal event the postgrad market emitted: MarketResolved(side) or
  * MarketCancelled() (a draw — YES and NO redeem at half). Distinct from the
  * pregrad admin-cancel event table (market_cancelled_events).
  */
+export const POSTGRAD_RESOLUTION_KINDS = ["resolved", "cancelled"] as const;
+
+/** One of {@link POSTGRAD_RESOLUTION_KINDS}. */
+export type PostgradResolutionKind = (typeof POSTGRAD_RESOLUTION_KINDS)[number];
+
+/** Postgres enum for PostgradResolutionKind, derived from the same const array. */
 export const postgradResolutionKind = pgEnum("postgrad_resolution_kind", [
-  "resolved",
-  "cancelled",
+  ...POSTGRAD_RESOLUTION_KINDS,
 ]);
 
 /** Winning side carried by MarketResolved; null for a cancelled draw. */
 export const postgradWinningSide = pgEnum("postgrad_winning_side", [
-  "yes",
-  "no",
+  ...MARKET_SIDE_VALUES,
 ]);
 
 /**

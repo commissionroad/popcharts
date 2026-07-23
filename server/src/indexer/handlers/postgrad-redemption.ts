@@ -3,9 +3,10 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
+import type { PostgradRedemptionKind } from "src/db/schema/postgrad-redemption-events";
 import { recordLiveChange } from "src/change-feed/writer";
 
-export type PostgradRedemptionKind = "redeemed" | "cancelled_redeemed";
+export type { PostgradRedemptionKind };
 
 export type PostgradRedeemedLog = Log & {
   args: {

@@ -1,3 +1,4 @@
+import type { MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -20,7 +21,7 @@ export type OutcomeTokenTransferLog = Log & {
 export type OutcomeTokenTransferRecord =
   typeof schema.outcomeTokenTransferEvents.$inferInsert & {
     marketId: bigint;
-    side: "yes" | "no";
+    side: MarketSide;
   };
 
 type BuildInput = {
@@ -29,7 +30,7 @@ type BuildInput = {
   contractId: number;
   log: OutcomeTokenTransferLog;
   marketId: bigint;
-  side: "yes" | "no";
+  side: MarketSide;
 };
 
 /** Maps an outcome-token Transfer log into a typed events-table row. */

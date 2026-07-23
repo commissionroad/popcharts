@@ -1,3 +1,5 @@
+import type { MarketSide } from "@popcharts/protocol";
+
 import {
   buildOutcomePoolKey,
   computePoolId,
@@ -27,7 +29,7 @@ export function buildVenuePoolRecords({
   readonly postgradMarket: `0x${string}`;
   readonly yesToken: `0x${string}`;
 }): VenuePoolRecord[] {
-  const build = (token: `0x${string}`, side: "yes" | "no"): VenuePoolRecord => {
+  const build = (token: `0x${string}`, side: MarketSide): VenuePoolRecord => {
     // ABI-encoding an address only uses its 20 bytes, so lowercasing here
     // keeps the pool id identical while accepting non-checksummed input.
     const outcomeToken = token.toLowerCase() as `0x${string}`;

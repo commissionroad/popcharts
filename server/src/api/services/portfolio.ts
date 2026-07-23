@@ -2,6 +2,7 @@ import {
   COMPLETE_SET_PRICE_POLICY,
   contractSideToMarketSide,
   sqrtPriceX96ToDisplayPriceWad,
+  type MarketSide,
 } from "@popcharts/protocol";
 
 import type { MarketResolutionResponse } from "src/api/models/markets";
@@ -85,7 +86,7 @@ export type PortfolioBalanceRow = {
     readonly balance: bigint;
     readonly marketId: bigint;
     readonly outcomeToken: string;
-    readonly side: "yes" | "no";
+    readonly side: MarketSide;
   };
   readonly market: MarketContext | null;
   readonly pool: VenuePoolRow | null;
@@ -109,7 +110,7 @@ export type PortfolioRedemptionRow = {
     readonly marketId: bigint;
     readonly noAmount: bigint | null;
     readonly outcomeAmount: bigint | null;
-    readonly side: "yes" | "no" | null;
+    readonly side: MarketSide | null;
     readonly transactionHash: string;
     readonly yesAmount: bigint | null;
   };
@@ -315,7 +316,7 @@ async function buildPositions({
     marketId: bigint;
     outcomeToken: string;
     pool: VenuePoolRow | null;
-    side: "yes" | "no";
+    side: MarketSide;
   };
 
   const drafts = new Map<string, PositionDraft>();
@@ -465,7 +466,7 @@ async function buildPositions({
  */
 function settledOutcomePriceWad(
   resolution: MarketResolutionResponse | null,
-  side: "yes" | "no",
+  side: MarketSide,
 ): bigint | undefined {
   if (!resolution) {
     return undefined;
@@ -558,7 +559,7 @@ function aggregateSettlements(receiptRows: PortfolioReceiptRow[]) {
   return totals;
 }
 
-function settlementKey(marketId: bigint, side: "yes" | "no") {
+function settlementKey(marketId: bigint, side: MarketSide) {
   return `${marketId}:${side}`;
 }
 

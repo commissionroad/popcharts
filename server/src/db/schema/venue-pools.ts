@@ -12,8 +12,10 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { MARKET_SIDE_VALUES } from "./market-side";
+
 /** Which binary outcome token a bounded-venue pool trades against collateral. */
-export const venuePoolSide = pgEnum("venue_pool_side", ["yes", "no"]);
+export const venuePoolSide = pgEnum("venue_pool_side", [...MARKET_SIDE_VALUES]);
 
 /**
  * Maps each bounded v4 venue pool to the graduated market and outcome it

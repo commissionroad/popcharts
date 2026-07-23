@@ -6,6 +6,8 @@ import {
   VenueOrderSchema,
   VenuePoolSideSchema,
 } from "src/api/models/markets";
+import { POSTGRAD_REDEMPTION_KINDS } from "src/db/schema/postgrad-redemption-events";
+import { literalUnion } from "src/shared/typebox-literals";
 
 /**
  * Portfolio read models (docs/portfolio-data-design.md). All bigints are
@@ -117,7 +119,7 @@ export const PortfolioPositionSchema = t.Object(
 export const PortfolioRedemptionSchema = t.Object(
   {
     collateralAmount: t.String(),
-    kind: t.Union([t.Literal("redeemed"), t.Literal("cancelled_redeemed")]),
+    kind: literalUnion(POSTGRAD_REDEMPTION_KINDS),
     logIndex: t.Number(),
     marketId: t.String(),
     marketQuestion: t.Optional(t.String()),

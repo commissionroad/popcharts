@@ -1,14 +1,15 @@
 import {
   completeSetBinaryMarketAbi,
   contractSideToMarketSide,
+  MARKET_SIDES,
   marketSideToContractSide,
+  type MarketSide,
 } from "@popcharts/protocol";
 import { type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type {
   DevMarketResolveIneligibleReason,
-  DevMarketResolveSide,
   MarketPostgradResponse,
   MarketResolutionResponse,
   MarketResponse,
@@ -42,13 +43,13 @@ type ChainResolveResult =
   | {
       blockTimestamp: Date;
       kind: "already_resolved";
-      winningSide: DevMarketResolveSide;
+      winningSide: MarketSide;
     }
   | {
       blockTimestamp: Date;
       kind: "resolved";
       transactionHash: Hash;
-      winningSide: DevMarketResolveSide;
+      winningSide: MarketSide;
     }
   | {
       kind: "wrong_status";
@@ -82,7 +83,7 @@ export type DevMarketResolveResult =
       kind: "resolved";
       market: MarketResponse;
       transactionHash?: Hash;
-      winningSide: DevMarketResolveSide;
+      winningSide: MarketSide;
     };
 
 export type DevMarketResolveDependencies = {
@@ -98,7 +99,7 @@ export type DevMarketResolveDependencies = {
   }) => Promise<MarketRow | null>;
   resolveMarketOnChain: (
     postgradMarket: `0x${string}`,
-    side: DevMarketResolveSide,
+    side: MarketSide,
   ) => Promise<ChainResolveResult>;
   selectMarket: ({
     chainId,
@@ -353,7 +354,7 @@ async function markMarketResolved({
 
 async function resolveLocalPostgradMarketOnChain(
   postgradMarket: `0x${string}`,
-  side: DevMarketResolveSide,
+  side: MarketSide,
 ): Promise<ChainResolveResult> {
   const publicClient = createReadOnlyClient();
   const status = (await publicClient.readContract({
@@ -436,13 +437,14 @@ function serializeResolveMarketRow(
   );
 }
 
-function parseResolveSide(side: string): DevMarketResolveSide | null {
+/** Narrows untrusted request input to a known side, or null if unrecognized. */
+function parseResolveSide(side: string): MarketSide | null {
   const normalized = side.toLowerCase();
 
-  return normalized === "yes" || normalized === "no" ? normalized : null;
+  return MARKET_SIDES.find((value) => value === normalized) ?? null;
 }
 
-function formatSide(side: DevMarketResolveSide) {
+function formatSide(side: MarketSide) {
   return side.toUpperCase();
 }
 
