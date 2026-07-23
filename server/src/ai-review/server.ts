@@ -13,6 +13,8 @@ import {
   getReviewProviderStatus,
 } from "./providers/registry";
 import { reviewMarket, ReviewUnavailableError } from "./reviewer";
+import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
+import { literalUnion } from "src/shared/typebox-literals";
 
 const PUBLICLY_KNOWABLE_REVIEW_EXAMPLE = {
   context: {
@@ -205,11 +207,7 @@ const ReviewResultSchema = t.Object({
   evidence: t.Array(EvidenceSchema),
   hardFlags: t.Array(t.String()),
   modelId: t.Optional(t.String()),
-  provider: t.Union([
-    t.Literal("anthropic"),
-    t.Literal("heuristic"),
-    t.Literal("ollama"),
-  ]),
+  provider: literalUnion(REVIEW_PROVIDER_NAMES),
   promptVersion: t.String(),
   reasons: t.Array(t.String()),
   scoreRationales: ScoreRationalesSchema,
@@ -244,22 +242,10 @@ const MarketReviewRequestSchema = t.Object(
     options: t.Optional(
       t.Object({
         fetchSearchResults: t.Optional(t.Boolean()),
-        internetAccess: t.Optional(
-          t.Union([
-            t.Literal("off"),
-            t.Literal("provided_urls"),
-            t.Literal("search"),
-          ]),
-        ),
+        internetAccess: t.Optional(literalUnion(INTERNET_ACCESS_MODES)),
         maxSearchResults: t.Optional(t.Number()),
         model: t.Optional(t.String()),
-        provider: t.Optional(
-          t.Union([
-            t.Literal("anthropic"),
-            t.Literal("heuristic"),
-            t.Literal("ollama"),
-          ]),
-        ),
+        provider: t.Optional(literalUnion(REVIEW_PROVIDER_NAMES)),
       }),
     ),
   },

@@ -10,6 +10,12 @@ import {
 } from "./config";
 import { getResolutionProviderStatus } from "./providers/registry";
 import { resolveMarket } from "./resolver";
+import {
+  RESOLUTION_MODEL_PROVIDER_NAMES,
+  RESOLUTION_PROVIDER_NAMES,
+} from "./types";
+import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
+import { literalUnion } from "src/shared/typebox-literals";
 
 const KNOWN_OUTCOME_RESOLUTION_EXAMPLE = {
   context: {
@@ -78,12 +84,7 @@ const ResolutionResultSchema = t.Object({
     t.Literal("abstain"),
   ]),
   promptVersion: t.String(),
-  provider: t.Union([
-    t.Literal("anthropic"),
-    t.Literal("heuristic"),
-    t.Literal("ollama"),
-    t.Literal("manual"),
-  ]),
+  provider: literalUnion(RESOLUTION_PROVIDER_NAMES),
   reasons: t.Array(t.String()),
   sourceChecks: t.Array(SourceCheckSchema),
   verdict: t.Union([
@@ -119,22 +120,10 @@ const MarketResolutionRequestSchema = t.Object(
     options: t.Optional(
       t.Object({
         fetchSearchResults: t.Optional(t.Boolean()),
-        internetAccess: t.Optional(
-          t.Union([
-            t.Literal("off"),
-            t.Literal("provided_urls"),
-            t.Literal("search"),
-          ]),
-        ),
+        internetAccess: t.Optional(literalUnion(INTERNET_ACCESS_MODES)),
         maxSearchResults: t.Optional(t.Number()),
         model: t.Optional(t.String()),
-        provider: t.Optional(
-          t.Union([
-            t.Literal("anthropic"),
-            t.Literal("heuristic"),
-            t.Literal("ollama"),
-          ]),
-        ),
+        provider: t.Optional(literalUnion(RESOLUTION_MODEL_PROVIDER_NAMES)),
       }),
     ),
   },

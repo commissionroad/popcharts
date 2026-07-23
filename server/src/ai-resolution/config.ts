@@ -7,6 +7,8 @@ import {
 
 import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
 import type { InternetAccessMode } from "src/ai-review/types";
+import { RESOLUTION_MODEL_PROVIDER_NAMES } from "./types";
+import type { ResolutionModelProviderName } from "./types";
 
 /**
  * Version tag persisted with every resolution so stored verdicts can be traced
@@ -14,18 +16,6 @@ import type { InternetAccessMode } from "src/ai-review/types";
  * output contract changes meaning.
  */
 export const AI_RESOLUTION_PROMPT_VERSION = "market-ai-resolution-v1";
-
-/** Model providers the resolution service can call. `manual` (operator /
- * self-resolve) is a valid audit-row provider but never a service selection. */
-export const RESOLUTION_MODEL_PROVIDER_NAMES = [
-  "anthropic",
-  "heuristic",
-  "ollama",
-] as const;
-
-/** One of {@link RESOLUTION_MODEL_PROVIDER_NAMES}. */
-export type ResolutionModelProviderName =
-  (typeof RESOLUTION_MODEL_PROVIDER_NAMES)[number];
 
 /**
  * Full runtime configuration of the AI Resolution service. Mirrors the AI
