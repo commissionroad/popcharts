@@ -72,9 +72,19 @@ test.describe("@lifecycle failed graduation", () => {
     await claim.waitFor({ state: "visible" });
     await claim.dispatchEvent("click");
 
-    await expect(page.getByText("Refund claimed")).toBeVisible({
-      timeout: 60_000,
-    });
+    // Matches the settled receipt's detail line — a dollar amount followed by
+    // "returned" (e.g. "$50.00 returned"), which only a claimed refund renders.
+    // Assert that, not the button's "Refund claimed" label: that
+    // label only exists while the receipt is still `refund_claimable`, so once
+    // the indexer projects RefundedReceiptClaimed the panel is replaced by this
+    // summary and the label is never seen. Waiting on it made this journey fail
+    // three attempts in a row even though every claim had settled on-chain.
+    await expect(
+      page
+        .getByText(/\$[\d,.]+ returned/)
+        .filter({ visible: true })
+        .first()
+    ).toBeVisible({ timeout: 60_000 });
 
     const balanceAfter = await collateralBalance(env, TEST_WALLET_ADDRESS);
     expect(balanceAfter > balanceBefore).toBe(true);

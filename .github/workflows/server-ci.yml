@@ -127,6 +127,36 @@ jobs:
       - name: OpenAPI check
         run: bun run openapi:check
 
+      # Catches a schema edit that needs a migration but did not get one.
+      # Needs no database: `drizzle-kit generate` diffs the TypeScript schema
+      # against the newest committed snapshot and never connects.
+      - name: Drizzle schema check
+        run: bun run db:check
+
+      # The committed drizzle/*.sql files are otherwise never executed by any
+      # suite — the integration tier builds its schema with generateMigration
+      # from the TypeScript schema (src/test-support/int-db.ts), so a
+      # migration that cannot actually apply would ship green. This is the
+      # only step that runs them, against a database dedicated to it so the
+      # integration tier's admin connection is unaffected.
+      - name: Migrations apply to a clean database
+        env:
+          POSTGRES_BASE_URL: postgresql://postgres:postgres@localhost:5432
+          MIGRATION_CHECK_DB: drizzle_migration_check
+        run: |
+          set -euo pipefail
+          # Uses the server's own postgres client rather than a psql binary,
+          # so the step does not depend on what the runner image ships. Both
+          # the base URL and the database name are read from the env above so
+          # each is written exactly once.
+          bun -e '
+            const postgres = (await import("postgres")).default;
+            const sql = postgres(`${process.env.POSTGRES_BASE_URL}/postgres`);
+            await sql.unsafe(`CREATE DATABASE ${process.env.MIGRATION_CHECK_DB}`);
+            await sql.end();
+          '
+          DATABASE_URL="${POSTGRES_BASE_URL}/${MIGRATION_CHECK_DB}" bun run db:migrate
+
       - name: Tests with coverage
         run: bun run test:coverage
 

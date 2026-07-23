@@ -16,12 +16,17 @@ import { contracts } from "./contracts";
 import { uint256 } from "./uint256";
 
 /** Discriminates which BoundedPoolOrderManager order event a row records. */
-export const venueOrderEventType = pgEnum("venue_order_event_type", [
+export const VENUE_ORDER_EVENT_TYPES = [
   "created",
   "cancelled",
   "filled",
   "partially_filled",
   "requeued",
+] as const;
+
+/** Postgres enum for the order event type, derived from the same const array. */
+export const venueOrderEventType = pgEnum("venue_order_event_type", [
+  ...VENUE_ORDER_EVENT_TYPES,
 ]);
 
 /**
