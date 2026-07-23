@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0014 — Full-lifecycle E2E testing
-description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete); three of five UI journeys (C4 — golden, rejected creation, failed graduation) landed 2026-07-22, two open (partial clearing, cancelled/draw).
+description: Vertical ADR for an automated suite driving markets from creation to every terminal state through the real local stack, happy and unhappy paths; the acceptance gate for M1–M4 and the Arc launch; delivery re-homed 2026-07-15 into ADR 0017 Track C's nightly-lifecycle tier (service/chain layer for all paths + five UI journeys); all eight service/chain paths landed 2026-07-20/21 (ADR 0017 C3 complete); all five UI journeys landed 2026-07-22 (ADR 0017 C4 complete — golden, rejected creation, failed graduation, partial clearing, cancelled/draw).
 sources:
   - docs/adr/0014-full-lifecycle-e2e-testing.md
 updated: 2026-07-22
@@ -29,7 +29,7 @@ terminal state through the real local stack (chain, contracts, API, indexer,
 AI services, app), covering happy and unhappy paths. The suite is the
 acceptance gate for milestones M1–M4 and, ultimately, the Arc launch.
 
-## Progress (all eight service/chain paths landed; UI journeys open)
+## Progress (all eight service/chain paths + all five UI journeys landed)
 
 Harness (**landed 2026-07-20**, ADR 0017 item C3 first slice):
 
@@ -103,9 +103,15 @@ the paper trail):
   a single unmatched YES receipt keeps the market sub-threshold; the dev close
   opens refunds via `markRefundable` and the holder claims the full cost back
   on the market page.
-- [ ] Partial clearing: retained + refunded itemized in the claim flow.
-- [ ] Cancelled/draw: redeem at cost through the ADR 0018 surface (an
-  `@lifecycle` draw test already exists; C4 finalizes it as journey 5).
+- [x] Partial clearing (**landed 2026-07-22**, `partial-clearing.spec.ts`): a
+  balanced book to the threshold plus a one-sided YES excess is placed by share
+  count from the injected wallet; dev graduation with `force=false` runs the
+  real band-pass clearing, and the settled YES receipt on `/portfolio` shows
+  "N YES tokens + $X refunded".
+- [x] Cancelled/draw (**landed 2026-07-22**, `terminal-market-lifecycle.spec.ts`):
+  a graduated market is cancelled by the resolver; both legs redeem at half
+  value via `redeemCancelled`. (Built under ADR 0018; C4 finalizes it as
+  journey 5.)
 
 Gated variants:
 

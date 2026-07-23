@@ -4,7 +4,7 @@ title: ADR 0017 — Test observability and coverage program
 description: Make test health visible in-repo (informational-only PR coverage deltas, trend log, badges, report-only flake tracking) and ratchet per-workspace coverage floors over workspace-own denominators; seven tracks incl. the protocol TS SDK move, one concern per PR.
 sources:
   - docs/adr/0017-test-observability-and-coverage-program.md
-updated: 2026-07-21
+updated: 2026-07-22
 ---
 
 # ADR 0017 — Test observability and coverage program
@@ -16,9 +16,9 @@ core pipeline; the flake report and Playwright retry surfacing followed the
 same day); Track F (invariant-test timeout) and Track B (server floor +
 untested layers, five items) completed 2026-07-14; Track D (v4 value-path
 coverage) completed 2026-07-15; Track G (protocol TS SDK surface + TS
-coverage figure) completed 2026-07-21; open: Track C (C1/C2/C3 done — all
-eight service/chain lifecycle paths land; C4/C5/C6 remain) and Track E's
-CDK assertion tests.**
+coverage figure) completed 2026-07-21; open: Track C (C1–C4 done — all eight
+service/chain lifecycle paths plus all five `@lifecycle` UI journeys land
+(C4 done 2026-07-22); C5/C6 remain) and Track E's CDK assertion tests.**
 
 A 2026-07-14 audit found the suites healthy but the feedback loops missing:
 CI uploads lcov artifacts nothing reads; only the app enforces coverage

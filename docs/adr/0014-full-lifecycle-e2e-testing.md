@@ -81,10 +81,16 @@ UI journeys (the five full-E2E paths, Playwright `@lifecycle`):
       (`failed-graduation.spec.ts` — a single unmatched YES receipt keeps the
       market below threshold; the dev close opens refunds via `markRefundable`
       and the holder claims the full cost back on the market page.)
-- [ ] Partial clearing: retained + refunded portions itemized in the UI
-      claim flow.
-- [ ] Cancelled/draw: redeem at cost through the ADR 0018 redemption
-      surface.
+- [x] Partial clearing: retained + refunded portions itemized in the UI
+      claim flow. (`partial-clearing.spec.ts` — a balanced book to the
+      threshold plus a one-sided YES excess is placed by share count from the
+      injected wallet; dev graduation with `force=false` runs the real
+      band-pass clearing, and the settled YES receipt on `/portfolio` shows
+      "N YES tokens + $X refunded".)
+- [x] Cancelled/draw: redeem at cost through the ADR 0018 redemption
+      surface. (`terminal-market-lifecycle.spec.ts` — a graduated market is
+      cancelled by the resolver; both legs redeem at half value via
+      `redeemCancelled`.)
 
 Unhappy paths:
 

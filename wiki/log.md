@@ -942,3 +942,16 @@ renders the AI review card's reasons. Failed graduation
 (`failed-graduation.spec.ts`): one unmatched YES receipt keeps the market
 sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
 holder claims the full cost back. Partial clearing and cancelled/draw remain.
+
+## [2026-07-22] ingest | repo ADR 0014 + 0017 — C4 complete (all five UI journeys)
+Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
+~summaries/root-adr-0017-test-observability-and-coverage-program.md,
+~concepts/testing-strategy.md, ~index.md
+Notes: The last two C4 UI journeys landed, so ADR 0017 item C4 is complete.
+Partial clearing (`partial-clearing.spec.ts`): a balanced book to the threshold
+plus a one-sided YES excess is placed by share count from the injected wallet
+(the UI ticket is budget-based, too coarse for band sizing); dev graduation with
+`force=false` runs the real band-pass clearing, and the settled YES receipt on
+`/portfolio` shows "N YES tokens + $X refunded". Cancelled/draw was already the
+ADR 0018 draw test — C4 finalizes it as journey 5. Track C now has only C5
+(`nightly-ai-verdicts`) and C6 (`TRENDS.md`) open.
