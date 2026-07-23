@@ -5,7 +5,9 @@ import {
   parseHistory,
   type HistoryRow,
 } from "../coverage-report/coverageMetrics.ts";
+import { COVERAGE_WORKSPACES } from "../coverage-report/coverageWorkspaces.ts";
 import {
+  NIGHTLY_SUITES,
   parseLatestNightly,
   parseNightlyHistory,
   type NightlyRun,
@@ -27,6 +29,16 @@ export interface ObservabilitySnapshot {
   source: { commit: string | null; committedAt: string | null };
   /** False when the git fetch failed or timed out — data may be stale. */
   online: boolean;
+  /**
+   * The workspace and suite lists the page renders by, sourced from the same
+   * constants the CI writers use. Injected rather than hardcoded in the page so
+   * adding a workspace or lifecycle suite shows up in the dashboard without a
+   * second list drifting out of sync.
+   */
+  config: {
+    workspaces: { key: string; label: string }[];
+    suites: { key: string; label: string }[];
+  };
   coverage: { latest: CoverageLatest | null; history: HistoryRow[] };
   nightly: { latest: NightlyRun | null; history: NightlyRun[] };
 }
@@ -146,6 +158,10 @@ export async function readCiMetrics(
     readAt: new Date().toISOString(),
     source: { commit, committedAt },
     online,
+    config: {
+      workspaces: COVERAGE_WORKSPACES.map(({ key, label }) => ({ key, label })),
+      suites: NIGHTLY_SUITES.map(({ key, label }) => ({ key, label })),
+    },
     coverage: {
       latest: coverageLatest,
       history: parseHistory(coverageHistoryText),
