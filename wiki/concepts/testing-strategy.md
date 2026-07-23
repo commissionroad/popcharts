@@ -71,8 +71,9 @@ uploaded and never read, coverage floors only in the app (server ~60% lines
 unenforced; v4 order libraries 62–70% and only transitively tested), all
 integration smokes manual-only, no flake tracking. ADR 0017 is the tracked
 fix: a CI-written `ci-metrics` branch feeding sticky PR coverage-delta
-comments, a trend log, README badges, and a weekly flake report (Track A —
-informational only, never a required check); then enforcement along the
+comments, a trend log (coverage, plus nightly-lifecycle outcomes since C6),
+README badges, and a weekly flake report (Track A — informational only, never
+a required check); then enforcement along the
 risk gradient — server coverage floor + route/db tests (B), a nightly
 scheduled smoke tier (C, the harness skeleton for ADR 0014), dedicated
 v4-library tests, a `StdInvariant` escrow-conservation harness and the
