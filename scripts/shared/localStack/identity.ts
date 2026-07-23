@@ -10,16 +10,18 @@ export type StackKind = "human" | "agent";
 
 /**
  * Classifies a stack from its working directory: a cwd inside a
- * `.claude/worktrees/` tree is an agent stack, everything else (the primary
- * checkout) is a human stack. The cwd path is the only signal by design
- * (ADR 0020) — no env flag or heuristic beyond it.
+ * `.worktrees/` tree is an agent stack. Legacy harness-managed
+ * `.claude/worktrees/` paths remain supported while those worktrees exist.
+ * Everything else (the primary checkout) is a human stack. The cwd path is
+ * the only signal by design (ADR 0020) — no env flag or heuristic beyond it.
  */
 export function detectStackKind(cwd: string): StackKind {
   const segments = cwd.replaceAll("\\", "/").split("/");
 
   return segments.some(
     (segment, index) =>
-      segment === ".claude" && segments[index + 1] === "worktrees",
+      segment === ".worktrees" ||
+      (segment === ".claude" && segments[index + 1] === "worktrees"),
   )
     ? "agent"
     : "human";

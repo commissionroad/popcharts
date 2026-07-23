@@ -34,6 +34,9 @@ yarn-error.log*
 # OS/editor
 .DS_Store
 
+# Agent worktrees
+/.worktrees/
+
 # Obsidian vault config (wiki/ opened as a vault)
 .obsidian/
 

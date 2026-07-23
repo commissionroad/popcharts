@@ -4,7 +4,7 @@ title: Repo ADR 0020 — Concurrent local dev stacks
 description: Slot-addressed local dev instances (slot 0 human, 1..n agents, then auto-offset) with a home-dir registry, per-slot chain port / DB / env / process-compose admin, identity-scoped chain reuse, and stack-aware create-market — so a second stack no longer silently collides with the first.
 sources:
   - docs/adr/0020-concurrent-local-dev-stacks.md
-updated: 2026-07-21
+updated: 2026-07-23
 ---
 
 # Repo ADR 0020: Concurrent Local Dev Stacks
@@ -16,7 +16,7 @@ stack-aware targeting scripts) follow as their own PRs. Dated 2026-07-17.
 ## Why
 
 The local stack was built for one instance. Running a second — a human on the
-primary checkout plus an agent in `.claude/worktrees/` — silently corrupted
+primary checkout plus an agent worktree — silently corrupted
 both. A 2026-07-17 incident made it concrete: a leftover
 `local:smoke --keep-running` chain stayed bound to `:8545`; a fresh
 process-compose stack **adopted the foreign chain** (`chain()` reuses any live
@@ -37,8 +37,10 @@ records the running stacks; and targeting scripts resolve through the registry.
 Key decisions:
 
 - **Slot 0 = human, 1..n = agents, then auto-offset.** Agent-ness is keyed off
-  a `.claude/worktrees/` cwd; `--slot N` / `POPCHARTS_STACK_SLOT` overrides. A
-  claimed slot whose ports are occupied advances to the next free slot.
+  the canonical contained `.worktrees/` directory; legacy harness-managed
+  `.claude/worktrees/` paths remain recognized during migration.
+  `--slot N` / `POPCHARTS_STACK_SLOT` overrides. A claimed slot whose ports
+  are occupied advances to the next free slot.
 - **Slot 0 is byte-for-byte the legacy defaults** (`:8545`, `popcharts`,
   `.env.local-chain`, `:8080`) — a human running `just local-dev` sees no
   change.
