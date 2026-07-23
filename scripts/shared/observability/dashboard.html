@@ -92,6 +92,9 @@
     .note { padding: 13px 22px; font-size: 12px; color: var(--muted); background: var(--surface-2); border-top: 1px solid var(--border); }
     .note b { color: var(--text); font-weight: 600; }
     footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
+    .noscript { margin: 20px 0 0; padding: 16px 18px; border-radius: 12px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); color: var(--text); font-size: 14px; line-height: 1.55; }
+    .noscript b { display: block; margin-bottom: 6px; }
+    .noscript code { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; }
   </style>
 </head>
 <body>
@@ -101,6 +104,14 @@
       <span class="sub">Pop Charts &middot; live from <span class="mono">ci-metrics</span></span>
       <span class="freshness" id="freshness"><span class="beacon"></span><span id="freshness-text">loading…</span></span>
     </header>
+
+    <noscript>
+      <div class="noscript">
+        <b>JavaScript is blocked for this page, so no data can load.</b>
+        Every panel below renders in the browser from <code>/api/observability</code>, so with scripts blocked they stay on “Loading…” forever — the server is probably fine.
+        In Chrome, open <code>chrome://settings/content/javascript</code>: if the default is “Don’t allow sites to use JavaScript”, add this origin to the allowed list (or use the tune icon left of the URL → Site settings → JavaScript → Allow), then reload.
+      </div>
+    </noscript>
 
     <h2 class="section">Nightly lifecycle</h2>
     <div class="panel" id="nightly"><div class="empty">Loading…</div></div>
@@ -115,18 +126,22 @@
   </div>
 
   <script>
-    const WORKSPACES = [
-      { key: "app", floor: null, ruler: "vitest · never-regress" },
-      { key: "server", floor: null, ruler: "floor on unit ruler" },
-      { key: "protocol-solidity", floor: 96.67, ruler: "lcov · floor 96.67%" },
-      { key: "protocol-ts", floor: 36.3, ruler: "lcov · floor 36.3%" },
-    ];
-    const SUITES = [
-      { key: "smoke", label: "Chain smoke" },
-      { key: "scenarios", label: "Lifecycle scenarios" },
-      { key: "chainE2e", label: "Chain-backed e2e" },
-      { key: "terminal", label: "UI journeys" },
-    ];
+    // Which workspaces and suites exist comes from the server (sourced from
+    // COVERAGE_WORKSPACES / NIGHTLY_SUITES), so this page can't drift from CI.
+    // Only presentation lives here: the floor each workspace is judged against
+    // and how to describe its ruler. Floors mirror the values protocol-ci.yml
+    // passes as `--min-lines`; there is no importable source for them (CI reads
+    // them from YAML) and this is their only other consumer, so they are
+    // annotated here rather than extracted for a single caller.
+    // `mode` decides what the status chip may claim: "floor" compares against
+    // `floor`, "never-regress" against the workspace's own best, "other-ruler"
+    // makes no claim (its floor is enforced on a different denominator).
+    const COVERAGE_DISPLAY = {
+      app: { floor: null, ruler: "vitest · never-regress", mode: "never-regress" },
+      server: { floor: null, ruler: "floor on unit ruler", mode: "other-ruler" },
+      "protocol-solidity": { floor: 96.67, ruler: "lcov · floor 96.67%", mode: "floor" },
+      "protocol-ts": { floor: 36.3, ruler: "lcov · floor 36.3%", mode: "floor" },
+    };
     const MARK = { success: "✓", failure: "✗", cancelled: "⊘", skipped: "–" };
     const POLL_MS = 30_000;
 
@@ -171,7 +186,7 @@
       }
       const ok = latest.conclusion === "success";
       const color = ok ? "var(--pass)" : "var(--fail)";
-      const suites = SUITES.map((s) => {
+      const suites = snap.config.suites.map((s) => {
         const r = latest.suites[s.key] ?? "skipped";
         return `<span class="suite"><span class="m" style="color:${r === "success" ? "var(--pass)" : r === "failure" ? "var(--fail)" : "var(--neutral)"}">${MARK[r] ?? r}</span> ${s.label}</span>`;
       }).join("");
@@ -200,12 +215,17 @@
         const ok = pct != null && pct >= ws.floor;
         return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} floor ${ws.floor}%</span>`;
       }
-      if (ws.key === "app") {
+      if (ws.mode === "never-regress") {
         const best = series.length ? Math.max(...series) : (pct ?? 0);
         const ok = pct != null && pct >= best;
         return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "↓"} never-regress</span>`;
       }
-      return `<span class="chip">floor on unit ruler</span>`;
+      if (ws.mode === "other-ruler") {
+        return `<span class="chip">floor on unit ruler</span>`;
+      }
+      // A workspace CI reports that this page doesn't annotate: say so plainly
+      // rather than implying a floor it isn't checking.
+      return `<span class="chip">no floor tracked here</span>`;
     }
 
     function renderCoverage(snap) {
@@ -216,7 +236,11 @@
         return;
       }
       const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
-      el.innerHTML = WORKSPACES.map((ws) => {
+      el.innerHTML = snap.config.workspaces.map((configured) => {
+        // Identity/order from the server's authoritative list; floor + ruler are
+        // this page's presentation, defaulting to "no floor claim" for a
+        // workspace added to CI that the dashboard doesn't annotate yet.
+        const ws = { ...configured, ...(COVERAGE_DISPLAY[configured.key] ?? { floor: null, ruler: "" }) };
         const w = latest.workspaces[ws.key];
         // Skip a workspace whose row is absent or wrong-shape rather than throw
         // and blank the whole panel — one bad row must not sink the refresh.
