@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 import { sleep } from "../wait/sleep.ts";
+import { signalProcessGroup } from "./signalProcessGroup.ts";
 import { writePrefixed } from "./writePrefixed.ts";
 
 /**
@@ -80,32 +81,24 @@ export function createProcessSupervisor(options: {
   // limitation the whole stack had before groups.
   process.on("exit", () => {
     for (const processInfo of children) {
-      signalProcessGroup(processInfo, "SIGKILL");
+      signalChildGroup(processInfo, "SIGKILL");
     }
   });
 
-  function signalProcessGroup(
+  function signalChildGroup(
     processInfo: SupervisedProcess,
     signal: "SIGTERM" | "SIGKILL",
   ): void {
-    const pid = processInfo.child.pid;
-    if (processInfo.exited || pid === undefined) {
+    if (processInfo.exited) {
       return;
     }
-    try {
-      // Negative PID targets the process group. Children are detached group
-      // leaders, so this reaches the wrapper AND the service it spawned.
-      process.kill(-pid, signal);
-    } catch (error) {
-      // ESRCH: the group is already gone — expected when the child raced us
-      // to exit. Anything else must not break teardown, so log and continue.
-      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
-        console.error(
-          `[${options.logLabel}] failed to ${signal} ${processInfo.name}: ${
-            error instanceof Error ? error.message : error
-          }`,
-        );
-      }
+
+    const failure = signalProcessGroup(processInfo.child.pid, signal);
+    if (failure) {
+      // A failed signal must not break teardown of the remaining children.
+      console.error(
+        `[${options.logLabel}] failed to ${signal} ${processInfo.name}: ${failure.message}`,
+      );
     }
   }
 
@@ -193,9 +186,9 @@ export function createProcessSupervisor(options: {
     // SIGKILL if SIGTERM doesn't take within the grace window, then await the
     // real exit so `exited` is set when stop() resolves — a follow-on start()
     // must not see the service as still running and no-op.
-    signalProcessGroup(processInfo, "SIGTERM");
+    signalChildGroup(processInfo, "SIGTERM");
     const escalation = setTimeout(() => {
-      signalProcessGroup(processInfo, "SIGKILL");
+      signalChildGroup(processInfo, "SIGKILL");
     }, killGraceMs);
     try {
       await exited;

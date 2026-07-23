@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { sleep } from "../shared/wait/sleep.ts";
 import { createProcessSupervisor } from "../shared/process/processSupervisor.ts";
+import { isAlive, waitUntil } from "./support/processLiveness.ts";
 
 /**
  * Guards the two properties the stack-control restart path depends on:
@@ -107,31 +107,7 @@ describe("processSupervisor", () => {
   });
 });
 
-/** True unless signalling the pid fails with ESRCH (no such process). */
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM means the process exists but we may not signal it — still alive.
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 async function readPidWhenReady(pidFile: string): Promise<number> {
   await waitUntil(() => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() !== "", 5_000);
   return Number(readFileSync(pidFile, "utf8").trim());
-}
-
-async function waitUntil(
-  predicate: () => boolean,
-  timeoutMs: number,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error(`condition not met within ${timeoutMs}ms`);
-    }
-    await sleep(50);
-  }
 }
