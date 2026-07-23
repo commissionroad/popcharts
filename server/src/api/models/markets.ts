@@ -1,6 +1,6 @@
 import { t } from "elysia";
 import type { Static } from "@sinclair/typebox";
-import { MARKET_SIDES, type MarketSide } from "@popcharts/protocol";
+import { MARKET_SIDES } from "@popcharts/protocol";
 
 import {
   EVIDENCE_KINDS,
@@ -35,13 +35,6 @@ export type { MarketStatus } from "src/db/schema/markets";
 export const MarketStatusSchema = literalUnion(MARKET_STATUSES, {
   $id: "MarketStatus",
 });
-
-/**
- * Binary side accepted by the dev-only force resolve endpoint. An alias of
- * the protocol's `MarketSide` rather than its own set: a binary market has
- * exactly the two sides the contracts encode.
- */
-export type DevMarketResolveSide = MarketSide;
 
 /** Why a graduation attempt was refused. */
 export const GRADUATION_INELIGIBLE_REASONS = [
