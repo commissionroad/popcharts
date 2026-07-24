@@ -472,7 +472,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// Never time-gated: the postponement/draw escape hatch from Trading or a
   /// pending proposal.
   function cancel() external onlyResolver {
-    _requireStatusIn(Status.Trading, Status.ResolutionPending);
+    _requireNotTerminal();
     status = Status.Cancelled;
     _requireCancelSolvent(_marketCollateralBalance());
 
@@ -635,15 +635,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// Disputed) — the states in which trading and retained flows stay open.
   function _requireNotTerminal() private view {
     if (status == Status.Resolved || status == Status.Cancelled) {
-      revert InvalidStatusForAction(status);
-    }
-  }
-
-  /// @notice Requires the market to be in one of two statuses.
-  /// @param a First permitted status.
-  /// @param b Second permitted status.
-  function _requireStatusIn(Status a, Status b) private view {
-    if (status != a && status != b) {
       revert InvalidStatusForAction(status);
     }
   }
