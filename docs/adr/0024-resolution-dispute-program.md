@@ -74,6 +74,25 @@ Phase 3 — runner + keeper:
 
 Phase 4 — API + app:
 
+- [ ] Public resolution-request endpoint
+      (`POST /markets/:chainId/:marketId/resolution-check`): anyone may
+      ask the resolver to look at a graduated market that is past its
+      earliest-resolution gate — the sibling of the public graduation
+      trigger. The poke only enqueues a resolution job; the resolver
+      still decides, and the dispute window still guards the outcome, so
+      the endpoint is defended with rate limits, not cryptoeconomics: a
+      per-market cooldown (one requested evaluation per 24h regardless of
+      requester count) bounds worst-case AI spend at daily-poll cost while
+      only paying for markets someone actually cares about. A premature
+      request lands `too_early` and hands off to the existing bounded
+      backoff requeue. Deferred deliberately (decision 2026-07-24, after
+      weighing signature quorums, bounties, and blanket polling):
+      position-weighted triage (requests from indexed position holders
+      bypass the cooldown or jump the queue) only if spam materializes,
+      and a cheap pre-screen model gating the full evidence pipeline only
+      if AI spend bites. Signature-quorum and bounty designs rejected for
+      v1 — a request is not a money-moving action, and quorums starve the
+      long tail of small markets.
 - [ ] Market reads expose pending/disputed state, `proposedSide`,
       countdown, bond size.
 - [ ] Dispute button (wallet-signed, injected-client contract service

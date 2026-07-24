@@ -1085,3 +1085,11 @@ indexer/resolution pinned to 1, review runner not yet on AWS. Flags recorded:
 corroboration (ADR 0019) defined but not wired into the live runner path on this
 branch; ADR 0022 will move review off-chain and drop its on-chain
 approve/reject endpoints (the middle of the lane is unchanged).
+
+## [2026-07-24] ingest | ADR 0024 gains the resolution-request endpoint
+
+Pages: ~summaries/root-adr-0024-resolution-dispute-program.md
+Notes: Phase 4 now includes the permissionless resolution-check endpoint
+(graduation-trigger sibling; per-market 24h cooldown as the cost control).
+Signature quorums and bounties explicitly rejected for v1; position-
+weighted triage and a cheap pre-screen recorded as deferred escalations.
