@@ -67,8 +67,8 @@
     .suite .m { font-weight: 700; }
     .timeline { padding: 22px 24px; background: var(--surface-2); }
     .timeline .cap { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin-bottom: 12px; }
-    .runs { display: flex; gap: 6px; align-items: flex-end; }
-    .run { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; }
+    .runs { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-start; }
+    .run { flex: 0 1 54px; min-width: 30px; display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; }
     .run .bar { width: 100%; height: 40px; border-radius: 6px; border: 1px solid transparent; }
     .run .d { font-size: 10px; color: var(--faint); }
     .run.success .bar { background: var(--pass-soft); border-color: color-mix(in srgb, var(--pass) 40%, transparent); }
@@ -138,10 +138,16 @@
     @keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
     @media (prefers-reduced-motion: reduce) { .spin { animation: none; opacity: .8 } }
     .runlog { margin: 0; padding: 12px 20px; max-height: 260px; overflow: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.5; color: var(--muted); white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border-top: 1px solid var(--border); }
-    .provenance { padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
-    .provenance .src { display: inline-flex; align-items: center; gap: 6px; }
-    .provenance .warn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; }
-    .provenance .ok-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); flex: none; }
+    .localcov { border-top: 1px solid var(--border); padding: 14px 20px; background: var(--surface-2); font-size: 12.5px; }
+    .localcov .head { color: var(--muted); margin-bottom: 10px; }
+    .localcov .row { display: grid; grid-template-columns: 12px 130px 1fr; align-items: baseline; gap: 0 12px; padding: 3px 0; }
+    .localcov .dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+    .localcov .dot.ok { background: var(--pass); }
+    .localcov .dot.warn { background: var(--warn); }
+    .localcov .ws { font-family: ui-monospace, Menlo, monospace; font-weight: 560; color: var(--text); }
+    .localcov .detail { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .localcov .detail .flag { color: var(--warn); }
+    .localcov .detail .missing { color: var(--warn); }
     mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); border-radius: 3px; }
 
     .flaketable { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -180,9 +186,12 @@
     <div class="panel" id="nightly"><div class="empty">Loading…</div></div>
 
     <h2 class="section">Coverage</h2>
-    <div class="panel" id="coverage"><div class="empty">Loading…</div></div>
-    <div class="panel note" id="coverage-note" hidden>
-      <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
+    <div class="panel">
+      <div id="coverage"><div class="empty">Loading…</div></div>
+      <div class="localcov" id="localcov"></div>
+      <div class="note" id="coverage-note" hidden>
+        <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
+      </div>
     </div>
 
     <h2 class="section">Run</h2>
@@ -198,7 +207,6 @@
         <input id="test-search" type="search" placeholder="Filter test titles and paths…" autocomplete="off" spellcheck="false" />
         <span class="hits" id="test-hits"></span>
       </div>
-      <div class="provenance" id="cov-provenance"></div>
       <div class="tree" id="tests"><div class="empty">Loading…</div></div>
       <div class="note">Read from the working tree, not <span class="mono">ci-metrics</span> — this is what the code asserts right now. Titles are read from source, so dynamically-built names (templates, <span class="mono">it.each</span> rows) are not listed.</div>
     </div>
@@ -281,14 +289,14 @@
       }).join("");
       // Oldest→newest so the newest bar sits on the right, like a timeline.
       const recent = history.slice(-14);
-      const runs = recent.map((r) => `<a class="run ${r.conclusion}" href="${r.runUrl}" target="_blank" rel="noopener" title="${r.ts} · ${r.conclusion}"><span class="bar"></span><span class="d mono">${r.ts.slice(5, 10)}</span></a>`).join("");
+      const runs = recent.map((r) => `<a class="run ${r.conclusion}" href="${r.runUrl}" target="_blank" rel="noopener" title="${r.ts.slice(0,10)} · ${r.conclusion}"><span class="bar"></span><span class="d mono">${r.ts.slice(5, 10)}</span></a>`).join("");
       el.innerHTML = `<div class="nightly">
         <div class="lede">
           <div class="status"><span class="dot" style="background:${color}"></span>${ok ? "Passing" : "Failing"}</div>
           <div class="meta"><a href="${latest.runUrl}" target="_blank" rel="noopener">Run</a> at <span class="mono">${latest.commit.slice(0, 7)}</span> · ${relTime(latest.ts)}</div>
           <div class="suites">${suites}</div>
         </div>
-        <div class="timeline"><div class="cap">Last ${recent.length} runs</div><div class="runs">${runs}</div></div>
+        <div class="timeline"><div class="cap">${recent.length === 1 ? "Last run" : `Last ${recent.length} runs`}</div><div class="runs">${runs}</div></div>
       </div>`;
     }
 
@@ -477,24 +485,28 @@
     // into the ci-metrics numbers above.
     function covClass(pct) { return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low"; }
 
-    function renderProvenance(snap) {
-      const el = $("cov-provenance");
+    // Local-run coverage vs the CI figure, one aligned row per workspace. Lives
+    // in the Coverage panel because it is the same data at a different age; the
+    // dot flags a local run that disagrees with CI (so the folder rates in the
+    // Tests tree are read as "local, and possibly stale", not as the CI number).
+    function renderLocalCov(snap) {
+      const el = $("localcov");
       const ciByWs = Object.fromEntries(Object.entries(snap.coverage.latest?.workspaces ?? {}).map(([k, v]) => [k, v.summary.lines]));
-      const parts = snap.localCoverage.sources.map((src) => {
+      const rows = snap.localCoverage.sources.map((src) => {
         if (!src.present) {
-          return `<span class="src"><span class="warn-dot"></span>${esc(src.workspace)}: no local run — <span class="mono">${esc(src.lcovPath)}</span> missing</span>`;
+          return `<div class="row"><span class="dot warn"></span><span class="ws">${esc(src.workspace)}</span><span class="detail"><span class="missing">no local run</span> — run coverage to populate the folder rates</span></div>`;
         }
         const mine = snap.localCoverage.files.filter((f) => localWorkspaceOf(f.path) === src.workspace);
         const hit = mine.reduce((n, f) => n + f.lines.hit, 0);
         const found = mine.reduce((n, f) => n + f.lines.found, 0);
         const localPct = found ? (hit / found) * 100 : null;
         const ci = ciByWs[src.workspace];
-        // Flag a local run that disagrees with CI: different age or denominator
-        // means the folder rates below are not the CI figure.
         const drift = ci && localPct != null && (Math.abs(localPct - (ci.pct ?? 0)) > 1 || Math.abs(found - ci.found) / Math.max(ci.found, 1) > 0.1);
-        return `<span class="src"><span class="${drift ? "warn-dot" : "ok-dot"}"></span>${esc(src.workspace)}: local ${localPct == null ? "—" : localPct.toFixed(1) + "%"} (${found} lines, ${relTime(src.generatedAt)})${ci ? ` · CI ${ci.pct ?? "—"}% (${ci.found})` : ""}${drift ? " — differs from CI" : ""}</span>`;
+        const ciPart = ci ? ` · CI ${ci.pct ?? "—"}%` : "";
+        const flag = drift ? ` <span class="flag">— differs from CI</span>` : "";
+        return `<div class="row"><span class="dot ${drift ? "warn" : "ok"}"></span><span class="ws">${esc(src.workspace)}</span><span class="detail">local ${localPct == null ? "—" : localPct.toFixed(1) + "%"} · ${found} lines · ${relTime(src.generatedAt)}${ciPart}${flag}</span></div>`;
       });
-      el.innerHTML = `<span><b>Folder coverage below is from local runs</b>, not ci-metrics:</span>` + parts.join("");
+      el.innerHTML = `<div class="head"><b>Folder coverage in the Tests tree is from local runs</b>, not ci-metrics:</div>` + rows.join("");
     }
 
     function localWorkspaceOf(path) {
@@ -595,7 +607,7 @@
         renderOverview(snap);
         renderNightly(snap);
         renderCoverage(snap);
-        renderProvenance(snap);
+        renderLocalCov(snap);
         renderTests(snap);
         renderFlakes(snap);
         $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
