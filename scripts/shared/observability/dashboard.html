@@ -165,6 +165,16 @@
     .localcov .detail .missing { color: var(--warn); }
     mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); border-radius: 3px; }
 
+    .gaps { padding: 6px 0; }
+    .gap-row { display: grid; grid-template-columns: 64px 52px 1fr; align-items: baseline; gap: 0 14px; padding: 7px 20px; }
+    .gap-row + .gap-row { border-top: 1px solid var(--border); }
+    .gap-row .n { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; font-size: 13.5px; }
+    .gap-row .pct { font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
+    .gap-row .pct.low { color: var(--fail); } .gap-row .pct.mid { color: var(--warn); } .gap-row .pct.high { color: var(--pass); }
+    .gap-row .path { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gap-row .path b { color: var(--text); font-weight: 560; }
+    .gaps .head { display: grid; grid-template-columns: 64px 52px 1fr; gap: 0 14px; padding: 9px 20px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .gaps .head span:nth-child(1), .gaps .head span:nth-child(2) { text-align: right; }
     .flaketable { width: 100%; border-collapse: collapse; font-size: 13px; }
     .flaketable th, .flaketable td { padding: 10px 16px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .flaketable th:first-child, .flaketable td:first-child { text-align: left; }
@@ -207,6 +217,12 @@
       <div class="note" id="coverage-note" hidden>
         <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
       </div>
+    </div>
+
+    <h2 class="section">Coverage gaps</h2>
+    <div class="panel">
+      <div class="gaps" id="gaps"><div class="empty">Loading…</div></div>
+      <div class="note">The files with the most untested lines, from local coverage runs — where new tests would move the needle most. Run coverage above to refresh. Only workspaces with a local run appear.</div>
     </div>
 
     <h2 class="section">Run</h2>
@@ -543,6 +559,27 @@
       return "";
     }
 
+    const GAPS_SHOWN = 15;
+    function renderGaps(snap) {
+      const el = $("gaps");
+      const gaps = snap.localCoverage.files
+        .filter((f) => f.lines.found > 0 && f.lines.hit < f.lines.found)
+        .map((f) => ({ path: f.path, uncovered: f.lines.found - f.lines.hit, pct: (f.lines.hit / f.lines.found) * 100 }))
+        .sort((a, b) => b.uncovered - a.uncovered);
+      if (!gaps.length) {
+        el.innerHTML = `<div class="empty">No local coverage yet — run a coverage command above, then the biggest gaps show here.</div>`;
+        return;
+      }
+      const rows = gaps.slice(0, GAPS_SHOWN).map((g) => {
+        const slash = g.path.lastIndexOf("/");
+        const dir = slash >= 0 ? g.path.slice(0, slash + 1) : "";
+        const file = slash >= 0 ? g.path.slice(slash + 1) : g.path;
+        return `<div class="gap-row"><span class="n">${g.uncovered}</span><span class="pct ${covClass(g.pct)}">${g.pct.toFixed(0)}%</span><span class="path">${esc(dir)}<b>${esc(file)}</b></span></div>`;
+      }).join("");
+      el.innerHTML = `<div class="head"><span>Uncovered</span><span>Lines</span><span>File</span></div>` + rows +
+        (gaps.length > GAPS_SHOWN ? `<div class="note" style="border-top:1px solid var(--border)">+ ${gaps.length - GAPS_SHOWN} more files with gaps</div>` : "");
+    }
+
     function renderHygiene(snap) {
       const t = snap.tests;
       const chip = (label, n, badWhenNonZero) =>
@@ -648,6 +685,7 @@
         renderCoverage(snap);
         renderLocalCov(snap);
         renderTests(snap);
+        renderGaps(snap);
         renderHygiene(snap);
         renderFlakes(snap);
         $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
