@@ -3,10 +3,13 @@ import {
   bigserial,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+
+import type { PriceTickWire } from "@popcharts/live-channels";
 
 /**
  * The live-updates outbox (repo ADR 0021). One append-only row per committed
@@ -54,6 +57,11 @@ export const changeFeed = pgTable(
     // review/resolution sources, which order by id instead.
     blockNumber: bigint("block_number", { mode: "bigint" }),
     logIndex: integer("log_index"),
+    // The ONE data-in-message exception (repo ADR 0021): a pregrad trade stores
+    // its resulting price tick here so the chart appends the point instead of
+    // refetching the whole history. Null on every other source — those stay
+    // pure nudges. Typed as the shared wire shape since it is stored as-sent.
+    payload: jsonb("payload").$type<PriceTickWire>(),
   },
   (table) => [
     // Retention prune deletes by age; the PK index already serves the

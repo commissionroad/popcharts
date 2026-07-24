@@ -1,3 +1,5 @@
+import type { PriceTickWire } from "@popcharts/live-channels";
+
 import { db, schema } from "src/db/client";
 
 import type { ChangeFeedOp, ChangeFeedSourceTable } from "./sources";
@@ -30,6 +32,10 @@ export interface LiveChange {
   rowId?: bigint | number | string | null;
   blockNumber?: bigint | null;
   logIndex?: number | null;
+  /** The price tick to ride the frame — the single data-in-message exception
+   * (repo ADR 0021), set only by the pregrad-trade seam. Omitted everywhere
+   * else, so the row stays a pure nudge. */
+  tick?: PriceTickWire | null;
 }
 
 function toRow(change: LiveChange) {
@@ -42,6 +48,7 @@ function toRow(change: LiveChange) {
     owner: change.owner ?? null,
     blockNumber: change.blockNumber ?? null,
     logIndex: change.logIndex ?? null,
+    payload: change.tick ?? null,
   };
 }
 

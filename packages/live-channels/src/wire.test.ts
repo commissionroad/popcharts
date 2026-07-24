@@ -7,6 +7,7 @@ import { describe, expect, it } from "bun:test";
 import {
   RESET_REASON_CURSOR_TOO_OLD,
   parseChangeSignal,
+  parsePriceTick,
   parseResetReason,
   serializeChangeSignal,
   type ChangeSignalSource,
@@ -25,6 +26,7 @@ function event(
     owner: "0x00000000000000000000000000000000000000aa",
     blockNumber: 100n,
     logIndex: 3,
+    tick: null,
     ...overrides,
   };
 }
@@ -57,6 +59,28 @@ describe("the serialize/parse round trip", () => {
     const parsed = parseChangeSignal(JSON.parse(JSON.stringify(wire)));
 
     expect(parsed).toEqual(wire);
+  });
+
+  it("carries a price tick end to end", () => {
+    const wire = serializeChangeSignal(
+      event({
+        tick: {
+          t: "2026-07-24T00:00:00.000Z",
+          sequence: 7,
+          yesPriceCents: 51.2,
+          noPriceCents: 48.8,
+        },
+      }),
+    );
+
+    const parsed = parseChangeSignal(JSON.parse(JSON.stringify(wire)));
+
+    expect(parsed?.tick).toEqual({
+      t: "2026-07-24T00:00:00.000Z",
+      sequence: 7,
+      yesPriceCents: 51.2,
+      noPriceCents: 48.8,
+    });
   });
 
   it("survives a fully-null row", () => {
@@ -95,6 +119,7 @@ describe("parseChangeSignal", () => {
       owner: null,
       blockNumber: null,
       logIndex: null,
+      tick: null,
     });
   });
 
@@ -119,5 +144,35 @@ describe("parseResetReason", () => {
     expect(parseResetReason({})).toBe(RESET_REASON_CURSOR_TOO_OLD);
     expect(parseResetReason(null)).toBe(RESET_REASON_CURSOR_TOO_OLD);
     expect(parseResetReason({ reason: 7 })).toBe(RESET_REASON_CURSOR_TOO_OLD);
+  });
+});
+
+describe("parsePriceTick", () => {
+  it("accepts a fully-formed tick", () => {
+    const tick = {
+      t: "2026-07-24T00:00:00.000Z",
+      sequence: 7,
+      yesPriceCents: 51.2,
+      noPriceCents: 48.8,
+    };
+
+    expect(parsePriceTick(tick)).toEqual(tick);
+  });
+
+  it("rejects a tick missing or mistyping any field — it degrades to a nudge", () => {
+    const base = {
+      t: "2026-07-24T00:00:00.000Z",
+      sequence: 7,
+      yesPriceCents: 51.2,
+      noPriceCents: 48.8,
+    };
+
+    expect(parsePriceTick(null)).toBeNull();
+    expect(parsePriceTick("nope")).toBeNull();
+    expect(parsePriceTick({ ...base, t: 7 })).toBeNull();
+    expect(parsePriceTick({ ...base, sequence: "7" })).toBeNull();
+    expect(parsePriceTick({ ...base, yesPriceCents: null })).toBeNull();
+    const { noPriceCents: _dropped, ...withoutNo } = base;
+    expect(parsePriceTick(withoutNo)).toBeNull();
   });
 });
