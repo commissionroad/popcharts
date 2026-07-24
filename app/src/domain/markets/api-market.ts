@@ -1,4 +1,7 @@
-import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
+import {
+  wadToCents as wadBigintToCents,
+  wadToNumber as wadBigintToNumber,
+} from "@/domain/tokens/wad";
 import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
 import {
   createOpeningState,
@@ -270,10 +273,7 @@ function buildPricePath(openingPriceCents: number, currentPriceCents: number) {
 }
 
 function wadToCents(value: string) {
-  const wad = parseBigInt(value);
-  const cents = Number((wad * 100n + WAD / 2n) / WAD);
-
-  return clamp(cents, 1, 99);
+  return wadBigintToCents(parseBigInt(value));
 }
 
 function wadToNumber(value: string) {
@@ -290,10 +290,6 @@ function parseBigInt(value: string) {
   } catch {
     return 0n;
   }
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
 }
 
 function shortAddress(address: string) {

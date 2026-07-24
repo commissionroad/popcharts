@@ -6,7 +6,7 @@
  * integrations/contracts seam) so the app and indexer share one definition.
  */
 
-export { WAD, wadToNumber } from "@/integrations/contracts/wad";
+export { WAD, wadToCents, wadToNumber } from "@/integrations/contracts/wad";
 
 /** Decimals used by the collateral token and WAD fixed-point values. */
 export const TOKEN_DECIMALS = 18;
