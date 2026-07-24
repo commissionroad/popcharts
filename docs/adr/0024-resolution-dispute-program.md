@@ -39,18 +39,22 @@ Phase 0 — decisions (user):
       to the protocol owner, no disputer bounty in v1, operator settlement
       is final in v1.
 
-Phase 1 — protocol (human-reviewed, keystone):
+Phase 1 — protocol (human-reviewed, keystone) — **landed 2026-07-24**
+(PRs #328 propose/finalize, #321 dispute/bond/settlement):
 
-- [ ] `CompleteSetBinaryMarket`: `ResolutionPending`/`Disputed` statuses,
+- [x] `CompleteSetBinaryMarket`: `ResolutionPending`/`Disputed` statuses,
       `proposeResolution`/`dispute`/`finalizeResolution`, settlement
       semantics for `resolve`/`cancel`, bond custody separated from
       redemption solvency, new events incl. bond paper-trail trio.
-- [ ] `CompleteSetPostgradAdapter`/`prepareMarket`: plumb `disputeWindow` +
+- [x] `CompleteSetPostgradAdapter`/`prepareMarket`: plumb `disputeWindow` +
       `disputeBond` per market (24h on deployed networks, seconds locally).
-- [ ] Solidity + nodejs tests: full status-machine matrix, bond
+      Local deploy seams pin both to zero through
+      `scripts/shared/deployment/localDisputeConfig.ts`, which keeps the
+      legacy direct-`resolve()` path working until Phase 3 lands.
+- [x] Solidity + nodejs tests: full status-machine matrix, bond
       refund/forfeit paths, self-dispute exemption, solvency invariants
       with a posted bond, zero-window degeneration.
-- [ ] Regenerate ABIs/metadata; update every hand-encoded event fixture;
+- [x] Regenerate ABIs/metadata; update every hand-encoded event fixture;
       keep `contract-abi-parity.test.ts` pins honest.
 
 Phase 2 — indexer:
@@ -74,7 +78,7 @@ Phase 3 — runner + keeper:
 
 Phase 4 — API + app:
 
-- [ ] Public resolution-request endpoint
+- [x] **Landed 2026-07-24 (PR #342).** Public resolution-request endpoint
       (`POST /markets/:chainId/:marketId/resolution-check`): anyone may
       ask the resolver to look at a graduated market that is past its
       earliest-resolution gate — the sibling of the public graduation

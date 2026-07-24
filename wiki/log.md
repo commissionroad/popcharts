@@ -1093,3 +1093,18 @@ Notes: Phase 4 now includes the permissionless resolution-check endpoint
 (graduation-trigger sibling; per-market 24h cooldown as the cost control).
 Signature quorums and bounties explicitly rejected for v1; position-
 weighted triage and a cheap pre-screen recorded as deferred escalations.
+
+## [2026-07-24] ingest | ADR 0024 — resolution dispute program (Phase 1 landed)
+Pages: ~summaries/root-adr-0024-resolution-dispute-program.md, ~index.md
+Notes: Phase 1 (protocol contracts, PRs #328/#321) and Phase 4's public
+resolution-check endpoint (PR #342) landed 2026-07-24; summary status moved
+off "Phases 1-5 open" and the local zero-window compat seam
+(protocol/scripts/shared/deployment/localDisputeConfig.ts) recorded, since it
+is what keeps the legacy direct-resolve() path alive until Phase 3.
+Lint findings fixed in passing: (1) the ADR 0024 summary page was an ORPHAN —
+it existed but was linked from no index entry, so a query starting at
+index.md could never reach it; added. (2) protocol ADR 0013 had TWO index
+lines, an ACCEPTED one and a stale PROPOSED duplicate left by an earlier
+rebase; removed the stale one.
+Open follow-up: ADR 0023 (protocol security audit program) has no summary
+page and no index entry at all.
