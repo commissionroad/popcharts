@@ -1,4 +1,4 @@
-import { pregradManagerAbi } from "@popcharts/protocol";
+import { pregradManagerAbi, WAD } from "@popcharts/protocol";
 
 import { heuristicOutcomeMarker } from "src/ai-resolution/heuristics";
 import {
@@ -15,8 +15,6 @@ import {
   publicClient,
   walletFor,
 } from "./stack";
-
-const WAD = 10n ** 18n;
 
 export type LifecycleMarketOptions = {
   creatorAccountIndex?: number;

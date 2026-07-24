@@ -1,4 +1,4 @@
-const WAD = 10n ** 18n;
+import { WAD } from "../wad.js";
 
 /** Direction a complete-set arbitrage round trip should take, plus the observed price sum. */
 export type CompleteSetArbDecision = {

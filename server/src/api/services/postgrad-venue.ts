@@ -9,6 +9,8 @@ import {
   poolTickBoundsAbi,
   sqrtPriceX96ToDisplayPriceWad,
   stateViewAbi,
+  WAD,
+  wadToNumber,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
@@ -33,8 +35,6 @@ import { config, ZERO_ADDRESS } from "src/config";
  * register the ADR 0009 epsilon tick bounds, and whitelist both pools with
  * the bounded order manager so swaps and maker orders can run.
  */
-
-const WAD = 10n ** 18n;
 
 const ERC20_DECIMALS_ABI = parseAbi([
   "function decimals() view returns (uint8)",
@@ -546,10 +546,6 @@ export function serializeOutcomePool({
     poolId,
     whitelisted,
   };
-}
-
-function wadToNumber(value: bigint): number {
-  return Number(value) / 1e18;
 }
 
 /**

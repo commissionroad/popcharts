@@ -1,4 +1,5 @@
 import { currentYesPriceCents } from "@popcharts/protocol/virtual-lmsr";
+import { wadToCents, wadToNumber } from "@popcharts/protocol/wad";
 import type { PriceTickWire } from "@popcharts/live-channels";
 
 /**
@@ -8,26 +9,11 @@ import type { PriceTickWire } from "@popcharts/live-channels";
  * price with — so a pushed point equals the one a full refetch would show.
  *
  * All share/parameter inputs are the market row's post-trade WAD-scaled values
- * (18 implied decimals). They are decoded to plain numbers here with the same
- * arithmetic the app's `wadToNumber`/`wadToCents` use; a `receipt-price-tick`
- * parity test pins that equivalence. (Unifying the two WAD helpers across the
- * app and server is a separate cleanup — see the file-naming-style backlog.)
+ * (18 implied decimals), decoded to plain numbers with the shared protocol
+ * `wadToNumber`/`wadToCents` — the same helpers the app decodes with, so the
+ * pushed price cannot drift from a refetched one. A `receipt-price-tick` parity
+ * test pins that equivalence.
  */
-
-/** One whole unit in WAD fixed-point: 10^18. */
-const WAD = 10n ** 18n;
-
-/** WAD bigint → number, keeping the fractional part (matches the app helper). */
-function wadToNumber(value: bigint): number {
-  return Number(value / WAD) + Number(value % WAD) / Number(WAD);
-}
-
-/** WAD bigint → whole cents in [1, 99] (matches the app's opening-probability
- * decode: round half-up, then clamp away from the 0/100 asymptotes). */
-function wadToCents(value: bigint): number {
-  const cents = Number((value * 100n + WAD / 2n) / WAD);
-  return Math.min(99, Math.max(1, cents));
-}
 
 export function buildPriceTick(args: {
   t: Date;

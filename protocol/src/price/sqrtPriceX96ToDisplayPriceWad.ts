@@ -1,7 +1,7 @@
+import { WAD } from "../wad.js";
 import type { DisplayPricePoolOrientation } from "./displayPriceWadToSqrtPriceX96.js";
 import { requireDecimals } from "./requireDecimals.js";
 
-const WAD = 10n ** 18n;
 const Q192 = 1n << 192n;
 
 /**

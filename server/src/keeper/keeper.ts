@@ -4,6 +4,7 @@ import {
   executeCompleteSetArb,
   findPendingDeferredExecutions,
   readPoolDisplayPrice,
+  wadToNumber,
 } from "@popcharts/protocol";
 import { parseUnits, type PublicClient } from "viem";
 
@@ -17,8 +18,6 @@ import type {
 import { config } from "src/config";
 
 import type { TrackedMarket, TrackedPregradMarket } from "./discovery";
-
-const WAD = 10n ** 18n;
 
 /**
  * One keeper maintenance pass for one market: read both pool prices, run the
@@ -261,7 +260,7 @@ function keeperPriceSumToleranceWad(): bigint {
 }
 
 function formatWad(value: bigint): string {
-  return (Number(value) / Number(WAD)).toFixed(4);
+  return wadToNumber(value).toFixed(4);
 }
 
 function minBigInt(left: bigint, right: bigint): bigint {
