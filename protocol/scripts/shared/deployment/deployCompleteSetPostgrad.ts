@@ -5,7 +5,7 @@ import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } fr
 import { mineHookSalt } from "../contract/mineHookSalt.js";
 import { hasBytecode } from "./deterministicFactory.js";
 import { ensureTokenPullerBytecode } from "./tokenPuller.js";
-import { localDisputeConfigArgs } from "./localDisputeConfig.ts";
+import { localDisputeConfigArgs } from "./localDisputeConfig.js";
 
 // Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
 // requires its deployment address to encode: beforeSwap (1 << 7) and

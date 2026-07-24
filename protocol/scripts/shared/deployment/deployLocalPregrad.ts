@@ -2,7 +2,7 @@ import type { network } from "hardhat";
 import type { Address } from "viem";
 
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";
-import { localDisputeConfigArgs } from "./localDisputeConfig.ts";
+import { localDisputeConfigArgs } from "./localDisputeConfig.js";
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
 
