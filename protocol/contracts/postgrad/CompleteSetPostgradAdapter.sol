@@ -123,6 +123,8 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
   /// @param owner_ Owner assigned to this adapter and deployed postgrad markets.
   /// @param resolver_ Resolver assigned to deployed postgrad markets.
   /// @param outcomeDecimals_ Outcome-token decimals for deployed postgrad markets.
+  /// @param disputeWindow_ Initial dispute window (seconds) for deployed markets.
+  /// @param disputeBond_ Initial dispute bond (collateral raw units) for deployed markets.
   constructor(
     address pregradManager_,
     address owner_,

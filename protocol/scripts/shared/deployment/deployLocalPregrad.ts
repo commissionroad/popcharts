@@ -2,6 +2,7 @@ import type { network } from "hardhat";
 import type { Address } from "viem";
 
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";
+import { localDisputeConfigArgs } from "./localDisputeConfig.ts";
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
 
@@ -41,10 +42,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     deployerAddress,
     deployerAddress,
     OUTCOME_DECIMALS,
-    // Dispute window disabled locally until the ADR 0024 runner/keeper slices
-    // land; deployed networks tune this via setDisputeConfig.
-    0n,
-    0n,
+    ...localDisputeConfigArgs(),
   ]);
 
   // The indexer starts at this block for non-local networks. We still emit it

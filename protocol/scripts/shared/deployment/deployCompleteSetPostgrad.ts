@@ -5,6 +5,7 @@ import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } fr
 import { mineHookSalt } from "../contract/mineHookSalt.js";
 import { hasBytecode } from "./deterministicFactory.js";
 import { ensureTokenPullerBytecode } from "./tokenPuller.js";
+import { localDisputeConfigArgs } from "./localDisputeConfig.ts";
 
 // Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
 // requires its deployment address to encode: beforeSwap (1 << 7) and
@@ -120,11 +121,7 @@ export async function deployCompleteSetPostgradContracts(
     deployerAddress,
     args.resolverAddress,
     args.outcomeDecimals,
-    // Local stacks deploy with the dispute window disabled so the existing
-    // direct-resolve tooling keeps working until the runner/keeper slices of
-    // repo ADR 0024 land; deployed networks tune this via setDisputeConfig.
-    0n,
-    0n,
+    ...localDisputeConfigArgs(),
   ]);
   const postgradAdapterAddress = getAddress(postgradAdapter.address);
   console.log(`CompleteSetPostgradAdapter: ${postgradAdapterAddress}`);

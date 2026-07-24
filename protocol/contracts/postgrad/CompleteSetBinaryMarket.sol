@@ -320,8 +320,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     address to,
     uint256 collateralAmount
   ) external nonReentrant returns (uint256 outcomeAmount) {
-    // Open until terminal: trading and retained-claim flows continue
-    // through ResolutionPending and Disputed (protocol ADR 0013).
     _requireNotTerminal();
     _requireRecipient(to);
     outcomeAmount = _requireConvertedAmount(
@@ -342,8 +340,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   function mergeCompleteSets(
     uint256 outcomeAmount
   ) external nonReentrant returns (uint256 collateralAmount) {
-    // Open until terminal: trading and retained-claim flows continue
-    // through ResolutionPending and Disputed (protocol ADR 0013).
     _requireNotTerminal();
     collateralAmount = _requireConvertedAmount(
       outcomeAmount,
@@ -368,8 +364,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   function fundRetainedCollateral(
     uint256 collateralAmount
   ) external onlyRetainedMinter nonReentrant returns (uint256 outcomeCapacity) {
-    // Open until terminal: trading and retained-claim flows continue
-    // through ResolutionPending and Disputed (protocol ADR 0013).
     _requireNotTerminal();
     outcomeCapacity = _requireConvertedAmount(
       collateralAmount,
@@ -390,8 +384,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     MarketTypes.Side side,
     uint256 outcomeAmount
   ) external onlyRetainedMinter {
-    // Open until terminal: trading and retained-claim flows continue
-    // through ResolutionPending and Disputed (protocol ADR 0013).
     _requireNotTerminal();
     _requireRecipient(to);
     _requireAmount(outcomeAmount);
