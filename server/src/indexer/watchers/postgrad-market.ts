@@ -9,6 +9,12 @@ import {
   type CompleteSetsMintedLog,
 } from "src/indexer/handlers/complete-set-events";
 import {
+  buildPostgradDisputeRecord,
+  persistPostgradDisputeRecord,
+  type PostgradResolutionDisputedLog,
+  type PostgradResolutionProposedLog,
+} from "src/indexer/handlers/postgrad-dispute";
+import {
   buildPostgradRedemptionRecord,
   persistPostgradRedemptionRecord,
   type PostgradCancelledRedeemedLog,
@@ -40,6 +46,10 @@ import {
  *   override, or a trusted-creator self-resolve. The chain event is the
  *   canonical projector; the resolution runner deliberately does not write
  *   markets.status itself.
+ * - ResolutionProposed/ResolutionDisputed record the pre-terminal half of that
+ *   lifecycle: the dispute window opening and a bonded dispute freezing the
+ *   market (repo ADR 0024). A market with a zero dispute window never emits
+ *   them and goes graduated → resolved as before.
  * - Redeemed/CancelledRedeemed record each redemption payout's collateral leg
  *   as an immutable money-paper-trail row (docs/portfolio-data-design.md).
  * - CompleteSetsMinted/CompleteSetsMerged record collateral entering and
@@ -61,7 +71,7 @@ import {
 // across event families, so handlers must not depend on cross-family commit
 // order — and none do: every persist is a deduped append, and projection
 // writes are guarded. The single watermark also means a persistently failing
-// handler blocks the shared cursor for all six families (the same trade the
+// handler blocks the shared cursor for every family (the same trade the
 // settlement watcher makes); acceptable because persists are idempotent and
 // failures surface loudly rather than silently skipping logs.
 const CURSOR_NAME = "PostgradMarket";
@@ -74,6 +84,8 @@ const EVENTS = [
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "CancelledRedeemed" }),
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "CompleteSetsMinted" }),
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "CompleteSetsMerged" }),
+  getAbiItem({ abi: completeSetBinaryMarketAbi, name: "ResolutionProposed" }),
+  getAbiItem({ abi: completeSetBinaryMarketAbi, name: "ResolutionDisputed" }),
 ];
 
 /** Per-log context shared by every handler: registry + chain lookups. */
@@ -140,6 +152,22 @@ const POSTGRAD_MARKET_HANDLERS: Record<
         ...input,
         kind: "redeemed",
         log: log as PostgradRedeemedLog,
+      }),
+    ),
+  ResolutionDisputed: (input, log) =>
+    persistPostgradDisputeRecord(
+      buildPostgradDisputeRecord({
+        ...input,
+        kind: "disputed",
+        log: log as PostgradResolutionDisputedLog,
+      }),
+    ),
+  ResolutionProposed: (input, log) =>
+    persistPostgradDisputeRecord(
+      buildPostgradDisputeRecord({
+        ...input,
+        kind: "proposed",
+        log: log as PostgradResolutionProposedLog,
       }),
     ),
 };
