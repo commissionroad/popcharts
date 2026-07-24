@@ -18,6 +18,8 @@ export interface TestFile {
   /** Cases that are skipped / focused / todo in this file. */
   skipped: number;
   focused: number;
+  /** expect()/assert() calls in the file — a rough test-depth signal. */
+  assertions: number;
 }
 
 /**
@@ -47,6 +49,7 @@ export interface TestInventory {
   focused: number;
   todo: number;
   conditional: number;
+  totalAssertions: number;
 }
 
 /** Directories worth walking; everything else is skipped outright. */
@@ -116,6 +119,14 @@ function titleStatus(keyword: string, chain: string): TestStatus | undefined {
   if (/\.skip\b/.test(chain)) return "skip";
   return undefined;
 }
+
+/**
+ * Counts assertion calls (a rough test-depth signal): expect(...) / expectRevert
+ * for vitest/playwright/forge, and assert(...) / assert.equal / assertEq for
+ * node:assert and forge-std. Source-level, so it can't tell which case an
+ * assertion belongs to — the per-file total is the signal, not per-case.
+ */
+const ASSERTION = /\b(?:expect\w*|assert(?:\.\w+|\w*))\s*\(/g;
 
 /** Solidity convention: forge/hardhat treat `test*`/`invariant*` as cases. */
 const SOL_TITLE = /^\s*function\s+((?:test|invariant)\w*)/gm;
@@ -189,6 +200,7 @@ export function readTestInventory(repoRoot: string): TestInventory {
         cases: caseTitles.length,
         skipped: caseTitles.filter((t) => t.status === "skip").length,
         focused: caseTitles.filter((t) => t.status === "only").length,
+        assertions: (source.match(ASSERTION) ?? []).length,
       });
     });
   }
@@ -219,5 +231,6 @@ export function readTestInventory(repoRoot: string): TestInventory {
     focused: countStatus(files, "only"),
     todo: countStatus(files, "todo"),
     conditional: countStatus(files, "conditional"),
+    totalAssertions: files.reduce((sum, file) => sum + file.assertions, 0),
   };
 }
