@@ -24,7 +24,10 @@ dispute/bond events (money paper-trail invariant), `markets.status` gains
 ([ADR 0021](root-adr-0021-live-market-updates.md)). **3 — runner + keeper:**
 runner submits `proposeResolution` immediately (off-chain delay superseded),
 keeper finalizes past-window markets idempotently, lifecycle-harness
-scenarios (ADR 0017 C3). **4 — API + app:** pending/disputed reads with
+scenarios (ADR 0017 C3). **4 — API + app:** permissionless
+resolution-check endpoint (per-market 24h cooldown — a request only spends
+an AI query; quorums/bounties rejected, position-weighted triage + cheap
+pre-screen deferred), pending/disputed reads with
 countdown, wallet-signed dispute button with bond approve+post, operator
 self-dispute/settle in local admin tooling only; extends
 [ADR 0018's terminal surfaces](root-adr-0018-terminal-market-surface-and-redemption-ux.md)
