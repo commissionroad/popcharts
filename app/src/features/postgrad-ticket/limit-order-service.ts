@@ -18,10 +18,12 @@ import {
   stateViewAbi,
   tokenPullerAllowanceAbi,
 } from "@/integrations/contracts/postgrad-venue";
-
 import {
   ensureSpendBalance,
   ensureTokenAllowance,
+} from "@/integrations/contracts/token-spend";
+
+import {
   requireVenueChain,
   type VenuePoolContext,
   type VenueSwapWallet,
