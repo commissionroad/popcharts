@@ -20,6 +20,10 @@ import {
   type ObservabilitySnapshot,
 } from "./shared/observability/readCiMetrics.ts";
 import {
+  readLocalCoverage,
+  type LocalCoverage,
+} from "./shared/observability/readLocalCoverage.ts";
+import {
   readTestInventory,
   type TestInventory,
 } from "./shared/observability/readTestInventory.ts";
@@ -40,7 +44,11 @@ const pagePath = join(here, "shared", "observability", "dashboard.html");
  * working-tree test inventory (what the code asserts right now). Two different
  * sources, kept distinct so the page can label each one's provenance.
  */
-export type DashboardSnapshot = ObservabilitySnapshot & { tests: TestInventory };
+export type DashboardSnapshot = ObservabilitySnapshot & {
+  tests: TestInventory;
+  /** Per-file coverage from local runs — as old as the last one. */
+  localCoverage: LocalCoverage;
+};
 
 let cached: { at: number; snapshot: DashboardSnapshot } | null = null;
 let inflight: Promise<DashboardSnapshot> | null = null;
@@ -50,7 +58,11 @@ function refresh(): Promise<DashboardSnapshot> {
     inflight = readCiMetrics(repoRoot)
       // The inventory is a bounded local filesystem walk (~30ms over a few
       // hundred files), not network I/O, and runs at most once per cache TTL.
-      .then((ci) => ({ ...ci, tests: readTestInventory(repoRoot) }))
+      .then((ci) => ({
+        ...ci,
+        tests: readTestInventory(repoRoot),
+        localCoverage: readLocalCoverage(repoRoot),
+      }))
       .then((fresh) => {
         cached = { at: Date.now(), snapshot: fresh };
         return fresh;

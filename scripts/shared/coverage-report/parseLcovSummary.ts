@@ -23,10 +23,23 @@ function pct(hit: number, found: number): number | null {
   return Math.round((hit / found) * 10000) / 100;
 }
 
-function normalizeSourcePath(raw: string): string {
+/** Strips lcov's leading `./` so paths compare cleanly against filter prefixes. */
+export function normalizeSourcePath(raw: string): string {
   let path = raw.trim();
   while (path.startsWith("./")) path = path.slice(2);
   return path;
+}
+
+/**
+ * Whether an lcov record belongs to the workspace being reported. Exported so
+ * the per-file reader applies exactly the same workspace-own denominator as
+ * this summary, rather than reimplementing the rule.
+ */
+export function matchesLcovFilter(path: string, filter: LcovFilter): boolean {
+  return (
+    filter.include.some((prefix) => path.startsWith(prefix)) &&
+    !filter.exclude.some((prefix) => path.startsWith(prefix))
+  );
 }
 
 /**
@@ -52,9 +65,7 @@ export function parseLcovSummary(
     const line = rawLine.trim();
     if (line.startsWith("SF:")) {
       const path = normalizeSourcePath(line.slice(3));
-      included =
-        filter.include.some((prefix) => path.startsWith(prefix)) &&
-        !filter.exclude.some((prefix) => path.startsWith(prefix));
+      included = matchesLcovFilter(path, filter);
       if (included) files += 1;
       continue;
     }
