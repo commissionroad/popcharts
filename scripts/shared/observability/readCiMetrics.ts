@@ -6,6 +6,7 @@ import {
   type HistoryRow,
 } from "../coverage-report/coverageMetrics.ts";
 import { COVERAGE_WORKSPACES } from "../coverage-report/coverageWorkspaces.ts";
+import { parseFlakeReport, type FlakeReport } from "./parseFlakeReport.ts";
 import {
   NIGHTLY_SUITES,
   parseLatestNightly,
@@ -41,6 +42,8 @@ export interface ObservabilitySnapshot {
   };
   coverage: { latest: CoverageLatest | null; history: HistoryRow[] };
   nightly: { latest: NightlyRun | null; history: NightlyRun[] };
+  /** The weekly flake report, parsed back out of FLAKES.md. */
+  flakes: FlakeReport;
 }
 
 /** The shape of coverage/latest.json the dashboard consumes (partial). */
@@ -136,6 +139,7 @@ export async function readCiMetrics(
     coverageHistoryText,
     nightlyLatestText,
     nightlyHistoryText,
+    flakesText,
   ] = await Promise.all([
     gitLine(repoRoot, ["rev-parse", "--short", REF]),
     gitLine(repoRoot, ["show", "-s", "--format=%cI", REF]),
@@ -143,6 +147,7 @@ export async function readCiMetrics(
     readRefFile(repoRoot, "coverage/history.jsonl"),
     readRefFile(repoRoot, "nightly/latest.json"),
     readRefFile(repoRoot, "nightly/history.jsonl"),
+    readRefFile(repoRoot, "FLAKES.md"),
   ]);
 
   let coverageLatest: CoverageLatest | null = null;
@@ -170,5 +175,6 @@ export async function readCiMetrics(
       latest: parseLatestNightly(nightlyLatestText).run,
       history: parseNightlyHistory(nightlyHistoryText),
     },
+    flakes: parseFlakeReport(flakesText),
   };
 }

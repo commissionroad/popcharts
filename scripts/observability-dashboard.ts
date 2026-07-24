@@ -19,6 +19,10 @@ import {
   readCiMetrics,
   type ObservabilitySnapshot,
 } from "./shared/observability/readCiMetrics.ts";
+import {
+  readTestInventory,
+  type TestInventory,
+} from "./shared/observability/readTestInventory.ts";
 import { repoRoot } from "./shared/paths.ts";
 
 const PORT = Number(process.env.OBSERVABILITY_PORT ?? 4700);
@@ -31,12 +35,22 @@ const pagePath = join(here, "shared", "observability", "dashboard.html");
 // request returns it instantly and the refresh runs in the background. Only the
 // very first request awaits — and even that is bounded by the git timeout and
 // falls back to the last-known ref. The dashboard can never hang on git again.
-let cached: { at: number; snapshot: ObservabilitySnapshot } | null = null;
-let inflight: Promise<ObservabilitySnapshot> | null = null;
+/**
+ * What the page renders: the ci-metrics datastore (what CI last pushed) plus a
+ * working-tree test inventory (what the code asserts right now). Two different
+ * sources, kept distinct so the page can label each one's provenance.
+ */
+export type DashboardSnapshot = ObservabilitySnapshot & { tests: TestInventory };
 
-function refresh(): Promise<ObservabilitySnapshot> {
+let cached: { at: number; snapshot: DashboardSnapshot } | null = null;
+let inflight: Promise<DashboardSnapshot> | null = null;
+
+function refresh(): Promise<DashboardSnapshot> {
   if (!inflight) {
     inflight = readCiMetrics(repoRoot)
+      // The inventory is a bounded local filesystem walk (~30ms over a few
+      // hundred files), not network I/O, and runs at most once per cache TTL.
+      .then((ci) => ({ ...ci, tests: readTestInventory(repoRoot) }))
       .then((fresh) => {
         cached = { at: Date.now(), snapshot: fresh };
         return fresh;
@@ -48,7 +62,7 @@ function refresh(): Promise<ObservabilitySnapshot> {
   return inflight;
 }
 
-async function snapshot(): Promise<ObservabilitySnapshot> {
+async function snapshot(): Promise<DashboardSnapshot> {
   const fresh = cached && Date.now() - cached.at < CACHE_TTL_MS;
   if (fresh) return cached!.snapshot;
   const pending = refresh();
