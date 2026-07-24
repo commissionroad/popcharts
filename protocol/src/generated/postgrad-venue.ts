@@ -1900,14 +1900,31 @@ export const completeSetBinaryMarketAbi = [
         type: "uint8",
       },
       {
-        internalType: "uint64",
-        name: "yesNotBefore_",
-        type: "uint64",
-      },
-      {
-        internalType: "uint64",
-        name: "noNotBefore_",
-        type: "uint64",
+        components: [
+          {
+            internalType: "uint64",
+            name: "yesNotBefore",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "noNotBefore",
+            type: "uint64",
+          },
+          {
+            internalType: "uint64",
+            name: "disputeWindow",
+            type: "uint64",
+          },
+          {
+            internalType: "uint256",
+            name: "disputeBond",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct CompleteSetBinaryMarket.ResolutionConfig",
+        name: "resolutionConfig_",
+        type: "tuple",
       },
     ],
     stateMutability: "nonpayable",
@@ -1927,6 +1944,17 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     name: "AmountHasDust",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "deadline",
+        type: "uint64",
+      },
+    ],
+    name: "DisputeWindowStillOpen",
     type: "error",
   },
   {
@@ -2021,6 +2049,17 @@ export const completeSetBinaryMarketAbi = [
   {
     inputs: [
       {
+        internalType: "enum CompleteSetBinaryMarket.Status",
+        name: "actual",
+        type: "uint8",
+      },
+    ],
+    name: "InvalidStatusForAction",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
         internalType: "enum MarketTypes.Side",
         name: "side",
         type: "uint8",
@@ -2032,6 +2071,11 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     name: "LosingSideCannotRedeem",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "MarketNotDirectlyResolvable",
     type: "error",
   },
   {
@@ -2277,6 +2321,25 @@ export const completeSetBinaryMarketAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "enum MarketTypes.Side",
+        name: "side",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "disputeDeadline",
+        type: "uint64",
+      },
+    ],
+    name: "ResolutionProposed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
         internalType: "address",
         name: "caller",
         type: "address",
@@ -2385,6 +2448,52 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputeBond",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputeDeadline",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputeWindow",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "finalizeResolution",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -2538,6 +2647,45 @@ export const completeSetBinaryMarketAbi = [
         internalType: "address",
         name: "",
         type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "enum MarketTypes.Side",
+        name: "side",
+        type: "uint8",
+      },
+    ],
+    name: "proposeResolution",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "proposedAt",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "proposedSide",
+    outputs: [
+      {
+        internalType: "enum MarketTypes.Side",
+        name: "",
+        type: "uint8",
       },
     ],
     stateMutability: "view",
@@ -2728,6 +2876,16 @@ export const completeSetPostgradAdapterAbi = [
         name: "outcomeDecimals_",
         type: "uint8",
       },
+      {
+        internalType: "uint64",
+        name: "disputeWindow_",
+        type: "uint64",
+      },
+      {
+        internalType: "uint256",
+        name: "disputeBond_",
+        type: "uint256",
+      },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -2880,6 +3038,25 @@ export const completeSetPostgradAdapterAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: false,
+        internalType: "uint64",
+        name: "disputeWindow",
+        type: "uint64",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "disputeBond",
+        type: "uint256",
+      },
+    ],
+    name: "DisputeConfigUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "address",
         name: "previousOwner",
@@ -2968,6 +3145,32 @@ export const completeSetPostgradAdapterAbi = [
     ],
     name: "RetainedOutcomeDistributed",
     type: "event",
+  },
+  {
+    inputs: [],
+    name: "disputeBond",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputeWindow",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
   },
   {
     inputs: [
@@ -3178,6 +3381,24 @@ export const completeSetPostgradAdapterAbi = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "disputeWindow_",
+        type: "uint64",
+      },
+      {
+        internalType: "uint256",
+        name: "disputeBond_",
+        type: "uint256",
+      },
+    ],
+    name: "setDisputeConfig",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -4115,10 +4336,12 @@ export const postgradVenueEventNames = {
     "MarketResolved",
     "OwnershipTransferred",
     "Redeemed",
+    "ResolutionProposed",
     "RetainedCollateralFunded",
     "RetainedSideMinted",
   ],
   CompleteSetPostgradAdapter: [
+    "DisputeConfigUpdated",
     "OwnershipTransferred",
     "PostgradMarketPrepared",
     "RetainedOutcomeDistributed",
