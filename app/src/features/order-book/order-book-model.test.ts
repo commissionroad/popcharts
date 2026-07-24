@@ -49,6 +49,21 @@ describe("buildOrderBookPoolView", () => {
     expect(view.spreadCents).toBe(4);
   });
 
+  it("decodes fractional share sizes precisely", () => {
+    const view = buildOrderBookPoolView(
+      poolFactory({
+        asks: [
+          levelFactory({ sizeWad: "1500000000000000000" }),
+          levelFactory({ sizeWad: "2250000000000000000" }),
+        ],
+        bids: [],
+      })
+    );
+
+    expect(view.asks.map((level) => level.sizeShares)).toEqual([1.5, 2.25]);
+    expect(view.asks.map((level) => level.cumulativeShares)).toEqual([1.5, 3.75]);
+  });
+
   it("returns a null spread when either half of the book is empty", () => {
     const asksOnly = buildOrderBookPoolView(
       poolFactory({
