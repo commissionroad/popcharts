@@ -106,22 +106,25 @@
     .toolbar .hits { font-size: 12.5px; color: var(--muted); }
     .tree { padding: 10px 12px 16px; max-height: 620px; overflow: auto; }
     .tree details { margin: 1px 0; }
-    .tree summary { cursor: pointer; padding: 3px 6px; border-radius: 6px; font-size: 13.5px; list-style: none; display: flex; align-items: center; gap: 8px; }
+    .tree summary { cursor: pointer; padding: 3px 6px; border-radius: 6px; font-size: 13.5px; list-style: none; display: grid; grid-template-columns: 12px 1fr auto auto auto; align-items: center; gap: 0 10px; }
     .tree summary::-webkit-details-marker { display: none; }
-    .tree summary::before { content: "▸"; color: var(--faint); font-size: 10px; width: 9px; flex: none; transition: transform .12s; }
+    .tree summary::before { content: "▸"; color: var(--faint); font-size: 10px; transition: transform .12s; }
     .tree details[open] > summary::before { transform: rotate(90deg); }
     .tree summary:hover { background: var(--surface-2); }
+    .tree .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tree .dir { font-weight: 560; }
+    .tree .sep { color: var(--faint); margin: 0 1px; font-weight: 400; }
     .tree .file { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
-    .tree .count { margin-left: auto; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+    .tree .count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; text-align: right; min-width: 34px; }
     .tree .kids { margin-left: 15px; border-left: 1px solid var(--border); padding-left: 8px; }
-    .tree .srcfile { display: flex; align-items: center; gap: 8px; padding: 3px 6px 3px 21px; font-size: 12.5px; color: var(--muted); }
+    .tree .srcfile { display: grid; grid-template-columns: 12px 1fr auto auto auto; align-items: center; gap: 0 10px; padding: 3px 6px; font-size: 12.5px; color: var(--muted); }
     .tree ul { margin: 2px 0 6px 30px; padding: 0; list-style: none; }
     .tree li { font-size: 12.5px; color: var(--muted); padding: 2px 0; line-height: 1.45; }
     .tree li.suite { color: var(--text); font-weight: 560; margin-top: 5px; }
     .tree li.case::before { content: "· "; color: var(--faint); }
-    .tier { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
-    .cov { font-size: 11px; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 5px; margin-left: 8px; }
+    .tier { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); text-align: center; min-width: 56px; }
+    .tree .tier:empty, .tree .cov:empty { background: transparent; border-color: transparent; }
+    .cov { font-size: 11px; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 5px; text-align: right; min-width: 34px; }
     .cov.high { color: var(--pass); background: var(--pass-soft); }
     .cov.mid { color: var(--warn); background: var(--warn-soft); }
     .cov.low { color: var(--fail); background: var(--fail-soft); }
@@ -141,6 +144,14 @@
     .provenance .ok-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); flex: none; }
     mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); border-radius: 3px; }
 
+    .flaketable { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .flaketable th, .flaketable td { padding: 10px 16px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .flaketable th:first-child, .flaketable td:first-child { text-align: left; }
+    .flaketable thead th { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .flaketable tbody td { border-top: 1px solid var(--border); color: var(--text); }
+    .flaketable tbody td:first-child { font-weight: 560; }
+    .flaketable tbody tr:first-child td { border-top: none; }
+    .flaketable .muted { color: var(--faint); }
     footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
     .noscript { margin: 20px 0 0; padding: 16px 18px; border-radius: 12px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); color: var(--text); font-size: 14px; line-height: 1.55; }
     .noscript b { display: block; margin-bottom: 6px; }
@@ -194,7 +205,9 @@
 
     <h2 class="section">Flakes</h2>
     <div class="panel">
-      <div style="overflow-x:auto"><table><thead><tr><th>Workflow</th><th>Runs</th><th>Fail %</th><th>Rerun-passes</th><th>Flake %</th><th>Status</th></tr></thead><tbody id="flakes"></tbody></table></div>
+      <div style="overflow-x:auto"><table class="flaketable"><thead><tr>
+        <th>Workflow</th><th>Runs</th><th>Failures</th><th>Fail rate</th><th>Reruns that passed</th><th>Flake rate</th><th>Status</th>
+      </tr></thead><tbody id="flakes"></tbody></table></div>
       <div class="note" id="flakes-note"></div>
     </div>
 
@@ -396,23 +409,42 @@
     }
 
     function renderNode(node, query, depth) {
-      const dirs = [...node.dirs.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1);
+      // Folders that actually hold tests sort first, so a workspace that keeps
+      // its tests in one directory (protocol/test) surfaces them above the
+      // coverage-only source folders (protocol/contracts, protocol/src) instead
+      // of burying them. Within each group, plain alphabetical.
+      const dirs = [...node.dirs.entries()].sort((a, b) => {
+        const ta = a[1].cases > 0, tb = b[1].cases > 0;
+        if (ta !== tb) return ta ? -1 : 1;
+        return a[0] < b[0] ? -1 : 1;
+      });
       // Auto-expand while filtering (the matches are the point) and at the top
       // level; deeper levels start collapsed so 2k cases stay scannable.
       const open = query || depth < 1 ? " open" : "";
       const covBadge = (hit, found) => {
-        if (!found) return "";
+        if (!found) return `<span class="cov"></span>`;
         const pct = (hit / found) * 100;
         return `<span class="cov ${covClass(pct)}" title="${hit}/${found} lines (local run)">${pct.toFixed(0)}%</span>`;
       };
-      const dirHtml = dirs.map(([name, child]) =>
-        `<details${open}><summary><span class="dir">${esc(name)}</span>${covBadge(child.hit, child.found)}<span class="count">${child.cases}</span></summary><div class="kids">${renderNode(child, query, depth + 1)}</div></details>`).join("");
+      const dirHtml = dirs.map(([name, child]) => {
+        // Collapse single-child directory chains into one row (foo/bar/baz),
+        // so deeply-nested tests — protocol/test/solidity/… — aren't a click
+        // each. Stop collapsing once a level holds files or more than one dir.
+        let label = esc(name), collapsed = child;
+        while (collapsed.files.length === 0 && (collapsed.sources ?? []).length === 0 && collapsed.dirs.size === 1) {
+          const [childName, only] = [...collapsed.dirs.entries()][0];
+          label += `<span class="sep">/</span>${esc(childName)}`;
+          collapsed = only;
+        }
+        return `<details${open}><summary><span class="name dir">${label}</span>${covBadge(collapsed.hit, collapsed.found)}<span class="tier"></span><span class="count">${collapsed.cases}</span></summary><div class="kids">${renderNode(collapsed, query, depth + 1)}</div></details>`;
+      }).join("");
       const sourceHtml = (node.sources ?? []).map((c) =>
-        `<div class="srcfile"><span class="file">${highlight(c.name, query)}</span>${covBadge(c.lines.hit, c.lines.found)}</div>`).join("");
+        `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c.lines.hit, c.lines.found)}<span class="tier">src</span><span class="count"></span></div>`).join("");
       const fileHtml = node.files.map((f) => {
         const titles = f.titles.map((t) =>
           `<li class="${t.kind}">${highlight(t.title, query)}</li>`).join("");
-        return `<details${open}><summary><span class="file">${highlight(f.name, query)}</span><span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
+        const cov = f.coverage ? covBadge(f.coverage.hit, f.coverage.found) : `<span class="cov"></span>`;
+        return `<details${open}><summary><span class="name file">${highlight(f.name, query)}</span>${cov}<span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
       }).join("");
       return dirHtml + fileHtml + sourceHtml;
     }
@@ -476,16 +508,18 @@
       const { rows, window: win } = snap.flakes;
       const body = $("flakes");
       if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="6">No flake report on <span class="mono">ci-metrics</span> yet.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7">No flake report on <span class="mono">ci-metrics</span> yet.</td></tr>`;
         $("flakes-note").textContent = "The flake job runs weekly (Mondays).";
         return;
       }
+      const dim = (n) => n === 0 ? `<span class="muted">0</span>` : String(n);
       body.innerHTML = rows.map((r) => `<tr>
         <td>${esc(r.workflow)}</td>
-        <td class="mono">${r.runs}</td>
-        <td class="mono">${r.failurePct == null ? "—" : r.failurePct.toFixed(1) + "%"}</td>
-        <td class="mono">${r.rerunPasses}</td>
-        <td class="mono">${r.flakePct == null ? "—" : r.flakePct.toFixed(1) + "%"}</td>
+        <td>${r.runs}</td>
+        <td>${dim(r.failures)}</td>
+        <td>${r.failurePct == null ? "—" : r.failurePct.toFixed(1) + "%"}</td>
+        <td>${dim(r.rerunPasses)}</td>
+        <td>${r.flakePct == null ? "—" : r.flakePct.toFixed(1) + "%"}</td>
         <td><span class="pill ${r.overThreshold ? "warn" : "ok"}">${r.overThreshold ? "over 5%" : "under 5%"}</span></td>
       </tr>`).join("");
       $("flakes-note").innerHTML = win
