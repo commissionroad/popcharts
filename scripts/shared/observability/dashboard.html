@@ -104,6 +104,10 @@
     .toolbar input { flex: 1; min-width: 220px; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-family: inherit; }
     .toolbar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
     .toolbar .hits { font-size: 12.5px; color: var(--muted); }
+    .metric-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+    .metric-toggle button { font: inherit; font-size: 12px; padding: 5px 11px; background: var(--surface-2); color: var(--muted); border: none; cursor: pointer; }
+    .metric-toggle button + button { border-left: 1px solid var(--border-strong); }
+    .metric-toggle button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
     .tree { padding: 10px 12px 16px; max-height: 620px; overflow: auto; }
     .tree details { margin: 1px 0; }
     .tree summary { cursor: pointer; padding: 3px 6px; border-radius: 6px; font-size: 13.5px; list-style: none; display: grid; grid-template-columns: 12px 1fr auto auto auto; align-items: center; gap: 0 10px; }
@@ -206,6 +210,10 @@
       <div class="toolbar">
         <input id="test-search" type="search" placeholder="Filter test titles and paths…" autocomplete="off" spellcheck="false" />
         <span class="hits" id="test-hits"></span>
+        <span class="metric-toggle" role="group" aria-label="Coverage metric">
+          <button type="button" data-metric="lines" class="on">Lines</button>
+          <button type="button" data-metric="branches">Branches</button>
+        </span>
       </div>
       <div class="tree" id="tests"><div class="empty">Loading…</div></div>
       <div class="note">Read from the working tree, not <span class="mono">ci-metrics</span> — this is what the code asserts right now. Titles are read from source, so dynamically-built names (templates, <span class="mono">it.each</span> rows) are not listed.</div>
@@ -349,7 +357,9 @@
         const fill = Math.max(0, Math.min(100, ((pct - lo) / span) * 100));
         const floorPct = ws.floor ? Math.max(0, Math.min(100, ((ws.floor - lo) / span) * 100)) : null;
         const chip = coverageChip(ws, pct, series);
-        const extra = `${w.summary.functions && w.summary.functions.pct != null ? w.summary.functions.pct.toFixed(2) + "% fn · " : ""}${w.summary.lines.hit}/${w.summary.lines.found} lines`;
+        const brPct = w.summary.branches && w.summary.branches.pct != null ? w.summary.branches.pct.toFixed(2) + "% br · " : "";
+        const fnPct = w.summary.functions && w.summary.functions.pct != null ? w.summary.functions.pct.toFixed(2) + "% fn · " : "";
+        const extra = `${fnPct}${brPct}${w.summary.lines.hit}/${w.summary.lines.found} lines`;
         return `<div class="cov-row">
           <div class="cov-id"><span class="ws mono">${ws.key}</span><span class="rule">${ws.ruler}</span></div>
           <div class="cov-spark">${spark(series, accent)}<span class="cov-pct mono">${pct == null ? "—" : pct.toFixed(2) + "%"}</span></div>
@@ -377,7 +387,7 @@
     }
 
     // Group files into a directory tree, carrying case counts up each level.
-    function emptyNode() { return { dirs: new Map(), files: [], sources: [], cases: 0, hit: 0, found: 0 }; }
+    function emptyNode() { return { dirs: new Map(), files: [], sources: [], cases: 0, lines: { hit: 0, found: 0 }, branches: { hit: 0, found: 0 } }; }
 
     // One tree over the union of test files and covered source files, so a
     // folder with source but no tests still appears — that gap is the point.
@@ -402,7 +412,10 @@
       }
       for (const c of covFiles) {
         const { node, name, chain } = descend(c.path);
-        for (const n of chain) { n.hit += c.lines.hit; n.found += c.lines.found; }
+        for (const n of chain) {
+          n.lines.hit += c.lines.hit; n.lines.found += c.lines.found;
+          n.branches.hit += c.branches.hit; n.branches.found += c.branches.found;
+        }
         node.sources.push({ ...c, name });
       }
       return root;
@@ -429,10 +442,11 @@
       // Auto-expand while filtering (the matches are the point) and at the top
       // level; deeper levels start collapsed so 2k cases stay scannable.
       const open = query || depth < 1 ? " open" : "";
-      const covBadge = (hit, found) => {
-        if (!found) return `<span class="cov"></span>`;
-        const pct = (hit / found) * 100;
-        return `<span class="cov ${covClass(pct)}" title="${hit}/${found} lines (local run)">${pct.toFixed(0)}%</span>`;
+      const covBadge = (m) => {
+        const c = m[covMetric];
+        if (!c || !c.found) return `<span class="cov"></span>`;
+        const pct = (c.hit / c.found) * 100;
+        return `<span class="cov ${covClass(pct)}" title="${c.hit}/${c.found} ${covMetric} (local run)">${pct.toFixed(0)}%</span>`;
       };
       const dirHtml = dirs.map(([name, child]) => {
         // Collapse single-child directory chains into one row (foo/bar/baz),
@@ -444,14 +458,14 @@
           label += `<span class="sep">/</span>${esc(childName)}`;
           collapsed = only;
         }
-        return `<details${open}><summary><span class="name dir">${label}</span>${covBadge(collapsed.hit, collapsed.found)}<span class="tier"></span><span class="count">${collapsed.cases}</span></summary><div class="kids">${renderNode(collapsed, query, depth + 1)}</div></details>`;
+        return `<details${open}><summary><span class="name dir">${label}</span>${covBadge(collapsed)}<span class="tier"></span><span class="count">${collapsed.cases}</span></summary><div class="kids">${renderNode(collapsed, query, depth + 1)}</div></details>`;
       }).join("");
       const sourceHtml = (node.sources ?? []).map((c) =>
-        `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c.lines.hit, c.lines.found)}<span class="tier">src</span><span class="count"></span></div>`).join("");
+        `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c)}<span class="tier">src</span><span class="count"></span></div>`).join("");
       const fileHtml = node.files.map((f) => {
         const titles = f.titles.map((t) =>
           `<li class="${t.kind}">${highlight(t.title, query)}</li>`).join("");
-        const cov = f.coverage ? covBadge(f.coverage.hit, f.coverage.found) : `<span class="cov"></span>`;
+        const cov = `<span class="cov"></span>`;
         return `<details${open}><summary><span class="name file">${highlight(f.name, query)}</span>${cov}<span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
       }).join("");
       return dirHtml + fileHtml + sourceHtml;
@@ -469,7 +483,7 @@
         return titles.length || pathHit ? { ...f, titles, cases: titles.filter((t) => t.kind === "case").length } : null;
       }).filter(Boolean);
 
-      const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${snap.localCoverage.files.length}:${query}`;
+      const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${snap.localCoverage.files.length}:${covMetric}:${query}`;
       if (key === lastTreeKey) return;
       lastTreeKey = key;
 
@@ -483,6 +497,7 @@
     // Folder coverage comes from LOCAL lcov runs, which can be old and scoped
     // differently from CI's figure — so it is always labelled, never blended
     // into the ci-metrics numbers above.
+    let covMetric = "lines";
     function covClass(pct) { return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low"; }
 
     // Local-run coverage vs the CI figure, one aligned row per workspace. Lives
@@ -621,6 +636,13 @@
 
     let latestSnapshot = null;
     $("test-search").addEventListener("input", () => {
+      if (latestSnapshot) renderTests(latestSnapshot);
+    });
+    document.querySelector(".metric-toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-metric]");
+      if (!btn) return;
+      covMetric = btn.dataset.metric;
+      document.querySelectorAll(".metric-toggle button").forEach((b) => b.classList.toggle("on", b === btn));
       if (latestSnapshot) renderTests(latestSnapshot);
     });
 

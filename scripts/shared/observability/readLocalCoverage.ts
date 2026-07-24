@@ -21,6 +21,9 @@ export interface LocalCoverageFile {
   path: string;
   lines: { hit: number; found: number };
   functions: { hit: number; found: number };
+  /** Branch coverage (BRF/BRH). Absent from bun and hardhat-solidity lcov, so
+   *  `found` is 0 for those workspaces — render as "no data", never 0%. */
+  branches: { hit: number; found: number };
 }
 
 export interface LocalCoverageSource {
@@ -76,6 +79,7 @@ function parseRecords(
             path: `${rootDir}/${path}`,
             lines: { hit: 0, found: 0 },
             functions: { hit: 0, found: 0 },
+            branches: { hit: 0, found: 0 },
           }
         : null;
       continue;
@@ -85,6 +89,8 @@ function parseRecords(
     else if (line.startsWith("LH:")) current.lines.hit = Number(line.slice(3)) || 0;
     else if (line.startsWith("FNF:")) current.functions.found = Number(line.slice(4)) || 0;
     else if (line.startsWith("FNH:")) current.functions.hit = Number(line.slice(4)) || 0;
+    else if (line.startsWith("BRF:")) current.branches.found = Number(line.slice(4)) || 0;
+    else if (line.startsWith("BRH:")) current.branches.hit = Number(line.slice(4)) || 0;
     else if (line === "end_of_record") {
       files.push(current);
       current = null;
