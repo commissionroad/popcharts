@@ -115,11 +115,20 @@
     .tree .file { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
     .tree .count { margin-left: auto; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
     .tree .kids { margin-left: 15px; border-left: 1px solid var(--border); padding-left: 8px; }
+    .tree .srcfile { display: flex; align-items: center; gap: 8px; padding: 3px 6px 3px 21px; font-size: 12.5px; color: var(--muted); }
     .tree ul { margin: 2px 0 6px 30px; padding: 0; list-style: none; }
     .tree li { font-size: 12.5px; color: var(--muted); padding: 2px 0; line-height: 1.45; }
     .tree li.suite { color: var(--text); font-weight: 560; margin-top: 5px; }
     .tree li.case::before { content: "· "; color: var(--faint); }
     .tier { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+    .cov { font-size: 11px; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 5px; margin-left: 8px; }
+    .cov.high { color: var(--pass); background: var(--pass-soft); }
+    .cov.mid { color: var(--warn); background: var(--warn-soft); }
+    .cov.low { color: var(--fail); background: var(--fail-soft); }
+    .provenance { padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+    .provenance .src { display: inline-flex; align-items: center; gap: 6px; }
+    .provenance .warn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; }
+    .provenance .ok-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); flex: none; }
     mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); border-radius: 3px; }
 
     footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
@@ -161,6 +170,7 @@
         <input id="test-search" type="search" placeholder="Filter test titles and paths…" autocomplete="off" spellcheck="false" />
         <span class="hits" id="test-hits"></span>
       </div>
+      <div class="provenance" id="cov-provenance"></div>
       <div class="tree" id="tests"><div class="empty">Loading…</div></div>
       <div class="note">Read from the working tree, not <span class="mono">ci-metrics</span> — this is what the code asserts right now. Titles are read from source, so dynamically-built names (templates, <span class="mono">it.each</span> rows) are not listed.</div>
     </div>
@@ -329,19 +339,33 @@
     }
 
     // Group files into a directory tree, carrying case counts up each level.
-    function buildTree(files) {
-      const root = { dirs: new Map(), files: [], cases: 0 };
-      for (const f of files) {
-        const parts = f.path.split("/");
+    function emptyNode() { return { dirs: new Map(), files: [], sources: [], cases: 0, hit: 0, found: 0 }; }
+
+    // One tree over the union of test files and covered source files, so a
+    // folder with source but no tests still appears — that gap is the point.
+    function buildTree(files, covFiles) {
+      const root = emptyNode();
+      const descend = (path) => {
+        const parts = path.split("/");
         const name = parts.pop();
         let node = root;
-        node.cases += f.cases;
+        const chain = [root];
         for (const part of parts) {
-          if (!node.dirs.has(part)) node.dirs.set(part, { dirs: new Map(), files: [], cases: 0 });
+          if (!node.dirs.has(part)) node.dirs.set(part, emptyNode());
           node = node.dirs.get(part);
-          node.cases += f.cases;
+          chain.push(node);
         }
+        return { node, name, chain };
+      };
+      for (const f of files) {
+        const { node, name, chain } = descend(f.path);
+        for (const n of chain) n.cases += f.cases;
         node.files.push({ ...f, name });
+      }
+      for (const c of covFiles) {
+        const { node, name, chain } = descend(c.path);
+        for (const n of chain) { n.hit += c.lines.hit; n.found += c.lines.found; }
+        node.sources.push({ ...c, name });
       }
       return root;
     }
@@ -359,14 +383,21 @@
       // Auto-expand while filtering (the matches are the point) and at the top
       // level; deeper levels start collapsed so 2k cases stay scannable.
       const open = query || depth < 1 ? " open" : "";
+      const covBadge = (hit, found) => {
+        if (!found) return "";
+        const pct = (hit / found) * 100;
+        return `<span class="cov ${covClass(pct)}" title="${hit}/${found} lines (local run)">${pct.toFixed(0)}%</span>`;
+      };
       const dirHtml = dirs.map(([name, child]) =>
-        `<details${open}><summary><span class="dir">${esc(name)}</span><span class="count">${child.cases}</span></summary><div class="kids">${renderNode(child, query, depth + 1)}</div></details>`).join("");
+        `<details${open}><summary><span class="dir">${esc(name)}</span>${covBadge(child.hit, child.found)}<span class="count">${child.cases}</span></summary><div class="kids">${renderNode(child, query, depth + 1)}</div></details>`).join("");
+      const sourceHtml = (node.sources ?? []).map((c) =>
+        `<div class="srcfile"><span class="file">${highlight(c.name, query)}</span>${covBadge(c.lines.hit, c.lines.found)}</div>`).join("");
       const fileHtml = node.files.map((f) => {
         const titles = f.titles.map((t) =>
           `<li class="${t.kind}">${highlight(t.title, query)}</li>`).join("");
         return `<details${open}><summary><span class="file">${highlight(f.name, query)}</span><span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
       }).join("");
-      return dirHtml + fileHtml;
+      return dirHtml + fileHtml + sourceHtml;
     }
 
     // Re-rendering the tree resets every <details> the reader opened, so only
@@ -381,13 +412,47 @@
         return titles.length || pathHit ? { ...f, titles, cases: titles.filter((t) => t.kind === "case").length } : null;
       }).filter(Boolean);
 
-      const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${query}`;
+      const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${snap.localCoverage.files.length}:${query}`;
       if (key === lastTreeKey) return;
       lastTreeKey = key;
 
       const cases = matched.reduce((n, f) => n + f.cases, 0);
       $("test-hits").textContent = query ? `${cases} cases in ${matched.length} files` : `${snap.tests.totalCases} cases in ${snap.tests.totalFiles} files`;
-      $("tests").innerHTML = matched.length ? renderNode(buildTree(matched), query, 0) : `<div class="empty">No test matches <b>${esc(query)}</b>.</div>`;
+      const covMatched = !query ? snap.localCoverage.files : snap.localCoverage.files.filter((c) => c.path.toLowerCase().includes(query.toLowerCase()));
+      $("tests").innerHTML = (matched.length || covMatched.length) ? renderNode(buildTree(matched, covMatched), query, 0) : `<div class="empty">No test matches <b>${esc(query)}</b>.</div>`;
+    }
+
+
+    // Folder coverage comes from LOCAL lcov runs, which can be old and scoped
+    // differently from CI's figure — so it is always labelled, never blended
+    // into the ci-metrics numbers above.
+    function covClass(pct) { return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low"; }
+
+    function renderProvenance(snap) {
+      const el = $("cov-provenance");
+      const ciByWs = Object.fromEntries(Object.entries(snap.coverage.latest?.workspaces ?? {}).map(([k, v]) => [k, v.summary.lines]));
+      const parts = snap.localCoverage.sources.map((src) => {
+        if (!src.present) {
+          return `<span class="src"><span class="warn-dot"></span>${esc(src.workspace)}: no local run — <span class="mono">${esc(src.lcovPath)}</span> missing</span>`;
+        }
+        const mine = snap.localCoverage.files.filter((f) => localWorkspaceOf(f.path) === src.workspace);
+        const hit = mine.reduce((n, f) => n + f.lines.hit, 0);
+        const found = mine.reduce((n, f) => n + f.lines.found, 0);
+        const localPct = found ? (hit / found) * 100 : null;
+        const ci = ciByWs[src.workspace];
+        // Flag a local run that disagrees with CI: different age or denominator
+        // means the folder rates below are not the CI figure.
+        const drift = ci && localPct != null && (Math.abs(localPct - (ci.pct ?? 0)) > 1 || Math.abs(found - ci.found) / Math.max(ci.found, 1) > 0.1);
+        return `<span class="src"><span class="${drift ? "warn-dot" : "ok-dot"}"></span>${esc(src.workspace)}: local ${localPct == null ? "—" : localPct.toFixed(1) + "%"} (${found} lines, ${relTime(src.generatedAt)})${ci ? ` · CI ${ci.pct ?? "—"}% (${ci.found})` : ""}${drift ? " — differs from CI" : ""}</span>`;
+      });
+      el.innerHTML = `<span><b>Folder coverage below is from local runs</b>, not ci-metrics:</span>` + parts.join("");
+    }
+
+    function localWorkspaceOf(path) {
+      if (path.startsWith("app/")) return "app";
+      if (path.startsWith("server/")) return "server";
+      if (path.startsWith("protocol/")) return path.endsWith(".sol") ? "protocol-solidity" : "protocol-ts";
+      return "";
     }
 
     function renderFlakes(snap) {
@@ -425,6 +490,7 @@
         renderOverview(snap);
         renderNightly(snap);
         renderCoverage(snap);
+        renderProvenance(snap);
         renderTests(snap);
         renderFlakes(snap);
         $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
