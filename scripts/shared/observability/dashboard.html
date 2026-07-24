@@ -125,6 +125,16 @@
     .cov.high { color: var(--pass); background: var(--pass-soft); }
     .cov.mid { color: var(--warn); background: var(--warn-soft); }
     .cov.low { color: var(--fail); background: var(--fail-soft); }
+    .runbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: center; }
+    .runbtn { font: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
+    .runbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .runbtn:disabled { opacity: .45; cursor: not-allowed; }
+    .runbtn.cancel { border-color: color-mix(in srgb, var(--fail) 45%, transparent); color: var(--fail); }
+    .runstate { font-size: 12.5px; color: var(--muted); margin-left: auto; display: inline-flex; align-items: center; gap: 7px; }
+    .spin { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; opacity: .8 } }
+    .runlog { margin: 0; padding: 12px 20px; max-height: 260px; overflow: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.5; color: var(--muted); white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border-top: 1px solid var(--border); }
     .provenance { padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .provenance .src { display: inline-flex; align-items: center; gap: 6px; }
     .provenance .warn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; }
@@ -162,6 +172,13 @@
     <div class="panel" id="coverage"><div class="empty">Loading…</div></div>
     <div class="panel note" id="coverage-note" hidden>
       <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
+    </div>
+
+    <h2 class="section">Run</h2>
+    <div class="panel">
+      <div class="runbar" id="runbar"></div>
+      <pre class="runlog" id="runlog" hidden></pre>
+      <div class="note">Runs a fixed set of this repo's own commands — the page sends only an id, never a command or argument. One at a time; coverage runs refresh the folder rates above when they finish.</div>
     </div>
 
     <h2 class="section">Tests</h2>
@@ -476,6 +493,60 @@
         : "Report-only: the threshold is computed, never alerted.";
     }
 
+
+    let runnable = [];
+    async function refreshRuns() {
+      try {
+        const res = await fetch("/api/runs", { cache: "no-store" });
+        const data = await res.json();
+        runnable = data.runnable;
+        renderRuns(data.current);
+        return data.current;
+      } catch { return null; }
+    }
+
+    function renderRuns(current) {
+      const busy = current?.running;
+      $("runbar").innerHTML =
+        runnable.map((r) => `<button class="runbtn" data-run="${esc(r.id)}" ${busy ? "disabled" : ""} title="${esc(r.detail)}">${esc(r.label)}</button>`).join("") +
+        (busy ? `<button class="runbtn cancel" data-cancel="1">Cancel</button>` : "") +
+        `<span class="runstate">${busy
+          ? `<span class="spin"></span>running ${esc(current.label)} · ${relTime(current.startedAt)}`
+          : current?.id ? `${esc(current.label)} ${current.exitCode === 0 ? "passed" : `exited ${current.exitCode}`} · ${relTime(current.finishedAt)}` : "idle"}</span>`;
+      const log = $("runlog");
+      if (current?.lines?.length) {
+        log.hidden = false;
+        const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+        log.textContent = (current.truncated ? "… earlier output trimmed …\n" : "") + current.lines.join("\n");
+        if (atBottom) log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    document.addEventListener("click", async (event) => {
+      const run = event.target.closest("[data-run]");
+      const cancel = event.target.closest("[data-cancel]");
+      if (!run && !cancel) return;
+      const url = cancel ? "/api/runs/cancel" : `/api/runs/${run.dataset.run}`;
+      const res = await fetch(url, { method: "POST" });
+      renderRuns((await res.json()).current);
+      pollRun();
+    });
+
+    // While a run is active, poll it faster than the 30s data refresh so output
+    // appears promptly; stop as soon as it finishes.
+    let runPoll = null;
+    function pollRun() {
+      if (runPoll) return;
+      runPoll = setInterval(async () => {
+        const current = await refreshRuns();
+        if (!current?.running) {
+          clearInterval(runPoll);
+          runPoll = null;
+          refresh(); // a finished run may have rewritten coverage on disk
+        }
+      }, 1500);
+    }
+
     async function refresh() {
       // Abort a stalled request so the page shows a clear state and the next
       // poll can retry, instead of sitting on "Loading…" forever.
@@ -508,6 +579,7 @@
     });
 
     refresh();
+    refreshRuns().then((current) => { if (current?.running) pollRun(); });
     setInterval(refresh, POLL_MS);
   </script>
 </body>
