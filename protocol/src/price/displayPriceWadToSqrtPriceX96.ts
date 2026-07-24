@@ -1,3 +1,4 @@
+import { WAD } from "../wad.js";
 import { requireDecimals } from "./requireDecimals.js";
 
 /** Pool-specific facts every display-price conversion must carry (ADR 0009). */
@@ -10,7 +11,6 @@ export type DisplayPricePoolOrientation = {
   readonly outcomeIsCurrency0: boolean;
 };
 
-const WAD = 10n ** 18n;
 const Q192 = 1n << 192n;
 
 /**

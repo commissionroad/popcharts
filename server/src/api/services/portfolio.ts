@@ -2,6 +2,7 @@ import {
   COMPLETE_SET_PRICE_POLICY,
   contractSideToMarketSide,
   sqrtPriceX96ToDisplayPriceWad,
+  WAD,
   type MarketSide,
 } from "@popcharts/protocol";
 
@@ -39,8 +40,6 @@ import {
  * pool's current price and each market collateral's decimals (memoized) for
  * tier-2 current value.
  */
-
-const WAD = 10n ** 18n;
 
 type MarketContext = {
   readonly collateral: string;
