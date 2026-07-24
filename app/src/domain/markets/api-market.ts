@@ -1,11 +1,11 @@
+import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
+import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
 import {
   createOpeningState,
   marginalPriceCents,
   stateAfterBuy,
   type VirtualLmsrState,
-} from "@/domain/lmsr/lmsr";
-import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
-import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
+} from "@/integrations/contracts/virtual-lmsr";
 import type {
   ApiMarket,
   ApiReceiptPlacedEvent,

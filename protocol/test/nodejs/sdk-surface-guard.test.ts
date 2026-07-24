@@ -67,6 +67,7 @@ describe("protocol SDK surface guard (ADR 0017 Track G)", function () {
       "./third-party/venue": "./src/generated/third-party/venue.ts",
       "./complete-set-price-policy": "./src/price/completeSetPricePolicy.ts",
       "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts",
+      "./virtual-lmsr": "./src/price/virtualLmsr.ts",
     });
     for (const [subpath, target] of Object.entries(exportsMap)) {
       assert.ok(
