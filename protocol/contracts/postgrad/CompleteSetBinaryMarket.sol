@@ -703,7 +703,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     }
   }
 
-
   /// @notice Enforces the per-side earliest-resolution gate. YES may resolve
   /// from yesNotBefore; NO is only certain at the later resolutionTime deadline
   /// (noNotBefore). cancel() stays ungated.

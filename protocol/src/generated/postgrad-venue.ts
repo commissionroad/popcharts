@@ -1954,6 +1954,17 @@ export const completeSetBinaryMarketAbi = [
         type: "uint64",
       },
     ],
+    name: "DisputeWindowClosed",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "deadline",
+        type: "uint64",
+      },
+    ],
     name: "DisputeWindowStillOpen",
     type: "error",
   },
@@ -2249,6 +2260,63 @@ export const completeSetBinaryMarketAbi = [
   },
   {
     anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "disputer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "DisputeBondForfeited",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "disputer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "DisputeBondPosted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "disputer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "DisputeBondRefunded",
+    type: "event",
+  },
+  {
+    anonymous: false,
     inputs: [],
     name: "MarketCancelled",
     type: "event",
@@ -2314,6 +2382,25 @@ export const completeSetBinaryMarketAbi = [
       },
     ],
     name: "Redeemed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "disputer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "bond",
+        type: "uint256",
+      },
+    ],
+    name: "ResolutionDisputed",
     type: "event",
   },
   {
@@ -2452,7 +2539,27 @@ export const completeSetBinaryMarketAbi = [
   },
   {
     inputs: [],
+    name: "dispute",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "disputeBond",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputeBondHeld",
     outputs: [
       {
         internalType: "uint256",
@@ -2484,6 +2591,19 @@ export const completeSetBinaryMarketAbi = [
         internalType: "uint64",
         name: "",
         type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "disputer",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -4332,10 +4452,14 @@ export const postgradVenueEventNames = {
     "CancelledRedeemed",
     "CompleteSetsMerged",
     "CompleteSetsMinted",
+    "DisputeBondForfeited",
+    "DisputeBondPosted",
+    "DisputeBondRefunded",
     "MarketCancelled",
     "MarketResolved",
     "OwnershipTransferred",
     "Redeemed",
+    "ResolutionDisputed",
     "ResolutionProposed",
     "RetainedCollateralFunded",
     "RetainedSideMinted",
