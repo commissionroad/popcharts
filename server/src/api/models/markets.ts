@@ -586,6 +586,32 @@ export const GraduationResponseSchema = t.Object(
   { $id: "GraduationResponse" },
 );
 
+/** Accepted resolution-check request: a job is (or already was) queued. */
+export const ResolutionCheckAcceptedSchema = t.Object(
+  {
+    message: t.String(),
+    status: literalUnion(["queued", "already_queued"] as const),
+  },
+  { $id: "ResolutionCheckAccepted" },
+);
+
+/** Refused resolution-check request, with when (if ever) to retry. */
+export const ResolutionCheckRefusedSchema = t.Object(
+  {
+    // ISO timestamp after which a request can succeed; present for the
+    // time-bounded refusals (too_early, cooling_down).
+    eligibleAt: t.Optional(t.String()),
+    message: t.String(),
+    status: literalUnion([
+      "not_eligible",
+      "too_early",
+      "already_evaluated",
+      "cooling_down",
+    ] as const),
+  },
+  { $id: "ResolutionCheckRefused" },
+);
+
 /** Graduation refusal, with the reason and current settlement totals. */
 export const GraduationIneligibleSchema = t.Object(
   {
