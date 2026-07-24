@@ -24,8 +24,8 @@
       }
     },
     "protocol-solidity": {
-      "commit": "5b67d666b650bc317587fd2bef91602f600941fd",
-      "updatedAt": "2026-07-24T02:52:56.639Z",
+      "commit": "0397f82aa1f85033160a0cb168175b3db2601ce4",
+      "updatedAt": "2026-07-24T13:14:42.027Z",
       "summary": {
         "files": 19,
         "lines": {
@@ -68,24 +68,24 @@
       }
     },
     "protocol-ts": {
-      "commit": "5b67d666b650bc317587fd2bef91602f600941fd",
-      "updatedAt": "2026-07-24T02:52:56.706Z",
+      "commit": "0397f82aa1f85033160a0cb168175b3db2601ce4",
+      "updatedAt": "2026-07-24T13:14:42.111Z",
       "summary": {
-        "files": 39,
+        "files": 40,
         "lines": {
-          "hit": 911,
-          "found": 2308,
-          "pct": 39.47
+          "hit": 1081,
+          "found": 2478,
+          "pct": 43.62
         },
         "functions": {
-          "hit": 41,
-          "found": 81,
-          "pct": 50.62
+          "hit": 52,
+          "found": 92,
+          "pct": 56.52
         },
         "branches": {
-          "hit": 116,
-          "found": 135,
-          "pct": 85.93
+          "hit": 149,
+          "found": 169,
+          "pct": 88.17
         }
       }
     }
