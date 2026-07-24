@@ -4,6 +4,8 @@ import type {
   VenueOrderBookPool,
 } from "@popcharts/api-client/models";
 
+import { wadToNumber } from "@/domain/tokens/wad";
+
 /** One resting price level of the depth ladder, in display units. */
 export type OrderBookLevelView = {
   /** Running share total from the best level down to this one. */
@@ -29,19 +31,15 @@ export type OrderBookPoolView = {
 };
 
 /**
- * Display-scale divisors for the depth ladder, kept deliberately local rather
- * than reusing the probability→cents WAD helper:
- *
- * - `CENTS_PER_WAD` decodes a raw display price to cents and keeps sub-cent
- *   precision — the ladder renders tenths (`formatCentsTenths`). The
- *   probability→cents helper rounds to whole cents and clamps to [1, 99],
- *   which would flatten the ladder and hide prices near the 0/100 ends, so it
- *   must not be substituted here.
- * - `SHARES_PER_WAD` is the plain 1e18 size divide; the float-epsilon it drops
- *   sits well below the rendered share precision.
+ * Decodes a raw display price (WAD) to cents while keeping sub-cent precision —
+ * the ladder renders tenths (`formatCentsTenths`). This stays a local divisor
+ * on purpose: it is the unclamped display price, not the probability→cents
+ * conversion (`wadToCents`), which rounds to whole cents and clamps to [1, 99]
+ * and so would flatten the ladder and hide prices near the 0/100 ends. Share
+ * sizes are a plain magnitude and instead go through the shared `wadToNumber`
+ * decode (see `accumulateLevels`).
  */
 const CENTS_PER_WAD = 1e16;
-const SHARES_PER_WAD = 1e18;
 
 /**
  * Converts one outcome pool's raw WAD order book into display units with the
@@ -81,7 +79,7 @@ function accumulateLevels(levels: VenueOrderBookLevel[]): OrderBookLevelView[] {
   let cumulativeShares = 0;
 
   return levels.map((level) => {
-    const sizeShares = Number(level.sizeWad) / SHARES_PER_WAD;
+    const sizeShares = wadToNumber(BigInt(level.sizeWad));
     cumulativeShares += sizeShares;
 
     return {
