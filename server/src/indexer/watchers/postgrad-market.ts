@@ -9,6 +9,11 @@ import {
   type CompleteSetsMintedLog,
 } from "src/indexer/handlers/complete-set-events";
 import {
+  buildPostgradDisputeBondRecord,
+  persistPostgradDisputeBondRecord,
+  type PostgradDisputeBondLog,
+} from "src/indexer/handlers/postgrad-dispute-bond";
+import {
   buildPostgradDisputeRecord,
   persistPostgradDisputeRecord,
   type PostgradResolutionDisputedLog,
@@ -50,6 +55,9 @@ import {
  *   lifecycle: the dispute window opening and a bonded dispute freezing the
  *   market (repo ADR 0024). A market with a zero dispute window never emits
  *   them and goes graduated → resolved as before.
+ * - DisputeBondPosted/Refunded/Forfeited record each dispute-bond movement as
+ *   an immutable money-paper-trail row — the second user-side value transfer
+ *   in the postgrad lifecycle.
  * - Redeemed/CancelledRedeemed record each redemption payout's collateral leg
  *   as an immutable money-paper-trail row (docs/portfolio-data-design.md).
  * - CompleteSetsMinted/CompleteSetsMerged record collateral entering and
@@ -86,6 +94,9 @@ const EVENTS = [
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "CompleteSetsMerged" }),
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "ResolutionProposed" }),
   getAbiItem({ abi: completeSetBinaryMarketAbi, name: "ResolutionDisputed" }),
+  getAbiItem({ abi: completeSetBinaryMarketAbi, name: "DisputeBondPosted" }),
+  getAbiItem({ abi: completeSetBinaryMarketAbi, name: "DisputeBondRefunded" }),
+  getAbiItem({ abi: completeSetBinaryMarketAbi, name: "DisputeBondForfeited" }),
 ];
 
 /** Per-log context shared by every handler: registry + chain lookups. */
@@ -128,6 +139,30 @@ const POSTGRAD_MARKET_HANDLERS: Record<
         ...input,
         kind: "minted",
         log: log as CompleteSetsMintedLog,
+      }),
+    ),
+  DisputeBondForfeited: (input, log) =>
+    persistPostgradDisputeBondRecord(
+      buildPostgradDisputeBondRecord({
+        ...input,
+        kind: "forfeited",
+        log: log as PostgradDisputeBondLog,
+      }),
+    ),
+  DisputeBondPosted: (input, log) =>
+    persistPostgradDisputeBondRecord(
+      buildPostgradDisputeBondRecord({
+        ...input,
+        kind: "posted",
+        log: log as PostgradDisputeBondLog,
+      }),
+    ),
+  DisputeBondRefunded: (input, log) =>
+    persistPostgradDisputeBondRecord(
+      buildPostgradDisputeBondRecord({
+        ...input,
+        kind: "refunded",
+        log: log as PostgradDisputeBondLog,
       }),
     ),
   MarketCancelled: (input, log) =>
