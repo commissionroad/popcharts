@@ -65,20 +65,20 @@ contract CompleteSetBinaryMarketProposeTest is BaseTest {
   }
 
   function test_ProposalGettersRevertBeforeAnyProposal() public {
+    // The dispute slice widened these getters to read during Disputed too,
+    // so they raise the multi-status InvalidStatusForAction.
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Trading,
-        CompleteSetBinaryMarket.Status.ResolutionPending
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Trading
       )
     );
     market.proposedSide();
 
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Trading,
-        CompleteSetBinaryMarket.Status.ResolutionPending
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Trading
       )
     );
     market.disputeDeadline();

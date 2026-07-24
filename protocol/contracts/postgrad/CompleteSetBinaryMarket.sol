@@ -30,7 +30,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     /// @notice The market ended without a binary resolution and tokens redeem at draw value.
     Cancelled,
     /// @notice A resolution is proposed and publicly disputable until the window closes.
-    ResolutionPending
+    ResolutionPending,
+    /// @notice A dispute froze finalization; only the resolver can settle or cancel.
+    Disputed
   }
 
   /// @notice Per-market resolution timing and dispute parameters, bundled into a
@@ -44,7 +46,6 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     /// disables the optimistic flow and keeps direct single-step resolve().
     uint64 disputeWindow;
     /// @notice Collateral amount (raw units) a non-resolver disputer must bond.
-    /// Stamped at deployment; consumed once dispute() ships (ADR 0013).
     uint256 disputeBond;
   }
 
@@ -100,6 +101,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @notice Reverts when finalizeResolution() is called before the window closes.
   /// @param deadline Timestamp at which the proposal becomes finalizable.
   error DisputeWindowStillOpen(uint64 deadline);
+  /// @notice Reverts when dispute() is called at or after the window deadline.
+  /// @param deadline Timestamp at which the proposal stopped being disputable.
+  error DisputeWindowClosed(uint64 deadline);
   /// @notice Reverts when a function requires one of several statuses.
   /// @param actual Current market status.
   error InvalidStatusForAction(Status actual);
@@ -150,6 +154,26 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @param side Proposed winning outcome side.
   /// @param disputeDeadline Timestamp at which the proposal becomes finalizable.
   event ResolutionProposed(MarketTypes.Side indexed side, uint64 disputeDeadline);
+
+  /// @notice Emitted when a pending resolution is disputed, freezing finalization.
+  /// @param disputer Account that disputed (the resolver disputes bond-free).
+  /// @param bond Collateral bonded by the disputer (zero for resolver self-dispute).
+  event ResolutionDisputed(address indexed disputer, uint256 bond);
+
+  /// @notice Emitted when a dispute bond is escrowed. Money paper-trail event.
+  /// @param disputer Account that posted the bond.
+  /// @param amount Collateral amount escrowed.
+  event DisputeBondPosted(address indexed disputer, uint256 amount);
+
+  /// @notice Emitted when a dispute bond returns to a vindicated disputer.
+  /// @param disputer Account refunded.
+  /// @param amount Collateral amount refunded.
+  event DisputeBondRefunded(address indexed disputer, uint256 amount);
+
+  /// @notice Emitted when a frivolous dispute's bond is swept to the owner.
+  /// @param disputer Account that forfeited.
+  /// @param amount Collateral amount forfeited.
+  event DisputeBondForfeited(address indexed disputer, uint256 amount);
 
   /// @notice Emitted when the market resolves to one winning side.
   /// @param side Winning outcome side.
@@ -213,6 +237,11 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   Status public status;
   /// @notice Timestamp of the current resolution proposal (zero before any).
   uint64 public proposedAt;
+  /// @notice Account holding the active dispute (zero before any dispute).
+  address public disputer;
+  /// @notice Bond collateral currently escrowed for the active dispute. Tracked
+  /// separately so bond custody never counts toward redemption solvency.
+  uint256 public disputeBondHeld;
 
   MarketTypes.Side private _winningSide;
   MarketTypes.Side private _proposedSide;
@@ -304,12 +333,12 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     return outcomeAmountForCollateral(_marketCollateralBalance());
   }
 
-  /// @notice Collateral backing outcome redemption. A single seam so the
-  /// dispute-bond escrow (ADR 0013, next PR) can be excluded from every
-  /// solvency read in one place.
+  /// @notice Collateral backing outcome redemption: the token balance minus any
+  /// escrowed dispute bond. Bond custody must never count toward solvency or a
+  /// forfeit/refund would change what redeemers can claim (protocol ADR 0013).
   /// @return Collateral balance available to the market's own accounting.
   function _marketCollateralBalance() private view returns (uint256) {
-    return collateralToken.balanceOf(address(this));
+    return collateralToken.balanceOf(address(this)) - disputeBondHeld;
   }
 
   /// @notice Mints equal YES and NO tokens by depositing collateral.
@@ -401,14 +430,14 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @notice Returns the proposed winning side while a proposal is pending or disputed.
   /// @return Side the resolver proposed.
   function proposedSide() external view returns (MarketTypes.Side) {
-    _requireStatus(Status.ResolutionPending);
+    _requireProposalActive();
     return _proposedSide;
   }
 
   /// @notice Returns the timestamp at which the pending proposal becomes finalizable.
   /// @return Dispute deadline for the pending proposal.
   function disputeDeadline() public view returns (uint64) {
-    _requireStatus(Status.ResolutionPending);
+    _requireProposalActive();
     return proposedAt + disputeWindow;
   }
 
@@ -423,6 +452,29 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     status = Status.ResolutionPending;
 
     emit ResolutionProposed(side, proposedAt + disputeWindow);
+  }
+
+  /// @notice Disputes the pending resolution, freezing finalization for human
+  /// adjudication. Anyone may dispute by bonding `disputeBond` collateral; the
+  /// resolver disputes bond-free (the operator-override path, ADR 0013).
+  function dispute() external nonReentrant {
+    _requireStatus(Status.ResolutionPending);
+    uint64 deadline = proposedAt + disputeWindow;
+    if (block.timestamp >= deadline) {
+      revert DisputeWindowClosed(deadline);
+    }
+
+    disputer = msg.sender;
+    status = Status.Disputed;
+
+    uint256 bond = msg.sender == resolver ? 0 : disputeBond;
+    if (bond != 0) {
+      disputeBondHeld = bond;
+      _transferCollateralIn(msg.sender, bond);
+      emit DisputeBondPosted(msg.sender, bond);
+    }
+
+    emit ResolutionDisputed(msg.sender, bond);
   }
 
   /// @notice Finalizes an undisputed proposal after the window closes. Callable
@@ -441,17 +493,25 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     emit MarketResolved(_proposedSide);
   }
 
-  /// @notice Resolves the market to a winning side in one step. Only markets
-  /// deployed with a zero dispute window keep this legacy path (local stacks,
-  /// existing tooling); windowed markets must use proposeResolution and the
-  /// public window (protocol ADR 0013 — dispute settlement ships next).
+  /// @notice Resolves the market to a winning side. With a dispute window
+  /// configured this is the resolver's dispute-settlement call (from Disputed,
+  /// no time gates — a human is adjudicating contested facts). With a zero
+  /// window it keeps the legacy single-step path from Trading so existing
+  /// tooling and local stacks degrade gracefully (protocol ADR 0013).
   /// @param side Winning outcome side.
-  function resolve(MarketTypes.Side side) external onlyResolver {
-    _requireStatus(Status.Trading);
-    if (disputeWindow != 0) {
-      revert MarketNotDirectlyResolvable();
+  function resolve(MarketTypes.Side side) external onlyResolver nonReentrant {
+    if (status == Status.Trading) {
+      if (disputeWindow != 0) {
+        revert MarketNotDirectlyResolvable();
+      }
+      _requireSideNotBefore(side);
+    } else {
+      _requireStatus(Status.Disputed);
+      // The dispute was substantively right iff the settled outcome differs
+      // from the proposal; the bond refunds on a changed outcome, forfeits
+      // to the owner otherwise.
+      _settleDisputeBond(side != _proposedSide);
     }
-    _requireSideNotBefore(side);
 
     _winningSide = side;
     status = Status.Resolved;
@@ -461,10 +521,14 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   }
 
   /// @notice Cancels the market so YES and NO redeem at half collateral value.
-  /// Never time-gated: the postponement/draw escape hatch from Trading or a
-  /// pending proposal.
-  function cancel() external onlyResolver {
+  /// Never time-gated: the postponement/draw escape hatch from any
+  /// non-terminal status. Cancellation always differs from a proposed YES/NO
+  /// outcome, so an active dispute's bond refunds.
+  function cancel() external onlyResolver nonReentrant {
     _requireNotTerminal();
+    if (status == Status.Disputed) {
+      _settleDisputeBond(true);
+    }
     status = Status.Cancelled;
     _requireCancelSolvent(_marketCollateralBalance());
 
@@ -631,6 +695,15 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     }
   }
 
+  /// @notice Requires an active proposal — pending or disputed — the states
+  /// in which the proposal getters are meaningful.
+  function _requireProposalActive() private view {
+    if (status != Status.ResolutionPending && status != Status.Disputed) {
+      revert InvalidStatusForAction(status);
+    }
+  }
+
+
   /// @notice Enforces the per-side earliest-resolution gate. YES may resolve
   /// from yesNotBefore; NO is only certain at the later resolutionTime deadline
   /// (noNotBefore). cancel() stays ungated.
@@ -639,6 +712,25 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     uint64 notBefore = side == MarketTypes.Side.Yes ? yesNotBefore : noNotBefore;
     if (block.timestamp < notBefore) {
       revert TooEarlyToResolve(notBefore);
+    }
+  }
+
+  /// @notice Pays out the escrowed dispute bond: back to the disputer when the
+  /// dispute changed the outcome, to the owner when it did not. No-op when no
+  /// bond is held (resolver self-dispute, or zero-bond configuration).
+  /// @param refund True to refund the disputer, false to forfeit to the owner.
+  function _settleDisputeBond(bool refund) private {
+    uint256 amount = disputeBondHeld;
+    if (amount == 0) {
+      return;
+    }
+    disputeBondHeld = 0;
+    if (refund) {
+      collateralToken.safeTransfer(disputer, amount);
+      emit DisputeBondRefunded(disputer, amount);
+    } else {
+      collateralToken.safeTransfer(owner(), amount);
+      emit DisputeBondForfeited(disputer, amount);
     }
   }
 
