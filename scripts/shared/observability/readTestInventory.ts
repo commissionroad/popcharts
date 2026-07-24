@@ -13,8 +13,25 @@ export interface TestFile {
   workspace: string;
   tier: TestTier;
   /** Suite and case titles in source order. */
-  titles: { kind: "suite" | "case"; title: string }[];
+  titles: TestTitle[];
   cases: number;
+  /** Cases that are skipped / focused / todo in this file. */
+  skipped: number;
+  focused: number;
+}
+
+/**
+ * A test's status, when it isn't running normally. `skip`/`todo` and an x-prefix
+ * mean it never runs; `only` and an f-prefix FOCUS the file (siblings stop
+ * running) and are the dangerous ones; `conditional` (skipIf/runIf) runs only
+ * under a runtime condition.
+ */
+export type TestStatus = "skip" | "only" | "todo" | "conditional";
+
+export interface TestTitle {
+  kind: "suite" | "case";
+  title: string;
+  status?: TestStatus;
 }
 
 export type TestTier = "unit" | "integration" | "e2e" | "solidity";
@@ -25,6 +42,11 @@ export interface TestInventory {
   totals: { tier: TestTier; files: number; cases: number }[];
   totalFiles: number;
   totalCases: number;
+  /** Repo-wide hygiene counts (cases only, not suites). */
+  skipped: number;
+  focused: number;
+  todo: number;
+  conditional: number;
 }
 
 /** Directories worth walking; everything else is skipped outright. */
@@ -77,11 +99,23 @@ function classify(rel: string): { workspace: string; tier: TestTier } | null {
  * literal, capturing the quote so the body can allow the *other* quote types
  * and backslash escapes without ending early. Modifier chains (`.each`,
  * `.skip`, `.only`) are allowed between the name and the parenthesis.
- * Deliberately source-level: it lists what a reader would see, and so misses
- * titles built at runtime (a template with `${}`, or `it.each` rows).
+ * The optional `(...)` before the title paren catches the `describe.skipIf(cond)
+ * ("title")` conditional form. Deliberately source-level: it lists what a reader
+ * would see, and misses titles built at runtime (a template with `${}`, or
+ * `it.each` rows).
  */
 const TS_TITLE =
-  /^[ \t]*(describe|it|test)(?:\.\w+)*\s*\(\s*(['"`])((?:\\.|(?!\2)[^\\])*)\2/gm;
+  /^[ \t]*(xdescribe|xit|xtest|fdescribe|fit|ftest|describe|it|test)((?:\.\w+)*)(?:\([^)]*\)(?=\s*\())?\s*\(\s*(['"`])((?:\\.|(?!\3)[^\\])*)\3/gm;
+
+/** Classifies a test call's keyword + modifier chain into a non-normal status. */
+function titleStatus(keyword: string, chain: string): TestStatus | undefined {
+  if (keyword[0] === "x") return "skip";
+  if (keyword[0] === "f" || /\.only\b/.test(chain)) return "only";
+  if (/\.todo\b/.test(chain)) return "todo";
+  if (/\.skipIf\b|\.runIf\b/.test(chain)) return "conditional";
+  if (/\.skip\b/.test(chain)) return "skip";
+  return undefined;
+}
 
 /** Solidity convention: forge/hardhat treat `test*`/`invariant*` as cases. */
 const SOL_TITLE = /^\s*function\s+((?:test|invariant)\w*)/gm;
@@ -95,9 +129,12 @@ function extractTitles(source: string, isSolidity: boolean): TestFile["titles"] 
     return titles;
   }
   for (const match of source.matchAll(TS_TITLE)) {
+    const keyword = match[1]!;
+    const status = titleStatus(keyword, match[2]!);
     titles.push({
-      kind: match[1] === "describe" ? "suite" : "case",
-      title: match[3]!,
+      kind: /describe$/.test(keyword) ? "suite" : "case",
+      title: match[4]!,
+      ...(status ? { status } : {}),
     });
   }
   return titles;
@@ -143,16 +180,27 @@ export function readTestInventory(repoRoot: string): TestInventory {
         return;
       }
       const titles = extractTitles(source, kind.tier === "solidity");
+      const caseTitles = titles.filter((t) => t.kind === "case");
       files.push({
         path: rel.split(sep).join("/"),
         workspace: kind.workspace,
         tier: kind.tier,
         titles,
-        cases: titles.filter((t) => t.kind === "case").length,
+        cases: caseTitles.length,
+        skipped: caseTitles.filter((t) => t.status === "skip").length,
+        focused: caseTitles.filter((t) => t.status === "only").length,
       });
     });
   }
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
+  // Counts statused titles at either level: a describe.skip / describe.skipIf
+  // gates a whole block, so it counts like an it.skip.
+  const countStatus = (all: TestFile[], status: TestStatus): number =>
+    all.reduce(
+      (sum, file) => sum + file.titles.filter((t) => t.status === status).length,
+      0,
+    );
 
   const tiers: TestTier[] = ["unit", "integration", "e2e", "solidity"];
   return {
@@ -167,5 +215,9 @@ export function readTestInventory(repoRoot: string): TestInventory {
     }),
     totalFiles: files.length,
     totalCases: files.reduce((sum, file) => sum + file.cases, 0),
+    skipped: countStatus(files, "skip"),
+    focused: countStatus(files, "only"),
+    todo: countStatus(files, "todo"),
+    conditional: countStatus(files, "conditional"),
   };
 }

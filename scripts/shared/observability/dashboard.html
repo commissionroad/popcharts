@@ -104,6 +104,17 @@
     .toolbar input { flex: 1; min-width: 220px; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-family: inherit; }
     .toolbar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
     .toolbar .hits { font-size: 12.5px; color: var(--muted); }
+    .hygiene { display: inline-flex; gap: 8px; font-size: 11.5px; }
+    .hygiene .h { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .hygiene .h.zero { color: var(--faint); }
+    .hygiene .h.bad { color: var(--fail); font-weight: 600; }
+    .hygiene .h b { color: var(--text); font-weight: 600; }
+    .tree li .tstat { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; padding: 0 5px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
+    .tree li.st-skip { text-decoration: line-through; color: var(--faint); }
+    .tree li.st-skip .tstat, .tree li.st-todo .tstat { background: var(--neutral-soft); color: var(--muted); }
+    .tree li.st-conditional .tstat { background: var(--warn-soft); color: var(--warn); }
+    .tree li.st-only { color: var(--fail); }
+    .tree li.st-only .tstat { background: var(--fail-soft); color: var(--fail); }
     .metric-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
     .metric-toggle button { font: inherit; font-size: 12px; padding: 5px 11px; background: var(--surface-2); color: var(--muted); border: none; cursor: pointer; }
     .metric-toggle button + button { border-left: 1px solid var(--border-strong); }
@@ -214,6 +225,7 @@
           <button type="button" data-metric="lines" class="on">Lines</button>
           <button type="button" data-metric="branches">Branches</button>
         </span>
+        <span class="hygiene" id="hygiene"></span>
       </div>
       <div class="tree" id="tests"><div class="empty">Loading…</div></div>
       <div class="note">Read from the working tree, not <span class="mono">ci-metrics</span> — this is what the code asserts right now. Titles are read from source, so dynamically-built names (templates, <span class="mono">it.each</span> rows) are not listed.</div>
@@ -464,7 +476,7 @@
         `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c)}<span class="tier">src</span><span class="count"></span></div>`).join("");
       const fileHtml = node.files.map((f) => {
         const titles = f.titles.map((t) =>
-          `<li class="${t.kind}">${highlight(t.title, query)}</li>`).join("");
+          `<li class="${t.kind}${t.status ? ` st-${t.status}` : ""}">${highlight(t.title, query)}${t.status ? ` <span class="tstat">${t.status}</span>` : ""}</li>`).join("");
         const cov = `<span class="cov"></span>`;
         return `<details${open}><summary><span class="name file">${highlight(f.name, query)}</span>${cov}<span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
       }).join("");
@@ -529,6 +541,18 @@
       if (path.startsWith("server/")) return "server";
       if (path.startsWith("protocol/")) return path.endsWith(".sol") ? "protocol-solidity" : "protocol-ts";
       return "";
+    }
+
+    function renderHygiene(snap) {
+      const t = snap.tests;
+      const chip = (label, n, badWhenNonZero) =>
+        `<span class="h ${n === 0 ? "zero" : badWhenNonZero ? "bad" : ""}"><b>${n}</b> ${label}</span>`;
+      // Focused (.only / f-prefix) is the hazard — it silently disables siblings.
+      $("hygiene").innerHTML =
+        chip("skipped", t.skipped, false) +
+        chip("focused", t.focused, true) +
+        (t.todo ? chip("todo", t.todo, false) : "") +
+        (t.conditional ? chip("conditional", t.conditional, false) : "");
     }
 
     function renderFlakes(snap) {
@@ -624,6 +648,7 @@
         renderCoverage(snap);
         renderLocalCov(snap);
         renderTests(snap);
+        renderHygiene(snap);
         renderFlakes(snap);
         $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
       } catch (err) {
