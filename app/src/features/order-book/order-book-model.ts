@@ -28,6 +28,18 @@ export type OrderBookPoolView = {
   spreadCents: number | null;
 };
 
+/**
+ * Display-scale divisors for the depth ladder, kept deliberately local rather
+ * than reusing the probability→cents WAD helper:
+ *
+ * - `CENTS_PER_WAD` decodes a raw display price to cents and keeps sub-cent
+ *   precision — the ladder renders tenths (`formatCentsTenths`). The
+ *   probability→cents helper rounds to whole cents and clamps to [1, 99],
+ *   which would flatten the ladder and hide prices near the 0/100 ends, so it
+ *   must not be substituted here.
+ * - `SHARES_PER_WAD` is the plain 1e18 size divide; the float-epsilon it drops
+ *   sits well below the rendered share precision.
+ */
 const CENTS_PER_WAD = 1e16;
 const SHARES_PER_WAD = 1e18;
 
