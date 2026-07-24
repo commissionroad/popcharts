@@ -16,6 +16,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
 - [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel frontend live (2026-07-14); AWS CDK backend + Arc protocol still M5
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
+- [Backend drain-loop pattern](concepts/backend-drain-loop-pattern.md) — the one shape every backend process shares (a long-lived loop draining a durable seam, crash-recovered from the DB) and why the two AI subsystems add an isolated stateless service on top
 - [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks, now becoming slot-addressed concurrent instances (ADR 0020)
 - [Product honesty rule](concepts/product-honesty-rule.md) — the tested never-imply-a-guaranteed-fill copy contract
 

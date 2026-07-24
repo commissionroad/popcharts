@@ -1071,3 +1071,17 @@ survive as slow safety nets (60s/60s/120s) with the transport configured, and
 at their original cadences without it. venue_orders projection UPDATEs stay
 deliberately unregistered — they only change alongside a signalling
 venue_order_events append.
+
+## [2026-07-24] ingest | backend drain-loop pattern (new architecture doc)
+Pages: +concepts/backend-drain-loop-pattern.md, ~index.md
+Notes: New raw doc docs/backend-runtime-architecture.md documents the four
+backend runtimes (indexer, API, AI review, AI resolution) as one shared shape —
+a long-lived loop draining a durable seam, crash-recovered from the DB — with the
+two AI subsystems adding an isolated stateless service (trust boundary + fault
+isolation + independent scaling; durability itself comes from the leased job
+queue, not the split). Verified against server/ and
+infra/lib/popcharts-infra-stack.ts: Fargate not Vercel, API autoscales 2–10,
+indexer/resolution pinned to 1, review runner not yet on AWS. Flags recorded:
+corroboration (ADR 0019) defined but not wired into the live runner path on this
+branch; ADR 0022 will move review off-chain and drop its on-chain
+approve/reject endpoints (the middle of the lane is unchanged).
