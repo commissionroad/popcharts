@@ -237,7 +237,8 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   Status public status;
   /// @notice Timestamp of the current resolution proposal (zero before any).
   uint64 public proposedAt;
-  /// @notice Account holding the active dispute (zero before any dispute).
+  /// @notice Account that raised the market's dispute (zero before any;
+  /// retained after settlement as the on-chain record).
   address public disputer;
   /// @notice Bond collateral currently escrowed for the active dispute. Tracked
   /// separately so bond custody never counts toward redemption solvency.
