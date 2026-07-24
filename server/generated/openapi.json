@@ -1008,6 +1008,76 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/resolution-check": {
+      "post": {
+        "operationId": "requestMarketResolutionCheck",
+        "summary": "Request a resolution check",
+        "description": "Public early-resolution nudge for a graduated market past its earliest resolution time — the resolution sibling of the graduation failsafe (repo ADR 0024). Queues one resolver evaluation; the AI resolver still decides the outcome and the on-chain dispute window still guards it, so the endpoint is safe unauthenticated. Cost is bounded by a per-market 24-hour cooldown rather than caller identity: repeat requests inside the window are refused (409) with the next eligible time.",
+        "tags": [
+          "Resolution"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionCheckAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionCheckRefused"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/portfolio/{chainId}": {
       "get": {
         "operationId": "getPortfolio",
@@ -1575,6 +1645,49 @@
           },
           "summary": {
             "$ref": "#/components/schemas/GraduationSummary"
+          }
+        }
+      },
+      "ResolutionCheckAccepted": {
+        "type": "object",
+        "required": [
+          "message",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "already_queued"
+            ]
+          }
+        }
+      },
+      "ResolutionCheckRefused": {
+        "type": "object",
+        "required": [
+          "message",
+          "status"
+        ],
+        "properties": {
+          "eligibleAt": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_eligible",
+              "too_early",
+              "already_evaluated",
+              "cooling_down"
+            ]
           }
         }
       },

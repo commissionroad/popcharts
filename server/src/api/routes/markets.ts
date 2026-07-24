@@ -23,6 +23,8 @@ import {
   DevMarketResolveResponseSchema,
   DevMarketResolveSideSchema,
   GraduationIneligibleSchema,
+  ResolutionCheckAcceptedSchema,
+  ResolutionCheckRefusedSchema,
   GraduationResponseSchema,
   GraduationSummarySchema,
   ManualAiReviewAlreadyReviewedSchema,
@@ -61,6 +63,7 @@ import {
   graduateDevMarket,
   graduateLocalMarketOnChain,
 } from "src/api/services/dev-market-graduate";
+import { requestMarketResolutionCheck } from "src/api/services/resolution-request";
 import { resolveDevMarket } from "src/api/services/dev-market-resolve";
 import { forceMarketReview } from "src/api/services/dev-market-review";
 import { requestMarketGraduation } from "src/api/services/graduation";
@@ -108,6 +111,8 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     DevMarketResolveResponse: DevMarketResolveResponseSchema,
     DevMarketResolveSide: DevMarketResolveSideSchema,
     GraduationIneligible: GraduationIneligibleSchema,
+    ResolutionCheckAccepted: ResolutionCheckAcceptedSchema,
+    ResolutionCheckRefused: ResolutionCheckRefusedSchema,
     GraduationResponse: GraduationResponseSchema,
     GraduationSummary: GraduationSummarySchema,
     ManualAiReviewAlreadyReviewed: ManualAiReviewAlreadyReviewedSchema,
@@ -748,6 +753,64 @@ export const marketRoutes = marketRoutesWithDevTools
         description:
           "Public graduation failsafe for a market the keeper has not settled. For a market that reaches its threshold, the server runs the manager-keyed on-chain settlement — band-pass clearing, Merkle-root submission, finalize — and never tops up liquidity. Safe unauthenticated: eligibility is re-checked from real receipts before startGraduation and the contract enforces conservation. Below-threshold or wrong-status markets are reported (409), not touched.",
         tags: ["Graduation"],
+      },
+    },
+  )
+  .post(
+    "/markets/:chainId/:marketId/resolution-check",
+    async ({ params, set }) => {
+      const result = await requestMarketResolutionCheck({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      switch (result.kind) {
+        case "queued":
+        case "already_queued":
+          return { message: result.message, status: result.kind };
+        case "too_early":
+          set.status = 409;
+          return {
+            eligibleAt: result.earliestAt.toISOString(),
+            message: result.message,
+            status: result.kind,
+          };
+        case "cooling_down":
+          set.status = 409;
+          return {
+            eligibleAt: result.nextEligibleAt.toISOString(),
+            message: result.message,
+            status: result.kind,
+          };
+        case "not_eligible":
+        case "already_evaluated":
+          set.status = 409;
+          return { message: result.message, status: result.kind };
+        case "invalid_market_id":
+          set.status = 400;
+          return result.message;
+        case "not_found":
+          set.status = 404;
+          return result.message;
+      }
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "ResolutionCheckAccepted",
+        400: t.String(),
+        404: t.String(),
+        409: "ResolutionCheckRefused",
+      },
+      detail: {
+        operationId: "requestMarketResolutionCheck",
+        summary: "Request a resolution check",
+        description:
+          "Public early-resolution nudge for a graduated market past its earliest resolution time — the resolution sibling of the graduation failsafe (repo ADR 0024). Queues one resolver evaluation; the AI resolver still decides the outcome and the on-chain dispute window still guards it, so the endpoint is safe unauthenticated. Cost is bounded by a per-market 24-hour cooldown rather than caller identity: repeat requests inside the window are refused (409) with the next eligible time.",
+        tags: ["Resolution"],
       },
     },
   );
