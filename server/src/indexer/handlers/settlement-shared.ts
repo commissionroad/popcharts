@@ -63,7 +63,3 @@ export function requireValue<T>(value: T | null | undefined, name: string): T {
 
   return value;
 }
-
-export function unixSecondsToDate(value: bigint) {
-  return new Date(Number(value) * 1000);
-}
