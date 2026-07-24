@@ -2,6 +2,7 @@ import type { network } from "hardhat";
 import type { Address } from "viem";
 
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";
+import { localDisputeConfigArgs } from "./localDisputeConfig.js";
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
 
@@ -41,6 +42,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     deployerAddress,
     deployerAddress,
     OUTCOME_DECIMALS,
+    ...localDisputeConfigArgs(),
   ]);
 
   // The indexer starts at this block for non-local networks. We still emit it

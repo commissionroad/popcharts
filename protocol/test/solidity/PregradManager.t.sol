@@ -1570,7 +1570,9 @@ contract PregradManagerTest is BaseTest {
         pregradManager_: address(manager),
         owner_: address(this),
         resolver_: address(this),
-        outcomeDecimals_: 18
+        outcomeDecimals_: 18,
+        disputeWindow_: 0,
+        disputeBond_: 0
       });
   }
 

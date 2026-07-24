@@ -97,12 +97,24 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     uint256 amount
   );
 
+  /// @notice Emitted when the owner retunes the dispute window/bond applied to
+  /// markets deployed from now on. Already-deployed markets are untouched.
+  /// @param disputeWindow Seconds a proposed resolution stays disputable.
+  /// @param disputeBond Collateral bond (raw units) required from a disputer.
+  event DisputeConfigUpdated(uint64 disputeWindow, uint256 disputeBond);
+
   /// @notice Pregrad manager allowed to prepare markets and distribute claims.
   address public immutable pregradManager;
   /// @notice Resolver assigned to newly deployed complete-set markets.
   address public immutable resolver;
   /// @notice Outcome token decimals assigned to newly deployed complete-set markets.
   uint8 public immutable outcomeDecimals;
+  /// @notice Dispute window (seconds) stamped into newly deployed markets.
+  /// Owner-tunable so the protocol-wide constant can change without a new
+  /// adapter; each market pins the value current at its graduation (ADR 0013).
+  uint64 public disputeWindow;
+  /// @notice Dispute bond (collateral raw units) stamped into newly deployed markets.
+  uint256 public disputeBond;
 
   mapping(uint256 marketId => PreparedMarket) private _preparedMarkets;
 
@@ -111,11 +123,15 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
   /// @param owner_ Owner assigned to this adapter and deployed postgrad markets.
   /// @param resolver_ Resolver assigned to deployed postgrad markets.
   /// @param outcomeDecimals_ Outcome-token decimals for deployed postgrad markets.
+  /// @param disputeWindow_ Initial dispute window (seconds) for deployed markets.
+  /// @param disputeBond_ Initial dispute bond (collateral raw units) for deployed markets.
   constructor(
     address pregradManager_,
     address owner_,
     address resolver_,
-    uint8 outcomeDecimals_
+    uint8 outcomeDecimals_,
+    uint64 disputeWindow_,
+    uint256 disputeBond_
   ) Ownable(owner_) {
     if (pregradManager_ == address(0)) {
       revert InvalidPregradManager();
@@ -130,6 +146,18 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
     pregradManager = pregradManager_;
     resolver = resolver_;
     outcomeDecimals = outcomeDecimals_;
+    disputeWindow = disputeWindow_;
+    disputeBond = disputeBond_;
+  }
+
+  /// @notice Retunes the dispute window and bond for markets deployed from now
+  /// on. Deployed markets keep the values pinned at their graduation.
+  /// @param disputeWindow_ New dispute window in seconds (zero disables disputes).
+  /// @param disputeBond_ New dispute bond in collateral raw units.
+  function setDisputeConfig(uint64 disputeWindow_, uint256 disputeBond_) external onlyOwner {
+    disputeWindow = disputeWindow_;
+    disputeBond = disputeBond_;
+    emit DisputeConfigUpdated(disputeWindow_, disputeBond_);
   }
 
   /// @inheritdoc IPostgradAdapter
@@ -217,8 +245,12 @@ contract CompleteSetPostgradAdapter is Ownable, ReentrancyGuard, IPostgradAdapte
         marketName_: _marketName(marketId),
         marketSymbol_: _marketSymbol(marketId),
         outcomeDecimals_: outcomeDecimals,
-        yesNotBefore_: yesNotBefore,
-        noNotBefore_: noNotBefore
+        resolutionConfig_: CompleteSetBinaryMarket.ResolutionConfig({
+          yesNotBefore: yesNotBefore,
+          noNotBefore: noNotBefore,
+          disputeWindow: disputeWindow,
+          disputeBond: disputeBond
+        })
       });
   }
 
