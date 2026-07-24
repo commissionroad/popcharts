@@ -7,7 +7,7 @@ import {
   createOpeningState,
   marginalPriceCents,
   stateAfterBudgetBuy,
-} from "@/domain/lmsr/lmsr";
+} from "@/integrations/contracts/virtual-lmsr";
 import { formatCents } from "@/lib/format";
 
 const BUDGET_POINTS = [25, 50, 100, 250] as const;

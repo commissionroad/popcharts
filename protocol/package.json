@@ -13,7 +13,8 @@
     "./mock-collateral": "./src/generated/mock-collateral.ts",
     "./third-party/venue": "./src/generated/third-party/venue.ts",
     "./complete-set-price-policy": "./src/price/completeSetPricePolicy.ts",
-    "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts"
+    "./tick-to-sqrt-price": "./src/price/tickToSqrtPriceX96.ts",
+    "./virtual-lmsr": "./src/price/virtualLmsr.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {

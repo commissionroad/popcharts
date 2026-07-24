@@ -1,5 +1,21 @@
-import type { MarketSide } from "@/domain/markets/types";
+import type { MarketSide } from "../market-side.js";
 
+/**
+ * The virtual LMSR that prices pre-graduation receipts: the market maker the
+ * pregrad manager's bonding curve implements, expressed off-chain so quoting,
+ * charting, and the live price feed all read one formula.
+ *
+ * Protocol-level on purpose. This is the protocol's pricing mechanism, not app
+ * display logic — the app quotes receipts with it, and the indexer prices the
+ * live chart ticks with it. Two implementations would let a pushed price
+ * disagree with a refetched one, which is precisely the drift a shared module
+ * makes impossible (repo ADR 0021).
+ *
+ * All arithmetic is float `number`, matching how off-chain surfaces quote and
+ * display; on-chain settlement math is fixed-point and lives in the contracts.
+ */
+
+/** Share balances and liquidity parameter that define one market's curve. */
 export type VirtualLmsrState = {
   b: number;
   noShares: number;
@@ -77,10 +93,7 @@ export function sharesForBudget({
     return 0;
   }
 
-  let high = Math.max(
-    1,
-    budget / Math.max(marginalPriceCents(state, side) / 100, 0.01)
-  );
+  let high = Math.max(1, budget / Math.max(marginalPriceCents(state, side) / 100, 0.01));
 
   while (costToBuyShares({ shares: high, side, state }) < budget) {
     high *= 2;

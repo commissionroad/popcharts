@@ -1,12 +1,12 @@
+import type { Market, MarketSide } from "@/domain/markets/types";
+import type { PriceBand } from "@/domain/receipts/types";
 import {
   costToBuyShares,
   createOpeningState,
   marginalPriceCents,
   sharesForBudget,
   stateAfterBuy,
-} from "@/domain/lmsr/lmsr";
-import type { Market, MarketSide } from "@/domain/markets/types";
-import type { PriceBand } from "@/domain/receipts/types";
+} from "@/integrations/contracts/virtual-lmsr";
 
 export const DEFAULT_RECEIPT_SLIPPAGE_BPS = 150;
 export const MAX_RECEIPT_BUDGET_USD = 1_000_000;

@@ -5,7 +5,7 @@ import {
   createOpeningState,
   marginalPriceCents,
   stateAfterBudgetBuy,
-} from "@/domain/lmsr/lmsr";
+} from "@/integrations/contracts/virtual-lmsr";
 import { formatCents } from "@/lib/format";
 
 import { BImpactPreview } from "./b-impact-preview";
