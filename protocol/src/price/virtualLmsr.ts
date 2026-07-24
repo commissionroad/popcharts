@@ -76,6 +76,40 @@ export function marginalPriceCents(state: VirtualLmsrState, side: MarketSide) {
   return side === "yes" ? yesPrice : 100 - yesPrice;
 }
 
+/**
+ * The current marginal YES price (in cents) of a market from its opening
+ * probability and the shares bought since, all in plain (WAD-decoded) units.
+ *
+ * This is the whole "market state → price" recipe: seed the opening state, add
+ * the accumulated YES/NO shares, read the marginal price. It exists so the app
+ * (deriving a price from a REST market) and the indexer (pricing a live chart
+ * tick from the same shares) compute it through one function — the guarantee
+ * that a pushed price equals a refetched one (repo ADR 0021). The NO price is
+ * its complement, `100 - result`.
+ */
+export function currentYesPriceCents({
+  b,
+  noShares,
+  openingProbability,
+  yesShares,
+}: {
+  b: number;
+  noShares: number;
+  openingProbability: number;
+  yesShares: number;
+}): number {
+  const opening = createOpeningState({ b, openingProbability });
+
+  return marginalPriceCents(
+    {
+      b,
+      noShares: opening.noShares + noShares,
+      yesShares: opening.yesShares + yesShares,
+    },
+    "yes",
+  );
+}
+
 export function sharesForBudget({
   budget,
   side,

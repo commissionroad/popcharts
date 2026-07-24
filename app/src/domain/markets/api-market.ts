@@ -2,9 +2,9 @@ import { WAD, wadToNumber as wadBigintToNumber } from "@/domain/tokens/wad";
 import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
 import {
   createOpeningState,
+  currentYesPriceCents,
   marginalPriceCents,
   stateAfterBuy,
-  type VirtualLmsrState,
 } from "@/integrations/contracts/virtual-lmsr";
 import type {
   ApiMarket,
@@ -35,13 +35,12 @@ const generatedCategories: MarketCategory[] = [
 export function apiMarketToMarket(apiMarket: ApiMarket): Market {
   const b = wadToNumber(apiMarket.liquidityParameter);
   const openingProbability = wadToCents(apiMarket.openingProbabilityWad);
-  const currentState = currentLmsrState({
+  const lmsrYesPriceCents = currentYesPriceCents({
     b,
     noShares: wadToNumber(apiMarket.noShares),
     openingProbability,
     yesShares: wadToNumber(apiMarket.yesShares),
   });
-  const lmsrYesPriceCents = marginalPriceCents(currentState, "yes");
   const venuePrices =
     apiMarket.status === "graduated"
       ? venuePriceCents(apiMarket.postgrad?.venue)
@@ -203,26 +202,6 @@ function categoryForApiMarket(apiMarket: ApiMarket): MarketCategory {
 
 function isMarketCategory(value: string | undefined): value is MarketCategory {
   return Boolean(value && generatedCategories.includes(value as MarketCategory));
-}
-
-function currentLmsrState({
-  b,
-  noShares,
-  openingProbability,
-  yesShares,
-}: {
-  b: number;
-  noShares: number;
-  openingProbability: number;
-  yesShares: number;
-}): VirtualLmsrState {
-  const openingState = createOpeningState({ b, openingProbability });
-
-  return {
-    ...openingState,
-    noShares: openingState.noShares + noShares,
-    yesShares: openingState.yesShares + yesShares,
-  };
 }
 
 /**

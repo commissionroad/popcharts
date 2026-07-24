@@ -8,10 +8,25 @@
  * With one type and one function per direction, the same rename is a compile
  * error in whichever side did not follow.
  *
- * The signal stays a nudge, per ADR 0021 — nothing here is data to render. The
- * on-chain coordinates ride along so a subscriber can decide *what* to re-read,
- * not so it can skip re-reading.
+ * The signal is a nudge by default, per ADR 0021 — the on-chain coordinates
+ * ride along so a subscriber can decide *what* to re-read, not so it can skip
+ * re-reading. The lone exception the ADR carves out is the price `tick`: a
+ * pregrad trade is append-mostly, so its resulting price rides the frame and
+ * the chart appends it, rather than refetching the whole history for one point.
+ * A gap in the tick `sequence` or a reconnect still falls back to a refetch.
  */
+
+/** The pushed price datum on a `change` frame from a pregrad trade (repo ADR
+ * 0021). Cents are the marginal YES/NO price after the trade, computed once at
+ * the seam via the shared virtual LMSR; `sequence` is the market's receipt
+ * ordinal, so the client detects a gap (`!= last + 1`) and resyncs. */
+export interface PriceTickWire {
+  /** ISO timestamp of the trade — the chart point's x value. */
+  t: string;
+  sequence: number;
+  yesPriceCents: number;
+  noPriceCents: number;
+}
 
 /** The wire body of a `change` frame. All bigints are strings: JSON has no
  * bigint, and `change_feed.id` outgrows `Number.MAX_SAFE_INTEGER` eventually. */
@@ -27,6 +42,9 @@ export interface ChangeSignalWire {
   owner: string | null;
   blockNumber: string | null;
   logIndex: number | null;
+  /** Present only on a price-bearing source (a pregrad trade); absent
+   * everywhere else, where the frame stays a pure nudge. */
+  tick: PriceTickWire | null;
 }
 
 /**
@@ -46,6 +64,8 @@ export interface ChangeSignalSource {
   owner: string | null;
   blockNumber: bigint | null;
   logIndex: number | null;
+  /** The price tick, already in wire shape (it is stored as JSON), or null. */
+  tick: PriceTickWire | null;
 }
 
 /** Server side: the routed event → the frame body the client will parse. */
@@ -63,6 +83,7 @@ export function serializeChangeSignal(
     blockNumber:
       event.blockNumber === null ? null : event.blockNumber.toString(),
     logIndex: event.logIndex,
+    tick: event.tick,
   };
 }
 
@@ -101,6 +122,37 @@ export function parseChangeSignal(raw: unknown): ChangeSignalWire | null {
     blockNumber:
       typeof frame.blockNumber === "string" ? frame.blockNumber : null,
     logIndex: typeof frame.logIndex === "number" ? frame.logIndex : null,
+    tick: parsePriceTick(frame.tick),
+  };
+}
+
+/**
+ * Validates a price tick — a parsed JSON frame field on the client, or a
+ * `change_feed.payload` jsonb value on the relay. Returns the typed tick, or
+ * null when any field is missing or the wrong type: an unusable tick degrades
+ * to "no datum", which the surface treats as a plain nudge (refetch) rather
+ * than a bad chart point.
+ */
+export function parsePriceTick(raw: unknown): PriceTickWire | null {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+  const tick = raw as Record<string, unknown>;
+
+  if (
+    typeof tick.t !== "string" ||
+    typeof tick.sequence !== "number" ||
+    typeof tick.yesPriceCents !== "number" ||
+    typeof tick.noPriceCents !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    t: tick.t,
+    sequence: tick.sequence,
+    yesPriceCents: tick.yesPriceCents,
+    noPriceCents: tick.noPriceCents,
   };
 }
 

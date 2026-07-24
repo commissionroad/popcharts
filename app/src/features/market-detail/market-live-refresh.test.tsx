@@ -43,6 +43,7 @@ const changeSignal: LiveSignal = {
     owner: null,
     blockNumber: null,
     logIndex: null,
+    tick: null,
   }),
 };
 

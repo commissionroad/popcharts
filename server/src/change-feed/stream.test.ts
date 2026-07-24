@@ -23,6 +23,7 @@ function evt(id: number, channels: string[] = [CHANNEL]): ChangeFeedEvent {
     owner: null,
     blockNumber: null,
     logIndex: null,
+    tick: null,
   };
 }
 

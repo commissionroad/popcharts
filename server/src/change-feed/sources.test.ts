@@ -29,6 +29,7 @@ function row(overrides: Partial<ChangeFeedRow> = {}): ChangeFeedRow {
     owner: "0x00000000000000000000000000000000000000aa",
     blockNumber: 100n,
     logIndex: 0,
+    payload: null,
     ...overrides,
   };
 }
@@ -78,5 +79,21 @@ describe("change feed registry", () => {
         row({ sourceTable: "clearing_root_submitted_events", marketId: null }),
       ),
     ).toBeNull();
+  });
+
+  it("carries a stored price tick onto the routed event, and null when absent", () => {
+    const tick = {
+      t: "2026-07-24T00:00:00.000Z",
+      sequence: 4,
+      yesPriceCents: 51,
+      noPriceCents: 49,
+    };
+
+    expect(changeFeedRowToEvent(row({ payload: tick }))?.tick).toEqual(tick);
+    // A malformed payload degrades to no tick rather than a bad chart point.
+    expect(
+      changeFeedRowToEvent(row({ payload: { sequence: 4 } as never }))?.tick,
+    ).toBeNull();
+    expect(changeFeedRowToEvent(row())?.tick).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import {
   MARKET_LIST_CHANNEL,
   marketChannel,
+  parsePriceTick,
   portfolioChannel,
   type ChangeSignalSource,
 } from "@popcharts/live-channels";
@@ -206,5 +207,8 @@ export function changeFeedRowToEvent(
     owner: row.owner,
     blockNumber: row.blockNumber,
     logIndex: row.logIndex,
+    // Re-validate the jsonb rather than trusting the column type: a row written
+    // by an older/other writer, or a hand-edited one, degrades to no tick.
+    tick: parsePriceTick(row.payload),
   };
 }

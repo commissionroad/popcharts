@@ -72,6 +72,7 @@ describe("useLiveChannel", () => {
         owner: null,
         blockNumber: null,
         logIndex: null,
+        tick: null,
       }),
     };
     firstHandler(handlers)(signal);

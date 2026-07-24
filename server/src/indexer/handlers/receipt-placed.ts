@@ -4,6 +4,7 @@ import type { Log } from "viem";
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema, sql } from "src/db/client";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
+import { buildPriceTick } from "src/change-feed/receipt-price-tick";
 import { recordLiveChange } from "src/change-feed/writer";
 
 export type ReceiptPlacedLog = Log & {
@@ -91,17 +92,27 @@ export async function persistReceiptPlacedRecord(
           eq(schema.markets.marketId, record.marketId),
         ),
       )
-      .returning({ id: schema.markets.id });
+      // The post-trade share balances + static curve params: exactly the inputs
+      // the price tick needs, read back in the same statement that wrote them.
+      .returning({
+        id: schema.markets.id,
+        liquidityParameter: schema.markets.liquidityParameter,
+        noShares: schema.markets.noShares,
+        openingProbabilityWad: schema.markets.openingProbabilityWad,
+        yesShares: schema.markets.yesShares,
+      });
 
+    const market = updated[0];
     // Roll back the event insert too: committing it without the markets
     // projection would make the onConflictDoNothing dedup skip the counter
     // updates on every future replay of this receipt.
-    if (!updated[0]) {
+    if (!market) {
       throw new MarketNotIndexedError(record);
     }
 
     // Signal the price/chart/graduation bar and the bettor's portfolio, atomic
-    // with the receipt+counter writes above.
+    // with the receipt+counter writes above. The tick rides the frame so the
+    // chart appends this point rather than replaying the whole history.
     await recordLiveChange(tx, {
       sourceTable: "receipt_placed_events",
       op: "insert",
@@ -111,6 +122,14 @@ export async function persistReceiptPlacedRecord(
       rowId: inserted[0].id,
       blockNumber: record.blockNumber,
       logIndex: record.logIndex,
+      tick: buildPriceTick({
+        t: record.blockTimestamp,
+        sequence: record.sequence,
+        liquidityParameterWad: market.liquidityParameter,
+        openingProbabilityWad: market.openingProbabilityWad,
+        yesSharesWad: market.yesShares,
+        noSharesWad: market.noShares,
+      }),
     });
   });
 }

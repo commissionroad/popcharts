@@ -95,6 +95,15 @@ async function eventCount() {
   return row.value;
 }
 
+async function changeFeedRows() {
+  return dbc
+    .select({
+      sourceTable: schema.changeFeed.sourceTable,
+      payload: schema.changeFeed.payload,
+    })
+    .from(schema.changeFeed);
+}
+
 describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
   it("persists the event and applies the raw-SQL counter increments", async () => {
     await persistReceiptPlacedRecord(receiptRecord(), dbc);
@@ -105,6 +114,23 @@ describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
     expect(market.totalEscrowed).toBe(250n);
     expect(market.yesShares).toBe(400n);
     expect(market.noShares).toBe(0n);
+  });
+
+  it("records a change_feed row carrying the trade's price tick", async () => {
+    await persistReceiptPlacedRecord(receiptRecord(), dbc);
+
+    const rows = await changeFeedRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.sourceTable).toBe("receipt_placed_events");
+
+    // The tick round-trips through the jsonb column with its shape intact and
+    // complementary prices; the exact cents are the LMSR's job (unit-tested in
+    // receipt-price-tick.test.ts), so assert the contract, not the value.
+    const tick = rows[0]?.payload;
+    expect(tick?.sequence).toBe(1);
+    expect(tick?.t).toBe("2026-07-14T00:00:00.000Z");
+    expect(typeof tick?.yesPriceCents).toBe("number");
+    expect((tick?.yesPriceCents ?? 0) + (tick?.noPriceCents ?? 0)).toBe(100);
   });
 
   it("dedups a replay via the real unique index and skips the increments", async () => {

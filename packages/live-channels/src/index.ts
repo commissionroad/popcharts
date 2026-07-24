@@ -23,9 +23,11 @@ export {
 export {
   RESET_REASON_CURSOR_TOO_OLD,
   parseChangeSignal,
+  parsePriceTick,
   parseResetReason,
   serializeChangeSignal,
   type ChangeSignalSource,
   type ChangeSignalWire,
+  type PriceTickWire,
   type ResetSignalWire,
 } from "./wire";

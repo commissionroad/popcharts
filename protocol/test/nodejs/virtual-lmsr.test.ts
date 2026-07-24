@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   costToBuyShares,
   createOpeningState,
+  currentYesPriceCents,
   marginalPriceCents,
   sharesForBudget,
   stateAfterBudgetBuy,
@@ -116,6 +117,50 @@ describe("virtual LMSR", function () {
       () => createOpeningState({ b: Number.NaN, openingProbability: 50 }),
       /b must be positive/,
     );
+  });
+
+  it("opens at the opening probability before any shares are bought", function () {
+    for (const openingProbability of [20, 50, 73]) {
+      assertCloseTo(
+        currentYesPriceCents({
+          b: 5_000,
+          noShares: 0,
+          openingProbability,
+          yesShares: 0,
+        }),
+        openingProbability,
+        8,
+      );
+    }
+  });
+
+  it("prices a market from its accumulated shares, matching the manual recipe", function () {
+    // The whole reason this function exists: a caller must get the same price
+    // whether it composes the primitives itself (the price-path replay) or
+    // calls this (the live tick). Both routes must agree exactly.
+    const args = {
+      b: 5_000,
+      noShares: 140,
+      openingProbability: 50,
+      yesShares: 320,
+    };
+    const manual = marginalPriceCents(
+      stateAfterBuy({
+        shares: args.noShares,
+        side: "no",
+        state: stateAfterBuy({
+          shares: args.yesShares,
+          side: "yes",
+          state: createOpeningState({
+            b: args.b,
+            openingProbability: args.openingProbability,
+          }),
+        }),
+      }),
+      "yes",
+    );
+
+    assert.equal(currentYesPriceCents(args), manual);
   });
 
   it("rejects out-of-range opening probabilities", function () {

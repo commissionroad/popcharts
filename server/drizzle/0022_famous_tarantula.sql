@@ -1,0 +1,1 @@
+ALTER TABLE "change_feed" ADD COLUMN "payload" jsonb;
