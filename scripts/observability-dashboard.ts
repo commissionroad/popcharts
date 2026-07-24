@@ -11,7 +11,7 @@
 // pushed without a git call ever blocking a request.
 
 import { readFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,8 +28,15 @@ import {
   type TestInventory,
 } from "./shared/observability/readTestInventory.ts";
 import { repoRoot } from "./shared/paths.ts";
+import {
+  createTestRunner,
+  RUNNABLE,
+} from "./shared/observability/testRunner.ts";
 
 const PORT = Number(process.env.OBSERVABILITY_PORT ?? 4700);
+// Bind loopback only. This server can start test runs, so it must never be
+// reachable from the network — `listen(PORT)` alone would bind every interface.
+const HOST = "127.0.0.1";
 const CACHE_TTL_MS = 15_000;
 const here = dirname(fileURLToPath(import.meta.url));
 const pagePath = join(here, "shared", "observability", "dashboard.html");
@@ -89,7 +96,56 @@ async function snapshot(): Promise<DashboardSnapshot> {
   return pending;
 }
 
+const runner = createTestRunner(repoRoot);
+// A finished run changes coverage on disk, so drop the cache and let the next
+// poll pick the new numbers up.
+runner.onFinished(() => {
+  cached = null;
+});
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+  });
+  res.end(JSON.stringify(body));
+}
+
+/**
+ * Rejects a state-changing request that a *different* site tried to make. A
+ * browser always sends Origin on cross-origin POSTs, so requiring it to be
+ * absent or our own keeps another page from driving this server through the
+ * viewer's browser.
+ */
+function sameOrigin(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  return origin === `http://${HOST}:${PORT}` || origin === `http://localhost:${PORT}`;
+}
+
 const server = createServer(async (req, res) => {
+  if (req.url === "/api/runs") {
+    sendJson(res, 200, { runnable: RUNNABLE.map(({ id, label, detail }) => ({ id, label, detail })), current: runner.state() });
+    return;
+  }
+  if (req.url?.startsWith("/api/runs/") && req.method === "POST") {
+    if (!sameOrigin(req)) {
+      sendJson(res, 403, { error: "cross-origin request refused" });
+      return;
+    }
+    const action = req.url.slice("/api/runs/".length);
+    if (action === "cancel") {
+      runner.cancel();
+      sendJson(res, 200, { current: runner.state() });
+      return;
+    }
+    const started = runner.start(action);
+    sendJson(res, started.ok ? 202 : 409, {
+      ...(started.ok ? {} : { error: started.reason }),
+      current: runner.state(),
+    });
+    return;
+  }
   if (req.url === "/api/observability") {
     try {
       const snap = await snapshot();
@@ -140,7 +196,7 @@ server.on("error", (error: NodeJS.ErrnoException) => {
   throw error;
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Testing observability dashboard: http://localhost:${PORT}`);
   console.log("Reads origin/ci-metrics live. Ctrl-C to stop.");
 });
