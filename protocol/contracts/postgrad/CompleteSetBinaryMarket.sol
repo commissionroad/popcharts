@@ -19,14 +19,33 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
 
   uint8 private constant MAX_SUPPORTED_DECIMALS = 77;
 
-  /// @notice Post-graduation market lifecycle.
+  /// @notice Post-graduation market lifecycle. New states are appended (out of
+  /// lifecycle order) so the numeric values of pre-dispute statuses stay stable
+  /// for indexers and tooling that decode them.
   enum Status {
     /// @notice Outcome tokens can mint, merge, trade, and receive retained claims.
     Trading,
     /// @notice A winning side has been selected and winning tokens can redeem.
     Resolved,
     /// @notice The market ended without a binary resolution and tokens redeem at draw value.
-    Cancelled
+    Cancelled,
+    /// @notice A resolution is proposed and publicly disputable until the window closes.
+    ResolutionPending
+  }
+
+  /// @notice Per-market resolution timing and dispute parameters, bundled into a
+  /// struct because the constructor is at the EVM stack limit (protocol ADR 0013).
+  struct ResolutionConfig {
+    /// @notice Earliest timestamp a YES resolution may be proposed.
+    uint64 yesNotBefore;
+    /// @notice Earliest timestamp a NO resolution may be proposed.
+    uint64 noNotBefore;
+    /// @notice Seconds a proposed resolution stays publicly disputable. Zero
+    /// disables the optimistic flow and keeps direct single-step resolve().
+    uint64 disputeWindow;
+    /// @notice Collateral amount (raw units) a non-resolver disputer must bond.
+    /// Stamped at deployment; consumed once dispute() ships (ADR 0013).
+    uint256 disputeBond;
   }
 
   /// @notice Reverts when the collateral token is the zero address.
@@ -75,6 +94,15 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @param availableCollateral Collateral still held by the market.
   /// @param requiredCollateral Collateral required for remaining draw redemptions.
   error InsolventCancelBacking(uint256 availableCollateral, uint256 requiredCollateral);
+  /// @notice Reverts when resolve() is called from Trading while a dispute window
+  /// is configured — the optimistic propose/finalize flow must be used instead.
+  error MarketNotDirectlyResolvable();
+  /// @notice Reverts when finalizeResolution() is called before the window closes.
+  /// @param deadline Timestamp at which the proposal becomes finalizable.
+  error DisputeWindowStillOpen(uint64 deadline);
+  /// @notice Reverts when a function requires one of several statuses.
+  /// @param actual Current market status.
+  error InvalidStatusForAction(Status actual);
 
   /// @notice Emitted when collateral mints equal YES and NO complete sets.
   /// @param caller Account that supplied collateral.
@@ -117,6 +145,11 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     MarketTypes.Side indexed side,
     uint256 outcomeAmount
   );
+
+  /// @notice Emitted when the resolver proposes a resolution, opening the window.
+  /// @param side Proposed winning outcome side.
+  /// @param disputeDeadline Timestamp at which the proposal becomes finalizable.
+  event ResolutionProposed(MarketTypes.Side indexed side, uint64 disputeDeadline);
 
   /// @notice Emitted when the market resolves to one winning side.
   /// @param side Winning outcome side.
@@ -171,10 +204,18 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// resolutionTime deadline). NO is only certain once the full window elapses,
   /// so it is gated no earlier than YES; `cancel` remains ungated.
   uint64 public immutable noNotBefore;
+  /// @notice Seconds a proposed resolution stays publicly disputable. Zero keeps
+  /// the legacy direct resolve() path (local/dev degeneration, protocol ADR 0013).
+  uint64 public immutable disputeWindow;
+  /// @notice Collateral bond (raw units) required from a non-resolver disputer.
+  uint256 public immutable disputeBond;
   /// @notice Current lifecycle status for this post-graduation market.
   Status public status;
+  /// @notice Timestamp of the current resolution proposal (zero before any).
+  uint64 public proposedAt;
 
   MarketTypes.Side private _winningSide;
+  MarketTypes.Side private _proposedSide;
 
   /// @notice Initializes the market, deploys YES/NO tokens, and records privileged callers.
   /// @param collateralToken_ ERC20 collateral token backing fixed-payout claims.
@@ -184,8 +225,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @param marketName_ Human-readable market name prefix for outcome token names.
   /// @param marketSymbol_ Short market symbol prefix for outcome token symbols.
   /// @param outcomeDecimals_ Decimal precision for YES and NO outcome tokens.
-  /// @param yesNotBefore_ Earliest timestamp a YES resolution may be submitted.
-  /// @param noNotBefore_ Earliest timestamp a NO resolution may be submitted.
+  /// @param resolutionConfig_ Per-side time gates plus dispute window and bond.
   constructor(
     address collateralToken_,
     address owner_,
@@ -194,8 +234,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     string memory marketName_,
     string memory marketSymbol_,
     uint8 outcomeDecimals_,
-    uint64 yesNotBefore_,
-    uint64 noNotBefore_
+    ResolutionConfig memory resolutionConfig_
   ) Ownable(owner_) {
     if (collateralToken_ == address(0)) {
       revert InvalidCollateral();
@@ -220,8 +259,10 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     outcomeDecimals = outcomeDecimals_;
     retainedMinter = retainedMinter_;
     resolver = resolver_;
-    yesNotBefore = yesNotBefore_;
-    noNotBefore = noNotBefore_;
+    yesNotBefore = resolutionConfig_.yesNotBefore;
+    noNotBefore = resolutionConfig_.noNotBefore;
+    disputeWindow = resolutionConfig_.disputeWindow;
+    disputeBond = resolutionConfig_.disputeBond;
     yesToken = new OutcomeToken(
       string.concat(marketName_, " YES"),
       string.concat(marketSymbol_, "YES"),
@@ -260,7 +301,15 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   /// @notice Returns the outcome-token capacity represented by current collateral escrow.
   /// @return Outcome-token capacity backed by the market's collateral balance.
   function collateralOutcomeCapacity() public view returns (uint256) {
-    return outcomeAmountForCollateral(collateralToken.balanceOf(address(this)));
+    return outcomeAmountForCollateral(_marketCollateralBalance());
+  }
+
+  /// @notice Collateral backing outcome redemption. A single seam so the
+  /// dispute-bond escrow (ADR 0013, next PR) can be excluded from every
+  /// solvency read in one place.
+  /// @return Collateral balance available to the market's own accounting.
+  function _marketCollateralBalance() private view returns (uint256) {
+    return collateralToken.balanceOf(address(this));
   }
 
   /// @notice Mints equal YES and NO tokens by depositing collateral.
@@ -271,7 +320,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     address to,
     uint256 collateralAmount
   ) external nonReentrant returns (uint256 outcomeAmount) {
-    _requireStatus(Status.Trading);
+    // Open until terminal: trading and retained-claim flows continue
+    // through ResolutionPending and Disputed (protocol ADR 0013).
+    _requireNotTerminal();
     _requireRecipient(to);
     outcomeAmount = _requireConvertedAmount(
       collateralAmount,
@@ -291,7 +342,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   function mergeCompleteSets(
     uint256 outcomeAmount
   ) external nonReentrant returns (uint256 collateralAmount) {
-    _requireStatus(Status.Trading);
+    // Open until terminal: trading and retained-claim flows continue
+    // through ResolutionPending and Disputed (protocol ADR 0013).
+    _requireNotTerminal();
     collateralAmount = _requireConvertedAmount(
       outcomeAmount,
       collateralAmountForOutcome(outcomeAmount)
@@ -300,7 +353,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     yesToken.burnFrom(msg.sender, outcomeAmount);
     noToken.burnFrom(msg.sender, outcomeAmount);
     _requireTradingSolvent(
-      collateralToken.balanceOf(address(this)) - collateralAmount,
+      _marketCollateralBalance() - collateralAmount,
       yesToken.totalSupply(),
       noToken.totalSupply()
     );
@@ -315,7 +368,9 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   function fundRetainedCollateral(
     uint256 collateralAmount
   ) external onlyRetainedMinter nonReentrant returns (uint256 outcomeCapacity) {
-    _requireStatus(Status.Trading);
+    // Open until terminal: trading and retained-claim flows continue
+    // through ResolutionPending and Disputed (protocol ADR 0013).
+    _requireNotTerminal();
     outcomeCapacity = _requireConvertedAmount(
       collateralAmount,
       outcomeAmountForCollateral(collateralAmount)
@@ -335,13 +390,15 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     MarketTypes.Side side,
     uint256 outcomeAmount
   ) external onlyRetainedMinter {
-    _requireStatus(Status.Trading);
+    // Open until terminal: trading and retained-claim flows continue
+    // through ResolutionPending and Disputed (protocol ADR 0013).
+    _requireNotTerminal();
     _requireRecipient(to);
     _requireAmount(outcomeAmount);
 
     _tokenForSide(side).mint(to, outcomeAmount);
     _requireTradingSolvent(
-      collateralToken.balanceOf(address(this)),
+      _marketCollateralBalance(),
       yesToken.totalSupply(),
       noToken.totalSupply()
     );
@@ -349,28 +406,75 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     emit RetainedSideMinted(to, side, outcomeAmount);
   }
 
-  /// @notice Resolves the market to a winning side.
+  /// @notice Returns the proposed winning side while a proposal is pending or disputed.
+  /// @return Side the resolver proposed.
+  function proposedSide() external view returns (MarketTypes.Side) {
+    _requireStatus(Status.ResolutionPending);
+    return _proposedSide;
+  }
+
+  /// @notice Returns the timestamp at which the pending proposal becomes finalizable.
+  /// @return Dispute deadline for the pending proposal.
+  function disputeDeadline() public view returns (uint64) {
+    _requireStatus(Status.ResolutionPending);
+    return proposedAt + disputeWindow;
+  }
+
+  /// @notice Proposes a resolution, opening the public dispute window.
+  /// @param side Proposed winning outcome side.
+  function proposeResolution(MarketTypes.Side side) external onlyResolver {
+    _requireStatus(Status.Trading);
+    _requireSideNotBefore(side);
+
+    _proposedSide = side;
+    proposedAt = uint64(block.timestamp);
+    status = Status.ResolutionPending;
+
+    emit ResolutionProposed(side, proposedAt + disputeWindow);
+  }
+
+  /// @notice Finalizes an undisputed proposal after the window closes. Callable
+  /// by anyone: the keeper drives this, permissionlessness is the safety valve.
+  function finalizeResolution() external {
+    _requireStatus(Status.ResolutionPending);
+    uint64 deadline = proposedAt + disputeWindow;
+    if (block.timestamp < deadline) {
+      revert DisputeWindowStillOpen(deadline);
+    }
+
+    _winningSide = _proposedSide;
+    status = Status.Resolved;
+    _requireResolvedSolvent(_marketCollateralBalance());
+
+    emit MarketResolved(_proposedSide);
+  }
+
+  /// @notice Resolves the market to a winning side in one step. Only markets
+  /// deployed with a zero dispute window keep this legacy path (local stacks,
+  /// existing tooling); windowed markets must use proposeResolution and the
+  /// public window (protocol ADR 0013 — dispute settlement ships next).
   /// @param side Winning outcome side.
   function resolve(MarketTypes.Side side) external onlyResolver {
     _requireStatus(Status.Trading);
-    // YES may resolve from yesNotBefore; NO is only certain at the later
-    // resolutionTime deadline (noNotBefore). cancel() stays ungated.
-    uint64 notBefore = side == MarketTypes.Side.Yes ? yesNotBefore : noNotBefore;
-    if (block.timestamp < notBefore) {
-      revert TooEarlyToResolve(notBefore);
+    if (disputeWindow != 0) {
+      revert MarketNotDirectlyResolvable();
     }
+    _requireSideNotBefore(side);
+
     _winningSide = side;
     status = Status.Resolved;
-    _requireResolvedSolvent(collateralToken.balanceOf(address(this)));
+    _requireResolvedSolvent(_marketCollateralBalance());
 
     emit MarketResolved(side);
   }
 
   /// @notice Cancels the market so YES and NO redeem at half collateral value.
+  /// Never time-gated: the postponement/draw escape hatch from Trading or a
+  /// pending proposal.
   function cancel() external onlyResolver {
-    _requireStatus(Status.Trading);
+    _requireStatusIn(Status.Trading, Status.ResolutionPending);
     status = Status.Cancelled;
-    _requireCancelSolvent(collateralToken.balanceOf(address(this)));
+    _requireCancelSolvent(_marketCollateralBalance());
 
     emit MarketCancelled();
   }
@@ -393,7 +497,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
       collateralAmountForOutcome(outcomeAmount)
     );
     _tokenForSide(side).burnFrom(msg.sender, outcomeAmount);
-    _requireResolvedSolvent(collateralToken.balanceOf(address(this)) - collateralAmount);
+    _requireResolvedSolvent(_marketCollateralBalance() - collateralAmount);
     collateralToken.safeTransfer(msg.sender, collateralAmount);
 
     emit Redeemed(msg.sender, side, outcomeAmount, collateralAmount);
@@ -423,7 +527,7 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
     if (noAmount != 0) {
       noToken.burnFrom(msg.sender, noAmount);
     }
-    _requireCancelSolvent(collateralToken.balanceOf(address(this)) - collateralAmount);
+    _requireCancelSolvent(_marketCollateralBalance() - collateralAmount);
     collateralToken.safeTransfer(msg.sender, collateralAmount);
 
     emit CancelledRedeemed(msg.sender, yesAmount, noAmount, collateralAmount);
@@ -524,6 +628,34 @@ contract CompleteSetBinaryMarket is Ownable, ReentrancyGuard {
   function _requireStatus(Status expected) private view {
     if (status != expected) {
       revert InvalidStatus(status, expected);
+    }
+  }
+
+  /// @notice Requires a non-terminal status (Trading, ResolutionPending, or
+  /// Disputed) — the states in which trading and retained flows stay open.
+  function _requireNotTerminal() private view {
+    if (status == Status.Resolved || status == Status.Cancelled) {
+      revert InvalidStatusForAction(status);
+    }
+  }
+
+  /// @notice Requires the market to be in one of two statuses.
+  /// @param a First permitted status.
+  /// @param b Second permitted status.
+  function _requireStatusIn(Status a, Status b) private view {
+    if (status != a && status != b) {
+      revert InvalidStatusForAction(status);
+    }
+  }
+
+  /// @notice Enforces the per-side earliest-resolution gate. YES may resolve
+  /// from yesNotBefore; NO is only certain at the later resolutionTime deadline
+  /// (noNotBefore). cancel() stays ungated.
+  /// @param side Side being proposed or resolved.
+  function _requireSideNotBefore(MarketTypes.Side side) private view {
+    uint64 notBefore = side == MarketTypes.Side.Yes ? yesNotBefore : noNotBefore;
+    if (block.timestamp < notBefore) {
+      revert TooEarlyToResolve(notBefore);
     }
   }
 

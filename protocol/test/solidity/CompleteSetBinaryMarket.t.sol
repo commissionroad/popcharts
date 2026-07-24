@@ -415,9 +415,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     vm.prank(trader);
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Resolved,
-        CompleteSetBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Resolved
       )
     );
     market.mergeCompleteSets(1 * WAD);
@@ -432,9 +431,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     vm.prank(trader);
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Resolved,
-        CompleteSetBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Resolved
       )
     );
     market.mintCompleteSets(trader, 1 * WAD);
@@ -442,9 +440,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     vm.prank(retainedMinter);
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Resolved,
-        CompleteSetBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Resolved
       )
     );
     market.fundRetainedCollateral(1 * WAD);
@@ -452,9 +449,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     vm.prank(retainedMinter);
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Resolved,
-        CompleteSetBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Resolved
       )
     );
     market.mintRetainedSide(alice, MarketTypes.Side.Yes, 1 * WAD);
@@ -462,9 +458,8 @@ contract CompleteSetBinaryMarketTest is BaseTest {
     vm.prank(resolver);
     vm.expectRevert(
       abi.encodeWithSelector(
-        CompleteSetBinaryMarket.InvalidStatus.selector,
-        CompleteSetBinaryMarket.Status.Resolved,
-        CompleteSetBinaryMarket.Status.Trading
+        CompleteSetBinaryMarket.InvalidStatusForAction.selector,
+        CompleteSetBinaryMarket.Status.Resolved
       )
     );
     market.cancel();
@@ -619,8 +614,12 @@ contract CompleteSetBinaryMarketTest is BaseTest {
         marketName_: "Pop Charts Test",
         marketSymbol_: "PCT",
         outcomeDecimals_: outcomeDecimals,
-        yesNotBefore_: yesNotBefore,
-        noNotBefore_: noNotBefore
+        resolutionConfig_: CompleteSetBinaryMarket.ResolutionConfig({
+          yesNotBefore: yesNotBefore,
+          noNotBefore: noNotBefore,
+          disputeWindow: 0,
+          disputeBond: 0
+        })
       });
   }
 

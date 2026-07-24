@@ -120,6 +120,11 @@ export async function deployCompleteSetPostgradContracts(
     deployerAddress,
     args.resolverAddress,
     args.outcomeDecimals,
+    // Local stacks deploy with the dispute window disabled so the existing
+    // direct-resolve tooling keeps working until the runner/keeper slices of
+    // repo ADR 0024 land; deployed networks tune this via setDisputeConfig.
+    0n,
+    0n,
   ]);
   const postgradAdapterAddress = getAddress(postgradAdapter.address);
   console.log(`CompleteSetPostgradAdapter: ${postgradAdapterAddress}`);

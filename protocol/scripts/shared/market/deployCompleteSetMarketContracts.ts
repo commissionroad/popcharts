@@ -105,8 +105,15 @@ export async function deployCompleteSetBinaryMarket({
           { type: "string" },
           { type: "string" },
           { type: "uint8" },
-          { type: "uint64" },
-          { type: "uint64" },
+          {
+            components: [
+              { name: "yesNotBefore", type: "uint64" },
+              { name: "noNotBefore", type: "uint64" },
+              { name: "disputeWindow", type: "uint64" },
+              { name: "disputeBond", type: "uint256" },
+            ],
+            type: "tuple",
+          },
         ],
         [
           collateralAddress,
@@ -116,9 +123,14 @@ export async function deployCompleteSetBinaryMarket({
           marketName,
           marketSymbol,
           COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
-          // Standalone venue-test market: resolution-time gates disabled (0).
-          0n,
-          0n,
+          // Standalone venue-test market: resolution-time gates and the
+          // dispute window are disabled (all zero) — direct resolve() applies.
+          {
+            disputeBond: 0n,
+            disputeWindow: 0n,
+            noNotBefore: 0n,
+            yesNotBefore: 0n,
+          },
         ],
       ),
     ]),
