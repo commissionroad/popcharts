@@ -1,7 +1,6 @@
 import { ArrowLeft, BadgeCheck, Coins, ReceiptText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
-import { PriceCurve } from "@/components/charts/price-curve";
 import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -14,7 +13,7 @@ import { OrderBookCard } from "@/features/order-book/order-book-card";
 import { OpenOrdersPanel } from "@/features/postgrad-ticket/open-orders-panel";
 import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
 import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
-import { formatB, formatDateTime, formatPercent, formatUsdCompact } from "@/lib/format";
+import { formatB, formatDateTime, formatUsdCompact } from "@/lib/format";
 
 import { AiReviewCard } from "./ai-review-card";
 import { AiReviewProgressCard } from "./ai-review-progress-card";
@@ -22,7 +21,7 @@ import { AiReviewRefresh } from "./ai-review-refresh";
 import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
-import { MarketLiveRefresh } from "./market-live-refresh";
+import { MarketLivePrice } from "./market-live-price";
 import { MarketPositionPanel } from "./market-position-panel";
 
 export function MarketDetailPage({
@@ -62,10 +61,6 @@ export function MarketDetailPage({
 
   return (
     <div>
-      {/* Live for every actor's activity on this market, not just the viewer's
-          own trade — mounted unconditionally so lifecycle transitions
-          (graduation, resolution) refresh the page too, not only pregrad bets. */}
-      <MarketLiveRefresh marketAppId={market.id} />
       <Link
         className="mb-6 inline-flex items-center gap-2 font-mono text-[13px] text-[var(--text-secondary)] transition-opacity hover:opacity-70"
         href="/"
@@ -88,40 +83,32 @@ export function MarketDetailPage({
             {market.question}
           </h1>
 
-          <div className="flex flex-wrap items-baseline gap-7">
-            <div>
-              <span className="font-display tabular text-5xl font-black text-[var(--yes)]">
-                {formatPercent(market.yesPriceCents)}
-              </span>
-              <span className="ml-2 font-mono text-xs text-[var(--text-muted)]">
-                {marketSideLabel(market, "yes")}
-              </span>
-            </div>
-            <div>
-              <span className="font-display tabular text-3xl font-black text-[var(--no)]">
-                {formatPercent(market.noPriceCents)}
-              </span>
-              <span className="ml-2 font-mono text-xs text-[var(--text-muted)]">
-                {marketSideLabel(market, "no")}
-              </span>
-            </div>
-          </div>
-
-          {isResolved || isDraw ? <ResolvedMarketSummary market={market} /> : null}
-          {isGraduated ? <GraduatedMarketSummary market={market} /> : null}
-
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
-            <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-              {settled
+          {/* The live price surface (headline + chart). It owns the market's
+              channel subscription: a pregrad trade's price tick appends a point
+              in place, and every other signal — a lifecycle change, a reset, or
+              a gap in the tick sequence — refetches the whole page. The settled
+              summary sits between the headline and the chart, so it is passed
+              through as the island's children. Keyed on the market id so a
+              client navigation between two markets whose receipt counts happen
+              to match still resets the appended ticks instead of reusing them. */}
+          <MarketLivePrice
+            key={market.id}
+            chartHeading={
+              settled
                 ? "Pre-graduation price history"
-                : "Virtual LMSR - implied probability"}
-            </div>
-            <PriceCurve
-              noLabel={marketSideLabel(market, "no")}
-              points={chartPoints}
-              yesLabel={marketSideLabel(market, "yes")}
-            />
-          </div>
+                : "Virtual LMSR - implied probability"
+            }
+            marketAppId={market.id}
+            noLabel={marketSideLabel(market, "no")}
+            noPriceCents={market.noPriceCents}
+            points={chartPoints}
+            seedSequence={market.receiptCount}
+            yesLabel={marketSideLabel(market, "yes")}
+            yesPriceCents={market.yesPriceCents}
+          >
+            {isResolved || isDraw ? <ResolvedMarketSummary market={market} /> : null}
+            {isGraduated ? <GraduatedMarketSummary market={market} /> : null}
+          </MarketLivePrice>
 
           {isGraduated ? <OrderBookCard market={market} /> : null}
 
