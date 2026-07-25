@@ -102,4 +102,6 @@ export {
 export type { MarketSide } from "./market-side.js";
 export { MARKET_STATUS } from "./market-status.js";
 export type { MarketStatusCode } from "./market-status.js";
+export { POSTGRAD_MARKET_STATUS } from "./postgrad-market-status.js";
+export type { PostgradMarketStatusCode } from "./postgrad-market-status.js";
 export { WAD, wadToCents, wadToNumber } from "./wad.js";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { COMPLETE_SET_MARKET_STATUS } from "../../scripts/shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../../src/postgrad-market-status.js";
 import {
   detectBoundedOrderAnomalies,
   type BoundedPoolInspection,
@@ -30,7 +30,7 @@ function tradingHealthInput(overrides: Partial<MarketHealthInput> = {}): MarketH
     outcomeDecimals: 18,
     pools: [healthyPool("yes"), healthyPool("no")],
     priceSumToleranceWad: WAD / 100n,
-    status: COMPLETE_SET_MARKET_STATUS.trading,
+    status: POSTGRAD_MARKET_STATUS.trading,
     yesDisplayPriceWad: WAD / 2n,
     yesSupply: 100n * WAD,
     ...overrides,
@@ -291,7 +291,7 @@ describe("evaluateMarketHealth", function () {
       tradingHealthInput({
         collateralBalance: 40n * WAD,
         noSupply: 100n * WAD,
-        status: COMPLETE_SET_MARKET_STATUS.resolved,
+        status: POSTGRAD_MARKET_STATUS.resolved,
         winningSide: "yes",
         yesSupply: 40n * WAD,
       }),
@@ -301,7 +301,7 @@ describe("evaluateMarketHealth", function () {
     const shortfall = evaluateMarketHealth(
       tradingHealthInput({
         collateralBalance: 39n * WAD,
-        status: COMPLETE_SET_MARKET_STATUS.resolved,
+        status: POSTGRAD_MARKET_STATUS.resolved,
         winningSide: "yes",
         yesSupply: 40n * WAD,
       }),
@@ -314,7 +314,7 @@ describe("evaluateMarketHealth", function () {
       tradingHealthInput({
         collateralBalance: 100n * WAD,
         noSupply: 100n * WAD,
-        status: COMPLETE_SET_MARKET_STATUS.cancelled,
+        status: POSTGRAD_MARKET_STATUS.cancelled,
         yesSupply: 100n * WAD,
       }),
     );
@@ -344,8 +344,7 @@ describe("evaluateMarketHealth", function () {
   it("rejects unknown statuses, missing winners, and negative inputs", function () {
     assert.throws(() => evaluateMarketHealth(tradingHealthInput({ status: 9 })), /Unknown/);
     assert.throws(
-      () =>
-        evaluateMarketHealth(tradingHealthInput({ status: COMPLETE_SET_MARKET_STATUS.resolved })),
+      () => evaluateMarketHealth(tradingHealthInput({ status: POSTGRAD_MARKET_STATUS.resolved })),
       /winningSide/,
     );
     assert.throws(
