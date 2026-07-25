@@ -1,4 +1,9 @@
-import { contractSideToMarketSide, type MarketSide } from "@popcharts/protocol";
+import {
+  contractSideToMarketSide,
+  SIDE_NO,
+  SIDE_YES,
+  type MarketSide,
+} from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -74,7 +79,7 @@ export function buildPostgradDisputeRecord({
   if (kind === "proposed") {
     const proposed = log as PostgradResolutionProposedLog;
     const side: MarketSide = contractSideToMarketSide(
-      requireValue(proposed.args.side, "side"),
+      requireContractSide(requireValue(proposed.args.side, "side")),
     );
 
     return {
@@ -122,4 +127,22 @@ function requireValue<T>(value: T | null | undefined, name: string): T {
   }
 
   return value;
+}
+
+/**
+ * Rejects anything that is not a MarketTypes.Side member. The shared
+ * contractSideToMarketSide decodes every non-YES value as NO, which is the
+ * right default for a value the chain guarantees is in range — but a proposal
+ * is the input to a money-moving outcome, so a decode that produced 2 (ABI
+ * drift, a corrupted log) must stop the cursor rather than record a real,
+ * plausible-looking NO proposal.
+ */
+function requireContractSide(side: number): number {
+  if (side !== SIDE_YES && side !== SIDE_NO) {
+    throw new Error(
+      `Postgrad dispute log has an out-of-range MarketTypes.Side value ${side}.`,
+    );
+  }
+
+  return side;
 }

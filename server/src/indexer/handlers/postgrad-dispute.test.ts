@@ -104,6 +104,25 @@ describe("buildPostgradDisputeRecord", () => {
     ).toThrow("side");
   });
 
+  it("throws on a side outside the MarketTypes.Side range", () => {
+    // The shared decoder maps every non-YES value to NO, so an out-of-range 2
+    // would otherwise be recorded as a real, plausible-looking NO proposal —
+    // the input to a money-moving outcome. Stop the cursor instead.
+    expect(() =>
+      buildPostgradDisputeRecord({
+        blockTimestamp,
+        config: { chainId: 5042002 },
+        contractId: 42,
+        kind: "proposed",
+        log: {
+          ...BASE_LOG,
+          args: { disputeDeadline: DISPUTE_DEADLINE_UNIX, side: 2 },
+        } as PostgradResolutionProposedLog,
+        marketId: 7n,
+      }),
+    ).toThrow("out-of-range");
+  });
+
   it("throws when a proposed log is missing its dispute deadline", () => {
     expect(() =>
       buildPostgradDisputeRecord({
