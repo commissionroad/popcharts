@@ -7,7 +7,20 @@ import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import type { Construct } from "constructs";
+
+import { LogPatternAlarm } from "./log-pattern-alarm.js";
+// One definition of the operator-alert marker terms, shared with the indexer
+// that emits them rather than mirrored here. `infra/` is a separate pnpm
+// workspace with its own lockfile, so this is a relative source import, not a
+// package dependency; the module is deliberately dependency-free so both tsx
+// (here) and bun (server) can load it.
+import {
+  OPERATOR_ALERT_EVENTS,
+  OPERATOR_ALERT_MARKER,
+} from "../../server/src/shared/operator-alert-log.js";
 
 export type NetworkId = "baseSepolia" | "base";
 
@@ -18,6 +31,12 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
   enableIndexerService: boolean;
   enableResolutionService: boolean;
   network: NetworkId;
+  /**
+   * Address subscribed to the operator-alert topic. Optional so the stack
+   * synthesizes and deploys before an on-call address exists; the topic and
+   * alarm are still created, they just have no subscriber until one is set.
+   */
+  operatorAlertEmail?: string;
   pregradManagerAddress: string;
   pregradManagerDeployBlock: string;
   stage: string;
@@ -179,6 +198,38 @@ export class PopChartsInfraStack extends cdk.Stack {
       logGroupName: `/ecs/${namePrefix}-indexer`,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       retention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const operatorAlertTopic = new sns.Topic(this, "OperatorAlertTopic", {
+      displayName: `${namePrefix} operator alerts`,
+      topicName: `${namePrefix}-operator-alerts`,
+    });
+
+    if (props.operatorAlertEmail) {
+      operatorAlertTopic.addSubscription(
+        new snsSubscriptions.EmailSubscription(props.operatorAlertEmail),
+      );
+    }
+
+    // A dispute means a user staked a bond asserting the resolver got a market
+    // wrong, and the market is frozen until a human settles it (repo ADR 0024
+    // phase 5). Created with the log group rather than with the indexer
+    // service, so the page exists before the service that raises it.
+    new LogPatternAlarm(this, "ResolutionDisputedAlarm", {
+      alarmDescription: [
+        "A graduated market's resolution was disputed and the market is",
+        "frozen until an operator settles it. The matching record in the",
+        "indexer log group carries the market address, disputer and bond.",
+      ].join(" "),
+      alarmName: `${namePrefix}-resolution-disputed`,
+      filterPattern: logs.FilterPattern.allTerms(
+        OPERATOR_ALERT_MARKER,
+        OPERATOR_ALERT_EVENTS.resolutionDisputed,
+      ),
+      logGroup: indexerLogGroup,
+      metricName: "ResolutionDisputed",
+      metricNamespace: `PopCharts/${props.stage}`,
+      topic: operatorAlertTopic,
     });
 
     const migrationLogGroup = new logs.LogGroup(this, "MigrationLogGroup", {
@@ -447,6 +498,9 @@ export class PopChartsInfraStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "PrivateSubnetIds", {
       value: cdk.Fn.join(",", privateSubnetIds),
+    });
+    new cdk.CfnOutput(this, "OperatorAlertTopicArn", {
+      value: operatorAlertTopic.topicArn,
     });
   }
 

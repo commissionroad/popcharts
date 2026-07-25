@@ -27,6 +27,7 @@ new PopChartsInfraStack(app, `popcharts-${stage}`, {
     region: process.env.CDK_DEFAULT_REGION ?? "us-east-1",
   },
   network,
+  operatorAlertEmail: readOptionalStringContext(app, "operatorAlertEmail"),
   pregradManagerAddress: readStringContext(
     app,
     "pregradManagerAddress",

@@ -30,8 +30,10 @@ Design (write up as a design doc before implementation):
 
 - [ ] Verdict contract: outcome (yes/no/draw), confidence, evidence,
       abstention threshold below which resolution goes to manual review.
-- [ ] Dispute story for testnet: at minimum a delay window between verdict
-      and on-chain `resolve`, during which an operator can override.
+- [x] Dispute story for testnet — superseded by ADR 0024, which replaces the
+      off-chain delay window with an on-chain dispute window: `resolve`
+      proposes, a bonded `dispute` freezes the market, and an operator
+      settles. See ADR 0024 for the mechanism and its phases.
 - [ ] Resolver key custody and its relationship to the review-manager key.
 - [ ] Interaction with `bypassAiResolution` (semantics finalized in
       ADR 0008): trusted creators may self-resolve; untrusted creators must
