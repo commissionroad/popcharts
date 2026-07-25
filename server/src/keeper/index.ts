@@ -15,18 +15,21 @@ import {
 import { config, ZERO_ADDRESS } from "src/config";
 
 import {
+  discoverPendingResolutionMarkets,
   discoverPregradMarkets,
   discoverTrackedMarkets,
   type TrackedMarket,
+  type TrackedPendingResolutionMarket,
   type TrackedPregradMarket,
 } from "./discovery";
 import { runGraduationPass, runMarketPass } from "./keeper";
+import { runResolutionFinalizePass } from "./resolution-finalize";
 import { createSingleFlightScheduler } from "./scheduler";
 
 /**
- * Venue keeper: graduates pregrad markets the moment they earn it, then
- * keeps every graduated market's YES/NO pools economically consistent and
- * its maker orders filling.
+ * Venue keeper: graduates pregrad markets the moment they earn it, keeps every
+ * live market's YES/NO pools economically consistent and its maker orders
+ * filling, and finalizes resolution proposals once their dispute window closes.
  *
  * Discovery is database-driven — bootstrap markets and graduated markets
  * come from the indexer's projections (plus the env-configured demo market),
@@ -35,7 +38,8 @@ import { createSingleFlightScheduler } from "./scheduler";
  * graduation check, and a PoolManager Swap or an order-manager
  * DeferredExecutionStored on a tracked pool schedules a maintenance pass,
  * coalesced to one in-flight pass per market. A periodic sweep backstops
- * anything a watcher misses.
+ * anything a watcher misses — and is the only trigger for finalization, since
+ * a dispute deadline elapsing emits no event.
  */
 
 // Watcher subscription events extracted from the generated ABIs, so the
@@ -92,6 +96,7 @@ let trackedByPoolId = new Map<string, TrackedMarket>();
 let trackedMarkets: TrackedMarket[] = [];
 let pregradByMarketId = new Map<string, TrackedPregradMarket>();
 let pregradMarkets: TrackedPregradMarket[] = [];
+let pendingResolutionMarkets: TrackedPendingResolutionMarket[] = [];
 
 function schedulePass(market: TrackedMarket, reason: string) {
   if (reason !== "periodic sweep") {
@@ -127,6 +132,30 @@ function scheduleGraduationPass(market: TrackedPregradMarket, reason: string) {
   );
 }
 
+function scheduleResolutionFinalizePass(
+  market: TrackedPendingResolutionMarket,
+  reason: string,
+) {
+  if (reason !== "periodic sweep") {
+    console.log(
+      `[Keeper] ${market.label}: finalize check scheduled (${reason}).`,
+    );
+  }
+  void scheduler.schedule(market.key, () =>
+    runResolutionFinalizePass({ clients, market }).then((outcome) => {
+      // Skips are the common case — the window is usually still open — so only
+      // a settled market is worth a log line and an early re-discovery.
+      if (outcome.kind === "finalized") {
+        console.log(
+          `[Keeper] ${market.label}: dispute window closed; resolution ` +
+            `finalized (${outcome.transactionHash}).`,
+        );
+        void refreshDiscovery();
+      }
+    }),
+  );
+}
+
 async function refreshDiscovery(initial = false) {
   try {
     const markets = await discoverTrackedMarkets({ publicClient });
@@ -144,6 +173,21 @@ async function refreshDiscovery(initial = false) {
     for (const market of markets) {
       if (initial || !previousKeys.has(market.key)) {
         schedulePass(market, initial ? "startup" : "newly tracked");
+      }
+    }
+
+    const pending = await discoverPendingResolutionMarkets();
+    const previousPendingKeys = new Set(
+      pendingResolutionMarkets.map((market) => market.key),
+    );
+    pendingResolutionMarkets = pending;
+
+    for (const market of pending) {
+      if (initial || !previousPendingKeys.has(market.key)) {
+        scheduleResolutionFinalizePass(
+          market,
+          initial ? "startup" : "resolution proposed",
+        );
       }
     }
 
@@ -241,9 +285,15 @@ setInterval(() => {
   for (const market of pregradMarkets) {
     scheduleGraduationPass(market, "periodic sweep");
   }
+  // The sweep is what actually closes dispute windows: a proposal's deadline
+  // passes with no event to react to, so nothing else would wake the keeper.
+  for (const market of pendingResolutionMarkets) {
+    scheduleResolutionFinalizePass(market, "periodic sweep");
+  }
 }, sweepIntervalMs);
 console.log(
-  `[Keeper] Tracking ${trackedMarkets.length} venue market(s) and ` +
+  `[Keeper] Tracking ${trackedMarkets.length} venue market(s), ` +
+    `${pendingResolutionMarkets.length} pending resolution(s) and ` +
     `${pregradMarkets.length} pregrad market(s); sweep every ` +
     `${sweepIntervalMs}ms, discovery every ${discoveryIntervalMs}ms.`,
 );
