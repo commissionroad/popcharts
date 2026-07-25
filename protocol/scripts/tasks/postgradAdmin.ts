@@ -93,22 +93,27 @@ const resolveMarketAction: NewTaskActionFunction<
 const cancelMarketAction: NewTaskActionFunction<FlagArguments> = async (args, hre) =>
   runAdminTask(hre, args.execute, () => ({ kind: "cancelMarket" }));
 
-const setTrustedCreatorAction: NewTaskActionFunction<
-  FlagArguments & { account: string | undefined; trusted: string | undefined }
+const proposeResolutionAction: NewTaskActionFunction<
+  FlagArguments & { side: string | undefined }
 > = async (args, hre) =>
   runAdminTask(hre, args.execute, () => ({
-    account: requireAddress(args.account, "--account"),
-    kind: "setTrustedCreator",
-    trusted: parseBooleanOption(args.trusted, "--trusted"),
+    kind: "proposeResolution",
+    side: parseSideOption(args.side),
   }));
 
-const setMarketCreationPausedAction: NewTaskActionFunction<
-  FlagArguments & { paused: string | undefined }
+const disputeMarketAction: NewTaskActionFunction<FlagArguments> = async (args, hre) =>
+  runAdminTask(hre, args.execute, () => ({ kind: "disputeMarket" }));
+
+const settleDisputeAction: NewTaskActionFunction<
+  FlagArguments & { side: string | undefined }
 > = async (args, hre) =>
   runAdminTask(hre, args.execute, () => ({
-    kind: "setMarketCreationPaused",
-    paused: parseBooleanOption(args.paused, "--paused"),
+    kind: "settleDispute",
+    side: parseSideOption(args.side),
   }));
+
+const finalizeResolutionAction: NewTaskActionFunction<FlagArguments> = async (args, hre) =>
+  runAdminTask(hre, args.execute, () => ({ kind: "finalizeResolution" }));
 
 // Option parsing runs inside the same guard as the action itself so operator
 // mistakes surface as one-line errors instead of stack traces.
@@ -255,16 +260,36 @@ const postgradAdminTasks: TaskDefinition[] = [
     .addFlag(EXECUTE_FLAG)
     .setInlineAction(cancelMarketAction)
     .build(),
-  task(["operator", "set-trusted-creator"], "Grant or revoke pregrad trusted-creator status")
-    .addOption(stringOption("account", "Account whose trusted-creator status changes"))
-    .addOption(stringOption("trusted", "true to grant, false to revoke"))
+  task(
+    ["operator", "propose-resolution"],
+    "Propose a winning side, opening the public dispute window",
+  )
+    .addOption(stringOption("side", "Proposed winning side: yes or no"))
     .addFlag(EXECUTE_FLAG)
-    .setInlineAction(setTrustedCreatorAction)
+    .setInlineAction(proposeResolutionAction)
     .build(),
-  task(["operator", "set-market-creation-paused"], "Pause or resume pregrad market creation")
-    .addOption(stringOption("paused", "true to pause, false to resume"))
+  task(
+    ["operator", "dispute-market"],
+    "Dispute the pending resolution as the resolver: the bond-free operator override only. " +
+      "A bonded public dispute goes through the app's dispute panel, not this CLI",
+  )
     .addFlag(EXECUTE_FLAG)
-    .setInlineAction(setMarketCreationPausedAction)
+    .setInlineAction(disputeMarketAction)
+    .build(),
+  task(
+    ["operator", "settle-dispute"],
+    "Settle a disputed market to a winning side, refunding or forfeiting the bond",
+  )
+    .addOption(stringOption("side", "Settled winning side: yes or no"))
+    .addFlag(EXECUTE_FLAG)
+    .setInlineAction(settleDisputeAction)
+    .build(),
+  task(
+    ["operator", "finalize-resolution"],
+    "Finalize an undisputed proposal once the dispute window closes (permissionless)",
+  )
+    .addFlag(EXECUTE_FLAG)
+    .setInlineAction(finalizeResolutionAction)
     .build(),
 ];
 
