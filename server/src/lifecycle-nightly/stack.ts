@@ -58,12 +58,15 @@ export const SCENARIO_ACCOUNTS = {
   partialClearingExcess: 18,
   /** Places receipts while the indexer is stopped, for the catch-up drill. */
   indexerRestartTrader: 19,
+  disputeFinalizeYes: 6,
+  disputeFinalizeNo: 7,
   /** Simulate-only prober for negative guards; never submits a transaction. */
   receiptProbe: 10,
 } as const;
 
 export const chainId = config.chainId;
 export const pregradManagerAddress = config.contracts.pregradManager;
+export const postgradAdapterAddress = config.contracts.postgradAdapter;
 
 export const collateralAddress = requireCollateralAddress();
 
