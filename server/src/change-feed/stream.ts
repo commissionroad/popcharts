@@ -94,6 +94,16 @@ export async function* changeFeedEventStream(
   signal?.addEventListener("abort", onAbort);
 
   try {
+    // The body of this generator does not run until the response stream first
+    // pulls it, by which time the request may already have aborted — and
+    // `addEventListener` does not fire for a signal that aborted before
+    // registration, so the listener above would never release the subscription
+    // taken a few lines earlier. Returning here runs the `finally`, and skips a
+    // replay query nobody is left to read.
+    if (signal?.aborted) {
+      return;
+    }
+
     yield { event: "ready", data: { channels } };
 
     const { events, truncated } = await replay(sinceId);
