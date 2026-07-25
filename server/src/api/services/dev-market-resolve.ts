@@ -3,9 +3,10 @@ import {
   contractSideToMarketSide,
   MARKET_SIDES,
   marketSideToContractSide,
+  POSTGRAD_MARKET_STATUS,
   type MarketSide,
 } from "@popcharts/protocol";
-import { type Hash } from "viem";
+import { type Hash, type TransactionReceipt } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type {
@@ -29,9 +30,6 @@ import {
   selectPostgradInfo,
   serializeMarketRow,
 } from "./markets";
-
-const POSTGRAD_MARKET_STATUS_TRADING = 0;
-const POSTGRAD_MARKET_STATUS_RESOLVED = 1;
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
@@ -357,6 +355,17 @@ async function markMarketResolved({
   return updatedMarket ?? null;
 }
 
+/**
+ * Drives one local postgrad market from Trading to Resolved with the dev key,
+ * whatever dispute window the adapter stamped on it.
+ *
+ * With a zero window (the local default) the contract keeps its single-step
+ * `resolve()` path. With a window configured, `resolve()` from Trading reverts
+ * `MarketNotDirectlyResolvable` and the market must walk the optimistic path
+ * instead, so the dev flow walks all of it in one call: propose, jump the local
+ * chain past the dispute deadline, finalize. Either way the endpoint's contract
+ * with its callers — the dev tools and the app's lifecycle specs — is unchanged.
+ */
 async function resolveLocalPostgradMarketOnChain(
   postgradMarket: `0x${string}`,
   side: MarketSide,
@@ -368,7 +377,7 @@ async function resolveLocalPostgradMarketOnChain(
     functionName: "status",
   })) as number;
 
-  if (status === POSTGRAD_MARKET_STATUS_RESOLVED) {
+  if (status === POSTGRAD_MARKET_STATUS.resolved) {
     const winningSide = (await publicClient.readContract({
       abi: completeSetBinaryMarketAbi,
       address: postgradMarket,
@@ -382,37 +391,77 @@ async function resolveLocalPostgradMarketOnChain(
     };
   }
 
-  if (status !== POSTGRAD_MARKET_STATUS_TRADING) {
+  if (status !== POSTGRAD_MARKET_STATUS.trading) {
     return {
       kind: "wrong_status",
       status,
     };
   }
 
-  // The contract's per-outcome floor guard (TooEarlyToResolve) is real even
-  // on a dev chain; a dev resolution jumps local chain time to the resolved
-  // side's gate instead of asking the caller to wait days of wall clock.
-  const notBefore = (await publicClient.readContract({
-    abi: completeSetBinaryMarketAbi,
-    address: postgradMarket,
-    functionName: side === "yes" ? "yesNotBefore" : "noNotBefore",
-  })) as bigint;
+  const [notBefore, disputeWindow] = await Promise.all([
+    // The contract's per-outcome floor guard (TooEarlyToResolve) is real even
+    // on a dev chain; a dev resolution jumps local chain time to the resolved
+    // side's gate instead of asking the caller to wait days of wall clock.
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarket,
+      functionName: side === "yes" ? "yesNotBefore" : "noNotBefore",
+    }),
+    publicClient.readContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarket,
+      functionName: "disputeWindow",
+    }),
+  ]);
   await fastForwardLocalRpc(publicClient, notBefore);
 
-  const account = privateKeyToAccount(readDevPrivateKey());
-  const walletClient = createWalletClient(account);
-  const transactionHash = await walletClient.writeContract({
-    abi: completeSetBinaryMarketAbi,
-    address: postgradMarket,
-    functionName: "resolve",
-    args: [marketSideToContractSide(side)],
-  });
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: transactionHash,
-  });
+  const walletClient = createWalletClient(
+    privateKeyToAccount(readDevPrivateKey()),
+  );
+  const contractSide = marketSideToContractSide(side);
+  let receipt: TransactionReceipt;
 
-  if (receipt.status !== "success") {
-    throw new Error(`resolve transaction failed: ${transactionHash}`);
+  if (disputeWindow === 0n) {
+    receipt = await confirmPostgradTransaction(
+      publicClient,
+      "resolve",
+      await walletClient.writeContract({
+        abi: completeSetBinaryMarketAbi,
+        address: postgradMarket,
+        functionName: "resolve",
+        args: [contractSide],
+      }),
+    );
+  } else {
+    await confirmPostgradTransaction(
+      publicClient,
+      "proposeResolution",
+      await walletClient.writeContract({
+        abi: completeSetBinaryMarketAbi,
+        address: postgradMarket,
+        functionName: "proposeResolution",
+        args: [contractSide],
+      }),
+    );
+    // Read the deadline back rather than computing it: it is anchored to the
+    // block the proposal actually landed in.
+    await fastForwardLocalRpc(
+      publicClient,
+      await publicClient.readContract({
+        abi: completeSetBinaryMarketAbi,
+        address: postgradMarket,
+        functionName: "disputeDeadline",
+      }),
+    );
+    receipt = await confirmPostgradTransaction(
+      publicClient,
+      "finalizeResolution",
+      await walletClient.writeContract({
+        abi: completeSetBinaryMarketAbi,
+        address: postgradMarket,
+        functionName: "finalizeResolution",
+      }),
+    );
   }
 
   const block = await publicClient.getBlock({
@@ -422,9 +471,26 @@ async function resolveLocalPostgradMarketOnChain(
   return {
     blockTimestamp: new Date(Number(block.timestamp) * 1000),
     kind: "resolved",
-    transactionHash,
+    transactionHash: receipt.transactionHash,
     winningSide: side,
   };
+}
+
+/** Waits for a postgrad write and fails loudly on a reverted receipt. */
+async function confirmPostgradTransaction(
+  publicClient: ReturnType<typeof createReadOnlyClient>,
+  label: string,
+  transactionHash: Hash,
+): Promise<TransactionReceipt> {
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: transactionHash,
+  });
+
+  if (receipt.status !== "success") {
+    throw new Error(`${label} transaction failed: ${transactionHash}`);
+  }
+
+  return receipt;
 }
 
 function serializeResolveMarketRow(
