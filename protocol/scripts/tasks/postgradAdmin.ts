@@ -115,6 +115,15 @@ const settleDisputeAction: NewTaskActionFunction<
 const finalizeResolutionAction: NewTaskActionFunction<FlagArguments> = async (args, hre) =>
   runAdminTask(hre, args.execute, () => ({ kind: "finalizeResolution" }));
 
+const setDisputeConfigAction: NewTaskActionFunction<
+  FlagArguments & { bond: string | undefined; window: string | undefined }
+> = async (args, hre) =>
+  runAdminTask(hre, args.execute, () => ({
+    bond: parseUnsignedBigintOption(args.bond, "--bond"),
+    kind: "setDisputeConfig",
+    window: parseUnsignedBigintOption(args.window, "--window"),
+  }));
+
 // Option parsing runs inside the same guard as the action itself so operator
 // mistakes surface as one-line errors instead of stack traces.
 async function runAdminTask(
@@ -201,6 +210,14 @@ function parseSideOption(value: string | undefined): "no" | "yes" {
     throw new Error('Expected --side to be "yes" or "no".');
   }
   return value;
+}
+
+// Window and bond may both legitimately be zero, unlike the execution cap.
+function parseUnsignedBigintOption(value: string | undefined, label: string): bigint {
+  if (value === undefined || !/^\d+$/.test(value)) {
+    throw new Error(`Expected ${label} to be a non-negative integer.`);
+  }
+  return BigInt(value);
 }
 
 function parsePositiveBigintOption(value: string | undefined, label: string): bigint {
@@ -290,6 +307,15 @@ const postgradAdminTasks: TaskDefinition[] = [
   )
     .addFlag(EXECUTE_FLAG)
     .setInlineAction(finalizeResolutionAction)
+    .build(),
+  task(
+    ["operator", "set-dispute-config"],
+    "Set the adapter's dispute window and bond for markets graduated after the change",
+  )
+    .addOption(stringOption("window", "Dispute window in seconds (0 disables disputes)"))
+    .addOption(stringOption("bond", "Dispute bond in raw collateral units"))
+    .addFlag(EXECUTE_FLAG)
+    .setInlineAction(setDisputeConfigAction)
     .build(),
 ];
 
