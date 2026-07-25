@@ -49,9 +49,9 @@ jobs:
             - infra/**
             # infra/tsconfig.json extends the repo-root base config.
             - tsconfig.base.json
-            # The stack imports the operator-alert marker terms from the
-            # server rather than mirroring them, and the assertion tests check
-            # the alarm still matches what the indexer emits; a change there
+            # The dispute alarm's marker terms are deliberately duplicated
+            # from this server module (infra imports no workspace source), and
+            # the assertion tests pin the two copies together; a change there
             # must re-run this lane or the drift lands unseen.
             - server/src/shared/operator-alert-log.ts
             - .github/workflows/infra-ci.yml
@@ -88,9 +88,9 @@ jobs:
       - name: Typecheck
         run: pnpm build
 
-      # Assertion tests synthesize the stack and assert on the template, so
-      # they need the sibling workspaces the stack imports from (the shared
-      # operator-alert log contract in server/) — checkout is repo-wide.
+      # Assertion tests synthesize the stack and assert on the template. They
+      # also load server/src/shared/operator-alert-log.ts to pin the duplicated
+      # alarm markers — test-only, and checkout is repo-wide.
       - name: Test
         run: pnpm test
 

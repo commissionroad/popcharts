@@ -12,15 +12,6 @@ import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import type { Construct } from "constructs";
 
 import { LogPatternAlarm } from "./log-pattern-alarm.js";
-// One definition of the operator-alert marker terms, shared with the indexer
-// that emits them rather than mirrored here. `infra/` is a separate pnpm
-// workspace with its own lockfile, so this is a relative source import, not a
-// package dependency; the module is deliberately dependency-free so both tsx
-// (here) and bun (server) can load it.
-import {
-  OPERATOR_ALERT_EVENTS,
-  OPERATOR_ALERT_MARKER,
-} from "../../server/src/shared/operator-alert-log.js";
 
 export type NetworkId = "baseSepolia" | "base";
 
@@ -41,6 +32,23 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
   pregradManagerDeployBlock: string;
   stage: string;
 };
+
+/**
+ * Marker terms the indexer prefixes to an operator-alert record, and which the
+ * dispute metric filter matches (case-sensitively).
+ *
+ * Deliberately duplicated from `server/src/shared/operator-alert-log.ts`
+ * rather than imported — do not "fix" this into an import. `infra/` is
+ * self-contained and imports no workspace source; workspaces couple only via
+ * `@popcharts/protocol`, committed generated artifacts, or the network
+ * (`docs/architecture.md`), and bending that boundary needs an ADR, not a
+ * relative path. The duplication has a keeper instead:
+ * `test/resolution-disputed-alarm.test.ts` builds a record with the server's
+ * own formatter and fails if these terms no longer occur in it, and infra CI's
+ * path filter includes that server module so either side's change re-runs it.
+ */
+const OPERATOR_ALERT_MARKER = "POPCHARTS_OPERATOR_ALERT";
+const RESOLUTION_DISPUTED_ALERT_EVENT = "resolution_disputed";
 
 const DATABASE_NAME = "popcharts";
 const DATABASE_USER = "popcharts";
@@ -224,7 +232,7 @@ export class PopChartsInfraStack extends cdk.Stack {
       alarmName: `${namePrefix}-resolution-disputed`,
       filterPattern: logs.FilterPattern.allTerms(
         OPERATOR_ALERT_MARKER,
-        OPERATOR_ALERT_EVENTS.resolutionDisputed,
+        RESOLUTION_DISPUTED_ALERT_EVENT,
       ),
       logGroup: indexerLogGroup,
       metricName: "ResolutionDisputed",

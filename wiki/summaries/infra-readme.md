@@ -65,9 +65,11 @@ plus a metric filter on the indexer log group that pages on the first
 resolution-dispute record the [indexer](../entities/indexer.md) writes — a
 dispute freezes a market until a human settles it. The topic subscriber is
 context (`-c operatorAlertEmail=…`), optional, so the stack synthesizes with
-no subscriber configured. The marker terms the filter matches are imported
-from the server rather than mirrored in `infra/`, and CDK assertion tests
-check the synthesized filter still matches what the indexer emits.
+no subscriber configured. The marker terms the filter matches are
+**deliberately duplicated** from the server rather than imported — `infra/`
+imports no workspace source ([monorepo architecture](../concepts/monorepo-architecture.md))
+— and a CDK assertion test is the keeper, building a record with the server's
+own formatter and failing if the synthesized filter no longer matches it.
 
 ## Verification and next steps
 

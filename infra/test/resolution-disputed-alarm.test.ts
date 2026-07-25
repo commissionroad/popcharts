@@ -2,7 +2,9 @@
 // account is not usable, so nothing here proves the alarm fires; what it does
 // prove is the seam that silently kills this kind of alarm — that the metric
 // filter's terms actually occur in the log record the indexer emits, built
-// here with the same shared formatter the indexer calls.
+// here with the same shared formatter the indexer calls. This file is also the
+// keeper for the intentionally duplicated marker terms: infra defines its own
+// (the stack imports no server source) and this is what fails when they drift.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -10,6 +12,12 @@ import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 
 import { PopChartsInfraStack } from "../lib/popcharts-infra-stack.js";
+// The one place `infra/` reaches into another workspace's source, and only
+// here: the stack itself imports nothing outside `infra/` (docs/architecture.md
+// — "self-contained; imports no workspace source"). The alarm's marker terms
+// are deliberately duplicated on the infra side, and this import is what keeps
+// the duplicate honest — a test crossing the boundary to pin two masters, not
+// shipped code depending across it.
 import {
   formatOperatorAlert,
   OPERATOR_ALERT_EVENTS,

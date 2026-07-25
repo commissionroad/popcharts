@@ -102,8 +102,9 @@ market, disputer, bond, and transaction hash, and the
 [infra](../summaries/infra-readme.md) stack keys a CloudWatch metric filter
 and alarm on it. It is raised after the row commits and only when the insert
 actually landed, so a rolled-back write cannot page and a recovery replay
-cannot page twice. The marker terms have one definition, in the server,
-imported by `infra/` rather than mirrored.
+cannot page twice. The server is the master of the marker terms; the alarm
+holds an intentional duplicate (`infra/` imports no workspace source), pinned
+by an infra assertion test that builds a record with the server's formatter.
 
 ## Related pages
 

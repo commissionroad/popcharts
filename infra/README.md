@@ -210,7 +210,9 @@ Look for:
   RDS connections, free storage, and indexer cursor lag. The
   resolution-dispute alarm in `lib/log-pattern-alarm.ts` is the pattern to
   follow: one topic, one construct, assertion-tested against the synthesized
-  template in `test/`.
+  template in `test/`. Its marker terms are an intentional duplicate of the
+  server's — this workspace imports no workspace source — kept honest by the
+  assertion test rather than by an import. Do not "fix" it into one.
 - Add Route 53 alias records once the API domain is selected.
 - Add a DB-backed indexer lease before running more than one indexer task.
 - Promote Base Sepolia first, then duplicate the context for Base production.

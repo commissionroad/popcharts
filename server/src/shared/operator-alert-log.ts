@@ -1,12 +1,16 @@
 /**
  * The log-record contract between a service that raises an operator-severity
  * event and the CloudWatch metric filter that pages on it (repo ADR 0024
- * phase 5). This module is the single definition of the marker terms both
- * sides key on: `infra/` imports it by relative path rather than mirroring the
- * literals, because `infra/` is a separate pnpm workspace with its own
- * lockfile and cannot depend on the server package. Keep it dependency-free
- * and free of `src/*` path aliases so both loaders (bun in `server/`, tsx in
- * `infra/`) can read it.
+ * phase 5). This is the server's master of the marker terms; the alarm in
+ * `infra/` holds its own copy, because `infra/` imports no workspace source
+ * (`docs/architecture.md`). The two are kept honest by an assertion test in
+ * `infra/test/`, which builds a record with `formatOperatorAlert` and fails if
+ * the synthesized filter's terms no longer occur in it — so changing anything
+ * here about how the marker terms are rendered will fail infra's lane, not
+ * silently unbuild the page.
+ *
+ * Keep this module dependency-free and free of `src/*` path aliases: that
+ * test loads it under tsx rather than bun.
  */
 
 /**
