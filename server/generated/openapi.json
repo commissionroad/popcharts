@@ -1223,6 +1223,7 @@
         "type": "string",
         "enum": [
           "anthropic",
+          "claude-cli",
           "heuristic",
           "ollama"
         ]
