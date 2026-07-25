@@ -3,6 +3,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// solidity-ast is a CommonJS package with no exports map, so the subpath needs
+// its real `.js` filename; a bare `solidity-ast/utils` is a directory import
+// and fails to resolve under ESM.
+import { findAll } from "solidity-ast/utils.js";
+import type { SourceUnit } from "solidity-ast";
+
 const PREGRAD_CONTRACT_NAME = "PregradManager";
 const MOCK_COLLATERAL_CONTRACT_NAME = "MockCollateral";
 const NETWORK_CHAIN_IDS = {
@@ -126,6 +132,42 @@ const POSTGRAD_VENUE_CONTRACTS: readonly PostgradVenueContractSpec[] = [
   },
 ];
 
+type ContractEnumSpec = {
+  /** Hardhat artifact path, relative to the protocol root, of the enum's host contract or library. */
+  artifactPath: string;
+  /** solc AST `canonicalName` of the enum: `<contract-or-library>.<enum>`. */
+  canonicalName: string;
+  /** SCREAMING_SNAKE_CASE identifier of the emitted code table. */
+  constantName: string;
+  /** One-sentence note emitted as the table's JSDoc. */
+  note: string;
+  /** PascalCase identifier of the emitted code union type. */
+  typeName: string;
+};
+
+// Solidity enums have no ABI representation — a `Status` argument compiles to
+// `uint8` and the member names and ordinals are lost — so off-chain code
+// cannot derive them from the ABI and has historically mirrored them by hand.
+// One entry per enum that off-chain code decodes; the members come from the
+// solc AST, which is the only place the compiler keeps them.
+const CONTRACT_ENUMS: readonly ContractEnumSpec[] = [
+  {
+    artifactPath: "artifacts/contracts/types/MarketTypes.sol/MarketTypes.json",
+    canonicalName: "MarketTypes.MarketStatus",
+    constantName: "MARKET_STATUS",
+    note: "Lifecycle status of a pregrad market held by the PregradManager singleton.",
+    typeName: "MarketStatusCode",
+  },
+  {
+    artifactPath:
+      "artifacts/contracts/postgrad/CompleteSetBinaryMarket.sol/CompleteSetBinaryMarket.json",
+    canonicalName: "CompleteSetBinaryMarket.Status",
+    constantName: "POSTGRAD_MARKET_STATUS",
+    note: "Lifecycle status of a graduated complete-set market, dispute states included (protocol ADR 0013).",
+    typeName: "PostgradMarketStatusCode",
+  },
+];
+
 type ThirdPartyVenueContractSpec = {
   /** Hardhat artifact path relative to the protocol root. */
   artifactPath: string;
@@ -183,6 +225,8 @@ const pregradOutputPath = resolve(protocolRoot, "src/generated/pregrad-manager.t
 const postgradOutputPath = resolve(protocolRoot, "src/generated/postgrad-venue.ts");
 const mockCollateralOutputPath = resolve(protocolRoot, "src/generated/mock-collateral.ts");
 const thirdPartyVenueOutputPath = resolve(protocolRoot, "src/generated/third-party/venue.ts");
+const contractEnumOutputPath = resolve(protocolRoot, "src/generated/contract-enums.ts");
+const buildInfoRoot = resolve(protocolRoot, "artifacts/build-info");
 
 const checkOnly = process.argv.includes("--check");
 
@@ -211,6 +255,11 @@ async function main(): Promise<void> {
     const artifact = await readJson(artifactPath);
     assertArtifact(artifact, contract.name, artifactPath);
     thirdPartyAbis[contract.name] = artifact.abi;
+  }
+
+  const enumMembers: Record<string, readonly string[]> = {};
+  for (const contractEnum of CONTRACT_ENUMS) {
+    enumMembers[contractEnum.canonicalName] = await readContractEnumMembers(contractEnum);
   }
 
   const outputs: readonly { content: string; path: string }[] = [
@@ -247,6 +296,13 @@ async function main(): Promise<void> {
         thirdPartyVenueOutputPath,
       ),
       path: thirdPartyVenueOutputPath,
+    },
+    {
+      content: await formatTypeScript(
+        renderContractEnumMetadata({ members: enumMembers }),
+        contractEnumOutputPath,
+      ),
+      path: contractEnumOutputPath,
     },
   ];
 
@@ -719,6 +775,159 @@ export const ${contract.camelName}Abi = ${JSON.stringify(abi, null, 2)} as const
   }
 
   return sections.join("\n");
+}
+
+/**
+ * Reads one Solidity enum's members from the solc AST, in ordinal order.
+ *
+ * The AST is reached through the host artifact's own `buildInfoId` rather than
+ * by scanning artifacts/build-info, so the members always come from the
+ * compilation that produced the artifact — a stale build-info left behind by
+ * an earlier compile can never be picked up.
+ */
+async function readContractEnumMembers(spec: ContractEnumSpec): Promise<readonly string[]> {
+  const [hostName] = spec.canonicalName.split(".");
+  if (hostName === undefined || hostName === spec.canonicalName) {
+    throw new Error(`Expected a qualified enum name (Host.Enum), received ${spec.canonicalName}`);
+  }
+
+  const artifactPath = resolve(protocolRoot, spec.artifactPath);
+  const artifact = await readJson(artifactPath);
+  assertArtifact(artifact, hostName, artifactPath);
+  assertBuildInfoLinkage(artifact, artifactPath);
+
+  // Hardhat 3 splits build-info into `<id>.json` (the solc input) and
+  // `<id>.output.json` (the solc output). The AST lives only in the latter.
+  const buildInfoPath = resolve(buildInfoRoot, `${artifact.buildInfoId}.output.json`);
+  const sourceUnit = await readSourceUnitAst({
+    buildInfoPath,
+    inputSourceName: artifact.inputSourceName,
+  });
+
+  for (const definition of findAll("EnumDefinition", sourceUnit)) {
+    if (definition.canonicalName !== spec.canonicalName) {
+      continue;
+    }
+
+    return definition.members.map((member) => member.name);
+  }
+
+  throw new Error(`Solidity enum ${spec.canonicalName} is absent from ${buildInfoPath}`);
+}
+
+function assertBuildInfoLinkage(
+  artifact: unknown,
+  artifactPath: string,
+): asserts artifact is { buildInfoId: string; inputSourceName: string } {
+  if (
+    !isPlainObject(artifact) ||
+    typeof artifact.buildInfoId !== "string" ||
+    typeof artifact.inputSourceName !== "string"
+  ) {
+    throw new Error(
+      `Artifact ${artifactPath} is missing its build-info linkage. ` +
+        "Run `pnpm --dir protocol build`.",
+    );
+  }
+}
+
+async function readSourceUnitAst({
+  buildInfoPath,
+  inputSourceName,
+}: {
+  buildInfoPath: string;
+  inputSourceName: string;
+}): Promise<SourceUnit> {
+  if (!existsSync(buildInfoPath)) {
+    throw new Error(
+      `Missing build-info output ${buildInfoPath}. Run \`pnpm --dir protocol build\`.`,
+    );
+  }
+
+  const buildInfo = await readJson(buildInfoPath);
+  const sources =
+    isPlainObject(buildInfo) && isPlainObject(buildInfo.output)
+      ? buildInfo.output.sources
+      : undefined;
+
+  if (!isPlainObject(sources)) {
+    throw new Error(`Expected a Hardhat build-info output document at ${buildInfoPath}`);
+  }
+
+  const source = sources[inputSourceName];
+  if (!isPlainObject(source) || !isPlainObject(source.ast)) {
+    throw new Error(
+      `Build-info ${buildInfoPath} carries no AST for ${inputSourceName}. ` +
+        "The Hardhat build profile must keep `ast` in its outputSelection.",
+    );
+  }
+
+  // solc wrote the tree, so it conforms to the AST schema solidity-ast types.
+  return source.ast as unknown as SourceUnit;
+}
+
+// Solidity enum members are PascalCase; the emitted table keys are the
+// camelCase form off-chain code already uses (`UnderReview` -> `underReview`).
+function toEnumTableKey(member: string, canonicalName: string): string {
+  if (!/^[A-Z][A-Za-z0-9]*$/.test(member)) {
+    throw new Error(`Expected PascalCase members in ${canonicalName}, received "${member}"`);
+  }
+
+  return member.charAt(0).toLowerCase() + member.slice(1);
+}
+
+function renderContractEnumMetadata({
+  members,
+}: {
+  members: Record<string, readonly string[]>;
+}): string {
+  const sections: string[] = [];
+
+  sections.push(`// This file is generated by scripts/export-contract-metadata.ts.
+// Do not edit it directly.
+//
+// Numeric encodings of the Solidity enums off-chain code decodes. Enums have
+// no ABI representation — a \`Status\` argument compiles to \`uint8\` and its
+// member names and ordinals are erased — so these tables are derived from the
+// solc AST in artifacts/build-info instead, and regenerate with the contracts.
+//
+// Enums are append-only: ordinals follow declaration order, which is not
+// necessarily lifecycle order. Reordering members is a breaking on-chain
+// change, not a formatting choice.
+`);
+
+  for (const contractEnum of CONTRACT_ENUMS) {
+    const enumMembers = members[contractEnum.canonicalName];
+    if (enumMembers === undefined) {
+      throw new Error(`Missing members for ${contractEnum.canonicalName}`);
+    }
+
+    sections.push(renderContractEnumTable(contractEnum, enumMembers));
+  }
+
+  return sections.join("\n");
+}
+
+function renderContractEnumTable(spec: ContractEnumSpec, members: readonly string[]): string {
+  const entries = members
+    .map((member, ordinal) => `  ${toEnumTableKey(member, spec.canonicalName)}: ${ordinal},`)
+    .join("\n");
+
+  return `/** Solidity member names of \`${spec.canonicalName}\`, in ordinal order. */
+export const ${spec.constantName}_MEMBERS = ${JSON.stringify(members)} as const;
+
+/**
+ * \`${spec.canonicalName}\` numeric encoding.
+ * ${spec.note}
+ */
+export const ${spec.constantName} = {
+${entries}
+} as const;
+
+/** A \`${spec.canonicalName}\` contract encoding. */
+export type ${spec.typeName} =
+  (typeof ${spec.constantName})[keyof typeof ${spec.constantName}];
+`;
 }
 
 function renderPostgradVenueDeployments(deployments: PostgradVenueDeploymentsByNetwork): string {

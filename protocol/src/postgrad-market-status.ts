@@ -1,9 +1,9 @@
 /**
- * CompleteSetBinaryMarket.Status numeric encoding
- * (contracts/postgrad/CompleteSetBinaryMarket.sol). Solidity enums have no ABI
- * representation, so off-chain code cannot derive these codes from the
- * generated metadata; this table is the single TS definition — import it,
- * never restate it.
+ * Re-export of the generated `CompleteSetBinaryMarket.Status` table so the
+ * `@popcharts/protocol/postgrad-market-status` subpath and every existing
+ * importer keep working unchanged. The table itself is derived from the solc
+ * AST by scripts/export-contract-metadata.ts — change the Solidity enum and
+ * rebuild, never this file.
  *
  * The enum is append-only, so the codes are NOT in lifecycle order:
  * `resolutionPending` and `disputed` arrived with the dispute window (protocol
@@ -13,14 +13,8 @@
  * Distinct from `MARKET_STATUS`, which encodes the pregrad
  * MarketTypes.MarketStatus set.
  */
-export const POSTGRAD_MARKET_STATUS = {
-  trading: 0,
-  resolved: 1,
-  cancelled: 2,
-  resolutionPending: 3,
-  disputed: 4,
-} as const;
-
-/** A CompleteSetBinaryMarket.Status contract encoding. */
-export type PostgradMarketStatusCode =
-  (typeof POSTGRAD_MARKET_STATUS)[keyof typeof POSTGRAD_MARKET_STATUS];
+export {
+  POSTGRAD_MARKET_STATUS,
+  POSTGRAD_MARKET_STATUS_MEMBERS,
+} from "./generated/contract-enums.js";
+export type { PostgradMarketStatusCode } from "./generated/contract-enums.js";
