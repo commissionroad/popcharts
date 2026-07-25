@@ -2500,7 +2500,9 @@
           "resolved",
           "refunded",
           "cancelled",
-          "rejected"
+          "rejected",
+          "resolution_pending",
+          "disputed"
         ]
       },
       "ReceiptPlacedEvent": {

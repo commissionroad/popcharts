@@ -18,4 +18,6 @@ export const MarketStatus = {
   refunded: "refunded",
   cancelled: "cancelled",
   rejected: "rejected",
+  resolution_pending: "resolution_pending",
+  disputed: "disputed",
 } as const;

@@ -183,6 +183,13 @@
       "when": 1785268846560,
       "tag": "0025_motionless_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785268915532,
+      "tag": "0026_stiff_inhumans",
+      "breakpoints": true
     }
   ]
 }
