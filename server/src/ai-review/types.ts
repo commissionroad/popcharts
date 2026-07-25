@@ -15,6 +15,7 @@ export type InternetAccessMode = (typeof INTERNET_ACCESS_MODES)[number];
 /** The review backends the service can route a market to. */
 export const REVIEW_PROVIDER_NAMES = [
   "anthropic",
+  "claude-cli",
   "heuristic",
   "ollama",
 ] as const;

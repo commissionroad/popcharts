@@ -11,6 +11,7 @@ export type AiReviewProvider = (typeof AiReviewProvider)[keyof typeof AiReviewPr
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AiReviewProvider = {
   anthropic: "anthropic",
+  "claude-cli": "claude-cli",
   heuristic: "heuristic",
   ollama: "ollama",
 } as const;

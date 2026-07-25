@@ -162,6 +162,13 @@
       "when": 1784899443763,
       "tag": "0022_famous_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784992991812,
+      "tag": "0023_lovely_maelstrom",
+      "breakpoints": true
     }
   ]
 }

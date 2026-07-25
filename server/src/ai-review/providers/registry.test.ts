@@ -10,6 +10,8 @@ const baseConfig: AiReviewConfig = {
   anthropicMaxWebSearches: 1,
   anthropicModel: "claude-sonnet-4-6",
   anthropicWebFetchMaxContentTokens: 1_000,
+  claudeCliCommand: "claude",
+  claudeCliModel: "sonnet",
   fallbackApprove: false,
   fetchSearchResults: false,
   internetAccess: "search",
@@ -25,6 +27,23 @@ const baseConfig: AiReviewConfig = {
 };
 
 describe("review provider registry", () => {
+  it("reports Claude CLI as subscription-backed native web search", () => {
+    const status = getReviewProviderStatus({
+      config: {
+        ...baseConfig,
+        provider: "claude-cli",
+      },
+    });
+
+    expect(status.name).toBe("claude-cli");
+    expect(status.model).toBe("sonnet");
+    expect(status.configured).toBe(true);
+    expect(status.capabilities.requiresApiKey).toBe(false);
+    expect(status.capabilities.requiresLocalRuntime).toBe(true);
+    expect(status.capabilities.supportsNativeWebSearch).toBe(true);
+    expect(status.capabilities.requiresPreCollectedEvidence).toBe(false);
+  });
+
   it("marks Anthropic unconfigured without its API key", () => {
     const status = getReviewProviderStatus({
       config: {

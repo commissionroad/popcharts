@@ -354,20 +354,21 @@ Start the full local Pop Charts stack:
     complete-set market (skip with --no-postgrad)
   - Bun API server
   - Bun indexer
-  - local AI Review service and durable runner using the Ollama provider;
-    temporary provider failures remain pending and retry automatically
+  - local AI Review service and durable runner using the host's logged-in
+    Claude Code CLI (subscription auth); temporary provider failures remain
+    pending and retry automatically
   - Next.js app configured for devchain market creation
 
-Prerequisite for local model review:
-  ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
-  Without it, reviews remain pending and retry until the model is available or
-  the job exhausts its retry budget.
+Prerequisite for model review:
+  The default claude-cli provider requires a logged-in Claude Code install on
+  the host and uses subscription auth. Set LOCAL_AI_REVIEW_PROVIDER to ollama,
+  heuristic, or anthropic to override it.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=ollama
+  LOCAL_AI_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_TIMEOUT_MS=300000
   LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
