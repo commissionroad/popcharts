@@ -44,7 +44,7 @@ export async function ensureSpendBalance({
     throw new Error(
       `Insufficient balance. You have ${formatTokenAmount(
         balance
-      )} ${spendLabel}, but this order spends ${formatTokenAmount(amountIn)}.`
+      )} ${spendLabel}, but this transaction spends ${formatTokenAmount(amountIn)}.`
     );
   }
 }
