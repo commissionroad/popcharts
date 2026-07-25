@@ -59,6 +59,9 @@ export async function reviewWithClaudeCli({
     "--output-format",
     "json",
   ];
+  // The CLI must authenticate with the host's Claude Code subscription login.
+  // A set ANTHROPIC_API_KEY would shadow it and bill (or fail on) the API org
+  // instead, so it is explicitly dropped from the child environment.
   const env: Record<string, string | undefined> = {
     ...process.env,
     ANTHROPIC_API_KEY: undefined,
