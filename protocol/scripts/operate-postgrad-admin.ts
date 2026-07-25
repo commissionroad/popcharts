@@ -6,6 +6,13 @@ import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploy
 import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
 import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
 import {
+  describeCompleteSetMarketState,
+  planCompleteSetMarketAction,
+  type CompleteSetMarketRequest,
+  type CompleteSetMarketSnapshot,
+  type RequiredRole,
+} from "./shared/market/planCompleteSetMarketAction.js";
+import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
 } from "../src/market/readCompleteSetMarketManifest.js";
@@ -15,7 +22,7 @@ import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,
 } from "../src/generated/postgrad-venue.js";
-import { marketSideToContractSide } from "../src/market-side.js";
+import { contractSideToMarketSide, type MarketSide } from "../src/market-side.js";
 
 /** One owner/resolver workflow the postgrad admin CLI can plan and broadcast. */
 export type PostgradAdminAction =
@@ -30,7 +37,7 @@ export type PostgradAdminAction =
     }
   | { readonly count: bigint; readonly kind: "setMaximumExecutionCount" }
   | { readonly kind: "cancelMarket" }
-  | { readonly kind: "resolveMarket"; readonly side: "no" | "yes" }
+  | { readonly kind: "resolveMarket"; readonly side: MarketSide }
   | { readonly kind: "setMarketCreationPaused"; readonly paused: boolean }
   | {
       readonly kind: "setPoolWhitelisted";
@@ -67,7 +74,7 @@ type PlannedChange = {
   readonly label: string;
   readonly noOp: boolean;
   readonly proposedDescription: string;
-  readonly requiredRole: { readonly holder: Address; readonly name: string };
+  readonly requiredRole: RequiredRole;
   readonly verify: () => Promise<void>;
   readonly write: () => Promise<Hex>;
 };
@@ -91,6 +98,7 @@ export async function runPostgradAdminAction(
   console.log(`Caller: ${context.callerAddress}`);
   console.log(`Current state: ${change.currentDescription}`);
   console.log(`Proposed change: ${change.proposedDescription}`);
+  console.log(`Authority: ${change.requiredRole.name} ${change.requiredRole.holder}`);
 
   if (change.noOp) {
     throw new Error(
@@ -122,9 +130,9 @@ async function planChange(
 ): Promise<PlannedChange> {
   switch (action.kind) {
     case "cancelMarket":
-      return planMarketLifecycle(context, { kind: "cancel" });
+      return planMarketLifecycle(context, { kind: "cancelMarket" });
     case "resolveMarket":
-      return planMarketLifecycle(context, { kind: "resolve", side: action.side });
+      return planMarketLifecycle(context, { kind: "resolveMarket", side: action.side });
     case "setHookRole":
       return planOrderManagerFlag(context, {
         account: action.account,
@@ -344,72 +352,100 @@ async function planMinimumOrderAmount(
 
 async function planMarketLifecycle(
   context: PostgradAdminContext,
-  request: { kind: "cancel" } | { kind: "resolve"; side: "no" | "yes" },
+  request: CompleteSetMarketRequest,
 ): Promise<PlannedChange> {
-  const manifest = await readMarketManifest(context);
-  const market = manifest.market.address;
-  const resolver = getAddress(
-    await context.publicClient.readContract({
-      abi: completeSetBinaryMarketAbi,
-      address: market,
-      functionName: "resolver",
-    }),
-  );
-  const status = Number(
-    await context.publicClient.readContract({
-      abi: completeSetBinaryMarketAbi,
-      address: market,
-      functionName: "status",
-    }),
-  );
-  if (status !== POSTGRAD_MARKET_STATUS.trading) {
-    throw new Error(
-      `Market ${market} has status ${status}; only a Trading market can be ` +
-        `${request.kind === "resolve" ? "resolved" : "cancelled"}.`,
-    );
-  }
+  const market = (await readMarketManifest(context)).market.address;
+  const { publicClient } = context;
+  const snapshot = await readMarketSnapshot(publicClient, market);
+  const plan = planCompleteSetMarketAction(snapshot, request);
 
-  const expectedStatus =
-    request.kind === "resolve" ? POSTGRAD_MARKET_STATUS.resolved : POSTGRAD_MARKET_STATUS.cancelled;
-  const proposed =
-    request.kind === "resolve"
-      ? `resolve(${request.side.toUpperCase()}) -> status Resolved`
-      : "cancel() -> status Cancelled (draw redemption at half value)";
   return {
-    currentDescription: `status = Trading (0), resolver = ${resolver}`,
-    label:
-      request.kind === "resolve"
-        ? `resolve on CompleteSetBinaryMarket ${market}`
-        : `cancel on CompleteSetBinaryMarket ${market}`,
+    currentDescription: describeCompleteSetMarketState(snapshot),
+    label: `${plan.call.functionName} on CompleteSetBinaryMarket ${market}`,
     noOp: false,
-    proposedDescription: proposed,
-    requiredRole: { holder: resolver, name: "CompleteSetBinaryMarket resolver" },
+    proposedDescription: plan.proposedDescription,
+    requiredRole: plan.requiredRole,
     verify: async () => {
-      const after = Number(
-        await context.publicClient.readContract({
-          abi: completeSetBinaryMarketAbi,
-          address: market,
-          functionName: "status",
-        }),
-      );
-      if (after !== expectedStatus) {
-        throw new Error(`Market status read back ${after}, expected ${expectedStatus}.`);
+      const after = await readMarketSnapshot(publicClient, market);
+      if (after.status !== plan.expectedStatus) {
+        throw new Error(
+          `Market status read back ${after.status}, expected ${plan.expectedStatus}.`,
+        );
+      }
+      // A cancellation refunds any escrowed bond, so confirm the escrow drained.
+      if (snapshot.disputeBondHeld !== 0n && after.disputeBondHeld !== 0n) {
+        throw new Error(
+          `Dispute bond escrow read back ${after.disputeBondHeld} raw, expected it to be settled.`,
+        );
       }
     },
     write: () =>
-      request.kind === "resolve"
-        ? context.walletClient.writeContract({
-            abi: completeSetBinaryMarketAbi,
-            address: market,
-            args: [marketSideToContractSide(request.side)],
-            functionName: "resolve",
-          })
-        : context.walletClient.writeContract({
-            abi: completeSetBinaryMarketAbi,
-            address: market,
-            args: [],
-            functionName: "cancel",
-          }),
+      context.walletClient.writeContract({
+        abi: completeSetBinaryMarketAbi,
+        address: market,
+        args: plan.call.args,
+        functionName: plan.call.functionName,
+      }),
+  };
+}
+
+/**
+ * Reads one market's state straight from the contract. Collateral decimals come
+ * from the market too, never the hand-editable manifest: a stale entry there
+ * would render the bond off by orders of magnitude in a settle decision. The
+ * proposal getters revert unless a proposal is active, so they are read only in
+ * the two statuses that have one.
+ */
+export async function readMarketSnapshot(
+  publicClient: PublicClient,
+  market: Address,
+): Promise<CompleteSetMarketSnapshot> {
+  const marketCall = { abi: completeSetBinaryMarketAbi, address: market } as const;
+  const [
+    status,
+    resolver,
+    collateralDecimals,
+    disputeWindow,
+    disputeBond,
+    disputeBondHeld,
+    disputer,
+    block,
+  ] = await Promise.all([
+    publicClient.readContract({ ...marketCall, functionName: "status" }),
+    publicClient.readContract({ ...marketCall, functionName: "resolver" }),
+    publicClient.readContract({ ...marketCall, functionName: "collateralDecimals" }),
+    publicClient.readContract({ ...marketCall, functionName: "disputeWindow" }),
+    publicClient.readContract({ ...marketCall, functionName: "disputeBond" }),
+    publicClient.readContract({ ...marketCall, functionName: "disputeBondHeld" }),
+    publicClient.readContract({ ...marketCall, functionName: "disputer" }),
+    publicClient.getBlock(),
+  ]);
+
+  const statusCode = Number(status);
+  const hasProposal =
+    statusCode === POSTGRAD_MARKET_STATUS.resolutionPending ||
+    statusCode === POSTGRAD_MARKET_STATUS.disputed;
+  const proposal = hasProposal
+    ? {
+        deadline: BigInt(
+          await publicClient.readContract({ ...marketCall, functionName: "disputeDeadline" }),
+        ),
+        side: contractSideToMarketSide(
+          await publicClient.readContract({ ...marketCall, functionName: "proposedSide" }),
+        ),
+      }
+    : undefined;
+
+  return {
+    collateralDecimals: Number(collateralDecimals),
+    disputeBond,
+    disputeBondHeld,
+    disputeWindow: BigInt(disputeWindow),
+    disputer: getAddress(disputer),
+    proposal,
+    resolver: getAddress(resolver),
+    status: statusCode,
+    timestamp: block.timestamp,
   };
 }
 
