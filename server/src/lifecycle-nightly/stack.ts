@@ -60,6 +60,10 @@ export const SCENARIO_ACCOUNTS = {
   indexerRestartTrader: 19,
   disputeFinalizeYes: 6,
   disputeFinalizeNo: 7,
+  disputeSettlementYes: 8,
+  disputeSettlementNo: 9,
+  /** Bonds a public dispute against the resolver's proposal. */
+  disputeSettlementDisputer: 4,
   /** Simulate-only prober for negative guards; never submits a transaction. */
   receiptProbe: 10,
 } as const;
