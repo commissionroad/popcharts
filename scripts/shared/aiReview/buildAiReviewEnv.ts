@@ -3,12 +3,12 @@ import { localAiReviewPort } from "./localAiReviewEndpoint.ts";
 
 /**
  * Environment for the local AI review service on top of the orchestrator's
- * server env: the Ollama local-model provider with public source discovery, so
- * local review exercises the real agent-based path we want in production.
- * Transient provider failures stay retryable by default, while an explicitly
- * selected heuristic provider remains available for deterministic smoke tests.
- * All values are overridable through the LOCAL_AI_REVIEW_* variables documented
- * in the orchestrators' --help output.
+ * server env. By default review runs on the host's logged-in Claude Code using
+ * subscription auth; LOCAL_AI_REVIEW_PROVIDER=ollama|heuristic|anthropic
+ * selects an alternative. Transient provider failures stay retryable by
+ * default, while the heuristic provider remains available for deterministic
+ * smoke tests. All values are overridable through the LOCAL_AI_REVIEW_*
+ * variables documented in the orchestrators' --help output.
  */
 export function buildAiReviewEnv(
   serverEnv: NodeJS.ProcessEnv,
@@ -23,7 +23,7 @@ export function buildAiReviewEnv(
     AI_REVIEW_INTERNET_ACCESS:
       process.env.LOCAL_AI_REVIEW_INTERNET_ACCESS ?? "search",
     AI_REVIEW_PORT: localAiReviewPort(resources),
-    AI_REVIEW_PROVIDER: process.env.LOCAL_AI_REVIEW_PROVIDER ?? "ollama",
+    AI_REVIEW_PROVIDER: process.env.LOCAL_AI_REVIEW_PROVIDER ?? "claude-cli",
     AI_REVIEW_RETRY_PROVIDER_FAILURES:
       process.env.LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES ?? "true",
     AI_REVIEW_TIMEOUT_MS: process.env.LOCAL_AI_REVIEW_TIMEOUT_MS ?? "300000",

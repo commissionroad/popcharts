@@ -258,15 +258,16 @@ Selected processes can be passed through for focused debugging, for example:
   pnpm run local:dev:control -- review-service review-runner
 
 Prerequisite for model-backed review:
-  ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
-  Transient provider failures stay pending and retry instead of creating a
-  completed heuristic review.
+  The default claude-cli provider requires a logged-in Claude Code install on
+  the host and uses subscription auth. Set LOCAL_AI_REVIEW_PROVIDER to ollama,
+  heuristic, or anthropic to override it. Transient provider failures stay
+  pending and retry instead of creating a completed heuristic review.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=ollama
+  LOCAL_AI_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true

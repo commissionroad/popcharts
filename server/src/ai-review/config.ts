@@ -13,7 +13,7 @@ import type { InternetAccessMode, ReviewProviderName } from "./types";
  * the prompt/policy revision that produced them. Bump when the policy or
  * output contract changes meaning.
  */
-export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v5";
+export const AI_REVIEW_PROMPT_VERSION = "market-ai-review-v6";
 
 /**
  * Full runtime configuration of the AI Review service: provider selection,
@@ -28,6 +28,8 @@ export type AiReviewConfig = {
   anthropicMaxWebSearches: number;
   anthropicModel: string;
   anthropicWebFetchMaxContentTokens: number;
+  claudeCliCommand: string;
+  claudeCliModel: string;
   /**
    * When the selected model provider is unavailable, keep the deterministic
    * heuristic verdict as-is instead of downgrading its `approve` to
@@ -52,7 +54,9 @@ export type AiReviewConfig = {
 /**
  * Config read once from the environment at startup. Invalid numeric or enum
  * values fall back to defaults rather than crashing; the defaults suit local
- * development (Ollama on 127.0.0.1, service port 3002, web search enabled).
+ * development and deployment: subscription-backed headless Claude Code
+ * (`claude-cli`) on service port 3002. Anthropic (API key) and Ollama remain
+ * selectable alternatives.
  */
 export const aiReviewConfig: AiReviewConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -75,6 +79,8 @@ export const aiReviewConfig: AiReviewConfig = {
     process.env.AI_REVIEW_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS,
     12_000,
   ),
+  claudeCliCommand: process.env.AI_REVIEW_CLAUDE_CLI_COMMAND ?? "claude",
+  claudeCliModel: process.env.AI_REVIEW_CLAUDE_CLI_MODEL ?? "sonnet",
   fallbackApprove: readBooleanOrFallback(
     process.env.AI_REVIEW_FALLBACK_APPROVE,
     false,
@@ -102,11 +108,14 @@ export const aiReviewConfig: AiReviewConfig = {
   provider: readEnumOrFallback(
     process.env.AI_REVIEW_PROVIDER,
     REVIEW_PROVIDER_NAMES,
-    "ollama",
+    "claude-cli",
   ),
+  // Sized for the default claude-cli provider, which spawns headless Claude
+  // Code (tens of seconds to a few minutes). The faster API/heuristic paths
+  // return well under this ceiling, so a generous default is safe for them.
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_REVIEW_TIMEOUT_MS,
-    8_000,
+    300_000,
   ),
   retryProviderFailures: readBooleanOrFallback(
     process.env.AI_REVIEW_RETRY_PROVIDER_FAILURES,
