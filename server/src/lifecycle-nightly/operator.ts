@@ -3,11 +3,12 @@ import {
   completeSetPostgradAdapterAbi,
   pregradManagerAbi,
 } from "@popcharts/protocol";
-import { BaseError, type Address } from "viem";
+import { type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { readReviewManagerPrivateKey } from "src/ai-review-runner/chain-review";
 import { createWalletClient } from "src/blockchain/client";
+import { retryOnceOnNonceCollision } from "src/blockchain/nonce-collision";
 
 import {
   LOCAL_DEV_ACCOUNT_COUNT,
@@ -157,38 +158,5 @@ async function sendOperatorTransaction(
 
   if (receipt.status !== "success") {
     throw new Error(`${label} reverted: ${transactionHash}`);
-  }
-}
-
-/**
- * Hardhat surfaces a same-nonce race as "nonce too low", "replacement
- * transaction underpriced", or "already known" — sometimes only on a nested
- * cause — so the match walks the full error chain.
- */
-const NONCE_COLLISION_PATTERN =
-  /nonce|replacement transaction underpriced|already known/i;
-
-function isNonceCollision(error: unknown): boolean {
-  if (error instanceof BaseError) {
-    return (
-      error.walk(
-        (cause) =>
-          cause instanceof Error && NONCE_COLLISION_PATTERN.test(cause.message),
-      ) !== null
-    );
-  }
-  return error instanceof Error && NONCE_COLLISION_PATTERN.test(error.message);
-}
-
-async function retryOnceOnNonceCollision<T>(
-  send: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await send();
-  } catch (error) {
-    if (!isNonceCollision(error)) {
-      throw error;
-    }
-    return await send();
   }
 }
