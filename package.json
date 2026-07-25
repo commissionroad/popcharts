@@ -37,6 +37,7 @@
     "local:dev:ai-review": "node --experimental-strip-types scripts/local-dev.ts",
     "local:ai-review": "node --experimental-strip-types scripts/local-dev.ts --ai-review-only",
     "local:bot-trade": "node --experimental-strip-types scripts/with-target-stack.ts -- bun run --cwd server bot:trade",
+    "local:bot-trade-postgrad": "node --experimental-strip-types scripts/with-target-stack.ts -- bun run --cwd server bot:trade-postgrad",
     "local:create-market": "node --experimental-strip-types scripts/local-create-market.ts",
     "local:reset": "node --experimental-strip-types scripts/local-reset.ts",
     "local:lifecycle-nightly": "node --experimental-strip-types scripts/local-lifecycle-nightly.ts",
