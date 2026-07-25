@@ -1,29 +1,31 @@
 import { describe, expect, it } from "bun:test";
 
+import { POSTGRAD_MARKET_STATUS } from "@popcharts/protocol";
+
 import {
-  type MarketResolutionChainTransitionDependencies,
+  type MarketResolutionProposalDependencies,
+  proposeMarketResolutionOnChain,
   readResolverPrivateKey,
   resolutionChainAction,
-  transitionResolvedMarketOnChain,
 } from "./chain-resolution";
 
 const MARKET = `0x${"ab".repeat(20)}` as `0x${string}`;
 const TX = `0x${"11".repeat(32)}` as `0x${string}`;
 
 function makeDeps(
-  overrides: Partial<MarketResolutionChainTransitionDependencies> = {},
+  overrides: Partial<MarketResolutionProposalDependencies> = {},
 ) {
   const writes: { address: `0x${string}`; side: number }[] = [];
-  const deps: MarketResolutionChainTransitionDependencies = {
+  const deps: MarketResolutionProposalDependencies = {
     currentChainId: () => 31337,
     getLatestBlockTimestamp: async () => new Date("2026-01-01T00:00:00.000Z"),
-    readMarketStatus: async () => 0,
-    waitForTransactionTimestamp: async () =>
-      new Date("2026-01-02T00:00:00.000Z"),
-    writeResolution: async (address, side) => {
+    readMarketStatus: async () => POSTGRAD_MARKET_STATUS.trading,
+    submitResolutionProposal: async (address, side) => {
       writes.push({ address, side });
       return TX;
     },
+    waitForTransactionTimestamp: async () =>
+      new Date("2026-01-02T00:00:00.000Z"),
     ...overrides,
   };
 
@@ -43,24 +45,24 @@ describe("resolutionChainAction", () => {
   });
 });
 
-describe("transitionResolvedMarketOnChain", () => {
-  it("submits resolve(YES) on the market address when it is still trading", async () => {
+describe("proposeMarketResolutionOnChain", () => {
+  it("proposes YES on the market address when it is still trading", async () => {
     const { deps, writes } = makeDeps();
 
-    const result = await transitionResolvedMarketOnChain(
+    const result = await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
       deps,
     );
 
-    expect(result?.kind).toBe("transitioned");
+    expect(result?.kind).toBe("proposed");
     expect(result?.transactionHash).toBe(TX);
     expect(writes).toEqual([{ address: MARKET, side: 0 }]);
   });
 
-  it("submits resolve(NO) with side 1", async () => {
+  it("proposes NO with side 1", async () => {
     const { deps, writes } = makeDeps();
 
-    await transitionResolvedMarketOnChain(
+    await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_no" },
       deps,
     );
@@ -68,23 +70,32 @@ describe("transitionResolvedMarketOnChain", () => {
     expect(writes).toEqual([{ address: MARKET, side: 1 }]);
   });
 
-  it("is a no-op when the market is already resolved", async () => {
-    const { deps, writes } = makeDeps({ readMarketStatus: async () => 1 });
+  // The dispute window is permissionless, so the runner is never the only actor
+  // that can move a market out of Trading. Every status that already carries a
+  // resolution outcome is a no-op success, not a job failure.
+  it.each([
+    ["a proposal is already pending", POSTGRAD_MARKET_STATUS.resolutionPending],
+    ["the pending proposal is disputed", POSTGRAD_MARKET_STATUS.disputed],
+    ["the market is already resolved", POSTGRAD_MARKET_STATUS.resolved],
+  ])("is a no-op when %s", async (_label, status) => {
+    const { deps, writes } = makeDeps({ readMarketStatus: async () => status });
 
-    const result = await transitionResolvedMarketOnChain(
+    const result = await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
       deps,
     );
 
-    expect(result?.kind).toBe("already_transitioned");
+    expect(result?.kind).toBe("already_on_chain");
     expect(writes).toEqual([]);
   });
 
   it("throws when the market is in an unexpected on-chain status", async () => {
-    const { deps } = makeDeps({ readMarketStatus: async () => 2 });
+    const { deps } = makeDeps({
+      readMarketStatus: async () => POSTGRAD_MARKET_STATUS.cancelled,
+    });
 
     await expect(
-      transitionResolvedMarketOnChain(
+      proposeMarketResolutionOnChain(
         {
           chainId: 31337,
           postgradMarketAddress: MARKET,
@@ -92,14 +103,14 @@ describe("transitionResolvedMarketOnChain", () => {
         },
         deps,
       ),
-    ).rejects.toThrow("expected 0");
+    ).rejects.toThrow("expected 0 (Trading)");
   });
 
   it("throws on a chain-id mismatch", async () => {
     const { deps } = makeDeps({ currentChainId: () => 999 });
 
     await expect(
-      transitionResolvedMarketOnChain(
+      proposeMarketResolutionOnChain(
         {
           chainId: 31337,
           postgradMarketAddress: MARKET,
@@ -117,7 +128,7 @@ describe("transitionResolvedMarketOnChain", () => {
       },
     });
 
-    const result = await transitionResolvedMarketOnChain(
+    const result = await proposeMarketResolutionOnChain(
       {
         chainId: 31337,
         postgradMarketAddress: MARKET,

@@ -5,6 +5,7 @@ import type { ResolutionResult } from "src/ai-resolution/types";
 import {
   buildMarketResolutionRequest,
   decideResolutionAction,
+  isRunnerEligibleMarketStatus,
   type ClaimedResolutionJob,
   type MarketMetadataRow,
   type MarketResolutionJobRow,
@@ -17,6 +18,24 @@ const YES_NOT_BEFORE = new Date("2026-05-01T00:00:00.000Z"); // early-YES gate
 function verdict(value: ResolutionResult["verdict"]) {
   return { verdict: value } as Pick<ResolutionResult, "verdict">;
 }
+
+describe("isRunnerEligibleMarketStatus", () => {
+  it("keeps working a market whose proposal already landed on-chain", () => {
+    expect(isRunnerEligibleMarketStatus("graduated")).toBe(true);
+    // Without this the runner cancels its own retry: the attempt that proposed
+    // but died before persisting its audit row comes back to a market that is
+    // no longer `graduated`.
+    expect(isRunnerEligibleMarketStatus("resolution_pending")).toBe(true);
+  });
+
+  it("drops a market that is settled, contested, or not yet graduated", () => {
+    // A dispute is a human's problem, not the AI's.
+    expect(isRunnerEligibleMarketStatus("disputed")).toBe(false);
+    expect(isRunnerEligibleMarketStatus("resolved")).toBe(false);
+    expect(isRunnerEligibleMarketStatus("cancelled")).toBe(false);
+    expect(isRunnerEligibleMarketStatus("bootstrap")).toBe(false);
+  });
+});
 
 describe("decideResolutionAction", () => {
   const market = {

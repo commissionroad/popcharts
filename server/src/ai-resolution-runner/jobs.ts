@@ -7,7 +7,7 @@ import type {
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import { recordLiveChange } from "src/change-feed/writer";
 
-import { transitionResolvedMarketOnChain } from "./chain-resolution";
+import { proposeMarketResolutionOnChain } from "./chain-resolution";
 import { resolveMarketWithService } from "./client";
 import type { AiResolutionRunnerConfig } from "./config";
 import {
@@ -43,23 +43,44 @@ export type ClaimedResolutionJob = {
 };
 
 export type ResolutionJobDependencies = {
+  proposeMarketResolutionOnChain: typeof proposeMarketResolutionOnChain;
   resolveMarketWithService: typeof resolveMarketWithService;
-  transitionResolvedMarketOnChain: typeof transitionResolvedMarketOnChain;
 };
 
 /**
- * Terminal state of one processing attempt: cancelled (market left graduated),
- * requeued (too early — not a failure), succeeded (audit persisted, possibly
- * submitted on-chain), or a retryable/terminal failure.
+ * Statuses a market may be in and still be the runner's business. `graduated`
+ * is the normal entry point; `resolution_pending` keeps a market whose proposal
+ * already landed on-chain in scope so the runner can finish its own work — an
+ * attempt that proposed but failed before persisting its audit row retries
+ * against a market that is no longer `graduated`. `disputed` is deliberately
+ * excluded: a contested proposal is waiting on a human, not on the AI.
+ *
+ * These two gates were pinned to the bare `graduated` literal before the runner
+ * proposed instead of resolved, because re-entering a market mid-window meant a
+ * second `proposeResolution` — a revert at best. That is no longer how it ends:
+ * `proposeMarketResolutionOnChain` reads the contract status first and returns
+ * `already_on_chain` for ResolutionPending/Disputed/Resolved, so re-entry
+ * finishes the audit row without a second on-chain write. Narrow these back
+ * only together with that guard.
+ */
+const RUNNER_ELIGIBLE_MARKET_STATUSES = [
+  "graduated",
+  "resolution_pending",
+] as const;
+
+/**
+ * Terminal state of one processing attempt: cancelled (market left the
+ * resolvable statuses), requeued (too early — not a failure), succeeded (audit
+ * persisted, possibly proposed on-chain), or a retryable/terminal failure.
  */
 export type ResolutionJobOutcome =
   | { job: MarketResolutionJobRow; status: "cancelled" }
   | { job: MarketResolutionJobRow; status: "requeued" }
   | {
       job: MarketResolutionJobRow;
+      proposedOnChain: boolean;
       resolution: MarketResolutionRow;
       status: "succeeded";
-      transitionedOnChain: boolean;
       verdict: ResolutionVerdict;
     }
   | {
@@ -68,7 +89,7 @@ export type ResolutionJobOutcome =
     };
 
 /**
- * Finds graduated markets past their earliest resolution gate that have no
+ * Finds resolvable markets past their earliest resolution gate that have no
  * active job and no prior resolution, then turns them into queue rows. The
  * per-outcome NO gate is enforced later, at processing time; enqueue uses the
  * earliest gate (yes_not_before, falling back to resolution_time).
@@ -94,16 +115,14 @@ export async function enqueueEligibleMarketResolutionJobs({
     )
     .where(
       and(
-        // Deliberately the `graduated` literal, not `hasGraduated`. This is the
-        // one place in the codebase where the narrow reading is the correct
-        // one: `graduated` is exactly "no resolution has been proposed yet".
-        // A market in `resolution_pending` already has a proposal waiting out
-        // its dispute deadline (`proposeResolution` would revert a second
-        // time), and a `disputed` one is waiting on an operator, not on
-        // another AI verdict. `noResolutionForCurrentMarket` only blocks a
-        // *completed* job's audit row, so this status pin is the independent
-        // guard against re-proposing a market mid-window.
-        eq(schema.markets.status, "graduated"),
+        // Deliberately this list, not `hasGraduated`: `disputed` is waiting on
+        // an operator rather than on another AI verdict, and nothing before
+        // graduation has a market to propose on. See
+        // {@link RUNNER_ELIGIBLE_MARKET_STATUSES} for why `resolution_pending`
+        // is in scope. `noResolutionForCurrentMarket` only blocks a *completed*
+        // job's audit row, so this status pin is the independent guard against
+        // enqueueing a market the runner has no work left on.
+        inArray(schema.markets.status, [...RUNNER_ELIGIBLE_MARKET_STATUSES]),
         // Serialize the timestamp: raw sql fragments bypass drizzle's column
         // mapping, and the postgres-js driver crashes on a bare Date param
         // (jobs.int.test.ts is the regression guard).
@@ -314,10 +333,11 @@ export function decideResolutionAction({
 }
 
 /**
- * Runs one claimed job end to end: cancels if the market left graduated, calls
- * the resolution service, applies the per-outcome gates, submits resolve() on
- * confident in-window YES/NO, and persists the audit row atomically with job
- * completion. On error it schedules a backed-off retry until maxAttempts.
+ * Runs one claimed job end to end: cancels if the market left the resolvable
+ * statuses, calls the resolution service, applies the per-outcome gates,
+ * submits proposeResolution() on confident in-window YES/NO, and persists the
+ * audit row atomically with job completion. On error it schedules a backed-off
+ * retry until maxAttempts.
  */
 export async function processResolutionJob({
   claimed,
@@ -330,12 +350,10 @@ export async function processResolutionJob({
   dependencies?: ResolutionJobDependencies;
   now?: Date;
 }): Promise<ResolutionJobOutcome> {
-  // Deliberately the `graduated` literal, matching the enqueue query above:
-  // the only way a market leaves `graduated` for `resolution_pending` is a
-  // ResolutionProposed log, so a job that reaches here against any other
-  // status would submit a second proposal. Widening this to `hasGraduated`
-  // for symmetry with the display-side predicates would remove the interlock.
-  if (claimed.market.status !== "graduated") {
+  // Deliberately this predicate, matching the enqueue query above, rather than
+  // `hasGraduated`: widening it for symmetry with the display-side predicates
+  // would let a settled or contested market back in.
+  if (!isRunnerEligibleMarketStatus(claimed.market.status)) {
     const job = await cancelResolutionJob({
       job: claimed.job,
       now,
@@ -366,8 +384,8 @@ export async function processResolutionJob({
       return { job, status: "requeued" };
     }
 
-    const chainTransition = decision.submit
-      ? await dependencies.transitionResolvedMarketOnChain({
+    const proposal = decision.submit
+      ? await dependencies.proposeMarketResolutionOnChain({
           chainId: claimed.market.chainId,
           postgradMarketAddress: claimed.postgradMarketAddress,
           verdict: decision.verdict,
@@ -377,16 +395,16 @@ export async function processResolutionJob({
     const persisted = await persistResolutionJobResult({
       job: claimed.job,
       postgradMarketAddress: claimed.postgradMarketAddress,
-      resolvedAt: chainTransition?.blockTimestamp ?? now,
+      resolvedAt: proposal?.blockTimestamp ?? now,
       result,
       verdict: decision.verdict,
     });
 
     return {
       job: persisted.job,
+      proposedOnChain: proposal?.kind === "proposed",
       resolution: persisted.resolution,
       status: "succeeded",
-      transitionedOnChain: chainTransition?.kind === "transitioned",
       verdict: decision.verdict,
     };
   } catch (error) {
@@ -533,7 +551,19 @@ async function persistResolutionJobResult({
   });
 }
 
+/**
+ * Whether the runner should keep working a market in this indexed status.
+ * See {@link RUNNER_ELIGIBLE_MARKET_STATUSES}.
+ */
+export function isRunnerEligibleMarketStatus(
+  status: MarketRow["status"],
+): boolean {
+  return (RUNNER_ELIGIBLE_MARKET_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
 const defaultResolutionJobDependencies: ResolutionJobDependencies = {
+  proposeMarketResolutionOnChain,
   resolveMarketWithService,
-  transitionResolvedMarketOnChain,
 };

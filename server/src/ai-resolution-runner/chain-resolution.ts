@@ -1,5 +1,6 @@
 import {
   completeSetBinaryMarketAbi,
+  POSTGRAD_MARKET_STATUS,
   SIDE_NO,
   SIDE_YES,
 } from "@popcharts/protocol";
@@ -16,27 +17,35 @@ import type { ResolutionVerdict } from "../ai-resolution/types";
 
 const DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-// CompleteSetBinaryMarket.Status: Trading = 0, Resolved = 1, Cancelled = 2.
-const POSTGRAD_STATUS_TRADING = 0;
-const POSTGRAD_STATUS_RESOLVED = 1;
+/**
+ * Contract statuses that already carry a resolution outcome, so the runner has
+ * nothing left to write: another actor proposed first (`ResolutionPending`), a
+ * proposal is under adjudication (`Disputed`), or the market already settled
+ * (`Resolved`).
+ */
+const RESOLUTION_ALREADY_ON_CHAIN_STATUSES: ReadonlySet<number> = new Set([
+  POSTGRAD_MARKET_STATUS.resolutionPending,
+  POSTGRAD_MARKET_STATUS.disputed,
+  POSTGRAD_MARKET_STATUS.resolved,
+]);
 
 export type ResolutionChainAction = { side: typeof SIDE_YES | typeof SIDE_NO };
 
-export type MarketResolutionChainTransitionResult = {
+export type MarketResolutionProposalResult = {
   blockTimestamp: Date;
-  kind: "already_transitioned" | "transitioned";
+  kind: "already_on_chain" | "proposed";
   transactionHash?: Hash;
 };
 
-export type MarketResolutionChainTransitionDependencies = {
+export type MarketResolutionProposalDependencies = {
   currentChainId: () => number;
   getLatestBlockTimestamp: () => Promise<Date>;
   readMarketStatus: (marketAddress: `0x${string}`) => Promise<number>;
-  waitForTransactionTimestamp: (transactionHash: Hash) => Promise<Date>;
-  writeResolution: (
+  submitResolutionProposal: (
     marketAddress: `0x${string}`,
     side: number,
   ) => Promise<Hash>;
+  waitForTransactionTimestamp: (transactionHash: Hash) => Promise<Date>;
 };
 
 /**
@@ -59,12 +68,21 @@ export function resolutionChainAction(
 }
 
 /**
- * Submits the resolution to the market's own CompleteSetBinaryMarket contract
- * (address per market), guarded by the on-chain status: only a market still in
- * `Trading` is resolved, and an already-`Resolved` market is a no-op. The DB
- * audit row is written by the caller only after this succeeds.
+ * Proposes the resolution on the market's own CompleteSetBinaryMarket contract
+ * (address per market), which opens the public dispute window. Proposing — not
+ * resolving — is the runner's last on-chain act: an undisputed proposal is
+ * finalized by the keeper once the window closes, and a disputed one is settled
+ * by an operator (repo ADR 0024, protocol ADR 0013). This holds even where the
+ * window is configured to zero: the proposal is finalizable immediately, but
+ * something still has to call `finalizeResolution`.
+ *
+ * Guarded by the on-chain status: only a market still in `Trading` is proposed
+ * on, and any status that already carries a resolution outcome is a no-op
+ * success rather than an error — a permissionless dispute window means other
+ * actors move the market too. The DB audit row is written by the caller only
+ * after this succeeds.
  */
-export async function transitionResolvedMarketOnChain(
+export async function proposeMarketResolutionOnChain(
   {
     chainId,
     postgradMarketAddress,
@@ -74,8 +92,8 @@ export async function transitionResolvedMarketOnChain(
     postgradMarketAddress: `0x${string}`;
     verdict: ResolutionVerdict;
   },
-  dependencies: MarketResolutionChainTransitionDependencies = createDefaultDependencies(),
-): Promise<MarketResolutionChainTransitionResult | null> {
+  dependencies: MarketResolutionProposalDependencies = createDefaultDependencies(),
+): Promise<MarketResolutionProposalResult | null> {
   const action = resolutionChainAction(verdict);
   if (!action) {
     return null;
@@ -91,20 +109,20 @@ export async function transitionResolvedMarketOnChain(
   const currentStatus = await dependencies.readMarketStatus(
     postgradMarketAddress,
   );
-  if (currentStatus === POSTGRAD_STATUS_RESOLVED) {
+  if (RESOLUTION_ALREADY_ON_CHAIN_STATUSES.has(currentStatus)) {
     return {
       blockTimestamp: await dependencies.getLatestBlockTimestamp(),
-      kind: "already_transitioned",
+      kind: "already_on_chain",
     };
   }
 
-  if (currentStatus !== POSTGRAD_STATUS_TRADING) {
+  if (currentStatus !== POSTGRAD_MARKET_STATUS.trading) {
     throw new Error(
-      `Postgrad market ${postgradMarketAddress} has contract status ${currentStatus}; expected ${POSTGRAD_STATUS_TRADING} before resolution.`,
+      `Postgrad market ${postgradMarketAddress} has contract status ${currentStatus}; expected ${POSTGRAD_MARKET_STATUS.trading} (Trading) before a resolution proposal.`,
     );
   }
 
-  const transactionHash = await dependencies.writeResolution(
+  const transactionHash = await dependencies.submitResolutionProposal(
     postgradMarketAddress,
     action.side,
   );
@@ -112,7 +130,7 @@ export async function transitionResolvedMarketOnChain(
   return {
     blockTimestamp:
       await dependencies.waitForTransactionTimestamp(transactionHash),
-    kind: "transitioned",
+    kind: "proposed",
     transactionHash,
   };
 }
@@ -140,7 +158,7 @@ export function readResolverPrivateKey(
   return value as `0x${string}`;
 }
 
-function createDefaultDependencies(): MarketResolutionChainTransitionDependencies {
+function createDefaultDependencies(): MarketResolutionProposalDependencies {
   const publicClient = createReadOnlyClient();
   const account = privateKeyToAccount(readResolverPrivateKey());
   const walletClient = createWalletClient(account);
@@ -161,6 +179,13 @@ function createDefaultDependencies(): MarketResolutionChainTransitionDependencie
 
       return Number(status);
     },
+    submitResolutionProposal: async (marketAddress, side) =>
+      walletClient.writeContract({
+        abi: completeSetBinaryMarketAbi,
+        address: marketAddress,
+        functionName: "proposeResolution",
+        args: [side],
+      }),
     waitForTransactionTimestamp: async (transactionHash) => {
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: transactionHash,
@@ -168,7 +193,7 @@ function createDefaultDependencies(): MarketResolutionChainTransitionDependencie
 
       if (receipt.status !== "success") {
         throw new Error(
-          `Resolution transition transaction failed: ${transactionHash}`,
+          `Resolution proposal transaction failed: ${transactionHash}`,
         );
       }
 
@@ -178,12 +203,5 @@ function createDefaultDependencies(): MarketResolutionChainTransitionDependencie
 
       return new Date(Number(block.timestamp) * 1000);
     },
-    writeResolution: async (marketAddress, side) =>
-      walletClient.writeContract({
-        abi: completeSetBinaryMarketAbi,
-        address: marketAddress,
-        functionName: "resolve",
-        args: [side],
-      }),
   };
 }
