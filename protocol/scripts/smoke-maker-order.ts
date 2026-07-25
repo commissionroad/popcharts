@@ -9,7 +9,7 @@ import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
 import { ensureTokenPullerBytecode } from "./shared/deployment/tokenPuller.js";
 import { writeJsonFile } from "../src/json/jsonFile.js";
-import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
 import { ensureCollateralBalance } from "../src/market/ensureCollateralBalance.js";
 import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
@@ -88,7 +88,7 @@ async function main() {
     manifest.market.address,
   );
   const status = Number(await market.read.status());
-  if (status !== COMPLETE_SET_MARKET_STATUS.trading) {
+  if (status !== POSTGRAD_MARKET_STATUS.trading) {
     throw new Error(
       `Market ${manifest.market.address} is not in Trading status (status ${status}). ` +
         "Create a fresh market with pnpm local:create-complete-set-market.",

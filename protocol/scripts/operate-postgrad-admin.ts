@@ -4,7 +4,7 @@ import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js
 import { readManifestAddress } from "./shared/deployment/readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
 import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
-import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
@@ -362,7 +362,7 @@ async function planMarketLifecycle(
       functionName: "status",
     }),
   );
-  if (status !== COMPLETE_SET_MARKET_STATUS.trading) {
+  if (status !== POSTGRAD_MARKET_STATUS.trading) {
     throw new Error(
       `Market ${market} has status ${status}; only a Trading market can be ` +
         `${request.kind === "resolve" ? "resolved" : "cancelled"}.`,
@@ -370,9 +370,7 @@ async function planMarketLifecycle(
   }
 
   const expectedStatus =
-    request.kind === "resolve"
-      ? COMPLETE_SET_MARKET_STATUS.resolved
-      : COMPLETE_SET_MARKET_STATUS.cancelled;
+    request.kind === "resolve" ? POSTGRAD_MARKET_STATUS.resolved : POSTGRAD_MARKET_STATUS.cancelled;
   const proposed =
     request.kind === "resolve"
       ? `resolve(${request.side.toUpperCase()}) -> status Resolved`

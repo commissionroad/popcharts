@@ -12,7 +12,7 @@ import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
 import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
-import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
 import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
 import { decideCompleteSetArbAction } from "../src/market/decideCompleteSetArbAction.js";
 import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
@@ -177,7 +177,7 @@ async function runArbStep(context: KeeperContext): Promise<{
     context.manifest.market.address,
   );
   const status = Number(await market.read.status());
-  if (status !== COMPLETE_SET_MARKET_STATUS.trading) {
+  if (status !== POSTGRAD_MARKET_STATUS.trading) {
     console.log(`Market status ${status} is not Trading; skipping the arbitrage round trip.`);
     return { action: decision.action, executed: false, prices, skippedReason: "marketNotTrading" };
   }

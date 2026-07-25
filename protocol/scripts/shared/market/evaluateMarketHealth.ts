@@ -1,4 +1,4 @@
-import { COMPLETE_SET_MARKET_STATUS } from "./completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../../../src/postgrad-market-status.js";
 import { outcomeCapacityForCollateral } from "./outcomeCapacityForCollateral.js";
 
 const WAD = 10n ** 18n;
@@ -72,23 +72,23 @@ export function evaluateMarketHealth(input: MarketHealthInput): {
     });
   }
 
-  if (input.status === COMPLETE_SET_MARKET_STATUS.trading) {
+  if (input.status === POSTGRAD_MARKET_STATUS.trading) {
     issues.push(...evaluateTradingVenue(input));
   }
   return { healthy: !issues.some((issue) => issue.severity === "violation"), issues };
 }
 
 function requiredOutcomeCapacity(input: MarketHealthInput): bigint {
-  if (input.status === COMPLETE_SET_MARKET_STATUS.trading) {
+  if (input.status === POSTGRAD_MARKET_STATUS.trading) {
     return input.yesSupply > input.noSupply ? input.yesSupply : input.noSupply;
   }
-  if (input.status === COMPLETE_SET_MARKET_STATUS.resolved) {
+  if (input.status === POSTGRAD_MARKET_STATUS.resolved) {
     if (input.winningSide === undefined) {
       throw new Error("A resolved market health check requires winningSide.");
     }
     return input.winningSide === "yes" ? input.yesSupply : input.noSupply;
   }
-  if (input.status === COMPLETE_SET_MARKET_STATUS.cancelled) {
+  if (input.status === POSTGRAD_MARKET_STATUS.cancelled) {
     // Draw redemptions pay half value per token, so escrow must cover half of
     // the combined supplies measured in outcome capacity.
     return (input.yesSupply + input.noSupply) / 2n;

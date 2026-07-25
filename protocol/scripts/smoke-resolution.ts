@@ -4,7 +4,7 @@ import { erc20Abi, formatUnits, getAddress, parseEventLogs, type Abi } from "vie
 import { SIDE_NO, SIDE_YES } from "../src/market-side.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
 import { floorOutcomeToCollateralUnit } from "../src/market/floorOutcomeToCollateralUnit.js";
 import { outcomeCapacityForCollateral } from "./shared/market/outcomeCapacityForCollateral.js";
 import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
@@ -51,7 +51,7 @@ async function main() {
 
   // Resolve as YES through the resolver account.
   const status = Number(await market.read.status());
-  if (status === COMPLETE_SET_MARKET_STATUS.trading) {
+  if (status === POSTGRAD_MARKET_STATUS.trading) {
     if (getAddress(manifest.market.resolver) !== account) {
       throw new Error(
         `Connected account ${account} is not the market resolver ` +
@@ -63,7 +63,7 @@ async function main() {
     const resolveHash = await market.write.resolve([SIDE_YES]);
     await requireSuccessfulReceipt(publicClient, resolveHash, "resolve");
     console.log(`Resolved market as YES (${resolveHash}).`);
-  } else if (status === COMPLETE_SET_MARKET_STATUS.resolved) {
+  } else if (status === POSTGRAD_MARKET_STATUS.resolved) {
     console.log("Market is already resolved; continuing with redemption checks.");
   } else {
     throw new Error(
@@ -74,7 +74,7 @@ async function main() {
 
   const statusAfter = Number(await market.read.status());
   const winningSide = Number(await market.read.winningSide());
-  if (statusAfter !== COMPLETE_SET_MARKET_STATUS.resolved || winningSide !== SIDE_YES) {
+  if (statusAfter !== POSTGRAD_MARKET_STATUS.resolved || winningSide !== SIDE_YES) {
     throw new Error(
       `Market resolution readback failed (status ${statusAfter}, winningSide ${winningSide}).`,
     );

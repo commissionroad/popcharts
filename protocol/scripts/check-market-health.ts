@@ -5,7 +5,8 @@ import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScri
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
-import { COMPLETE_SET_MARKET_STATUS } from "./shared/market/completeSetMarketStatus.js";
+import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
+import { postgradMarketStatusLabel } from "./shared/market/postgradMarketStatusLabel.js";
 import { evaluateMarketHealth } from "./shared/market/evaluateMarketHealth.js";
 import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
 import { readPoolActiveLiquidity } from "../src/market/readPoolActiveLiquidity.js";
@@ -16,12 +17,6 @@ import {
   completeSetBinaryMarketAbi,
   poolTickBoundsAbi,
 } from "../src/generated/postgrad-venue.js";
-
-const STATUS_NAMES: Record<number, string> = {
-  [COMPLETE_SET_MARKET_STATUS.cancelled]: "Cancelled",
-  [COMPLETE_SET_MARKET_STATUS.resolved]: "Resolved",
-  [COMPLETE_SET_MARKET_STATUS.trading]: "Trading",
-};
 
 /**
  * Read-only market health check (protocol MVP tracker item 4): reads the
@@ -75,7 +70,7 @@ async function main() {
     }),
   );
   const winningSide =
-    status === COMPLETE_SET_MARKET_STATUS.resolved
+    status === POSTGRAD_MARKET_STATUS.resolved
       ? Number(
           await publicClient.readContract({
             abi: completeSetBinaryMarketAbi,
@@ -136,7 +131,7 @@ async function main() {
     pools.push({ activeLiquidity, boundsConfigured, side, whitelisted });
   }
 
-  const statusName = STATUS_NAMES[status] ?? `Unknown(${status})`;
+  const statusName = postgradMarketStatusLabel(status);
   console.log(
     `Status: ${statusName}${winningSide === undefined ? "" : ` (winner ${winningSide})`}`,
   );
