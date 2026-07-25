@@ -1,21 +1,9 @@
 /**
- * MarketTypes.MarketStatus numeric encoding shared by every Pop Charts
- * contract (contracts/types/MarketTypes.sol). Solidity enums have no ABI
- * representation, so off-chain code cannot derive these codes from the
- * generated metadata; this table is the single TS definition — import it,
- * never restate it.
+ * Re-export of the generated `MarketTypes.MarketStatus` table so the
+ * `@popcharts/protocol/market-status` subpath and every existing importer keep
+ * working unchanged. The table itself is derived from the solc AST by
+ * scripts/export-contract-metadata.ts — change the Solidity enum and rebuild,
+ * never this file.
  */
-export const MARKET_STATUS = {
-  active: 0,
-  frozen: 1,
-  graduating: 2,
-  graduated: 3,
-  refunded: 4,
-  resolved: 5,
-  cancelled: 6,
-  underReview: 7,
-  rejected: 8,
-} as const;
-
-/** A MarketTypes.MarketStatus contract encoding. */
-export type MarketStatusCode = (typeof MARKET_STATUS)[keyof typeof MARKET_STATUS];
+export { MARKET_STATUS, MARKET_STATUS_MEMBERS } from "./generated/contract-enums.js";
+export type { MarketStatusCode } from "./generated/contract-enums.js";
