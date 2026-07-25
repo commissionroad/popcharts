@@ -40,6 +40,12 @@ vi.mock("./claim-winnings-panel", () => ({
   ),
 }));
 
+vi.mock("./market-dispute-panel", () => ({
+  MarketDisputePanel: ({ market }: { market: Market }) => (
+    <div>Dispute panel for {market.id}</div>
+  ),
+}));
+
 vi.mock("./market-position-panel", () => ({
   MarketPositionPanel: ({ market }: { market: Market }) => (
     <div>Position panel for {market.id}</div>
@@ -178,9 +184,13 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hands the graduated aside to the postgrad trade panel", () => {
+  it("hands the graduated aside to the dispute and postgrad trade panels", () => {
     render(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
 
+    // The dispute window opens while the market is still indexed as graduated,
+    // so the panel rides alongside the trade ticket and hides itself when no
+    // window is open on-chain.
+    expect(screen.getByText("Dispute panel for eth-5000-august")).toBeInTheDocument();
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
     ).toBeInTheDocument();

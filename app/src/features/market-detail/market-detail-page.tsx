@@ -21,6 +21,7 @@ import { AiReviewRefresh } from "./ai-review-refresh";
 import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
+import { MarketDisputePanel } from "./market-dispute-panel";
 import { MarketLivePrice } from "./market-live-price";
 import { MarketPositionPanel } from "./market-position-panel";
 
@@ -165,7 +166,14 @@ export function MarketDetailPage({
               <OpenOrdersPanel market={market} orderType="market" refreshKey={0} />
             </>
           ) : isGraduated ? (
-            <PostgradTradePanel market={market} />
+            <>
+              {/* The dispute window opens while the market is still indexed as
+                  graduated (the pending/disputed statuses are not projected
+                  yet), so this panel reads the postgrad contract directly and
+                  renders nothing outside an open window. */}
+              <MarketDisputePanel market={market} />
+              <PostgradTradePanel market={market} />
+            </>
           ) : (
             <>
               <ReceiptTicket market={market} />
