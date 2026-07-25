@@ -55,6 +55,8 @@
   --status-resolved: var(--pc-violet);
   --status-refunded: var(--pc-fog);
   --status-rejected: var(--danger);
+  --status-resolution-pending: var(--pc-violet);
+  --status-disputed: var(--danger);
 
   --positive: var(--pc-lime);
   --negative: var(--pc-magenta);

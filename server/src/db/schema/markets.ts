@@ -18,7 +18,9 @@ import { uint256 } from "./uint256";
 /**
  * Lifecycle of a market as tracked off-chain: AI review gates under_review
  * into bootstrap (or rejected), and the chain watchers drive the
- * graduating/graduated/resolved/refunded transitions.
+ * graduating/graduated/resolved/refunded transitions — including the
+ * resolution_pending/disputed pair a graduated market passes through while
+ * its dispute window is open (repo ADR 0024).
  *
  * Single definition of the status set — the Postgres enum, the `MarketStatus`
  * union, and the API's `MarketStatusSchema` all derive from this array. It
@@ -38,6 +40,13 @@ export const MARKET_STATUSES = [
   "refunded",
   "cancelled",
   "rejected",
+  // Appended out of lifecycle order on purpose: these two sit between
+  // `graduated` and `resolved` in the dispute-window flow (repo ADR 0024), but
+  // the array order is the stored Postgres enum order, so inserting them where
+  // they belong would rewrite the type. The Solidity MarketStatus enum appends
+  // for the same reason.
+  "resolution_pending",
+  "disputed",
 ] as const;
 
 /** One of {@link MARKET_STATUSES}. */
