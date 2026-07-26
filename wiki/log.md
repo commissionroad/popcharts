@@ -1108,3 +1108,32 @@ lines, an ACCEPTED one and a stale PROPOSED duplicate left by an earlier
 rebase; removed the stale one.
 Open follow-up: ADR 0023 (protocol security audit program) has no summary
 page and no index entry at all.
+
+## [2026-07-25] ingest | ADR 0020 — Phase 4 correction (create-market slot leak)
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~index.md
+Notes: Phase 4 was recorded as "stack-aware create-market" complete, but the
+resolution only covered the script's own pre-flight check and API calls — the
+`pnpm --dir protocol run local:create-market` child it spawns takes its chain
+from POPCHARTS_LOCAL_RPC_URL / POPCHARTS_RPC_URL, both defaulting to slot 0's
+:8545, and neither was set. Every non-zero slot therefore created its market on
+the human slot-0 chain while reporting success against its own API. Corrected
+in the ADR and here rather than silently re-checking the box, because the
+summary's completeness claim was the misleading part.
+Also routed `local:create-complete-set-market` through the Phase 5 launcher —
+it shells straight into a `--network localhost` hardhat script and was missed
+in the original sweep, so it had the same always-slot-0 behavior.
+Note the ADR's still-unchecked verification item ("create-market against each
+stack lands the market in that stack's UI only") is exactly the check that
+would have caught this; deliberately left open.
+
+## [2026-07-25] amend | ADR 0020 — same-sweep findings from an independent review
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: A Codex review of the create-market fix surfaced two more instances of
+the same split-brain class, both folded into the ADR and summary: (1)
+`--api-url` bypassed registry resolution even though it names no chain, so it
+could create on slot 0 while saving metadata to another slot's API; (2)
+`local-ai-review-smoke` spawns the same protocol helper and was equally
+unpinned. Also recorded that the chain-variable set now has a single
+definition (scripts/shared/localStack/protocolChainEnv.ts) rather than being
+mirrored between create-market and the with-target-stack launcher, per the
+AGENTS.md no-mirrored-coordination-constants rule.

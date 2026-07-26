@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { deriveStackResources } from "./shared/localStack/ports.ts";
+import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
 import { pruneDeadDescriptors, type StackDescriptor } from "./shared/localStack/registry.ts";
 import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
@@ -76,13 +77,13 @@ export function targetStackEnv(
     : {};
   // Re-derive the URLs from the slot so the `http://127.0.0.1:<port>` format
   // has one source of truth (ports.ts), not a copy here.
-  const { chainRpcHttpUrl, chainRpcWssUrl } = deriveStackResources(target.slot);
+  const { chainRpcWssUrl } = deriveStackResources(target.slot);
   return {
     ...fileEnv,
     POPCHARTS_LOCAL_CHAIN_ENV_FILE: target.envFilePath,
-    POPCHARTS_LOCAL_RPC_URL: chainRpcHttpUrl,
-    POPCHARTS_RPC_URL: chainRpcHttpUrl,
-    RPC_HTTP_URL: chainRpcHttpUrl,
+    // The chain-selecting variables have one definition, shared with
+    // local-create-market's own spawn path.
+    ...resolveProtocolChainEnv(fileEnv, target),
     RPC_WSS_URL: chainRpcWssUrl,
     LOCAL_API_PORT: String(target.apiPort),
   };

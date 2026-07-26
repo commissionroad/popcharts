@@ -203,6 +203,29 @@ never points a derived slot at the legacy shared database-reset behavior.
 
 - [x] `local-create-market.ts`: registry resolution + interactive prompt +
       `--stack` / `POPCHARTS_STACK`.
+- [x] **Correction (2026-07-25):** the item above resolved the target for the
+      script's *own* pre-flight check and API calls but did not propagate it to
+      the `pnpm --dir protocol run local:create-market` child it spawns. That
+      child picks its chain from `POPCHARTS_LOCAL_RPC_URL` (hardhat's
+      `localhost` network) and `POPCHARTS_RPC_URL`, both defaulting to slot 0's
+      `:8545`, so every non-zero slot created its market on the human slot's
+      chain while reporting success against its own API. `local-create-market`
+      now pins both vars to the resolved slot's RPC URL — the same value its
+      pre-flight check uses, so the two cannot disagree — and prints the target
+      chain, because a mis-targeted run was otherwise silent. The chain
+      variables moved to `scripts/shared/localStack/protocolChainEnv.ts` so the
+      set has one definition, shared with the Phase 5 launcher.
+- [x] **Related, same sweep (2026-07-25):** `--api-url` used to bypass registry
+      resolution alongside `--local-chain-env`, which split the run in two —
+      the market created on slot 0's chain, its metadata saved to whichever
+      API the flag named. Only `--local-chain-env` bypasses now, since only it
+      names a chain; `--api-url` redirects the metadata and is honored over the
+      resolved stack's own API port rather than silently ignored.
+- [x] **Related, same sweep (2026-07-25):** `local-ai-review-smoke.ts` spawns
+      the same protocol helper and had the same unpinned child. It now pins the
+      chain from the env file it loads. Note it still reads the fixed slot-0
+      env filename, so it remains a slot-0-only script — making it stack-aware
+      is untouched work, tracked below.
 - [x] Apply the same resolution to the sibling scripts — done in Phase 5
       below. (`local-smoke` / `local-dev-ai-review` are orchestrators that
       *start* a stack, already slot-aware via Phase 2's
@@ -226,6 +249,10 @@ registry, a single launcher resolves the stack and exports the vars they read.
       and shared by `local-create-market` and the launcher (no duplication).
 - [x] Route `local:bot-trade`, `local:deploy-venue`, `local:deploy-postgrad`,
       `local:market-health`, `local:market-smoke` through the launcher.
+- [x] `local:create-complete-set-market` — missed in the original sweep and
+      routed through the launcher on 2026-07-25. It shells straight into a
+      `--network localhost` hardhat script, so unrouted it always targeted
+      slot 0.
 - [x] Unit tests for `parseLauncherArgs` and `targetStackEnv`.
 - **Scope / caveat:** correct for the normal same-worktree case (an agent runs
       these against its own slot). The hardhat deploy scripts key their
@@ -238,7 +265,11 @@ registry, a single launcher resolves the stack and exports the vars they read.
 - [ ] Launch a slot-1 stack from a worktree alongside a live slot-0 human
       stack; confirm isolated chain, DB, API, and app.
 - [ ] `just local-create-market` against each stack lands the market in that
-      stack's UI only.
+      stack's UI only. Still open, and worth keeping open: this is the check
+      that would have caught the Phase 4 correction above. The regression test
+      pins the env the child is spawned with, which is necessary but not
+      sufficient — only a real two-stack run proves the market lands in the
+      right UI.
 - [ ] Kill a stack ungracefully; confirm the next startup prunes it and
       reclaims the slot.
 
@@ -263,6 +294,11 @@ registry, a single launcher resolves the stack and exports the vars they read.
 - [ ] **Explicit `POPCHARTS_STACK_KIND` override** if the cwd heuristic ever
       misclassifies (e.g. an agent working outside the recognized worktree
       directories).
+- [ ] **Make `local-ai-review-smoke` stack-aware.** It reads the fixed slot-0
+      env filename (`localChainEnvFile`), so it only ever smokes slot 0. Its
+      protocol child is now chain-pinned to whatever env file it loads, which
+      closes the silent-wrong-chain hole, but routing it through the registry
+      like its siblings is untouched.
 
 ## Exit criteria
 

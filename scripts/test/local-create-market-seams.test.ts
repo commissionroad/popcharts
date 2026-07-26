@@ -18,7 +18,12 @@ import {
   filterUnusedGeneratedMarketOptions,
   generatedMarketOptionKey,
 } from "../shared/localMarket/generatedMarketOptions.ts";
-import { parseArgs } from "../local-create-market.ts";
+import {
+  buildProtocolCommandEnv,
+  parseArgs,
+} from "../local-create-market.ts";
+import { deriveStackResources } from "../shared/localStack/ports.ts";
+import { resolveProtocolChainEnv } from "../shared/localStack/protocolChainEnv.ts";
 
 // A LOCAL_CHAIN_SMOKE_MARKET line as protocol/scripts/create-local-market.ts
 // emits it (recorded from a real run, surrounded by typical pnpm/Hardhat
@@ -258,6 +263,124 @@ describe("local-create-market CLI", function () {
         POPCHARTS_STACK: "env-stack",
       }).stack,
       "cli-stack",
+    );
+  });
+});
+
+describe("local-create-market protocol chain env", function () {
+  // A StackDescriptor carries more than the resolver reads; only `slot` is
+  // load-bearing here, since every other resource derives from it.
+  const stackOnSlot = (slot: number) =>
+    ({ slot }) as unknown as Parameters<typeof resolveProtocolChainEnv>[1];
+
+  // Regression: the spawned `pnpm --dir protocol run local:create-market`
+  // resolves its chain from POPCHARTS_LOCAL_RPC_URL (hardhat's `localhost`
+  // network) and POPCHARTS_RPC_URL (the protocol scripts' viem clients), both
+  // of which default to slot 0's :8545. Leaving them unset made every non-zero
+  // slot create its market on the slot 0 chain while reporting success against
+  // the resolved slot's API.
+  it("pins the chain variables to the resolved slot's RPC URL", function () {
+    assert.deepEqual(resolveProtocolChainEnv({}, stackOnSlot(1)), {
+      POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8555",
+      POPCHARTS_RPC_URL: "http://127.0.0.1:8555",
+      RPC_HTTP_URL: "http://127.0.0.1:8555",
+    });
+
+    assert.equal(
+      resolveProtocolChainEnv({}, stackOnSlot(2)).POPCHARTS_LOCAL_RPC_URL,
+      deriveStackResources(2).chainRpcHttpUrl,
+    );
+  });
+
+  it("lets the resolved slot outrank anything inherited from the shell", function () {
+    // The slot owns its chain port, so a stale export from another slot's
+    // shell — including the POPCHARTS_LOCAL_RPC_URL workaround for this very
+    // bug — must not redirect the run.
+    assert.deepEqual(
+      resolveProtocolChainEnv(
+        {
+          POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8545",
+          POPCHARTS_RPC_URL: "http://127.0.0.1:8545",
+          RPC_HTTP_URL: "http://127.0.0.1:8545",
+        },
+        stackOnSlot(1),
+      ),
+      {
+        POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8555",
+        POPCHARTS_RPC_URL: "http://127.0.0.1:8555",
+        RPC_HTTP_URL: "http://127.0.0.1:8555",
+      },
+    );
+  });
+
+  it("uses the env file's RPC URL when the registry was bypassed", function () {
+    // `--local-chain-env` / `--api-url` skip registry resolution, so the env
+    // file is authoritative and an explicit override backstops it.
+    assert.equal(
+      resolveProtocolChainEnv(
+        {
+          POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8565",
+          RPC_HTTP_URL: "http://127.0.0.1:8575",
+        },
+        undefined,
+      ).POPCHARTS_LOCAL_RPC_URL,
+      "http://127.0.0.1:8575",
+    );
+
+    assert.equal(
+      resolveProtocolChainEnv(
+        { POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8565" },
+        undefined,
+      ).POPCHARTS_LOCAL_RPC_URL,
+      "http://127.0.0.1:8565",
+    );
+  });
+
+  it("falls back to slot 0 only when nothing else identifies a chain", function () {
+    assert.deepEqual(resolveProtocolChainEnv({}, undefined), {
+      POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8545",
+      POPCHARTS_RPC_URL: "http://127.0.0.1:8545",
+      RPC_HTTP_URL: "http://127.0.0.1:8545",
+    });
+  });
+
+  // Resolving the chain correctly is worthless if the value never reaches the
+  // spawned child — that gap *was* the bug. This asserts the environment the
+  // protocol helper is actually handed, so dropping the pin fails here even
+  // though the resolver above would still pass.
+  it("hands the spawned protocol helper the resolved chain, not slot 0's", function () {
+    const generatedMarket = {
+      graduationSeconds: 3600,
+      kind: "crypto",
+      metadata: {
+        category: "Crypto",
+        createdAt: "2026-07-25T00:00:00Z",
+        description: "d",
+        question: "Will BTC/USD be higher than $1 at 2026-07-25T02:00:00Z?",
+        resolutionCriteria: "c",
+        version: 1,
+      },
+      resolutionSeconds: 7200,
+    } as Parameters<typeof buildProtocolCommandEnv>[0]["generatedMarket"];
+
+    const spawnEnv = buildProtocolCommandEnv({
+      baseEnv: {
+        POPCHARTS_LOCAL_RPC_URL: "http://127.0.0.1:8545",
+        POPCHARTS_RPC_URL: "http://127.0.0.1:8545",
+        RPC_HTTP_URL: "http://127.0.0.1:8545",
+      },
+      chainEnv: resolveProtocolChainEnv({}, stackOnSlot(1)),
+      generatedMarket,
+    });
+
+    assert.equal(spawnEnv.POPCHARTS_LOCAL_RPC_URL, "http://127.0.0.1:8555");
+    assert.equal(spawnEnv.POPCHARTS_RPC_URL, "http://127.0.0.1:8555");
+    assert.equal(spawnEnv.RPC_HTTP_URL, "http://127.0.0.1:8555");
+    assert.equal(spawnEnv.LOCAL_MARKET_GRADUATION_SECONDS, "3600");
+    assert.equal(spawnEnv.LOCAL_MARKET_RESOLUTION_SECONDS, "7200");
+    assert.match(
+      String(spawnEnv.LOCAL_MARKET_METADATA),
+      /"question":"Will BTC\/USD be higher than \$1/,
     );
   });
 });
