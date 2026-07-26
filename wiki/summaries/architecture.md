@@ -4,7 +4,7 @@ title: Monorepo Architecture (docs/architecture.md)
 description: Workspace map, acyclic dependency graph, committed-generated-code freshness gates, and the two intentional duplications (MarketStatus, LMSR math).
 sources:
   - docs/architecture.md
-updated: 2026-07-15
+updated: 2026-07-26
 ---
 
 # Monorepo Architecture
@@ -66,9 +66,10 @@ workspace package, committed generated artifacts, or over the network:
   `packages/api-client/src/generated/` (committed) → consumed only through the
   hand-written adapter `app/src/integrations/indexer/markets-api.ts`.
 - **server → chain**: RPC via viem client factories in
-  `server/src/blockchain/client.ts`. The pregrad indexer watchers still declare
-  minimal inline `parseAbi` fragments for the events they watch (e.g.
-  `src/indexer/watchers/market-created.ts`).
+  `server/src/blockchain/client.ts`. Indexer watchers subscribe through the
+  generated protocol ABIs, pulling each event out with `getAbiItem` (e.g.
+  `src/indexer/watchers/market-created.ts`) rather than declaring a fragment of
+  their own.
 - **server → protocol**: the server depends on `@popcharts/protocol`
   (`file:../protocol`) for venue ABIs, price/tick helpers, clearing math, and
   manifest types (keeper, venue services, `indexer/utils/venue-pool-registry`).
