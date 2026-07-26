@@ -1,5 +1,6 @@
-import { type Abi, createPublicClient, createWalletClient, http, parseAbi } from "viem";
+import { type Abi, createPublicClient, createWalletClient, http } from "viem";
 
+import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { completeSetBinaryMarketAbi } from "@/integrations/contracts/postgrad-venue";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
@@ -19,14 +20,6 @@ import { TEST_WALLET_ADDRESS } from "./test-wallet";
 /** Hardhat account #0: deployer, owner, review manager, and resolver on a
  * local deploy. */
 export const OPERATOR_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-
-// MockCollateral is a local-only test mock with no generated ABI in
-// @popcharts/protocol, so this minimal faucet surface is hand-written; the
-// first-party child market below uses its generated ABI per AGENTS.md.
-const mockCollateralAbi = parseAbi([
-  "function mint(address account, uint256 amount) external",
-  "function balanceOf(address account) view returns (uint256)",
-]);
 
 export type LifecycleEnv = {
   apiBaseUrl: string;
