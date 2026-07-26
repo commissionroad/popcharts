@@ -14,6 +14,7 @@ import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
+import { BASE_CHAIN_PORT } from "./shared/localStack/ports.ts";
 import {
   resolveProtocolChainEnv,
   type ProtocolChainEnv,
@@ -301,7 +302,8 @@ async function resolveRegisteredStack(
  * environment and the loaded env file, then the chain variables that decide
  * which devchain the child talks to, then the generated market it should
  * create. Built in one place so the chain pin cannot drift away from the
- * spawn — the original bug was a resolved target that never reached the child.
+ * spawn: a resolved target that never reaches the child is the failure mode
+ * this guards (ADR 0020 Phase 4 correction).
  */
 export function buildProtocolCommandEnv({
   baseEnv,
@@ -384,7 +386,13 @@ async function validateLocalDeployment(
   }
 }
 
-/** Parses local-create-market command-line arguments. */
+/**
+ * Parses local-create-market command-line arguments, throwing on any token it
+ * does not recognize rather than ignoring it. `--flag value` and `--flag=value`
+ * are equivalent and the last occurrence wins. Two results are load-bearing for
+ * stack targeting: `--stack` falls back to `POPCHARTS_STACK`, and
+ * `--local-chain-env` paths resolve against the repo root, not the cwd.
+ */
 export function parseArgs(
   args: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -807,8 +815,10 @@ function readForecastTemperature(value: unknown): number | null {
 }
 
 function serializeMetadata(metadata: MarketMetadata): string {
-  // Key order is stable so the serialized metadata (and therefore its hash)
-  // is reproducible for the same generated market.
+  // Key order mirrors the protocol's canonical schema so the payload round-trips
+  // through its `parseMarketMetadata`. It does NOT determine the metadata hash:
+  // the protocol helper re-serializes with its own `serializeMarketMetadata`
+  // before hashing, so that module owns the hashed byte layout.
   const ordered: Record<string, unknown> = {
     version: metadata.version,
     question: metadata.question,
@@ -1098,13 +1108,30 @@ async function rpcResult(
 }
 
 function staleStackRecovery(envFile: string, rpcUrl: string): string {
+  // The lsof hint names the port actually in play: hardcoding 8545 sent a
+  // developer debugging a non-zero slot at the human stack's chain instead.
+  const port = readRpcPort(rpcUrl);
+
   return (
     `${envFile} and the running RPC are probably out of sync. ` +
-    `Stop the stale Hardhat node on ${rpcUrl}, then run ` +
+    `Stop the stale local node on ${rpcUrl}, then run ` +
     "'just local-dev-control' or 'just local-dev' from this checkout and " +
     "wait for contract deployment to complete. To find the process, run " +
-    "'lsof -nP -iTCP:8545 -sTCP:LISTEN'."
+    `'lsof -nP -iTCP:${port} -sTCP:LISTEN'.`
   );
+}
+
+/**
+ * The port `rpcUrl` addresses, for diagnostics only. Falls back to slot 0's
+ * chain port when the URL is unparseable, since this only builds a hint string
+ * and must never throw over the error it is explaining.
+ */
+function readRpcPort(rpcUrl: string): string {
+  try {
+    return new URL(rpcUrl).port || String(BASE_CHAIN_PORT);
+  } catch {
+    return String(BASE_CHAIN_PORT);
+  }
 }
 
 // The protocol helper's output streams through unprefixed (the developer is

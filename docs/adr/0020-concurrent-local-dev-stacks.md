@@ -203,7 +203,7 @@ never points a derived slot at the legacy shared database-reset behavior.
 
 - [x] `local-create-market.ts`: registry resolution + interactive prompt +
       `--stack` / `POPCHARTS_STACK`.
-- [x] **Correction (2026-07-25):** the item above resolved the target for the
+- [x] **Correction (2026-07-26):** the item above resolved the target for the
       script's *own* pre-flight check and API calls but did not propagate it to
       the `pnpm --dir protocol run local:create-market` child it spawns. That
       child picks its chain from `POPCHARTS_LOCAL_RPC_URL` (hardhat's
@@ -214,14 +214,18 @@ never points a derived slot at the legacy shared database-reset behavior.
       pre-flight check uses, so the two cannot disagree — and prints the target
       chain, because a mis-targeted run was otherwise silent. The chain
       variables moved to `scripts/shared/localStack/protocolChainEnv.ts` so the
-      set has one definition, shared with the Phase 5 launcher.
-- [x] **Related, same sweep (2026-07-25):** `--api-url` used to bypass registry
+      set has exactly one definition; all three writers now import it —
+      `local-create-market`, the Phase 5 launcher, and
+      `resolveAndRegisterStack` (which had its own copy of the two keys, and had
+      already drifted by omitting `RPC_HTTP_URL`, so a fourth variable would
+      have silently missed every stack-starting orchestrator).
+- [x] **Related, same sweep (2026-07-26):** `--api-url` used to bypass registry
       resolution alongside `--local-chain-env`, which split the run in two —
       the market created on slot 0's chain, its metadata saved to whichever
       API the flag named. Only `--local-chain-env` bypasses now, since only it
       names a chain; `--api-url` redirects the metadata and is honored over the
       resolved stack's own API port rather than silently ignored.
-- [x] **Related, same sweep (2026-07-25):** `local-ai-review-smoke.ts` spawns
+- [x] **Related, same sweep (2026-07-26):** `local-ai-review-smoke.ts` spawns
       the same protocol helper and had the same unpinned child. It now pins the
       chain from the env file it loads. Note it still reads the fixed slot-0
       env filename, so it remains a slot-0-only script — making it stack-aware
@@ -250,7 +254,7 @@ registry, a single launcher resolves the stack and exports the vars they read.
 - [x] Route `local:bot-trade`, `local:deploy-venue`, `local:deploy-postgrad`,
       `local:market-health`, `local:market-smoke` through the launcher.
 - [x] `local:create-complete-set-market` — missed in the original sweep and
-      routed through the launcher on 2026-07-25. It shells straight into a
+      routed through the launcher on 2026-07-26. It shells straight into a
       `--network localhost` hardhat script, so unrouted it always targeted
       slot 0.
 - [x] Unit tests for `parseLauncherArgs` and `targetStackEnv`.

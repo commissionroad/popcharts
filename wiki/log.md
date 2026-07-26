@@ -1109,7 +1109,7 @@ rebase; removed the stale one.
 Open follow-up: ADR 0023 (protocol security audit program) has no summary
 page and no index entry at all.
 
-## [2026-07-25] ingest | ADR 0020 — Phase 4 correction (create-market slot leak)
+## [2026-07-26] ingest | ADR 0020 — Phase 4 correction (create-market slot leak)
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~index.md
 Notes: Phase 4 was recorded as "stack-aware create-market" complete, but the
 resolution only covered the script's own pre-flight check and API calls — the
@@ -1126,7 +1126,7 @@ Note the ADR's still-unchecked verification item ("create-market against each
 stack lands the market in that stack's UI only") is exactly the check that
 would have caught this; deliberately left open.
 
-## [2026-07-25] amend | ADR 0020 — same-sweep findings from an independent review
+## [2026-07-26] ingest | ADR 0020 — same-sweep findings from an independent review
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
 Notes: A Codex review of the create-market fix surfaced two more instances of
 the same split-brain class, both folded into the ADR and summary: (1)
@@ -1137,3 +1137,27 @@ unpinned. Also recorded that the chain-variable set now has a single
 definition (scripts/shared/localStack/protocolChainEnv.ts) rather than being
 mirrored between create-market and the with-target-stack launcher, per the
 AGENTS.md no-mirrored-coordination-constants rule.
+
+## [2026-07-26] lint | ADR 0020 — full-file review of the create-market fix
+Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
+Notes: A whole-file review (skills/engineering/full-file-review) of the touched
+files falsified the "single definition" claim written above: a THIRD writer of
+the chain-env keys existed at scripts/shared/localStack/resolveAndRegisterStack.ts,
+carrying its own near-verbatim copy of the explanatory comment, and it had
+already drifted by omitting RPC_HTTP_URL. It is the writer every
+stack-STARTING orchestrator goes through (local-dev, local-chain-smoke,
+local-lifecycle-nightly, local-dev-control), so a fourth variable added to the
+set would have silently missed all four. Now imports the shared module; the
+claim in the summary is accurate as of this entry.
+The same review found the interior comment on local-create-market's
+serializeMetadata was WRONG about its own mechanism (it claimed local key order
+determines the metadata hash; the protocol helper re-parses and re-serializes
+with its own canonical serializer before hashing). Corrected — a why-comment
+that misstates the mechanism is worse than none.
+Open follow-ups filed, not done here: local-create-market is 1148 lines against
+a ~300 guardrail; its MarketMetadata type + serializer duplicate
+protocol/scripts/shared/market/localMarketMetadata.ts, which claims sole
+ownership of the hashed layout; hardhatLocalChainId duplicates ports.ts's
+BASE_CHAIN_ID; five copies of the env-file parser exist repo-wide; and
+scripts/run-local-chain-e2e.ts pins POPCHARTS_RPC_URL but not
+POPCHARTS_LOCAL_RPC_URL, the same bug class this PR fixed.
