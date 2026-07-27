@@ -12,22 +12,20 @@ import {
   targetStackEnv,
 } from "../with-target-stack.ts";
 
-const slotProbePath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "support",
-  "slotProbe.ts",
-);
+const testDir = dirname(fileURLToPath(import.meta.url));
+const slotProbePath = join(testDir, "support", "slotProbe.ts");
+const launcherPath = join(testDir, "..", "with-target-stack.ts");
 
-/**
- * Runs the slot probe as a real child process under `env` and returns what it
- * derived. Spawning is the point: the launcher's bug class is an override that
- * exists in the resolver but never reaches the child's environment.
- */
-async function probeChildSlot(env: NodeJS.ProcessEnv): Promise<string> {
+/** Runs a TypeScript entry point to completion and returns its stdout. */
+async function runNode(
+  scriptPath: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+): Promise<{ stdout: string; code: number | null }> {
   const child = spawn(
     process.execPath,
-    ["--experimental-strip-types", slotProbePath],
-    { env, stdio: ["ignore", "pipe", "ignore"] },
+    ["--experimental-strip-types", scriptPath, ...args],
+    { env, stdio: ["ignore", "pipe", "inherit"] },
   );
 
   let stdout = "";
@@ -38,9 +36,40 @@ async function probeChildSlot(env: NodeJS.ProcessEnv): Promise<string> {
   const code = await new Promise<number | null>((resolve) => {
     child.once("exit", resolve);
   });
-  assert.equal(code, 0, `slot probe exited with ${code}`);
 
-  return stdout.trim();
+  return { stdout, code };
+}
+
+/**
+ * The slot the probe derived, read out of a stdout that may also carry the
+ * launcher's own banner. Asserting on exactly one `slot=` reading keeps a
+ * silent no-output run from being mistaken for a passing one.
+ */
+function probedSlot(stdout: string): string {
+  const readings = [...stdout.matchAll(/slot=(\d+)/g)].map((m) => m[1]!);
+  assert.equal(
+    readings.length,
+    1,
+    `expected exactly one slot reading, got ${JSON.stringify(stdout)}`,
+  );
+  return readings[0]!;
+}
+
+/**
+ * Writes `descriptor` into a throwaway registry directory and returns the env
+ * that points the launcher at it. Hermetic by construction: the launcher prunes
+ * dead descriptors, so it must never be allowed to read (and delete from) the
+ * developer's real `~/.popcharts/local-stacks`.
+ */
+function registryEnvFor(
+  descriptor: StackDescriptor,
+  registryDir: string,
+): NodeJS.ProcessEnv {
+  writeFileSync(
+    join(registryDir, `${descriptor.instanceId}.json`),
+    JSON.stringify(descriptor),
+  );
+  return { POPCHARTS_STACK_REGISTRY_DIR: registryDir };
 }
 
 function stack(overrides: Partial<StackDescriptor> = {}): StackDescriptor {
@@ -131,21 +160,43 @@ test("targetStackEnv merges the slot's generated env file when present", () => {
   }
 });
 
-test("the spawned child derives the targeted slot, not slot 0", async () => {
+test("the command the launcher spawns derives the targeted slot, not slot 0", async () => {
+  // Drives the real launcher end to end — its own resolution, its own spawn —
+  // rather than re-composing the env the way main() does, because the bug class
+  // is an override that exists in the resolver and never reaches the child. A
+  // test that built the env itself would stay green if the handoff at the spawn
+  // call site were broken.
+  //
   // The launcher exports every *concrete* value its wrapped commands read
-  // today, which masks a missing slot: a child that derives its own resources
-  // through readSlotFromEnv would compute slot 0 while the launcher announced
-  // slot 1 (ADR 0020). Composed exactly as main() does — inherited env first,
-  // overrides last — and run through a real process boundary, because the
-  // failure is an override that never reaches the child. The inherited slot is
-  // pinned to a different value so a passing assertion cannot come from the
-  // ambient environment of whichever stack runs this suite.
-  const slot = await probeChildSlot({
-    ...process.env,
-    POPCHARTS_STACK_SLOT: "0",
-    ...targetStackEnv(stack()),
-  });
-  assert.equal(slot, "1");
+  // today, which is what masks a missing slot: a child deriving its own
+  // resources through readSlotFromEnv computes slot 0 while the launcher
+  // announces slot 1 (ADR 0020). The inherited slot is pinned to a different
+  // value so a passing assertion cannot come from the ambient environment of
+  // whichever stack runs this suite.
+  const registryDir = mkdtempSync(join(tmpdir(), "with-target-stack-registry-"));
+  try {
+    // A live control pid inside the startup grace period keeps the descriptor
+    // alive without a chain answering on its port (registry.ts).
+    const target = stack({
+      controlPid: process.pid,
+      startedAt: new Date().toISOString(),
+    });
+    const { stdout, code } = await runNode(
+      launcherPath,
+      ["--stack", "1", "--", process.execPath, "--experimental-strip-types", slotProbePath],
+      {
+        ...process.env,
+        POPCHARTS_STACK_SLOT: "0",
+        ...registryEnvFor(target, registryDir),
+      },
+    );
+
+    assert.equal(code, 0, `launcher exited with ${code}`);
+    assert.match(stdout, /targeting slot 1/);
+    assert.equal(probedSlot(stdout), "1");
+  } finally {
+    rmSync(registryDir, { recursive: true, force: true });
+  }
 });
 
 test("the slot probe falls back to slot 0 without the launcher's overrides", async () => {
@@ -153,5 +204,7 @@ test("the slot probe falls back to slot 0 without the launcher's overrides", asy
   // child really does land on slot 0, so that assertion is load-bearing rather
   // than restating a default.
   const { POPCHARTS_STACK_SLOT: _inherited, ...ambient } = process.env;
-  assert.equal(await probeChildSlot(ambient), "0");
+  const { stdout, code } = await runNode(slotProbePath, [], ambient);
+  assert.equal(code, 0, `slot probe exited with ${code}`);
+  assert.equal(probedSlot(stdout), "0");
 });
