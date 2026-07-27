@@ -9,7 +9,9 @@ import {
   filterUnusedGeneratedMarketOptions,
   generatedMarketDirections,
   generatedMarketOptionKey,
+  shouldGenerateIncoherentMarket,
   type GeneratedMarketKind,
+  type RejectableMode,
 } from "./generatedMarketOptions.ts";
 import {
   buildWeatherMarket,
@@ -26,16 +28,31 @@ type GeneratedMarketPlanOption = CryptoMarketOption | WeatherMarketOption;
  * another option would have worked; the throw at the end reports every source
  * failure at once so the developer sees the real cause. `logLabel` is the
  * calling script's own name, so this module never states which script it serves.
+ * `rejectable` controls whether the run authors a deliberately incoherent
+ * market (one whose criteria contradict its question) so the review reject path
+ * gets exercised: "always"/"never" force it, "auto" rolls the default chance.
  */
 export async function buildGeneratedMarket({
   kind,
   logLabel,
+  rejectable,
   usedOptionKeys,
 }: {
   readonly kind: GeneratedMarketKind | "random";
   readonly logLabel: string;
+  readonly rejectable: RejectableMode;
   readonly usedOptionKeys: ReadonlySet<string>;
 }): Promise<GeneratedMarket> {
+  const incoherent = shouldGenerateIncoherentMarket(rejectable, Math.random());
+
+  if (incoherent) {
+    console.log(
+      `[${logLabel}] authoring an INTENTIONALLY INCOHERENT market — its ` +
+        `resolution criteria contradict its own question, so review should ` +
+        `reject it. Pass --coherent to force a normal market.`,
+    );
+  }
+
   const allOptions = buildGeneratedMarketOptions(kind);
   const filteredOptions = filterUnusedGeneratedMarketOptions(
     allOptions,
@@ -58,11 +75,11 @@ export async function buildGeneratedMarket({
   for (const option of shuffle([...filteredOptions.options])) {
     try {
       if (option.kind === "crypto") {
-        return await buildCryptoMarket(option);
+        return await buildCryptoMarket(option, { incoherent });
       }
 
       if (option.kind === "weather") {
-        return await buildWeatherMarket(option);
+        return await buildWeatherMarket(option, { incoherent });
       }
     } catch (error) {
       errors.push(`${option.key}: ${getErrorMessage(error)}`);

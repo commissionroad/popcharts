@@ -7,7 +7,10 @@ import {
   type GeneratedMarket,
   type MarketMetadata,
 } from "./generatedMarket.ts";
-import type { GeneratedMarketDirection } from "./generatedMarketOptions.ts";
+import {
+  oppositeGeneratedMarketDirection,
+  type GeneratedMarketDirection,
+} from "./generatedMarketOptions.ts";
 
 /** A digital asset a generated crypto market can be written about. */
 export type DigitalAsset = {
@@ -49,6 +52,7 @@ const spotPriceSourceUrl =
  */
 export async function buildCryptoMarket(
   option: CryptoMarketOption,
+  { incoherent = false }: { readonly incoherent?: boolean } = {},
 ): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
@@ -56,6 +60,12 @@ export async function buildCryptoMarket(
   const prices = await fetchJson(spotPriceSourceUrl);
   const price = readSpotPrice(prices, asset.id);
   const threshold = formatUsd(price);
+  // Incoherent markets resolve on the opposite direction from the one the
+  // question asks, so the criteria contradict the question — what the market
+  // review's coherence check should reject.
+  const criteriaDirection = incoherent
+    ? oppositeGeneratedMarketDirection(direction)
+    : direction;
   const metadata: MarketMetadata = {
     category: "Crypto",
     createdAt: now.toISOString(),
@@ -67,7 +77,7 @@ export async function buildCryptoMarket(
       `${formatUtc(resolutionAt)}?`,
     resolutionCriteria:
       `Resolve YES if the linked spot-price source reports ${asset.symbol}/USD ` +
-      `strictly ${direction} than ${threshold} at or immediately after ` +
+      `strictly ${criteriaDirection} than ${threshold} at or immediately after ` +
       `${formatUtc(resolutionAt)}. If no reading is available at that moment, ` +
       `use the first reading from the same source within 15 minutes after the ` +
       `resolution time. Ties resolve NO.`,

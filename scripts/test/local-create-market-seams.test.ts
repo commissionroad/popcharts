@@ -19,6 +19,8 @@ import {
   extractGeneratedMarketOptionKeyFromQuestion,
   filterUnusedGeneratedMarketOptions,
   generatedMarketOptionKey,
+  oppositeGeneratedMarketDirection,
+  shouldGenerateIncoherentMarket,
 } from "../shared/localMarket/generatedMarketOptions.ts";
 import { parseLocalCreateMarketArgs } from "../shared/localMarket/parseLocalCreateMarketArgs.ts";
 import { deriveStackResources } from "../shared/localStack/ports.ts";
@@ -249,6 +251,26 @@ describe("readEnvFile", function () {
   });
 });
 
+describe("incoherent (review-rejectable) market policy", function () {
+  it("flips a direction to its opposite", function () {
+    assert.equal(oppositeGeneratedMarketDirection("higher"), "lower");
+    assert.equal(oppositeGeneratedMarketDirection("lower"), "higher");
+  });
+
+  it("forces incoherence for --rejectable and suppresses it for --coherent", function () {
+    // The roll cannot override an explicit mode.
+    assert.equal(shouldGenerateIncoherentMarket("always", 0.99), true);
+    assert.equal(shouldGenerateIncoherentMarket("never", 0), false);
+  });
+
+  it("rolls against the chance for the default auto mode", function () {
+    assert.equal(shouldGenerateIncoherentMarket("auto", 0.1, 0.25), true);
+    // The boundary is exclusive: a roll equal to the chance is coherent.
+    assert.equal(shouldGenerateIncoherentMarket("auto", 0.25, 0.25), false);
+    assert.equal(shouldGenerateIncoherentMarket("auto", 0.9, 0.25), false);
+  });
+});
+
 describe("local-create-market CLI", function () {
   it("parses --stack and falls back to POPCHARTS_STACK", function () {
     assert.equal(parseLocalCreateMarketArgs(["--stack", "2"]).stack, "2");
@@ -265,6 +287,18 @@ describe("local-create-market CLI", function () {
         POPCHARTS_STACK: "env-stack",
       }).stack,
       "cli-stack",
+    );
+  });
+
+  it("parses --rejectable and --coherent, defaulting to auto", function () {
+    assert.equal(parseLocalCreateMarketArgs([]).rejectable, "auto");
+    assert.equal(
+      parseLocalCreateMarketArgs(["--rejectable"]).rejectable,
+      "always",
+    );
+    assert.equal(
+      parseLocalCreateMarketArgs(["--coherent"]).rejectable,
+      "never",
     );
   });
 });
