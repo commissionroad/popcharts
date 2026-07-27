@@ -2,6 +2,7 @@ import { resolveRepoPath } from "../paths.ts";
 import {
   isGeneratedMarketKind,
   type GeneratedMarketKind,
+  type RejectableMode,
 } from "./generatedMarketOptions.ts";
 
 /** Parsed command-line options for the local market creation helper. */
@@ -11,6 +12,7 @@ export type LocalCreateMarketOptions = {
   help: boolean;
   kind: GeneratedMarketKind | "random";
   preview: boolean;
+  rejectable: RejectableMode;
   stack: string | undefined;
 };
 
@@ -31,6 +33,7 @@ export function parseLocalCreateMarketArgs(
     help: false,
     kind: "random",
     preview: false,
+    rejectable: "auto",
     stack: env.POPCHARTS_STACK,
   };
 
@@ -41,6 +44,10 @@ export function parseLocalCreateMarketArgs(
       options.help = true;
     } else if (arg === "--preview") {
       options.preview = true;
+    } else if (arg === "--rejectable") {
+      options.rejectable = "always";
+    } else if (arg === "--coherent") {
+      options.rejectable = "never";
     } else if (arg === "--local-chain-env") {
       const value = args[index + 1];
       if (!value) {
@@ -102,6 +109,11 @@ Options:
                             then http://127.0.0.1:$LOCAL_API_PORT.
   --kind <kind>            Generate crypto, weather, or random.
                             Defaults to random.
+  --rejectable              Author a deliberately incoherent market (its
+                            criteria contradict its own question) so market
+                            review rejects it. By default about 1 run in 4 does
+                            this on its own to exercise the reject path.
+  --coherent                Force a normal, coherent market (never incoherent).
   --local-chain-env <path>  Load a generated local-chain env file. Names the
                             chain outright, so it bypasses stack registry
                             resolution.

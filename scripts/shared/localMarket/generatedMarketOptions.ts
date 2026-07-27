@@ -13,6 +13,46 @@ export type GeneratedMarketDirection =
   (typeof generatedMarketDirections)[number];
 export type GeneratedMarketKind = (typeof generatedMarketKinds)[number];
 
+/**
+ * The other direction. Used to author a deliberately incoherent market: its
+ * resolution criteria point the opposite way from its own question, which the
+ * market review's coherence check is meant to reject.
+ */
+export function oppositeGeneratedMarketDirection(
+  direction: GeneratedMarketDirection,
+): GeneratedMarketDirection {
+  return direction === "higher" ? "lower" : "higher";
+}
+
+/**
+ * How a run should treat the incoherent-market roll: "always"/"never" are the
+ * --rejectable/--coherent flags, and "auto" (the default) rolls against a fixed
+ * chance so ordinary runs still exercise the review reject path now and then.
+ */
+export type RejectableMode = "always" | "auto" | "never";
+
+/** Odds an "auto" run authors an incoherent, review-rejectable market. */
+export const REJECTABLE_MARKET_CHANCE = 0.25;
+
+/**
+ * Decides whether to author an incoherent market from the mode and a [0, 1)
+ * sample. The sample is passed in rather than drawn here so the policy stays
+ * pure and unit-testable; the caller supplies Math.random().
+ */
+export function shouldGenerateIncoherentMarket(
+  mode: RejectableMode,
+  roll: number,
+  chance: number = REJECTABLE_MARKET_CHANCE,
+): boolean {
+  if (mode === "always") {
+    return true;
+  }
+  if (mode === "never") {
+    return false;
+  }
+  return roll < chance;
+}
+
 /** The shape `filterUnusedGeneratedMarketOptions` needs of any option. */
 export type GeneratedMarketOption = {
   readonly key: string;

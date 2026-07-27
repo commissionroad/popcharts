@@ -74,6 +74,7 @@ async function main(): Promise<void> {
     const generatedMarket = await buildGeneratedMarket({
       kind: options.kind,
       logLabel,
+      rejectable: options.rejectable,
       usedOptionKeys: new Set(),
     });
     console.log(
@@ -130,6 +131,7 @@ async function main(): Promise<void> {
   const generatedMarket = await buildGeneratedMarket({
     kind: options.kind,
     logLabel,
+    rejectable: options.rejectable,
     usedOptionKeys,
   });
 

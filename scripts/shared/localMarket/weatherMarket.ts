@@ -6,7 +6,10 @@ import {
   type GeneratedMarket,
   type MarketMetadata,
 } from "./generatedMarket.ts";
-import type { GeneratedMarketDirection } from "./generatedMarketOptions.ts";
+import {
+  oppositeGeneratedMarketDirection,
+  type GeneratedMarketDirection,
+} from "./generatedMarketOptions.ts";
 
 /**
  * A weather station a generated market can be written about: the coordinates
@@ -72,14 +75,24 @@ const observationSourceUrl = "https://aviationweather.gov/api/data/metar";
  * against the observations that will settle it. Forecast and resolution come
  * from different sources deliberately: the forecast sets the threshold, decoded
  * METAR observations resolve it. Throws when the forecast has no usable
- * temperature for the window, so the caller can try another option.
+ * temperature for the window, so the caller can try another option. Pass
+ * `incoherent` to deliberately mis-point the criteria so the market should fail
+ * review — used to exercise the reject path from a normal local run.
  */
 export async function buildWeatherMarket(
   option: WeatherMarketOption,
+  { incoherent = false }: { readonly incoherent?: boolean } = {},
 ): Promise<GeneratedMarket> {
   const now = new Date();
   const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
   const { direction, station } = option;
+  // A coherent market resolves on the same aggregate its question asks about
+  // (the maximum). An incoherent one points its criteria the other way, so the
+  // criteria can resolve opposite to the question — exactly what the market
+  // review's coherence check should catch and reject.
+  const criteriaDirection = incoherent
+    ? oppositeGeneratedMarketDirection(direction)
+    : direction;
   const forecast = await fetchForecastWindow({
     end: resolutionAt,
     location: station,
@@ -98,13 +111,14 @@ export async function buildWeatherMarket(
       `Will the max ${station.city} METAR temperature be ${direction} than ` +
       `${threshold}°F by ${formatUtc(resolutionAt)}?`,
     resolutionCriteria:
-      `Resolve YES if any decoded ${station.stationId} METAR observation with ` +
-      `an observation time after ${formatUtc(now)} and at or before ` +
-      `${formatUtc(resolutionAt)} reports a temperature strictly ${direction} ` +
-      `than ${threshold}°F. Convert decoded Celsius METAR temperatures to ` +
-      `Fahrenheit before comparison. If the window has no valid reports, use ` +
-      `the first valid report from the same source within 30 minutes after the ` +
-      `resolution time. Ties resolve NO.`,
+      `Take every decoded ${station.stationId} METAR observation with an ` +
+      `observation time after ${formatUtc(now)} and at or before ` +
+      `${formatUtc(resolutionAt)}, converting decoded Celsius temperatures to ` +
+      `Fahrenheit. Let M be the maximum of those temperatures. Resolve YES if ` +
+      `M is strictly ${criteriaDirection} than ${threshold}°F; otherwise NO. ` +
+      `If the window has no valid reports, take M from the first valid report ` +
+      `from the same source within 30 minutes after the resolution time. Ties ` +
+      `resolve NO.`,
     // Both sources a resolver needs: the forecast that set the threshold and
     // the observation feed the criteria are judged against.
     resolutionSources: [forecast.sourceUrl, observationUrl],
