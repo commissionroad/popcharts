@@ -135,11 +135,18 @@ local-market-health:
 local-market-smoke *args:
     pnpm run local:market-smoke -- {{args}}
 
-# Emergency operator kill switch: cancel an Active market and open full refunds.
-# Accepts a bare marketId ("9") or the composite "chainId:marketId" copied from
-# the market detail URL ("31337:9").
-cancel-market marketId:
-    POPCHARTS_CANCEL_MARKET_ID="{{marketId}}" pnpm run local:cancel-market
+# The marketId is a bare id ("9") or the composite "chainId:marketId" copied
+# from the market detail URL ("31337:9"). The optional slot names the local dev
+# stack to act on, by slot number or instance id; without it the command still
+# refuses to guess when several stacks are running, so naming one is the only
+# way to run this non-interactively with more than one stack up (ADR 0020). The
+# env() fallback keeps an inherited POPCHARTS_STACK working when no slot
+# argument is given.
+# Operator kill switch: cancel an Active market and open full refunds.
+cancel-market marketId slot="":
+    POPCHARTS_CANCEL_MARKET_ID="{{marketId}}" \
+      POPCHARTS_STACK="{{ if slot != '' { slot } else { env('POPCHARTS_STACK', '') } }}" \
+      pnpm run local:cancel-market
 
 scripts-check:
     pnpm run scripts:check
