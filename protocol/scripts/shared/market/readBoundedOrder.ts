@@ -1,6 +1,6 @@
 import { getAddress, type Address, type Hex, type PublicClient } from "viem";
 
-import { boundedPoolOrderManagerAbi } from "../../../src/generated/postgrad-venue.js";
+import { boundedPoolOrderManagerAbi } from "#src/generated/postgrad-venue.js";
 
 /** Stored order-manager state for one maker order; zero owner means deleted. */
 export type BoundedOrderState = {

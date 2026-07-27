@@ -8,13 +8,13 @@ import VenueStackModule from "../ignition/modules/VenueStack.js";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { LOCAL_DEVCHAIN_CHAIN_ID } from "../src/chain/localDevchain.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "#src/chain/localDevchain.js";
 import {
   ensureDeterministicFactory,
   hasBytecode,
 } from "./shared/deployment/deterministicFactory.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
-import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "#src/deployment/venueStackDeployment.js";
 import { verifyIgnitionDeployment } from "./shared/ignition/verifyIgnitionDeployment.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 import { writeVenueManifest } from "./write-venue-manifest.js";

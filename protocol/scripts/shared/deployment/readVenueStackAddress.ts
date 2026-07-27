@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 
-import { VENUE_STACK_DEPLOYMENT } from "../../../src/deployment/venueStackDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "#src/deployment/venueStackDeployment.js";
 import { readManifestAddress } from "./readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./resolveDeploymentManifestFile.js";
 
