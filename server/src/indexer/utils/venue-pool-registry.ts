@@ -188,6 +188,7 @@ async function buildVenuePoolRecordsFromChain({
   ]);
 
   return buildVenuePoolRecords({
+    boundedHook: config.contracts.boundedHook,
     chainId: config.chainId,
     collateral: collateral as `0x${string}`,
     marketId,

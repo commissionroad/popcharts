@@ -9,15 +9,18 @@ const yesToken = "0x00000000000000000000000000000000000000AA" as const;
 const noToken = "0x00000000000000000000000000000000000000EE" as const;
 const postgradMarket = "0x00000000000000000000000000000000000000DD" as const;
 
+const args = {
+  boundedHook: "0x00000000000000000000000000000000000000BB",
+  chainId: 5042002,
+  collateral,
+  marketId: 7n,
+  noToken,
+  postgradMarket,
+  yesToken,
+} as const;
+
 describe("buildVenuePoolRecords", () => {
-  const records = buildVenuePoolRecords({
-    chainId: 5042002,
-    collateral,
-    marketId: 7n,
-    noToken,
-    postgradMarket,
-    yesToken,
-  });
+  const records = buildVenuePoolRecords(args);
 
   it("derives one row per outcome side with normalized addresses", () => {
     expect(records).toHaveLength(2);
@@ -42,16 +45,20 @@ describe("buildVenuePoolRecords", () => {
     expect(records[1]!.poolId).toMatch(/^0x[0-9a-f]{64}$/);
     expect(records[0]!.poolId).not.toBe(records[1]!.poolId);
 
-    const rebuilt = buildVenuePoolRecords({
-      chainId: 5042002,
-      collateral,
-      marketId: 7n,
-      noToken,
-      postgradMarket,
-      yesToken,
-    });
+    const rebuilt = buildVenuePoolRecords(args);
 
     expect(rebuilt.map((record) => record.poolId)).toEqual(
+      records.map((record) => record.poolId),
+    );
+  });
+
+  it("hashes the bounded hook into the pool ids", () => {
+    const otherHook = buildVenuePoolRecords({
+      ...args,
+      boundedHook: "0x00000000000000000000000000000000000000FF",
+    });
+
+    expect(otherHook.map((record) => record.poolId)).not.toEqual(
       records.map((record) => record.poolId),
     );
   });
@@ -74,14 +81,7 @@ describe("persistVenuePoolRecords", () => {
       }),
     } as unknown as Parameters<typeof persistVenuePoolRecords>[1];
 
-    const records = buildVenuePoolRecords({
-      chainId: 5042002,
-      collateral,
-      marketId: 7n,
-      noToken,
-      postgradMarket,
-      yesToken,
-    });
+    const records = buildVenuePoolRecords(args);
     await persistVenuePoolRecords(records, dbc);
 
     expect(inserted).toEqual([records]);

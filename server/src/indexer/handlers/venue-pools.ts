@@ -5,7 +5,6 @@ import {
 } from "@popcharts/protocol";
 
 import type { LiveChangeWriter } from "src/change-feed/writer";
-import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
 /** Insert shape for one outcome pool's `venue_pools` row. */
@@ -15,9 +14,12 @@ export type VenuePoolRecord = typeof schema.venuePools.$inferInsert;
  * Computes the two venue_pools rows (YES and NO) for a postgrad market from
  * the same deterministic pool-key policy the graduation wiring applies
  * (ADR 0007/0009), so the mapping can be rebuilt at any time without an
- * on-chain registration event.
+ * on-chain registration event. Every input the pool ids hash — the bounded
+ * hook included — is an argument, so a rebuild depends only on what the caller
+ * passes and never on process config.
  */
 export function buildVenuePoolRecords({
+  boundedHook,
   chainId,
   collateral,
   marketId,
@@ -25,6 +27,7 @@ export function buildVenuePoolRecords({
   postgradMarket,
   yesToken,
 }: {
+  readonly boundedHook: `0x${string}`;
   readonly chainId: number;
   readonly collateral: `0x${string}`;
   readonly marketId: bigint;
@@ -37,7 +40,7 @@ export function buildVenuePoolRecords({
     // keeps the pool id identical while accepting non-checksummed input.
     const outcomeToken = token.toLowerCase() as `0x${string}`;
     const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
-      boundedHook: config.contracts.boundedHook,
+      boundedHook: boundedHook.toLowerCase() as `0x${string}`,
       collateral: collateral.toLowerCase() as `0x${string}`,
       outcomeToken,
     });
