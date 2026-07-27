@@ -40,6 +40,33 @@ export type LocalChainE2eTarget = {
   readonly hardhatNodeArgs: readonly string[];
 };
 
+/** How a child is executed, injected so tests can observe the handoff. */
+export type CommandExecutor = (
+  command: string,
+  args: readonly string[],
+  options: { readonly cwd?: string; readonly env?: NodeJS.ProcessEnv },
+) => Promise<void>;
+
+/** How the chain node is spawned, injected for the same reason. */
+export type ProcessSpawner = (
+  command: string,
+  args: readonly string[],
+  options: {
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly stdio: "inherit";
+  },
+) => ChildProcess;
+
+// Hosts that name a chain on this machine. A POPCHARTS_RPC_URL pointing at one
+// of these was meant to select a local chain; anything else is a remote network.
+const LOOPBACK_HOSTNAMES = new Set([
+  "0.0.0.0",
+  "127.0.0.1",
+  "::1",
+  "localhost",
+]);
+
 let hardhatNode: ChildProcess | null = null;
 let stoppingHardhatNode = false;
 
@@ -70,12 +97,68 @@ export function resolveLocalChainE2eTarget(
   );
   const { hostname, port } = parseRpcListenTarget(chainEnv.RPC_HTTP_URL);
 
+  assertNoStrandedRpcOverride(env, chainEnv.RPC_HTTP_URL);
+
   return {
     chainEnv,
     // Without these the node binds hardhat's 127.0.0.1:8545 default, so any
     // non-zero slot probed and deployed against a chain nothing ever started.
     hardhatNodeArgs: ["node", "--hostname", hostname, "--port", port],
   };
+}
+
+/**
+ * Rejects a POPCHARTS_RPC_URL that names a local chain this run will not use
+ * and that nothing else corroborates.
+ *
+ * Before the chain pin was fixed, that variable did steer the probe and
+ * `devchain:deploy` (though never the three `--network localhost` deploys), so
+ * dropping it as an input is an observable change. Failing loudly beats
+ * silently relocating such a run to slot 0.
+ *
+ * A remote value is ignored rather than rejected: that is `.env.example`'s arc
+ * testnet URL riding in a developer's shell, and a chain-backed local e2e was
+ * never going to run against it. A value matching the resolved chain, or one
+ * corroborated by RPC_HTTP_URL/POPCHARTS_LOCAL_RPC_URL, is likewise fine —
+ * `with-target-stack` exports all three together.
+ */
+function assertNoStrandedRpcOverride(
+  env: NodeJS.ProcessEnv,
+  resolvedRpcUrl: string,
+): void {
+  const override = env.POPCHARTS_RPC_URL;
+
+  if (
+    override === undefined ||
+    override === "" ||
+    override === resolvedRpcUrl ||
+    env.RPC_HTTP_URL !== undefined ||
+    env.POPCHARTS_LOCAL_RPC_URL !== undefined
+  ) {
+    return;
+  }
+
+  let hostname: string;
+
+  try {
+    ({ hostname } = parseRpcListenTarget(override));
+  } catch {
+    return;
+  }
+
+  if (!LOOPBACK_HOSTNAMES.has(hostname)) {
+    return;
+  }
+
+  throw new Error(
+    `POPCHARTS_RPC_URL=${override} names a local chain, but this run targets ` +
+      `${resolvedRpcUrl}. The devchain e2e does not read POPCHARTS_RPC_URL to ` +
+      "choose a chain: protocol/hardhat.config.ts also reads it for the arc " +
+      "testnet network, and the '--network localhost' deploys take their " +
+      "transport from POPCHARTS_LOCAL_RPC_URL. Set POPCHARTS_LOCAL_RPC_URL, " +
+      "RPC_HTTP_URL, or POPCHARTS_STACK_SLOT to pick the chain, or unset " +
+      "POPCHARTS_RPC_URL to use the default.",
+  );
 }
 
 /**
@@ -120,15 +203,7 @@ async function main(): Promise<void> {
       console.log(`Using existing devchain at ${rpcUrl}`);
     } else {
       console.log(`Starting local Hardhat node at ${rpcUrl}`);
-      hardhatNode = spawn(
-        resolve(protocolDir, "node_modules", ".bin", "hardhat"),
-        [...hardhatNodeArgs],
-        {
-          cwd: protocolDir,
-          env: buildProtocolCommandEnv({ baseEnv: process.env, chainEnv }),
-          stdio: "inherit",
-        },
-      );
+      hardhatNode = startHardhatNode({ chainEnv, hardhatNodeArgs });
       hardhatNode.on("exit", (code, signal) => {
         if (!stoppingHardhatNode && code !== 0) {
           console.error(
@@ -143,7 +218,11 @@ async function main(): Promise<void> {
       });
     }
 
-    await run("pnpm", ["--dir", "protocol", "devchain:deploy"], chainEnv);
+    await runProtocolCommand({
+      args: ["--dir", "protocol", "devchain:deploy"],
+      chainEnv,
+      command: "pnpm",
+    });
 
     // Deploy the postgrad venue on top of the devchain contracts so the e2e
     // chain path also proves whole-system deployability: v4 venue stack,
@@ -151,48 +230,99 @@ async function main(): Promise<void> {
     const devchain = readJsonFile<DevchainManifest>(
       resolve(protocolDir, "deployments", "devchain.local.json"),
     );
-    await run("pnpm", ["--dir", "protocol", "local:deploy-venue"], chainEnv);
-    await run(
-      "pnpm",
-      ["--dir", "protocol", "local:deploy-postgrad"],
+    await runProtocolCommand({
+      args: ["--dir", "protocol", "local:deploy-venue"],
       chainEnv,
-      {
+      command: "pnpm",
+    });
+    await runProtocolCommand({
+      args: ["--dir", "protocol", "local:deploy-postgrad"],
+      chainEnv,
+      command: "pnpm",
+      deploymentEnv: {
         POPCHARTS_PREGRAD_MANAGER_ADDRESS:
           devchain.contracts.pregradManager.address,
       },
-    );
-    await run(
-      "pnpm",
-      ["--dir", "protocol", "local:create-complete-set-market"],
+    });
+    await runProtocolCommand({
+      args: ["--dir", "protocol", "local:create-complete-set-market"],
       chainEnv,
-      {
+      command: "pnpm",
+      deploymentEnv: {
         POPCHARTS_COLLATERAL_ADDRESS: devchain.contracts.collateral.address,
         POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
       },
-    );
+    });
 
-    await run("pnpm", ["--dir", "app", "test:e2e:chain"], chainEnv, {
-      PLAYWRIGHT_BASE_URL: BASE_URL,
-      POPCHARTS_E2E_CHAIN: "true",
+    await runProtocolCommand({
+      args: ["--dir", "app", "test:e2e:chain"],
+      chainEnv,
+      command: "pnpm",
+      deploymentEnv: {
+        PLAYWRIGHT_BASE_URL: BASE_URL,
+        POPCHARTS_E2E_CHAIN: "true",
+      },
     });
   } finally {
     await stopHardhatNode();
   }
 }
 
-async function run(
-  command: string,
-  args: readonly string[],
-  chainEnv: ProtocolChainEnv,
-  deploymentEnv: NodeJS.ProcessEnv = {},
-): Promise<void> {
-  await runInheritedCommand(command, args, {
-    env: buildProtocolCommandEnv({
-      baseEnv: process.env,
-      chainEnv,
-      deploymentEnv,
-    }),
+/**
+ * Runs one protocol helper against the resolved chain.
+ *
+ * `execute` is injectable because the original defect was not a mis-resolved
+ * chain but a correctly-resolved one that never reached the child: a test that
+ * only checks the resolver, or only the env builder, stays green through the
+ * exact regression. Tests assert the environment handed to `execute` here,
+ * which is the boundary that leaked.
+ */
+export async function runProtocolCommand({
+  args,
+  baseEnv = process.env,
+  chainEnv,
+  command,
+  deploymentEnv = {},
+  execute = runInheritedCommand,
+}: {
+  readonly args: readonly string[];
+  readonly baseEnv?: NodeJS.ProcessEnv;
+  readonly chainEnv: ProtocolChainEnv;
+  readonly command: string;
+  readonly deploymentEnv?: NodeJS.ProcessEnv;
+  readonly execute?: CommandExecutor;
+}): Promise<void> {
+  await execute(command, args, {
+    env: buildProtocolCommandEnv({ baseEnv, chainEnv, deploymentEnv }),
   });
+}
+
+/**
+ * Starts the chain node this run will use, bound to the resolved chain's host
+ * and port. Spawned through an injectable `spawnProcess` for the same reason
+ * `runProtocolCommand` takes an executor: dropping the argv or the environment
+ * here is the half of the defect that a resolver test cannot see.
+ */
+export function startHardhatNode({
+  baseEnv = process.env,
+  chainEnv,
+  hardhatNodeArgs,
+  spawnProcess = spawn,
+}: {
+  readonly baseEnv?: NodeJS.ProcessEnv;
+  readonly chainEnv: ProtocolChainEnv;
+  readonly hardhatNodeArgs: readonly string[];
+  readonly spawnProcess?: ProcessSpawner;
+}): ChildProcess {
+  return spawnProcess(
+    resolve(protocolDir, "node_modules", ".bin", "hardhat"),
+    [...hardhatNodeArgs],
+    {
+      cwd: protocolDir,
+      env: buildProtocolCommandEnv({ baseEnv, chainEnv }),
+      stdio: "inherit",
+    },
+  );
 }
 
 async function stopHardhatNode(): Promise<void> {
