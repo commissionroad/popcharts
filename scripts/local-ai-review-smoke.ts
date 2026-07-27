@@ -1,11 +1,11 @@
 #!/usr/bin/env -S node --experimental-strip-types
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 
 import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
-import { parseEnvFile } from "./shared/env/parseEnvFile.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
+import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
 import { repoRoot, serverDir } from "./shared/paths.ts";
@@ -29,7 +29,7 @@ async function main() {
       `${localChainEnvFile} not found. Start the stack first: pnpm local:smoke -- --keep-running`,
     );
   }
-  const stackEnv = parseEnvFile(readFileSync(localChainEnvFile, "utf8"));
+  const stackEnv = readEnvFile(localChainEnvFile);
   // The generated env file carries RPC_HTTP_URL but not the variables the
   // hardhat `localhost` network and the protocol viem clients read, and those
   // default to slot 0's :8545 — so the child has to be pinned to the same
