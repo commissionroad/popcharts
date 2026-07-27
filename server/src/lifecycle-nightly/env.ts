@@ -9,19 +9,14 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
 // its node --experimental-strip-types runtime cannot load TS out of
-// node_modules, so the repo's one env parser is shared by path instead.
+// node_modules, so the repo's shared env helpers are imported by path instead.
+import { localChainEnvFile } from "../../../scripts/shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "../../../scripts/shared/env/readEnvFile.ts";
 
-const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-const envFile =
-  process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ??
-  resolve(serverDir, ".env.local-chain");
+const envFile = process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ?? localChainEnvFile;
 
 // PREGRAD_MANAGER_ADDRESS doubles as the "orchestrator already provided the
 // stack env" sentinel: it is always set by the env builders and never has a
