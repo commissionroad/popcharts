@@ -35,6 +35,7 @@ import {
   generatedMarketOptionKey,
   type GeneratedMarketDirection,
 } from "./shared/localMarket/generatedMarketOptions.ts";
+import { parseRpcListenTarget } from "./shared/net/parseRpcListenTarget.ts";
 import { protocolDir, repoRoot } from "./shared/paths.ts";
 
 /**
@@ -1122,18 +1123,14 @@ function staleStackRecovery(envFile: string, rpcUrl: string): string {
 }
 
 /**
- * The TCP port `rpcUrl` addresses, for the recovery hint only. A URL with no
- * explicit port uses its scheme's default rather than the local chain port —
- * naming slot 0's 8545 there would point at a listener the URL never described.
- * Falls back to slot 0 only when the URL cannot be parsed at all, since this
- * builds a hint string and must never throw over the error it is explaining.
+ * The TCP port `rpcUrl` addresses, for the recovery hint only. Falls back to
+ * slot 0 when the URL cannot be parsed at all, since this builds a hint string
+ * and must never throw over the error it is explaining — which is the one way
+ * it differs from `parseRpcListenTarget`, whose callers bind the port.
  */
 export function readRpcPort(rpcUrl: string): string {
   try {
-    const { port, protocol } = new URL(rpcUrl);
-    return (
-      port || (protocol === "https:" || protocol === "wss:" ? "443" : "80")
-    );
+    return parseRpcListenTarget(rpcUrl).port;
   } catch {
     return String(BASE_CHAIN_PORT);
   }
