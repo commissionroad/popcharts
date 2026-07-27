@@ -2,6 +2,7 @@ import { getAddress, isAddress } from "viem";
 
 import type { ProtocolCreateMarketParams } from "@/domain/market-creation/types";
 import { DisplayableError } from "@/lib/error-handling";
+import { isRecord } from "@/lib/is-record";
 
 export type SerializedProtocolCreateMarketParams = {
   bypassAiResolution: boolean;
@@ -95,8 +96,4 @@ function parseBoolean(value: unknown, field: string) {
   }
 
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

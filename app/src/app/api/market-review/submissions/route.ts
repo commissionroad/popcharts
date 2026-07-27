@@ -7,6 +7,7 @@ import {
   type SerializedProtocolCreateMarketParams,
 } from "@/integrations/contracts/protocol-params";
 import { presentError } from "@/lib/error-handling";
+import { isRecord } from "@/lib/is-record";
 
 type MarketReviewSubmissionRequest = {
   collateralSymbol: "pUSD";
@@ -248,10 +249,6 @@ function readReviewWebhookUrl() {
 
 function createReviewId(metadataHash: `0x${string}`, submittedAt: string) {
   return `review-${metadataHash.slice(2, 10)}-${Date.parse(submittedAt).toString(36)}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isString(value: unknown): value is string {
