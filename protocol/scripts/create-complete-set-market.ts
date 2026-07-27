@@ -6,23 +6,23 @@ import { erc20Abi, type Address, type Hex, type PublicClient } from "viem";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { requireAddress, requireString } from "../src/cli/requireCliValue.js";
+import { requireAddress, requireString } from "#src/cli/requireCliValue.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
-import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
-import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
-import { writeJsonFile } from "../src/json/jsonFile.js";
-import { COMPLETE_SET_MARKET_DEPLOYMENT } from "../src/market/completeSetMarketDeployment.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "#src/deployment/postgradVenueDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "#src/deployment/venueStackDeployment.js";
+import { writeJsonFile } from "#src/json/jsonFile.js";
+import { COMPLETE_SET_MARKET_DEPLOYMENT } from "#src/market/completeSetMarketDeployment.js";
 import {
   configureOutcomePool,
   deployCompleteSetBinaryMarket,
   type MarketPoolManifestEntry,
 } from "./shared/market/deployCompleteSetMarketContracts.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
-import { clampDisplayPriceWad } from "../src/price/clampDisplayPriceWad.js";
-import { COMPLETE_SET_PRICE_POLICY } from "../src/price/completeSetPricePolicy.js";
+import { clampDisplayPriceWad } from "#src/price/clampDisplayPriceWad.js";
+import { COMPLETE_SET_PRICE_POLICY } from "#src/price/completeSetPricePolicy.js";
 import { parseDisplayPriceWad } from "./shared/price/parseDisplayPriceWad.js";
 
 const WAD = 10n ** 18n;

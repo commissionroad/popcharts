@@ -1,10 +1,7 @@
 import { keccak256, stringToBytes } from "viem";
 
-import {
-  parseMarketMetadata,
-  serializeMarketMetadata,
-} from "../../../src/market/marketMetadataSchema.js";
-import type { MarketMetadata } from "../../../src/market/marketMetadataSchema.js";
+import { parseMarketMetadata, serializeMarketMetadata } from "#src/market/marketMetadataSchema.js";
+import type { MarketMetadata } from "#src/market/marketMetadataSchema.js";
 
 /**
  * Hashing and the local-smoke fixture for market metadata. The schema itself —

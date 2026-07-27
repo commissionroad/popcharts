@@ -6,7 +6,7 @@ import { type Address, type Hex, type PublicClient } from "viem";
 import { assertNativeBalance } from "./shared/account/assertNativeBalance.js";
 import type { DeploymentChainProfile } from "./shared/chain/resolveDeploymentChainProfile.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
-import { requireAddress, requireNonNegativeInteger } from "../src/cli/requireCliValue.js";
+import { requireAddress, requireNonNegativeInteger } from "#src/cli/requireCliValue.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { ARC_PROTOCOL_DEPLOYMENT } from "./shared/deployment/arcProtocol.js";
 import { deployCompleteSetPostgradContracts } from "./shared/deployment/deployCompleteSetPostgrad.js";
@@ -18,9 +18,9 @@ import {
   normalizeVenueContractEntries,
   type VenueManifestContractEntry,
 } from "./shared/deployment/venueManifest.js";
-import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
-import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
-import { writeJsonFile } from "../src/json/jsonFile.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "#src/deployment/postgradVenueDeployment.js";
+import { VENUE_STACK_DEPLOYMENT } from "#src/deployment/venueStackDeployment.js";
+import { writeJsonFile } from "#src/json/jsonFile.js";
 import { printDeploymentHeader } from "./shared/log/printDeploymentHeader.js";
 
 // Complete-set outcome tokens default to 18 decimals, matching the local v4

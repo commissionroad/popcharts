@@ -1,4 +1,4 @@
-import { requireDecimals } from "../../../src/price/requireDecimals.js";
+import { requireDecimals } from "#src/price/requireDecimals.js";
 
 const DECIMAL_PATTERN = /^(\d+)(?:\.(\d+))?$/;
 

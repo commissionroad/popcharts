@@ -4,19 +4,19 @@ import { erc20Abi, formatUnits } from "viem";
 import { initializeReadOnlyScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { COMPLETE_SET_KEEPER_POLICY } from "../src/market/completeSetKeeperPolicy.js";
-import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
+import { COMPLETE_SET_KEEPER_POLICY } from "#src/market/completeSetKeeperPolicy.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 import { postgradMarketStatusLabel } from "./shared/market/postgradMarketStatusLabel.js";
 import { evaluateMarketHealth } from "./shared/market/evaluateMarketHealth.js";
-import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
-import { readPoolActiveLiquidity } from "../src/market/readPoolActiveLiquidity.js";
-import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
-import { readErc20Balance } from "../src/viem/readErc20Balance.js";
+import { readCompleteSetMarketManifest } from "#src/market/readCompleteSetMarketManifest.js";
+import { readPoolActiveLiquidity } from "#src/market/readPoolActiveLiquidity.js";
+import { readPoolDisplayPrice } from "#src/market/readPoolDisplayPrice.js";
+import { readErc20Balance } from "#src/viem/readErc20Balance.js";
 import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,
   poolTickBoundsAbi,
-} from "../src/generated/postgrad-venue.js";
+} from "#src/generated/postgrad-venue.js";
 
 /**
  * Read-only market health check (protocol MVP tracker item 4): reads the

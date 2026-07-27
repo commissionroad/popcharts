@@ -1,4 +1,4 @@
-import { requireDecimals } from "../../../src/price/requireDecimals.js";
+import { requireDecimals } from "#src/price/requireDecimals.js";
 
 /**
  * Converts a collateral balance into the outcome-token capacity it can back,

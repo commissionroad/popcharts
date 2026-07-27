@@ -5,17 +5,17 @@ import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScript
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
-import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
-import { ensureCollateralBalance } from "../src/market/ensureCollateralBalance.js";
-import { HOOK_DATA_NONE } from "../src/market/hookData.js";
+import { COMPLETE_SET_SMOKE_POLICY } from "#src/market/completeSetSmokePolicy.js";
+import { ensureCollateralBalance } from "#src/market/ensureCollateralBalance.js";
+import { HOOK_DATA_NONE } from "#src/market/hookData.js";
 import { readBoundedOrder } from "./shared/market/readBoundedOrder.js";
-import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
-import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
+import { readCompleteSetMarketManifest } from "#src/market/readCompleteSetMarketManifest.js";
+import { readPoolDisplayPrice } from "#src/market/readPoolDisplayPrice.js";
 import { readSmokeMakerOrderManifest } from "./shared/market/readSmokeMakerOrderManifest.js";
-import { tickToSqrtPriceX96 } from "../src/price/tickToSqrtPriceX96.js";
-import { approveErc20 } from "../src/viem/approveErc20.js";
-import { readErc20Balance } from "../src/viem/readErc20Balance.js";
-import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
+import { tickToSqrtPriceX96 } from "#src/price/tickToSqrtPriceX96.js";
+import { approveErc20 } from "#src/viem/approveErc20.js";
+import { readErc20Balance } from "#src/viem/readErc20Balance.js";
+import { requireSuccessfulReceipt } from "#src/viem/requireSuccessfulReceipt.js";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 

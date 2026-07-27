@@ -1,15 +1,15 @@
 import hre, { network } from "hardhat";
 import { erc20Abi, formatUnits, getAddress, parseEventLogs, type Abi } from "viem";
 
-import { SIDE_NO, SIDE_YES } from "../src/market-side.js";
+import { SIDE_NO, SIDE_YES } from "#src/market-side.js";
 import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScriptEnvironment.js";
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
-import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
-import { floorOutcomeToCollateralUnit } from "../src/market/floorOutcomeToCollateralUnit.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
+import { floorOutcomeToCollateralUnit } from "#src/market/floorOutcomeToCollateralUnit.js";
 import { outcomeCapacityForCollateral } from "./shared/market/outcomeCapacityForCollateral.js";
-import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
-import { readErc20Balance } from "../src/viem/readErc20Balance.js";
-import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
+import { readCompleteSetMarketManifest } from "#src/market/readCompleteSetMarketManifest.js";
+import { readErc20Balance } from "#src/viem/readErc20Balance.js";
+import { requireSuccessfulReceipt } from "#src/viem/requireSuccessfulReceipt.js";
 
 const LOSING_SIDE_ERROR = "LosingSideCannotRedeem";
 

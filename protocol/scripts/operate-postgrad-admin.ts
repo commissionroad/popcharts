@@ -3,8 +3,8 @@ import { erc20Abi, formatUnits, getAddress, type Address, type Hex, type PublicC
 import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js";
 import { readManifestAddress } from "./shared/deployment/readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
-import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
-import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "#src/deployment/postgradVenueDeployment.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 import {
   describeCompleteSetMarketState,
   planCompleteSetMarketAction,
@@ -15,14 +15,14 @@ import {
 import {
   readCompleteSetMarketManifest,
   type CompleteSetMarketManifestData,
-} from "../src/market/readCompleteSetMarketManifest.js";
-import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
-import { pregradManagerAbi } from "../src/generated/pregrad-manager.js";
+} from "#src/market/readCompleteSetMarketManifest.js";
+import { requireSuccessfulReceipt } from "#src/viem/requireSuccessfulReceipt.js";
+import { pregradManagerAbi } from "#src/generated/pregrad-manager.js";
 import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,
-} from "../src/generated/postgrad-venue.js";
-import { contractSideToMarketSide, type MarketSide } from "../src/market-side.js";
+} from "#src/generated/postgrad-venue.js";
+import { contractSideToMarketSide, type MarketSide } from "#src/market-side.js";
 
 /** One owner/resolver workflow the postgrad admin CLI can plan and broadcast. */
 export type PostgradAdminAction =

@@ -3,16 +3,16 @@ import type { network } from "hardhat";
 import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
-import { poolManagerAbi, stateViewAbi } from "../../../src/generated/third-party/venue.js";
+import { poolManagerAbi, stateViewAbi } from "#src/generated/third-party/venue.js";
 import {
   buildOutcomePoolKey,
   computePoolId,
   type CompleteSetMarketPoolKey,
-} from "../../../src/market/outcomePoolKey.js";
-import { COMPLETE_SET_PRICE_POLICY } from "../../../src/price/completeSetPricePolicy.js";
-import { deriveEpsilonBoundTicks } from "../../../src/price/deriveEpsilonBoundTicks.js";
-import { displayPriceWadToSqrtPriceX96 } from "../../../src/price/displayPriceWadToSqrtPriceX96.js";
-import { sqrtPriceX96ToTick } from "../../../src/price/sqrtPriceX96ToTick.js";
+} from "#src/market/outcomePoolKey.js";
+import { COMPLETE_SET_PRICE_POLICY } from "#src/price/completeSetPricePolicy.js";
+import { deriveEpsilonBoundTicks } from "#src/price/deriveEpsilonBoundTicks.js";
+import { displayPriceWadToSqrtPriceX96 } from "#src/price/displayPriceWadToSqrtPriceX96.js";
+import { sqrtPriceX96ToTick } from "#src/price/sqrtPriceX96ToTick.js";
 
 type LocalNetworkConnection = Awaited<ReturnType<typeof network.create>>;
 

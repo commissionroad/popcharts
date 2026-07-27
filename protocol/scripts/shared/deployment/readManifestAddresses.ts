@@ -2,7 +2,7 @@ import { relative } from "node:path";
 
 import type { Address } from "viem";
 
-import { readJsonFile } from "../../../src/json/jsonFile.js";
+import { readJsonFile } from "#src/json/jsonFile.js";
 import { collectVenueAddressEntries } from "./venueManifest.js";
 
 /** Manifest location and validation context shared by both read helpers. */
