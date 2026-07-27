@@ -17,6 +17,14 @@ import {
 import { mnemonicToAccount } from "viem/accounts";
 import { hardhat } from "viem/chains";
 
+// Relative path, not a package import: scripts/ is not a workspace package, and
+// its own runtime (node --experimental-strip-types) cannot load TS out of
+// node_modules, so the one parse body has to be shared by path. parseEnvFile is
+// deliberately dependency-free so every runtime that reaches it can load it.
+// No `.ts` suffix on the specifier: server resolves modules as a bundler and
+// rejects it, while scripts/ requires it — the asymmetry is expected.
+import { parseEnvFile } from "../../scripts/shared/env/parseEnvFile";
+
 /**
  * Interactive local-dev helper that makes bot wallets trade on a pregrad
  * market. Useful for exercising price movement, receipt volume, and indexer
@@ -140,7 +148,9 @@ async function main(): Promise<void> {
       defaultEnvFile,
   );
   const envFileExists = existsSync(envFile);
-  const fileEnv = envFileExists ? readEnvFile(envFile) : {};
+  const fileEnv = envFileExists
+    ? parseEnvFile(readFileSync(envFile, "utf8"))
+    : {};
   const env: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
 
   const managerAddress = readRequiredAddress(
@@ -1094,29 +1104,6 @@ function readApiBaseUrl(options: CliOptions, env: NodeJS.ProcessEnv): string {
     env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ??
     `http://127.0.0.1:${env.LOCAL_API_PORT ?? env.PORT ?? defaultApiPort}`
   );
-}
-
-// Matches scripts/shared/env/readEnvFile.ts, which lives outside this
-// package's typecheck root.
-function readEnvFile(path: string): Record<string, string> {
-  const env: Record<string, string> = {};
-
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-
-    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
-  }
-
-  return env;
 }
 
 function resolvePath(path: string): string {

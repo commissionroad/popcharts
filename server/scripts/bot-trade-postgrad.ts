@@ -41,6 +41,14 @@ import {
 import { mnemonicToAccount } from "viem/accounts";
 import { hardhat } from "viem/chains";
 
+// Relative path, not a package import: scripts/ is not a workspace package, and
+// its own runtime (node --experimental-strip-types) cannot load TS out of
+// node_modules, so the one parse body has to be shared by path. parseEnvFile is
+// deliberately dependency-free so every runtime that reaches it can load it.
+// No `.ts` suffix on the specifier: server resolves modules as a bundler and
+// rejects it, while scripts/ requires it — the asymmetry is expected.
+import { parseEnvFile } from "../../scripts/shared/env/parseEnvFile";
+
 /**
  * Interactive local-dev helper that makes bot wallets trade on a *graduated*
  * (post-graduation) market. The pregrad sibling (bot-trade.ts) drives the LMSR
@@ -211,7 +219,9 @@ async function main(): Promise<void> {
       defaultEnvFile,
   );
   const envFileExists = existsSync(envFile);
-  const fileEnv = envFileExists ? readEnvFile(envFile) : {};
+  const fileEnv = envFileExists
+    ? parseEnvFile(readFileSync(envFile, "utf8"))
+    : {};
   const env: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
 
   if (envFileExists) {
@@ -2136,24 +2146,6 @@ function parseBytes32(name: string, value: string): Hex {
     throw new Error(`${name}=${value} is not a valid bytes32 pool id.`);
   }
   return value as Hex;
-}
-
-// Matches scripts/shared/env/readEnvFile.ts, which lives outside this package's
-// typecheck root.
-function readEnvFile(path: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
-  }
-  return env;
 }
 
 function resolvePath(path: string): string {
