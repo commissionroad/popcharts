@@ -105,8 +105,11 @@ export {
   SIDE_YES,
 } from "./market-side.js";
 export type { MarketSide } from "./market-side.js";
-export { MARKET_STATUS } from "./market-status.js";
-export type { MarketStatusCode } from "./market-status.js";
-export { POSTGRAD_MARKET_STATUS } from "./postgrad-market-status.js";
-export type { PostgradMarketStatusCode } from "./postgrad-market-status.js";
+export {
+  MARKET_STATUS,
+  MARKET_STATUS_MEMBERS,
+  POSTGRAD_MARKET_STATUS,
+  POSTGRAD_MARKET_STATUS_MEMBERS,
+} from "./generated/contract-enums.js";
+export type { MarketStatusCode, PostgradMarketStatusCode } from "./generated/contract-enums.js";
 export { WAD, wadToCents, wadToNumber } from "./wad.js";
