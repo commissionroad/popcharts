@@ -15,6 +15,7 @@ import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { serializeProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
 import { presentError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
+import { isRecord } from "@/lib/is-record";
 
 /**
  * Connected wallet context required for wallet-signed devchain market
@@ -366,8 +367,4 @@ function isSubmitMarketReviewResponse(
     (value.aiReview.source === "local" || value.aiReview.source === "webhook") &&
     (value.aiReview.status === "eligible" || value.aiReview.status === "forwarded")
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

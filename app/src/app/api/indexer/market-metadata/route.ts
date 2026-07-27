@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { MarketMetadata } from "@/domain/market-creation/types";
 import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
 import { presentError } from "@/lib/error-handling";
+import { isRecord } from "@/lib/is-record";
 
 type MetadataProxyRequest = {
   chainId: number;
@@ -173,10 +174,6 @@ function readIndexerApiBaseUrl() {
     process.env.POPCHARTS_INDEXER_API_URL ??
     process.env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isString(value: unknown): value is string {
