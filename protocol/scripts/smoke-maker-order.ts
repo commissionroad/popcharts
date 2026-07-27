@@ -8,22 +8,22 @@ import { parseDecimalTokenAmount } from "./shared/cli/parseDecimalTokenAmount.js
 import { assertDeployedBytecode } from "./shared/contract/assertDeployedBytecode.js";
 import { readVenueStackAddress } from "./shared/deployment/readVenueStackAddress.js";
 import { ensureTokenPullerBytecode } from "./shared/deployment/tokenPuller.js";
-import { writeJsonFile } from "../src/json/jsonFile.js";
-import { POSTGRAD_MARKET_STATUS } from "../src/postgrad-market-status.js";
-import { COMPLETE_SET_SMOKE_POLICY } from "../src/market/completeSetSmokePolicy.js";
-import { ensureCollateralBalance } from "../src/market/ensureCollateralBalance.js";
-import { ensureDevBackstopLiquidity } from "../src/market/ensureDevBackstopLiquidity.js";
-import { HOOK_DATA_NONE } from "../src/market/hookData.js";
-import { readCompleteSetMarketManifest } from "../src/market/readCompleteSetMarketManifest.js";
-import { readPoolDisplayPrice } from "../src/market/readPoolDisplayPrice.js";
+import { writeJsonFile } from "#src/json/jsonFile.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
+import { COMPLETE_SET_SMOKE_POLICY } from "#src/market/completeSetSmokePolicy.js";
+import { ensureCollateralBalance } from "#src/market/ensureCollateralBalance.js";
+import { ensureDevBackstopLiquidity } from "#src/market/ensureDevBackstopLiquidity.js";
+import { HOOK_DATA_NONE } from "#src/market/hookData.js";
+import { readCompleteSetMarketManifest } from "#src/market/readCompleteSetMarketManifest.js";
+import { readPoolDisplayPrice } from "#src/market/readPoolDisplayPrice.js";
 import type { SmokeMakerOrderManifest } from "./shared/market/readSmokeMakerOrderManifest.js";
 import { SMOKE_ORDER_DEPLOYMENT } from "./shared/market/smokeOrderDeployment.js";
-import { alignTickToSpacing } from "../src/price/alignTickToSpacing.js";
-import { sqrtPriceX96ToDisplayPriceWad } from "../src/price/sqrtPriceX96ToDisplayPriceWad.js";
-import { tickToSqrtPriceX96 } from "../src/price/tickToSqrtPriceX96.js";
-import { approveErc20 } from "../src/viem/approveErc20.js";
-import { readErc20Balance } from "../src/viem/readErc20Balance.js";
-import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
+import { alignTickToSpacing } from "#src/price/alignTickToSpacing.js";
+import { sqrtPriceX96ToDisplayPriceWad } from "#src/price/sqrtPriceX96ToDisplayPriceWad.js";
+import { tickToSqrtPriceX96 } from "#src/price/tickToSqrtPriceX96.js";
+import { approveErc20 } from "#src/viem/approveErc20.js";
+import { readErc20Balance } from "#src/viem/readErc20Balance.js";
+import { requireSuccessfulReceipt } from "#src/viem/requireSuccessfulReceipt.js";
 
 // Allowance lifetime when the token puller is the canonical transfer-approval
 // singleton; long enough for one smoke run, short enough to expire afterward.

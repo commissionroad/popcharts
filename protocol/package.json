@@ -19,6 +19,9 @@
     "./virtual-lmsr": "./src/price/virtualLmsr.ts",
     "./wad": "./src/wad.ts"
   },
+  "imports": {
+    "#src/*": "./src/*"
+  },
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.12"

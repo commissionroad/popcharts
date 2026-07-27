@@ -1,8 +1,8 @@
 import { formatUnits, zeroAddress, type Address } from "viem";
 
-import { POSTGRAD_MARKET_STATUS } from "../../../src/postgrad-market-status.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 import { postgradMarketStatusLabel } from "./postgradMarketStatusLabel.js";
-import { marketSideToContractSide, type MarketSide } from "../../../src/market-side.js";
+import { marketSideToContractSide, type MarketSide } from "#src/market-side.js";
 
 /** On-chain lifecycle state of one CompleteSetBinaryMarket at a point in time. */
 export type CompleteSetMarketSnapshot = {

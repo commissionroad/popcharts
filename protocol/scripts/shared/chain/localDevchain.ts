@@ -1,4 +1,4 @@
-import { LOCAL_DEVCHAIN_CHAIN_ID } from "../../../src/chain/localDevchain.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "#src/chain/localDevchain.js";
 
 /**
  * Shared local devchain metadata for deployment scripts targeting `pnpm devchain:node`.

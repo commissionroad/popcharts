@@ -1,6 +1,6 @@
 import type { Address, Hex, PublicClient } from "viem";
 
-import { LOCAL_DEVCHAIN_CHAIN_ID } from "../../../src/chain/localDevchain.js";
+import { LOCAL_DEVCHAIN_CHAIN_ID } from "#src/chain/localDevchain.js";
 
 // Runtime bytecode of the keyless CREATE2 factory expected at
 // VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress. Source: Arachnid's

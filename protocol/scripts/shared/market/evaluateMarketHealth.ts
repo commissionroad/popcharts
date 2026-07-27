@@ -1,4 +1,4 @@
-import { POSTGRAD_MARKET_STATUS } from "../../../src/postgrad-market-status.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 import { outcomeCapacityForCollateral } from "./outcomeCapacityForCollateral.js";
 
 const WAD = 10n ** 18n;

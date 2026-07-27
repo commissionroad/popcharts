@@ -5,10 +5,10 @@ import { initializeWalletScriptEnvironment } from "./shared/cli/initializeScript
 import { runScript } from "./shared/cli/runScript.js";
 import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
-import { POSTGRAD_VENUE_DEPLOYMENT } from "../src/deployment/postgradVenueDeployment.js";
+import { POSTGRAD_VENUE_DEPLOYMENT } from "#src/deployment/postgradVenueDeployment.js";
 import { parseMarketIdArgument } from "./shared/market/parseMarketIdArgument.js";
 import { PREGRAD_MARKET_STATUS_NAMES } from "./shared/market/pregradMarketStatus.js";
-import { requireSuccessfulReceipt } from "../src/viem/requireSuccessfulReceipt.js";
+import { requireSuccessfulReceipt } from "#src/viem/requireSuccessfulReceipt.js";
 
 // The env var the just target sets; operators may also pass the id as the
 // trailing CLI argument when invoking the script directly.

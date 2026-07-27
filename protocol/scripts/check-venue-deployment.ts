@@ -2,13 +2,13 @@ import { relative, resolve } from "node:path";
 
 import { createPublicClient, http, type Hex } from "viem";
 
-import { requirePositiveInteger, requireString } from "../src/cli/requireCliValue.js";
+import { requirePositiveInteger, requireString } from "#src/cli/requireCliValue.js";
 import {
   collectVenueAddressEntries,
   DEFAULT_VENUE_DEPLOYMENT_FILE,
 } from "./shared/deployment/venueManifest.js";
-import { VENUE_STACK_DEPLOYMENT } from "../src/deployment/venueStackDeployment.js";
-import { readJsonFile } from "../src/json/jsonFile.js";
+import { VENUE_STACK_DEPLOYMENT } from "#src/deployment/venueStackDeployment.js";
+import { readJsonFile } from "#src/json/jsonFile.js";
 
 export type CheckVenueDeploymentConfig = {
   readonly deploymentFile?: string;

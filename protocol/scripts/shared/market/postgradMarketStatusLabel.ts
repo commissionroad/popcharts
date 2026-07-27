@@ -1,4 +1,4 @@
-import { POSTGRAD_MARKET_STATUS } from "../../../src/postgrad-market-status.js";
+import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 
 const STATUS_NAMES: Record<number, string> = {
   [POSTGRAD_MARKET_STATUS.cancelled]: "Cancelled",
