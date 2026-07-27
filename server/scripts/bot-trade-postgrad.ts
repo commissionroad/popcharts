@@ -12,11 +12,13 @@ import {
   completeSetBinaryMarketAbi,
   ensureDevBackstopLiquidity,
   findPendingDeferredExecutions,
+  type MarketSide,
   minimalV4SwapRouterAbi,
   mockCollateralAbi,
   outcomeTokenAbi,
   poolManagerAbi,
   poolTickBoundsAbi,
+  POSTGRAD_MARKET_STATUS,
   readPoolDisplayPrice,
   sqrtPriceX96ToDisplayPriceWad,
   tickToSqrtPriceX96,
@@ -42,7 +44,7 @@ import { hardhat } from "viem/chains";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
 // its node --experimental-strip-types runtime cannot load TS out of
-// node_modules, so the repo's one env parser is shared by path instead.
+// node_modules, so the repo's shared env helpers are imported by path instead.
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
 import { deriveStackResources } from "../../scripts/shared/localStack/ports.ts";
 import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv.ts";
@@ -73,7 +75,8 @@ import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv
 
 // Slot-derived, not slot-0 literals, for the reason the pregrad sibling
 // documents: run directly rather than through with-target-stack, a hardcoded
-// default silently aims a non-zero slot's bots at slot 0 (ADR 0020).
+// default silently aims a non-zero slot's bots at slot 0 (ADR 0020). Slot 0
+// resolves the same path as the `localChainEnvFile` fallback this replaces.
 const stackResources = deriveStackResources(readSlotFromEnv(process.env));
 const defaultEnvFile = stackResources.envFilePath;
 const defaultRpcHttpUrl = stackResources.chainRpcHttpUrl;
@@ -124,7 +127,6 @@ type ModePreset = keyof typeof modePresets;
 type SizePreset = keyof typeof sizeRanges | "mixed";
 type BiasPreset = keyof typeof biasYesPercents;
 
-type MarketSide = "no" | "yes";
 type TradeAction = "buy" | "sell";
 type OrderDirection = "ask" | "bid";
 
@@ -1589,11 +1591,10 @@ async function assertMarketTradeable({
     address: addresses.market,
     functionName: "status",
   });
-  // CompleteSetBinaryMarket.Status: Trading = 0, Resolved = 1, Cancelled = 2.
-  if (Number(status) !== 0) {
+  if (Number(status) !== POSTGRAD_MARKET_STATUS.trading) {
     throw new Error(
-      `market ${addresses.market} has status ${status}; only Trading markets ` +
-        "accept orders (it may already be resolved or cancelled).",
+      `market ${addresses.market} has status ${status}; only trading markets ` +
+        "accept orders (it may have entered resolution or been cancelled).",
     );
   }
 }

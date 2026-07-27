@@ -2,7 +2,14 @@ import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 
-import { mockCollateralAbi, pregradManagerAbi } from "@popcharts/protocol";
+import {
+  contractSideToMarketSide,
+  MARKET_STATUS,
+  mockCollateralAbi,
+  pregradManagerAbi,
+  SIDE_NO,
+  SIDE_YES,
+} from "@popcharts/protocol";
 import {
   createPublicClient,
   createWalletClient,
@@ -18,7 +25,7 @@ import { hardhat } from "viem/chains";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
 // its node --experimental-strip-types runtime cannot load TS out of
-// node_modules, so the repo's one env parser is shared by path instead.
+// node_modules, so the repo's shared env helpers are imported by path instead.
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "../../scripts/shared/env/resolveIndexerApiBaseUrl.ts";
 import { deriveStackResources } from "../../scripts/shared/localStack/ports.ts";
@@ -44,7 +51,8 @@ import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv
 // directly (`bun run --cwd server bot:trade`, without the with-target-stack
 // wrapper that injects RPC_HTTP_URL and LOCAL_API_PORT) on a non-zero slot
 // cannot silently point the bots at slot 0's chain, API, and env file
-// (ADR 0020). Slot 0 reproduces the historical literals exactly.
+// (ADR 0020). Slot 0 reproduces the historical literals exactly, so this
+// subsumes the slot-0-only `localChainEnvFile` fallback it replaces.
 const stackResources = deriveStackResources(readSlotFromEnv(process.env));
 const defaultEnvFile = stackResources.envFilePath;
 const defaultRpcHttpUrl = stackResources.chainRpcHttpUrl;
@@ -63,8 +71,6 @@ const apiTimeoutMs = 8_000;
 const maxConsecutiveFailures = 5;
 const marketListLimit = 15;
 const questionDisplayLength = 72;
-
-const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 
 const modePresets = {
   burst: { intervalMs: 0, label: "burst", tradeCount: 20 },
@@ -264,7 +270,7 @@ async function main(): Promise<void> {
   ) {
     stats.attempts += 1;
     const bot = bots[Math.floor(Math.random() * bots.length)] as Bot;
-    const side = Math.random() * 100 < plan.biasYesPercent ? 0 : 1;
+    const side = Math.random() * 100 < plan.biasYesPercent ? SIDE_YES : SIDE_NO;
     const wholeShares = pickTradeShares(plan.size);
 
     try {
@@ -279,7 +285,7 @@ async function main(): Promise<void> {
 
       consecutiveFailures = 0;
       stats.volumeUsd += costUsd;
-      if (side === 0) {
+      if (side === SIDE_YES) {
         stats.yesTrades += 1;
       } else {
         stats.noTrades += 1;
@@ -291,8 +297,11 @@ async function main(): Promise<void> {
         plan.market.id,
       );
 
+      // padEnd keeps the shorter "NO" label column-aligned with "YES".
+      const sideLabel = contractSideToMarketSide(side).toUpperCase().padEnd(3);
+
       console.log(
-        `[bot-trade] ${timestamp()} ${bot.label} ${side === 0 ? "YES" : "NO "}` +
+        `[bot-trade] ${timestamp()} ${bot.label} ${sideLabel}` +
           ` ${String(wholeShares).padStart(3)} shares` +
           ` @ ${(costUsd / wholeShares).toFixed(3)}` +
           ` cost ${costUsd.toFixed(2)} pUSD` +
@@ -558,7 +567,7 @@ async function assertMarketTradeable(
     args: [marketId],
   });
 
-  if (Number(state.status) !== PREGRAD_MARKET_STATUS_ACTIVE) {
+  if (Number(state.status) !== MARKET_STATUS.active) {
     throw new Error(
       `Market ${marketId} has contract status ${state.status}; only active ` +
         "(bootstrap) markets accept receipts.",
@@ -654,7 +663,7 @@ async function placeBotTrade({
   managerAddress: Address;
   marketId: bigint;
   publicClient: LocalPublicClient;
-  side: number;
+  side: typeof SIDE_YES | typeof SIDE_NO;
   wholeShares: number;
 }): Promise<number> {
   const shares = parseUnits(String(wholeShares), tokenDecimals);
@@ -701,7 +710,7 @@ async function readImpliedYesPercent(
       abi: pregradManagerAbi,
       address: managerAddress,
       functionName: "quoteReceipt",
-      args: [marketId, 0, probeShares],
+      args: [marketId, SIDE_YES, probeShares],
     });
 
     return Number(formatUnits(quote.cost, tokenDecimals)) * 100;
