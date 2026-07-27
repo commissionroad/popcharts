@@ -1,3 +1,13 @@
+/**
+ * Environment bootstrap for the lifecycle nightly runner. The orchestrator
+ * (scripts/local-lifecycle-nightly.ts) passes the full stack environment to
+ * the child process; when the runner is started standalone against an
+ * already-running stack, the stack-generated env file fills any missing keys.
+ *
+ * This module must be imported before anything that reads src/config —
+ * config resolves process.env at import time.
+ */
+
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,16 +19,6 @@ import { fileURLToPath } from "node:url";
 // No `.ts` suffix on the specifier: server resolves modules as a bundler and
 // rejects it, while scripts/ requires it — the asymmetry is expected.
 import { parseEnvFile } from "../../../scripts/shared/env/parseEnvFile";
-
-/**
- * Environment bootstrap for the lifecycle nightly runner. The orchestrator
- * (scripts/local-lifecycle-nightly.ts) passes the full stack environment to
- * the child process; when the runner is started standalone against an
- * already-running stack, the stack-generated env file fills any missing keys.
- *
- * This module must be imported before anything that reads src/config —
- * config resolves process.env at import time.
- */
 
 const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
