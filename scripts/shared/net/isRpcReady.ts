@@ -1,3 +1,5 @@
+import { postJsonRpc } from "../chain/postJsonRpc.ts";
+
 /**
  * True when a JSON-RPC endpoint answers `eth_chainId` with a result — enough
  * to prove a chain node is listening without requiring any deployed
@@ -5,26 +7,13 @@
  */
 export async function isRpcReady(rpcUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(rpcUrl, {
-      body: JSON.stringify({
-        id: 1,
-        jsonrpc: "2.0",
-        method: "eth_chainId",
-        params: [],
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
+    const response = await postJsonRpc({
+      method: "eth_chainId",
+      params: [],
+      rpcUrl,
     });
 
-    if (!response.ok) {
-      return false;
-    }
-
-    const result = (await response.json()) as { result?: unknown };
-
-    return Boolean(result.result);
+    return Boolean(response.result);
   } catch {
     return false;
   }

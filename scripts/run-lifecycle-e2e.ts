@@ -3,6 +3,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+import { postJsonRpc } from "./shared/chain/postJsonRpc.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import type { PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import { readPostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
@@ -196,22 +197,19 @@ function requireEnvValue(env: Map<string, string>, key: string): string {
 }
 
 async function readChainId(rpcHttpUrl: string): Promise<number> {
-  const response = await fetch(rpcHttpUrl, {
-    body: JSON.stringify({
-      id: 1,
-      jsonrpc: "2.0",
-      method: "eth_chainId",
-      params: [],
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+  const response = await postJsonRpc({
+    method: "eth_chainId",
+    params: [],
+    rpcUrl: rpcHttpUrl,
   });
-  const body = (await response.json()) as { result?: string };
-  if (!body.result) {
+
+  // An empty string is a result the node "returned" and `parseInt` turns into
+  // NaN, so it is rejected here alongside a missing or non-string one.
+  if (typeof response.result !== "string" || response.result.length === 0) {
     throw new Error(`eth_chainId returned no result from ${rpcHttpUrl}`);
   }
 
-  return Number.parseInt(body.result, 16);
+  return Number.parseInt(response.result, 16);
 }
 
 /**

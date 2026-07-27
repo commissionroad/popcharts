@@ -1,11 +1,12 @@
-import { getErrorMessage } from "../errors/getErrorMessage.ts";
+import {
+  JsonRpcTransportError,
+  postJsonRpc,
+  type JsonRpcResponse,
+} from "./postJsonRpc.ts";
 import { staleStackRecovery } from "./staleStackRecovery.ts";
 
 /** A JSON-RPC envelope as a local devchain returns it: one of the two fields. */
-export type RpcResponse = {
-  error?: { message: string };
-  result?: unknown;
-};
+export type RpcResponse = JsonRpcResponse;
 
 /**
  * Sends one JSON-RPC call to a local devchain and returns its result, throwing
@@ -34,6 +35,10 @@ export async function callLocalRpc(args: {
  * The raw JSON-RPC envelope, for callers that treat a JSON-RPC error as data
  * rather than a failure (probing whether a contract responds at all). Transport
  * failures and non-2xx responses still throw — those are not answers.
+ *
+ * This is the local-devchain layer over `postJsonRpc`: it adds the one thing
+ * that module withholds — what a developer should do when nothing answers —
+ * which is only knowable here, where an env file claims a particular chain.
  */
 export async function sendLocalRpcRequest({
   envFile,
@@ -46,33 +51,20 @@ export async function sendLocalRpcRequest({
   readonly params: readonly unknown[];
   readonly rpcUrl: string;
 }): Promise<RpcResponse> {
-  let httpResponse: Response;
-
   try {
-    httpResponse = await fetch(rpcUrl, {
-      body: JSON.stringify({
-        id: 1,
-        jsonrpc: "2.0",
-        method,
-        params,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
+    return await postJsonRpc({ method, params, rpcUrl });
   } catch (error) {
-    throw new Error(
-      `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery({
-        envFile,
-        rpcUrl,
-      })} (${getErrorMessage(error)})`,
-    );
-  }
+    // Only an unreachable endpoint earns the recovery hint. A non-2xx means
+    // something did answer, so stale-stack advice would misdirect.
+    if (error instanceof JsonRpcTransportError) {
+      throw new Error(
+        `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery({
+          envFile,
+          rpcUrl,
+        })} (${error.message})`,
+      );
+    }
 
-  if (!httpResponse.ok) {
-    throw new Error(
-      `RPC ${method} failed on ${rpcUrl}: HTTP ${httpResponse.status}.`,
-    );
+    throw error;
   }
-
-  return (await httpResponse.json()) as RpcResponse;
 }
