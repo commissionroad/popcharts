@@ -6,8 +6,8 @@ import type { Market, MarketVenueInfo } from "@/domain/markets/types";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import {
-  buildVenuePoolKey,
-  computeVenuePoolId,
+  buildOutcomePoolKey,
+  computePoolId,
   getPostgradVenueContractConfig,
   poolManagerAbi,
   type PostgradVenueContractConfig,
@@ -506,12 +506,12 @@ function swapLog(
 }
 
 function venueInfo(): MarketVenueInfo {
-  const yes = buildVenuePoolKey({
+  const yes = buildOutcomePoolKey({
     boundedHook: HOOK,
     collateral: contractConfig.collateralAddress,
     outcomeToken: YES_TOKEN,
   });
-  const no = buildVenuePoolKey({
+  const no = buildOutcomePoolKey({
     boundedHook: HOOK,
     collateral: contractConfig.collateralAddress,
     outcomeToken: NO_TOKEN,
@@ -524,7 +524,7 @@ function venueInfo(): MarketVenueInfo {
       displayPriceWad: "120000000000000000",
       initialized: true,
       outcomeTokenAddress: NO_TOKEN.toLowerCase(),
-      poolId: computeVenuePoolId(no.key),
+      poolId: computePoolId(no.key),
       whitelisted: true,
     },
     orderManagerAddress: "0x00000000000000000000000000000000000000c1",
@@ -533,7 +533,7 @@ function venueInfo(): MarketVenueInfo {
       displayPriceWad: "880000000000000000",
       initialized: true,
       outcomeTokenAddress: YES_TOKEN.toLowerCase(),
-      poolId: computeVenuePoolId(yes.key),
+      poolId: computePoolId(yes.key),
       whitelisted: true,
     },
   };

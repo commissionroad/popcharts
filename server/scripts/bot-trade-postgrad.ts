@@ -5,12 +5,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   boundedPoolOrderManagerAbi,
+  buildOutcomePoolKey,
   COMPLETE_SET_KEEPER_POLICY,
   COMPLETE_SET_PRICE_POLICY,
   COMPLETE_SET_SMOKE_POLICY,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
   completeSetBinaryMarketAbi,
+  computePoolId,
   ensureDevBackstopLiquidity,
   findPendingDeferredExecutions,
   minimalV4SwapRouterAbi,
@@ -18,6 +20,7 @@ import {
   outcomeTokenAbi,
   poolManagerAbi,
   poolTickBoundsAbi,
+  readErc20Balance,
   readPoolDisplayPrice,
   sqrtPriceX96ToDisplayPriceWad,
   tickToSqrtPriceX96,
@@ -26,12 +29,10 @@ import {
 import {
   createPublicClient,
   createWalletClient,
-  encodeAbiParameters,
   formatUnits,
   getAbiItem,
   getAddress,
   http,
-  keccak256,
   maxUint256,
   parseEventLogs,
   parseUnits,
@@ -560,7 +561,7 @@ async function placeMarketOrder({
 
   if (action === "sell") {
     const balance = await readErc20Balance({
-      account: bot.address,
+      owner: bot.address,
       publicClient,
       token: pool.outcomeToken,
     });
@@ -747,7 +748,7 @@ async function placeLimitOrder({
 
   if (direction === "ask") {
     const balance = await readErc20Balance({
-      account: bot.address,
+      owner: bot.address,
       publicClient,
       token: pool.outcomeToken,
     });
@@ -1226,7 +1227,7 @@ async function fundBot({
 
   const notes: string[] = [];
   let collateral = await readErc20Balance({
-    account: bot.address,
+    owner: bot.address,
     publicClient,
     token: addresses.collateral,
   });
@@ -1275,7 +1276,7 @@ async function fundBot({
   });
 
   const yesBalance = await readErc20Balance({
-    account: bot.address,
+    owner: bot.address,
     publicClient,
     token: addresses.yesToken,
   });
@@ -1517,16 +1518,11 @@ async function buildManifest({
     outcomeToken: Address,
     poolIdFromEnv: Hex,
   ): Promise<CompleteSetMarketPool> => {
-    const outcomeIsCurrency0 =
-      BigInt(outcomeToken.toLowerCase()) <
-      BigInt(addresses.collateral.toLowerCase());
-    const poolKey = {
-      currency0: outcomeIsCurrency0 ? outcomeToken : addresses.collateral,
-      currency1: outcomeIsCurrency0 ? addresses.collateral : outcomeToken,
-      fee: COMPLETE_SET_PRICE_POLICY.poolFee,
-      hooks: addresses.boundedHook,
-      tickSpacing: COMPLETE_SET_PRICE_POLICY.tickSpacing,
-    };
+    const { key: poolKey, outcomeIsCurrency0 } = buildOutcomePoolKey({
+      boundedHook: addresses.boundedHook,
+      collateral: addresses.collateral,
+      outcomeToken,
+    });
     const poolId = computePoolId(poolKey);
     if (poolId.toLowerCase() !== poolIdFromEnv.toLowerCase()) {
       throw new Error(
@@ -1964,27 +1960,6 @@ function describeBias(biasYesPercent: number): string {
     : `bearish (${100 - biasYesPercent}% down)`;
 }
 
-/** keccak256 of the ABI-encoded pool key (the v4 pool id). */
-function computePoolId(key: CompleteSetMarketPool["poolKey"]): Hex {
-  return keccak256(
-    encodeAbiParameters(
-      [
-        {
-          components: [
-            { name: "currency0", type: "address" },
-            { name: "currency1", type: "address" },
-            { name: "fee", type: "uint24" },
-            { name: "tickSpacing", type: "int24" },
-            { name: "hooks", type: "address" },
-          ],
-          type: "tuple",
-        },
-      ],
-      [key],
-    ),
-  );
-}
-
 function sqrtPriceX96ToDisplayPriceWadForTick({
   collateralDecimals,
   outcomeIsCurrency0,
@@ -2022,23 +1997,6 @@ function makeContractWriter(
         functionName: parameters.functionName,
       }),
   };
-}
-
-async function readErc20Balance({
-  account,
-  publicClient,
-  token,
-}: {
-  account: Address;
-  publicClient: LocalPublicClient;
-  token: Address;
-}): Promise<bigint> {
-  return publicClient.readContract({
-    abi: outcomeTokenAbi,
-    address: token,
-    functionName: "balanceOf",
-    args: [account],
-  });
 }
 
 async function sendAndWait(

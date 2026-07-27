@@ -99,7 +99,11 @@ async function main() {
   console.log(`Losing-side redeem correctly reverts with ${LOSING_SIDE_ERROR}.`);
 
   // Redeem the account's winning YES tokens.
-  const yesBalance = await readErc20Balance(publicClient, manifest.market.yesToken, account);
+  const yesBalance = await readErc20Balance({
+    owner: account,
+    publicClient,
+    token: manifest.market.yesToken,
+  });
   const redeemAmount = floorOutcomeToCollateralUnit({
     collateralDecimals: manifest.collateral.decimals,
     outcomeAmount: yesBalance,
@@ -111,18 +115,18 @@ async function main() {
         "(pnpm local:smoke-maker-order, pnpm local:smoke-taker-swap, pnpm local:smoke-arb).",
     );
   }
-  const collateralBefore = await readErc20Balance(
+  const collateralBefore = await readErc20Balance({
+    owner: account,
     publicClient,
-    manifest.collateral.address,
-    account,
-  );
+    token: manifest.collateral.address,
+  });
   const redeemHash = await market.write.redeem([SIDE_YES, redeemAmount]);
   const redeemReceipt = await requireSuccessfulReceipt(publicClient, redeemHash, "redeem");
-  const collateralAfter = await readErc20Balance(
+  const collateralAfter = await readErc20Balance({
+    owner: account,
     publicClient,
-    manifest.collateral.address,
-    account,
-  );
+    token: manifest.collateral.address,
+  });
 
   const marketAbi = (await hre.artifacts.readArtifact("CompleteSetBinaryMarket")).abi as Abi;
   const redeemedEvents = parseEventLogs({
@@ -150,11 +154,11 @@ async function main() {
 
   // Collateral conservation: escrow must still cover every outstanding
   // winning token; losing supply is worthless and needs no backing.
-  const marketCollateral = await readErc20Balance(
+  const marketCollateral = await readErc20Balance({
+    owner: manifest.market.address,
     publicClient,
-    manifest.collateral.address,
-    manifest.market.address,
-  );
+    token: manifest.collateral.address,
+  });
   const yesSupply = await publicClient.readContract({
     abi: erc20Abi,
     address: manifest.market.yesToken,

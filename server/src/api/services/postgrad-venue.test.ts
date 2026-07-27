@@ -2,58 +2,16 @@ import { describe, expect, it } from "bun:test";
 
 import { displayPriceWadToSqrtPriceX96 } from "@popcharts/protocol";
 
+// The pool-key and pool-id derivation this service used to own now lives in
+// @popcharts/protocol; its tests live beside it in
+// protocol/test/nodejs/outcome-pool-key.test.ts.
 import {
-  buildOutcomePoolKey,
   closingYesDisplayPriceWad,
-  computePoolId,
   serializeOutcomePool,
 } from "./postgrad-venue";
 
 const WAD = 10n ** 18n;
-const COLLATERAL = "0x5FbDB2315678afecb367f032d93F642f64180aa3" as const;
-const LOW_TOKEN = "0x0000000000000000000000000000000000000abc" as const;
 const HIGH_TOKEN = "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF" as const;
-
-describe("buildOutcomePoolKey", () => {
-  it("sorts the outcome token below collateral when its address is lower", () => {
-    const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
-      collateral: COLLATERAL,
-      outcomeToken: LOW_TOKEN,
-    });
-
-    expect(outcomeIsCurrency0).toBe(true);
-    expect(key.currency0).toBe(LOW_TOKEN);
-    expect(key.currency1).toBe(COLLATERAL);
-    expect(key.fee).toBe(3000);
-    expect(key.tickSpacing).toBe(60);
-  });
-
-  it("sorts collateral first when the outcome token address is higher", () => {
-    const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
-      collateral: COLLATERAL,
-      outcomeToken: HIGH_TOKEN,
-    });
-
-    expect(outcomeIsCurrency0).toBe(false);
-    expect(key.currency0).toBe(COLLATERAL);
-    expect(key.currency1).toBe(HIGH_TOKEN);
-  });
-});
-
-describe("computePoolId", () => {
-  it("is deterministic and sensitive to every key field", () => {
-    const { key } = buildOutcomePoolKey({
-      collateral: COLLATERAL,
-      outcomeToken: LOW_TOKEN,
-    });
-
-    expect(computePoolId(key)).toBe(computePoolId({ ...key }));
-    expect(computePoolId(key)).not.toBe(
-      computePoolId({ ...key, tickSpacing: 10 }),
-    );
-    expect(computePoolId(key)).toMatch(/^0x[0-9a-f]{64}$/);
-  });
-});
 
 /** Asserts a WAD decimal string is within 1000 wei of the expected price. */
 function expectWithinWad(actual: string | undefined, expected: bigint) {

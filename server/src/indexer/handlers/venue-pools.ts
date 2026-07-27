@@ -1,10 +1,11 @@
-import type { MarketSide } from "@popcharts/protocol";
-
 import {
   buildOutcomePoolKey,
   computePoolId,
-} from "src/api/services/postgrad-venue";
+  type MarketSide,
+} from "@popcharts/protocol";
+
 import type { LiveChangeWriter } from "src/change-feed/writer";
+import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
 export type VenuePoolRecord = typeof schema.venuePools.$inferInsert;
@@ -35,6 +36,7 @@ export function buildVenuePoolRecords({
     // keeps the pool id identical while accepting non-checksummed input.
     const outcomeToken = token.toLowerCase() as `0x${string}`;
     const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+      boundedHook: config.contracts.boundedHook,
       collateral: collateral.toLowerCase() as `0x${string}`,
       outcomeToken,
     });

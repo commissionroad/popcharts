@@ -132,12 +132,16 @@ async function main() {
     walletClient,
   });
 
-  const outcomeBefore = await readErc20Balance(publicClient, pool.outcomeToken, account);
-  const collateralBefore = await readErc20Balance(
+  const outcomeBefore = await readErc20Balance({
+    owner: account,
     publicClient,
-    manifest.collateral.address,
-    account,
-  );
+    token: pool.outcomeToken,
+  });
+  const collateralBefore = await readErc20Balance({
+    owner: account,
+    publicClient,
+    token: manifest.collateral.address,
+  });
 
   const router = await connection.viem.getContractAt("MinimalV4SwapRouter", swapRouter);
   const swapHash = await router.write.swap([
@@ -183,12 +187,16 @@ async function main() {
     publicClient,
     stateView: manifest.venue.stateView,
   });
-  const outcomeAfter = await readErc20Balance(publicClient, pool.outcomeToken, account);
-  const collateralAfter = await readErc20Balance(
+  const outcomeAfter = await readErc20Balance({
+    owner: account,
     publicClient,
-    manifest.collateral.address,
-    account,
-  );
+    token: pool.outcomeToken,
+  });
+  const collateralAfter = await readErc20Balance({
+    owner: account,
+    publicClient,
+    token: manifest.collateral.address,
+  });
 
   // Verify the hook actually observed this swap before crediting movePoolTick.
   const hook = await connection.viem.getContractAt(

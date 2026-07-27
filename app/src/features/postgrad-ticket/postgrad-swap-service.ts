@@ -7,8 +7,9 @@ import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import { erc20Abi } from "@/integrations/contracts/erc20";
 import {
-  buildVenuePoolKey,
-  computeVenuePoolId,
+  buildOutcomePoolKey,
+  type CompleteSetMarketPoolKey,
+  computePoolId,
   getPostgradVenueContractConfig,
   minimalV4SwapRouterAbi,
   poolManagerAbi,
@@ -16,7 +17,6 @@ import {
   type PostgradVenueContractConfig,
   tickToSqrtPriceX96,
   v4QuoterAbi,
-  type VenuePoolKey,
 } from "@/integrations/contracts/postgrad-venue";
 import { DisplayableError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
@@ -61,7 +61,7 @@ export type VenuePoolContext = {
   outcomeIsCurrency0: boolean;
   outcomeTokenAddress: `0x${string}`;
   poolId: `0x${string}`;
-  poolKey: VenuePoolKey;
+  poolKey: CompleteSetMarketPoolKey;
 };
 
 /** A confirmed venue fill, with the actual amounts read from the Swap event. */
@@ -119,12 +119,12 @@ export function buildVenuePoolContext({
 }): VenuePoolContext {
   const pool = side === "yes" ? venue.yesPool : venue.noPool;
   const outcomeTokenAddress = getAddress(pool.outcomeTokenAddress);
-  const { key, outcomeIsCurrency0 } = buildVenuePoolKey({
+  const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
     boundedHook: getAddress(venue.boundedHookAddress),
     collateral,
     outcomeToken: outcomeTokenAddress,
   });
-  const poolId = computeVenuePoolId(key);
+  const poolId = computePoolId(key);
 
   if (poolId.toLowerCase() !== pool.poolId.toLowerCase()) {
     throw new DisplayableError(

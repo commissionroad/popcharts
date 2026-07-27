@@ -9,17 +9,9 @@ import {
 } from "../cli/requireCliValue.js";
 import { readJsonFile } from "../json/jsonFile.js";
 import { COMPLETE_SET_MARKET_DEPLOYMENT } from "./completeSetMarketDeployment.js";
+import type { CompleteSetMarketPoolKey } from "./outcomePoolKey.js";
 
 const POOL_ID_PATTERN = /^0x[0-9a-fA-F]{64}$/;
-
-/** Sorted v4 pool key recorded by the market creation script. */
-export type CompleteSetMarketPoolKey = {
-  readonly currency0: Address;
-  readonly currency1: Address;
-  readonly fee: number;
-  readonly hooks: Address;
-  readonly tickSpacing: number;
-};
 
 /** One outcome pool entry of a complete-set market manifest. */
 export type CompleteSetMarketPool = {

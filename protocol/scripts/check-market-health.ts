@@ -82,11 +82,11 @@ async function main() {
         : ("no" as const)
       : undefined;
 
-  const collateralBalance = await readErc20Balance(
+  const collateralBalance = await readErc20Balance({
+    owner: manifest.market.address,
     publicClient,
-    manifest.collateral.address,
-    manifest.market.address,
-  );
+    token: manifest.collateral.address,
+  });
   const yesSupply = await publicClient.readContract({
     abi: erc20Abi,
     address: manifest.market.yesToken,
