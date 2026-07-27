@@ -24,11 +24,13 @@ belongs in the nightly tier (Track C), not here.
 Mechanics:
 
 - `pglite-db.ts` — throwaway in-process database, schema applied via
-  drizzle-kit `pushSchema` (works on the PGlite driver).
+  drizzle-kit `generateMigration` DDL, diffed once per process. Not
+  `pushSchema`: it introspects behind a spinner whose wrapper turns any
+  rejection into an uncatchable `process.exit(1)`, which killed whole test
+  runs silently (see the note in the file).
 - `int-db.ts` — throwaway `popcharts_int_<hex>` database on the server
-  behind `POPCHARTS_INT_DB_URL`, schema applied via drizzle-kit
-  `generateMigration` DDL (`pushSchema` is incompatible with the
-  postgres-js driver). Never points tests at a long-lived database.
+  behind `POPCHARTS_INT_DB_URL`, schema applied via the same
+  `generateMigration` DDL. Never points tests at a long-lived database.
 - `require-int-db-url.ts` — makes `bun run test:integration` fail loudly
   instead of green-skipping when the URL is missing.
 - `setDbForTesting()` (`src/db/client.ts`) — points the ambient `db`
