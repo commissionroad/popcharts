@@ -8,6 +8,7 @@ import type { LiveChangeWriter } from "src/change-feed/writer";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
+/** Insert shape for one outcome pool's `venue_pools` row. */
 export type VenuePoolRecord = typeof schema.venuePools.$inferInsert;
 
 /**

@@ -37,19 +37,27 @@ describe("buildOutcomePoolKey", function () {
     assert.equal(key.currency1, HIGH_TOKEN);
   });
 
-  it("sorts by address value, not by case, so checksummed input sorts identically", function () {
-    const lowercase = buildOutcomePoolKey({
+  // Guards the numeric comparison specifically. These two addresses sort one
+  // way by value and the other way as strings once the first is uppercased,
+  // because "F" (0x46) sorts below "a" (0x61) — so a lexicographic
+  // implementation flips here and a numeric one does not.
+  it("sorts by address value, not lexicographically", function () {
+    const higher = "0xf0000000000000000000000000000000000000ff" as const;
+    const lower = "0xa0000000000000000000000000000000000000aa" as const;
+
+    const lowercased = buildOutcomePoolKey({
       boundedHook: HOOK,
-      collateral: COLLATERAL.toLowerCase() as `0x${string}`,
-      outcomeToken: LOW_TOKEN,
+      collateral: lower,
+      outcomeToken: higher,
     });
-    const checksummed = buildOutcomePoolKey({
+    const uppercased = buildOutcomePoolKey({
       boundedHook: HOOK,
-      collateral: COLLATERAL,
-      outcomeToken: LOW_TOKEN,
+      collateral: lower,
+      outcomeToken: higher.toUpperCase().replace("0X", "0x") as `0x${string}`,
     });
 
-    assert.equal(lowercase.outcomeIsCurrency0, checksummed.outcomeIsCurrency0);
+    assert.equal(lowercased.outcomeIsCurrency0, false);
+    assert.equal(uppercased.outcomeIsCurrency0, false);
   });
 });
 

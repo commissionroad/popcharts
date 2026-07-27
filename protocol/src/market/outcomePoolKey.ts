@@ -1,6 +1,11 @@
 import { encodeAbiParameters, keccak256, type Address, type Hex } from "viem";
 
-import { COMPLETE_SET_PRICE_POLICY } from "../price/completeSetPricePolicy.js";
+// Self-referencing subpath, not a relative "../price/...js" specifier: this
+// module is reachable from the Next app, and its bundler resolves package
+// subpaths but cannot map an intra-package ".js" specifier back onto the ".ts"
+// source. Every other app-reachable module here is a leaf or imports only
+// types (which erase), so this is the first to need a runtime sibling.
+import { COMPLETE_SET_PRICE_POLICY } from "@popcharts/protocol/complete-set-price-policy";
 
 /** Sorted v4 pool key for one outcome token traded against market collateral. */
 export type CompleteSetMarketPoolKey = {
@@ -27,11 +32,13 @@ export function buildOutcomePoolKey({
   collateral,
   outcomeToken,
 }: {
-  boundedHook: Address;
-  collateral: Address;
-  outcomeToken: Address;
+  readonly boundedHook: Address;
+  readonly collateral: Address;
+  readonly outcomeToken: Address;
 }): { key: CompleteSetMarketPoolKey; outcomeIsCurrency0: boolean } {
-  const outcomeIsCurrency0 = BigInt(outcomeToken.toLowerCase()) < BigInt(collateral.toLowerCase());
+  // Compare numerically, never as strings: the sort must not depend on whether
+  // the caller passed checksummed or lowercased addresses.
+  const outcomeIsCurrency0 = BigInt(outcomeToken) < BigInt(collateral);
 
   return {
     key: {

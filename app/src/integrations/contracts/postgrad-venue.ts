@@ -6,10 +6,8 @@ import { getAddress, isAddress, parseAbi } from "viem";
 // integrations/contracts: app code imports from here, never from
 // @popcharts/protocol directly.
 export { COMPLETE_SET_PRICE_POLICY } from "@popcharts/protocol/complete-set-price-policy";
-// The pool key IS the pool's identity, so the app derives it with the same
-// protocol helper the server wiring and indexer use rather than a local copy
-// — a divergent copy would silently address a different pool instead of
-// failing (see protocol/src/market/outcomePoolKey.ts).
+// Re-exported, never reimplemented: the pool key is the pool's identity, and a
+// local copy would diverge silently rather than fail.
 export {
   buildOutcomePoolKey,
   type CompleteSetMarketPoolKey,

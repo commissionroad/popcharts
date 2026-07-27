@@ -2,9 +2,8 @@ import { describe, expect, it } from "bun:test";
 
 import { displayPriceWadToSqrtPriceX96 } from "@popcharts/protocol";
 
-// The pool-key and pool-id derivation this service used to own now lives in
-// @popcharts/protocol; its tests live beside it in
-// protocol/test/nodejs/outcome-pool-key.test.ts.
+// Pool-key and pool-id derivation belongs to @popcharts/protocol, so its
+// tests live beside it in protocol/test/nodejs/outcome-pool-key.test.ts.
 import {
   closingYesDisplayPriceWad,
   serializeOutcomePool,

@@ -1,9 +1,8 @@
 import { getAddress } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The pool-key and pool-id derivation this module re-exports lives in
-// @popcharts/protocol; its tests live beside it in
-// protocol/test/nodejs/outcome-pool-key.test.ts.
+// Pool-key and pool-id derivation belongs to @popcharts/protocol, so its
+// tests live beside it in protocol/test/nodejs/outcome-pool-key.test.ts.
 import { getPostgradVenueContractConfig } from "./postgrad-venue";
 
 const SWAP_ROUTER = "0x00000000000000000000000000000000000000a1";

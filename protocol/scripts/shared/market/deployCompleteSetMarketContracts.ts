@@ -176,9 +176,8 @@ export async function configureOutcomePool({
     orderManagerAddress,
   );
 
-  // This script mints the pool identity every other consumer then addresses
-  // (the server wiring, the indexer, the app ticket, the local bot script),
-  // so it derives the key and id with the same shared helper they do.
+  // This script mints the pool identity every other consumer then addresses,
+  // so it must derive the key through the shared helper, never its own copy.
   const { key: poolKey, outcomeIsCurrency0 } = buildOutcomePoolKey({
     boundedHook: venue.boundedHook,
     collateral: collateral.address,
