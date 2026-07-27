@@ -13,11 +13,13 @@ import {
   completeSetBinaryMarketAbi,
   ensureDevBackstopLiquidity,
   findPendingDeferredExecutions,
+  type MarketSide,
   minimalV4SwapRouterAbi,
   mockCollateralAbi,
   outcomeTokenAbi,
   poolManagerAbi,
   poolTickBoundsAbi,
+  POSTGRAD_MARKET_STATUS,
   readPoolDisplayPrice,
   sqrtPriceX96ToDisplayPriceWad,
   tickToSqrtPriceX96,
@@ -115,7 +117,6 @@ type ModePreset = keyof typeof modePresets;
 type SizePreset = keyof typeof sizeRanges | "mixed";
 type BiasPreset = keyof typeof biasYesPercents;
 
-type MarketSide = "no" | "yes";
 type TradeAction = "buy" | "sell";
 type OrderDirection = "ask" | "bid";
 
@@ -1580,11 +1581,10 @@ async function assertMarketTradeable({
     address: addresses.market,
     functionName: "status",
   });
-  // CompleteSetBinaryMarket.Status: Trading = 0, Resolved = 1, Cancelled = 2.
-  if (Number(status) !== 0) {
+  if (Number(status) !== POSTGRAD_MARKET_STATUS.trading) {
     throw new Error(
-      `market ${addresses.market} has status ${status}; only Trading markets ` +
-        "accept orders (it may already be resolved or cancelled).",
+      `market ${addresses.market} has status ${status}; only trading markets ` +
+        "accept orders (it may have entered resolution or been cancelled).",
     );
   }
 }
