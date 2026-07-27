@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import type { network } from "hardhat";
-import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } from "viem";
+import { concatHex, encodeDeployData, getAddress, type Address, type Hex } from "viem";
 
 import { mineHookSalt } from "../contract/mineHookSalt.js";
 import { hasBytecode } from "./deterministicFactory.js";
@@ -72,13 +72,11 @@ export async function deployCompleteSetPostgradContracts(
   console.log(`BoundedPoolOrderManager: ${orderManagerAddress}`);
 
   const hookArtifact = await hre.artifacts.readArtifact("BoundedPredictionHook");
-  const hookInitCode = concatHex([
-    hookArtifact.bytecode as Hex,
-    encodeAbiParameters(
-      [{ type: "address" }, { type: "address" }, { type: "address" }],
-      [args.poolManager, poolTickBoundsAddress, orderManagerAddress],
-    ),
-  ]);
+  const hookInitCode = encodeDeployData({
+    abi: hookArtifact.abi,
+    args: [args.poolManager, poolTickBoundsAddress, orderManagerAddress],
+    bytecode: hookArtifact.bytecode as Hex,
+  });
   const { hookAddress, salt } = mineHookSalt({
     deterministicFactory: args.deterministicFactory,
     initCode: hookInitCode,
