@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
-import { fileURLToPath } from "node:url";
 
 import {
   boundedPoolOrderManagerAbi,
@@ -45,6 +44,8 @@ import { hardhat } from "viem/chains";
 // its node --experimental-strip-types runtime cannot load TS out of
 // node_modules, so the repo's one env parser is shared by path instead.
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
+import { deriveStackResources } from "../../scripts/shared/localStack/ports.ts";
+import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv.ts";
 
 /**
  * Interactive local-dev helper that makes bot wallets trade on a *graduated*
@@ -70,9 +71,12 @@ import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
  * flag, so it also works non-interactively: `--defaults` accepts every default.
  */
 
-const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const defaultEnvFile = resolve(serverDir, ".env.local-chain");
-const defaultRpcHttpUrl = "http://127.0.0.1:8545";
+// Slot-derived, not slot-0 literals, for the reason the pregrad sibling
+// documents: run directly rather than through with-target-stack, a hardcoded
+// default silently aims a non-zero slot's bots at slot 0 (ADR 0020).
+const stackResources = deriveStackResources(readSlotFromEnv(process.env));
+const defaultEnvFile = stackResources.envFilePath;
+const defaultRpcHttpUrl = stackResources.chainRpcHttpUrl;
 const localDevChainId = hardhat.id;
 const localDevMnemonic =
   "test test test test test test test test test test test junk";
@@ -1833,7 +1837,7 @@ Options:
                             pUSD. Defaults to 20000.
   --defaults                Skip all prompts and accept every default.
   --local-chain-env <path>  Load a generated local-chain env file.
-                            Defaults to server/.env.local-chain.
+                            Defaults to ${defaultEnvFile}.
   -h, --help                Show this help.
 
 Examples:

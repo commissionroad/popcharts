@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
-import { fileURLToPath } from "node:url";
 
 import { mockCollateralAbi, pregradManagerAbi } from "@popcharts/protocol";
 import {
@@ -21,6 +20,9 @@ import { hardhat } from "viem/chains";
 // its node --experimental-strip-types runtime cannot load TS out of
 // node_modules, so the repo's one env parser is shared by path instead.
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
+import { resolveIndexerApiBaseUrl } from "../../scripts/shared/env/resolveIndexerApiBaseUrl.ts";
+import { deriveStackResources } from "../../scripts/shared/localStack/ports.ts";
+import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv.ts";
 
 /**
  * Interactive local-dev helper that makes bot wallets trade on a pregrad
@@ -37,10 +39,15 @@ import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
  * so it also works non-interactively: `--defaults` accepts every default.
  */
 
-const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const defaultEnvFile = resolve(serverDir, ".env.local-chain");
-const defaultRpcHttpUrl = "http://127.0.0.1:8545";
-const defaultApiPort = "3001";
+// Every default that addresses a running stack is derived from this process's
+// slot rather than written out as a slot-0 literal, so launching bot-trade
+// directly (`bun run --cwd server bot:trade`, without the with-target-stack
+// wrapper that injects RPC_HTTP_URL and LOCAL_API_PORT) on a non-zero slot
+// cannot silently point the bots at slot 0's chain, API, and env file
+// (ADR 0020). Slot 0 reproduces the historical literals exactly.
+const stackResources = deriveStackResources(readSlotFromEnv(process.env));
+const defaultEnvFile = stackResources.envFilePath;
+const defaultRpcHttpUrl = stackResources.chainRpcHttpUrl;
 const localDevChainId = hardhat.id;
 const localDevMnemonic =
   "test test test test test test test test test test test junk";
@@ -156,7 +163,7 @@ async function main(): Promise<void> {
   );
   const collateralAddress = readCollateralAddress(env, envFile, envFileExists);
   const rpcUrl = env.RPC_HTTP_URL ?? defaultRpcHttpUrl;
-  const apiBaseUrl = readApiBaseUrl(options, env);
+  const apiBaseUrl = resolveIndexerApiBaseUrl(options.apiBaseUrl, env);
 
   if (envFileExists) {
     console.log(`[bot-trade] loading ${envFile}`);
@@ -848,9 +855,9 @@ Options:
                             (70% NO). Defaults to balanced.
   --defaults                Skip all prompts and accept every default.
   --api-url <url>           Market listing API base URL.
-                            Defaults to http://127.0.0.1:${defaultApiPort}.
+                            Defaults to http://127.0.0.1:${stackResources.apiPort}.
   --local-chain-env <path>  Load a generated local-chain env file.
-                            Defaults to server/.env.local-chain.
+                            Defaults to ${defaultEnvFile}.
   -h, --help                Show this help.
 
 Examples:
@@ -1090,15 +1097,6 @@ function parseAddress(name: string, value: string): Address {
   }
 
   return value as Address;
-}
-
-function readApiBaseUrl(options: CliOptions, env: NodeJS.ProcessEnv): string {
-  return (
-    options.apiBaseUrl ??
-    env.POPCHARTS_INDEXER_API_URL ??
-    env.NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL ??
-    `http://127.0.0.1:${env.LOCAL_API_PORT ?? env.PORT ?? defaultApiPort}`
-  );
 }
 
 function resolvePath(path: string): string {
