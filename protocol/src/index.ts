@@ -70,6 +70,8 @@ export { ensureDevBackstopLiquidity } from "./market/ensureDevBackstopLiquidity.
 export { executeCompleteSetArb } from "./market/executeCompleteSetArb.js";
 export { findPendingDeferredExecutions } from "./market/findPendingDeferredExecutions.js";
 export type { PendingDeferredExecution } from "./market/findPendingDeferredExecutions.js";
+export { parseMarketMetadata, serializeMarketMetadata } from "./market/marketMetadataSchema.js";
+export type { MarketMetadata } from "./market/marketMetadataSchema.js";
 export { readPoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type { PoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type {

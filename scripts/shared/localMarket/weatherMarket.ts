@@ -105,6 +105,9 @@ export async function buildWeatherMarket(
       `Fahrenheit before comparison. If the window has no valid reports, use ` +
       `the first valid report from the same source within 30 minutes after the ` +
       `resolution time. Ties resolve NO.`,
+    // Both sources a resolver needs: the forecast that set the threshold and
+    // the observation feed the criteria are judged against.
+    resolutionSources: [forecast.sourceUrl, observationUrl],
     resolutionUrl: observationUrl,
     version: 1,
   };

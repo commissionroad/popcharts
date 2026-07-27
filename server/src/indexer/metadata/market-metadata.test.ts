@@ -43,9 +43,9 @@ describe("resolveMarketMetadataFromEventPayload", () => {
   });
 
   it("recovers creator-applied outcome labels from the canonical payload", () => {
-    // Canonical field order must match the app serializer
-    // (app/src/domain/market-creation/create-market.ts) or the hash check
-    // rejects label-carrying markets at ingestion.
+    // Canonical field order must match the shared serializer
+    // (protocol/src/market/marketMetadataSchema.ts) or the hash check rejects
+    // label-carrying markets at ingestion.
     const labeled =
       '{"version":1,"question":"Will ARG beat EGY?","description":"",' +
       '"category":"Sports","resolutionCriteria":"YES if ARG wins.",' +
@@ -75,6 +75,10 @@ function hashMetadata(value: typeof metadata) {
   return keccak256(stringToBytes(serializeMetadata(value)));
 }
 
+// A deliberate hand-written restatement of the canonical byte layout, not a
+// copy to be deduplicated: the test must derive its expected hash
+// independently of the serializer under test, or it could never catch a
+// change to that serializer.
 function serializeMetadata(value: typeof metadata) {
   return JSON.stringify({
     version: value.version,

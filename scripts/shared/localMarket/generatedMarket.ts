@@ -1,20 +1,19 @@
+// Cross-workspace import by relative path: these scripts run under
+// node --experimental-strip-types, which cannot resolve the protocol package's
+// exports map or the ".js"-suffixed relative imports its modules use
+// internally — so the schema is shared as a dependency-free leaf module rather
+// than mirrored here.
+import type { MarketMetadata } from "../../../protocol/src/market/marketMetadataSchema.ts";
+
 import type { GeneratedMarketKind } from "./generatedMarketOptions.ts";
 
 /**
  * The metadata payload a market carries: the question a resolver answers and
- * the criteria it answers it by. Mirrors the protocol's canonical metadata
- * schema — `version` is that schema's version, not this file's.
+ * the criteria it answers it by. Re-exported from the protocol's canonical
+ * schema so the generators here cannot accept a shape the hashed payload
+ * cannot carry.
  */
-export type MarketMetadata = {
-  readonly category: string;
-  readonly createdAt: string;
-  readonly description: string;
-  readonly question: string;
-  readonly resolutionCriteria: string;
-  readonly resolutionSources?: readonly string[];
-  readonly resolutionUrl?: string;
-  readonly version: number;
-};
+export type { MarketMetadata };
 
 /**
  * One generated local-dev market, complete enough to create onchain: its

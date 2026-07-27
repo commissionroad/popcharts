@@ -1,4 +1,5 @@
 import type { MarketCategory } from "@/domain/markets/types";
+import type { MarketMetadata as ProtocolMarketMetadata } from "@/integrations/contracts/market-metadata";
 
 export type GraduationPresetLabel = "1h" | "6h" | "24h";
 export type ResolutionPresetLabel = "1d" | "1w" | "1m";
@@ -28,17 +29,13 @@ export type CreateMarketValidationErrors = Partial<
   Record<CreateMarketDraftField, string>
 >;
 
-export type MarketMetadata = {
+/**
+ * The protocol metadata schema with `category` narrowed to the categories the
+ * create form offers. Derived from the protocol type rather than restated, so
+ * a field added to the schema reaches the app without a second edit.
+ */
+export type MarketMetadata = Omit<ProtocolMarketMetadata, "category"> & {
   category: MarketCategory;
-  createdAt: string;
-  description: string;
-  outcomeNo?: string;
-  outcomeYes?: string;
-  question: string;
-  resolutionCriteria: string;
-  resolutionSources?: string[];
-  resolutionUrl?: string;
-  version: 1;
 };
 
 export type ProtocolCreateMarketParams = {

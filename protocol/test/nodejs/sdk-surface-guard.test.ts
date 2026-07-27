@@ -59,6 +59,7 @@ describe("protocol SDK surface guard (ADR 0017 Track G)", function () {
     const exportsMap = readExportsMap();
     assert.deepEqual(exportsMap, {
       ".": "./src/index.ts",
+      "./market-metadata": "./src/market/marketMetadataSchema.ts",
       "./market-side": "./src/market-side.ts",
       "./market-status": "./src/market-status.ts",
       "./postgrad-market-status": "./src/postgrad-market-status.ts",

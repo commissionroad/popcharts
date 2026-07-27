@@ -1,21 +1,19 @@
+import { serializeMarketMetadata } from "@popcharts/protocol";
+import type { MarketMetadata } from "@popcharts/protocol";
 import { keccak256, stringToBytes } from "viem";
 
 import { db, schema } from "src/db/client";
 
 const MAX_METADATA_BYTES = 64 * 1024;
 
-export type MarketMetadataPayload = {
-  category: string;
-  createdAt: string;
-  description: string;
-  outcomeNo?: string;
-  outcomeYes?: string;
-  question: string;
-  resolutionCriteria: string;
-  resolutionSources?: string[];
-  resolutionUrl?: string;
-  version: 1;
-};
+/**
+ * The indexer's name for the protocol metadata schema. Aliased rather than
+ * restated so the verifier can never accept a shape the creators cannot
+ * produce.
+ */
+export type MarketMetadataPayload = MarketMetadata;
+
+export { serializeMarketMetadata };
 
 export async function persistMarketMetadataFromEventPayload({
   chainId,
@@ -80,6 +78,10 @@ export function resolveMarketMetadataFromEventPayload({
   return payload;
 }
 
+// Deliberately stricter than the protocol's `parseMarketMetadata`: the indexer
+// rejects blank required fields that the shared parser accepts as valid
+// strings, because a market row with an empty question is unusable downstream.
+// Admission policy is the indexer's to set; only the byte layout is shared.
 function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   if (!isRecord(value)) {
     throw new Error("Metadata payload must be a JSON object.");
@@ -113,41 +115,12 @@ function parseMarketMetadataPayload(value: unknown): MarketMetadataPayload {
   return metadata;
 }
 
+/**
+ * Recomputes the metadata commitment from the canonical serialization. This is
+ * the check that catches a creator whose bytes disagree with the protocol's.
+ */
 export function hashMarketMetadata(metadata: MarketMetadataPayload) {
   return keccak256(stringToBytes(serializeMarketMetadata(metadata)));
-}
-
-// Key order is part of the hash commitment: the indexer recomputes the hash
-// from this exact serialization, so market creators (including the lifecycle
-// harness) must serialize through this function, never a reimplementation.
-export function serializeMarketMetadata(metadata: MarketMetadataPayload) {
-  const ordered: Record<string, string | number | string[]> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.outcomeYes) {
-    ordered.outcomeYes = metadata.outcomeYes;
-  }
-
-  if (metadata.outcomeNo) {
-    ordered.outcomeNo = metadata.outcomeNo;
-  }
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
 }
 
 function readNonEmptyString(

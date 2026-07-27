@@ -1,5 +1,11 @@
+// Cross-workspace import by relative path: this script runs under
+// node --experimental-strip-types, which cannot resolve the protocol package's
+// exports map or the ".js"-suffixed relative imports its modules use
+// internally — so the serializer is shared as a dependency-free leaf module
+// rather than mirrored here.
+import { serializeMarketMetadata } from "../../../protocol/src/market/marketMetadataSchema.ts";
 import type { ProtocolChainEnv } from "../localStack/protocolChainEnv.ts";
-import type { GeneratedMarket, MarketMetadata } from "./generatedMarket.ts";
+import type { GeneratedMarket } from "./generatedMarket.ts";
 
 /**
  * The exact environment the protocol helper is spawned with: the caller's
@@ -22,32 +28,7 @@ export function buildProtocolCommandEnv({
     ...baseEnv,
     ...chainEnv,
     LOCAL_MARKET_GRADUATION_SECONDS: String(generatedMarket.graduationSeconds),
-    LOCAL_MARKET_METADATA: serializeMetadata(generatedMarket.metadata),
+    LOCAL_MARKET_METADATA: serializeMarketMetadata(generatedMarket.metadata),
     LOCAL_MARKET_RESOLUTION_SECONDS: String(generatedMarket.resolutionSeconds),
   };
-}
-
-function serializeMetadata(metadata: MarketMetadata): string {
-  // Key order mirrors the protocol's canonical schema so the payload round-trips
-  // through its `parseMarketMetadata`. It does NOT determine the metadata hash:
-  // the protocol helper re-serializes with its own `serializeMarketMetadata`
-  // before hashing, so that module owns the hashed byte layout.
-  const ordered: Record<string, unknown> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
 }
