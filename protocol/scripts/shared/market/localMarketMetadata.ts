@@ -1,24 +1,22 @@
 import { keccak256, stringToBytes } from "viem";
 
-/**
- * Market metadata payload shared between the root local-create-market wrapper
- * (which passes it through the LOCAL_MARKET_METADATA env var) and the protocol
- * helper that stores it onchain. Parsing and serialization live here so the
- * accepted schema and the hashed byte layout stay in one place.
- */
-export type MarketMetadata = {
-  category: string;
-  createdAt: string;
-  description: string;
-  outcomeNo?: string;
-  outcomeYes?: string;
-  question: string;
-  resolutionCriteria: string;
-  resolutionSources?: string[];
-  resolutionUrl?: string;
-  version: 1;
-};
+import {
+  parseMarketMetadata,
+  serializeMarketMetadata,
+} from "../../../src/market/marketMetadataSchema.js";
+import type { MarketMetadata } from "../../../src/market/marketMetadataSchema.js";
 
+/**
+ * Hashing and the local-smoke fixture for market metadata. The schema itself —
+ * the accepted fields and the hashed byte layout — lives in
+ * `src/market/marketMetadataSchema.ts` so the root `scripts/` tree, the app,
+ * and the indexer share one definition; only the viem-dependent hash lives
+ * here. Re-exported so existing protocol-script callers keep one import site.
+ */
+export { parseMarketMetadata, serializeMarketMetadata };
+export type { MarketMetadata };
+
+/** Metadata for the direct-protocol smoke market used to exercise indexer recovery. */
 export function buildLocalSmokeMarketMetadata(): MarketMetadata {
   const createdAt = new Date().toISOString();
 
@@ -34,94 +32,11 @@ export function buildLocalSmokeMarketMetadata(): MarketMetadata {
   };
 }
 
+/**
+ * Computes the on-chain metadata commitment. The indexer recomputes this from
+ * the payload carried in the creation event and rejects a mismatch, so the
+ * bytes must come from the canonical serializer.
+ */
 export function hashMarketMetadata(metadata: MarketMetadata): `0x${string}` {
   return keccak256(stringToBytes(serializeMarketMetadata(metadata)));
-}
-
-export function parseMarketMetadata(value: unknown): MarketMetadata {
-  if (!isRecord(value)) {
-    throw new Error("Market metadata must be a JSON object.");
-  }
-
-  if (value.version !== 1) {
-    throw new Error("Market metadata version must be 1.");
-  }
-
-  const metadata: MarketMetadata = {
-    category: readString(value, "category"),
-    createdAt: readString(value, "createdAt"),
-    description: readString(value, "description"),
-    question: readString(value, "question"),
-    resolutionCriteria: readString(value, "resolutionCriteria"),
-    version: 1,
-  };
-
-  if (value.outcomeYes !== undefined) {
-    metadata.outcomeYes = readString(value, "outcomeYes");
-  }
-  if (value.outcomeNo !== undefined) {
-    metadata.outcomeNo = readString(value, "outcomeNo");
-  }
-  if (value.resolutionUrl !== undefined) {
-    metadata.resolutionUrl = readString(value, "resolutionUrl");
-  }
-  if (value.resolutionSources !== undefined) {
-    metadata.resolutionSources = readStringArray(value, "resolutionSources");
-  }
-
-  return metadata;
-}
-
-export function serializeMarketMetadata(metadata: MarketMetadata): string {
-  // Key order is stable so the serialized metadata (and therefore its hash)
-  // is reproducible for the same payload.
-  const ordered: Record<string, string | number | string[]> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.outcomeYes) {
-    ordered.outcomeYes = metadata.outcomeYes;
-  }
-  if (metadata.outcomeNo) {
-    ordered.outcomeNo = metadata.outcomeNo;
-  }
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
-}
-
-function readString(value: Record<string, unknown>, field: string): string {
-  const fieldValue = value[field];
-
-  if (typeof fieldValue !== "string") {
-    throw new Error(`Market metadata ${field} must be a string.`);
-  }
-
-  return fieldValue;
-}
-
-function readStringArray(value: Record<string, unknown>, field: string): string[] {
-  const fieldValue = value[field];
-
-  if (!Array.isArray(fieldValue) || fieldValue.some((item) => typeof item !== "string")) {
-    throw new Error(`Market metadata ${field} must be an array of strings.`);
-  }
-
-  return fieldValue;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

@@ -5,6 +5,15 @@ import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Cross-workspace import by relative path: this script runs under
+// node --experimental-strip-types, which cannot resolve the protocol package's
+// exports map or the ".js"-suffixed relative imports its modules use
+// internally — so the schema is shared as a dependency-free leaf module rather
+// than mirrored here.
+import {
+  serializeMarketMetadata,
+  type MarketMetadata,
+} from "../protocol/src/market/marketMetadataSchema.ts";
 import {
   MARKET_COUNT_SELECTOR,
   formatChainId,
@@ -86,17 +95,6 @@ type WeatherMarketOption = {
 };
 
 type GeneratedMarketOption = CryptoMarketOption | WeatherMarketOption;
-
-type MarketMetadata = {
-  readonly category: string;
-  readonly createdAt: string;
-  readonly description: string;
-  readonly question: string;
-  readonly resolutionCriteria: string;
-  readonly resolutionSources?: readonly string[];
-  readonly resolutionUrl?: string;
-  readonly version: number;
-};
 
 type GeneratedMarket = {
   readonly graduationSeconds: number;
@@ -318,7 +316,7 @@ export function buildProtocolCommandEnv({
     ...baseEnv,
     ...chainEnv,
     LOCAL_MARKET_GRADUATION_SECONDS: String(generatedMarket.graduationSeconds),
-    LOCAL_MARKET_METADATA: serializeMetadata(generatedMarket.metadata),
+    LOCAL_MARKET_METADATA: serializeMarketMetadata(generatedMarket.metadata),
     LOCAL_MARKET_RESOLUTION_SECONDS: String(generatedMarket.resolutionSeconds),
   };
 }
@@ -640,6 +638,9 @@ async function buildWeatherMarket(
       `Fahrenheit before comparison. If the window has no valid reports, use ` +
       `the first valid report from the same source within 30 minutes after the ` +
       `resolution time. Ties resolve NO.`,
+    // Both sources a resolver needs: the forecast that set the threshold and
+    // the observation feed the criteria are judged against.
+    resolutionSources: [forecast.sourceUrl, observationUrl],
     resolutionUrl: observationUrl,
     version: 1,
   };
@@ -812,31 +813,6 @@ function readForecastTemperature(value: unknown): number | null {
   }
 
   return null;
-}
-
-function serializeMetadata(metadata: MarketMetadata): string {
-  // Key order mirrors the protocol's canonical schema so the payload round-trips
-  // through its `parseMarketMetadata`. It does NOT determine the metadata hash:
-  // the protocol helper re-serializes with its own `serializeMarketMetadata`
-  // before hashing, so that module owns the hashed byte layout.
-  const ordered: Record<string, unknown> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
 }
 
 async function persistMarketMetadata(args: {

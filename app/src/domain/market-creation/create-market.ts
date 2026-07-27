@@ -2,6 +2,7 @@ import { keccak256, stringToBytes } from "viem";
 
 import { MARKET_CATEGORIES } from "@/domain/markets/types";
 import { WAD } from "@/domain/tokens/wad";
+import { serializeMarketMetadata } from "@/integrations/contracts/market-metadata";
 
 import type {
   CreateMarketDraft,
@@ -289,35 +290,9 @@ function createMetadataHashFromPayload(metadataPayload: string): `0x${string}` {
   return keccak256(stringToBytes(metadataPayload));
 }
 
-export function serializeMarketMetadata(metadata: MarketMetadata) {
-  const ordered: Record<string, string | number | string[]> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.outcomeYes) {
-    ordered.outcomeYes = metadata.outcomeYes;
-  }
-
-  if (metadata.outcomeNo) {
-    ordered.outcomeNo = metadata.outcomeNo;
-  }
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
-}
+// Re-exported so existing create-market callers keep a single import site; the
+// serializer itself is the protocol's, since its key order is a hash commitment.
+export { serializeMarketMetadata };
 
 function addMilliseconds(date: Date, milliseconds: number) {
   return new Date(date.getTime() + milliseconds);
