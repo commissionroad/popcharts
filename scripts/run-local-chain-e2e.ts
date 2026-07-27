@@ -343,6 +343,7 @@ export async function runLocalChainE2e({
   env = process.env,
   execute = runInheritedCommand,
   log = console.log,
+  logError = console.error,
   probeRpc = isRpcReady,
   readManifest = readJsonFile<DevchainManifest>,
   spawnProcess = spawn,
@@ -350,6 +351,7 @@ export async function runLocalChainE2e({
   readonly env?: NodeJS.ProcessEnv;
   readonly execute?: CommandExecutor;
   readonly log?: (message: string) => void;
+  readonly logError?: (message: string) => void;
   readonly probeRpc?: (rpcUrl: string) => Promise<boolean>;
   readonly readManifest?: (path: string) => DevchainManifest;
   readonly spawnProcess?: ProcessSpawner;
@@ -377,6 +379,12 @@ export async function runLocalChainE2e({
       log(`Using existing devchain at ${rpcUrl}`);
     } else {
       log(`Starting local Hardhat node at ${rpcUrl}`);
+      // `stopHardhatNode` latches this to mark its own SIGTERM as expected, and
+      // nothing used to clear it because a process ran one chain and exited.
+      // Now that a run is a callable function, a *second* run inherits the
+      // latch and reports its node's crash as an intended shutdown — losing the
+      // one line that says why the chain went away.
+      stoppingHardhatNode = false;
       hardhatNode = startHardhatNode({
         baseEnv: env,
         chainEnv,
@@ -385,7 +393,7 @@ export async function runLocalChainE2e({
       });
       hardhatNode.on("exit", (code, signal) => {
         if (!stoppingHardhatNode && code !== 0) {
-          console.error(
+          logError(
             `Hardhat node exited unexpectedly: ${
               signal ? `signal ${signal}` : `exit code ${code}`
             }`,

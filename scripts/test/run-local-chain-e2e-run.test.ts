@@ -41,14 +41,22 @@ type RecordedCall = {
  * SIGTERM and then waits for `exit`, so the stub has to actually emit it —
  * otherwise teardown sits on its 3s escape timer in every test.
  */
-function stubChainNode(signals: string[]): ChildProcess {
+function stubChainNode(
+  signals: string[],
+  captureExitListener?: (listener: NodeExitListener) => void,
+): ChildProcess {
   const node = {
     killed: false,
     kill: (signal: string) => {
       signals.push(signal);
       return true;
     },
-    on: () => node,
+    on: (event: string, listener: NodeExitListener) => {
+      if (event === "exit") {
+        captureExitListener?.(listener);
+      }
+      return node;
+    },
     once: (event: string, listener: () => void) => {
       if (event === "exit") {
         setImmediate(listener);
@@ -59,6 +67,8 @@ function stubChainNode(signals: string[]): ChildProcess {
 
   return node as unknown as ChildProcess;
 }
+
+type NodeExitListener = (code: number | null, signal: string | null) => void;
 
 describe("run-local-chain-e2e whole run", function () {
   it("drives every child against the slot the run resolved", async function () {
@@ -203,6 +213,53 @@ describe("run-local-chain-e2e whole run", function () {
     );
 
     assert.deepEqual(signals, ["SIGTERM"]);
+  });
+
+  // The teardown flag that marks a SIGTERM as expected is module state, and
+  // nothing cleared it while a process ran exactly one chain and exited. A run
+  // is a function now, so the second one inherited the latch and reported its
+  // node's crash as an intended shutdown — losing the only line that says why
+  // the chain went away (found by an independent review of this commit).
+  it("still reports a crashed node after an earlier run has torn one down", async function () {
+    const signals: string[] = [];
+    const errors: string[] = [];
+    let exitListener: NodeExitListener | undefined;
+    let probes = 0;
+    const spawnStub = (): ChildProcess =>
+      stubChainNode(signals, (listener) => {
+        exitListener = listener;
+      });
+    const startedRun = (extra: { execute?: () => Promise<void> } = {}) =>
+      runLocalChainE2e({
+        env: { POPCHARTS_STACK_SLOT: String(SLOT) },
+        execute: extra.execute ?? (async () => undefined),
+        log: () => undefined,
+        logError: (message) => errors.push(message),
+        probeRpc: async () => {
+          probes += 1;
+          return probes % 2 === 0;
+        },
+        readManifest: () => manifest,
+        spawnProcess: spawnStub,
+      });
+
+    // First run starts a node and stops it, latching the flag.
+    await startedRun();
+    assert.deepEqual(signals, ["SIGTERM"]);
+    assert.deepEqual(errors, []);
+
+    // Second run's node dies on its own while its first child is in flight.
+    let died = false;
+    await startedRun({
+      execute: async () => {
+        if (!died) {
+          died = true;
+          exitListener?.(1, null);
+        }
+      },
+    });
+
+    assert.deepEqual(errors, ["Hardhat node exited unexpectedly: exit code 1"]);
   });
 
   it("leaves a chain it did not start running", async function () {
