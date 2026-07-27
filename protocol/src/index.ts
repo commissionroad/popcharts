@@ -77,8 +77,11 @@ export type { PoolDisplayPrice } from "./market/readPoolDisplayPrice.js";
 export type {
   CompleteSetMarketManifestData,
   CompleteSetMarketPool,
-  CompleteSetMarketPoolKey,
 } from "./market/readCompleteSetMarketManifest.js";
+export { buildOutcomePoolKey, computePoolId } from "./market/outcomePoolKey.js";
+export type { CompleteSetMarketPoolKey } from "./market/outcomePoolKey.js";
+
+export { readErc20Balance } from "./viem/readErc20Balance.js";
 
 export {
   buildClaimMerkleTree,

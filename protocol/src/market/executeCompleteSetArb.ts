@@ -49,21 +49,21 @@ export async function executeCompleteSetArb(args: {
     throw new Error(`Expected a positive arbCollateral, received ${args.arbCollateral}.`);
   }
 
-  const collateralBefore = await readErc20Balance(
-    args.publicClient,
-    args.manifest.collateral.address,
-    args.account,
-  );
+  const collateralBefore = await readErc20Balance({
+    owner: args.account,
+    publicClient: args.publicClient,
+    token: args.manifest.collateral.address,
+  });
   if (args.action === "mintAndSell") {
     await mintAndSellBothSides(args);
   } else {
     await buyBothSidesAndMerge(args);
   }
-  const collateralAfter = await readErc20Balance(
-    args.publicClient,
-    args.manifest.collateral.address,
-    args.account,
-  );
+  const collateralAfter = await readErc20Balance({
+    owner: args.account,
+    publicClient: args.publicClient,
+    token: args.manifest.collateral.address,
+  });
   return { collateralDelta: collateralAfter - collateralBefore };
 }
 
@@ -147,22 +147,22 @@ async function mintAndSellBothSides(context: ArbContext): Promise<void> {
     // Selling outcome pushes the display price down; the limit sits at the
     // epsilon bound in that direction.
     const limitTick = pool.outcomeIsCurrency0 ? pool.boundLowerTick : pool.boundUpperTick;
-    const collateralBefore = await readErc20Balance(
-      context.publicClient,
-      context.manifest.collateral.address,
-      context.account,
-    );
+    const collateralBefore = await readErc20Balance({
+      owner: context.account,
+      publicClient: context.publicClient,
+      token: context.manifest.collateral.address,
+    });
     await swapThroughRouter(
       context,
       pool,
       { amountSpecified: -outcomeAmount, limitTick, zeroForOne: pool.outcomeIsCurrency0 },
       `sell ${side.toUpperCase()}`,
     );
-    const collateralAfter = await readErc20Balance(
-      context.publicClient,
-      context.manifest.collateral.address,
-      context.account,
-    );
+    const collateralAfter = await readErc20Balance({
+      owner: context.account,
+      publicClient: context.publicClient,
+      token: context.manifest.collateral.address,
+    });
     console.log(
       `Sold ${formatUnits(outcomeAmount, context.manifest.market.outcomeDecimals)} ` +
         `${side.toUpperCase()} for ` +
@@ -199,22 +199,22 @@ async function buyBothSidesAndMerge(context: ArbContext): Promise<void> {
     // Buying outcome pushes the display price up; the limit sits at the
     // epsilon bound in that direction.
     const limitTick = pool.outcomeIsCurrency0 ? pool.boundUpperTick : pool.boundLowerTick;
-    const outcomeBefore = await readErc20Balance(
-      context.publicClient,
-      pool.outcomeToken,
-      context.account,
-    );
+    const outcomeBefore = await readErc20Balance({
+      owner: context.account,
+      publicClient: context.publicClient,
+      token: pool.outcomeToken,
+    });
     await swapThroughRouter(
       context,
       pool,
       { amountSpecified: outcomeTarget, limitTick, zeroForOne: !pool.outcomeIsCurrency0 },
       `buy ${side.toUpperCase()}`,
     );
-    const outcomeAfter = await readErc20Balance(
-      context.publicClient,
-      pool.outcomeToken,
-      context.account,
-    );
+    const outcomeAfter = await readErc20Balance({
+      owner: context.account,
+      publicClient: context.publicClient,
+      token: pool.outcomeToken,
+    });
     received[side] = outcomeAfter - outcomeBefore;
     console.log(
       `Bought ${formatUnits(received[side], context.manifest.market.outcomeDecimals)} ` +

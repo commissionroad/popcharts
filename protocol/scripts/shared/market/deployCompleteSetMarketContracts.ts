@@ -1,16 +1,14 @@
 import hre from "hardhat";
 import type { network } from "hardhat";
-import {
-  concatHex,
-  encodeAbiParameters,
-  getAddress,
-  keccak256,
-  type Address,
-  type Hex,
-} from "viem";
+import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
 import { poolManagerAbi, stateViewAbi } from "#src/generated/third-party/venue.js";
+import {
+  buildOutcomePoolKey,
+  computePoolId,
+  type CompleteSetMarketPoolKey,
+} from "#src/market/outcomePoolKey.js";
 import { COMPLETE_SET_PRICE_POLICY } from "#src/price/completeSetPricePolicy.js";
 import { deriveEpsilonBoundTicks } from "#src/price/deriveEpsilonBoundTicks.js";
 import { displayPriceWadToSqrtPriceX96 } from "#src/price/displayPriceWadToSqrtPriceX96.js";
@@ -23,18 +21,9 @@ type MarketDeployWalletClient = {
   writeContract(parameters: {
     abi: typeof poolManagerAbi;
     address: Address;
-    args: readonly [PoolKeyStruct, bigint];
+    args: readonly [CompleteSetMarketPoolKey, bigint];
     functionName: "initialize";
   }): Promise<Hex>;
-};
-
-/** A v4 pool key struct with currencies pre-sorted by address, as the pool manager requires. */
-export type PoolKeyStruct = {
-  readonly currency0: Address;
-  readonly currency1: Address;
-  readonly fee: number;
-  readonly tickSpacing: number;
-  readonly hooks: Address;
 };
 
 /**
@@ -51,7 +40,7 @@ export type MarketPoolManifestEntry = {
   readonly outcomeIsCurrency0: boolean;
   readonly outcomeToken: Address;
   readonly poolId: Hex;
-  readonly poolKey: PoolKeyStruct;
+  readonly poolKey: CompleteSetMarketPoolKey;
   readonly transactions: {
     readonly initializePool: Hex;
     readonly setPoolTickBounds: Hex;
@@ -187,29 +176,14 @@ export async function configureOutcomePool({
     orderManagerAddress,
   );
 
-  // v4 pool keys sort currencies by address, so the outcome token can land
-  // on either side of the collateral.
-  const outcomeIsCurrency0 = BigInt(outcomeToken) < BigInt(collateral.address);
-  const poolKey: PoolKeyStruct = {
-    currency0: outcomeIsCurrency0 ? outcomeToken : collateral.address,
-    currency1: outcomeIsCurrency0 ? collateral.address : outcomeToken,
-    fee: COMPLETE_SET_PRICE_POLICY.poolFee,
-    hooks: venue.boundedHook,
-    tickSpacing: COMPLETE_SET_PRICE_POLICY.tickSpacing,
-  };
-  // PoolId is keccak256(abi.encode(poolKey)) per v4-core PoolId.toId().
-  const poolId = keccak256(
-    encodeAbiParameters(
-      [
-        { type: "address" },
-        { type: "address" },
-        { type: "uint24" },
-        { type: "int24" },
-        { type: "address" },
-      ],
-      [poolKey.currency0, poolKey.currency1, poolKey.fee, poolKey.tickSpacing, poolKey.hooks],
-    ),
-  );
+  // This script mints the pool identity every other consumer then addresses,
+  // so it must derive the key through the shared helper, never its own copy.
+  const { key: poolKey, outcomeIsCurrency0 } = buildOutcomePoolKey({
+    boundedHook: venue.boundedHook,
+    collateral: collateral.address,
+    outcomeToken,
+  });
+  const poolId = computePoolId(poolKey);
 
   const orientation = {
     collateralDecimals: collateral.decimals,

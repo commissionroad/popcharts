@@ -140,10 +140,18 @@ async function main() {
   const expectedOutcomeAmount = (await market.read.outcomeAmountForCollateral([
     makerCollateral,
   ])) as bigint;
-  const yesBalanceBefore = await readErc20Balance(publicClient, manifest.market.yesToken, account);
+  const yesBalanceBefore = await readErc20Balance({
+    owner: account,
+    publicClient,
+    token: manifest.market.yesToken,
+  });
   const mintHash = await market.write.mintCompleteSets([account, makerCollateral]);
   await requireSuccessfulReceipt(publicClient, mintHash, "mintCompleteSets");
-  const yesBalanceAfter = await readErc20Balance(publicClient, manifest.market.yesToken, account);
+  const yesBalanceAfter = await readErc20Balance({
+    owner: account,
+    publicClient,
+    token: manifest.market.yesToken,
+  });
   if (yesBalanceAfter - yesBalanceBefore !== expectedOutcomeAmount) {
     throw new Error(
       `mintCompleteSets minted ${yesBalanceAfter - yesBalanceBefore} YES raw units, ` +

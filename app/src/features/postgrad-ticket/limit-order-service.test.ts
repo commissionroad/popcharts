@@ -8,8 +8,8 @@ import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import {
   boundedPoolOrderManagerAbi,
-  buildVenuePoolKey,
-  computeVenuePoolId,
+  buildOutcomePoolKey,
+  computePoolId,
   type PostgradVenueContractConfig,
 } from "@/integrations/contracts/postgrad-venue";
 
@@ -612,12 +612,12 @@ function orderCancelledLog({
 }
 
 function venueInfo(): MarketVenueInfo {
-  const yes = buildVenuePoolKey({
+  const yes = buildOutcomePoolKey({
     boundedHook: HOOK,
     collateral: contractConfig.collateralAddress,
     outcomeToken: YES_TOKEN,
   });
-  const no = buildVenuePoolKey({
+  const no = buildOutcomePoolKey({
     boundedHook: HOOK,
     collateral: contractConfig.collateralAddress,
     outcomeToken: NO_TOKEN,
@@ -630,7 +630,7 @@ function venueInfo(): MarketVenueInfo {
       displayPriceWad: "120000000000000000",
       initialized: true,
       outcomeTokenAddress: NO_TOKEN.toLowerCase(),
-      poolId: computeVenuePoolId(no.key),
+      poolId: computePoolId(no.key),
       whitelisted: true,
     },
     orderManagerAddress: ORDER_MANAGER,
@@ -639,7 +639,7 @@ function venueInfo(): MarketVenueInfo {
       displayPriceWad: "880000000000000000",
       initialized: true,
       outcomeTokenAddress: YES_TOKEN.toLowerCase(),
-      poolId: computeVenuePoolId(yes.key),
+      poolId: computePoolId(yes.key),
       whitelisted: true,
     },
   };

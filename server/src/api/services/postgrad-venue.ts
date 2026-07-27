@@ -1,7 +1,9 @@
 import {
   COMPLETE_SET_PRICE_POLICY,
+  buildOutcomePoolKey,
   clampDisplayPriceWad,
   completeSetBinaryMarketAbi,
+  computePoolId,
   boundedPoolOrderManagerAbi,
   deriveEpsilonBoundTicks,
   displayPriceWadToSqrtPriceX96,
@@ -14,7 +16,7 @@ import {
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
-import { encodeAbiParameters, keccak256, parseAbi, type Hash } from "viem";
+import { parseAbi, type Hash } from "viem";
 
 import type {
   MarketVenuePoolResponse,
@@ -40,15 +42,6 @@ const ERC20_DECIMALS_ABI = parseAbi([
   "function decimals() view returns (uint8)",
 ]);
 
-/** A v4 pool key for one outcome token traded against market collateral. */
-export type OutcomePoolKey = {
-  currency0: `0x${string}`;
-  currency1: `0x${string}`;
-  fee: number;
-  hooks: `0x${string}`;
-  tickSpacing: number;
-};
-
 /** Returns true when every venue contract this service calls is configured. */
 export function postgradVenueConfigured(): boolean {
   return (
@@ -57,58 +50,6 @@ export function postgradVenueConfigured(): boolean {
     config.contracts.poolManager !== ZERO_ADDRESS &&
     config.contracts.poolTickBounds !== ZERO_ADDRESS &&
     config.contracts.stateView !== ZERO_ADDRESS
-  );
-}
-
-/** Builds the sorted v4 pool key for an outcome token against collateral. */
-export function buildOutcomePoolKey({
-  collateral,
-  outcomeToken,
-}: {
-  collateral: `0x${string}`;
-  outcomeToken: `0x${string}`;
-}): { key: OutcomePoolKey; outcomeIsCurrency0: boolean } {
-  const outcomeIsCurrency0 =
-    BigInt(outcomeToken.toLowerCase()) < BigInt(collateral.toLowerCase());
-
-  return {
-    key: {
-      currency0: outcomeIsCurrency0 ? outcomeToken : collateral,
-      currency1: outcomeIsCurrency0 ? collateral : outcomeToken,
-      fee: COMPLETE_SET_PRICE_POLICY.poolFee,
-      hooks: config.contracts.boundedHook,
-      tickSpacing: COMPLETE_SET_PRICE_POLICY.tickSpacing,
-    },
-    outcomeIsCurrency0,
-  };
-}
-
-/** Computes the v4 pool id: keccak256 of the ABI-encoded pool key. */
-export function computePoolId(key: OutcomePoolKey): `0x${string}` {
-  return keccak256(
-    encodeAbiParameters(
-      [
-        {
-          components: [
-            { name: "currency0", type: "address" },
-            { name: "currency1", type: "address" },
-            { name: "fee", type: "uint24" },
-            { name: "tickSpacing", type: "int24" },
-            { name: "hooks", type: "address" },
-          ],
-          type: "tuple",
-        },
-      ],
-      [
-        {
-          currency0: key.currency0,
-          currency1: key.currency1,
-          fee: key.fee,
-          hooks: key.hooks,
-          tickSpacing: key.tickSpacing,
-        },
-      ],
-    ),
   );
 }
 
@@ -235,6 +176,7 @@ async function wireOutcomePool({
 }): Promise<WiredPool> {
   const { publicClient, walletClient } = clients;
   const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+    boundedHook: config.contracts.boundedHook,
     collateral,
     outcomeToken,
   });
@@ -412,6 +354,7 @@ async function readOutcomePool({
   publicClient: BlockchainClient;
 }): Promise<MarketVenuePoolResponse> {
   const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+    boundedHook: config.contracts.boundedHook,
     collateral,
     outcomeToken,
   });
@@ -589,6 +532,7 @@ export async function buildGraduatedMarketManifest({
 
   const buildPool = (outcomeToken: `0x${string}`): CompleteSetMarketPool => {
     const { key, outcomeIsCurrency0 } = buildOutcomePoolKey({
+      boundedHook: config.contracts.boundedHook,
       collateral,
       outcomeToken,
     });
