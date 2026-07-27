@@ -1,11 +1,6 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  maxUint256,
-  parseAbi,
-} from "viem";
+import { createPublicClient, createWalletClient, http, maxUint256 } from "viem";
 
+import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
 import type { LifecycleEnv } from "./lifecycle";
@@ -25,13 +20,6 @@ const SIDE_YES = 0;
 const SIDE_NO = 1;
 const QUOTE_SLIPPAGE_BPS = 1_000n;
 const MAX_BALANCED_ROUNDS = 4;
-
-// MockCollateral is a local-only mock with no generated ABI; this minimal
-// surface is hand-written (the first-party manager uses its generated ABI).
-const collateralFaucetAbi = parseAbi([
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-]);
 
 function bookClients(env: LifecycleEnv) {
   const account = TEST_WALLET_ADDRESS as `0x${string}`;
@@ -143,7 +131,7 @@ async function ensureManagerApproval(
   clients: BookClients
 ): Promise<void> {
   const allowance = await clients.publicClient.readContract({
-    abi: collateralFaucetAbi,
+    abi: mockCollateralAbi,
     address: env.collateralAddress,
     functionName: "allowance",
     args: [clients.account, env.pregradManagerAddress],
@@ -152,7 +140,7 @@ async function ensureManagerApproval(
     return;
   }
   const hash = await clients.walletClient.writeContract({
-    abi: collateralFaucetAbi,
+    abi: mockCollateralAbi,
     address: env.collateralAddress,
     functionName: "approve",
     args: [env.pregradManagerAddress, maxUint256],

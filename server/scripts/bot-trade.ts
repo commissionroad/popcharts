@@ -3,13 +3,13 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
+import { mockCollateralAbi, pregradManagerAbi } from "@popcharts/protocol";
 import {
   createPublicClient,
   createWalletClient,
   formatUnits,
   http,
   maxUint256,
-  parseAbi,
   parseEventLogs,
   parseUnits,
   type Address,
@@ -51,22 +51,6 @@ const apiTimeoutMs = 8_000;
 const maxConsecutiveFailures = 5;
 const marketListLimit = 15;
 const questionDisplayLength = 72;
-
-const pregradManagerAbi = parseAbi([
-  "struct ReceiptParams { uint256 marketId; uint8 side; uint256 shares; uint256 maxCost; }",
-  "function placeReceipt(ReceiptParams params) returns (uint256 receiptId)",
-  "function quoteReceipt(uint256 marketId, uint8 side, uint256 shares) view returns ((uint256 cost, int256 rLow, int256 rHigh))",
-  "function marketExists(uint256 marketId) view returns (bool)",
-  "function getMarketState(uint256 marketId) view returns ((uint8 status, uint256 receiptCount, uint256 totalEscrowed, int256 path, uint256 yesShares, uint256 noShares, uint64 graduationStartedAt))",
-  "event ReceiptPlaced(uint256 indexed receiptId, uint256 indexed marketId, address indexed owner, uint8 side, uint256 shares, uint256 cost, int256 rLow, int256 rHigh, uint64 sequence)",
-]);
-
-const collateralAbi = parseAbi([
-  "function balanceOf(address account) view returns (uint256)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function mint(address account, uint256 amount)",
-]);
 
 const PREGRAD_MARKET_STATUS_ACTIVE = 0;
 
@@ -599,7 +583,7 @@ async function fundBot({
 
   const notes: string[] = [];
   let balance = await publicClient.readContract({
-    abi: collateralAbi,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "balanceOf",
     args: [bot.account.address],
@@ -607,7 +591,7 @@ async function fundBot({
 
   if (balance < minCollateralBalance) {
     const mintHash = await bot.walletClient.writeContract({
-      abi: collateralAbi,
+      abi: mockCollateralAbi,
       address: collateralAddress,
       functionName: "mint",
       args: [bot.account.address, collateralMintAmount],
@@ -618,7 +602,7 @@ async function fundBot({
   }
 
   const allowance = await publicClient.readContract({
-    abi: collateralAbi,
+    abi: mockCollateralAbi,
     address: collateralAddress,
     functionName: "allowance",
     args: [bot.account.address, managerAddress],
@@ -626,7 +610,7 @@ async function fundBot({
 
   if (allowance < minAllowance) {
     const approveHash = await bot.walletClient.writeContract({
-      abi: collateralAbi,
+      abi: mockCollateralAbi,
       address: collateralAddress,
       functionName: "approve",
       args: [managerAddress, maxUint256],
