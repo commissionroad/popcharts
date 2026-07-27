@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import type { network } from "hardhat";
-import { concatHex, encodeAbiParameters, getAddress, type Address, type Hex } from "viem";
+import { encodeDeployData, getAddress, type Address, type Hex } from "viem";
 
 import { hasBytecode } from "../deployment/deterministicFactory.js";
 import { poolManagerAbi, stateViewAbi } from "#src/generated/third-party/venue.js";
@@ -83,46 +83,27 @@ export async function deployCompleteSetBinaryMarket({
   const publicClient = await connection.viem.getPublicClient();
   const marketArtifact = await hre.artifacts.readArtifact("CompleteSetBinaryMarket");
   const marketDeployHash = await walletClient.sendTransaction({
-    data: concatHex([
-      marketArtifact.bytecode as Hex,
-      encodeAbiParameters(
-        [
-          { type: "address" },
-          { type: "address" },
-          { type: "address" },
-          { type: "address" },
-          { type: "string" },
-          { type: "string" },
-          { type: "uint8" },
-          {
-            components: [
-              { name: "yesNotBefore", type: "uint64" },
-              { name: "noNotBefore", type: "uint64" },
-              { name: "disputeWindow", type: "uint64" },
-              { name: "disputeBond", type: "uint256" },
-            ],
-            type: "tuple",
-          },
-        ],
-        [
-          collateralAddress,
-          ownerAddress,
-          deployerAddress,
-          resolverAddress,
-          marketName,
-          marketSymbol,
-          COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
-          // Standalone venue-test market: resolution-time gates and the
-          // dispute window are disabled (all zero) — direct resolve() applies.
-          {
-            disputeBond: 0n,
-            disputeWindow: 0n,
-            noNotBefore: 0n,
-            yesNotBefore: 0n,
-          },
-        ],
-      ),
-    ]),
+    data: encodeDeployData({
+      abi: marketArtifact.abi,
+      args: [
+        collateralAddress,
+        ownerAddress,
+        deployerAddress,
+        resolverAddress,
+        marketName,
+        marketSymbol,
+        COMPLETE_SET_PRICE_POLICY.outcomeDecimals,
+        // Standalone venue-test market: resolution-time gates and the
+        // dispute window are disabled (all zero) — direct resolve() applies.
+        {
+          disputeBond: 0n,
+          disputeWindow: 0n,
+          noNotBefore: 0n,
+          yesNotBefore: 0n,
+        },
+      ],
+      bytecode: marketArtifact.bytecode as Hex,
+    }),
   });
   const marketReceipt = await publicClient.waitForTransactionReceipt({ hash: marketDeployHash });
   if (marketReceipt.contractAddress === null || marketReceipt.contractAddress === undefined) {
