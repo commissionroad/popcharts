@@ -2,8 +2,8 @@
   "version": 1,
   "workspaces": {
     "app": {
-      "commit": "42723400780cc14edfb75336df51e3319937db6e",
-      "updatedAt": "2026-07-25T15:47:20.134Z",
+      "commit": "5f904cf317beb9c168a38b5782c177ebea1923f6",
+      "updatedAt": "2026-07-27T13:32:38.187Z",
       "summary": {
         "files": 122,
         "lines": {
