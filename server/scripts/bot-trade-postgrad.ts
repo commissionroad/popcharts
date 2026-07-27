@@ -45,8 +45,9 @@ import { hardhat } from "viem/chains";
 // Relative path, not a package import: scripts/ is not a workspace package, and
 // its node --experimental-strip-types runtime cannot load TS out of
 // node_modules, so the repo's shared env helpers are imported by path instead.
-import { localChainEnvFile } from "../../scripts/shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
+import { deriveStackResources } from "../../scripts/shared/localStack/ports.ts";
+import { readSlotFromEnv } from "../../scripts/shared/localStack/readSlotFromEnv.ts";
 
 /**
  * Interactive local-dev helper that makes bot wallets trade on a *graduated*
@@ -72,7 +73,13 @@ import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
  * flag, so it also works non-interactively: `--defaults` accepts every default.
  */
 
-const defaultRpcHttpUrl = "http://127.0.0.1:8545";
+// Slot-derived, not slot-0 literals, for the reason the pregrad sibling
+// documents: run directly rather than through with-target-stack, a hardcoded
+// default silently aims a non-zero slot's bots at slot 0 (ADR 0020). Slot 0
+// resolves the same path as the `localChainEnvFile` fallback this replaces.
+const stackResources = deriveStackResources(readSlotFromEnv(process.env));
+const defaultEnvFile = stackResources.envFilePath;
+const defaultRpcHttpUrl = stackResources.chainRpcHttpUrl;
 const localDevChainId = hardhat.id;
 const localDevMnemonic =
   "test test test test test test test test test test test junk";
@@ -212,7 +219,7 @@ async function main(): Promise<void> {
   const envFile = resolvePath(
     options.envFile ??
       process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ??
-      localChainEnvFile,
+      defaultEnvFile,
   );
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
@@ -1831,7 +1838,7 @@ Options:
                             pUSD. Defaults to 20000.
   --defaults                Skip all prompts and accept every default.
   --local-chain-env <path>  Load a generated local-chain env file.
-                            Defaults to server/.env.local-chain.
+                            Defaults to ${defaultEnvFile}.
   -h, --help                Show this help.
 
 Examples:
