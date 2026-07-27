@@ -16,6 +16,10 @@ import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
 import { BASE_CHAIN_PORT } from "./shared/localStack/ports.ts";
 import {
+  resolveProtocolChainEnv,
+  type ProtocolChainEnv,
+} from "./shared/localStack/protocolChainEnv.ts";
+import {
   pruneDeadDescriptors,
   type StackDescriptor,
 } from "./shared/localStack/registry.ts";
@@ -198,11 +202,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  const bypassRegistry =
-    options.envFile !== undefined || options.apiBaseUrl !== undefined;
-  const target = bypassRegistry
-    ? undefined
-    : await resolveRegisteredStack(options);
+  // Only `--local-chain-env` bypasses stack resolution: it names the chain
+  // outright. `--api-url` says nothing about which chain to create on, so
+  // letting it bypass too used to leave the run creating markets on slot 0
+  // while saving their metadata to another slot's API.
+  const target =
+    options.envFile === undefined
+      ? await resolveRegisteredStack(options)
+      : undefined;
   const envFile =
     target?.envFilePath ??
     options.envFile ??
@@ -210,14 +217,18 @@ async function main(): Promise<void> {
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const commandEnv: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
-  const rpcFallbackUrl = `http://127.0.0.1:${target?.chainPort ?? BASE_CHAIN_PORT}`;
+  const chainEnv = resolveProtocolChainEnv(commandEnv, target);
+  const rpcUrl = chainEnv.POPCHARTS_LOCAL_RPC_URL;
 
   validateLocalEnv(commandEnv, envFile, envFileExists);
-  await validateLocalDeployment(commandEnv, envFile, rpcFallbackUrl);
+  await validateLocalDeployment(commandEnv, envFile, rpcUrl);
   ensureDependenciesInstalled();
 
+  // An explicit --api-url wins over the resolved stack's own API port, so the
+  // flag never silently does nothing.
   const apiBaseUrl = resolveIndexerApiBaseUrl(
-    target ? `http://127.0.0.1:${target.apiPort}` : options.apiBaseUrl,
+    options.apiBaseUrl ??
+      (target ? `http://127.0.0.1:${target.apiPort}` : undefined),
     commandEnv,
   );
   const usedOptionKeys = await readExistingGeneratedMarketOptions({
@@ -229,20 +240,14 @@ async function main(): Promise<void> {
     usedOptionKeys,
   );
 
-  commandEnv.LOCAL_MARKET_METADATA = serializeMetadata(
-    generatedMarket.metadata,
-  );
-  commandEnv.LOCAL_MARKET_GRADUATION_SECONDS = String(
-    generatedMarket.graduationSeconds,
-  );
-  commandEnv.LOCAL_MARKET_RESOLUTION_SECONDS = String(
-    generatedMarket.resolutionSeconds,
-  );
-
   if (envFileExists) {
     console.log(`[local-create-market] loading ${envFile}`);
   }
 
+  // The chain this run targets is printed because a mis-targeted run is
+  // otherwise silent: it creates the market on another slot's chain and still
+  // reports success.
+  console.log(`[local-create-market] chain: ${rpcUrl}`);
   console.log(`[local-create-market] generated ${generatedMarket.kind} market`);
   console.log(
     `[local-create-market] question: ${generatedMarket.metadata.question}`,
@@ -257,7 +262,11 @@ async function main(): Promise<void> {
     "pnpm",
     ["--dir", "protocol", "run", "local:create-market"],
     {
-      env: commandEnv,
+      env: buildProtocolCommandEnv({
+        baseEnv: commandEnv,
+        chainEnv,
+        generatedMarket,
+      }),
     },
   );
   const market = parseSmokeMarket(output.stdout);
@@ -288,12 +297,37 @@ async function resolveRegisteredStack(
   });
 }
 
+/**
+ * The exact environment the protocol helper is spawned with: the caller's
+ * environment and the loaded env file, then the chain variables that decide
+ * which devchain the child talks to, then the generated market it should
+ * create. Built in one place so the chain pin cannot drift away from the
+ * spawn: a resolved target that never reaches the child is the failure mode
+ * this guards (ADR 0020 Phase 4 correction).
+ */
+export function buildProtocolCommandEnv({
+  baseEnv,
+  chainEnv,
+  generatedMarket,
+}: {
+  readonly baseEnv: NodeJS.ProcessEnv;
+  readonly chainEnv: ProtocolChainEnv;
+  readonly generatedMarket: GeneratedMarket;
+}): NodeJS.ProcessEnv {
+  return {
+    ...baseEnv,
+    ...chainEnv,
+    LOCAL_MARKET_GRADUATION_SECONDS: String(generatedMarket.graduationSeconds),
+    LOCAL_MARKET_METADATA: serializeMetadata(generatedMarket.metadata),
+    LOCAL_MARKET_RESOLUTION_SECONDS: String(generatedMarket.resolutionSeconds),
+  };
+}
+
 async function validateLocalDeployment(
   env: NodeJS.ProcessEnv,
   envFile: string,
-  rpcFallbackUrl: string,
+  rpcUrl: string,
 ): Promise<void> {
-  const rpcUrl = env.RPC_HTTP_URL ?? rpcFallbackUrl;
   const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
   const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
 
@@ -352,7 +386,13 @@ async function validateLocalDeployment(
   }
 }
 
-/** Parses local-create-market command-line arguments. */
+/**
+ * Parses local-create-market command-line arguments, throwing on any token it
+ * does not recognize rather than ignoring it. `--flag value` and `--flag=value`
+ * are equivalent and the last occurrence wins. Two results are load-bearing for
+ * stack targeting: `--stack` falls back to `POPCHARTS_STACK`, and
+ * `--local-chain-env` paths resolve against the repo root, not the cwd.
+ */
 export function parseArgs(
   args: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -426,13 +466,16 @@ from live public sources, creates it onchain, then saves matching metadata to
 the local API.
 
 Options:
-  --api-url <url>          Save generated metadata to this API base URL.
-                            Defaults to POPCHARTS_INDEXER_API_URL, then
-                            http://127.0.0.1:$LOCAL_API_PORT.
+  --api-url <url>          Save generated metadata to this API base URL. Only
+                            redirects the metadata; the market is still created
+                            on the resolved stack's chain. Defaults to that
+                            stack's API port, then POPCHARTS_INDEXER_API_URL,
+                            then http://127.0.0.1:$LOCAL_API_PORT.
   --kind <kind>            Generate crypto, weather, or random.
                             Defaults to random.
-  --local-chain-env <path>  Load a generated local-chain env file.
-                            Explicit use bypasses stack registry resolution.
+  --local-chain-env <path>  Load a generated local-chain env file. Names the
+                            chain outright, so it bypasses stack registry
+                            resolution.
   --stack <slot|id>         Choose a running stack by slot or instance id.
                             Defaults to POPCHARTS_STACK; with multiple stacks,
                             interactive terminals prompt when neither is set.
@@ -772,8 +815,10 @@ function readForecastTemperature(value: unknown): number | null {
 }
 
 function serializeMetadata(metadata: MarketMetadata): string {
-  // Key order is stable so the serialized metadata (and therefore its hash)
-  // is reproducible for the same generated market.
+  // Key order mirrors the protocol's canonical schema so the payload round-trips
+  // through its `parseMarketMetadata`. It does NOT determine the metadata hash:
+  // the protocol helper re-serializes with its own `serializeMarketMetadata`
+  // before hashing, so that module owns the hashed byte layout.
   const ordered: Record<string, unknown> = {
     version: metadata.version,
     question: metadata.question,
@@ -1063,13 +1108,35 @@ async function rpcResult(
 }
 
 function staleStackRecovery(envFile: string, rpcUrl: string): string {
+  // The lsof hint names the port actually in play: hardcoding 8545 sent a
+  // developer debugging a non-zero slot at the human stack's chain instead.
+  const port = readRpcPort(rpcUrl);
+
   return (
     `${envFile} and the running RPC are probably out of sync. ` +
-    `Stop the stale Hardhat node on ${rpcUrl}, then run ` +
+    `Stop the stale local node on ${rpcUrl}, then run ` +
     "'just local-dev-control' or 'just local-dev' from this checkout and " +
     "wait for contract deployment to complete. To find the process, run " +
-    "'lsof -nP -iTCP:8545 -sTCP:LISTEN'."
+    `'lsof -nP -iTCP:${port} -sTCP:LISTEN'.`
   );
+}
+
+/**
+ * The TCP port `rpcUrl` addresses, for the recovery hint only. A URL with no
+ * explicit port uses its scheme's default rather than the local chain port —
+ * naming slot 0's 8545 there would point at a listener the URL never described.
+ * Falls back to slot 0 only when the URL cannot be parsed at all, since this
+ * builds a hint string and must never throw over the error it is explaining.
+ */
+export function readRpcPort(rpcUrl: string): string {
+  try {
+    const { port, protocol } = new URL(rpcUrl);
+    return (
+      port || (protocol === "https:" || protocol === "wss:" ? "443" : "80")
+    );
+  } catch {
+    return String(BASE_CHAIN_PORT);
+  }
 }
 
 // The protocol helper's output streams through unprefixed (the developer is

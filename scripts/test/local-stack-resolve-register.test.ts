@@ -9,6 +9,8 @@ import { readDescriptors } from "../shared/localStack/registry.ts";
 import { resolveAndRegisterStack } from "../shared/localStack/resolveAndRegisterStack.ts";
 import { repoRoot } from "../shared/paths.ts";
 
+// Every key resolveAndRegisterStack writes, so the test restores what it
+// mutates instead of leaking a slot-7 chain URL into the rest of the process.
 const STACK_ENV_KEYS = [
   "POPCHARTS_STACK_REGISTRY_DIR",
   "POPCHARTS_STACK_SLOT",
@@ -16,6 +18,9 @@ const STACK_ENV_KEYS = [
   "LOCAL_APP_PORT",
   "LOCAL_AI_REVIEW_PORT",
   "LOCAL_AI_RESOLUTION_PORT",
+  "POPCHARTS_LOCAL_RPC_URL",
+  "POPCHARTS_RPC_URL",
+  "RPC_HTTP_URL",
 ] as const;
 
 test("resolveAndRegisterStack writes the descriptor and child environment", async function () {
@@ -73,6 +78,16 @@ test("resolveAndRegisterStack writes the descriptor and child environment", asyn
       process.env.LOCAL_AI_RESOLUTION_PORT,
       String(expectedResources.resolutionPort),
     );
+    // Every `--network localhost` deploy this orchestrator spawns picks its
+    // chain from these; unpinned they default to slot 0's :8545 and the deploy
+    // lands on the human stack's chain (ADR 0020).
+    for (const key of [
+      "POPCHARTS_LOCAL_RPC_URL",
+      "POPCHARTS_RPC_URL",
+      "RPC_HTTP_URL",
+    ] as const) {
+      assert.equal(process.env[key], expectedResources.chainRpcHttpUrl, key);
+    }
   } finally {
     for (const listener of process.listeners("exit")) {
       if (!previousExitListeners.has(listener)) {
