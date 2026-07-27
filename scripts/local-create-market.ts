@@ -1122,13 +1122,18 @@ function staleStackRecovery(envFile: string, rpcUrl: string): string {
 }
 
 /**
- * The port `rpcUrl` addresses, for diagnostics only. Falls back to slot 0's
- * chain port when the URL is unparseable, since this only builds a hint string
- * and must never throw over the error it is explaining.
+ * The TCP port `rpcUrl` addresses, for the recovery hint only. A URL with no
+ * explicit port uses its scheme's default rather than the local chain port —
+ * naming slot 0's 8545 there would point at a listener the URL never described.
+ * Falls back to slot 0 only when the URL cannot be parsed at all, since this
+ * builds a hint string and must never throw over the error it is explaining.
  */
-function readRpcPort(rpcUrl: string): string {
+export function readRpcPort(rpcUrl: string): string {
   try {
-    return new URL(rpcUrl).port || String(BASE_CHAIN_PORT);
+    const { port, protocol } = new URL(rpcUrl);
+    return (
+      port || (protocol === "https:" || protocol === "wss:" ? "443" : "80")
+    );
   } catch {
     return String(BASE_CHAIN_PORT);
   }

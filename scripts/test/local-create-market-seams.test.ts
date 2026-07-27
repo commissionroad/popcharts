@@ -21,6 +21,7 @@ import {
 import {
   buildProtocolCommandEnv,
   parseArgs,
+  readRpcPort,
 } from "../local-create-market.ts";
 import { deriveStackResources } from "../shared/localStack/ports.ts";
 import { resolveProtocolChainEnv } from "../shared/localStack/protocolChainEnv.ts";
@@ -264,6 +265,23 @@ describe("local-create-market CLI", function () {
       }).stack,
       "cli-stack",
     );
+  });
+});
+
+describe("local-create-market stale-stack recovery hint", function () {
+  // The hint names a port for `lsof`. Naming the wrong one is how the original
+  // incident misdirected a developer to the human stack's chain, so a URL that
+  // does not describe :8545 must never produce it.
+  it("names the port the RPC URL actually addresses", function () {
+    assert.equal(readRpcPort("http://127.0.0.1:8555"), "8555");
+    assert.equal(readRpcPort("http://127.0.0.1:8545"), "8545");
+    assert.equal(readRpcPort("http://example.test"), "80");
+    assert.equal(readRpcPort("https://example.test"), "443");
+    assert.equal(readRpcPort("wss://example.test"), "443");
+  });
+
+  it("falls back to the local chain port only when the URL is unparseable", function () {
+    assert.equal(readRpcPort("not a url"), "8545");
   });
 });
 
