@@ -113,7 +113,7 @@ try {
   // The smoke's own console lines cross the process boundary but its
   // children's stdout does not, so the deploy record is read from the
   // generated env file the smoke writes rather than parsed from stdout.
-  const generatedEnv = readGeneratedEnv(smokeStdout);
+  const generatedEnv = requireGeneratedEnv(smokeStdout);
   const rpcHttpUrl = requireEnvValue(generatedEnv, "RPC_HTTP_URL");
   const deploy: PregradDeploy = {
     chainId: await readChainId(rpcHttpUrl),
@@ -170,7 +170,7 @@ function parseApiBaseUrl(stdout: string): string {
  * carries the stack's RPC endpoint and deployed addresses (slot-dependent
  * under ADR 0020, so none of them can be hardcoded here).
  */
-function readGeneratedEnv(stdout: string): Record<string, string> {
+function requireGeneratedEnv(stdout: string): Record<string, string> {
   const fileMatch = stdout.match(/^- Env file: (.+)$/m);
   if (!fileMatch) {
     throw new Error("Could not find the env file path in local:smoke output.");
