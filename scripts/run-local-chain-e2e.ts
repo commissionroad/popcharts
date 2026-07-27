@@ -324,28 +324,65 @@ export function buildAppSuiteEnv({
   };
 }
 
-async function main(): Promise<void> {
+/**
+ * Everything a run does after its stack is resolved: probe the chain, start
+ * one if nothing answers, deploy the four protocol artifacts, then drive the
+ * browser suite — each child pinned to the resolved stack.
+ *
+ * Every effect is injected, because the two defects this file has already had
+ * both lived *here*, at the call sites, and neither was reachable from a test
+ * of the pure helpers. `buildProtocolCommandEnv` and `buildAppSuiteEnv` can
+ * each be perfect while this function passes a hardcoded value instead — that
+ * is exactly the old `PLAYWRIGHT_BASE_URL = "http://localhost:3000"`, and a
+ * suite that only exercises the builders stays green through the regression.
+ * With the seams here, reverting any of that wiring fails the suite.
+ *
+ * `main` keeps only the signal handlers, which own no stack state.
+ */
+export async function runLocalChainE2e({
+  env = process.env,
+  execute = runInheritedCommand,
+  log = console.log,
+  probeRpc = isRpcReady,
+  readManifest = readJsonFile<DevchainManifest>,
+  spawnProcess = spawn,
+}: {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly execute?: CommandExecutor;
+  readonly log?: (message: string) => void;
+  readonly probeRpc?: (rpcUrl: string) => Promise<boolean>;
+  readonly readManifest?: (path: string) => DevchainManifest;
+  readonly spawnProcess?: ProcessSpawner;
+} = {}): Promise<void> {
   const { appBaseUrl, appPort, chainEnv, hardhatNodeArgs } =
-    resolveLocalChainE2eTarget(process.env);
+    resolveLocalChainE2eTarget(env);
   const rpcUrl = chainEnv.RPC_HTTP_URL;
-
-  process.on("SIGINT", () => {
-    void stopHardhatNode();
-    process.exit(130);
-  });
-  process.on("SIGTERM", () => {
-    void stopHardhatNode();
-    process.exit(143);
-  });
+  // The run's own environment is what every child inherits from, so a test
+  // driving a fake env gets a hermetic run rather than the ambient shell.
+  const runCommand = (options: {
+    readonly args: readonly string[];
+    readonly deploymentEnv?: NodeJS.ProcessEnv;
+  }): Promise<void> =>
+    runProtocolCommand({
+      args: options.args,
+      baseEnv: env,
+      chainEnv,
+      command: "pnpm",
+      deploymentEnv: options.deploymentEnv,
+      execute,
+    });
 
   try {
-    const existingChain = await isRpcReady(rpcUrl);
-
-    if (existingChain) {
-      console.log(`Using existing devchain at ${rpcUrl}`);
+    if (await probeRpc(rpcUrl)) {
+      log(`Using existing devchain at ${rpcUrl}`);
     } else {
-      console.log(`Starting local Hardhat node at ${rpcUrl}`);
-      hardhatNode = startHardhatNode({ chainEnv, hardhatNodeArgs });
+      log(`Starting local Hardhat node at ${rpcUrl}`);
+      hardhatNode = startHardhatNode({
+        baseEnv: env,
+        chainEnv,
+        hardhatNodeArgs,
+        spawnProcess,
+      });
       hardhatNode.on("exit", (code, signal) => {
         if (!stoppingHardhatNode && code !== 0) {
           console.error(
@@ -355,57 +392,56 @@ async function main(): Promise<void> {
           );
         }
       });
-      await waitFor("JSON-RPC", () => isRpcReady(rpcUrl), {
+      await waitFor("JSON-RPC", () => probeRpc(rpcUrl), {
         timeoutMs: 30_000,
       });
     }
 
-    await runProtocolCommand({
-      args: ["--dir", "protocol", "devchain:deploy"],
-      chainEnv,
-      command: "pnpm",
-    });
+    await runCommand({ args: ["--dir", "protocol", "devchain:deploy"] });
 
     // Deploy the postgrad venue on top of the devchain contracts so the e2e
     // chain path also proves whole-system deployability: v4 venue stack,
     // postgrad contracts, and one demo complete-set market.
-    const devchain = readJsonFile<DevchainManifest>(
+    const devchain = readManifest(
       resolve(protocolDir, "deployments", "devchain.local.json"),
     );
-    await runProtocolCommand({
-      args: ["--dir", "protocol", "local:deploy-venue"],
-      chainEnv,
-      command: "pnpm",
-    });
-    await runProtocolCommand({
+    await runCommand({ args: ["--dir", "protocol", "local:deploy-venue"] });
+    await runCommand({
       args: ["--dir", "protocol", "local:deploy-postgrad"],
-      chainEnv,
-      command: "pnpm",
       deploymentEnv: {
         POPCHARTS_PREGRAD_MANAGER_ADDRESS:
           devchain.contracts.pregradManager.address,
       },
     });
-    await runProtocolCommand({
+    await runCommand({
       args: ["--dir", "protocol", "local:create-complete-set-market"],
-      chainEnv,
-      command: "pnpm",
       deploymentEnv: {
         POPCHARTS_COLLATERAL_ADDRESS: devchain.contracts.collateral.address,
         POPCHARTS_MARKET_SYMBOL: DEMO_MARKET_SYMBOL,
       },
     });
 
-    console.log(`Running the devchain e2e suite against ${appBaseUrl}`);
-    await runProtocolCommand({
+    log(`Running the devchain e2e suite against ${appBaseUrl}`);
+    await runCommand({
       args: ["--dir", "app", "test:e2e:chain"],
-      chainEnv,
-      command: "pnpm",
       deploymentEnv: buildAppSuiteEnv({ appBaseUrl, appPort }),
     });
   } finally {
     await stopHardhatNode();
   }
+}
+
+async function main(): Promise<void> {
+  process.on("SIGINT", () => {
+    void stopHardhatNode();
+    process.exit(130);
+  });
+  process.on("SIGTERM", () => {
+    void stopHardhatNode();
+    process.exit(143);
+  });
+
+  await runLocalChainE2e();
 }
 
 /**
