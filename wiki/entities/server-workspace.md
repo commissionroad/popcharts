@@ -9,7 +9,7 @@ sources:
   - docs/architecture.md
   - docs/ai-review-runner-design.md
   - docs/portfolio-data-design.md
-updated: 2026-07-15
+updated: 2026-07-26
 ---
 
 # server/ workspace
@@ -21,8 +21,9 @@ protocol to Node). Outside the pnpm workspace (`bun.lock`); produces
 artifacts for others (openapi.json → orval api-client) and consumes
 `@popcharts/protocol` through a `file:../protocol` dependency (venue ABIs,
 price/tick helpers, clearing math, manifest types — used by the keeper, venue
-services, and the venue-pool registry). Pregrad indexer watchers keep inline
-`parseAbi` fragments for the events they watch; addresses come from config.
+services, and the venue-pool registry). Indexer watchers take their event
+definitions from those same generated ABIs via `getAbiItem` rather than
+hand-writing fragments; addresses come from config.
 
 ## Processes
 

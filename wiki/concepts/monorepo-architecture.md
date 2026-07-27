@@ -6,7 +6,7 @@ sources:
   - docs/architecture.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - docs/adr/0006-server-runtime-and-indexer.md
-updated: 2026-07-15
+updated: 2026-07-26
 ---
 
 # Monorepo architecture
@@ -21,10 +21,10 @@ the debt was file-level, not structural.
   [protocol](../entities/protocol-workspace.md) imports nothing;
   [server](../entities/server-workspace.md) couples via the
   `@popcharts/protocol` package (`file:../protocol` — venue ABIs, price/tick
-  helpers, clearing math, manifest types), while its pregrad indexer watchers
-  keep minimal inline `parseAbi` fragments; [app](../entities/app-workspace.md)
-  consumes protocol metadata and the generated api-client through single
-  adapter seams.
+  helpers, clearing math, manifest types), down to its indexer watchers, which
+  pull event definitions out of the generated ABIs instead of hand-writing
+  fragments; [app](../entities/app-workspace.md) consumes protocol metadata and
+  the generated api-client through single adapter seams.
 - Two generation pipelines, each with a committed output and a `--check` CI
   twin: contract metadata (`metadata:check`) and OpenAPI → orval api-client
   (`openapi:check` / `api:check`).

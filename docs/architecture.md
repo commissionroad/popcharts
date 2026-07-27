@@ -72,9 +72,10 @@ The remaining edges:
 - **server → protocol**: the server depends on `@popcharts/protocol`
   (`file:../protocol`) for venue ABIs, price/tick helpers, clearing math, and
   manifest types (keeper, venue services, `indexer/utils/venue-pool-registry`).
-  Pregrad indexer watchers still declare minimal inline `parseAbi` fragments
-  for the events they watch (e.g. `src/indexer/watchers/market-created.ts`).
-  Server CI's path filter includes `protocol/**` to track this edge.
+  Indexer watchers subscribe through the same generated ABIs, pulling each
+  event out with viem's `getAbiItem` (e.g.
+  `src/indexer/watchers/market-created.ts`) rather than declaring their own
+  fragment. Server CI's path filter includes `protocol/**` to track this edge.
 - **app → server at runtime**: HTTP calls through the generated fetch client
   in `@popcharts/api-client`, wrapped by the hand-written adapter
   `app/src/integrations/indexer/markets-api.ts`.

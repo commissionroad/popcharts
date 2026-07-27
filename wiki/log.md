@@ -1161,3 +1161,22 @@ ownership of the hashed layout; hardhatLocalChainId duplicates ports.ts's
 BASE_CHAIN_ID; five copies of the env-file parser exist repo-wide; and
 scripts/run-local-chain-e2e.ts pins POPCHARTS_RPC_URL but not
 POPCHARTS_LOCAL_RPC_URL, the same bug class this PR fixed.
+
+## [2026-07-26] ingest | docs/architecture.md — indexer watchers no longer hand-write ABI fragments
+Pages: ~summaries/architecture.md, ~concepts/monorepo-architecture.md,
+~entities/server-workspace.md
+Notes: `docs/architecture.md` claimed "pregrad indexer watchers still declare
+minimal inline `parseAbi` fragments for the events they watch (e.g.
+`src/indexer/watchers/market-created.ts`)". Checked the code: that is FALSE and
+has been for some time — `market-created.ts` imports `pregradManagerAbi` from
+`@popcharts/protocol` and extracts the event with `getAbiItem`, and a grep of
+`server/src/indexer/` finds zero `parseAbi`/inline-`abi:` declarations. The
+stale claim had propagated verbatim into all three wiki pages above, where it
+read as standing permission to hand-write. Corrected the doc and the three
+pages in the same PR as the AGENTS.md rule tightening that bans first-party ABI
+mirrors outright.
+Follow-up: `docs/adr/0024-resolution-dispute-program.md:58` still has a Phase 1
+checklist item saying "keep `contract-abi-parity.test.ts` pins honest" — that
+test was deleted in 44479d0 (2026-07-21), before Phase 1 landed, so the item
+was checked off against a file that no longer existed. Left alone here to avoid
+conflicting with the in-flight dispute PR stack.
