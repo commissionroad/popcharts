@@ -30,19 +30,27 @@ function readSolidityEnumMembers({
   enumName: string;
 }): string[] {
   const source = readFileSync(join(protocolRoot, contractPath), "utf8");
+  // Strip every comment before going looking for the enum. Comments are not
+  // merely noise between members: a `}` inside NatSpec would end the body
+  // early, and a commented-out `enum <Name> { ... }` example earlier in the
+  // file would be matched in place of the real declaration. Removing them
+  // first also means a member can carry a trailing `// note` or a `/* */`
+  // block without breaking the parse. Order matters — block comments go
+  // first, so a `//` inside one cannot swallow the rest of its line.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
   // The enum body is everything between `enum <Name> {` and the next `}`.
   // Solidity enum bodies cannot nest braces, so `[^}]*` is exact rather than
   // merely lazy, and no `s`/`m` flag is needed: `[^}]` already spans newlines.
-  const body = new RegExp(`enum\\s+${enumName}\\s*\\{([^}]*)\\}`).exec(source)?.[1];
+  const body = new RegExp(`enum\\s+${enumName}\\s*\\{([^}]*)\\}`).exec(code)?.[1];
   assert.ok(body !== undefined, `${contractPath} declares no enum ${enumName}`);
 
+  // Members are comma-separated, not line-separated: with comments gone,
+  // splitting on the comma reads `Yes, No` on one line the same as one
+  // member per line.
   const members = body
-    .split("\n")
-    .map((line) => line.trim())
-    // NatSpec member docs carry commas of their own, so drop comment lines
-    // before splitting members off their trailing commas.
-    .filter((line) => line.length > 0 && !line.startsWith("//"))
-    .map((line) => line.replace(/,$/, ""));
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 
   for (const member of members) {
     assert.match(member, /^[A-Z][A-Za-z0-9]*$/, `Unparsed ${enumName} member line: "${member}"`);
