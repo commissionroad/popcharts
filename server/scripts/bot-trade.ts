@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
-import { fileURLToPath } from "node:url";
 
 import { mockCollateralAbi, pregradManagerAbi } from "@popcharts/protocol";
 import {
@@ -19,7 +18,8 @@ import { hardhat } from "viem/chains";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
 // its node --experimental-strip-types runtime cannot load TS out of
-// node_modules, so the repo's one env parser is shared by path instead.
+// node_modules, so the repo's shared env helpers are imported by path instead.
+import { localChainEnvFile } from "../../scripts/shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
 
 /**
@@ -37,8 +37,6 @@ import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
  * so it also works non-interactively: `--defaults` accepts every default.
  */
 
-const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const defaultEnvFile = resolve(serverDir, ".env.local-chain");
 const defaultRpcHttpUrl = "http://127.0.0.1:8545";
 const defaultApiPort = "3001";
 const localDevChainId = hardhat.id;
@@ -142,7 +140,7 @@ async function main(): Promise<void> {
   const envFile = resolvePath(
     options.envFile ??
       process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ??
-      defaultEnvFile,
+      localChainEnvFile,
   );
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
