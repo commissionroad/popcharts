@@ -29,33 +29,59 @@ for entry in "${path_entries[@]}"; do
     filtered_path="${filtered_path:+$filtered_path:}$entry"
 done
 
-real_just=$(PATH="$filtered_path" command -v just 2>/dev/null || true)
+# `type -P` rather than `command -v`: it searches PATH for an executable file
+# and ignores functions and aliases. An exported shell function named `just`
+# would make `command -v` answer "just", and exec'ing that bare name would send
+# us back through this shim forever.
+original_path=$PATH
+PATH=$filtered_path
+real_just=$(type -P just 2>/dev/null || true)
+PATH=$original_path
+
 if [ -z "$real_just" ]; then
     echo "just-usage shim: no real 'just' on PATH (after excluding $self_dir)" >&2
     exit 127
 fi
 
 if [ "${POPCHARTS_JUST_USAGE:-1}" != "0" ]; then
-    log_file="${POPCHARTS_JUST_USAGE_LOG:-$HOME/.popcharts/just-usage.log}"
-    # mkdir must run before the append redirection, not inside it: the shell
-    # opens the redirect target first, so a missing parent directory would fail
-    # the whole line before mkdir ever ran.
-    mkdir -p -- "$(dirname -- "$log_file")" 2>/dev/null || true
-    # Tabs and newlines in recipe arguments would corrupt the TSV columns.
-    invocation=$*
-    invocation=${invocation//$'\t'/ }
-    invocation=${invocation//$'\n'/ }
-    if [ -t 0 ]; then origin=tty; else origin=no-tty; fi
-    printf '%s\t%s\t%s\t%s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        "$origin" \
-        "$PWD" \
-        "$invocation" \
-        >>"$log_file" 2>/dev/null || true
+    # HOME can be unset in cron and some container environments. Under `set -u`
+    # an unguarded $HOME would abort the shim before the exec below, which would
+    # turn logging into the thing that stops recipes running.
+    log_file="${POPCHARTS_JUST_USAGE_LOG:-}"
+    if [ -z "$log_file" ] && [ -n "${HOME:-}" ]; then
+        log_file="$HOME/.popcharts/just-usage.log"
+    fi
+    # Appending to a FIFO or a device blocks until something reads it, and no
+    # `|| true` can rescue a write that never returns. Only ever append to a
+    # regular file, or to a path that does not exist yet.
+    if [ -n "$log_file" ] && { [ ! -e "$log_file" ] || [ -f "$log_file" ]; }; then
+        # mkdir must run before the append redirection, not inside it: the shell
+        # opens the redirect target first, so a missing parent directory would
+        # fail the whole line before mkdir ever ran.
+        mkdir -p -- "$(dirname -- "$log_file")" 2>/dev/null || true
+        # Arguments are joined with US (0x1f), not spaces, so the reader can
+        # recover the exact boundaries. `just -d "/tmp/a b" test` must not look
+        # like the recipe is named "b". Tabs and newlines are stripped because
+        # they would break the outer TSV framing.
+        invocation=""
+        for arg in "$@"; do
+            arg=${arg//$'\t'/ }
+            arg=${arg//$'\n'/ }
+            arg=${arg//$'\x1f'/ }
+            invocation+="${arg}"$'\x1f'
+        done
+        if [ -t 0 ]; then origin=tty; else origin=no-tty; fi
+        printf '%s\t%s\t%s\t%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "$origin" \
+            "$PWD" \
+            "$invocation" \
+            >>"$log_file" 2>/dev/null || true
+    fi
 fi
 
 # exec, rather than run-and-wrap: it keeps this shim out of the process tree so
 # signal handling and exit codes reach long-running recipes (`just local-dev`
 # fronts a process-compose stack) exactly as they would without the shim. The
-# cost is that the log records invocations, not their exit codes.
+# cost is that the log records invocations, not whether they succeeded.
 exec "$real_just" "$@"

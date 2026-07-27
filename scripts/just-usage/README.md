@@ -49,8 +49,16 @@ Pass a date to limit the window: `scripts/just-usage/report 2026-08-01`.
 
 - The log is `~/.popcharts/just-usage.log` (override with
   `POPCHARTS_JUST_USAGE_LOG`), tab-separated: UTC timestamp, `tty`/`no-tty`,
-  working directory, arguments. It is outside the repo on purpose — it is
-  personal usage data, not a build artifact.
+  working directory, arguments. Arguments are themselves separated by US
+  (`0x1f`) rather than spaces, so that `just -d "/tmp/a b" test` cannot be
+  misread as running a recipe named `b`. The log lives outside the repo on
+  purpose — it is personal usage data, not a build artifact.
+- A single invocation can run several recipes (`just check test`), and all of
+  them are counted. Arguments to a recipe that declares parameters are not:
+  `just local-dev test` passes `test` to `local-dev`, so only `local-dev` is
+  credited.
+- `just --choose` runs an interactively picked recipe, which the log cannot
+  identify, so those invocations are skipped rather than guessed at.
 - `POPCHARTS_JUST_USAGE=0` disables logging without uninstalling the shim.
 - The shim `exec`s the real `just`, so it leaves no extra process in the tree
   and does not interfere with signals or exit codes. The trade-off is that the
