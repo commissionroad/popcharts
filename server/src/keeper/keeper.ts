@@ -1,4 +1,5 @@
 import {
+  boundedPoolOrderManagerAbi,
   COMPLETE_SET_KEEPER_POLICY,
   decideCompleteSetArbAction,
   executeCompleteSetArb,
@@ -134,7 +135,7 @@ async function drainDeferredExecutions({
     }
 
     const hash = await clients.walletClient.writeContract({
-      abi: RESOLVE_DEFERRED_ABI,
+      abi: boundedPoolOrderManagerAbi,
       account: clients.walletClient.account,
       address: config.contracts.orderManager,
       args: [execution.executionId, requested],
@@ -158,19 +159,6 @@ async function drainDeferredExecutions({
 
   return resolved;
 }
-
-const RESOLVE_DEFERRED_ABI = [
-  {
-    inputs: [
-      { name: "executionId", type: "bytes32" },
-      { name: "requestedExecutionCount", type: "uint256" },
-    ],
-    name: "resolveDeferredExecution",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 /**
  * One graduation pass for one pregrad market: asks the dev graduation flow to
