@@ -131,7 +131,8 @@ describe("run-local-chain-e2e app server target", function () {
   it("lets a caller's base URL win, and takes the boot port from it", function () {
     // The config boots `next dev --port PLAYWRIGHT_APP_PORT` but polls
     // PLAYWRIGHT_BASE_URL: deriving the port from the slot here would boot a
-    // server on 3010 that the suite never visits.
+    // server on 3010 that the suite never visits. 4321 is outside the slot
+    // grid, so it names an app the caller runs themselves.
     const target = resolveLocalChainE2eTarget({
       POPCHARTS_STACK_SLOT: "1",
       PLAYWRIGHT_BASE_URL: "http://127.0.0.1:4321",
@@ -149,6 +150,54 @@ describe("run-local-chain-e2e app server target", function () {
 
     assert.equal(target.appPort, "4321");
     assert.equal(target.appBaseUrl, "http://localhost:4321");
+  });
+
+  // An override exists for an app the caller runs themselves. Letting it name
+  // *another slot's* app would hand the run that stack's `next dev` — and its
+  // chain — which is the very false success this file's fix removes. An
+  // operator typing the port makes it no less silent than the old hardcoded
+  // 3000 did (independent review of the first draft caught this).
+  it("refuses a base URL that names another slot's app", function () {
+    assert.throws(
+      () =>
+        resolveLocalChainE2eTarget({
+          POPCHARTS_STACK_SLOT: "1",
+          PLAYWRIGHT_BASE_URL: "http://localhost:3000",
+        }),
+      /slot 0's app.*slot 1's/s,
+    );
+  });
+
+  it("refuses an app port that names another slot's app", function () {
+    assert.throws(
+      () =>
+        resolveLocalChainE2eTarget({
+          POPCHARTS_STACK_SLOT: "2",
+          PLAYWRIGHT_APP_PORT: "3010",
+        }),
+      /slot 1's app.*slot 2's/s,
+    );
+  });
+
+  it("allows an override that names this run's own slot", function () {
+    const target = resolveLocalChainE2eTarget({
+      POPCHARTS_STACK_SLOT: "1",
+      PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3010",
+    });
+
+    assert.equal(target.appBaseUrl, "http://127.0.0.1:3010");
+    assert.equal(target.appPort, "3010");
+  });
+
+  it("allows any override when the chain is outside the slot grid", function () {
+    // Nothing to disagree with: a chain on :9999 belongs to no slot, so the
+    // caller is wiring this run by hand and gets to say where the app is.
+    const target = resolveLocalChainE2eTarget({
+      RPC_HTTP_URL: "http://127.0.0.1:9999",
+      PLAYWRIGHT_APP_PORT: "3000",
+    });
+
+    assert.equal(target.appPort, "3000");
   });
 
   it("hands the Playwright child both variables the config reads", function () {

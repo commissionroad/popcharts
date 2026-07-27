@@ -77,24 +77,36 @@ export function deriveStackResources(slot: number): StackPorts {
 }
 
 /**
- * The slot that owns `chainPort`, or `undefined` when no slot does.
+ * The slot that owns `port`, given the base that port is offset from, or
+ * `undefined` when no slot owns it.
  *
- * The inverse of `deriveStackResources`, for a caller that picked its chain as
- * a URL rather than a slot number — an inherited `RPC_HTTP_URL`, say — and then
- * needs the *rest* of that stack's resources. Without it such a caller derives
- * the chain from one source and every other port from slot 0, which is the ADR
- * 0020 leak in miniature.
+ * The inverse of `deriveStackResources`, for a caller holding a port rather
+ * than a slot number — a chain picked as an inherited `RPC_HTTP_URL`, an app
+ * port typed by an operator — that then needs the slot it belongs to. Without
+ * it such a caller derives one resource from the port it was given and every
+ * other from slot 0, which is the ADR 0020 leak in miniature.
  *
- * Only an exact slot port answers. A chain on any other port is not a slot's
- * chain, and inventing a slot for it would hand back ports some other stack
- * owns — `undefined` says "derive these resources some other way" instead.
+ * Only an exact slot port answers. Any other port is not a slot's, and
+ * inventing a slot for it would name a stack that does not own it —
+ * `undefined` says "this port is outside the grid" instead. The stride keeps
+ * the bases from colliding, so an API port (3001) is not slot 0's app port.
  */
-export function slotForChainPort(chainPort: number): number | undefined {
-  const offset = chainPort - BASE_CHAIN_PORT;
+function slotForPort(port: number, basePort: number): number | undefined {
+  const offset = port - basePort;
 
   if (offset < 0 || offset % SLOT_PORT_STRIDE !== 0) {
     return undefined;
   }
 
   return offset / SLOT_PORT_STRIDE;
+}
+
+/** The slot whose devchain listens on `chainPort`. See `slotForPort`. */
+export function slotForChainPort(chainPort: number): number | undefined {
+  return slotForPort(chainPort, BASE_CHAIN_PORT);
+}
+
+/** The slot whose Next.js app listens on `appPort`. See `slotForPort`. */
+export function slotForAppPort(appPort: number): number | undefined {
+  return slotForPort(appPort, BASE_APP_PORT);
 }

@@ -9,6 +9,7 @@ import { readJsonFile } from "./shared/json/readJsonFile.ts";
 import {
   BASE_APP_PORT,
   deriveStackResources,
+  slotForAppPort,
   slotForChainPort,
 } from "./shared/localStack/ports.ts";
 import {
@@ -132,33 +133,100 @@ export function resolveLocalChainE2eTarget(
  *
  * A caller's own PLAYWRIGHT_BASE_URL still wins, since it names an app server
  * that exists; its port leads too, so the config cannot boot `next dev` on one
- * port while the suite drives another. A chain on a port no slot owns has no
- * slot-derived app port to offer, so it keeps the historical 3000 — with
- * PLAYWRIGHT_APP_PORT as the way to say otherwise.
+ * port while the suite drives another. It may not name a *different slot's*
+ * app, though — see `assertAppOverrideOnThisStack`. A chain on a port no slot
+ * owns has no slot-derived app port to offer, so it keeps the historical 3000,
+ * with PLAYWRIGHT_APP_PORT as the way to say otherwise.
  */
 function resolveAppServer(
   env: NodeJS.ProcessEnv,
   chainPort: string,
 ): { appBaseUrl: string; appPort: string } {
+  const chainSlot = slotForChainPort(Number(chainPort));
   const baseUrlOverride = env.PLAYWRIGHT_BASE_URL;
 
   if (baseUrlOverride !== undefined && baseUrlOverride !== "") {
+    const appPort = parseRpcListenTarget(baseUrlOverride).port;
+    assertAppOverrideOnThisStack({
+      appPort,
+      chainSlot,
+      override: `PLAYWRIGHT_BASE_URL=${baseUrlOverride}`,
+    });
+
+    return { appBaseUrl: baseUrlOverride, appPort };
+  }
+
+  const portOverride = env.PLAYWRIGHT_APP_PORT;
+
+  if (portOverride !== undefined && portOverride !== "") {
+    assertAppOverrideOnThisStack({
+      appPort: portOverride,
+      chainSlot,
+      override: `PLAYWRIGHT_APP_PORT=${portOverride}`,
+    });
+
     return {
-      appBaseUrl: baseUrlOverride,
-      appPort: parseRpcListenTarget(baseUrlOverride).port,
+      appBaseUrl: `http://localhost:${portOverride}`,
+      appPort: portOverride,
     };
   }
 
-  const slot = slotForChainPort(Number(chainPort));
-  const slotAppPort =
-    slot === undefined ? BASE_APP_PORT : deriveStackResources(slot).appPort;
-  const portOverride = env.PLAYWRIGHT_APP_PORT;
-  const appPort =
-    portOverride === undefined || portOverride === ""
-      ? String(slotAppPort)
-      : portOverride;
+  const appPort = String(
+    chainSlot === undefined
+      ? BASE_APP_PORT
+      : deriveStackResources(chainSlot).appPort,
+  );
 
   return { appBaseUrl: `http://localhost:${appPort}`, appPort };
+}
+
+/**
+ * Rejects an app-server override that names another slot's app.
+ *
+ * An override exists so a run can drive an app this script did not start — a
+ * built `next start`, a tunnel, a nonstandard port. What it must not do is
+ * hand the run a *different stack's* app: `reuseExistingServer` would adopt
+ * that slot's `next dev`, which talks to that slot's chain, and the suite
+ * would pass against the stack this whole fix exists to keep it off. An
+ * operator typing the port makes that no less silent than the old hardcoded
+ * 3000 did.
+ *
+ * Only a port some slot owns is refused, which is what makes this narrow: a
+ * port outside the slot grid belongs to nobody, so it is the operator's own
+ * server and is allowed. A chain outside the grid gives nothing to compare
+ * against, so it is allowed too. Same shape as
+ * `assertNoStrandedRpcOverride`: an explicit value that would silently
+ * relocate half the run is an error, not an instruction.
+ */
+function assertAppOverrideOnThisStack({
+  appPort,
+  chainSlot,
+  override,
+}: {
+  readonly appPort: string;
+  readonly chainSlot: number | undefined;
+  readonly override: string;
+}): void {
+  const overrideSlot = slotForAppPort(Number(appPort));
+
+  if (
+    chainSlot === undefined ||
+    overrideSlot === undefined ||
+    overrideSlot === chainSlot
+  ) {
+    return;
+  }
+
+  const chain = deriveStackResources(chainSlot);
+
+  throw new Error(
+    `${override} is slot ${overrideSlot}'s app, but this run's chain is ` +
+      `slot ${chainSlot}'s (${chain.chainRpcHttpUrl}). Playwright would ` +
+      "reuse that slot's already-running app, which talks to its own chain, " +
+      "and the suite would pass against the wrong stack. Point it at slot " +
+      `${chainSlot}'s app (port ${chain.appPort}), unset it to derive that ` +
+      "port, or use a port no slot owns for an app you started yourself.",
+  );
 }
 
 /**
