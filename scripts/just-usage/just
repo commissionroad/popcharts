@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# PATH shim that records `just` invocations, then hands off to the real just.
+#
+# Install by putting this directory ahead of the real just on PATH, e.g. in
+# ~/.zshenv so non-interactive shells (agent tool calls, scripts) are captured
+# too — ~/.zshrc would only cover interactive shells:
+#
+#   export PATH="$HOME/src/sentilesdal/popcharts/scripts/just-usage:$PATH"
+#
+# Set POPCHARTS_JUST_USAGE=0 to disable logging without uninstalling.
+# Set POPCHARTS_JUST_USAGE_LOG to move the log off its default path.
+#
+# Logging is best-effort by design: a broken log must never stop a recipe from
+# running, so every step below is individually guarded and the exec at the end
+# happens no matter what came before it.
+
+set -u
+
+self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+
+# Drop this shim's own directory from PATH so the lookup below resolves to the
+# real binary rather than recursing back into this script.
+filtered_path=""
+IFS=':' read -r -a path_entries <<<"${PATH:-}"
+for entry in "${path_entries[@]}"; do
+    [ -n "$entry" ] || continue
+    resolved=$(cd -- "$entry" 2>/dev/null && pwd -P) || resolved="$entry"
+    [ "$resolved" = "$self_dir" ] && continue
+    filtered_path="${filtered_path:+$filtered_path:}$entry"
+done
+
+real_just=$(PATH="$filtered_path" command -v just 2>/dev/null || true)
+if [ -z "$real_just" ]; then
+    echo "just-usage shim: no real 'just' on PATH (after excluding $self_dir)" >&2
+    exit 127
+fi
+
+if [ "${POPCHARTS_JUST_USAGE:-1}" != "0" ]; then
+    log_file="${POPCHARTS_JUST_USAGE_LOG:-$HOME/.popcharts/just-usage.log}"
+    # mkdir must run before the append redirection, not inside it: the shell
+    # opens the redirect target first, so a missing parent directory would fail
+    # the whole line before mkdir ever ran.
+    mkdir -p -- "$(dirname -- "$log_file")" 2>/dev/null || true
+    # Tabs and newlines in recipe arguments would corrupt the TSV columns.
+    invocation=$*
+    invocation=${invocation//$'\t'/ }
+    invocation=${invocation//$'\n'/ }
+    if [ -t 0 ]; then origin=tty; else origin=no-tty; fi
+    printf '%s\t%s\t%s\t%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$origin" \
+        "$PWD" \
+        "$invocation" \
+        >>"$log_file" 2>/dev/null || true
+fi
+
+# exec, rather than run-and-wrap: it keeps this shim out of the process tree so
+# signal handling and exit codes reach long-running recipes (`just local-dev`
+# fronts a process-compose stack) exactly as they would without the shim. The
+# cost is that the log records invocations, not their exit codes.
+exec "$real_just" "$@"
