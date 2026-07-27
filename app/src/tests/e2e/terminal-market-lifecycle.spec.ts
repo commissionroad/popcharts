@@ -7,8 +7,8 @@ import {
   marketPath,
   waitForMarketStatus,
 } from "./support/lifecycle";
-import { connectTestWallet, createFundedGraduatedMarket } from "./support/lifecycle-ui";
-import { TEST_WALLET_ADDRESS } from "./support/test-wallet";
+import { createFundedGraduatedMarket } from "./support/lifecycle-ui";
+import { connectTestWallet, TEST_WALLET_ADDRESS } from "./support/test-wallet";
 
 /**
  * ADR 0017 C4 journey 5 — cancelled/draw. A graduated market is cancelled by

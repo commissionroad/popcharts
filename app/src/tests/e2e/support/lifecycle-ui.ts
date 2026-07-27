@@ -10,7 +10,7 @@ import {
   mintCollateral,
   waitForMarketStatus,
 } from "./lifecycle";
-import { installTestWallet, TEST_WALLET_ADDRESS } from "./test-wallet";
+import { connectTestWallet, installTestWallet } from "./test-wallet";
 
 /**
  * Browser actions shared by the `@lifecycle` UI journeys (ADR 0017 C4): the
@@ -38,37 +38,6 @@ export const FORCED_REJECTION_REASON =
 /** Forced approval/rejection is one on-chain tx plus its indexer projection;
  * budget for that, not for an off-thread AI review. */
 const REVIEW_INDEXING_TIMEOUT_MS = 30_000;
-
-/**
- * Ensures the injected test wallet is connected. Wagmi auto-reconnects the
- * injected provider on most navigations, so the header may show either the
- * connect button or the connected account chip — wait for whichever appears
- * and only click when a connect button is actually there.
- */
-export async function connectTestWallet(page: Page): Promise<void> {
-  const truncated = new RegExp(
-    `${TEST_WALLET_ADDRESS.slice(0, 5)}.*${TEST_WALLET_ADDRESS.slice(-3)}`
-  );
-  const chip = page.getByText(truncated);
-  const connect = page.getByRole("button", { name: "Connect wallet" });
-  const deadline = Date.now() + 30_000;
-
-  while (Date.now() < deadline) {
-    if ((await chip.count()) > 0) {
-      return;
-    }
-    // The connect button can vanish between locating and clicking while
-    // wagmi auto-reconnects — a failed click is progress, not an error;
-    // the loop re-checks for the chip either way.
-    await connect
-      .first()
-      .dispatchEvent("click", undefined, { timeout: 2_000 })
-      .catch(() => {});
-    await page.waitForTimeout(500);
-  }
-
-  throw new Error("The test wallet did not connect within 30s.");
-}
 
 /**
  * Creates a market through the real create flow and returns its on-chain id

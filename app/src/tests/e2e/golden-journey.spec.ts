@@ -9,10 +9,9 @@ import {
 } from "./support/lifecycle";
 import {
   buyPostgradTokensViaUi,
-  connectTestWallet,
   createFundedGraduatedMarket,
 } from "./support/lifecycle-ui";
-import { TEST_WALLET_ADDRESS } from "./support/test-wallet";
+import { connectTestWallet, TEST_WALLET_ADDRESS } from "./support/test-wallet";
 
 /**
  * ADR 0017 C4 journey 1 — the golden path. A market walks its entire life
