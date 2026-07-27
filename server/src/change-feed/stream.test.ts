@@ -230,4 +230,44 @@ describe("changeFeedEventStream", () => {
     expect(await pending).toEqual({ done: true, value: undefined });
     expect(hub.subscriberCount).toBe(0);
   });
+
+  it("unsubscribes when the client stops pulling after a frame", async () => {
+    // The disconnect that a `finally`-only teardown misses: the generator is
+    // suspended at a `yield` with nobody left to pull it, so it never resumes
+    // to run its own cleanup and the subscription would outlive the request.
+    const hub = new ChangeFeedHub();
+    const controller = new AbortController();
+    const stream = changeFeedEventStream({
+      hub,
+      channels: [CHANNEL],
+      sinceId: 0n,
+      replay: NO_REPLAY,
+      heartbeatMs: LONG_HEARTBEAT,
+      signal: controller.signal,
+    });
+    await stream.next(); // ready — the generator is now suspended at the yield
+    expect(hub.subscriberCount).toBe(1);
+
+    controller.abort(); // no further pull
+    expect(hub.subscriberCount).toBe(0);
+  });
+
+  it("unsubscribes when the request aborted before the first pull", async () => {
+    // `addEventListener` does not fire for a signal that already aborted, so
+    // this teardown cannot come from the abort listener.
+    const hub = new ChangeFeedHub();
+    const controller = new AbortController();
+    controller.abort();
+    const stream = changeFeedEventStream({
+      hub,
+      channels: [CHANNEL],
+      sinceId: 0n,
+      replay: NO_REPLAY,
+      heartbeatMs: LONG_HEARTBEAT,
+      signal: controller.signal,
+    });
+
+    expect(await stream.next()).toEqual({ done: true, value: undefined });
+    expect(hub.subscriberCount).toBe(0);
+  });
 });

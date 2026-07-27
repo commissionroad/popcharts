@@ -30,3 +30,15 @@ process.env.PREGRAD_MANAGER_ADDRESS =
 process.env.POSTGRAD_ADAPTER_ADDRESS =
   "0x0000000000000000000000000000000000000107";
 process.env.SWAP_ROUTER_ADDRESS = "0x0000000000000000000000000000000000000108";
+
+// The database is pinned to the dead port for the same reason as the RPC
+// endpoints, and the risk is not hypothetical: src/db/client's `db` proxy
+// connects lazily on first use, so anything holding it that runs outside a
+// test's own setup — a background poller, a leaked subscription — reaches for
+// the ambient connection string. Unpinned that resolves to the docker-compose
+// default on :5433, i.e. the developer's live dev database, whose rows then
+// surface inside the suite. Tests that want real Postgres opt in explicitly
+// through POPCHARTS_INT_DB_URL (src/test-support/int-db.ts); every other test
+// uses PGlite.
+process.env.DATABASE_URL =
+  "postgresql://postgres:postgres@127.0.0.1:1/popcharts";
