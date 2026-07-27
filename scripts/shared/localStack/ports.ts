@@ -75,3 +75,26 @@ export function deriveStackResources(slot: number): StackPorts {
     indexerHealthFilePath: localDevIndexerHealthFileForSlot(slot),
   };
 }
+
+/**
+ * The slot that owns `chainPort`, or `undefined` when no slot does.
+ *
+ * The inverse of `deriveStackResources`, for a caller that picked its chain as
+ * a URL rather than a slot number — an inherited `RPC_HTTP_URL`, say — and then
+ * needs the *rest* of that stack's resources. Without it such a caller derives
+ * the chain from one source and every other port from slot 0, which is the ADR
+ * 0020 leak in miniature.
+ *
+ * Only an exact slot port answers. A chain on any other port is not a slot's
+ * chain, and inventing a slot for it would hand back ports some other stack
+ * owns — `undefined` says "derive these resources some other way" instead.
+ */
+export function slotForChainPort(chainPort: number): number | undefined {
+  const offset = chainPort - BASE_CHAIN_PORT;
+
+  if (offset < 0 || offset % SLOT_PORT_STRIDE !== 0) {
+    return undefined;
+  }
+
+  return offset / SLOT_PORT_STRIDE;
+}

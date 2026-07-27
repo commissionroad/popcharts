@@ -18,6 +18,7 @@ import {
   BASE_REVIEW_PORT,
   SLOT_PORT_STRIDE,
   deriveStackResources,
+  slotForChainPort,
 } from "../shared/localStack/ports.ts";
 
 test("slot 0 reproduces every legacy local stack resource", function () {
@@ -102,6 +103,22 @@ test("resource derivation rejects negative and non-integer slots", function () {
   assert.throws(() => deriveStackResources(-1), /non-negative integer/);
   assert.throws(() => deriveStackResources(1.5), /non-negative integer/);
   assert.throws(() => deriveStackResources(Number.NaN), /non-negative integer/);
+});
+
+test("a chain port maps back to the slot that owns it", function () {
+  for (const slot of [0, 1, 2, 7]) {
+    assert.equal(slotForChainPort(deriveStackResources(slot).chainPort), slot);
+  }
+});
+
+test("a chain port no slot owns maps to no slot", function () {
+  // Between two slots, below slot 0, and not a port number at all. Answering
+  // with a slot here would hand the caller ports another stack owns.
+  assert.equal(slotForChainPort(8550), undefined);
+  assert.equal(slotForChainPort(8544), undefined);
+  assert.equal(slotForChainPort(3000), undefined);
+  assert.equal(slotForChainPort(8545.5), undefined);
+  assert.equal(slotForChainPort(Number.NaN), undefined);
 });
 
 test("slot-aware env paths preserve the legacy slot-0 filename", function () {
