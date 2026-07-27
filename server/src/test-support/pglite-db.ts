@@ -11,6 +11,17 @@ import * as schema from "src/db/schema";
 
 export interface PgliteDb {
   dbc: typeof productionDb;
+  /**
+   * Empties every table and restarts its sequences, so one instance can serve a
+   * whole file's tests with the clean slate a fresh database would give.
+   *
+   * Prefer `beforeAll(createPgliteDb)` + `beforeEach(reset)` over booting an
+   * instance per test: each PGlite costs ~1.2-2GB of resident memory that
+   * `close()` does not hand back promptly, and a suite that boots enough of
+   * them runs the allocator out of room (`RangeError: Out of memory` inside
+   * PGlite's `expandFileStorage`). Resetting is also far faster than booting.
+   */
+  reset: () => Promise<void>;
   teardown: () => Promise<void>;
 }
 
@@ -29,11 +40,10 @@ export interface PgliteDb {
  * already does. It is also cheaper: one diff here instead of a fresh
  * introspection for every instance the suite boots.
  *
- * This makes the failure visible; it does not remove it. The rejection being
- * swallowed was PGlite running out of memory (`RangeError: Out of memory` in
- * `expandFileStorage`) — each instance costs ~1.2-2GB RSS and the suite boots
- * roughly 25 of them. That now fails the owning test with a real stack instead
- * of killing the run. Cutting the instance count is the actual cure.
+ * The rejection being swallowed was PGlite running out of memory (`RangeError:
+ * Out of memory` in `expandFileStorage`), which is why callers should share one
+ * instance per file and {@link PgliteDb.reset} between tests rather than boot
+ * one per test.
  */
 let schemaDdl: Promise<string[]> | null = null;
 
@@ -55,8 +65,24 @@ export async function createPgliteDb(): Promise<PgliteDb> {
     await client.exec(statement);
   }
 
+  // Read back rather than deriving from the schema module, so a table created
+  // by the DDL but not exported from `schema` still gets emptied by reset().
+  const { rows } = await client.query<{ tablename: string }>(
+    "select tablename from pg_tables where schemaname = 'public'",
+  );
+  const tableList = rows.map((row) => `"${row.tablename}"`).join(", ");
+
   return {
     dbc,
+    reset: async () => {
+      if (tableList.length === 0) {
+        return;
+      }
+      // CASCADE because the tables are foreign-keyed to each other; RESTART
+      // IDENTITY so sequence-assigned ids start from 1 as they would in a
+      // freshly created database.
+      await client.exec(`truncate table ${tableList} restart identity cascade`);
+    },
     teardown: async () => {
       await client.close();
     },

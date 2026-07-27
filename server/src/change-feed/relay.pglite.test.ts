@@ -2,7 +2,14 @@
 // change_feed rows directly with chosen ids — no trigger needed — so ordering,
 // dedup, frontier-snapshot, sequence-gap recovery, and replay can each be
 // asserted deterministically.
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 
 import type { db as productionDb } from "src/db/client";
 import * as schema from "src/db/schema";
@@ -15,13 +22,20 @@ const CHAIN_ID = 31337;
 const MARKET_CHANNEL = "market:31337:42";
 
 let dbc: typeof productionDb;
+let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-beforeEach(async () => {
-  ({ dbc, teardown: teardownDb } = await createPgliteDb());
+// One instance for the file, emptied between tests: booting a PGlite per test
+// costs ~1.2-2GB of resident memory each and eventually exhausts the allocator.
+beforeAll(async () => {
+  ({ dbc, reset: resetDb, teardown: teardownDb } = await createPgliteDb());
 });
 
-afterEach(async () => {
+beforeEach(async () => {
+  await resetDb();
+});
+
+afterAll(async () => {
   await teardownDb();
 });
 
