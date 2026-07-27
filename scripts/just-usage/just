@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# PATH shim that records `just` invocations, then hands off to the real just.
+#
+# Install by putting this directory ahead of the real just on PATH, e.g. in
+# ~/.zshenv so non-interactive shells (agent tool calls, scripts) are captured
+# too — ~/.zshrc would only cover interactive shells:
+#
+#   export PATH="$HOME/src/sentilesdal/popcharts/scripts/just-usage:$PATH"
+#
+# Set POPCHARTS_JUST_USAGE=0 to disable logging without uninstalling.
+# Set POPCHARTS_JUST_USAGE_LOG to move the log off its default path.
+#
+# Logging is best-effort by design: a broken log must never stop a recipe from
+# running, so every step below is individually guarded and the exec at the end
+# happens no matter what came before it.
+
+set -u
+
+self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+
+# Drop this shim's own directory from PATH so the lookup below resolves to the
+# real binary rather than recursing back into this script.
+filtered_path=""
+IFS=':' read -r -a path_entries <<<"${PATH:-}"
+for entry in "${path_entries[@]}"; do
+    [ -n "$entry" ] || continue
+    resolved=$(cd -- "$entry" 2>/dev/null && pwd -P) || resolved="$entry"
+    [ "$resolved" = "$self_dir" ] && continue
+    filtered_path="${filtered_path:+$filtered_path:}$entry"
+done
+
+# `type -P` rather than `command -v`: it searches PATH for an executable file
+# and ignores functions and aliases. An exported shell function named `just`
+# would make `command -v` answer "just", and exec'ing that bare name would send
+# us back through this shim forever.
+original_path=$PATH
+PATH=$filtered_path
+real_just=$(type -P just 2>/dev/null || true)
+PATH=$original_path
+
+if [ -z "$real_just" ]; then
+    echo "just-usage shim: no real 'just' on PATH (after excluding $self_dir)" >&2
+    exit 127
+fi
+
+if [ "${POPCHARTS_JUST_USAGE:-1}" != "0" ]; then
+    # HOME can be unset in cron and some container environments. Under `set -u`
+    # an unguarded $HOME would abort the shim before the exec below, which would
+    # turn logging into the thing that stops recipes running.
+    log_file="${POPCHARTS_JUST_USAGE_LOG:-}"
+    if [ -z "$log_file" ] && [ -n "${HOME:-}" ]; then
+        log_file="$HOME/.popcharts/just-usage.log"
+    fi
+    # Appending to a FIFO or a device blocks until something reads it, and no
+    # `|| true` can rescue a write that never returns. Only ever append to a
+    # regular file, or to a path that does not exist yet.
+    if [ -n "$log_file" ] && { [ ! -e "$log_file" ] || [ -f "$log_file" ]; }; then
+        # mkdir must run before the append redirection, not inside it: the shell
+        # opens the redirect target first, so a missing parent directory would
+        # fail the whole line before mkdir ever ran.
+        mkdir -p -- "$(dirname -- "$log_file")" 2>/dev/null || true
+        # Arguments are joined with US (0x1f), not spaces, so the reader can
+        # recover the exact boundaries. `just -d "/tmp/a b" test` must not look
+        # like the recipe is named "b". Tabs and newlines are stripped because
+        # they would break the outer TSV framing.
+        invocation=""
+        for arg in "$@"; do
+            arg=${arg//$'\t'/ }
+            arg=${arg//$'\n'/ }
+            arg=${arg//$'\x1f'/ }
+            invocation+="${arg}"$'\x1f'
+        done
+        if [ -t 0 ]; then origin=tty; else origin=no-tty; fi
+        printf '%s\t%s\t%s\t%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "$origin" \
+            "$PWD" \
+            "$invocation" \
+            >>"$log_file" 2>/dev/null || true
+    fi
+fi
+
+# exec, rather than run-and-wrap: it keeps this shim out of the process tree so
+# signal handling and exit codes reach long-running recipes (`just local-dev`
+# fronts a process-compose stack) exactly as they would without the shim. The
+# cost is that the log records invocations, not whether they succeeded.
+exec "$real_just" "$@"

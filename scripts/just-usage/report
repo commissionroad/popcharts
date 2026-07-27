@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Summarise the `just` usage log written by the sibling `just` shim.
+#
+#   scripts/just-usage/report            # all recorded history
+#   scripts/just-usage/report 2026-08-01 # only entries on or after this date
+#
+# Columns: how many times each recipe ran, split by whether it came from an
+# interactive terminal (a person) or not (agent tool calls, scripts), plus the
+# dates it was first and last seen. Recipes carrying the justfile's
+# 'deprecated' group are flagged, and every recipe with no recorded run at all
+# is listed at the end — that list is the point of the exercise.
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+repo_root=$(cd -- "$script_dir/../.." && pwd -P)
+justfile="$repo_root/justfile"
+log_file="${POPCHARTS_JUST_USAGE_LOG:-$HOME/.popcharts/just-usage.log}"
+since="${1:-0000-00-00}"
+
+if [ ! -f "$log_file" ]; then
+    echo "No usage log at $log_file" >&2
+    echo "Is the shim installed? See $script_dir/README.md" >&2
+    exit 1
+fi
+
+# Recipes currently marked deprecated: the group attribute sits one or more
+# attribute lines above the recipe definition it applies to. All three lists
+# below are passed to awk space-separated on one line, because BSD awk rejects
+# a -v value containing a newline.
+deprecated=$(awk '
+    /^\[group\(.deprecated.\)\]/ { pending = 1; next }
+    /^\[/ { next }
+    pending && /^[a-zA-Z0-9_-]+[ :]/ {
+        name = $0; sub(/[ :].*$/, "", name); print name; pending = 0
+    }
+    /^[^[]/ { pending = 0 }
+' "$justfile" | tr '\n' ' ')
+
+# Recipes that declare parameters. Tokens after one of these belong to it, so
+# the reader must stop looking for further recipe names — `just gamma beta`
+# passes "beta" to a variadic gamma rather than running a recipe named beta.
+# The `:=` test excludes settings such as `set shell := [...]`.
+parameterized=$(awk '/^[a-zA-Z0-9_-]+[ \t]+[^:]*:/ && !/:=/ { print $1 }' "$justfile" | tr '\n' ' ')
+
+all_recipes=$( (cd "$repo_root" && just --summary 2>/dev/null) | tr '\n' ' ')
+
+awk -v since="$since" -v deprecated="$deprecated" -v all_recipes="$all_recipes" \
+    -v parameterized="$parameterized" '
+BEGIN {
+    FS = "\t"
+    SEP = sprintf("%c", 31)  # US, the separator the shim joins arguments with
+    split(deprecated, d, " "); for (i in d) if (d[i] != "") is_deprecated[d[i]] = 1
+    split(all_recipes, a, " "); for (i in a) if (a[i] != "") known[a[i]] = 1
+    split(parameterized, p, " "); for (i in p) if (p[i] != "") takes_args[p[i]] = 1
+    # just flags that consume the following token, which must not be mistaken
+    # for a recipe name. From `just --help` on 1.55.
+    split("-f --justfile -d --working-directory --color --chooser --shell " \
+          "--shell-arg --dump-format --command-color --list-heading " \
+          "--list-prefix --timestamp-format -E --dotenv-path -F " \
+          "--dotenv-filename --alias-style --ceiling --cygpath " \
+          "--dotenv-command --evaluate-format --group --indentation " \
+          "--justfile-name --tempdir --completions", v, " ")
+    for (i in v) takes_value[v[i]] = 1
+    # Flags that make just report something, edit something, or run an
+    # arbitrary command, and so run no recipe. Without this, `just --version`
+    # would fall through to the bare-invocation case and be miscounted as a run
+    # of the default recipe. `--choose` does run a recipe, but picks it
+    # interactively, so which one is not recoverable from the log.
+    split("--version -V --help -h --list -l --summary --groups --variables " \
+          "--evaluate --dump --json --fmt --init --completions --changelog " \
+          "--man --edit -e --show -s --usage --clean --choose --command -c", w, " ")
+    for (i in w) no_recipe[w[i]] = 1
+}
+{
+    date = substr($1, 1, 10)
+    if (date < since) next
+    # Logs written before the shim switched to US-separated arguments fall back
+    # to space splitting.
+    n = index($4, SEP) ? split($4, tok, SEP) : split($4, tok, " ")
+    skip_next = 0
+    informational = 0
+    hit_count = 0
+    for (i = 1; i <= n; i++) {
+        t = tok[i]
+        if (t == "") continue
+        if (skip_next) { skip_next = 0; continue }
+        if (t in no_recipe) { informational = 1; break }
+        if (t == "--set") { i += 2; continue }
+        if (substr(t, 1, 1) == "-") { if (takes_value[t]) skip_next = 1; continue }
+        # A bare token is a recipe name, or an argument to the recipe before it.
+        if (!(t in known)) break
+        hits[hit_count++] = t
+        if (t in takes_args) break
+    }
+    if (informational) next
+    # A bare `just` with no recipe argument runs the default recipe.
+    if (hit_count == 0) { hits[0] = "default"; hit_count = 1 }
+    for (i = 0; i < hit_count; i++) {
+        r = hits[i]
+        if (!(r in known)) continue
+        total[r]++
+        if ($2 == "tty") tty[r]++; else agent[r]++
+        if (!(r in first) || date < first[r]) first[r] = date
+        if (!(r in last) || date > last[r]) last[r] = date
+    }
+}
+END {
+    # Sorted here rather than through a pipe so the trailer below is not swept
+    # into the table. BSD awk has no asort, and 48 recipes make an insertion
+    # sort by descending run count the least fussy option.
+    ranked_count = 0
+    for (r in total) {
+        i = ranked_count++
+        while (i > 0 && total[ranked[i - 1]] < total[r]) { ranked[i] = ranked[i - 1]; i-- }
+        ranked[i] = r
+    }
+    printf "%-34s %6s %6s %8s  %-10s %-10s\n", "RECIPE", "RUNS", "TTY", "NON-TTY", "FIRST", "LAST"
+    for (i = 0; i < ranked_count; i++) {
+        r = ranked[i]
+        printf "%-34s %6d %6d %8d  %-10s %-10s%s\n", r, total[r], tty[r] + 0, agent[r] + 0,
+               first[r], last[r], (r in is_deprecated ? "  [deprecated]" : "")
+    }
+    known_count = 0
+    unused_count = 0
+    for (r in known) {
+        known_count++
+        if (r in total) continue
+        i = unused_count++
+        while (i > 0 && unused[i - 1] > r) { unused[i] = unused[i - 1]; i-- }
+        unused[i] = r
+    }
+    printf "\nNo recorded runs (%d of %d):\n", unused_count, known_count
+    for (i = 0; i < unused_count; i++)
+        printf "  %-34s%s\n", unused[i], (unused[i] in is_deprecated ? "[deprecated]" : "")
+}
+' "$log_file"

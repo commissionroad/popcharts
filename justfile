@@ -1,5 +1,15 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
+# Recipes in the 'deprecated' group are candidates for deletion. Each one is a
+# thin alias whose underlying `pnpm run` script is what callers actually use:
+# a scan of shell history, 671 agent transcripts, and every repo reference on
+# 2026-07-27 found zero or near-zero uses of the alias while the script behind
+# it stayed busy (`just format-check` 0 runs vs `pnpm run format:check` 79).
+# They still work — they are marked, not broken, so that usage logging can
+# judge them on real data. Review on 2026-08-24: delete the ones with no
+# logged runs, and drop the attributes from any that turned out to be used.
+# See scripts/just-usage/README.md for the log and the report command.
+
 default:
     @just --list
 
@@ -9,27 +19,41 @@ setup:
 dev:
     pnpm run dev
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:dev')]
 app-dev:
     pnpm run app:dev
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:build')]
 app-build:
     pnpm run app:build
 
 app-check:
     pnpm run app:check
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:test')]
 app-test:
     pnpm run app:test
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:coverage')]
 app-coverage:
     pnpm run app:coverage
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:e2e:smoke')]
 app-smoke:
     pnpm run app:e2e:smoke
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run app:e2e:chain')]
 app-chain:
     pnpm run app:e2e:chain
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run devchain:deploy')]
 devchain-deploy:
     pnpm run devchain:deploy
 
@@ -39,21 +63,29 @@ devchain-e2e:
 observability:
     pnpm run observability
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run protocol:build')]
 protocol-build:
     pnpm run protocol:build
 
 protocol-check:
     pnpm run protocol:check
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run protocol:test')]
 protocol-test:
     pnpm run protocol:test
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run protocol:coverage')]
 protocol-coverage:
     pnpm run protocol:coverage
 
 server-install:
     pnpm run server:install
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run server:dev')]
 server-dev:
     pnpm run server:dev
 
@@ -69,6 +101,8 @@ server-ai-review-smoke:
 server-check:
     pnpm run server:check
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run server:coverage')]
 server-coverage:
     pnpm run server:coverage
 
@@ -126,6 +160,8 @@ local-deploy-venue:
 local-deploy-postgrad:
     pnpm run local:deploy-postgrad
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run local:create-complete-set-market')]
 local-create-complete-set-market:
     pnpm run local:create-complete-set-market
 
@@ -148,15 +184,21 @@ cancel-market marketId slot="":
       POPCHARTS_STACK="{{ if slot != '' { slot } else { env('POPCHARTS_STACK', '') } }}" \
       pnpm run local:cancel-market
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run scripts:check')]
 scripts-check:
     pnpm run scripts:check
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run scripts:test')]
 scripts-test:
     pnpm run scripts:test
 
 test:
     pnpm run test
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run test:coverage')]
 coverage:
     pnpm run test:coverage
 
@@ -166,6 +208,8 @@ check:
 format:
     pnpm run format
 
+[group('deprecated')]
+[doc('DEPRECATED - use: pnpm run format:check')]
 format-check:
     pnpm run format:check
 
