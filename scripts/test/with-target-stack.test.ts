@@ -1,14 +1,47 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import type { StackDescriptor } from "../shared/localStack/registry.ts";
 import {
   parseLauncherArgs,
   targetStackEnv,
 } from "../with-target-stack.ts";
+
+const slotProbePath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "support",
+  "slotProbe.ts",
+);
+
+/**
+ * Runs the slot probe as a real child process under `env` and returns what it
+ * derived. Spawning is the point: the launcher's bug class is an override that
+ * exists in the resolver but never reaches the child's environment.
+ */
+async function probeChildSlot(env: NodeJS.ProcessEnv): Promise<string> {
+  const child = spawn(
+    process.execPath,
+    ["--experimental-strip-types", slotProbePath],
+    { env, stdio: ["ignore", "pipe", "ignore"] },
+  );
+
+  let stdout = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+
+  const code = await new Promise<number | null>((resolve) => {
+    child.once("exit", resolve);
+  });
+  assert.equal(code, 0, `slot probe exited with ${code}`);
+
+  return stdout.trim();
+}
 
 function stack(overrides: Partial<StackDescriptor> = {}): StackDescriptor {
   return {
@@ -66,6 +99,7 @@ test("parseLauncherArgs throws when no command follows --", () => {
 
 test("targetStackEnv exports the slot's chain/api aliases", () => {
   const env = targetStackEnv(stack());
+  assert.equal(env.POPCHARTS_STACK_SLOT, "1");
   assert.equal(env.POPCHARTS_LOCAL_RPC_URL, "http://127.0.0.1:8555");
   assert.equal(env.POPCHARTS_RPC_URL, "http://127.0.0.1:8555");
   assert.equal(env.RPC_HTTP_URL, "http://127.0.0.1:8555");
@@ -95,4 +129,29 @@ test("targetStackEnv merges the slot's generated env file when present", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("the spawned child derives the targeted slot, not slot 0", async () => {
+  // The launcher exports every *concrete* value its wrapped commands read
+  // today, which masks a missing slot: a child that derives its own resources
+  // through readSlotFromEnv would compute slot 0 while the launcher announced
+  // slot 1 (ADR 0020). Composed exactly as main() does — inherited env first,
+  // overrides last — and run through a real process boundary, because the
+  // failure is an override that never reaches the child. The inherited slot is
+  // pinned to a different value so a passing assertion cannot come from the
+  // ambient environment of whichever stack runs this suite.
+  const slot = await probeChildSlot({
+    ...process.env,
+    POPCHARTS_STACK_SLOT: "0",
+    ...targetStackEnv(stack()),
+  });
+  assert.equal(slot, "1");
+});
+
+test("the slot probe falls back to slot 0 without the launcher's overrides", async () => {
+  // Pins the contrast the test above rests on: absent POPCHARTS_STACK_SLOT the
+  // child really does land on slot 0, so that assertion is load-bearing rather
+  // than restating a default.
+  const { POPCHARTS_STACK_SLOT: _inherited, ...ambient } = process.env;
+  assert.equal(await probeChildSlot(ambient), "0");
 });

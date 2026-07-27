@@ -68,6 +68,11 @@ export function parseLauncherArgs(argv: readonly string[]): LauncherArgs {
  * `resolveProtocolChainEnv`, and the remaining aliases consumers read:
  * `POPCHARTS_LOCAL_CHAIN_ENV_FILE` (bot-trade), `RPC_WSS_URL`, and
  * `LOCAL_API_PORT`.
+ *
+ * `POPCHARTS_STACK_SLOT` names the slot itself, so a child that derives its own
+ * resources through `readSlotFromEnv` lands on the slot the launcher resolved
+ * rather than silently falling back to slot 0 (ADR 0020: a slot leak hides in
+ * the env of a spawned child, not in the resolver that chose the slot).
  */
 export function targetStackEnv(
   target: StackDescriptor,
@@ -80,6 +85,7 @@ export function targetStackEnv(
   const { chainRpcWssUrl } = deriveStackResources(target.slot);
   return {
     ...fileEnv,
+    POPCHARTS_STACK_SLOT: String(target.slot),
     POPCHARTS_LOCAL_CHAIN_ENV_FILE: target.envFilePath,
     // The chain-selecting variables have one definition, shared with
     // local-create-market's own spawn path.
