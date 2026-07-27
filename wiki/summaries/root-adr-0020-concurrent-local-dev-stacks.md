@@ -4,7 +4,7 @@ title: Repo ADR 0020 — Concurrent local dev stacks
 description: Slot-addressed local dev instances (slot 0 human, 1..n agents, then auto-offset) with a home-dir registry, per-slot chain port / DB / env / process-compose admin, identity-scoped chain reuse, and stack-aware create-market — so a second stack no longer silently collides with the first.
 sources:
   - docs/adr/0020-concurrent-local-dev-stacks.md
-updated: 2026-07-23
+updated: 2026-07-26
 ---
 
 # Repo ADR 0020: Concurrent Local Dev Stacks
@@ -91,14 +91,30 @@ Key decisions:
   stack?" prompt on a TTY, else `--stack <slot|id>` / `POPCHARTS_STACK`);
   wired into `local-create-market`, with explicit `--local-chain-env` /
   `--api-url` still bypassing the registry for back-compat.
+  **Correction (2026-07-26):** this resolved the target for the script's own
+  pre-flight check and API calls only. The `pnpm --dir protocol run
+  local:create-market` child it spawns picks its chain from
+  `POPCHARTS_LOCAL_RPC_URL` / `POPCHARTS_RPC_URL`, both defaulting to slot 0's
+  `:8545`, and neither was set — so every non-zero slot created its market on
+  the *human* slot's chain while reporting success against its own API. Both
+  vars are now pinned to the resolved slot's RPC URL, the same single value the
+  pre-flight check uses, defined once in
+  `scripts/shared/localStack/protocolChainEnv.ts` and imported by all three
+  writers (create-market, the Phase 5 launcher, and `resolveAndRegisterStack`,
+  which had its own already-drifted copy). The same sweep found two more
+  instances of the split: `--api-url`
+  bypassed registry resolution (creating on slot 0 while saving metadata
+  elsewhere) — only `--local-chain-env` bypasses now, since only it names a
+  chain — and `local-ai-review-smoke` spawned the same helper unpinned.
 - **Phase 5 — cross-workspace targeting scripts (#260).** The `bun`/`hardhat`
   scripts that pick their target from env vars route through one launcher,
   `scripts/with-target-stack.ts`, which resolves the stack (shared
   `resolveTargetStack` + `promptForStack` + `--stack`/`POPCHARTS_STACK`) and
   exports the slot's env superset. `local-bot-trade`, `local-deploy-venue` /
-  `-postgrad`, `local-market-health` / `-smoke` are wired through it. Correct
-  same-worktree; cross-slot deploy from one checkout still wants the deferred
-  per-slot chainId.
+  `-postgrad`, `local-market-health` / `-smoke` are wired through it, joined by
+  `local-create-complete-set-market` (missed in the original sweep, routed
+  2026-07-26). Correct same-worktree; cross-slot deploy from one checkout still
+  wants the deferred per-slot chainId.
 
 ## Deferred / future work
 

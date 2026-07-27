@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { deriveStackResources } from "./shared/localStack/ports.ts";
+import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
 import { pruneDeadDescriptors, type StackDescriptor } from "./shared/localStack/registry.ts";
 import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
@@ -62,11 +63,11 @@ export function parseLauncherArgs(argv: readonly string[]): LauncherArgs {
 
 /**
  * The environment overrides that point a wrapped command at `target`. Merges
- * the slot's generated env file (which already carries slot-correct
- * `RPC_HTTP_URL`, `DATABASE_URL`, and deployed addresses) and adds the aliases
- * the various consumers read: `POPCHARTS_LOCAL_CHAIN_ENV_FILE` (bot-trade),
- * `POPCHARTS_LOCAL_RPC_URL` (hardhat network) and `POPCHARTS_RPC_URL`
- * (deploy-devchain), and `LOCAL_API_PORT`.
+ * the slot's generated env file (which already carries `DATABASE_URL` and the
+ * deployed addresses), the chain-selecting variables from
+ * `resolveProtocolChainEnv`, and the remaining aliases consumers read:
+ * `POPCHARTS_LOCAL_CHAIN_ENV_FILE` (bot-trade), `RPC_WSS_URL`, and
+ * `LOCAL_API_PORT`.
  */
 export function targetStackEnv(
   target: StackDescriptor,
@@ -76,13 +77,13 @@ export function targetStackEnv(
     : {};
   // Re-derive the URLs from the slot so the `http://127.0.0.1:<port>` format
   // has one source of truth (ports.ts), not a copy here.
-  const { chainRpcHttpUrl, chainRpcWssUrl } = deriveStackResources(target.slot);
+  const { chainRpcWssUrl } = deriveStackResources(target.slot);
   return {
     ...fileEnv,
     POPCHARTS_LOCAL_CHAIN_ENV_FILE: target.envFilePath,
-    POPCHARTS_LOCAL_RPC_URL: chainRpcHttpUrl,
-    POPCHARTS_RPC_URL: chainRpcHttpUrl,
-    RPC_HTTP_URL: chainRpcHttpUrl,
+    // The chain-selecting variables have one definition, shared with
+    // local-create-market's own spawn path.
+    ...resolveProtocolChainEnv(fileEnv, target),
     RPC_WSS_URL: chainRpcWssUrl,
     LOCAL_API_PORT: String(target.apiPort),
   };

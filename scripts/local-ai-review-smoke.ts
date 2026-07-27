@@ -6,6 +6,7 @@ import { DEFAULT_HARDHAT_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivat
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { parseEnvFile } from "./shared/env/parseEnvFile.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
+import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
 import { collectCommand } from "./shared/process/collectCommand.ts";
 import { repoRoot, serverDir } from "./shared/paths.ts";
 
@@ -29,12 +30,23 @@ async function main() {
     );
   }
   const stackEnv = parseEnvFile(readFileSync(localChainEnvFile, "utf8"));
+  // The generated env file carries RPC_HTTP_URL but not the variables the
+  // hardhat `localhost` network and the protocol viem clients read, and those
+  // default to slot 0's :8545 — so the child has to be pinned to the same
+  // chain this env file describes (ADR 0020).
+  const chainEnv = resolveProtocolChainEnv(stackEnv, undefined);
 
-  console.log(`[${LOG_LABEL}] creating a fresh market for review`);
+  console.log(
+    `[${LOG_LABEL}] creating a fresh market for review on ${chainEnv.RPC_HTTP_URL}`,
+  );
   const marketOutput = await collectCommand(
     "pnpm",
     ["--dir", "protocol", "run", "local:create-market"],
-    { cwd: repoRoot, env: { ...process.env, ...stackEnv }, rejectOnFailure: true },
+    {
+      cwd: repoRoot,
+      env: { ...process.env, ...stackEnv, ...chainEnv },
+      rejectOnFailure: true,
+    },
   );
   const market = parseSmokeMarket(marketOutput.stdout);
   console.log(
