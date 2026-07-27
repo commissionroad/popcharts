@@ -6,7 +6,12 @@ import { fileURLToPath } from "node:url";
 
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { readJsonFile } from "./shared/json/readJsonFile.ts";
-import { deriveStackResources } from "./shared/localStack/ports.ts";
+import {
+  BASE_APP_PORT,
+  deriveStackResources,
+  slotForAppPort,
+  slotForChainPort,
+} from "./shared/localStack/ports.ts";
 import {
   resolveProtocolChainEnv,
   type ProtocolChainEnv,
@@ -25,8 +30,6 @@ import { waitFor } from "./shared/wait/waitFor.ts";
  * Reuses an already-running devchain when one answers on the RPC port.
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-
 type DevchainManifest = {
   contracts: {
     collateral: { address: string };
@@ -34,8 +37,14 @@ type DevchainManifest = {
   };
 };
 
-/** The single chain a devchain e2e run probes, starts, and deploys against. */
+/**
+ * The single stack a devchain e2e run drives: the chain it probes, starts, and
+ * deploys against, and the app server the browser suite drives — both derived
+ * from one slot so they cannot name different stacks.
+ */
 export type LocalChainE2eTarget = {
+  readonly appBaseUrl: string;
+  readonly appPort: string;
   readonly chainEnv: ProtocolChainEnv;
   readonly hardhatNodeArgs: readonly string[];
 };
@@ -85,6 +94,10 @@ let stoppingHardhatNode = false;
  * slot 0 is the last resort. POPCHARTS_RPC_URL is deliberately not consulted:
  * it also names the arc testnet (`protocol/hardhat.config.ts`), so a shell
  * carrying `.env.example`'s value would otherwise redirect a local run.
+ *
+ * The app server is resolved here too, from the slot that owns the resolved
+ * chain, so the browser half of the run lands on the same stack as the chain
+ * half (see `resolveAppServer`).
  */
 export function resolveLocalChainE2eTarget(
   env: NodeJS.ProcessEnv,
@@ -100,11 +113,120 @@ export function resolveLocalChainE2eTarget(
   assertNoStrandedRpcOverride(env, chainEnv.RPC_HTTP_URL);
 
   return {
+    ...resolveAppServer(env, port),
     chainEnv,
     // Without these the node binds hardhat's 127.0.0.1:8545 default, so any
     // non-zero slot probed and deployed against a chain nothing ever started.
     hardhatNodeArgs: ["node", "--hostname", hostname, "--port", port],
   };
+}
+
+/**
+ * Picks the app server the Playwright suite drives, from the slot that owns
+ * the chain this run already resolved.
+ *
+ * `app/playwright.config.ts` defaults PLAYWRIGHT_APP_PORT to 3000 and boots
+ * `next dev` there, with `reuseExistingServer` on locally. Left underived, a
+ * run on a non-zero slot started its chain on that slot's port and then quietly
+ * adopted slot 0's already-running app — one wired to slot 0's chain — so the
+ * suite asserted against the wrong stack while reporting success (ADR 0020).
+ *
+ * A caller's own PLAYWRIGHT_BASE_URL still wins, since it names an app server
+ * that exists; its port leads too, so the config cannot boot `next dev` on one
+ * port while the suite drives another. It may not name a *different slot's*
+ * app, though — see `assertAppOverrideOnThisStack`. A chain on a port no slot
+ * owns has no slot-derived app port to offer, so it keeps the historical 3000,
+ * with PLAYWRIGHT_APP_PORT as the way to say otherwise.
+ */
+function resolveAppServer(
+  env: NodeJS.ProcessEnv,
+  chainPort: string,
+): { appBaseUrl: string; appPort: string } {
+  const chainSlot = slotForChainPort(Number(chainPort));
+  const baseUrlOverride = env.PLAYWRIGHT_BASE_URL;
+
+  if (baseUrlOverride !== undefined && baseUrlOverride !== "") {
+    const appPort = parseRpcListenTarget(baseUrlOverride).port;
+    assertAppOverrideOnThisStack({
+      appPort,
+      chainSlot,
+      override: `PLAYWRIGHT_BASE_URL=${baseUrlOverride}`,
+    });
+
+    return { appBaseUrl: baseUrlOverride, appPort };
+  }
+
+  const portOverride = env.PLAYWRIGHT_APP_PORT;
+
+  if (portOverride !== undefined && portOverride !== "") {
+    assertAppOverrideOnThisStack({
+      appPort: portOverride,
+      chainSlot,
+      override: `PLAYWRIGHT_APP_PORT=${portOverride}`,
+    });
+
+    return {
+      appBaseUrl: `http://localhost:${portOverride}`,
+      appPort: portOverride,
+    };
+  }
+
+  const appPort = String(
+    chainSlot === undefined
+      ? BASE_APP_PORT
+      : deriveStackResources(chainSlot).appPort,
+  );
+
+  return { appBaseUrl: `http://localhost:${appPort}`, appPort };
+}
+
+/**
+ * Rejects an app-server override that names another slot's app.
+ *
+ * An override exists so a run can drive an app this script did not start — a
+ * built `next start`, a tunnel, a nonstandard port. What it must not do is
+ * hand the run a *different stack's* app: `reuseExistingServer` would adopt
+ * that slot's `next dev`, which talks to that slot's chain, and the suite
+ * would pass against the stack this whole fix exists to keep it off. An
+ * operator typing the port makes that no less silent than the old hardcoded
+ * 3000 did.
+ *
+ * Only a port some slot owns is refused, which is what makes this narrow: a
+ * port outside the slot grid belongs to nobody, so it is the operator's own
+ * server and is allowed. A chain outside the grid gives nothing to compare
+ * against, so it is allowed too. Same shape as
+ * `assertNoStrandedRpcOverride`: an explicit value that would silently
+ * relocate half the run is an error, not an instruction.
+ */
+function assertAppOverrideOnThisStack({
+  appPort,
+  chainSlot,
+  override,
+}: {
+  readonly appPort: string;
+  readonly chainSlot: number | undefined;
+  readonly override: string;
+}): void {
+  const overrideSlot = slotForAppPort(Number(appPort));
+
+  if (
+    chainSlot === undefined ||
+    overrideSlot === undefined ||
+    overrideSlot === chainSlot
+  ) {
+    return;
+  }
+
+  const chain = deriveStackResources(chainSlot);
+
+  throw new Error(
+    `${override} is slot ${overrideSlot}'s app, but this run's chain is ` +
+      `slot ${chainSlot}'s (${chain.chainRpcHttpUrl}). Playwright would ` +
+      "reuse that slot's already-running app, which talks to its own chain, " +
+      "and the suite would pass against the wrong stack. Point it at slot " +
+      `${chainSlot}'s app (port ${chain.appPort}), unset it to derive that ` +
+      "port, or use a port no slot owns for an app you started yourself.",
+  );
 }
 
 /**
@@ -183,8 +305,28 @@ export function buildProtocolCommandEnv({
   };
 }
 
+/**
+ * The variables that aim the Playwright run at this run's app server.
+ *
+ * Exported for the same reason the chain env builder is: resolving the app
+ * server correctly is worthless if the value never reaches the child, and the
+ * config reads the port and the URL from two separate variables, so a partial
+ * handoff silently reverts half of this to slot 0.
+ */
+export function buildAppSuiteEnv({
+  appBaseUrl,
+  appPort,
+}: Pick<LocalChainE2eTarget, "appBaseUrl" | "appPort">): NodeJS.ProcessEnv {
+  return {
+    PLAYWRIGHT_APP_PORT: appPort,
+    PLAYWRIGHT_BASE_URL: appBaseUrl,
+    POPCHARTS_E2E_CHAIN: "true",
+  };
+}
+
 async function main(): Promise<void> {
-  const { chainEnv, hardhatNodeArgs } = resolveLocalChainE2eTarget(process.env);
+  const { appBaseUrl, appPort, chainEnv, hardhatNodeArgs } =
+    resolveLocalChainE2eTarget(process.env);
   const rpcUrl = chainEnv.RPC_HTTP_URL;
 
   process.on("SIGINT", () => {
@@ -254,14 +396,12 @@ async function main(): Promise<void> {
       },
     });
 
+    console.log(`Running the devchain e2e suite against ${appBaseUrl}`);
     await runProtocolCommand({
       args: ["--dir", "app", "test:e2e:chain"],
       chainEnv,
       command: "pnpm",
-      deploymentEnv: {
-        PLAYWRIGHT_BASE_URL: BASE_URL,
-        POPCHARTS_E2E_CHAIN: "true",
-      },
+      deploymentEnv: buildAppSuiteEnv({ appBaseUrl, appPort }),
     });
   } finally {
     await stopHardhatNode();

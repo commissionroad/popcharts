@@ -18,6 +18,8 @@ import {
   BASE_REVIEW_PORT,
   SLOT_PORT_STRIDE,
   deriveStackResources,
+  slotForAppPort,
+  slotForChainPort,
 } from "../shared/localStack/ports.ts";
 
 test("slot 0 reproduces every legacy local stack resource", function () {
@@ -102,6 +104,38 @@ test("resource derivation rejects negative and non-integer slots", function () {
   assert.throws(() => deriveStackResources(-1), /non-negative integer/);
   assert.throws(() => deriveStackResources(1.5), /non-negative integer/);
   assert.throws(() => deriveStackResources(Number.NaN), /non-negative integer/);
+});
+
+test("a chain or app port maps back to the slot that owns it", function () {
+  for (const slot of [0, 1, 2, 7]) {
+    const resources = deriveStackResources(slot);
+    assert.equal(slotForChainPort(resources.chainPort), slot);
+    assert.equal(slotForAppPort(resources.appPort), slot);
+  }
+});
+
+test("a port no slot owns maps to no slot", function () {
+  // Between two slots, below the base, and not a port number at all. Answering
+  // with a slot here would name a stack that does not own the port.
+  assert.equal(slotForChainPort(8550), undefined);
+  assert.equal(slotForChainPort(8544), undefined);
+  assert.equal(slotForChainPort(3000), undefined);
+  assert.equal(slotForChainPort(8545.5), undefined);
+  assert.equal(slotForChainPort(Number.NaN), undefined);
+  assert.equal(slotForAppPort(3005), undefined);
+  assert.equal(slotForAppPort(2999), undefined);
+  assert.equal(slotForAppPort(8545), undefined);
+});
+
+test("the app-port grid never claims another resource's port", function () {
+  // The stride is what keeps the bases apart: API 3001, review 3002 and
+  // resolution 3004 must not read back as some slot's app port.
+  for (const slot of [0, 1, 2, 7]) {
+    const { apiPort, resolutionPort, reviewPort } = deriveStackResources(slot);
+    assert.equal(slotForAppPort(apiPort), undefined);
+    assert.equal(slotForAppPort(reviewPort), undefined);
+    assert.equal(slotForAppPort(resolutionPort), undefined);
+  }
 });
 
 test("slot-aware env paths preserve the legacy slot-0 filename", function () {

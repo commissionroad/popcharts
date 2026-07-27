@@ -3,6 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import { describe, it } from "node:test";
 
 import {
+  buildAppSuiteEnv,
   buildProtocolCommandEnv,
   resolveLocalChainE2eTarget,
   runProtocolCommand,
@@ -84,6 +85,155 @@ describe("run-local-chain-e2e chain target", function () {
 
     assert.equal(target.chainEnv.RPC_HTTP_URL, "http://127.0.0.1:8545");
     assert.deepEqual(target.hardhatNodeArgs.slice(-2), ["--port", "8545"]);
+  });
+});
+
+// The chain half of a run being pinned to a slot is only half a stack. The app
+// port stayed hardcoded at 3000, and `reuseExistingServer` is on locally, so a
+// non-zero-slot run started its own chain and then quietly drove slot 0's
+// already-running `next dev` — an app wired to slot 0's chain — while the
+// suite reported success (ADR 0020).
+describe("run-local-chain-e2e app server target", function () {
+  it("derives the app port from the slot that owns the chain", function () {
+    const target = resolveLocalChainE2eTarget({ POPCHARTS_STACK_SLOT: "1" });
+
+    assert.equal(target.appPort, "3010");
+    assert.equal(target.appBaseUrl, "http://localhost:3010");
+    assert.equal(target.appPort, String(deriveStackResources(1).appPort));
+  });
+
+  it("follows an inherited chain to the same slot's app port", function () {
+    const target = resolveLocalChainE2eTarget({
+      RPC_HTTP_URL: "http://127.0.0.1:8565",
+    });
+
+    assert.equal(target.appPort, String(deriveStackResources(2).appPort));
+    assert.equal(target.appBaseUrl, "http://localhost:3020");
+  });
+
+  it("keeps slot 0's historical app port when nothing identifies a chain", function () {
+    const target = resolveLocalChainE2eTarget({});
+
+    assert.equal(target.appPort, "3000");
+    assert.equal(target.appBaseUrl, "http://localhost:3000");
+  });
+
+  it("keeps 3000 for a chain port no slot owns", function () {
+    // Not a slot's chain, so there is no slot-derived app port to offer;
+    // PLAYWRIGHT_APP_PORT is how such a run says where its app is.
+    const target = resolveLocalChainE2eTarget({
+      RPC_HTTP_URL: "http://127.0.0.1:9999",
+    });
+
+    assert.equal(target.appPort, "3000");
+  });
+
+  it("lets a caller's base URL win, and takes the boot port from it", function () {
+    // The config boots `next dev --port PLAYWRIGHT_APP_PORT` but polls
+    // PLAYWRIGHT_BASE_URL: deriving the port from the slot here would boot a
+    // server on 3010 that the suite never visits. 4321 is outside the slot
+    // grid, so it names an app the caller runs themselves.
+    const target = resolveLocalChainE2eTarget({
+      POPCHARTS_STACK_SLOT: "1",
+      PLAYWRIGHT_BASE_URL: "http://127.0.0.1:4321",
+    });
+
+    assert.equal(target.appBaseUrl, "http://127.0.0.1:4321");
+    assert.equal(target.appPort, "4321");
+  });
+
+  it("lets a caller's app port win over the slot's", function () {
+    const target = resolveLocalChainE2eTarget({
+      POPCHARTS_STACK_SLOT: "1",
+      PLAYWRIGHT_APP_PORT: "4321",
+    });
+
+    assert.equal(target.appPort, "4321");
+    assert.equal(target.appBaseUrl, "http://localhost:4321");
+  });
+
+  // An override exists for an app the caller runs themselves. Letting it name
+  // *another slot's* app would hand the run that stack's `next dev` — and its
+  // chain — which is the very false success this file's fix removes. An
+  // operator typing the port makes it no less silent than the old hardcoded
+  // 3000 did (independent review of the first draft caught this).
+  it("refuses a base URL that names another slot's app", function () {
+    assert.throws(
+      () =>
+        resolveLocalChainE2eTarget({
+          POPCHARTS_STACK_SLOT: "1",
+          PLAYWRIGHT_BASE_URL: "http://localhost:3000",
+        }),
+      /slot 0's app.*slot 1's/s,
+    );
+  });
+
+  it("refuses an app port that names another slot's app", function () {
+    assert.throws(
+      () =>
+        resolveLocalChainE2eTarget({
+          POPCHARTS_STACK_SLOT: "2",
+          PLAYWRIGHT_APP_PORT: "3010",
+        }),
+      /slot 1's app.*slot 2's/s,
+    );
+  });
+
+  it("allows an override that names this run's own slot", function () {
+    const target = resolveLocalChainE2eTarget({
+      POPCHARTS_STACK_SLOT: "1",
+      PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3010",
+    });
+
+    assert.equal(target.appBaseUrl, "http://127.0.0.1:3010");
+    assert.equal(target.appPort, "3010");
+  });
+
+  it("allows any override when the chain is outside the slot grid", function () {
+    // Nothing to disagree with: a chain on :9999 belongs to no slot, so the
+    // caller is wiring this run by hand and gets to say where the app is.
+    const target = resolveLocalChainE2eTarget({
+      RPC_HTTP_URL: "http://127.0.0.1:9999",
+      PLAYWRIGHT_APP_PORT: "3000",
+    });
+
+    assert.equal(target.appPort, "3000");
+  });
+
+  it("hands the Playwright child both variables the config reads", function () {
+    // One without the other is the half-handoff that reverts the boot port to
+    // 3000 while the suite drives the slot's URL, or the reverse.
+    const suiteEnv = buildAppSuiteEnv(
+      resolveLocalChainE2eTarget({ POPCHARTS_STACK_SLOT: "1" }),
+    );
+
+    assert.deepEqual(suiteEnv, {
+      PLAYWRIGHT_APP_PORT: "3010",
+      PLAYWRIGHT_BASE_URL: "http://localhost:3010",
+      POPCHARTS_E2E_CHAIN: "true",
+    });
+  });
+
+  it("overrides an ambient PLAYWRIGHT_BASE_URL in the spawned child", async function () {
+    const target = resolveLocalChainE2eTarget({ POPCHARTS_STACK_SLOT: "1" });
+    let received: NodeJS.ProcessEnv | undefined;
+
+    await runProtocolCommand({
+      args: ["--dir", "app", "test:e2e:chain"],
+      baseEnv: {
+        PLAYWRIGHT_APP_PORT: "3000",
+        PLAYWRIGHT_BASE_URL: "http://localhost:3000",
+      },
+      chainEnv: target.chainEnv,
+      command: "pnpm",
+      deploymentEnv: buildAppSuiteEnv(target),
+      execute: async (_command, _args, options) => {
+        received = options.env;
+      },
+    });
+
+    assert.equal(received?.PLAYWRIGHT_APP_PORT, "3010");
+    assert.equal(received?.PLAYWRIGHT_BASE_URL, "http://localhost:3010");
   });
 });
 
