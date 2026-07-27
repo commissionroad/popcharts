@@ -2,40 +2,36 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  MARKET_COUNT_SELECTOR,
-  formatChainId,
-  isUint256Word,
-} from "./shared/chain/pregradManagerProbe.ts";
+import { validateLocalPregradDeployment } from "./shared/chain/validateLocalPregradDeployment.ts";
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
+import { getErrorMessage } from "./shared/errors/getErrorMessage.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
-import { BASE_CHAIN_PORT } from "./shared/localStack/ports.ts";
+import { buildProtocolCommandEnv } from "./shared/localMarket/buildProtocolCommandEnv.ts";
+import { buildGeneratedMarket } from "./shared/localMarket/generatedMarketPlan.ts";
+import { readExistingGeneratedMarketOptions } from "./shared/localMarket/indexedMarketOptions.ts";
 import {
-  resolveProtocolChainEnv,
-  type ProtocolChainEnv,
-} from "./shared/localStack/protocolChainEnv.ts";
+  parseLocalCreateMarketArgs,
+  printLocalCreateMarketUsage,
+  type LocalCreateMarketOptions,
+} from "./shared/localMarket/parseLocalCreateMarketArgs.ts";
+import { persistMarketMetadata } from "./shared/localMarket/persistMarketMetadata.ts";
+import { BASE_CHAIN_ID } from "./shared/localStack/ports.ts";
+import { promptForStack } from "./shared/localStack/promptForStack.ts";
+import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
 import {
   pruneDeadDescriptors,
   type StackDescriptor,
 } from "./shared/localStack/registry.ts";
-import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
   resolveTargetStack,
   TargetStackResolutionError,
 } from "./shared/localStack/resolveTargetStack.ts";
-import {
-  extractGeneratedMarketOptionKeyFromQuestion,
-  filterUnusedGeneratedMarketOptions,
-  generatedMarketDirections,
-  generatedMarketOptionKey,
-  type GeneratedMarketDirection,
-} from "./shared/localMarket/generatedMarketOptions.ts";
-import { protocolDir, repoRoot } from "./shared/paths.ts";
+import { repoRoot, protocolDir, resolveRepoPath } from "./shared/paths.ts";
 
 /**
  * Creates one local market against the currently running local dev chain.
@@ -44,120 +40,9 @@ import { protocolDir, repoRoot } from "./shared/paths.ts";
  * metadata to the local API so the app can render the market it created.
  */
 
-const defaultEnvFile = localChainEnvFile;
-const generatedMarketKinds = ["crypto", "weather"] as const;
-const sourceTimeoutMs = 8_000;
-const localMarketGraduationSeconds = 60 * 60;
-const localMarketResolutionSeconds = 2 * 60 * 60;
-const sourceUserAgent =
-  "popcharts-local-create-market (local development helper)";
-const spotPriceSourceUrl =
-  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd";
-const forecastPointSourceUrl = "https://api.weather.gov/points/";
-const observationSourceUrl = "https://aviationweather.gov/api/data/metar";
-
-type GeneratedMarketKind = (typeof generatedMarketKinds)[number];
-
-type DigitalAsset = {
-  readonly id: string;
-  readonly symbol: string;
-};
-
-type WeatherStation = {
-  readonly city: string;
-  readonly latitude: number;
-  readonly longitude: number;
-  readonly name: string;
-  readonly stationId: string;
-};
-
-type CryptoMarketOption = {
-  readonly asset: DigitalAsset;
-  readonly direction: GeneratedMarketDirection;
-  readonly key: string;
-  readonly kind: "crypto";
-};
-
-type WeatherMarketOption = {
-  readonly direction: GeneratedMarketDirection;
-  readonly key: string;
-  readonly kind: "weather";
-  readonly station: WeatherStation;
-};
-
-type GeneratedMarketOption = CryptoMarketOption | WeatherMarketOption;
-
-type MarketMetadata = {
-  readonly category: string;
-  readonly createdAt: string;
-  readonly description: string;
-  readonly question: string;
-  readonly resolutionCriteria: string;
-  readonly resolutionSources?: readonly string[];
-  readonly resolutionUrl?: string;
-  readonly version: number;
-};
-
-type GeneratedMarket = {
-  readonly graduationSeconds: number;
-  readonly kind: GeneratedMarketKind;
-  readonly metadata: MarketMetadata;
-  readonly resolutionSeconds: number;
-};
-
-/** Parsed command-line options for the local market creation helper. */
-export type CliOptions = {
-  apiBaseUrl: string | undefined;
-  envFile: string | undefined;
-  help: boolean;
-  kind: GeneratedMarketKind | "random";
-  preview: boolean;
-  stack: string | undefined;
-};
-
-type RpcResponse = {
-  error?: { message: string };
-  result?: unknown;
-};
-
-const digitalAssets: readonly DigitalAsset[] = [
-  { id: "bitcoin", symbol: "BTC" },
-  { id: "ethereum", symbol: "ETH" },
-  { id: "solana", symbol: "SOL" },
-];
-
-const weatherStations: readonly WeatherStation[] = [
-  {
-    city: "NYC",
-    latitude: 40.7128,
-    longitude: -74.006,
-    name: "New York City",
-    stationId: "KNYC",
-  },
-  {
-    city: "Miami",
-    latitude: 25.7617,
-    longitude: -80.1918,
-    name: "Miami",
-    stationId: "KMIA",
-  },
-  {
-    city: "Los Angeles",
-    latitude: 34.0522,
-    longitude: -118.2437,
-    name: "Los Angeles",
-    stationId: "KLAX",
-  },
-  {
-    city: "San Francisco",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    name: "San Francisco",
-    stationId: "KSFO",
-  },
-];
-const hardhatLocalChainId = "0x7a69";
-const hardhatLocalChainNumber = 31337;
+// This script's own name, prefixed onto every line it prints and threaded
+// into the shared helpers it calls so they never name their caller.
+const logLabel = "local-create-market";
 
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
@@ -170,7 +55,7 @@ if (
       console.error(error.message);
     } else {
       console.error(
-        `\n[local-create-market] ${error instanceof Error ? error.message : error}`,
+        `\n[${logLabel}] ${error instanceof Error ? error.message : error}`,
       );
     }
     process.exit(1);
@@ -178,15 +63,19 @@ if (
 }
 
 async function main(): Promise<void> {
-  const options = parseArgs(rawArgs);
+  const options = parseLocalCreateMarketArgs(rawArgs);
 
   if (options.help) {
-    printUsage();
+    printLocalCreateMarketUsage();
     return;
   }
 
   if (options.preview) {
-    const generatedMarket = await buildGeneratedMarket(options.kind, new Set());
+    const generatedMarket = await buildGeneratedMarket({
+      kind: options.kind,
+      logLabel,
+      usedOptionKeys: new Set(),
+    });
     console.log(
       JSON.stringify(
         {
@@ -213,15 +102,17 @@ async function main(): Promise<void> {
   const envFile =
     target?.envFilePath ??
     options.envFile ??
-    resolvePath(process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ?? defaultEnvFile);
+    resolveRepoPath(
+      process.env.POPCHARTS_LOCAL_CHAIN_ENV_FILE ?? localChainEnvFile,
+    );
   const envFileExists = existsSync(envFile);
   const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const commandEnv: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
   const chainEnv = resolveProtocolChainEnv(commandEnv, target);
   const rpcUrl = chainEnv.POPCHARTS_LOCAL_RPC_URL;
 
-  validateLocalEnv(commandEnv, envFile, envFileExists);
-  await validateLocalDeployment(commandEnv, envFile, rpcUrl);
+  validateLocalEnv({ env: commandEnv, envFile, envFileExists });
+  await validateLocalPregradDeployment({ env: commandEnv, envFile, rpcUrl });
   ensureDependenciesInstalled();
 
   // An explicit --api-url wins over the resolved stack's own API port, so the
@@ -233,27 +124,27 @@ async function main(): Promise<void> {
   );
   const usedOptionKeys = await readExistingGeneratedMarketOptions({
     apiBaseUrl,
-    chainId: hardhatLocalChainNumber,
+    chainId: BASE_CHAIN_ID,
+    logLabel,
   });
-  const generatedMarket = await buildGeneratedMarket(
-    options.kind,
+  const generatedMarket = await buildGeneratedMarket({
+    kind: options.kind,
+    logLabel,
     usedOptionKeys,
-  );
+  });
 
   if (envFileExists) {
-    console.log(`[local-create-market] loading ${envFile}`);
+    console.log(`[${logLabel}] loading ${envFile}`);
   }
 
   // The chain this run targets is printed because a mis-targeted run is
   // otherwise silent: it creates the market on another slot's chain and still
   // reports success.
-  console.log(`[local-create-market] chain: ${rpcUrl}`);
-  console.log(`[local-create-market] generated ${generatedMarket.kind} market`);
+  console.log(`[${logLabel}] chain: ${rpcUrl}`);
+  console.log(`[${logLabel}] generated ${generatedMarket.kind} market`);
+  console.log(`[${logLabel}] question: ${generatedMarket.metadata.question}`);
   console.log(
-    `[local-create-market] question: ${generatedMarket.metadata.question}`,
-  );
-  console.log(
-    `[local-create-market] resolution source: ${
+    `[${logLabel}] resolution source: ${
       generatedMarket.metadata.resolutionUrl ?? "none"
     }`,
   );
@@ -278,16 +169,16 @@ async function main(): Promise<void> {
       metadata: generatedMarket.metadata,
       metadataHash: market.metadataHash,
     });
-    console.log(`[local-create-market] metadata saved to ${apiBaseUrl}`);
+    console.log(`[${logLabel}] metadata saved to ${apiBaseUrl}`);
   } catch (error) {
     console.warn(
-      `[local-create-market] metadata sync failed: ${getErrorMessage(error)}`,
+      `[${logLabel}] metadata sync failed: ${getErrorMessage(error)}`,
     );
   }
 }
 
 async function resolveRegisteredStack(
-  options: CliOptions,
+  options: LocalCreateMarketOptions,
 ): Promise<StackDescriptor> {
   const live = await pruneDeadDescriptors();
   return resolveTargetStack({
@@ -297,733 +188,15 @@ async function resolveRegisteredStack(
   });
 }
 
-/**
- * The exact environment the protocol helper is spawned with: the caller's
- * environment and the loaded env file, then the chain variables that decide
- * which devchain the child talks to, then the generated market it should
- * create. Built in one place so the chain pin cannot drift away from the
- * spawn: a resolved target that never reaches the child is the failure mode
- * this guards (ADR 0020 Phase 4 correction).
- */
-export function buildProtocolCommandEnv({
-  baseEnv,
-  chainEnv,
-  generatedMarket,
+function validateLocalEnv({
+  env,
+  envFile,
+  envFileExists,
 }: {
-  readonly baseEnv: NodeJS.ProcessEnv;
-  readonly chainEnv: ProtocolChainEnv;
-  readonly generatedMarket: GeneratedMarket;
-}): NodeJS.ProcessEnv {
-  return {
-    ...baseEnv,
-    ...chainEnv,
-    LOCAL_MARKET_GRADUATION_SECONDS: String(generatedMarket.graduationSeconds),
-    LOCAL_MARKET_METADATA: serializeMetadata(generatedMarket.metadata),
-    LOCAL_MARKET_RESOLUTION_SECONDS: String(generatedMarket.resolutionSeconds),
-  };
-}
-
-async function validateLocalDeployment(
-  env: NodeJS.ProcessEnv,
-  envFile: string,
-  rpcUrl: string,
-): Promise<void> {
-  const managerAddress = env.PREGRAD_MANAGER_ADDRESS;
-  const chainId = await rpc(rpcUrl, "eth_chainId", [], envFile);
-
-  if (chainId !== hardhatLocalChainId) {
-    throw new Error(
-      `RPC_HTTP_URL=${rpcUrl} reported chain ID ${formatChainId(
-        chainId,
-      )}, but local-create-market expects Hardhat localhost chain 31337. ` +
-        staleStackRecovery(envFile, rpcUrl),
-    );
-  }
-
-  const managerCode = await rpc(
-    rpcUrl,
-    "eth_getCode",
-    [managerAddress, "latest"],
-    envFile,
-  );
-
-  if (!managerCode || managerCode === "0x") {
-    throw new Error(
-      `No contract code exists at PREGRAD_MANAGER_ADDRESS=${managerAddress} ` +
-        `on ${rpcUrl}. ` +
-        staleStackRecovery(envFile, rpcUrl),
-    );
-  }
-
-  const probe = await rpcResult(
-    rpcUrl,
-    "eth_call",
-    [
-      {
-        data: MARKET_COUNT_SELECTOR,
-        to: managerAddress,
-      },
-      "latest",
-    ],
-    envFile,
-  );
-
-  if (probe.error) {
-    throw new Error(
-      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} does not ` +
-        "look like the current local PregradManager deployment " +
-        `(marketCount() failed: ${probe.error.message}). ` +
-        staleStackRecovery(envFile, rpcUrl),
-    );
-  }
-
-  if (!isUint256Word(probe.result)) {
-    throw new Error(
-      `PREGRAD_MANAGER_ADDRESS=${managerAddress} on ${rpcUrl} returned an ` +
-        `unexpected marketCount() value (${probe.result}). ` +
-        staleStackRecovery(envFile, rpcUrl),
-    );
-  }
-}
-
-/**
- * Parses local-create-market command-line arguments, throwing on any token it
- * does not recognize rather than ignoring it. `--flag value` and `--flag=value`
- * are equivalent and the last occurrence wins. Two results are load-bearing for
- * stack targeting: `--stack` falls back to `POPCHARTS_STACK`, and
- * `--local-chain-env` paths resolve against the repo root, not the cwd.
- */
-export function parseArgs(
-  args: readonly string[],
-  env: NodeJS.ProcessEnv = process.env,
-): CliOptions {
-  const options: CliOptions = {
-    apiBaseUrl: undefined,
-    envFile: undefined,
-    help: false,
-    kind: "random",
-    preview: false,
-    stack: env.POPCHARTS_STACK,
-  };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-
-    if (arg === "--help" || arg === "-h") {
-      options.help = true;
-    } else if (arg === "--preview") {
-      options.preview = true;
-    } else if (arg === "--local-chain-env") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--local-chain-env requires a path.");
-      }
-      options.envFile = resolvePath(value);
-      index += 1;
-    } else if (arg.startsWith("--local-chain-env=")) {
-      options.envFile = resolvePath(arg.slice("--local-chain-env=".length));
-    } else if (arg === "--api-url") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--api-url requires a URL.");
-      }
-      options.apiBaseUrl = value;
-      index += 1;
-    } else if (arg.startsWith("--api-url=")) {
-      options.apiBaseUrl = arg.slice("--api-url=".length);
-    } else if (arg === "--stack") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--stack requires a slot or instance id.");
-      }
-      options.stack = value;
-      index += 1;
-    } else if (arg.startsWith("--stack=")) {
-      options.stack = arg.slice("--stack=".length);
-    } else if (arg === "--kind") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--kind requires crypto, weather, or random.");
-      }
-      options.kind = parseKind(value);
-      index += 1;
-    } else if (arg.startsWith("--kind=")) {
-      options.kind = parseKind(arg.slice("--kind=".length));
-    } else {
-      throw new Error(`Unknown option ${arg}. Use --help.`);
-    }
-  }
-
-  return options;
-}
-
-function printUsage(): void {
-  console.log(`Usage: pnpm run local:create-market -- [options]
-
-Create one local market against the currently running local development chain.
-By default, the helper randomly generates a near-term crypto or weather market
-from live public sources, creates it onchain, then saves matching metadata to
-the local API.
-
-Options:
-  --api-url <url>          Save generated metadata to this API base URL. Only
-                            redirects the metadata; the market is still created
-                            on the resolved stack's chain. Defaults to that
-                            stack's API port, then POPCHARTS_INDEXER_API_URL,
-                            then http://127.0.0.1:$LOCAL_API_PORT.
-  --kind <kind>            Generate crypto, weather, or random.
-                            Defaults to random.
-  --local-chain-env <path>  Load a generated local-chain env file. Names the
-                            chain outright, so it bypasses stack registry
-                            resolution.
-  --stack <slot|id>         Choose a running stack by slot or instance id.
-                            Defaults to POPCHARTS_STACK; with multiple stacks,
-                            interactive terminals prompt when neither is set.
-  --preview                 Print generated metadata JSON without creating a market.
-  -h, --help                Show this help.
-
-Start the local stack first with 'just local-dev-control' or 'just local-dev'.`);
-}
-
-function parseKind(value: string): GeneratedMarketKind | "random" {
-  if (value === "random" || isGeneratedMarketKind(value)) {
-    return value;
-  }
-
-  throw new Error("--kind must be crypto, weather, or random.");
-}
-
-function isGeneratedMarketKind(value: string): value is GeneratedMarketKind {
-  return (generatedMarketKinds as readonly string[]).includes(value);
-}
-
-async function buildGeneratedMarket(
-  kind: GeneratedMarketKind | "random",
-  usedOptionKeys: ReadonlySet<string>,
-): Promise<GeneratedMarket> {
-  const allOptions = buildGeneratedMarketOptions(kind);
-  const filteredOptions = filterUnusedGeneratedMarketOptions(
-    allOptions,
-    usedOptionKeys,
-  );
-  const errors: string[] = [];
-
-  if (filteredOptions.exhausted) {
-    console.log(
-      `[local-create-market] all ${filteredOptions.totalCount} ` +
-        `${formatOptionScope(kind)} option(s) already exist; allowing a duplicate`,
-    );
-  } else if (filteredOptions.unusedCount < filteredOptions.totalCount) {
-    console.log(
-      `[local-create-market] choosing from ${filteredOptions.unusedCount}/` +
-        `${filteredOptions.totalCount} unused ${formatOptionScope(kind)} option(s)`,
-    );
-  }
-
-  for (const option of shuffle([...filteredOptions.options])) {
-    try {
-      if (option.kind === "crypto") {
-        return await buildCryptoMarket(option);
-      }
-
-      if (option.kind === "weather") {
-        return await buildWeatherMarket(option);
-      }
-    } catch (error) {
-      errors.push(`${option.key}: ${getErrorMessage(error)}`);
-    }
-  }
-
-  throw new Error(
-    `Could not generate a live local market. ${errors.join("; ")}`,
-  );
-}
-
-function buildGeneratedMarketOptions(
-  kind: GeneratedMarketKind | "random",
-): readonly GeneratedMarketOption[] {
-  const options: GeneratedMarketOption[] = [];
-
-  if (kind === "random" || kind === "crypto") {
-    for (const asset of digitalAssets) {
-      for (const direction of generatedMarketDirections) {
-        options.push({
-          asset,
-          direction,
-          key: generatedMarketOptionKey("crypto", asset.id, direction),
-          kind: "crypto",
-        });
-      }
-    }
-  }
-
-  if (kind === "random" || kind === "weather") {
-    for (const station of weatherStations) {
-      for (const direction of generatedMarketDirections) {
-        options.push({
-          direction,
-          key: generatedMarketOptionKey("weather", station.stationId, direction),
-          kind: "weather",
-          station,
-        });
-      }
-    }
-  }
-
-  return options;
-}
-
-function formatOptionScope(kind: GeneratedMarketKind | "random"): string {
-  return kind === "random" ? "generated" : kind;
-}
-
-async function buildCryptoMarket(
-  option: CryptoMarketOption,
-): Promise<GeneratedMarket> {
-  const now = new Date();
-  const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const { asset, direction } = option;
-  const prices = await fetchJson(spotPriceSourceUrl);
-  const price = readSpotPrice(prices, asset.id);
-  const threshold = formatUsd(price);
-  const metadata: MarketMetadata = {
-    category: "Crypto",
-    createdAt: now.toISOString(),
-    description:
-      `Auto-generated local-dev market using the live ${asset.symbol}/USD ` +
-      `spot price as its threshold.`,
-    question:
-      `Will ${asset.symbol}/USD be ${direction} than ${threshold} at ` +
-      `${formatUtc(resolutionAt)}?`,
-    resolutionCriteria:
-      `Resolve YES if the linked spot-price source reports ${asset.symbol}/USD ` +
-      `strictly ${direction} than ${threshold} at or immediately after ` +
-      `${formatUtc(resolutionAt)}. If no reading is available at that moment, ` +
-      `use the first reading from the same source within 15 minutes after the ` +
-      `resolution time. Ties resolve NO.`,
-    resolutionUrl: spotPriceSourceUrl,
-    version: 1,
-  };
-
-  return {
-    graduationSeconds: localMarketGraduationSeconds,
-    kind: "crypto",
-    metadata,
-    resolutionSeconds: localMarketResolutionSeconds,
-  };
-}
-
-async function buildWeatherMarket(
-  option: WeatherMarketOption,
-): Promise<GeneratedMarket> {
-  const now = new Date();
-  const resolutionAt = addSeconds(now, localMarketResolutionSeconds);
-  const { direction, station } = option;
-  const forecast = await fetchForecastWindow(station, now, resolutionAt);
-  const threshold = Math.round(forecast.highFahrenheit);
-  const observationUrl = buildObservationUrl(station.stationId);
-  const metadata: MarketMetadata = {
-    category: "Weather",
-    createdAt: now.toISOString(),
-    description:
-      `Auto-generated local-dev market using the max hourly forecast for ` +
-      `${station.name} over the next two hours as its threshold. Forecast ` +
-      `source: ${forecast.sourceUrl}`,
-    question:
-      `Will the max ${station.city} METAR temperature be ${direction} than ` +
-      `${threshold}°F by ${formatUtc(resolutionAt)}?`,
-    resolutionCriteria:
-      `Resolve YES if any decoded ${station.stationId} METAR observation with ` +
-      `an observation time after ${formatUtc(now)} and at or before ` +
-      `${formatUtc(resolutionAt)} reports a temperature strictly ${direction} ` +
-      `than ${threshold}°F. Convert decoded Celsius METAR temperatures to ` +
-      `Fahrenheit before comparison. If the window has no valid reports, use ` +
-      `the first valid report from the same source within 30 minutes after the ` +
-      `resolution time. Ties resolve NO.`,
-    resolutionUrl: observationUrl,
-    version: 1,
-  };
-
-  return {
-    graduationSeconds: localMarketGraduationSeconds,
-    kind: "weather",
-    metadata,
-    resolutionSeconds: localMarketResolutionSeconds,
-  };
-}
-
-async function readExistingGeneratedMarketOptions({
-  apiBaseUrl,
-  chainId,
-}: {
-  readonly apiBaseUrl: string;
-  readonly chainId: number;
-}): Promise<ReadonlySet<string>> {
-  try {
-    const markets = await fetchIndexedMarkets({ apiBaseUrl, chainId });
-    const optionKeys = new Set<string>();
-    const subjects = {
-      crypto: digitalAssets.map((asset) => ({
-        key: asset.id,
-        symbol: asset.symbol,
-      })),
-      weather: weatherStations.map((station) => ({
-        city: station.city,
-        key: station.stationId,
-      })),
-    };
-
-    for (const market of markets) {
-      const question = readIndexedMarketQuestion(market);
-      const optionKey = question
-        ? extractGeneratedMarketOptionKeyFromQuestion(question, subjects)
-        : null;
-
-      if (optionKey) {
-        optionKeys.add(optionKey);
-      }
-    }
-
-    if (optionKeys.size > 0) {
-      console.log(
-        `[local-create-market] found ${optionKeys.size} generated option(s) ` +
-          "already represented in existing markets",
-      );
-    }
-
-    return optionKeys;
-  } catch (error) {
-    console.warn(
-      `[local-create-market] could not check existing markets for duplicates: ` +
-        getErrorMessage(error),
-    );
-    return new Set();
-  }
-}
-
-async function fetchIndexedMarkets({
-  apiBaseUrl,
-  chainId,
-}: {
-  readonly apiBaseUrl: string;
-  readonly chainId: number;
-}): Promise<readonly unknown[]> {
-  const url = new URL("markets", ensureTrailingSlash(apiBaseUrl));
-  url.searchParams.set("chainId", String(chainId));
-
-  const response = await fetch(url, {
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(sourceTimeoutMs),
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `GET ${response.url} returned ${response.status}${
-        body ? `: ${body.slice(0, 240)}` : ""
-      }`,
-    );
-  }
-
-  const body = await response.json();
-
-  if (!Array.isArray(body)) {
-    throw new Error(`GET ${response.url} did not return a market list.`);
-  }
-
-  return body;
-}
-
-function readIndexedMarketQuestion(market: unknown): string | null {
-  if (!isRecord(market) || !isRecord(market.metadata)) {
-    return null;
-  }
-
-  return typeof market.metadata.question === "string"
-    ? market.metadata.question
-    : null;
-}
-
-async function fetchForecastWindow(
-  station: WeatherStation,
-  start: Date,
-  end: Date,
-): Promise<{ highFahrenheit: number; sourceUrl: string }> {
-  const pointUrl = new URL(
-    `${station.latitude.toFixed(4)},${station.longitude.toFixed(4)}`,
-    forecastPointSourceUrl,
-  );
-  const point = await fetchJson(pointUrl, { weather: true });
-  const forecastUrl = readString(point, ["properties", "forecastHourly"]);
-  const forecast = await fetchJson(forecastUrl, { weather: true });
-  const periods = readArray(forecast, ["properties", "periods"]);
-  const matchingPeriods = periods.filter((period) =>
-    forecastPeriodOverlaps(period, start, end),
-  );
-  const temperatures = matchingPeriods.map(readForecastTemperature);
-  const validTemperatures = temperatures.filter(
-    (value): value is number => value !== null,
-  );
-
-  if (validTemperatures.length === 0) {
-    throw new Error(
-      `No hourly forecast temperatures found for ${station.name}.`,
-    );
-  }
-
-  return {
-    highFahrenheit: Math.max(...validTemperatures),
-    sourceUrl: forecastUrl,
-  };
-}
-
-function forecastPeriodOverlaps(
-  value: unknown,
-  start: Date,
-  end: Date,
-): boolean {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  const startTime = parseDate(value.startTime);
-  const endTime = parseDate(value.endTime);
-
-  if (!startTime || !endTime) {
-    return false;
-  }
-
-  return (
-    startTime.getTime() < end.getTime() && endTime.getTime() > start.getTime()
-  );
-}
-
-function readForecastTemperature(value: unknown): number | null {
-  if (!isRecord(value) || typeof value.temperature !== "number") {
-    return null;
-  }
-
-  if (value.temperatureUnit === "F") {
-    return value.temperature;
-  }
-
-  if (value.temperatureUnit === "C") {
-    return celsiusToFahrenheit(value.temperature);
-  }
-
-  return null;
-}
-
-function serializeMetadata(metadata: MarketMetadata): string {
-  // Key order mirrors the protocol's canonical schema so the payload round-trips
-  // through its `parseMarketMetadata`. It does NOT determine the metadata hash:
-  // the protocol helper re-serializes with its own `serializeMarketMetadata`
-  // before hashing, so that module owns the hashed byte layout.
-  const ordered: Record<string, unknown> = {
-    version: metadata.version,
-    question: metadata.question,
-    description: metadata.description,
-    category: metadata.category,
-    resolutionCriteria: metadata.resolutionCriteria,
-  };
-
-  if (metadata.resolutionSources?.length) {
-    ordered.resolutionSources = metadata.resolutionSources;
-  }
-  if (metadata.resolutionUrl) {
-    ordered.resolutionUrl = metadata.resolutionUrl;
-  }
-
-  ordered.createdAt = metadata.createdAt;
-
-  return JSON.stringify(ordered);
-}
-
-async function persistMarketMetadata(args: {
-  readonly apiBaseUrl: string;
-  readonly chainId: number;
-  readonly metadata: MarketMetadata;
-  readonly metadataHash: string;
-}): Promise<void> {
-  const { apiBaseUrl, chainId, metadata, metadataHash } = args;
-  const response = await fetch(
-    new URL(`markets/${chainId}/metadata`, ensureTrailingSlash(apiBaseUrl)),
-    {
-      body: JSON.stringify({
-        category: metadata.category,
-        createdAt: metadata.createdAt,
-        description: metadata.description,
-        metadataHash,
-        question: metadata.question,
-        resolutionCriteria: metadata.resolutionCriteria,
-        ...(metadata.resolutionSources?.length
-          ? { resolutionSources: metadata.resolutionSources }
-          : {}),
-        ...(metadata.resolutionUrl
-          ? { resolutionUrl: metadata.resolutionUrl }
-          : {}),
-      }),
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      method: "POST",
-      signal: AbortSignal.timeout(sourceTimeoutMs),
-    },
-  );
-
-  if (response.ok) {
-    return;
-  }
-
-  const body = await response.text().catch(() => "");
-  throw new Error(
-    `POST ${response.url} returned ${response.status}${
-      body ? `: ${body.slice(0, 240)}` : ""
-    }`,
-  );
-}
-
-async function fetchJson(
-  url: string | URL,
-  options: { readonly weather?: boolean } = {},
-): Promise<unknown> {
-  const headers = {
-    accept: options.weather
-      ? "application/geo+json, application/json"
-      : "application/json",
-    ...(options.weather ? { "user-agent": sourceUserAgent } : {}),
-  };
-  const response = await fetch(url, {
-    headers,
-    signal: AbortSignal.timeout(sourceTimeoutMs),
-  });
-
-  if (!response.ok) {
-    throw new Error(`GET ${response.url} returned ${response.status}.`);
-  }
-
-  return response.json();
-}
-
-function readSpotPrice(value: unknown, assetId: string): number {
-  if (!isRecord(value) || !isRecord(value[assetId])) {
-    throw new Error(`Spot price response did not include ${assetId}.`);
-  }
-
-  const price = (value[assetId] as Record<string, unknown>).usd;
-
-  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
-    throw new Error(`Spot price for ${assetId} was not a positive number.`);
-  }
-
-  return price;
-}
-
-function buildObservationUrl(stationId: string): string {
-  const url = new URL(observationSourceUrl);
-  url.searchParams.set("ids", stationId);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("hours", "4");
-  return url.toString();
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
-function readString(value: unknown, path: readonly string[]): string {
-  const current = readPath(value, path);
-
-  if (typeof current !== "string" || current.trim().length === 0) {
-    throw new Error(`${path.join(".")} is missing from source response.`);
-  }
-
-  return current;
-}
-
-function readArray(value: unknown, path: readonly string[]): unknown[] {
-  const current = readPath(value, path);
-
-  if (!Array.isArray(current)) {
-    throw new Error(`${path.join(".")} is missing from source response.`);
-  }
-
-  return current;
-}
-
-function readPath(value: unknown, path: readonly string[]): unknown {
-  return path.reduce<unknown>((current, key) => {
-    if (!isRecord(current)) {
-      return undefined;
-    }
-
-    return current[key];
-  }, value);
-}
-
-function parseDate(value: unknown): Date | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function addSeconds(date: Date, seconds: number): Date {
-  return new Date(date.getTime() + seconds * 1000);
-}
-
-function celsiusToFahrenheit(value: number): number {
-  return (value * 9) / 5 + 32;
-}
-
-function formatUtc(date: Date): string {
-  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    style: "currency",
-  }).format(value);
-}
-
-function shuffle<T>(values: T[]): T[] {
-  for (let index = values.length - 1; index > 0; index -= 1) {
-    const otherIndex = Math.floor(Math.random() * (index + 1));
-    [values[index], values[otherIndex]] = [values[otherIndex], values[index]];
-  }
-
-  return values;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error.";
-}
-
-function ensureDependenciesInstalled(): void {
-  if (existsSync(resolve(protocolDir, "node_modules"))) {
-    return;
-  }
-
-  throw new Error(
-    "Missing protocol/node_modules. Run 'just setup' before 'just local-create-market'.",
-  );
-}
-
-function validateLocalEnv(
-  env: NodeJS.ProcessEnv,
-  envFile: string,
-  envFileExists: boolean,
-): void {
+  readonly env: NodeJS.ProcessEnv;
+  readonly envFile: string;
+  readonly envFileExists: boolean;
+}): void {
   const missing: string[] = [];
 
   if (!env.PREGRAD_MANAGER_ADDRESS) {
@@ -1049,94 +222,14 @@ function validateLocalEnv(
   );
 }
 
-function resolvePath(path: string): string {
-  return isAbsolute(path) ? path : resolve(repoRoot, path);
-}
-
-async function rpc(
-  rpcUrl: string,
-  method: string,
-  params: readonly unknown[],
-  envFile: string = defaultEnvFile,
-): Promise<unknown> {
-  const response = await rpcResult(rpcUrl, method, params, envFile);
-
-  if (response.error) {
-    throw new Error(
-      `RPC ${method} failed on ${rpcUrl}: ${response.error.message}`,
-    );
+function ensureDependenciesInstalled(): void {
+  if (existsSync(resolve(protocolDir, "node_modules"))) {
+    return;
   }
 
-  return response.result;
-}
-
-async function rpcResult(
-  rpcUrl: string,
-  method: string,
-  params: readonly unknown[],
-  envFile: string = defaultEnvFile,
-): Promise<RpcResponse> {
-  let httpResponse: Response;
-
-  try {
-    httpResponse = await fetch(rpcUrl, {
-      body: JSON.stringify({
-        id: 1,
-        jsonrpc: "2.0",
-        method,
-        params,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  } catch (error) {
-    throw new Error(
-      `Cannot reach local RPC at ${rpcUrl}. ${staleStackRecovery(
-        envFile,
-        rpcUrl,
-      )} (${getErrorMessage(error)})`,
-    );
-  }
-
-  if (!httpResponse.ok) {
-    throw new Error(
-      `RPC ${method} failed on ${rpcUrl}: HTTP ${httpResponse.status}.`,
-    );
-  }
-
-  return (await httpResponse.json()) as RpcResponse;
-}
-
-function staleStackRecovery(envFile: string, rpcUrl: string): string {
-  // The lsof hint names the port actually in play: hardcoding 8545 sent a
-  // developer debugging a non-zero slot at the human stack's chain instead.
-  const port = readRpcPort(rpcUrl);
-
-  return (
-    `${envFile} and the running RPC are probably out of sync. ` +
-    `Stop the stale local node on ${rpcUrl}, then run ` +
-    "'just local-dev-control' or 'just local-dev' from this checkout and " +
-    "wait for contract deployment to complete. To find the process, run " +
-    `'lsof -nP -iTCP:${port} -sTCP:LISTEN'.`
+  throw new Error(
+    "Missing protocol/node_modules. Run 'just setup' before 'just local-create-market'.",
   );
-}
-
-/**
- * The TCP port `rpcUrl` addresses, for the recovery hint only. A URL with no
- * explicit port uses its scheme's default rather than the local chain port —
- * naming slot 0's 8545 there would point at a listener the URL never described.
- * Falls back to slot 0 only when the URL cannot be parsed at all, since this
- * builds a hint string and must never throw over the error it is explaining.
- */
-export function readRpcPort(rpcUrl: string): string {
-  try {
-    const { port, protocol } = new URL(rpcUrl);
-    return (
-      port || (protocol === "https:" || protocol === "wss:" ? "443" : "80")
-    );
-  } catch {
-    return String(BASE_CHAIN_PORT);
-  }
 }
 
 // The protocol helper's output streams through unprefixed (the developer is
