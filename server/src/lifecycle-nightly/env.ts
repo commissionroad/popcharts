@@ -1,7 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 /**
  * Environment bootstrap for the lifecycle nightly runner. The orchestrator
  * (scripts/local-lifecycle-nightly.ts) passes the full stack environment to
@@ -11,6 +7,15 @@ import { fileURLToPath } from "node:url";
  * This module must be imported before anything that reads src/config —
  * config resolves process.env at import time.
  */
+
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Relative path, not a package import: scripts/ is not a workspace package, and
+// its node --experimental-strip-types runtime cannot load TS out of
+// node_modules, so the repo's one env parser is shared by path instead.
+import { readEnvFile } from "../../../scripts/shared/env/readEnvFile.ts";
 
 const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -26,28 +31,4 @@ if (!process.env.PREGRAD_MANAGER_ADDRESS && existsSync(envFile)) {
     process.env[key] ??= value;
   }
   console.log(`[lifecycle] loaded stack env from ${envFile}`);
-}
-
-// Matches scripts/shared/env/readEnvFile.ts, which lives outside this
-// package's typecheck root (same deliberate duplication as
-// server/scripts/bot-trade.ts).
-function readEnvFile(path: string): Record<string, string> {
-  const env: Record<string, string> = {};
-
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-
-    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
-  }
-
-  return env;
 }

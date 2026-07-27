@@ -1,7 +1,6 @@
 #!/usr/bin/env -S node --experimental-strip-types
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { readFileSync } from "node:fs";
 
 import { postJsonRpc } from "./shared/chain/postJsonRpc.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
@@ -9,6 +8,7 @@ import type { PregradDeploy } from "./shared/deployments/pregradDeploy.ts";
 import { readPostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { buildLocalAppEnv } from "./shared/env/buildLocalAppEnv.ts";
 import { appLocalDevEnvFile } from "./shared/env/localDevEnvFiles.ts";
+import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { writeEnvMarkerBlock } from "./shared/env/writeEnvMarkerBlock.ts";
 import { SMOKE_READINESS_LINE } from "./shared/localStack/smokeReadinessLine.ts";
 import { repoRoot } from "./shared/paths.ts";
@@ -114,7 +114,7 @@ try {
   // The smoke's own console lines cross the process boundary but its
   // children's stdout does not, so the deploy record is read from the
   // generated env file the smoke writes rather than parsed from stdout.
-  const generatedEnv = readGeneratedEnv(smokeStdout);
+  const generatedEnv = requireGeneratedEnv(smokeStdout);
   const rpcHttpUrl = requireEnvValue(generatedEnv, "RPC_HTTP_URL");
   const deploy: PregradDeploy = {
     chainId: await readChainId(rpcHttpUrl),
@@ -171,24 +171,17 @@ function parseApiBaseUrl(stdout: string): string {
  * carries the stack's RPC endpoint and deployed addresses (slot-dependent
  * under ADR 0020, so none of them can be hardcoded here).
  */
-function readGeneratedEnv(stdout: string): Map<string, string> {
+function requireGeneratedEnv(stdout: string): Record<string, string> {
   const fileMatch = stdout.match(/^- Env file: (.+)$/m);
   if (!fileMatch) {
     throw new Error("Could not find the env file path in local:smoke output.");
   }
-  const entries = new Map<string, string>();
-  for (const line of readFileSync(fileMatch[1]!.trim(), "utf8").split("\n")) {
-    const separator = line.indexOf("=");
-    if (separator > 0 && !line.startsWith("#")) {
-      entries.set(line.slice(0, separator), line.slice(separator + 1).trim());
-    }
-  }
 
-  return entries;
+  return readEnvFile(fileMatch[1]!.trim());
 }
 
-function requireEnvValue(env: Map<string, string>, key: string): string {
-  const value = env.get(key);
+function requireEnvValue(env: Record<string, string>, key: string): string {
+  const value = env[key];
   if (!value) {
     throw new Error(`Generated env file is missing ${key}.`);
   }

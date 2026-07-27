@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -40,6 +40,11 @@ import {
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { hardhat } from "viem/chains";
+
+// Relative path, not a package import: scripts/ is not a workspace package, and
+// its node --experimental-strip-types runtime cannot load TS out of
+// node_modules, so the repo's one env parser is shared by path instead.
+import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
 
 /**
  * Interactive local-dev helper that makes bot wallets trade on a *graduated*
@@ -2136,24 +2141,6 @@ function parseBytes32(name: string, value: string): Hex {
     throw new Error(`${name}=${value} is not a valid bytes32 pool id.`);
   }
   return value as Hex;
-}
-
-// Matches scripts/shared/env/readEnvFile.ts, which lives outside this package's
-// typecheck root.
-function readEnvFile(path: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
-  }
-  return env;
 }
 
 function resolvePath(path: string): string {
