@@ -68,6 +68,18 @@ export function parseLauncherArgs(argv: readonly string[]): LauncherArgs {
  * `resolveProtocolChainEnv`, and the remaining aliases consumers read:
  * `POPCHARTS_LOCAL_CHAIN_ENV_FILE` (bot-trade), `RPC_WSS_URL`, and
  * `LOCAL_API_PORT`.
+ *
+ * `POPCHARTS_STACK_SLOT` names the slot itself, so a child that derives its own
+ * resources through `readSlotFromEnv` lands on the slot the launcher resolved
+ * rather than silently falling back to slot 0 (ADR 0020: a slot leak hides in
+ * the env of a spawned child, not in the resolver that chose the slot).
+ *
+ * That variable is a slot *claim* to `resolveAndRegisterStack`, not a hint, so
+ * wrapping a command that starts a stack now fails with "slot N is already
+ * claimed" — correctly, since the launcher only ever targets a stack that is
+ * already running. The alternative is worse and was the behaviour before:
+ * the starting stack silently claims the next free slot while inheriting this
+ * slot's `DATABASE_URL`, chain and env file from the merge above.
  */
 export function targetStackEnv(
   target: StackDescriptor,
@@ -80,6 +92,7 @@ export function targetStackEnv(
   const { chainRpcWssUrl } = deriveStackResources(target.slot);
   return {
     ...fileEnv,
+    POPCHARTS_STACK_SLOT: String(target.slot),
     POPCHARTS_LOCAL_CHAIN_ENV_FILE: target.envFilePath,
     // The chain-selecting variables have one definition, shared with
     // local-create-market's own spawn path.
