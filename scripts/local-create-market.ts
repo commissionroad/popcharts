@@ -5,7 +5,14 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateLocalPregradDeployment } from "./shared/chain/validateLocalPregradDeployment.ts";
+// Reached by relative path, not by package name: the root workspace declares
+// no dependencies, so there is no `@popcharts/local-chain-tools` symlink to
+// resolve from here. Node strips the types of a file outside node_modules,
+// and the bare `viem` import inside that package resolves from the package
+// itself — which is why the chain probe can use viem while this lane stays
+// dependency-free.
+import { validateLocalPregradDeployment } from "../packages/local-chain-tools/src/validateLocalPregradDeployment.ts";
+import { staleStackRecovery } from "./shared/chain/staleStackRecovery.ts";
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { getErrorMessage } from "./shared/errors/getErrorMessage.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
@@ -112,7 +119,12 @@ async function main(): Promise<void> {
   const rpcUrl = chainEnv.POPCHARTS_LOCAL_RPC_URL;
 
   validateLocalEnv({ env: commandEnv, envFile, envFileExists });
-  await validateLocalPregradDeployment({ env: commandEnv, envFile, rpcUrl });
+  await validateLocalPregradDeployment({
+    expectedChainId: BASE_CHAIN_ID,
+    managerAddress: commandEnv.PREGRAD_MANAGER_ADDRESS ?? "",
+    recoveryHint: staleStackRecovery({ envFile, rpcUrl }),
+    rpcUrl,
+  });
   ensureDependenciesInstalled();
 
   // An explicit --api-url wins over the resolved stack's own API port, so the

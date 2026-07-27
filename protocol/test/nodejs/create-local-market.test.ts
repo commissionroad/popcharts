@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
-import { getAddress, keccak256, stringToBytes, toFunctionSelector } from "viem";
+import { getAddress, keccak256, stringToBytes } from "viem";
 
 import { createLocalMarket } from "../../scripts/shared/market/createLocalMarket.js";
 import {
@@ -192,13 +192,6 @@ describe("create-local-market helper", async function () {
     ]);
     // Every value must survive JSON.stringify (no bigints).
     assert.equal(JSON.parse(JSON.stringify(summary)).marketId, summary.marketId);
-  });
-
-  it("keeps marketCount() at the selector the root wrapper probes", function () {
-    // scripts/local-create-market.ts validates the deployment by eth_call-ing
-    // this hardcoded selector before creating a market. Renaming or removing
-    // PregradManager.marketCount() breaks that probe.
-    assert.equal(toFunctionSelector("function marketCount() view returns (uint256)"), "0xec979082");
   });
 
   describe("market metadata", function () {

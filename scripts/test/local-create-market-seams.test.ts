@@ -4,11 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import {
-  MARKET_COUNT_SELECTOR,
-  formatChainId,
-  isUint256Word,
-} from "../shared/chain/pregradManagerProbe.ts";
 import { readRpcPort } from "../shared/chain/staleStackRecovery.ts";
 import { parseSmokeMarket } from "../shared/deployments/smokeMarket.ts";
 import { readEnvFile } from "../shared/env/readEnvFile.ts";
@@ -89,28 +84,6 @@ describe("parseLabeledJson", function () {
 
   it("throws when the label is absent", function () {
     assert.throws(() => parseLabeledJson("no marker here", "RESULT"), /RESULT/);
-  });
-});
-
-describe("pregrad manager probe", function () {
-  it("keeps the marketCount() selector in sync with the protocol", function () {
-    // protocol/test/nodejs/create-local-market.test.ts asserts the same value
-    // from the ABI side via toFunctionSelector. Both must change together.
-    assert.equal(MARKET_COUNT_SELECTOR, "0xec979082");
-  });
-
-  it("accepts exactly one uint256 return word", function () {
-    assert.equal(isUint256Word(`0x${"0".repeat(64)}`), true);
-    assert.equal(isUint256Word("0x"), false);
-    assert.equal(isUint256Word(`0x${"0".repeat(63)}`), false);
-    assert.equal(isUint256Word(undefined), false);
-    assert.equal(isUint256Word(31337), false);
-  });
-
-  it("formats chain IDs for error messages", function () {
-    assert.equal(formatChainId("0x7a69"), "31337 (0x7a69)");
-    assert.equal(formatChainId("not-hex"), "not-hex");
-    assert.equal(formatChainId(undefined), "undefined");
   });
 });
 

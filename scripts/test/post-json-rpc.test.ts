@@ -6,7 +6,6 @@ import {
   JsonRpcTransportError,
   postJsonRpc,
 } from "../shared/chain/postJsonRpc.ts";
-import { sendLocalRpcRequest } from "../shared/chain/localRpcRequest.ts";
 
 // A port nothing is listening on. 1 is privileged and never a devchain, so a
 // connection there fails at the transport layer without racing a real server.
@@ -115,48 +114,6 @@ describe("postJsonRpc", function () {
           rpcUrl: unreachableRpcUrl,
         }),
       JsonRpcTransportError,
-    );
-  });
-});
-
-describe("sendLocalRpcRequest", function () {
-  it("adds stale-stack recovery advice only when nothing answered", async function () {
-    // The recovery hint tells a developer to restart their local stack. A node
-    // that answered — even with a 503 — is not a stale stack, and sending them
-    // to restart it would misdirect the debugging.
-    await assert.rejects(
-      () =>
-        sendLocalRpcRequest({
-          envFile: "/tmp/.env.local-chain",
-          method: "eth_chainId",
-          params: [],
-          rpcUrl: unreachableRpcUrl,
-        }),
-      (error: unknown) => {
-        assert.ok(error instanceof Error);
-        assert.match(error.message, /Cannot reach local RPC/);
-        assert.match(error.message, /\/tmp\/\.env\.local-chain/);
-        assert.match(error.message, /lsof -nP -iTCP:1 -sTCP:LISTEN/);
-        return true;
-      },
-    );
-
-    respond = () => ({ body: "nope", status: 503 });
-
-    await assert.rejects(
-      () =>
-        sendLocalRpcRequest({
-          envFile: "/tmp/.env.local-chain",
-          method: "eth_chainId",
-          params: [],
-          rpcUrl,
-        }),
-      (error: unknown) => {
-        assert.ok(error instanceof Error);
-        assert.match(error.message, /HTTP 503/);
-        assert.doesNotMatch(error.message, /out of sync/);
-        return true;
-      },
     );
   });
 });

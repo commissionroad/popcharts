@@ -1,0 +1,22 @@
+{
+  "name": "@popcharts/local-chain-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./validate-local-pregrad-deployment": "./src/validateLocalPregradDeployment.ts"
+  },
+  "engines": {
+    "node": ">=22.10"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@popcharts/protocol": "workspace:*",
+    "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
