@@ -1,7 +1,14 @@
 // Behavioural contract of recordLiveChange (repo ADR 0021): it appends one
 // routable change_feed row, and — because it runs in the caller's transaction —
 // a rolled-back write leaves no signal behind.
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 
 import type { db as productionDb } from "src/db/client";
 import * as schema from "src/db/schema";
@@ -9,13 +16,20 @@ import { recordLiveChange } from "src/change-feed/writer";
 import { createPgliteDb } from "src/test-support/pglite-db";
 
 let dbc: typeof productionDb;
+let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-beforeEach(async () => {
-  ({ dbc, teardown: teardownDb } = await createPgliteDb());
+// One instance for the file, emptied between tests: booting a PGlite per test
+// costs ~1.2-2GB of resident memory each and eventually exhausts the allocator.
+beforeAll(async () => {
+  ({ dbc, reset: resetDb, teardown: teardownDb } = await createPgliteDb());
 });
 
-afterEach(async () => {
+beforeEach(async () => {
+  await resetDb();
+});
+
+afterAll(async () => {
   await teardownDb();
 });
 

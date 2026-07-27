@@ -4,7 +4,14 @@
 // The stream's dedup/heartbeat/gap logic is unit-tested in change-feed-stream;
 // this proves the HTTP wiring around it, plus that a disconnecting client
 // releases its hub subscription instead of leaving the relay polling.
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 
 import { app } from "src/api/index";
 import { changeFeedHub } from "src/change-feed/service";
@@ -14,14 +21,24 @@ import * as schema from "src/db/schema";
 import { createPgliteDb } from "src/test-support/pglite-db";
 
 let dbc: typeof productionDb;
+let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-beforeEach(async () => {
-  ({ dbc, teardown: teardownDb } = await createPgliteDb());
+// One instance for the file, emptied between tests: booting a PGlite per test
+// costs ~1.2-2GB of resident memory each and eventually exhausts the allocator.
+// Holding the ambient handle for the whole file also closes the window in which
+// it was null — `db` connects lazily, so anything polling it between tests used
+// to fall through to the developer's real database.
+beforeAll(async () => {
+  ({ dbc, reset: resetDb, teardown: teardownDb } = await createPgliteDb());
   setDbForTesting(dbc);
 });
 
-afterEach(async () => {
+beforeEach(async () => {
+  await resetDb();
+});
+
+afterAll(async () => {
   setDbForTesting(null);
   await teardownDb();
 });
@@ -31,11 +48,11 @@ afterEach(async () => {
  * client can abort. The abort signal is the *only* channel that reaches the
  * server-side generator — cancelling the response reader does not — so a
  * request opened without one leaves the stream subscribed to the process-wide
- * hub after the test ends. That leak keeps the change-feed relay polling the
- * ambient `db` handle, which the harness nulls between tests, so the relay
- * silently falls back to the developer's real database and fans its rows into
- * whichever stream a later test has open. Every caller must therefore call
- * `disconnect` when it is done — {@link readStreamText} does so for you.
+ * hub after the test ends, and a live subscriber keeps the change-feed relay
+ * polling the ambient `db` handle for the rest of the process — originally all
+ * the way through to the developer's real database, which is how this file's
+ * cursorless-resume test came to be fed live rows. Every caller must therefore
+ * call `disconnect` when it is done — {@link readStreamText} does so for you.
  */
 async function openEventStream(
   url: string,
@@ -180,10 +197,11 @@ describe("GET /events", () => {
   });
 
   // Regression guard: a stream that outlives its test keeps the change-feed
-  // relay polling, and the relay polls the ambient `db` handle — which this
-  // file nulls between tests, so a leaked subscription makes the unit suite
-  // read the developer's real database and deliver its rows into a later
-  // test's stream. That is what made the cursorless-resume test above flaky.
+  // relay polling the ambient `db` handle for the rest of the process, which
+  // is what fed a later test's stream with rows it never wrote — the flake in
+  // the cursorless-resume test above. Two other guards now stand behind this
+  // one (a pinned DATABASE_URL, and holding the handle for the whole file),
+  // so assert the subscription itself is released rather than the symptom.
   it("releases its hub subscription when the client disconnects", async () => {
     expect(await waitForSubscriberCount(0)).toBe(0);
 
