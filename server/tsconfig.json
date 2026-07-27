@@ -6,13 +6,18 @@
     "moduleResolution": "bundler",
     "ignoreDeprecations": "6.0",
     "outDir": "./dist",
-    // Server code imports the repo's single env-file parse body from
+    // Server code imports the repo's single env-file helpers from
     // ../scripts/shared/env by relative path (scripts/ is not a workspace
     // package, and its node --experimental-strip-types runtime cannot load TS
-    // out of node_modules). rootDir has to sit above both trees or tsc rejects
-    // that import with TS6059. Nothing emits from this config — the server
-    // builds with `bun build` and typechecks with `tsc --noEmit`.
+    // out of node_modules). Two options below exist for that import alone:
+    // rootDir must sit above both trees or tsc rejects it with TS6059, and
+    // allowImportingTsExtensions — which in turn requires noEmit — because
+    // those modules import each other with the explicit `.ts` suffix their own
+    // runtime demands. Nothing was emitted from this config regardless: the
+    // server builds with `bun build`.
     "rootDir": "..",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "declaration": true,
     "types": ["bun"],
     "baseUrl": "./src",

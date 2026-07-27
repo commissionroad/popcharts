@@ -8,17 +8,14 @@
  * config resolves process.env at import time.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
-// its own runtime (node --experimental-strip-types) cannot load TS out of
-// node_modules, so the one parse body has to be shared by path. parseEnvFile is
-// deliberately dependency-free so every runtime that reaches it can load it.
-// No `.ts` suffix on the specifier: server resolves modules as a bundler and
-// rejects it, while scripts/ requires it — the asymmetry is expected.
-import { parseEnvFile } from "../../../scripts/shared/env/parseEnvFile";
+// its node --experimental-strip-types runtime cannot load TS out of
+// node_modules, so the repo's one env parser is shared by path instead.
+import { readEnvFile } from "../../../scripts/shared/env/readEnvFile.ts";
 
 const serverDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -30,9 +27,7 @@ const envFile =
 // stack env" sentinel: it is always set by the env builders and never has a
 // useful default.
 if (!process.env.PREGRAD_MANAGER_ADDRESS && existsSync(envFile)) {
-  for (const [key, value] of Object.entries(
-    parseEnvFile(readFileSync(envFile, "utf8")),
-  )) {
+  for (const [key, value] of Object.entries(readEnvFile(envFile))) {
     process.env[key] ??= value;
   }
   console.log(`[lifecycle] loaded stack env from ${envFile}`);

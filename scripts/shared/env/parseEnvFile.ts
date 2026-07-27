@@ -4,11 +4,10 @@
  * later keys win. No quote or escape handling — the local orchestrators only
  * write plain values.
  *
- * This is the only env-parse body in the repo. Keep it dependency-free (no
- * imports at all): the server workspace imports it by relative path because it
- * cannot reach scripts/ through node_modules — see the import sites in
- * server/scripts/bot-trade.ts, server/scripts/bot-trade-postgrad.ts, and
- * server/src/lifecycle-nightly/env.ts.
+ * This is the only env-parse body in the repo; {@link readEnvFile} is the
+ * from-disk wrapper. Both are reachable from the server workspace by relative
+ * path, so keep them free of everything but node builtins — server cannot
+ * reach scripts/ through node_modules.
  */
 export function parseEnvFile(text: string): Record<string, string> {
   const env: Record<string, string> = {};

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -42,12 +42,9 @@ import { mnemonicToAccount } from "viem/accounts";
 import { hardhat } from "viem/chains";
 
 // Relative path, not a package import: scripts/ is not a workspace package, and
-// its own runtime (node --experimental-strip-types) cannot load TS out of
-// node_modules, so the one parse body has to be shared by path. parseEnvFile is
-// deliberately dependency-free so every runtime that reaches it can load it.
-// No `.ts` suffix on the specifier: server resolves modules as a bundler and
-// rejects it, while scripts/ requires it — the asymmetry is expected.
-import { parseEnvFile } from "../../scripts/shared/env/parseEnvFile";
+// its node --experimental-strip-types runtime cannot load TS out of
+// node_modules, so the repo's one env parser is shared by path instead.
+import { readEnvFile } from "../../scripts/shared/env/readEnvFile.ts";
 
 /**
  * Interactive local-dev helper that makes bot wallets trade on a *graduated*
@@ -219,9 +216,7 @@ async function main(): Promise<void> {
       defaultEnvFile,
   );
   const envFileExists = existsSync(envFile);
-  const fileEnv = envFileExists
-    ? parseEnvFile(readFileSync(envFile, "utf8"))
-    : {};
+  const fileEnv = envFileExists ? readEnvFile(envFile) : {};
   const env: NodeJS.ProcessEnv = { ...process.env, ...fileEnv };
 
   if (envFileExists) {
