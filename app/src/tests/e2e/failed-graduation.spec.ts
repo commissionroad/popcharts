@@ -8,12 +8,8 @@ import {
   mintCollateral,
   waitForMarketStatus,
 } from "./support/lifecycle";
-import {
-  connectTestWallet,
-  createApprovedMarket,
-  placeReceiptViaUi,
-} from "./support/lifecycle-ui";
-import { TEST_WALLET_ADDRESS } from "./support/test-wallet";
+import { createApprovedMarket, placeReceiptViaUi } from "./support/lifecycle-ui";
+import { connectTestWallet, TEST_WALLET_ADDRESS } from "./support/test-wallet";
 
 /**
  * ADR 0017 C4 journey 3 — failed graduation. A market never reaches its

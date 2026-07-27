@@ -7,9 +7,9 @@ import {
   mintCollateral,
   waitForMarketStatus,
 } from "./support/lifecycle";
-import { connectTestWallet, createApprovedMarket } from "./support/lifecycle-ui";
+import { createApprovedMarket } from "./support/lifecycle-ui";
 import { assemblePartialClearingBook } from "./support/pregrad-book";
-import { TEST_WALLET_ADDRESS } from "./support/test-wallet";
+import { connectTestWallet, TEST_WALLET_ADDRESS } from "./support/test-wallet";
 
 /**
  * ADR 0017 C4 journey 4 — partial clearing. A crowded receipt book graduates on
