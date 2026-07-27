@@ -24,8 +24,8 @@
       }
     },
     "protocol-solidity": {
-      "commit": "aa2a85da099ec7e46786f9f1d513414f0d3c6436",
-      "updatedAt": "2026-07-27T16:38:12.408Z",
+      "commit": "15171d3ed92802323cc1031f50bedea239b8f1ab",
+      "updatedAt": "2026-07-27T17:08:30.966Z",
       "summary": {
         "files": 19,
         "lines": {
@@ -68,8 +68,8 @@
       }
     },
     "protocol-ts": {
-      "commit": "aa2a85da099ec7e46786f9f1d513414f0d3c6436",
-      "updatedAt": "2026-07-27T16:38:12.551Z",
+      "commit": "15171d3ed92802323cc1031f50bedea239b8f1ab",
+      "updatedAt": "2026-07-27T17:08:31.066Z",
       "summary": {
         "files": 43,
         "lines": {
