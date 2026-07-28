@@ -5,6 +5,7 @@ import { getAddress, isAddress, parseAbi } from "viem";
 // Like pregrad-manager.ts, this re-export keeps ABIs quarantined under
 // integrations/contracts: app code imports from here, never from
 // @popcharts/protocol directly.
+export { POSTGRAD_MARKET_STATUS } from "@popcharts/protocol/postgrad-market-status";
 export { COMPLETE_SET_PRICE_POLICY } from "@popcharts/protocol/complete-set-price-policy";
 // Re-exported, never reimplemented: the pool key is the pool's identity, and a
 // local copy would diverge silently rather than fail.
