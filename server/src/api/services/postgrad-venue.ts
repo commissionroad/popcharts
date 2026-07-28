@@ -598,6 +598,12 @@ export function createVenueContractWriter(
       // scenario calls also use, so retry the send that lost the nonce. The
       // retry sits on the individual write rather than around the multi-step
       // sequences above it, which are not safe to replay.
+      //
+      // Only a lost race whose nonce is already mined retries; a send the node
+      // had in fact accepted propagates instead, deliberately. Both callers
+      // are idempotent re-runs — the keeper's next pass re-reads prices and
+      // holds once the accepted swap lands, and dev graduation warns and
+      // re-seeds — so failing the pass is cheaper than a duplicate write.
       retryOnceOnNonceCollision(() =>
         walletClient.writeContract({
           abi: parameters.abi as [],
