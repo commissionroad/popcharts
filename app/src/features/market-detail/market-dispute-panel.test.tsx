@@ -23,15 +23,13 @@ const ACCOUNT = "0x1111111111111111111111111111111111111111" as const;
 const RESOLVER = "0x4444444444444444444444444444444444444444" as const;
 const MARKET_ADDRESS = "0x2222222222222222222222222222222222222222";
 const NOW = 1_700_000_000_000;
+const CHAIN = { id: 31337, name: "Hardhat Local" };
 const dispute = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(Date, "now").mockReturnValue(NOW);
-  vi.mocked(useWalletAccount).mockReturnValue({
-    activeChainId: 31337,
-    address: ACCOUNT,
-  } as ReturnType<typeof useWalletAccount>);
+  vi.mocked(useWalletAccount).mockReturnValue(walletState());
   vi.mocked(useDispute).mockReturnValue({
     dispute,
     error: null,
@@ -74,6 +72,39 @@ describe("MarketDisputePanel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("surfaces a failed on-chain read instead of silently rendering nothing", () => {
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: "Could not read this market's resolution status.",
+      loading: false,
+      snapshot: null,
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByText("Resolution status unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Could not read this market's resolution status.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/A dispute window may be open on this market/)
+    ).toBeInTheDocument();
+  });
+
+  it("re-reads the chain when a failed read is retried", () => {
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: "Network problem reaching the chain. Check your connection and try again.",
+      loading: false,
+      snapshot: null,
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+
+    expect(useMarketDisputeState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ refreshKey: 1 })
+    );
+  });
+
   it("shows the proposed outcome, the countdown, and the forfeiture warning", () => {
     render(<MarketDisputePanel market={graduatedMarket()} />);
 
@@ -84,8 +115,52 @@ describe("MarketDisputePanel", () => {
       screen.getByText(/the bond is forfeited to the protocol owner/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Dispute with a $100 bond" })
+      screen.getByRole("button", { name: "Dispute with a $100.00 bond" })
     ).toBeEnabled();
+  });
+
+  it("states a non-round bond exactly instead of rounding what is pulled", () => {
+    // 250.40 native USDC. formatUsd would render this "$250" — a button that
+    // promises $250 while the market pulls $250.40.
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: null,
+      loading: false,
+      snapshot: snapshotFixture({ bond: 250_400_000n, collateralDecimals: 6 }),
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(
+      screen.getByRole("button", { name: "Dispute with a $250.40 bond" })
+    ).toBeEnabled();
+    expect(screen.getByText("$250.40")).toBeInTheDocument();
+  });
+
+  it("never renders a sub-cent bond as $0.00, which would read as free", () => {
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: null,
+      loading: false,
+      snapshot: snapshotFixture({ bond: 1n, collateralDecimals: 6 }),
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(
+      screen.getByRole("button", { name: "Dispute with a $0.000001 bond" })
+    ).toBeEnabled();
+  });
+
+  it("blocks a viewer on the wrong chain and names the chain to switch to", () => {
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ activeChainId: 1 }));
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByRole("button", { name: /dispute/i })).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Switch your wallet to Hardhat Local to dispute this resolution."
+      )
+    ).toBeInTheDocument();
   });
 
   it("counts down once a second and disables the button when the window closes", () => {
@@ -123,10 +198,7 @@ describe("MarketDisputePanel", () => {
   });
 
   it("tells the resolver their self-dispute posts no bond", () => {
-    vi.mocked(useWalletAccount).mockReturnValue({
-      activeChainId: 31337,
-      address: RESOLVER,
-    } as ReturnType<typeof useWalletAccount>);
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: RESOLVER }));
 
     render(<MarketDisputePanel market={graduatedMarket()} />);
 
@@ -135,10 +207,9 @@ describe("MarketDisputePanel", () => {
   });
 
   it("asks a disconnected viewer to connect before disputing", () => {
-    vi.mocked(useWalletAccount).mockReturnValue({
-      activeChainId: null,
-      address: null,
-    } as ReturnType<typeof useWalletAccount>);
+    vi.mocked(useWalletAccount).mockReturnValue(
+      walletState({ activeChainId: null, address: null })
+    );
 
     render(<MarketDisputePanel market={graduatedMarket()} />);
 
@@ -221,10 +292,7 @@ describe("MarketDisputePanel", () => {
   });
 
   it("omits the bond line for the resolver's bond-free self-dispute", () => {
-    vi.mocked(useWalletAccount).mockReturnValue({
-      activeChainId: 31337,
-      address: RESOLVER,
-    } as ReturnType<typeof useWalletAccount>);
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: RESOLVER }));
     disputedBy(RESOLVER, 0n);
 
     render(<MarketDisputePanel market={graduatedMarket()} />);
@@ -249,6 +317,17 @@ describe("MarketDisputePanel", () => {
     ).toBeInTheDocument();
   });
 });
+
+function walletState(
+  overrides: Partial<ReturnType<typeof useWalletAccount>> = {}
+): ReturnType<typeof useWalletAccount> {
+  return {
+    activeChainId: CHAIN.id,
+    address: ACCOUNT,
+    defaultChain: CHAIN,
+    ...overrides,
+  } as ReturnType<typeof useWalletAccount>;
+}
 
 function disputedBy(disputer: `0x${string}`, bondHeld: bigint) {
   vi.mocked(useMarketDisputeState).mockReturnValue({
