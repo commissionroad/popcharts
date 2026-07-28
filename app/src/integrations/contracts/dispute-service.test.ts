@@ -121,6 +121,21 @@ describe("disputeResolution", () => {
     expect(clients.writeContract).not.toHaveBeenCalled();
   });
 
+  it("reads the shortfall at the market's own collateral precision", async () => {
+    // 5 vs 100 native USDC. Formatted at the house 18 decimals both amounts
+    // render "0.00", so the message says nothing at all.
+    const { clients, wallet } = mockWallet({
+      balance: 5_000_000n,
+      bond: 100_000_000n,
+      collateralDecimals: 6,
+    });
+
+    await expect(dispute(wallet)).rejects.toThrow(
+      "Insufficient balance. You have 5.00 collateral, but this transaction spends 100."
+    );
+    expect(clients.writeContract).not.toHaveBeenCalled();
+  });
+
   it("fails when the transaction confirms without the caller's dispute event", async () => {
     const { clients, wallet } = mockWallet();
     clients.logs = [disputedLog({ disputer: RESOLVER })];
@@ -148,6 +163,26 @@ describe("getDisputeErrorMessage", () => {
       );
     }
   );
+
+  // Both of these are thrown through the real service, so the assertion pins
+  // what the panel actually renders rather than a hand-built error of the
+  // right class. As plain Errors they collapsed to the generic fallback.
+  it("shows a wrong-chain wallet the chain to switch to", async () => {
+    const { wallet } = mockWallet();
+    wallet.activeChainId = 1;
+
+    await expect(dispute(wallet).catch(getDisputeErrorMessage)).resolves.toBe(
+      "Switch your wallet to chain 31337."
+    );
+  });
+
+  it("shows a wallet that cannot cover the bond the shortfall", async () => {
+    const { wallet } = mockWallet({ balance: 0n });
+
+    await expect(dispute(wallet).catch(getDisputeErrorMessage)).resolves.toBe(
+      "Insufficient balance. You have 0 collateral, but this transaction spends 100."
+    );
+  });
 
   it("falls back to a generic message for unknown failures", () => {
     expect(getDisputeErrorMessage(new Error("network down"))).toBe(
@@ -180,6 +215,7 @@ function mockWallet({
   allowance = 0n,
   balance = 500n * WAD,
   bond = BOND,
+  collateralDecimals = 18,
   disputer = ACCOUNT,
   proposedSide = 0,
   status = POSTGRAD_MARKET_STATUS.resolutionPending,
@@ -188,12 +224,13 @@ function mockWallet({
   allowance?: bigint;
   balance?: bigint;
   bond?: bigint;
+  collateralDecimals?: number;
   disputer?: `0x${string}`;
   proposedSide?: number;
   status?: number;
 } = {}) {
   const marketReads: Record<string, unknown> = {
-    collateralDecimals: 18,
+    collateralDecimals,
     collateralToken: COLLATERAL,
     disputeBond: bond,
     disputeBondHeld: 0n,

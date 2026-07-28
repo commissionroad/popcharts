@@ -134,4 +134,11 @@ describe("formatTokenAmount", () => {
   it("rounds dust below a cent to 0.00", () => {
     expect(formatTokenAmount(1n)).toBe("0.00");
   });
+
+  it("reads a 6-decimal amount at its own precision", () => {
+    // At the default 18 decimals both of these render "0.00", which is how a
+    // 6-decimal shortfall message ends up saying nothing.
+    expect(formatTokenAmount(5_000_000n, 6)).toBe("5.00");
+    expect(formatTokenAmount(100_000_000n, 6)).toBe("100");
+  });
 });

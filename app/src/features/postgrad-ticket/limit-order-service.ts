@@ -11,6 +11,7 @@ import {
   displayPriceWadToTick,
   isRestingTickRange,
 } from "@/domain/postgrad-trading/limit-order-ticks";
+import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
 import {
   boundedPoolOrderManagerAbi,
   poolTickBoundsAbi,
@@ -144,6 +145,9 @@ export async function placeVenueLimitOrder({
 
   await ensureSpendBalance({
     amountIn: amountInMaximum,
+    // Both venue spend tokens are WAD-denominated: the deposit is computed in
+    // WAD and outcome tokens are 18-decimal by construction.
+    spendDecimals: TOKEN_DECIMALS,
     spendLabel,
     spendToken,
     wallet,
