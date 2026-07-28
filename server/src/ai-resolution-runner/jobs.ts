@@ -94,6 +94,15 @@ export async function enqueueEligibleMarketResolutionJobs({
     )
     .where(
       and(
+        // Deliberately the `graduated` literal, not `hasGraduated`. This is the
+        // one place in the codebase where the narrow reading is the correct
+        // one: `graduated` is exactly "no resolution has been proposed yet".
+        // A market in `resolution_pending` already has a proposal waiting out
+        // its dispute deadline (`proposeResolution` would revert a second
+        // time), and a `disputed` one is waiting on an operator, not on
+        // another AI verdict. `noResolutionForCurrentMarket` only blocks a
+        // *completed* job's audit row, so this status pin is the independent
+        // guard against re-proposing a market mid-window.
         eq(schema.markets.status, "graduated"),
         // Serialize the timestamp: raw sql fragments bypass drizzle's column
         // mapping, and the postgres-js driver crashes on a bare Date param
@@ -321,6 +330,11 @@ export async function processResolutionJob({
   dependencies?: ResolutionJobDependencies;
   now?: Date;
 }): Promise<ResolutionJobOutcome> {
+  // Deliberately the `graduated` literal, matching the enqueue query above:
+  // the only way a market leaves `graduated` for `resolution_pending` is a
+  // ResolutionProposed log, so a job that reaches here against any other
+  // status would submit a second proposal. Widening this to `hasGraduated`
+  // for symmetry with the display-side predicates would remove the interlock.
   if (claimed.market.status !== "graduated") {
     const job = await cancelResolutionJob({
       job: claimed.job,

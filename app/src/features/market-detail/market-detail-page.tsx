@@ -4,6 +4,7 @@ import Link from "next/link";
 import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { isAwaitingResolution } from "@/domain/markets/status";
 import {
   type Market,
   marketSideLabel,
@@ -35,7 +36,10 @@ export function MarketDetailPage({
   const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
   // Once a market graduates the receipt book is history: the page leads with
   // the graduation outcome and drops the pre-graduation progress/trading UI.
-  const isGraduated = market.status === "graduated";
+  // This holds for the whole dispute window too — a market in
+  // `resolution_pending` or `disputed` has graduated and its outcome tokens
+  // are still trading, so it keeps the order book and the postgrad ticket.
+  const isGraduated = isAwaitingResolution(market.status);
   // Once it resolves, trading is history too: the page leads with the outcome
   // and the aside becomes the claim surface instead of a trade ticket.
   const isResolved = market.status === "resolved";

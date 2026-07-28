@@ -64,6 +64,21 @@ describe("resolveDevMarket", () => {
     });
   });
 
+  it.each(["resolution_pending", "disputed"] as const)(
+    "force-resolves a %s market inside its dispute window",
+    async (status) => {
+      const result = await resolveDevMarket(
+        { chainId: 31337, marketId: "7", side: "yes" },
+        createDependencies({ market: createMarketRow({ status }) }),
+      );
+
+      // Every market now passes through `resolution_pending` on its way to
+      // resolved — the runner proposes even where the window is zero — so a
+      // gate pinned to `graduated` would refuse the dev flows outright.
+      expect(result).toMatchObject({ kind: "resolved", winningSide: "yes" });
+    },
+  );
+
   it("requires an indexed postgrad market", async () => {
     const result = await resolveDevMarket(
       { chainId: 31337, marketId: "7", side: "yes" },

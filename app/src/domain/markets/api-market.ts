@@ -15,6 +15,7 @@ import type {
 } from "@/integrations/indexer/markets-api";
 import { apiMarketAppId } from "@/lib/app-id";
 
+import { isAwaitingResolution } from "./status";
 import type {
   Market,
   MarketCategory,
@@ -44,10 +45,13 @@ export function apiMarketToMarket(apiMarket: ApiMarket): Market {
     openingProbability,
     yesShares: wadToNumber(apiMarket.yesShares),
   });
-  const venuePrices =
-    apiMarket.status === "graduated"
-      ? venuePriceCents(apiMarket.postgrad?.venue)
-      : null;
+  // The venue is the price source for as long as the outcome tokens trade,
+  // which includes the whole dispute window — a market in `resolution_pending`
+  // or `disputed` has graduated, and quoting it off the pregrad bonding curve
+  // would be showing a price nobody can trade at.
+  const venuePrices = isAwaitingResolution(apiMarket.status)
+    ? venuePriceCents(apiMarket.postgrad?.venue)
+    : null;
   // A settled market's prices are facts, not quotes: the winning side is
   // worth exactly one collateral unit and the loser nothing, and a cancelled
   // draw redeems both sides at half. Pregrad admin-cancelled markets carry no

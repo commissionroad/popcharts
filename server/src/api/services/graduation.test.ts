@@ -240,6 +240,19 @@ describe("evaluateGraduationReadiness", () => {
       }),
     ).toEqual({ kind: "already_graduated" });
   });
+
+  it.each(["resolution_pending", "disputed"] as const)(
+    "still reports already graduated for a %s market in its dispute window",
+    (status) => {
+      expect(
+        evaluateGraduationReadiness({
+          graduationThreshold: wad(40_000),
+          matchedMarketCap: wad(45_000),
+          status,
+        }),
+      ).toEqual({ kind: "already_graduated" });
+    },
+  );
 });
 
 function wad(value: number) {

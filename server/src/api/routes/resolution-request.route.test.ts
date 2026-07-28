@@ -2,11 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
 import type { db as productionDb } from "src/db/client";
 import { schema, setDbForTesting } from "src/db/client";
+import type { MarketStatus } from "src/db/schema/markets";
 import { createPgliteDb } from "src/test-support/pglite-db";
 
 const MARKET_ID = 91n;
 const TOO_EARLY_MARKET_ID = 92n;
 const PREGRAD_MARKET_ID = 93n;
+const IN_DISPUTE_WINDOW_MARKET_ID = 94n;
 const METADATA_HASH = `0x${"77".repeat(32)}`;
 const CREATOR = "0x00000000000000000000000000000000000000aa";
 const COLLATERAL = "0x00000000000000000000000000000000000000bb";
@@ -25,7 +27,7 @@ async function seedMarket(
   options: {
     contractId: number;
     resolutionTime: Date;
-    status: "bootstrap" | "graduated";
+    status: MarketStatus;
   },
 ) {
   await dbc.insert(schema.markets).values({
@@ -103,6 +105,11 @@ beforeAll(async () => {
     resolutionTime: PAST_RESOLUTION_TIME,
     status: "bootstrap",
   });
+  await seedMarket(IN_DISPUTE_WINDOW_MARKET_ID, {
+    contractId: contract.id,
+    resolutionTime: PAST_RESOLUTION_TIME,
+    status: "resolution_pending",
+  });
 
   ({ app } = await import("src/api"));
 }, 15_000);
@@ -169,6 +176,16 @@ describe("POST /markets/:chainId/:marketId/resolution-check", () => {
     const result = await requestCheck(PREGRAD_MARKET_ID);
     expect(result.status).toBe(409);
     expect(result.body.status).toBe("not_eligible");
+    expect(result.body.message).toContain("has not graduated");
+  });
+
+  it("refuses a market in its dispute window without claiming it never graduated", async () => {
+    const result = await requestCheck(IN_DISPUTE_WINDOW_MARKET_ID);
+    expect(result.status).toBe(409);
+    expect(result.body.status).toBe("not_eligible");
+    // The market HAS graduated; it already carries a proposed resolution.
+    expect(result.body.message).not.toContain("has not graduated");
+    expect(result.body.message).toContain("dispute deadline");
   });
 
   it("refuses a market the resolver already evaluated", async () => {

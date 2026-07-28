@@ -408,6 +408,26 @@ describe("apiMarketToMarket", () => {
     expect(converted.pricePath.at(-1)).toBe(62);
   });
 
+  it.each(["resolution_pending", "disputed"] as const)(
+    "keeps pricing a %s market from the venue while its dispute window runs",
+    (status) => {
+      const converted = apiMarketToMarket(
+        apiMarket({
+          postgrad: postgradWithVenue({
+            noDisplayPriceWad: "390000000000000000",
+            yesDisplayPriceWad: "620000000000000000",
+          }),
+          status,
+        })
+      );
+
+      // Pinning this to `graduated` falls back to the pregrad bonding curve
+      // (50/50 here) for the whole window — a price nobody can trade at.
+      expect(converted.yesPriceCents).toBe(62);
+      expect(converted.noPriceCents).toBe(39);
+    }
+  );
+
   it("keeps LMSR prices for graduated markets without a venue", () => {
     const converted = apiMarketToMarket(
       apiMarket({

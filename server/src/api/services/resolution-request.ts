@@ -1,4 +1,5 @@
 import { and, db, desc, eq, schema } from "src/db/client";
+import { isAwaitingResolution, mayHaveGraduated } from "src/db/schema/markets";
 
 /**
  * How long a market stays cooled down after any resolution job is created for
@@ -32,6 +33,26 @@ export type ResolutionRequestResult =
   | { kind: "already_queued"; message: string }
   | { kind: "cooling_down"; message: string; nextEligibleAt: Date }
   | { kind: "queued"; message: string };
+
+/**
+ * Explains why a market that is not `graduated` cannot take a resolution
+ * request. Only ever called for a non-`graduated` status, so the
+ * awaiting-resolution branch means `resolution_pending`/`disputed`
+ * specifically: those markets *have* graduated — telling their caller they
+ * have not is simply false — but they already carry a proposed resolution, and
+ * the runner cancels any job enqueued against them.
+ */
+function ineligibleStatusMessage(status: MarketRow["status"]): string {
+  if (isAwaitingResolution(status)) {
+    return "Market already has a proposed resolution awaiting its dispute deadline.";
+  }
+
+  if (mayHaveGraduated(status)) {
+    return "Market is already settled.";
+  }
+
+  return "Market has not graduated; resolution applies to graduated markets only.";
+}
 
 /**
  * Handles a permissionless "please look at this market" poke (repo ADR 0024
@@ -80,10 +101,7 @@ export async function requestMarketResolutionCheck(
   if (market.status !== "graduated") {
     return {
       kind: "not_eligible",
-      message:
-        market.status === "resolved" || market.status === "cancelled"
-          ? "Market is already settled."
-          : "Market has not graduated; resolution applies to graduated markets only.",
+      message: ineligibleStatusMessage(market.status),
       status: market.status,
     };
   }

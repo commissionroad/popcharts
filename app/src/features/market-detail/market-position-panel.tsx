@@ -3,6 +3,7 @@
 import type { PortfolioPosition, PortfolioReceipt } from "@popcharts/api-client/models";
 import Link from "next/link";
 
+import { hasGraduated } from "@/domain/markets/status";
 import { type Market, marketSideLabel } from "@/domain/markets/types";
 import { wadPriceToCents } from "@/domain/postgrad-trading/limit-order";
 import { wadToNumber } from "@/domain/tokens/wad";
@@ -49,8 +50,7 @@ export function MarketPositionPanel({ market }: { market: Market }) {
   // a pregrad admin-cancel has no resolution and must keep the receipt view,
   // where the refund claim button lives.
   const graduated =
-    market.status === "graduated" ||
-    market.status === "resolved" ||
+    hasGraduated(market.status) ||
     (market.status === "cancelled" && market.resolution?.kind === "cancelled");
   const positions = graduated
     ? portfolio.positions.filter((position) => position.marketId === marketId)

@@ -184,6 +184,25 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each(["resolution_pending", "disputed"] as const)(
+    "keeps the postgrad surfaces while a %s market waits out its dispute window",
+    (status) => {
+      render(<MarketDetailPage market={marketFactory({ status })} />);
+
+      // The market has graduated; only its outcome is unsettled. Pinning the
+      // gate to `graduated` puts the pregrad receipt book, progress bar and
+      // bet ticket back on a market whose tokens trade at a venue.
+      expect(
+        screen.queryByText("Receipt ticket for eth-5000-august")
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("GRADUATION")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Postgrad trade panel for eth-5000-august")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Order book for eth-5000-august")).toBeInTheDocument();
+    }
+  );
+
   it("hands the graduated aside to the dispute and postgrad trade panels", () => {
     render(<MarketDetailPage market={marketFactory({ status: "graduated" })} />);
 
