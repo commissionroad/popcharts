@@ -1,7 +1,9 @@
 import {
   completeSetBinaryMarketAbi,
   completeSetPostgradAdapterAbi,
+  marketSideToContractSide,
   pregradManagerAbi,
+  type MarketSide,
 } from "@popcharts/protocol";
 import { type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -67,6 +69,28 @@ export async function cancelPostgradMarketAsResolver(
       address: postgradMarketAddress,
       functionName: "cancel",
       args: [],
+    }),
+  );
+}
+
+/**
+ * Settles a disputed market to `side` with the resolver key. From Disputed,
+ * `resolve` carries no time gates — a human is adjudicating contested facts —
+ * and it settles the disputer's bond: refunded when the outcome differs from
+ * the proposal, forfeited to the owner when it does not.
+ */
+export async function settleDisputedPostgradMarketAsResolver(
+  postgradMarketAddress: Address,
+  side: MarketSide,
+): Promise<void> {
+  const resolver = await resolverWalletFor(postgradMarketAddress);
+
+  await sendOperatorTransaction("postgrad dispute settlement", () =>
+    resolver.writeContract({
+      abi: completeSetBinaryMarketAbi,
+      address: postgradMarketAddress,
+      functionName: "resolve",
+      args: [marketSideToContractSide(side)],
     }),
   );
 }
