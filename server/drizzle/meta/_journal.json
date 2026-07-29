@@ -190,6 +190,13 @@
       "when": 1785268915532,
       "tag": "0026_stiff_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785348450415,
+      "tag": "0027_quick_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }
