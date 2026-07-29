@@ -37,7 +37,11 @@ export type PostgradAdminAction =
     }
   | { readonly count: bigint; readonly kind: "setMaximumExecutionCount" }
   | { readonly kind: "cancelMarket" }
+  | { readonly kind: "disputeMarket" }
+  | { readonly kind: "finalizeResolution" }
+  | { readonly kind: "proposeResolution"; readonly side: MarketSide }
   | { readonly kind: "resolveMarket"; readonly side: MarketSide }
+  | { readonly kind: "settleDispute"; readonly side: MarketSide }
   | { readonly kind: "setMarketCreationPaused"; readonly paused: boolean }
   | {
       readonly kind: "setPoolWhitelisted";
@@ -74,7 +78,8 @@ type PlannedChange = {
   readonly label: string;
   readonly noOp: boolean;
   readonly proposedDescription: string;
-  readonly requiredRole: RequiredRole;
+  /** Absent for a permissionless call, which any account may broadcast. */
+  readonly requiredRole?: RequiredRole;
   readonly verify: () => Promise<void>;
   readonly write: () => Promise<Hex>;
 };
@@ -98,7 +103,7 @@ export async function runPostgradAdminAction(
   console.log(`Caller: ${context.callerAddress}`);
   console.log(`Current state: ${change.currentDescription}`);
   console.log(`Proposed change: ${change.proposedDescription}`);
-  console.log(`Authority: ${change.requiredRole.name} ${change.requiredRole.holder}`);
+  console.log(`Authority: ${describeAuthority(change.requiredRole)}`);
 
   if (change.noOp) {
     throw new Error(
@@ -106,10 +111,11 @@ export async function runPostgradAdminAction(
         `(${change.currentDescription}).`,
     );
   }
-  if (context.callerAddress !== change.requiredRole.holder) {
+  if (change.requiredRole !== undefined && context.callerAddress !== change.requiredRole.holder) {
     throw new Error(
       `Caller ${context.callerAddress} does not hold the required ${change.requiredRole.name} ` +
-        `role (held by ${change.requiredRole.holder}); the transaction would revert.`,
+        `role (held by ${change.requiredRole.holder}); ` +
+        `${change.requiredRole.nonHolderConsequence ?? "the transaction would revert"}.`,
     );
   }
 
@@ -130,9 +136,12 @@ async function planChange(
 ): Promise<PlannedChange> {
   switch (action.kind) {
     case "cancelMarket":
-      return planMarketLifecycle(context, { kind: "cancelMarket" });
+    case "disputeMarket":
+    case "finalizeResolution":
+    case "proposeResolution":
     case "resolveMarket":
-      return planMarketLifecycle(context, { kind: "resolveMarket", side: action.side });
+    case "settleDispute":
+      return planMarketLifecycle(context, action);
     case "setHookRole":
       return planOrderManagerFlag(context, {
         account: action.account,
@@ -364,7 +373,7 @@ async function planMarketLifecycle(
     label: `${plan.call.functionName} on CompleteSetBinaryMarket ${market}`,
     noOp: false,
     proposedDescription: plan.proposedDescription,
-    requiredRole: plan.requiredRole,
+    ...(plan.requiredRole === undefined ? {} : { requiredRole: plan.requiredRole }),
     verify: async () => {
       const after = await readMarketSnapshot(publicClient, market);
       if (after.status !== plan.expectedStatus) {
@@ -372,7 +381,7 @@ async function planMarketLifecycle(
           `Market status read back ${after.status}, expected ${plan.expectedStatus}.`,
         );
       }
-      // A cancellation refunds any escrowed bond, so confirm the escrow drained.
+      // Settlement moves real collateral, so confirm the escrow actually drained.
       if (snapshot.disputeBondHeld !== 0n && after.disputeBondHeld !== 0n) {
         throw new Error(
           `Dispute bond escrow read back ${after.disputeBondHeld} raw, expected it to be settled.`,
@@ -404,20 +413,26 @@ export async function readMarketSnapshot(
   const [
     status,
     resolver,
+    owner,
     collateralDecimals,
     disputeWindow,
     disputeBond,
     disputeBondHeld,
     disputer,
+    yesNotBefore,
+    noNotBefore,
     block,
   ] = await Promise.all([
     publicClient.readContract({ ...marketCall, functionName: "status" }),
     publicClient.readContract({ ...marketCall, functionName: "resolver" }),
+    publicClient.readContract({ ...marketCall, functionName: "owner" }),
     publicClient.readContract({ ...marketCall, functionName: "collateralDecimals" }),
     publicClient.readContract({ ...marketCall, functionName: "disputeWindow" }),
     publicClient.readContract({ ...marketCall, functionName: "disputeBond" }),
     publicClient.readContract({ ...marketCall, functionName: "disputeBondHeld" }),
     publicClient.readContract({ ...marketCall, functionName: "disputer" }),
+    publicClient.readContract({ ...marketCall, functionName: "yesNotBefore" }),
+    publicClient.readContract({ ...marketCall, functionName: "noNotBefore" }),
     publicClient.getBlock(),
   ]);
 
@@ -442,11 +457,19 @@ export async function readMarketSnapshot(
     disputeBondHeld,
     disputeWindow: BigInt(disputeWindow),
     disputer: getAddress(disputer),
+    notBefore: { no: BigInt(noNotBefore), yes: BigInt(yesNotBefore) },
+    owner: getAddress(owner),
     proposal,
     resolver: getAddress(resolver),
     status: statusCode,
     timestamp: block.timestamp,
   };
+}
+
+function describeAuthority(role: RequiredRole | undefined): string {
+  return role === undefined
+    ? "permissionless (any account may call it)"
+    : `${role.name} ${role.holder}`;
 }
 
 async function planTrustedCreator(

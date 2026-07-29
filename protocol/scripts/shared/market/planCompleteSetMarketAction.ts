@@ -16,6 +16,10 @@ export type CompleteSetMarketSnapshot = {
   readonly disputeWindow: bigint;
   /** Account that raised the dispute, or the zero address before any. */
   readonly disputer: Address;
+  /** Earliest timestamp each side may be proposed or resolved (pregrad gates). */
+  readonly notBefore: { readonly no: bigint; readonly yes: bigint };
+  /** Market owner — the destination of a forfeited bond. */
+  readonly owner: Address;
   /** Present only while a proposal is active (ResolutionPending or Disputed). */
   readonly proposal: { readonly deadline: bigint; readonly side: MarketSide } | undefined;
   readonly resolver: Address;
@@ -27,27 +31,76 @@ export type CompleteSetMarketSnapshot = {
 /** One market lifecycle action an operator can ask the admin CLI to plan. */
 export type CompleteSetMarketRequest =
   | { readonly kind: "cancelMarket" }
-  | { readonly kind: "resolveMarket"; readonly side: MarketSide };
+  | { readonly kind: "disputeMarket" }
+  | { readonly kind: "finalizeResolution" }
+  | { readonly kind: "proposeResolution"; readonly side: MarketSide }
+  | { readonly kind: "resolveMarket"; readonly side: MarketSide }
+  | { readonly kind: "settleDispute"; readonly side: MarketSide };
 
 /** The role a caller must hold for a planned action to do what it says. */
 export type RequiredRole = {
   readonly holder: Address;
   readonly name: string;
+  /**
+   * Why a non-holder is refused, when the answer is not "the call reverts".
+   * Set only for `dispute()`, which the contract makes permissionless: a
+   * non-resolver's dispute succeeds and spends the bond, so refusing it is
+   * this CLI's policy rather than the chain's. Stating the policy is the
+   * point — an operator tool that silently spends collateral out of whatever
+   * key happens to be configured is worse than one that declines and says
+   * where to go instead.
+   */
+  readonly nonHolderConsequence?: string;
 };
 
 /** A planned market call: what it does, who may make it, and how to verify it. */
 export type CompleteSetMarketPlan = {
   readonly call: {
     readonly args: readonly [] | readonly [number];
-    readonly functionName: "cancel" | "resolve";
+    readonly functionName:
+      | "cancel"
+      | "dispute"
+      | "finalizeResolution"
+      | "proposeResolution"
+      | "resolve";
   };
   /** Status the market must hold once the call is mined. */
   readonly expectedStatus: number;
   readonly proposedDescription: string;
-  readonly requiredRole: RequiredRole;
+  /** Absent for `finalizeResolution`, which is deliberately permissionless. */
+  readonly requiredRole?: RequiredRole;
 };
 
+/** Where an escrowed dispute bond goes when a disputed market is settled. */
+export type DisputeBondSettlement =
+  | { readonly amount: bigint; readonly kind: "forfeited"; readonly to: Address }
+  | { readonly amount: bigint; readonly kind: "refunded"; readonly to: Address }
+  | { readonly kind: "none" };
+
 const STATUS = POSTGRAD_MARKET_STATUS;
+
+/**
+ * Determines where an escrowed dispute bond goes when the resolver settles a
+ * disputed market by resolving to a side. `CompleteSetBinaryMarket.resolve`
+ * refunds the disputer when the settled outcome differs from the proposal and
+ * forfeits to the market owner when the proposal stands; a zero escrow (the
+ * resolver's bond-free self-dispute, or a zero-bond configuration) moves
+ * nothing. The proposal — not an operator argument — decides which it is.
+ */
+export function determineDisputeBondSettlement(input: {
+  readonly bondHeld: bigint;
+  readonly disputer: Address;
+  readonly owner: Address;
+  readonly proposedSide: MarketSide;
+  readonly settledSide: MarketSide;
+}): DisputeBondSettlement {
+  if (input.bondHeld === 0n) {
+    return { kind: "none" };
+  }
+  return input.settledSide === input.proposedSide
+    ? { amount: input.bondHeld, kind: "forfeited", to: input.owner }
+    : { amount: input.bondHeld, kind: "refunded", to: input.disputer };
+}
 
 /**
  * Plans one market lifecycle call against a snapshot of the market's on-chain
@@ -59,9 +112,20 @@ export function planCompleteSetMarketAction(
   snapshot: CompleteSetMarketSnapshot,
   request: CompleteSetMarketRequest,
 ): CompleteSetMarketPlan {
-  return request.kind === "cancelMarket"
-    ? planCancel(snapshot)
-    : planDirectResolve(snapshot, request.side);
+  switch (request.kind) {
+    case "cancelMarket":
+      return planCancel(snapshot);
+    case "disputeMarket":
+      return planDispute(snapshot);
+    case "finalizeResolution":
+      return planFinalize(snapshot);
+    case "proposeResolution":
+      return planPropose(snapshot, request.side);
+    case "resolveMarket":
+      return planDirectResolve(snapshot, request.side);
+    case "settleDispute":
+      return planSettle(snapshot, request.side);
+  }
 }
 
 /** Renders the market's full lifecycle and dispute state for operator output. */
@@ -97,15 +161,111 @@ function describeWindow(seconds: bigint): string {
   return seconds === 0n ? "0s (disputes disabled)" : `${seconds}s (${formatDuration(seconds)})`;
 }
 
+function planPropose(snapshot: CompleteSetMarketSnapshot, side: MarketSide): CompleteSetMarketPlan {
+  requireStatus(snapshot, STATUS.trading, "proposeResolution");
+  requireSideGate(snapshot, side, "proposeResolution");
+  const deadline = snapshot.timestamp + snapshot.disputeWindow;
+  const window =
+    snapshot.disputeWindow === 0n
+      ? "the zero dispute window makes it finalizable in the same block"
+      : `${formatDuration(snapshot.disputeWindow)} after the proposal block`;
+  return {
+    call: { args: [marketSideToContractSide(side)], functionName: "proposeResolution" },
+    expectedStatus: STATUS.resolutionPending,
+    proposedDescription:
+      `proposeResolution(${label(side)}) -> status ResolutionPending, dispute deadline ~${deadline} ` +
+      `(${window})`,
+    requiredRole: resolverRole(snapshot),
+  };
+}
+
+/**
+ * The refusal `dispute-market` gives a non-resolver caller. `dispute()` is
+ * permissionless on-chain, so this is a deliberate policy of the operator CLI,
+ * not a contract rule: operator tooling performs only the resolver's bond-free
+ * override, and a bonded public dispute belongs in the app's dispute panel
+ * where the person posting the bond is the person who chose to.
+ */
+const DISPUTE_OPERATOR_ONLY_POLICY = (bond: string): string =>
+  `this CLI only performs the resolver's bond-free override. dispute() is ` +
+  `permissionless on-chain, so the call would not revert — it would succeed and ` +
+  `spend ${bond} of collateral from the configured key. Post a bonded public ` +
+  `dispute through the app's dispute panel instead`;
+
+function planDispute(snapshot: CompleteSetMarketSnapshot): CompleteSetMarketPlan {
+  requireStatus(snapshot, STATUS.resolutionPending, "dispute");
+  const proposal = requireProposal(snapshot);
+  if (snapshot.timestamp >= proposal.deadline) {
+    throw new Error(
+      `The dispute window closed at ${proposal.deadline} (block timestamp ${snapshot.timestamp}); ` +
+        "dispute() would revert with DisputeWindowClosed.",
+    );
+  }
+  const bond = formatCollateral(snapshot.disputeBond, snapshot);
+  return {
+    call: { args: [], functionName: "dispute" },
+    expectedStatus: STATUS.disputed,
+    proposedDescription:
+      `dispute() -> status Disputed, freezing finalization of the ${label(proposal.side)} proposal ` +
+      `until the resolver settles with resolve() or cancel(). The resolver's self-dispute is the ` +
+      `bond-free operator override: it posts nothing, whereas any other caller would post the ` +
+      `${bond} bond. ${formatDuration(proposal.deadline - snapshot.timestamp)} left in the window.`,
+    requiredRole: {
+      ...resolverRole(snapshot),
+      nonHolderConsequence: DISPUTE_OPERATOR_ONLY_POLICY(bond),
+    },
+  };
+}
+
+function planSettle(snapshot: CompleteSetMarketSnapshot, side: MarketSide): CompleteSetMarketPlan {
+  requireStatus(snapshot, STATUS.disputed, "settleDispute");
+  const proposal = requireProposal(snapshot);
+  const settlement = determineDisputeBondSettlement({
+    bondHeld: snapshot.disputeBondHeld,
+    disputer: snapshot.disputer,
+    owner: snapshot.owner,
+    proposedSide: proposal.side,
+    settledSide: side,
+  });
+  return {
+    call: { args: [marketSideToContractSide(side)], functionName: "resolve" },
+    expectedStatus: STATUS.resolved,
+    proposedDescription:
+      `resolve(${label(side)}) -> status Resolved, settling the dispute over the ` +
+      `${label(proposal.side)} proposal. ${describeSettlement(settlement, snapshot)}`,
+    requiredRole: resolverRole(snapshot),
+  };
+}
+
+function planFinalize(snapshot: CompleteSetMarketSnapshot): CompleteSetMarketPlan {
+  requireStatus(snapshot, STATUS.resolutionPending, "finalizeResolution");
+  const proposal = requireProposal(snapshot);
+  if (snapshot.timestamp < proposal.deadline) {
+    throw new Error(
+      `The dispute window is open until ${proposal.deadline} — ` +
+        `${formatDuration(proposal.deadline - snapshot.timestamp)} remaining at block timestamp ` +
+        `${snapshot.timestamp}; finalizeResolution() would revert with DisputeWindowStillOpen.`,
+    );
+  }
+  return {
+    call: { args: [], functionName: "finalizeResolution" },
+    expectedStatus: STATUS.resolved,
+    proposedDescription:
+      `finalizeResolution() -> status Resolved, winning side ${label(proposal.side)}. ` +
+      "Permissionless: any account may finalize, so a keeper or a trader may get there first.",
+  };
+}
+
 function planDirectResolve(
   snapshot: CompleteSetMarketSnapshot,
   side: MarketSide,
 ): CompleteSetMarketPlan {
   requireStatus(snapshot, STATUS.trading, "resolve");
+  requireSideGate(snapshot, side, "resolve");
   if (snapshot.disputeWindow !== 0n) {
     throw new Error(
       `This market carries a ${describeWindow(snapshot.disputeWindow)} dispute window, so resolve() ` +
-        "from Trading reverts with MarketNotDirectlyResolvable; propose the resolution instead.",
+        "from Trading reverts with MarketNotDirectlyResolvable; use propose-resolution instead.",
     );
   }
   return {
@@ -138,6 +298,27 @@ function planCancel(snapshot: CompleteSetMarketSnapshot): CompleteSetMarketPlan 
   };
 }
 
+function describeSettlement(
+  settlement: DisputeBondSettlement,
+  snapshot: CompleteSetMarketSnapshot,
+): string {
+  switch (settlement.kind) {
+    case "forfeited":
+      return (
+        `The proposal stands, so the ${formatCollateral(settlement.amount, snapshot)} bond is ` +
+        `FORFEITED to the market owner ${settlement.to}.`
+      );
+    case "none":
+      return "No bond is escrowed, so no collateral moves.";
+    case "refunded":
+      return (
+        `The settled side differs from the proposal, so the ` +
+        `${formatCollateral(settlement.amount, snapshot)} bond is REFUNDED to the disputer ` +
+        `${settlement.to}.`
+      );
+  }
+}
+
 function requireStatus(
   snapshot: CompleteSetMarketSnapshot,
   expected: number,
@@ -149,6 +330,33 @@ function requireStatus(
         `${postgradMarketStatusLabel(expected)}.`,
     );
   }
+}
+
+// Both proposing and resolving carry the per-side pregrad time gate.
+function requireSideGate(
+  snapshot: CompleteSetMarketSnapshot,
+  side: MarketSide,
+  action: string,
+): void {
+  const notBefore = snapshot.notBefore[side];
+  if (snapshot.timestamp < notBefore) {
+    throw new Error(
+      `The ${label(side)} resolution gate opens at ${notBefore} — ` +
+        `${formatDuration(notBefore - snapshot.timestamp)} away at block timestamp ` +
+        `${snapshot.timestamp}; ${action} would revert with TooEarlyToResolve.`,
+    );
+  }
+}
+
+// The proposal getters revert unless a proposal is active, so the snapshot
+// omits them outside those statuses; every caller here has already checked.
+function requireProposal(
+  snapshot: CompleteSetMarketSnapshot,
+): NonNullable<CompleteSetMarketSnapshot["proposal"]> {
+  if (snapshot.proposal === undefined) {
+    throw new Error("Expected an active resolution proposal to read; the market has none.");
+  }
+  return snapshot.proposal;
 }
 
 function resolverRole(snapshot: CompleteSetMarketSnapshot): RequiredRole {
