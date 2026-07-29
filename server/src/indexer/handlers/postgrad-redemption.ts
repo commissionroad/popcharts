@@ -5,6 +5,9 @@ import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
 import type { PostgradRedemptionKind } from "src/db/schema/postgrad-redemption-events";
 import { recordLiveChange } from "src/change-feed/writer";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Postgrad redemption log");
 
 export type { PostgradRedemptionKind };
 
@@ -145,12 +148,4 @@ export async function persistPostgradRedemptionRecord(
       logIndex: record.event.logIndex,
     });
   });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Postgrad redemption log is missing ${name}.`);
-  }
-
-  return value;
 }

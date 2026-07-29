@@ -7,6 +7,9 @@ import type { MarketStatus } from "src/db/schema/markets";
 import type { PostgradResolutionKind } from "src/db/schema/postgrad-resolution-events";
 import { applyMarketStatusTransition } from "src/indexer/handlers/market-projection";
 import { recordLiveChange } from "src/change-feed/writer";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Postgrad resolution log");
 
 export type { PostgradResolutionKind };
 
@@ -157,12 +160,4 @@ export async function persistPostgradResolutionRecord(
       logIndex: record.event.logIndex,
     });
   });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Postgrad resolution log is missing ${name}.`);
-  }
-
-  return value;
 }

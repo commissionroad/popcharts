@@ -4,6 +4,9 @@ import { recordLiveChange } from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
 import { findVenuePoolMarketId } from "src/indexer/handlers/venue-pools";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Pool price tick log");
 
 export type PoolPriceTickLog = Log & {
   args: {
@@ -88,12 +91,4 @@ export async function persistPoolPriceTickRecord(
       logIndex: record.logIndex,
     });
   });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Pool price tick log is missing ${name}.`);
-  }
-
-  return value;
 }

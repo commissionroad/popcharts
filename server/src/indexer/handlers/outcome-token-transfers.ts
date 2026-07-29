@@ -5,6 +5,9 @@ import { recordLiveChange } from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
 import { ZERO_ADDRESS } from "src/config";
 import { db, schema, sql } from "src/db/client";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Outcome token transfer log");
 
 export type OutcomeTokenTransferLog = Log & {
   args: {
@@ -139,12 +142,4 @@ async function applyBalanceDelta(
         updatedAt: new Date(),
       },
     });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Outcome token transfer log is missing ${name}.`);
-  }
-
-  return value;
 }
