@@ -4,7 +4,7 @@ import { buildGraduatedMarketManifest } from "src/api/services/postgrad-venue";
 import type { BlockchainClient } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
-import { isAwaitingResolution } from "src/db/schema/markets";
+import { isAwaitingResolution, type MarketStatus } from "src/db/schema/markets";
 
 /** One complete-set market the keeper maintains. */
 export type TrackedMarket = {
@@ -12,6 +12,16 @@ export type TrackedMarket = {
   key: string;
   label: string;
   manifest: CompleteSetMarketManifestData;
+};
+
+/** One postgrad market with a resolution proposal the keeper may finalize. */
+export type TrackedPendingResolutionMarket = {
+  chainId: number;
+  /** Stable scheduler/log key, e.g. "finalize:31337:7". */
+  key: string;
+  label: string;
+  marketId: bigint;
+  postgradMarket: `0x${string}`;
 };
 
 /** One pregrad market the keeper watches for graduation eligibility. */
@@ -56,9 +66,15 @@ export async function discoverPregradMarkets(): Promise<
 }
 
 /**
- * Discovers every venue market the keeper should maintain: graduated markets
- * from the indexer's GraduationFinalized projections, plus the operator demo
- * market when its address is in the environment. Manifests are rebuilt
+ * Discovers every venue market the keeper should maintain: markets from the
+ * indexer's GraduationFinalized projections whose outcome is not final yet,
+ * plus the operator demo market when its address is in the environment.
+ *
+ * Liveness is {@link isAwaitingResolution}, not the `graduated` literal: only
+ * Resolved and Cancelled are terminal on the contract, so minting, merging and
+ * trading all stay open through the dispute window. Pinning this to `graduated`
+ * would strand every market's venue unmaintained — no arbitrage, no maker fills
+ * — for the length of its window (repo ADR 0024). Manifests are rebuilt
  * deterministically, so a market graduated minutes ago is tracked without
  * any manifest file existing.
  */
@@ -69,7 +85,7 @@ export async function discoverTrackedMarkets({
 }): Promise<TrackedMarket[]> {
   const tracked = new Map<string, TrackedMarket>();
 
-  for (const row of await selectGraduatedMarkets()) {
+  for (const row of await selectPostgradMarkets(isAwaitingResolution)) {
     const key = `${row.chainId}:${row.marketId.toString()}`;
 
     try {
@@ -96,7 +112,31 @@ export async function discoverTrackedMarkets({
   return [...tracked.values()];
 }
 
-async function selectGraduatedMarkets() {
+/**
+ * Discovers every postgrad market carrying a resolution proposal that has not
+ * settled yet. Whether the dispute window has actually closed is decided at
+ * pass time from chain state — this list only picks which markets get a pass.
+ */
+export async function discoverPendingResolutionMarkets(): Promise<
+  TrackedPendingResolutionMarket[]
+> {
+  const pending = await selectPostgradMarkets(
+    (status) => status === "resolution_pending",
+  );
+
+  return pending.map((row) => ({
+    chainId: row.chainId,
+    key: `finalize:${row.chainId}:${row.marketId.toString()}`,
+    label: `market ${row.chainId}:${row.marketId.toString()}`,
+    marketId: row.marketId,
+    postgradMarket: row.postgradMarket as `0x${string}`,
+  }));
+}
+
+/** Indexed postgrad markets on the configured chain whose status `isWanted`. */
+async function selectPostgradMarkets(
+  isWanted: (status: MarketStatus) => boolean,
+) {
   const rows = await db
     .select({
       chainId: schema.graduationFinalizedEvents.chainId,
@@ -115,12 +155,7 @@ async function selectGraduatedMarkets() {
     )
     .where(eq(schema.graduationFinalizedEvents.chainId, config.chainId));
 
-  // Resolved markets freeze trading, so the keeper only maintains venues
-  // that are still live — which includes the whole dispute window, where the
-  // venue keeps trading while a proposed resolution waits out its deadline
-  // (ADR 0024). Pinning this to `graduated` would strand every market's venue
-  // unmaintained for the length of its window.
-  return rows.filter((row) => isAwaitingResolution(row.status));
+  return rows.filter((row) => isWanted(row.status));
 }
 
 /**
