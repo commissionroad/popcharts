@@ -4,6 +4,7 @@ import { closeDb } from "src/db/client";
 
 import { runScenarios, type Scenario } from "./report";
 import { aiOutage } from "./scenarios/ai-outage";
+import { disputeWindowFinalize } from "./scenarios/dispute-window-finalize";
 import { drawCancel } from "./scenarios/draw-cancel";
 import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
@@ -30,10 +31,16 @@ import { rejectedCreation } from "./scenarios/rejected-creation";
  * permanent forward offset, but nothing after it waits on the wall-clock
  * resolution runner, so it only costs suite time, not correctness. Append a
  * resolution-dependent scenario after it and that offset must be budgeted.)
+ *
+ * The dispute scenario sits inside the resolution-dependent group for the
+ * same reason, and adds one more permanent offset of its own: it never waits a
+ * dispute window out in real time, it jumps the chain clock to the proposal's
+ * deadline (bounded by its DISPUTE_WINDOW_SECONDS).
  */
 const SCENARIOS: readonly Scenario[] = [
   happyPath,
   drawCancel,
+  disputeWindowFinalize,
   partialClearing,
   failedGraduation,
   manualReview,
