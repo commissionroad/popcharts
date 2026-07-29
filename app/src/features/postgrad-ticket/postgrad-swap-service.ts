@@ -5,7 +5,6 @@ import type { Market, MarketSide, MarketVenueInfo } from "@/domain/markets/types
 import type { VenueTradeAction } from "@/domain/postgrad-trading/venue-trade";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
-import { erc20Abi } from "@/integrations/contracts/erc20";
 import {
   buildOutcomePoolKey,
   type CompleteSetMarketPoolKey,
@@ -18,8 +17,11 @@ import {
   tickToSqrtPriceX96,
   v4QuoterAbi,
 } from "@/integrations/contracts/postgrad-venue";
+import {
+  ensureSpendBalance,
+  ensureTokenAllowance,
+} from "@/integrations/contracts/token-spend";
 import { DisplayableError } from "@/lib/error-handling";
-import { formatTokenAmount } from "@/lib/format";
 
 /**
  * Connected wallet context required for venue swaps: the signing account, its
@@ -331,78 +333,4 @@ export function requireVenueChain(wallet: VenueSwapWallet): PopChartsContractCon
   }
 
   return config;
-}
-
-/**
- * Requires the wallet to hold at least `amountIn` of the token an order is
- * about to spend, so the failure reads as a balance problem instead of a
- * contract revert.
- */
-export async function ensureSpendBalance({
-  amountIn,
-  spendLabel,
-  spendToken,
-  wallet,
-}: {
-  amountIn: bigint;
-  spendLabel: string;
-  spendToken: `0x${string}`;
-  wallet: VenueSwapWallet;
-}) {
-  const balance = await wallet.publicClient.readContract({
-    abi: erc20Abi,
-    address: spendToken,
-    functionName: "balanceOf",
-    args: [wallet.accountAddress],
-  });
-
-  if (balance < amountIn) {
-    throw new Error(
-      `Insufficient balance. You have ${formatTokenAmount(
-        balance
-      )} ${spendLabel}, but this order spends ${formatTokenAmount(amountIn)}.`
-    );
-  }
-}
-
-/**
- * Tops up `spender`'s ERC20 allowance on the spend token when it is short,
- * reporting the approval step so tickets can show progress. Used for both the
- * swap router and the order manager's token puller.
- */
-export async function ensureTokenAllowance({
-  amountIn,
-  onStep,
-  spender,
-  spendToken,
-  wallet,
-}: {
-  amountIn: bigint;
-  onStep: ((step: "approving") => void) | undefined;
-  spender: `0x${string}`;
-  spendToken: `0x${string}`;
-  wallet: VenueSwapWallet;
-}) {
-  const allowance = await wallet.publicClient.readContract({
-    abi: erc20Abi,
-    address: spendToken,
-    functionName: "allowance",
-    args: [wallet.accountAddress, spender],
-  });
-
-  if (allowance >= amountIn) {
-    return;
-  }
-
-  onStep?.("approving");
-  const approvalHash = await wallet.walletClient.writeContract({
-    abi: erc20Abi,
-    account: wallet.accountAddress,
-    address: spendToken,
-    chain: wallet.walletClient.chain,
-    functionName: "approve",
-    args: [spender, amountIn],
-  });
-
-  await wallet.publicClient.waitForTransactionReceipt({ hash: approvalHash });
 }
