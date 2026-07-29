@@ -15,6 +15,10 @@ import {
 } from "src/indexer/handlers/market-projection";
 import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
 import { recordLiveChange } from "src/change-feed/writer";
+import {
+  formatOperatorAlert,
+  OPERATOR_ALERT_EVENTS,
+} from "src/shared/operator-alert-log";
 
 export type { PostgradDisputeKind };
 
@@ -31,9 +35,10 @@ export type PostgradResolutionDisputedLog = Log & {
   args: {
     disputer?: string;
     /**
-     * Bond escrowed by the dispute. Deliberately not read here: the same
+     * Bond escrowed by the dispute. Deliberately not persisted here: the same
      * transaction emits DisputeBondPosted, and that is the money paper-trail
-     * record (postgrad_dispute_bond_events).
+     * record (postgrad_dispute_bond_events). It is read only as context on the
+     * operator alert, so the page carries the stake without a second lookup.
      */
     bond?: bigint;
   };
@@ -41,6 +46,12 @@ export type PostgradResolutionDisputedLog = Log & {
 
 export type PostgradDisputeRecord = {
   event: typeof schema.postgradDisputeEvents.$inferInsert;
+  /**
+   * Operator-page line to emit once the event row actually lands. Present only
+   * for `disputed`: a dispute freezes the market until a human settles it, so
+   * it is an alarm, not a log entry (repo ADR 0024 phase 5).
+   */
+  operatorAlert?: string;
 };
 
 /**
@@ -100,14 +111,32 @@ export function buildPostgradDisputeRecord({
   }
 
   const disputed = log as PostgradResolutionDisputedLog;
+  const disputer = requireValue(
+    disputed.args.disputer,
+    "disputer",
+  ).toLowerCase();
 
   return {
     event: {
       ...base,
       disputeDeadline: null,
-      disputer: requireValue(disputed.args.disputer, "disputer").toLowerCase(),
+      disputer,
       proposedSide: null,
     },
+    operatorAlert: formatOperatorAlert(
+      OPERATOR_ALERT_EVENTS.resolutionDisputed,
+      {
+        // uint256 values render as decimal strings: JSON.stringify throws on
+        // bigint, and the raw base units are what an operator reconciles against
+        // the bond paper trail.
+        bond: requireValue(disputed.args.bond, "bond").toString(),
+        chainId: base.chainId,
+        disputer,
+        marketId: base.marketId.toString(),
+        postgradMarket: base.postgradMarket,
+        transactionHash: base.transactionHash,
+      },
+    ),
   };
 }
 
@@ -144,14 +173,16 @@ const DISPUTE_TRANSITIONS = {
 } as const satisfies Record<PostgradDisputeKind, MarketStatusTransition>;
 
 /**
- * Persists the raw dispute-lifecycle row and advances the markets projection
- * into `resolution_pending`/`disputed`. The event insert dedupes on
- * (chain, tx, log), and the projection is guarded on the predecessor status, so
- * replays are no-ops and a market that already resolved is never pulled back
- * into the window. An arrival from a status in neither set throws rather than
- * committing the raw row with no projection — that combination would lose the
- * transition permanently, because every later replay dedupes out before
- * reaching here.
+ * Persists the raw dispute-lifecycle row, advances the markets projection into
+ * `resolution_pending`/`disputed`, and raises the operator page a `disputed`
+ * row carries. The event insert dedupes on (chain, tx, log), and the projection
+ * is guarded on the predecessor status, so replays are no-ops and a market that
+ * already resolved is never pulled back into the window. An arrival from a
+ * status in neither set throws rather than committing the raw row with no
+ * projection — that combination would lose the transition permanently, because
+ * every later replay dedupes out before reaching here. The page follows the
+ * same rule: it is raised only for a row that committed with its projection, so
+ * a rolled-back ordering fault pages when the retry succeeds, not before.
  */
 export async function persistPostgradDisputeRecord(
   record: PostgradDisputeRecord,
@@ -159,7 +190,7 @@ export async function persistPostgradDisputeRecord(
 ) {
   const transition = DISPUTE_TRANSITIONS[record.event.kind];
 
-  await dbc.transaction(async (tx) => {
+  const applied = await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.postgradDisputeEvents)
       .values(record.event)
@@ -169,7 +200,7 @@ export async function persistPostgradDisputeRecord(
     // A conflict means this exact log was already processed (recovery replay
     // or a second indexer); the projection was handled the first time.
     if (inserted.length === 0) {
-      return;
+      return false;
     }
 
     await applyMarketStatusTransition(tx, {
@@ -188,7 +219,16 @@ export async function persistPostgradDisputeRecord(
       blockNumber: record.event.blockNumber,
       logIndex: record.event.logIndex,
     });
+
+    return true;
   });
+
+  // Raised after the commit and only for a row that actually landed, so a
+  // rolled-back write cannot page and a recovery replay of the same log cannot
+  // page twice. stderr, because the alarm treats this as an incident.
+  if (applied && record.operatorAlert) {
+    console.error(record.operatorAlert);
+  }
 }
 
 function requireValue<T>(value: T | null | undefined, name: string): T {

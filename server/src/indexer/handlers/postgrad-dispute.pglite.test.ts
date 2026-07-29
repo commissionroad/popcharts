@@ -9,6 +9,7 @@ import {
   describe,
   expect,
   it,
+  spyOn,
 } from "bun:test";
 
 import { count, eq } from "drizzle-orm";
@@ -62,15 +63,20 @@ function disputeRecord(
   };
 }
 
+const OPERATOR_ALERT = "POPCHARTS_OPERATOR_ALERT resolution_disputed {}";
+
 function disputedRecord(): PostgradDisputeRecord {
-  return disputeRecord({
-    disputeDeadline: null,
-    disputer: DISPUTER,
-    kind: "disputed",
-    logIndex: 4,
-    proposedSide: null,
-    transactionHash: `0x${"22".repeat(32)}`,
-  });
+  return {
+    ...disputeRecord({
+      disputeDeadline: null,
+      disputer: DISPUTER,
+      kind: "disputed",
+      logIndex: 4,
+      proposedSide: null,
+      transactionHash: `0x${"22".repeat(32)}`,
+    }),
+    operatorAlert: OPERATOR_ALERT,
+  };
 }
 
 function resolutionRecord(): PostgradResolutionRecord {
@@ -211,6 +217,37 @@ describe("persistPostgradDisputeRecord against real SQL (PGlite)", () => {
 
     // The late proposal finds the market already past its target and no-ops.
     expect(await marketStatus()).toBe("disputed");
+  });
+
+  it("pages once per dispute and never on a replay", async () => {
+    const alerts = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await persistPostgradDisputeRecord(disputeRecord(), dbc);
+      await persistPostgradDisputeRecord(disputedRecord(), dbc);
+      await persistPostgradDisputeRecord(disputedRecord(), dbc);
+
+      // The proposal must not page — only the dispute freezes the market.
+      expect(alerts.mock.calls).toEqual([[OPERATOR_ALERT]]);
+    } finally {
+      alerts.mockRestore();
+    }
+  });
+
+  it("does not page for a dispute that rolls back as out of order", async () => {
+    await setMarketStatus("bootstrap");
+    const alerts = spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await expect(
+        persistPostgradDisputeRecord(disputedRecord(), dbc),
+      ).rejects.toThrow(MarketStatusOutOfOrderError);
+
+      // Paging for an event whose row rolled back would send an operator to a
+      // market that never entered the window. The retry pages when it lands.
+      expect(alerts.mock.calls).toEqual([]);
+    } finally {
+      alerts.mockRestore();
+    }
   });
 
   it("never drags a resolved market back into the dispute window", async () => {
