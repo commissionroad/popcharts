@@ -67,11 +67,18 @@ export const DEFAULT_SCORES: ReviewScores = {
  * substituting the fallback for anything non-numeric.
  */
 export function clampScore(value: unknown, fallback: number) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+  // Models routinely emit scores as JSON strings ("5") rather than numbers,
+  // and a rejected score silently becomes the conservative DEFAULT_SCORES
+  // entry rather than an error — so a numeric string is coerced here instead
+  // of being discarded. Everything else still falls back.
+  const numeric =
+    typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+
+  if (typeof numeric !== "number" || !Number.isFinite(numeric)) {
     return fallback;
   }
 
-  return Math.max(0, Math.min(5, Math.round(value)));
+  return Math.max(0, Math.min(5, Math.round(numeric)));
 }
 
 /**
