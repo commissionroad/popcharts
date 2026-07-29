@@ -157,7 +157,7 @@ function formatDuration(totalSeconds: bigint): string {
 }
 
 /** Formats a dispute window, naming the zero case for what it does. */
-function describeWindow(seconds: bigint): string {
+export function describeWindow(seconds: bigint): string {
   return seconds === 0n ? "0s (disputes disabled)" : `${seconds}s (${formatDuration(seconds)})`;
 }
 

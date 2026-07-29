@@ -7,6 +7,7 @@ import { POSTGRAD_VENUE_DEPLOYMENT } from "#src/deployment/postgradVenueDeployme
 import { POSTGRAD_MARKET_STATUS } from "#src/postgrad-market-status.js";
 import {
   describeCompleteSetMarketState,
+  describeWindow,
   planCompleteSetMarketAction,
   type CompleteSetMarketRequest,
   type CompleteSetMarketSnapshot,
@@ -21,6 +22,7 @@ import { pregradManagerAbi } from "#src/generated/pregrad-manager.js";
 import {
   boundedPoolOrderManagerAbi,
   completeSetBinaryMarketAbi,
+  completeSetPostgradAdapterAbi,
 } from "#src/generated/postgrad-venue.js";
 import { contractSideToMarketSide, type MarketSide } from "#src/market-side.js";
 
@@ -36,6 +38,7 @@ export type PostgradAdminAction =
       readonly side: "no" | "yes";
     }
   | { readonly count: bigint; readonly kind: "setMaximumExecutionCount" }
+  | { readonly bond: bigint; readonly kind: "setDisputeConfig"; readonly window: bigint }
   | { readonly kind: "cancelMarket" }
   | { readonly kind: "disputeMarket" }
   | { readonly kind: "finalizeResolution" }
@@ -142,6 +145,8 @@ async function planChange(
     case "resolveMarket":
     case "settleDispute":
       return planMarketLifecycle(context, action);
+    case "setDisputeConfig":
+      return planDisputeConfig(context, action.window, action.bond);
     case "setHookRole":
       return planOrderManagerFlag(context, {
         account: action.account,
@@ -463,6 +468,57 @@ export async function readMarketSnapshot(
     resolver: getAddress(resolver),
     status: statusCode,
     timestamp: block.timestamp,
+  };
+}
+
+/**
+ * Retunes the adapter's dispute window and bond. The values are stamped onto a
+ * market at graduation, so this is the only lever that can give a local stack a
+ * nonzero window — every local deploy seam pins both to zero.
+ */
+async function planDisputeConfig(
+  context: PostgradAdminContext,
+  window: bigint,
+  bond: bigint,
+): Promise<PlannedChange> {
+  const adapter = await resolvePostgradManifestAddress(context, "postgradAdapter");
+  const adapterCall = { abi: completeSetPostgradAdapterAbi, address: adapter } as const;
+  const [owner, currentWindow, currentBond] = await Promise.all([
+    context.publicClient.readContract({ ...adapterCall, functionName: "owner" }),
+    context.publicClient.readContract({ ...adapterCall, functionName: "disputeWindow" }),
+    context.publicClient.readContract({ ...adapterCall, functionName: "disputeBond" }),
+  ]);
+
+  return {
+    currentDescription:
+      `disputeWindow = ${describeWindow(BigInt(currentWindow))}, ` +
+      `disputeBond = ${currentBond} raw collateral units`,
+    label: `setDisputeConfig on CompleteSetPostgradAdapter ${adapter}`,
+    noOp: BigInt(currentWindow) === window && currentBond === bond,
+    proposedDescription:
+      `disputeWindow = ${describeWindow(window)}, disputeBond = ${bond} raw collateral units. ` +
+      "Stamped onto markets at graduation, so this affects markets graduated after the change; " +
+      "already-graduated markets keep the values they were built with.",
+    requiredRole: { holder: getAddress(owner), name: "CompleteSetPostgradAdapter owner" },
+    verify: async () => {
+      const [afterWindow, afterBond] = await Promise.all([
+        context.publicClient.readContract({ ...adapterCall, functionName: "disputeWindow" }),
+        context.publicClient.readContract({ ...adapterCall, functionName: "disputeBond" }),
+      ]);
+      if (BigInt(afterWindow) !== window || afterBond !== bond) {
+        throw new Error(
+          `setDisputeConfig read back window ${afterWindow} / bond ${afterBond}, ` +
+            `expected ${window} / ${bond}.`,
+        );
+      }
+    },
+    write: () =>
+      context.walletClient.writeContract({
+        abi: completeSetPostgradAdapterAbi,
+        address: adapter,
+        args: [window, bond],
+        functionName: "setDisputeConfig",
+      }),
   };
 }
 
