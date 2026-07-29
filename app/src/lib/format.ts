@@ -117,12 +117,14 @@ export function formatUsdWhole(value: number) {
 }
 
 /**
- * Formats an 18-decimal on-chain token amount with separators and no currency
- * symbol, showing two decimals only below 100 where they matter ("1,250",
- * "42.50", "0").
+ * Formats an on-chain token amount with separators and no currency symbol,
+ * showing two decimals only below 100 where they matter ("1,250", "42.50",
+ * "0"). `decimals` defaults to the 18-decimal house token — pass the token's
+ * own precision for anything else, because formatting a 6-decimal balance at
+ * 18 renders every realistic amount as "0.00".
  */
-export function formatTokenAmount(value: bigint) {
-  const amount = Number(formatUnits(value, TOKEN_DECIMALS));
+export function formatTokenAmount(value: bigint, decimals: number = TOKEN_DECIMALS) {
+  const amount = Number(formatUnits(value, decimals));
 
   return amount.toLocaleString("en-US", {
     maximumFractionDigits: amount >= 100 ? 0 : 2,

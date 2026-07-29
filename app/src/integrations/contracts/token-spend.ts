@@ -1,5 +1,6 @@
 import type { PublicClient, WalletClient } from "viem";
 
+import { DisplayableError } from "@/lib/error-handling";
 import { formatTokenAmount } from "@/lib/format";
 
 import { erc20Abi } from "./erc20";
@@ -21,14 +22,22 @@ export type TokenSpendWallet = {
  * Requires the wallet to hold at least `amountIn` of the token a transaction
  * is about to spend, so the failure reads as a balance problem instead of a
  * contract revert.
+ *
+ * `spendDecimals` is required rather than defaulted because both figures in
+ * the message are meaningless at the wrong precision: a 6-decimal balance
+ * formatted at 18 renders as "0.00", and so does the amount it is short of —
+ * "You have 0.00 collateral, but this transaction spends 0.00."
  */
 export async function ensureSpendBalance({
   amountIn,
+  spendDecimals,
   spendLabel,
   spendToken,
   wallet,
 }: {
   amountIn: bigint;
+  /** Precision of `spendToken`, which both amounts in the message are read at. */
+  spendDecimals: number;
   spendLabel: string;
   spendToken: `0x${string}`;
   wallet: TokenSpendWallet;
@@ -41,10 +50,17 @@ export async function ensureSpendBalance({
   });
 
   if (balance < amountIn) {
-    throw new Error(
+    // DisplayableError: this is the likeliest way a spend fails and the copy is
+    // written for the user, so it is shown verbatim instead of collapsing to
+    // each surface's generic "could not do that" fallback.
+    throw new DisplayableError(
       `Insufficient balance. You have ${formatTokenAmount(
-        balance
-      )} ${spendLabel}, but this transaction spends ${formatTokenAmount(amountIn)}.`
+        balance,
+        spendDecimals
+      )} ${spendLabel}, but this transaction spends ${formatTokenAmount(
+        amountIn,
+        spendDecimals
+      )}.`
     );
   }
 }

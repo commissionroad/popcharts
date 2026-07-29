@@ -63,7 +63,10 @@ export async function disputeResolution({
   wallet: DisputeWallet;
 }): Promise<DisputeResult> {
   if (wallet.activeChainId !== config.chainId) {
-    throw new Error(`Switch your wallet to chain ${config.chainId}.`);
+    // DisplayableError: the panel gates on chain, so reaching here means the
+    // wallet switched networks mid-flight. A plain Error would collapse to
+    // "Could not dispute this resolution.", which names nothing to fix.
+    throw new DisplayableError(`Switch your wallet to chain ${config.chainId}.`);
   }
 
   const [state, collateralToken] = await Promise.all([
@@ -92,6 +95,9 @@ export async function disputeResolution({
   if (requiredBond > 0n) {
     await ensureSpendBalance({
       amountIn: requiredBond,
+      // The market's own collateral precision, not the house 18: on 6-decimal
+      // collateral every figure in the shortfall message is otherwise "0.00".
+      spendDecimals: state.collateralDecimals,
       spendLabel: "collateral",
       spendToken: collateralToken,
       wallet,

@@ -3,6 +3,7 @@ import { getAddress, parseEventLogs } from "viem";
 
 import type { Market, MarketSide, MarketVenueInfo } from "@/domain/markets/types";
 import type { VenueTradeAction } from "@/domain/postgrad-trading/venue-trade";
+import { TOKEN_DECIMALS } from "@/domain/tokens/wad";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import {
@@ -230,7 +231,15 @@ export async function placeVenueSwap({
     action === "buy" ? config.collateralAddress : pool.outcomeTokenAddress;
   const spendLabel = action === "buy" ? "pUSD" : "outcome tokens";
 
-  await ensureSpendBalance({ amountIn, spendLabel, spendToken, wallet });
+  // Both venue spend tokens are WAD-denominated: swap amounts are quoted in
+  // WAD and outcome tokens are 18-decimal by construction.
+  await ensureSpendBalance({
+    amountIn,
+    spendDecimals: TOKEN_DECIMALS,
+    spendLabel,
+    spendToken,
+    wallet,
+  });
 
   const bounds = (await wallet.publicClient.readContract({
     abi: poolTickBoundsAbi,
