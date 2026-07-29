@@ -16,6 +16,7 @@ import type {
   PortfolioResponse,
 } from "src/api/models/portfolio";
 import { and, db, desc, eq, schema } from "src/db/client";
+import { hasGraduated, type MarketStatus } from "src/db/schema/markets";
 
 import { serializeResolutionRow } from "./markets";
 import {
@@ -44,7 +45,12 @@ import {
 type MarketContext = {
   readonly collateral: string;
   readonly question: string | null;
-  readonly status: string;
+  /**
+   * Typed as the union rather than `string` on purpose: this status decides
+   * whether a receipt is claimable, and a widened `string` is what lets a
+   * newly appended status slip past every gate that reads it.
+   */
+  readonly status: MarketStatus;
   /**
    * Terminal resolution event for a resolved/cancelled market; only loaded
    * where a claim affordance needs it (balance rows), so optional.
@@ -234,6 +240,13 @@ export async function getPortfolio(
  * Maps a receipt row to its lifecycle status. A claim row wins outright;
  * otherwise the market's status decides whether the receipt is still waiting
  * or already claimable (graduated) / refund-claimable (refunded, cancelled).
+ *
+ * Claimability follows graduation, not resolution: the moment a market
+ * graduates its receipts can be claimed, and nothing about the dispute window
+ * (`resolution_pending`/`disputed`) takes that back. Asking the question as
+ * `status === "graduated"` used to drop those receipts to
+ * `awaiting_graduation`, which hides the claim button on /portfolio for the
+ * whole window.
  */
 export function portfolioReceiptStatus(
   row: PortfolioReceiptRow,
@@ -246,7 +259,7 @@ export function portfolioReceiptStatus(
     return "refunded";
   }
 
-  if (row.market.status === "graduated" || row.market.status === "resolved") {
+  if (hasGraduated(row.market.status)) {
     return "claimable";
   }
 

@@ -1,5 +1,7 @@
 import type { BlockchainClient } from "src/blockchain/client";
 
+import { unixSecondsToDate } from "./unix-seconds";
+
 const blockTimestampCache = new Map<bigint, Date>();
 
 export async function getBlockTimestamp(
@@ -12,7 +14,7 @@ export async function getBlockTimestamp(
   }
 
   const block = await client.getBlock({ blockNumber });
-  const timestamp = new Date(Number(block.timestamp) * 1000);
+  const timestamp = unixSecondsToDate(block.timestamp);
   blockTimestampCache.set(blockNumber, timestamp);
 
   return timestamp;

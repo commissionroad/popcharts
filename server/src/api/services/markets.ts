@@ -15,6 +15,7 @@ import {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
+import { mayHaveGraduated } from "src/db/schema/markets";
 import {
   computeMatchedMarketCap,
   pregradManagerAbi,
@@ -726,13 +727,12 @@ async function getLatestPostgradInfos(markets: MarketRow[]) {
   const infos = new Map<string, MarketPostgradResponse>();
   // Any status a market can reach after graduation keeps its venue data:
   // terminal states still need the child-market address and mint totals for
-  // redemption (ADR 0018). Pregrad admin-cancels share the `cancelled`
-  // status but have no GraduationFinalized row, so they simply find no info.
-  const settledMarkets = markets.filter(
-    (market) =>
-      market.status === "graduated" ||
-      market.status === "resolved" ||
-      market.status === "cancelled",
+  // redemption (ADR 0018), and the dispute window sits between graduation and
+  // resolution (ADR 0024). Pregrad admin-cancels share the `cancelled` status
+  // but have no GraduationFinalized row, so they simply find no info — which
+  // is why the widened predicate is the right one here.
+  const settledMarkets = markets.filter((market) =>
+    mayHaveGraduated(market.status),
   );
   if (settledMarkets.length === 0) {
     return infos;

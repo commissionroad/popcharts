@@ -20,6 +20,7 @@ import {
 } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
+import { hasGraduated } from "src/db/schema/markets";
 
 import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
@@ -196,7 +197,11 @@ export async function resolveDevMarket(
   });
   const market = serializeResolveMarketRow(row, indexedResolution);
 
-  if (row.market.status !== "graduated" && row.market.status !== "resolved") {
+  // Force-resolve is available for the whole postgrad range, including a
+  // market sitting in its dispute window: the dev flows that drive a market to
+  // resolution now pass through `resolution_pending` on every network, since
+  // the runner proposes even where the configured window is zero.
+  if (!hasGraduated(row.market.status)) {
     return {
       kind: "ineligible",
       market,

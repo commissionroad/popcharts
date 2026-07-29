@@ -26,6 +26,10 @@ const marketStatusLabels: Record<Market["status"], string> = {
   refunded: "refunded",
   rejected: "rejected",
   resolved: "resolved",
+  // Postgrad-only statuses (ADR 0024); a pregrad ticket never sees them, but
+  // the map is exhaustive over the API's status union.
+  resolution_pending: "resolution pending",
+  disputed: "disputed",
 };
 
 /**

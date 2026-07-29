@@ -14,6 +14,8 @@ import {
   type PortfolioReceiptRow,
   type PortfolioRedemptionRow,
 } from "src/api/services/portfolio";
+import type { PortfolioReceiptStatusResponse } from "src/api/models/portfolio";
+import type { MarketStatus } from "src/db/schema/markets";
 import {
   venueOrderOutcomeSize,
   type VenueOrderRow,
@@ -63,19 +65,39 @@ describe("getPortfolio input validation", () => {
   });
 });
 
-describe("portfolioReceiptStatus", () => {
-  it.each([
-    ["bootstrap", "awaiting_graduation"],
-    ["graduating", "awaiting_graduation"],
-    ["graduated", "claimable"],
-    ["resolved", "claimable"],
-    ["refunded", "refund_claimable"],
-    ["cancelled", "refund_claimable"],
-  ])("maps an unclaimed receipt on a %s market to %s", (status, expected) => {
-    const row = createReceiptRow({ marketStatus: status });
+/**
+ * The receipt status every market status maps to, stated exhaustively: the
+ * `satisfies Record<MarketStatus, …>` makes a status appended to
+ * MARKET_STATUSES a compile error here until someone decides whether a receipt
+ * on it can be claimed. Claimability is a money surface — a wrong entry hides
+ * the claim button on /portfolio — so it gets the strongest guard available
+ * rather than a hand-kept list of interesting cases.
+ */
+const RECEIPT_STATUS_BY_MARKET_STATUS = {
+  bootstrap: "awaiting_graduation",
+  // A graduated market in its dispute window is still graduated: the receipt
+  // was claimable the moment the market graduated, and neither a proposed
+  // resolution nor a dispute takes that back.
+  cancelled: "refund_claimable",
+  disputed: "claimable",
+  graduated: "claimable",
+  graduating: "awaiting_graduation",
+  refunded: "refund_claimable",
+  rejected: "awaiting_graduation",
+  resolution_pending: "claimable",
+  resolved: "claimable",
+  under_review: "awaiting_graduation",
+} as const satisfies Record<MarketStatus, PortfolioReceiptStatusResponse>;
 
-    expect(portfolioReceiptStatus(row)).toBe(expected as never);
-  });
+describe("portfolioReceiptStatus", () => {
+  it.each(Object.entries(RECEIPT_STATUS_BY_MARKET_STATUS))(
+    "maps an unclaimed receipt on a %s market to %s",
+    (status, expected) => {
+      const row = createReceiptRow({ marketStatus: status as MarketStatus });
+
+      expect(portfolioReceiptStatus(row)).toBe(expected);
+    },
+  );
 
   it("maps a graduated claim to settled regardless of market status", () => {
     const row = createReceiptRow({
@@ -347,7 +369,7 @@ describe("getPortfolio positions", () => {
         transactionHash: `0x${"dd".repeat(32)}`,
         winningSide: "yes" as const,
       },
-      status: "resolved",
+      status: "resolved" as const,
     };
     const result = await getPortfolio(
       { chainId: CHAIN_ID, owner: OWNER },
@@ -385,7 +407,7 @@ describe("getPortfolio positions", () => {
       collateral: "0x0000000000000000000000000000000000000002",
       question: "Will it pop?",
       resolution,
-      status: "resolved",
+      status: "resolved" as const,
     });
 
     const losing = await getPortfolio(
@@ -697,7 +719,7 @@ function createReceiptRow({
 }: {
   cost?: bigint;
   graduatedClaim?: PortfolioReceiptRow["graduatedClaim"];
-  marketStatus: string;
+  marketStatus: MarketStatus;
   receiptId?: bigint;
   refundClaim?: PortfolioReceiptRow["refundClaim"];
   side?: number;

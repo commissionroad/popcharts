@@ -121,6 +121,11 @@ export const CHANGE_FEED_SOURCES = {
     routes: ["market", "market-list"],
   },
   postgrad_redemption_events: { op: "insert", routes: ["market", "owner"] },
+  // Dispute window (repo ADR 0024): the proposal/dispute transitions drive the
+  // board badge as well as the market page; the bond movements are a
+  // market-page money detail with no per-user surface in v1.
+  postgrad_dispute_events: { op: "insert", routes: ["market", "market-list"] },
+  postgrad_dispute_bond_events: { op: "insert", routes: ["market"] },
   // Off-chain review verdict / resolution decision: the market and its board badge.
   market_ai_reviews: { op: "insert", routes: ["market", "market-list"] },
   market_resolutions: { op: "insert", routes: ["market", "market-list"] },

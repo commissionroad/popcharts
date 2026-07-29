@@ -2,7 +2,8 @@ import { contractSideToMarketSide, type MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
-import { db, and, eq, schema } from "src/db/client";
+import { db, and, eq, inArray, schema } from "src/db/client";
+import type { MarketStatus } from "src/db/schema/markets";
 import type { PostgradResolutionKind } from "src/db/schema/postgrad-resolution-events";
 import { recordLiveChange } from "src/change-feed/writer";
 
@@ -74,10 +75,25 @@ export function buildPostgradResolutionRecord({
 }
 
 /**
+ * The statuses a market may hold when its terminal resolution lands. Beyond
+ * the direct `graduated` → resolved path (a zero dispute window, and every
+ * market created before repo ADR 0024), a market can resolve out of the
+ * dispute window: `resolution_pending` when a proposal finalizes, `disputed`
+ * when an operator settles a dispute. Narrowing this back to `graduated` alone
+ * would silently drop the terminal status of every disputed market.
+ */
+const RESOLVABLE_STATUSES = [
+  "graduated",
+  "resolution_pending",
+  "disputed",
+] as const satisfies readonly MarketStatus[];
+
+/**
  * Persists the raw event row and flips the markets projection into its
  * terminal resolution status. The event insert dedupes on (chain, tx, log),
- * and the projection update is guarded on status='graduated' so a replayed or
- * out-of-order log can never overwrite a status another authority has moved.
+ * and the projection update is guarded on the market still being in a
+ * resolvable status, so a replayed or out-of-order log can never overwrite a
+ * status another authority has moved.
  */
 export async function persistPostgradResolutionRecord(
   record: PostgradResolutionRecord,
@@ -111,7 +127,7 @@ export async function persistPostgradResolutionRecord(
         and(
           eq(schema.markets.chainId, record.event.chainId),
           eq(schema.markets.marketId, record.event.marketId),
-          eq(schema.markets.status, "graduated"),
+          inArray(schema.markets.status, [...RESOLVABLE_STATUSES]),
         ),
       );
 

@@ -7,9 +7,11 @@ import {
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
-import { db, schema } from "src/db/client";
+import { db, and, eq, inArray, schema } from "src/db/client";
+import type { MarketStatus } from "src/db/schema/markets";
 import type { PostgradDisputeKind } from "src/db/schema/postgrad-dispute-events";
 import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
+import { recordLiveChange } from "src/change-feed/writer";
 
 export type { PostgradDisputeKind };
 
@@ -107,18 +109,89 @@ export function buildPostgradDisputeRecord({
 }
 
 /**
- * Persists the raw dispute-lifecycle row. Append-only and deduped on
- * (chain, tx, log), so a recovery replay or a second indexer re-walking the
- * market never double-records a proposal or a dispute.
+ * The status a dispute-lifecycle row moves the market into, and the statuses it
+ * accepts as predecessors. Guarding on the predecessor keeps a replayed or
+ * out-of-order log from dragging a market backwards out of a status another
+ * authority has already advanced past.
+ *
+ * `disputed` accepts `graduated` as well as `resolution_pending` because a
+ * dispute log *implies* its proposal: `dispute()` reverts unless the market is
+ * already ResolutionPending on chain, so a market reading `graduated` when a
+ * dispute arrives means only that the proposal log has not been applied yet —
+ * a recovery sweep and the live subscription racing on a market discovered
+ * mid-window. Accepting it makes the projection right either way: the
+ * late-arriving proposal then finds the market in `disputed`, matches none of
+ * its own predecessors, and no-ops, leaving the correct status rather than a
+ * countdown that will never finalize. `resolved` and `cancelled` stay out of
+ * both sets, so no dispute can pull a terminal market back into the window.
+ */
+const DISPUTE_TRANSITIONS = {
+  proposed: {
+    from: ["graduated"] as const satisfies readonly MarketStatus[],
+    to: "resolution_pending",
+  },
+  disputed: {
+    from: [
+      "resolution_pending",
+      "graduated",
+    ] as const satisfies readonly MarketStatus[],
+    to: "disputed",
+  },
+} as const satisfies Record<
+  PostgradDisputeKind,
+  { from: readonly MarketStatus[]; to: MarketStatus }
+>;
+
+/**
+ * Persists the raw dispute-lifecycle row and advances the markets projection
+ * into `resolution_pending`/`disputed`. The event insert dedupes on
+ * (chain, tx, log), and the projection update is guarded on the predecessor
+ * status, so replays are no-ops and a market that already resolved is never
+ * pulled back into the window.
  */
 export async function persistPostgradDisputeRecord(
   record: PostgradDisputeRecord,
   dbc: typeof db = db,
 ) {
-  await dbc
-    .insert(schema.postgradDisputeEvents)
-    .values(record.event)
-    .onConflictDoNothing();
+  const transition = DISPUTE_TRANSITIONS[record.event.kind];
+
+  await dbc.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(schema.postgradDisputeEvents)
+      .values(record.event)
+      .onConflictDoNothing()
+      .returning({ id: schema.postgradDisputeEvents.id });
+
+    // A conflict means this exact log was already processed (recovery replay
+    // or a second indexer); the projection was handled the first time.
+    if (inserted.length === 0) {
+      return;
+    }
+
+    await tx
+      .update(schema.markets)
+      .set({
+        status: transition.to,
+        updatedAt: record.event.blockTimestamp,
+      })
+      .where(
+        and(
+          eq(schema.markets.chainId, record.event.chainId),
+          eq(schema.markets.marketId, record.event.marketId),
+          inArray(schema.markets.status, [...transition.from]),
+        ),
+      );
+
+    await recordLiveChange(tx, {
+      sourceTable: "postgrad_dispute_events",
+      op: "insert",
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      rowId: inserted[0].id,
+      blockNumber: record.event.blockNumber,
+      logIndex: record.event.logIndex,
+    });
+  });
 }
 
 function requireValue<T>(value: T | null | undefined, name: string): T {

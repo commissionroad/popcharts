@@ -5,6 +5,7 @@ import type {
 } from "src/api/models/markets";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
+import { isAwaitingResolution } from "src/db/schema/markets";
 
 import type { ChainGraduationResult } from "./dev-market-graduate";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
@@ -146,7 +147,12 @@ export function evaluateGraduationReadiness({
   matchedMarketCap: bigint;
   status: MarketRow["status"];
 }): GraduationReadiness {
-  if (status === "graduated") {
+  // A market in its dispute window has graduated just as surely as one reading
+  // `graduated`; telling the caller otherwise would send it down the
+  // wrong-status branch. Terminal statuses stay out on purpose — "resolved" is
+  // more useful to a caller than "already graduated" — so this asks the
+  // awaiting-resolution question rather than the wider hasGraduated one.
+  if (isAwaitingResolution(status)) {
     return { kind: "already_graduated" };
   }
 

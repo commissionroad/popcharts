@@ -4,6 +4,7 @@ import { buildGraduatedMarketManifest } from "src/api/services/postgrad-venue";
 import type { BlockchainClient } from "src/blockchain/client";
 import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
+import { isAwaitingResolution } from "src/db/schema/markets";
 
 /** One complete-set market the keeper maintains. */
 export type TrackedMarket = {
@@ -115,8 +116,11 @@ async function selectGraduatedMarkets() {
     .where(eq(schema.graduationFinalizedEvents.chainId, config.chainId));
 
   // Resolved markets freeze trading, so the keeper only maintains venues
-  // that are still live.
-  return rows.filter((row) => row.status === "graduated");
+  // that are still live — which includes the whole dispute window, where the
+  // venue keeps trading while a proposed resolution waits out its deadline
+  // (ADR 0024). Pinning this to `graduated` would strand every market's venue
+  // unmaintained for the length of its window.
+  return rows.filter((row) => isAwaitingResolution(row.status));
 }
 
 /**

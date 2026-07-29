@@ -158,6 +158,20 @@ describe("MarketPositionPanel graduated positions", () => {
     expect(screen.queryByText("Your receipts")).not.toBeInTheDocument();
   });
 
+  it.each(["resolution_pending", "disputed"] as const)(
+    "shows positions for a %s market inside its dispute window",
+    (status) => {
+      render(<MarketPositionPanel market={graduatedMarket({ status })} />);
+
+      // The holder's stake is in outcome tokens the moment the market
+      // graduates; a proposed or disputed resolution does not put it back in
+      // the receipt book.
+      expect(screen.getByText("Your position")).toBeInTheDocument();
+      expect(screen.getByText("140 tok")).toBeInTheDocument();
+      expect(screen.queryByText("Your receipts")).not.toBeInTheDocument();
+    }
+  );
+
   it("shows positions for a postgrad cancelled draw", () => {
     render(
       <MarketPositionPanel

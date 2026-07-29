@@ -44,6 +44,19 @@ const STATUS: Record<MarketStatus, { color: string; label: string; pulse: boolea
     label: "Rejected",
     pulse: false,
   },
+  // Dispute window (ADR 0024). Minimal badges so the board stays legible the
+  // moment the indexer can produce these; the countdown, proposed side and
+  // dispute action are ADR 0024 Phase 4's surfaces, not this pill's.
+  resolution_pending: {
+    color: "var(--status-resolution-pending)",
+    label: "Resolution pending",
+    pulse: true,
+  },
+  disputed: {
+    color: "var(--status-disputed)",
+    label: "Disputed",
+    pulse: true,
+  },
 };
 
 export function StatusPill({

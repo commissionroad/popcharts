@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
 import type { db as productionDb } from "src/db/client";
 import { schema, setDbForTesting } from "src/db/client";
+import type { MarketStatus } from "src/db/schema/markets";
 import { createPgliteDb } from "src/test-support/pglite-db";
 
 const MARKET_ID = 77n;
@@ -13,6 +14,10 @@ const MARKET_ID = 77n;
 const DRAW_MARKET_ID = 78n;
 const RESOLVED_MARKET_ID = 79n;
 const PREGRAD_CANCELLED_MARKET_ID = 80n;
+// A graduated market sitting in its dispute window (ADR 0024). It has a
+// GraduationFinalized row and no terminal resolution yet, so its detail read
+// must still carry the postgrad block the redemption surfaces depend on.
+const IN_DISPUTE_WINDOW_MARKET_ID = 81n;
 const POSTGRAD_ADAPTER = "0x00000000000000000000000000000000000000cd";
 const POSTGRAD_MARKET = "0x00000000000000000000000000000000000000ce";
 const TERMINAL_CREATED_AT = new Date("2026-07-13T12:00:00.000Z");
@@ -95,12 +100,17 @@ beforeAll(async () => {
     yesShares: 55_555_555_555_555_555_555_555n,
   });
 
-  // Terminal-state fixtures: a postgrad draw (cancelled with venue history),
-  // a resolved market, and a pregrad admin-cancel (no graduation row).
+  // Post-graduation fixtures: a postgrad draw (cancelled with venue history),
+  // a resolved market, a pregrad admin-cancel (no graduation row), and a
+  // market still inside its dispute window.
   const terminalMarkets = [
     { marketId: DRAW_MARKET_ID, status: "cancelled" as const },
     { marketId: RESOLVED_MARKET_ID, status: "resolved" as const },
     { marketId: PREGRAD_CANCELLED_MARKET_ID, status: "cancelled" as const },
+    {
+      marketId: IN_DISPUTE_WINDOW_MARKET_ID,
+      status: "resolution_pending" as const,
+    },
   ];
   for (const [index, terminal] of terminalMarkets.entries()) {
     await dbc.insert(schema.markets).values({
@@ -133,6 +143,7 @@ beforeAll(async () => {
   for (const [index, marketId] of [
     DRAW_MARKET_ID,
     RESOLVED_MARKET_ID,
+    IN_DISPUTE_WINDOW_MARKET_ID,
   ].entries()) {
     await dbc.insert(schema.graduationFinalizedEvents).values({
       blockNumber: 9_223_372_036_854_775_100n,
@@ -233,7 +244,7 @@ function expectedMarket() {
  */
 function expectedTerminalMarket(
   marketId: bigint,
-  status: "cancelled" | "resolved",
+  status: MarketStatus,
   index: number,
 ) {
   return {
@@ -287,6 +298,21 @@ function expectedResolvedMarket() {
   };
 }
 
+/**
+ * A market mid-dispute-window keeps every postgrad field a settled market has,
+ * minus the terminal resolution it is still waiting for.
+ */
+function expectedInDisputeWindowMarket() {
+  return {
+    ...expectedTerminalMarket(
+      IN_DISPUTE_WINDOW_MARKET_ID,
+      "resolution_pending",
+      3,
+    ),
+    postgrad: expectedPostgrad(),
+  };
+}
+
 describe("market routes", () => {
   it("lists the seeded market through the chainId filter with exact serialization", async () => {
     const response = await app.handle(
@@ -302,7 +328,21 @@ describe("market routes", () => {
       expectedDrawMarket(),
       expectedResolvedMarket(),
       expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
+      expectedInDisputeWindowMarket(),
     ]);
+  });
+
+  it("keeps the postgrad payload on a market inside its dispute window", async () => {
+    const response = await app.handle(
+      new Request(
+        `http://localhost/markets/${chainId}/${IN_DISPUTE_WINDOW_MARKET_ID}`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    // Pinning the lookup to `graduated` drops this block entirely, taking the
+    // child-market address, adapter and mint totals with it.
+    expect(await response.json()).toEqual(expectedInDisputeWindowMarket());
   });
 
   it("keeps the postgrad payload on a draw-cancelled market detail read", async () => {
