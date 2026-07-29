@@ -41,8 +41,10 @@ export const resolutionJobTrigger = pgEnum("resolution_job_trigger", [
 // Two distinct time controls (see the temporal validity guardrails, ADR 0012):
 //   - notBefore: the hard floor — the market's earliest legitimate resolution
 //     time (yesNotBefore). A job is never claimable before it.
-//   - runAfter: the mutable scheduling knob — retry backoff, the operator delay
-//     window, and too_early re-queues all bump this.
+//   - runAfter: the mutable scheduling knob — retry backoff and too_early
+//     re-queues bump this. It was also reserved for an off-chain operator delay
+//     window; that never shipped, superseded by the on-chain dispute window the
+//     runner's proposal opens (repo ADR 0024, protocol ADR 0013).
 export const marketResolutionJobs = pgTable(
   "market_resolution_jobs",
   {

@@ -142,19 +142,21 @@ exactly the escape hatch it exists for.
    ungated (postponement escape hatch). The per-outcome gate — not a single floor
    — is what actually enforces the asymmetry on-chain: without it, a compromised
    resolver key could submit a premature NO between `yesNotBefore` and the true
-   deadline, and the 24h operator delay wouldn't help (a direct `resolve` call
-   bypasses the runner and the delay). Both values flow purely on-chain:
+   deadline, and no off-chain delay would help (a direct contract call bypasses
+   the runner entirely). Both values flow purely on-chain:
    `createMarket` → `MarketCreated` → graduation plumbs `yesNotBefore` and
    `resolutionTime` through `CompleteSetPostgradAdapter` into the child market's
    constructor. This is the backstop that holds *even if the resolver key is
    compromised or the runner is buggy*, and it closes ADR 0008's open
    on-chain-gating item.
-5. **Operator delay/override (§9).** Unchanged — the 24h Arc window still sits on
-   top of a confident, in-window verdict.
+5. **Dispute window (§9).** A confident, in-window verdict is *proposed*
+   on-chain, not resolved; the public dispute window on top of it is where an
+   operator override or a bonded public dispute lands.
 
-Layers 2–3 and 5 are off-chain and land with the resolution vertical; layer 1's
+Layers 2–3 are off-chain and land with the resolution vertical; layer 1's
 review-policy check is off-chain too. Layer 4 — plus the `yes_not_before`
-parameter it depends on — is the protocol slice (§14, slice 0), human-reviewed
+parameter it depends on — is the protocol slice (§14, slice 0), and layer 5 is
+the dispute-window protocol slice (protocol ADR 0013); both are human-reviewed
 per the funds-holding-contract rule.
 
 ## 4. Architecture — parallels to AI review
@@ -279,8 +281,8 @@ reclaim.
 `resolution_sources`, `resolution_url`, the question text), call the service,
 apply the per-outcome time gate, then map `verdict` → action:
 - `resolve_yes` (confident, evidence-backed, `now ≥ yes_not_before`) /
-  `resolve_no` (…, `now ≥ no_not_before`) → on-chain `resolve(side)`, withheld
-  behind the delay window (§9). A YES/NO that arrives before its gate is treated
+  `resolve_no` (…, `now ≥ no_not_before`) → on-chain `proposeResolution(side)`,
+  which opens the dispute window (§9). A YES/NO that arrives before its gate is treated
   as `too_early` (defensive — the enqueue gate should already prevent it).
 - `requeue_too_early` → bump `run_after` and re-queue; no audit-terminal, no
   on-chain action.
@@ -323,13 +325,16 @@ unknown outcome → abstain, invented sources dropped, confidence clamped).
 1. **Abstention threshold** (`RESOLUTION_ABSTENTION_THRESHOLD`, env-configurable).
    Set to **0.85**; below it, verdicts park in `manual_review`, and a market is
    never auto-resolved with zero surviving evidence.
-2. **Operator delay/override window** (`RESOLUTION_DELAY_MS`). A confident verdict
-   is persisted, but the on-chain `resolve` is withheld until `resolved_at +
-   RESOLUTION_DELAY_MS`, during which an operator can override or cancel it.
-   Implemented with the queue's `run_after`: on a confident verdict the runner
-   persists the audit and re-queues the *submission* step with `run_after = now +
-   delay`, rather than submitting inline. Set to **0 on `local`** (tests need
-   immediacy) and **24h on Arc Testnet**.
+2. **On-chain dispute window.** Superseded the planned off-chain
+   `RESOLUTION_DELAY_MS` before it was ever built (repo ADR 0024, protocol
+   ADR 0013): a confident verdict is submitted immediately as
+   `proposeResolution(side)`, and the contract's own window — 24h on deployed
+   networks, zero locally — is the delay. During it anyone may `dispute()`
+   against a bond and the resolver may self-dispute bond-free, which is the
+   operator-override path. The keeper calls the permissionless
+   `finalizeResolution()` once the window closes. An off-chain delay would only
+   have bound the runner; the on-chain window binds every path to `resolve`,
+   and it gives market participants — not just the operator — recourse.
 
 These are the only safety valves on testnet, and both are conservative by
 default, per ADR 0012. Draws bypass the auto path entirely (§5).
@@ -380,8 +385,9 @@ reject / replace a pending verdict, gated by the **shared operator auth** (ADR
 **Config** — new `server/src/ai-resolution/config.ts`:
 `AI_RESOLUTION_PROMPT_VERSION = "market-ai-resolution-v1"`, `AI_RESOLUTION_PROVIDER`,
 `AI_RESOLUTION_INTERNET_ACCESS`, `AI_RESOLUTION_PORT` (propose 3004),
-`RESOLUTION_ABSTENTION_THRESHOLD`, `RESOLUTION_DELAY_MS`, Anthropic/Ollama model
-vars mirroring review. Runner config mirrors
+`RESOLUTION_ABSTENTION_THRESHOLD`, Anthropic/Ollama model
+vars mirroring review. (A `RESOLUTION_DELAY_MS` was planned here and never
+built; the on-chain dispute window replaced it — §9.) Runner config mirrors
 `ai-review-runner/config.ts` (`AI_RESOLUTION_RUNNER_*`, `AI_RESOLUTION_SERVICE_URL`).
 
 **Orchestration** — add `resolution-service` and `resolution-runner` to
@@ -401,8 +407,10 @@ watcher, `markets.status = resolved`). A second seeded market before its
 
 1. **Abstention threshold — 0.85** + require ≥1 surviving evidence item. Below
    it, park for a human.
-2. **Operator delay window — 24h on Arc Testnet, 0 on local.** Confident
-   verdicts wait this long (overridable) before on-chain submission.
+2. ~~**Operator delay window — 24h on Arc Testnet, 0 on local.**~~ Superseded
+   2026-07-20 by the on-chain dispute window (repo ADR 0024) before any code
+   shipped: confident verdicts are proposed immediately and the contract holds
+   them open for the same 24h. See §9.2.
 3. **Draws — always manual.** A `draw` verdict never auto-cancels; it always
    parks for an operator to confirm `cancel()`.
 4. **Trusted-creator self-resolve — included in the first build** (slice 6),
@@ -439,8 +447,8 @@ watcher, `markets.status = resolved`). A second seeded market before its
 3. **Service** — provider registry, policy/prompt (incl. the `too_early`
    outcome), `resolution-parsing`, `POST /resolutions/market`, reuse `safe-web`.
 4. **Runner** — discovery (`yes_not_before` gate) + claim/lease + per-outcome
-   time gate + `chain-resolution` guarded submission + delay-window re-queue +
-   `too_early` re-queue.
+   time gate + `chain-resolution` guarded proposal submission + `too_early`
+   re-queue.
 5. **Indexer watcher** — `MarketResolved`/`MarketCancelled` → `markets.status`
    (coordinated with ADR 0010).
 6. **Operator override + trusted-creator self-resolve** — `admin-resolution`
