@@ -12,6 +12,7 @@ export * from "./markets";
 export * from "./outcome-token-balances";
 export * from "./outcome-token-transfer-events";
 export * from "./pool-price-ticks";
+export * from "./postgrad-dispute-bond-events";
 export * from "./postgrad-dispute-events";
 export * from "./postgrad-redemption-events";
 export * from "./postgrad-resolution-events";
