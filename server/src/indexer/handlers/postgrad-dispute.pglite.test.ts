@@ -24,6 +24,7 @@ import {
   persistPostgradDisputeBondRecord,
   type PostgradDisputeBondRecord,
 } from "src/indexer/handlers/postgrad-dispute-bond";
+import { MarketStatusOutOfOrderError } from "src/indexer/handlers/market-projection";
 import {
   persistPostgradResolutionRecord,
   type PostgradResolutionRecord,
@@ -208,7 +209,7 @@ describe("persistPostgradDisputeRecord against real SQL (PGlite)", () => {
 
     await persistPostgradDisputeRecord(disputeRecord(), dbc);
 
-    // The late proposal matches none of its own predecessors and no-ops.
+    // The late proposal finds the market already past its target and no-ops.
     expect(await marketStatus()).toBe("disputed");
   });
 
@@ -224,12 +225,20 @@ describe("persistPostgradDisputeRecord against real SQL (PGlite)", () => {
     expect(await marketStatus()).toBe("resolved");
   });
 
-  it("does not skip the proposal guard when the market is still bootstrapping", async () => {
+  it("throws and rolls the event back when the market is in no valid predecessor", async () => {
     await setMarketStatus("bootstrap");
 
-    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+    await expect(
+      persistPostgradDisputeRecord(disputeRecord(), dbc),
+    ).rejects.toThrow(MarketStatusOutOfOrderError);
 
     expect(await marketStatus()).toBe("bootstrap");
+    // The rollback is the point: a committed event row would make every later
+    // replay dedupe out before reaching the projection, losing it forever.
+    const [events] = await dbc
+      .select({ value: count() })
+      .from(schema.postgradDisputeEvents);
+    expect(events!.value).toBe(0);
   });
 });
 
@@ -276,11 +285,31 @@ describe("persistPostgradResolutionRecord terminal guard (PGlite)", () => {
     expect(await marketStatus()).toBe("resolved");
   });
 
-  it("leaves a market that never graduated alone", async () => {
-    await setMarketStatus("bootstrap");
+  it("throws and rolls back rather than losing a terminal status forever", async () => {
+    // The bug this guards: the raw event row used to commit while the guarded
+    // UPDATE matched nothing, and the next replay deduped out before it could
+    // retry — leaving a market that reads graduated while the chain says
+    // Resolved, permanently and silently.
+    await setMarketStatus("graduating");
+
+    await expect(
+      persistPostgradResolutionRecord(resolutionRecord(), dbc),
+    ).rejects.toThrow(MarketStatusOutOfOrderError);
+
+    expect(await marketStatus()).toBe("graduating");
+    const [events] = await dbc
+      .select({ value: count() })
+      .from(schema.postgradResolutionEvents);
+    expect(events!.value).toBe(0);
+  });
+
+  it("no-ops when the market already reached a terminal status", async () => {
+    await setMarketStatus("cancelled");
 
     await persistPostgradResolutionRecord(resolutionRecord(), dbc);
 
-    expect(await marketStatus()).toBe("bootstrap");
+    // A contradiction the chain cannot emit; throwing here would wedge the
+    // shared postgrad cursor forever, so it is treated as already settled.
+    expect(await marketStatus()).toBe("cancelled");
   });
 });

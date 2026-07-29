@@ -2,9 +2,10 @@ import { contractSideToMarketSide, type MarketSide } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
-import { db, and, eq, inArray, schema } from "src/db/client";
+import { db, schema } from "src/db/client";
 import type { MarketStatus } from "src/db/schema/markets";
 import type { PostgradResolutionKind } from "src/db/schema/postgrad-resolution-events";
+import { applyMarketStatusTransition } from "src/indexer/handlers/market-projection";
 import { recordLiveChange } from "src/change-feed/writer";
 
 export type { PostgradResolutionKind };
@@ -89,11 +90,29 @@ const RESOLVABLE_STATUSES = [
 ] as const satisfies readonly MarketStatus[];
 
 /**
+ * Both terminal statuses count as "already settled" for either kind: a market
+ * that is `cancelled` when a MarketResolved arrives (or the reverse) is a
+ * contradiction the chain cannot produce.
+ *
+ * Do not "tidy" these into the ordering-fault branch for consistency. The
+ * postgrad watcher runs ONE cursor for every event family, so a handler that
+ * throws forever stops redemptions, complete-set events and bond events for
+ * every market — a permanent outage traded for a louder signal about a state
+ * that cannot occur. A no-op is the right answer for an impossible input.
+ */
+const SETTLED_STATUSES = [
+  "resolved",
+  "cancelled",
+] as const satisfies readonly MarketStatus[];
+
+/**
  * Persists the raw event row and flips the markets projection into its
  * terminal resolution status. The event insert dedupes on (chain, tx, log),
- * and the projection update is guarded on the market still being in a
- * resolvable status, so a replayed or out-of-order log can never overwrite a
- * status another authority has moved.
+ * and the projection is guarded on the market still being in a resolvable
+ * status, so a replayed log can never overwrite a status another authority has
+ * moved. An arrival from any other status throws rather than committing the
+ * raw row with no projection — that combination would lose the terminal status
+ * permanently, because every later replay dedupes out before reaching here.
  */
 export async function persistPostgradResolutionRecord(
   record: PostgradResolutionRecord,
@@ -117,19 +136,16 @@ export async function persistPostgradResolutionRecord(
       return;
     }
 
-    await tx
-      .update(schema.markets)
-      .set({
-        status: targetStatus,
-        updatedAt: record.event.blockTimestamp,
-      })
-      .where(
-        and(
-          eq(schema.markets.chainId, record.event.chainId),
-          eq(schema.markets.marketId, record.event.marketId),
-          inArray(schema.markets.status, [...RESOLVABLE_STATUSES]),
-        ),
-      );
+    await applyMarketStatusTransition(tx, {
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      transition: {
+        atOrPast: SETTLED_STATUSES,
+        from: RESOLVABLE_STATUSES,
+        to: targetStatus,
+      },
+      updatedAt: record.event.blockTimestamp,
+    });
 
     await recordLiveChange(tx, {
       sourceTable: "postgrad_resolution_events",

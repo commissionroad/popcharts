@@ -7,9 +7,12 @@ import {
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
-import { db, and, eq, inArray, schema } from "src/db/client";
-import type { MarketStatus } from "src/db/schema/markets";
+import { db, schema } from "src/db/client";
 import type { PostgradDisputeKind } from "src/db/schema/postgrad-dispute-events";
+import {
+  applyMarketStatusTransition,
+  type MarketStatusTransition,
+} from "src/indexer/handlers/market-projection";
 import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
 import { recordLiveChange } from "src/change-feed/writer";
 
@@ -120,34 +123,35 @@ export function buildPostgradDisputeRecord({
  * dispute arrives means only that the proposal log has not been applied yet —
  * a recovery sweep and the live subscription racing on a market discovered
  * mid-window. Accepting it makes the projection right either way: the
- * late-arriving proposal then finds the market in `disputed`, matches none of
- * its own predecessors, and no-ops, leaving the correct status rather than a
- * countdown that will never finalize. `resolved` and `cancelled` stay out of
- * both sets, so no dispute can pull a terminal market back into the window.
+ * late-arriving proposal then finds the market already at or past its target
+ * and no-ops, leaving the correct status rather than a countdown that will
+ * never finalize. `resolved` and `cancelled` are `atOrPast` for both kinds, so
+ * no dispute can pull a terminal market back into the window. Any status
+ * outside both sets is an ordering fault and throws — see
+ * applyMarketStatusTransition.
  */
 const DISPUTE_TRANSITIONS = {
   proposed: {
-    from: ["graduated"] as const satisfies readonly MarketStatus[],
+    atOrPast: ["resolution_pending", "disputed", "resolved", "cancelled"],
+    from: ["graduated"],
     to: "resolution_pending",
   },
   disputed: {
-    from: [
-      "resolution_pending",
-      "graduated",
-    ] as const satisfies readonly MarketStatus[],
+    atOrPast: ["disputed", "resolved", "cancelled"],
+    from: ["resolution_pending", "graduated"],
     to: "disputed",
   },
-} as const satisfies Record<
-  PostgradDisputeKind,
-  { from: readonly MarketStatus[]; to: MarketStatus }
->;
+} as const satisfies Record<PostgradDisputeKind, MarketStatusTransition>;
 
 /**
  * Persists the raw dispute-lifecycle row and advances the markets projection
  * into `resolution_pending`/`disputed`. The event insert dedupes on
- * (chain, tx, log), and the projection update is guarded on the predecessor
- * status, so replays are no-ops and a market that already resolved is never
- * pulled back into the window.
+ * (chain, tx, log), and the projection is guarded on the predecessor status, so
+ * replays are no-ops and a market that already resolved is never pulled back
+ * into the window. An arrival from a status in neither set throws rather than
+ * committing the raw row with no projection — that combination would lose the
+ * transition permanently, because every later replay dedupes out before
+ * reaching here.
  */
 export async function persistPostgradDisputeRecord(
   record: PostgradDisputeRecord,
@@ -168,19 +172,12 @@ export async function persistPostgradDisputeRecord(
       return;
     }
 
-    await tx
-      .update(schema.markets)
-      .set({
-        status: transition.to,
-        updatedAt: record.event.blockTimestamp,
-      })
-      .where(
-        and(
-          eq(schema.markets.chainId, record.event.chainId),
-          eq(schema.markets.marketId, record.event.marketId),
-          inArray(schema.markets.status, [...transition.from]),
-        ),
-      );
+    await applyMarketStatusTransition(tx, {
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+      transition,
+      updatedAt: record.event.blockTimestamp,
+    });
 
     await recordLiveChange(tx, {
       sourceTable: "postgrad_dispute_events",
