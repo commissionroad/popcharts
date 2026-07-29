@@ -5,9 +5,9 @@ import {
   marketWhere,
   requireMarketUpdated,
   requireValue,
-  unixSecondsToDate,
   type SettlementLog,
 } from "src/indexer/handlers/settlement-shared";
+import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
 import { recordLiveChange } from "src/change-feed/writer";
 
 export type GraduationStartedLog = SettlementLog<{

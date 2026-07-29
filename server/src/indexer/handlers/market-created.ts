@@ -2,6 +2,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { schema } from "src/db/client";
+import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
 
 export type MarketCreatedLog = Log & {
   args: {
@@ -128,8 +129,4 @@ function requireValue<T>(value: T | null | undefined, name: string): T {
   }
 
   return value;
-}
-
-function unixSecondsToDate(value: bigint) {
-  return new Date(Number(value) * 1000);
 }
