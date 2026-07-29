@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0012 — AI-assisted resolution
-description: Vertical ADR to build resolution as a sibling of AI review — service + leased runner deciding resolve/cancel from public evidence, with abstention to manual review and a local (not API) operator override; all ten items open.
+description: Vertical ADR to build resolution as a sibling of AI review — service + leased runner deciding resolve/cancel from public evidence, with abstention to manual review and a local (not API) operator override; the delay-window item is now superseded by ADR 0024's on-chain dispute window.
 sources:
   - docs/adr/0012-ai-assisted-resolution.md
-updated: 2026-07-14
+updated: 2026-07-24
 ---
 
 # Repo ADR 0012: AI-Assisted Resolution
@@ -37,14 +37,17 @@ markets past `resolutionTime`, persisting verdicts, and submitting
 `manual_review`-style states rather than resolving on-chain; a human decides.
 Deployment is ADR 0015.
 
-## Progress (all items unchecked as of 2026-07-07)
+## Progress (one item superseded as of 2026-07-24; the rest open)
 
 Design (write up as a design doc before implementation):
 
 - [ ] Verdict contract: outcome (yes/no/draw), confidence, evidence,
   abstention threshold below which resolution goes to manual review.
-- [ ] Dispute story for testnet: at minimum a delay window between verdict and
-  on-chain `resolve`, during which an operator can override.
+- [x] Dispute story for testnet — **superseded by
+  [root ADR 0024](root-adr-0024-resolution-dispute-program.md)**, which
+  replaces the off-chain delay window with an on-chain dispute window:
+  `resolve` proposes, a bonded `dispute` freezes the market, and an operator
+  settles.
 - [ ] Resolver key custody and its relationship to the review-manager key.
 - [ ] Interaction with `bypassAiResolution` (semantics finalized in ADR 0008):
   trusted creators may self-resolve; untrusted creators go through this

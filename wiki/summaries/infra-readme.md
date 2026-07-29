@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Infra README
-description: AWS CDK deployment shape for API + indexer — ECS Fargate, RDS Postgres + Proxy, Secrets Manager, optional ALB, two-phase enableServices deploy, singleton indexer
+description: AWS CDK deployment shape for API + indexer — ECS Fargate, RDS Postgres + Proxy, Secrets Manager, optional ALB, two-phase enableServices deploy, singleton indexer, and the first alarm (resolution disputes)
 sources:
   - infra/README.md
-updated: 2026-07-07
+updated: 2026-07-24
 ---
 
 # Infra README
@@ -57,6 +57,19 @@ RDS Proxy decouples API task count from DB connections. Production: two NAT
 gateways, API desired 2 / max 10, Multi-AZ RDS, longer backups, deletion
 protection; non-production uses smaller defaults. DB credentials are an
 RDS-generated secret injected as `DATABASE_USER`/`DATABASE_PASSWORD`.
+
+## Alarms
+
+The stack's first alarm (repo ADR 0024 phase 5): an SNS operator-alert topic
+plus a metric filter on the indexer log group that pages on the first
+resolution-dispute record the [indexer](../entities/indexer.md) writes — a
+dispute freezes a market until a human settles it. The topic subscriber is
+context (`-c operatorAlertEmail=…`), optional, so the stack synthesizes with
+no subscriber configured. The marker terms the filter matches are
+**deliberately duplicated** from the server rather than imported — `infra/`
+imports no workspace source ([monorepo architecture](../concepts/monorepo-architecture.md))
+— and a CDK assertion test is the keeper, building a record with the server's
+own formatter and failing if the synthesized filter no longer matches it.
 
 ## Verification and next steps
 

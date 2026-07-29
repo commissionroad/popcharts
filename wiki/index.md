@@ -79,7 +79,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0009](summaries/root-adr-0009-server-api-hardening.md) — dev/admin endpoints out of prod, rate limits, real graduation trigger, lifecycle API surface (3/12)
 - [ADR 0010](summaries/root-adr-0010-indexer-maturity.md) — reorgs, confirmation depth, failover, postgrad indexing (1/8; v4 venue watchers done)
 - [ADR 0011](summaries/root-adr-0011-ai-review-service-hardening.md) — harden AI review for unattended operation (3/8)
-- [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (checklist all open; detailed design accepted, build underway)
+- [ADR 0012](summaries/root-adr-0012-ai-assisted-resolution.md) — build resolution as a sibling of review (build underway; its delay-window item superseded by ADR 0024's on-chain dispute window)
 - [ADR 0013](summaries/root-adr-0013-app-feature-completion.md) — app across the full lifecycle incl. postgrad UX (2/14; postgrad-mode detail + receipt states done)
 - [ADR 0014](summaries/root-adr-0014-full-lifecycle-e2e-testing.md) — the every-terminal-state e2e suite; acceptance gate for M1–M4 (delivery re-homed into ADR 0017 Track C: service/chain layer + five UI journeys; all eight service/chain paths landed 2026-07-20/21 = ADR 0017 C3 complete; all five UI journeys landed 2026-07-22 = ADR 0017 C4 complete)
 - [ADR 0015](summaries/root-adr-0015-deployment-and-infrastructure.md) — CI + AWS + Arc deployment as M5 (1/13; Protocol CI done)
@@ -121,5 +121,5 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [App resolution README](summaries/app-domain-resolution-readme.md) — resolution is an intentional placeholder
 - [App integrations README](summaries/app-integrations-readme.md) — adapters-only boundary rule
 - [Server README](summaries/server-readme.md) — API + indexer + AI review setup (Ollama by default locally, heuristic fallback), endpoints, smoke flows
-- [Infra README](summaries/infra-readme.md) — AWS CDK shape (stale: still targets Base, pre-Arc)
+- [Infra README](summaries/infra-readme.md) — AWS CDK shape plus the first alarm, on resolution disputes (stale: still targets Base, pre-Arc)
 - [Designkit README](summaries/designkit-readme.md) — brand voice, vocabulary table, visual foundations

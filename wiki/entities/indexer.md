@@ -10,7 +10,7 @@ sources:
   - docs/portfolio-data-design.md
   - infra/README.md
   - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
-updated: 2026-07-20
+updated: 2026-07-24
 ---
 
 # Indexer
@@ -91,6 +91,20 @@ would give for free is instead recovered by a typed `sourceTable` + a coverage
 test that scans the seam dirs (the same `recordLiveChange` seam also lives in the
 two off-chain runners that append `market_ai_reviews` / `market_resolutions`,
 which an in-indexer-only emit would miss).
+
+## Operator alert seam (built 2026-07-24, [root ADR 0024](../summaries/root-adr-0024-resolution-dispute-program.md))
+
+A dispute is the one indexed event that is an operator page rather than a
+background write: it means a user staked a bond asserting the resolver got a
+market wrong, and the market is frozen until a human settles it. So the
+dispute handler writes a marker-prefixed record to stderr carrying chain,
+market, disputer, bond, and transaction hash, and the
+[infra](../summaries/infra-readme.md) stack keys a CloudWatch metric filter
+and alarm on it. It is raised after the row commits and only when the insert
+actually landed, so a rolled-back write cannot page and a recovery replay
+cannot page twice. The server is the master of the marker terms; the alarm
+holds an intentional duplicate (`infra/` imports no workspace source), pinned
+by an infra assertion test that builds a record with the server's formatter.
 
 ## Related pages
 

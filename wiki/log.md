@@ -1180,3 +1180,17 @@ checklist item saying "keep `contract-abi-parity.test.ts` pins honest" — that
 test was deleted in 44479d0 (2026-07-21), before Phase 1 landed, so the item
 was checked off against a file that no longer existed. Left alone here to avoid
 conflicting with the in-flight dispute PR stack.
+
+## [2026-07-24] ingest | ADR 0024 phase 5 — operator alarm on resolution disputes
+Pages: ~summaries/infra-readme.md, ~summaries/root-adr-0012-ai-assisted-resolution.md,
+~concepts/deployment-and-infrastructure.md, ~entities/indexer.md, ~index.md
+Notes: ADR 0012's delay-window design item is now checked and points at
+ADR 0024's on-chain dispute window, which supersedes it. `infra/` gains its
+first alarm — an SNS topic plus a metric filter on the indexer log group,
+and CDK assertion tests over the synthesized template (also the first of ADR
+0017 track E's missing infra assertions). The alarm's marker terms are an
+intentional duplicate of the server's, added to the duplication doctrine's
+spirit rather than imported: `infra/` imports no workspace source, so the
+keeper is a test that builds a record with the server's own formatter. ADR
+0015's broader alarm checkbox is deliberately left open: none of the items it
+lists were built.

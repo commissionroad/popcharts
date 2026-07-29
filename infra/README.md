@@ -48,6 +48,8 @@ command selects either `/app/dist/api/index.js` or
 - Secrets Manager secret for generated DB credentials.
 - Secrets Manager secret placeholder for the network RPC WebSocket URL.
 - CloudWatch log groups for API, indexer, and migration tasks.
+- An SNS operator-alert topic, plus a metric filter and alarm that page when
+  the indexer records a resolution dispute (repo ADR 0024).
 - Fargate task definitions for API, indexer, and one-off Drizzle migrations.
 - Optional API ALB, API ECS service with autoscaling, and singleton indexer ECS
   service when `enableServices=true`.
@@ -81,7 +83,12 @@ Useful context values:
 -c pregradManagerDeployBlock=123456
 -c certificateArn=arn:aws:acm:...
 -c domainName=api.example.com
+-c operatorAlertEmail=oncall@example.com # subscribe on-call to alarms
 ```
+
+Without `operatorAlertEmail` the topic and alarms are still created, they just
+have no subscriber; set it (and confirm the subscription from the mailbox)
+before treating the alarms as a page.
 
 Example first pass:
 
@@ -200,7 +207,12 @@ Look for:
 - Add a GitHub Actions deploy workflow that builds `server/Dockerfile`, pushes
   to ECR, runs the migration task, then updates both ECS services.
 - Add CloudWatch alarms for ALB 5xx, target health, ECS restarts, RDS CPU,
-  RDS connections, free storage, and indexer cursor lag.
+  RDS connections, free storage, and indexer cursor lag. The
+  resolution-dispute alarm in `lib/log-pattern-alarm.ts` is the pattern to
+  follow: one topic, one construct, assertion-tested against the synthesized
+  template in `test/`. Its marker terms are an intentional duplicate of the
+  server's — this workspace imports no workspace source — kept honest by the
+  assertion test rather than by an import. Do not "fix" it into one.
 - Add Route 53 alias records once the API domain is selected.
 - Add a DB-backed indexer lease before running more than one indexer task.
 - Promote Base Sepolia first, then duplicate the context for Base production.

@@ -49,6 +49,11 @@ jobs:
             - infra/**
             # infra/tsconfig.json extends the repo-root base config.
             - tsconfig.base.json
+            # The dispute alarm's marker terms are deliberately duplicated
+            # from this server module (infra imports no workspace source), and
+            # the assertion tests pin the two copies together; a change there
+            # must re-run this lane or the drift lands unseen.
+            - server/src/shared/operator-alert-log.ts
             - .github/workflows/infra-ci.yml
 
   infra:
@@ -82,6 +87,12 @@ jobs:
 
       - name: Typecheck
         run: pnpm build
+
+      # Assertion tests synthesize the stack and assert on the template. They
+      # also load server/src/shared/operator-alert-log.ts to pin the duplicated
+      # alarm markers — test-only, and checkout is repo-wide.
+      - name: Test
+        run: pnpm test
 
       - name: Synthesize stacks
         run: pnpm synth --quiet

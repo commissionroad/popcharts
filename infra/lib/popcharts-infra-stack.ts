@@ -7,7 +7,11 @@ import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import type { Construct } from "constructs";
+
+import { LogPatternAlarm } from "./log-pattern-alarm.js";
 
 export type NetworkId = "baseSepolia" | "base";
 
@@ -18,10 +22,33 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
   enableIndexerService: boolean;
   enableResolutionService: boolean;
   network: NetworkId;
+  /**
+   * Address subscribed to the operator-alert topic. Optional so the stack
+   * synthesizes and deploys before an on-call address exists; the topic and
+   * alarm are still created, they just have no subscriber until one is set.
+   */
+  operatorAlertEmail?: string;
   pregradManagerAddress: string;
   pregradManagerDeployBlock: string;
   stage: string;
 };
+
+/**
+ * Marker terms the indexer prefixes to an operator-alert record, and which the
+ * dispute metric filter matches (case-sensitively).
+ *
+ * Deliberately duplicated from `server/src/shared/operator-alert-log.ts`
+ * rather than imported — do not "fix" this into an import. `infra/` is
+ * self-contained and imports no workspace source; workspaces couple only via
+ * `@popcharts/protocol`, committed generated artifacts, or the network
+ * (`docs/architecture.md`), and bending that boundary needs an ADR, not a
+ * relative path. The duplication has a keeper instead:
+ * `test/resolution-disputed-alarm.test.ts` builds a record with the server's
+ * own formatter and fails if these terms no longer occur in it, and infra CI's
+ * path filter includes that server module so either side's change re-runs it.
+ */
+const OPERATOR_ALERT_MARKER = "POPCHARTS_OPERATOR_ALERT";
+const RESOLUTION_DISPUTED_ALERT_EVENT = "resolution_disputed";
 
 const DATABASE_NAME = "popcharts";
 const DATABASE_USER = "popcharts";
@@ -179,6 +206,38 @@ export class PopChartsInfraStack extends cdk.Stack {
       logGroupName: `/ecs/${namePrefix}-indexer`,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       retention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const operatorAlertTopic = new sns.Topic(this, "OperatorAlertTopic", {
+      displayName: `${namePrefix} operator alerts`,
+      topicName: `${namePrefix}-operator-alerts`,
+    });
+
+    if (props.operatorAlertEmail) {
+      operatorAlertTopic.addSubscription(
+        new snsSubscriptions.EmailSubscription(props.operatorAlertEmail),
+      );
+    }
+
+    // A dispute means a user staked a bond asserting the resolver got a market
+    // wrong, and the market is frozen until a human settles it (repo ADR 0024
+    // phase 5). Created with the log group rather than with the indexer
+    // service, so the page exists before the service that raises it.
+    new LogPatternAlarm(this, "ResolutionDisputedAlarm", {
+      alarmDescription: [
+        "A graduated market's resolution was disputed and the market is",
+        "frozen until an operator settles it. The matching record in the",
+        "indexer log group carries the market address, disputer and bond.",
+      ].join(" "),
+      alarmName: `${namePrefix}-resolution-disputed`,
+      filterPattern: logs.FilterPattern.allTerms(
+        OPERATOR_ALERT_MARKER,
+        RESOLUTION_DISPUTED_ALERT_EVENT,
+      ),
+      logGroup: indexerLogGroup,
+      metricName: "ResolutionDisputed",
+      metricNamespace: `PopCharts/${props.stage}`,
+      topic: operatorAlertTopic,
     });
 
     const migrationLogGroup = new logs.LogGroup(this, "MigrationLogGroup", {
@@ -447,6 +506,9 @@ export class PopChartsInfraStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "PrivateSubnetIds", {
       value: cdk.Fn.join(",", privateSubnetIds),
+    });
+    new cdk.CfnOutput(this, "OperatorAlertTopicArn", {
+      value: operatorAlertTopic.topicArn,
     });
   }
 
