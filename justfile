@@ -16,6 +16,12 @@ default:
 setup:
     pnpm run setup
 
+[doc('Install dependencies with repo-local stores for restricted sandboxes')]
+setup-sandbox:
+    npm_config_store_dir="{{ justfile_directory() }}/.local-dev/pnpm-store" \
+      BUN_INSTALL_CACHE_DIR="{{ justfile_directory() }}/.local-dev/bun-cache" \
+      pnpm run setup
+
 dev:
     pnpm run dev
 

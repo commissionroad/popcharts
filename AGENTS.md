@@ -22,6 +22,9 @@
   without explicit user approval. If a tool installer may change shell profiles,
   global config, home-directory caches, keychains, or other user files, ask first
   or use a non-mutating/local alternative.
+- In restricted sandboxes that cannot write to user-level package stores, run
+  `mise exec -- just setup-sandbox` after `mise install`. Keep `just setup` as
+  the standard human path so pnpm and Bun retain their shared-store defaults.
 - For UI-impacting work, use `skills/engineering/ui-pr-verification/SKILL.md`
   before publishing or updating a PR. Verify the real local user path when
   feasible, capture a screenshot of the changed state, and include the local

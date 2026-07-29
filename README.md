@@ -28,6 +28,13 @@ pnpm run setup
 pnpm run dev
 ```
 
+In a restricted sandbox that cannot write to user-level package stores, keep
+the dependency stores inside the repository:
+
+```bash
+mise exec -- just setup-sandbox
+```
+
 The default dev server is the Next.js app in `app/`. Run `just --list` to see
 the full command menu.
 
@@ -134,6 +141,7 @@ an app metadata POST.
 
 ```bash
 just setup          # install app and protocol dependencies
+just setup-sandbox  # install dependencies using repo-local package stores
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
 just local-dev-control # run the split-log local dev control plane
