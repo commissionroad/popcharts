@@ -4,6 +4,9 @@ import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
 
 import type { CompleteSetKind } from "src/db/schema/complete-set-events";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Complete-set log");
 
 export type CompleteSetsMintedLog = Log & {
   args: {
@@ -109,12 +112,4 @@ export async function persistCompleteSetEventRecord(
     .insert(schema.completeSetEvents)
     .values(record.event)
     .onConflictDoNothing();
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Complete-set log is missing ${name}.`);
-  }
-
-  return value;
 }

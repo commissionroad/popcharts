@@ -6,6 +6,9 @@ import { and, db, eq, schema, sql } from "src/db/client";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 import { buildPriceTick } from "src/change-feed/receipt-price-tick";
 import { recordLiveChange } from "src/change-feed/writer";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("ReceiptPlaced log");
 
 export type ReceiptPlacedLog = Log & {
   args: {
@@ -132,12 +135,4 @@ export async function persistReceiptPlacedRecord(
       }),
     });
   });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`ReceiptPlaced log is missing ${name}.`);
-  }
-
-  return value;
 }

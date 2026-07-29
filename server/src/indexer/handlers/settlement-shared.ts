@@ -3,6 +3,10 @@ import type { Log } from "viem";
 import type { NetworkConfig } from "src/config";
 import { and, eq, schema } from "src/db/client";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+/** Settlement events share one log shape, so they share one guard label. */
+export const requireValue = logValueRequirer("Settlement log");
 
 export type BaseSettlementArgs = {
   marketId?: bigint;
@@ -54,12 +58,4 @@ export function marketWhere(record: { chainId: number; marketId: bigint }) {
     eq(schema.markets.chainId, record.chainId),
     eq(schema.markets.marketId, record.marketId),
   );
-}
-
-export function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Settlement log is missing ${name}.`);
-  }
-
-  return value;
 }

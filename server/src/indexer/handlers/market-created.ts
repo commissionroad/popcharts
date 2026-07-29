@@ -2,7 +2,10 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { schema } from "src/db/client";
+import { logValueRequirer } from "src/indexer/utils/log-values";
 import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
+
+const requireValue = logValueRequirer("MarketCreated log");
 
 export type MarketCreatedLog = Log & {
   args: {
@@ -121,12 +124,4 @@ export function buildMarketCreatedRecords({
       status: "under_review",
     },
   };
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`MarketCreated log is missing ${name}.`);
-  }
-
-  return value;
 }

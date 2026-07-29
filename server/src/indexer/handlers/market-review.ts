@@ -4,6 +4,9 @@ import type { MarketStatus } from "src/api/models/markets";
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Market review log");
 
 export type MarketReviewLog = Log & {
   args: {
@@ -84,12 +87,4 @@ export async function persistMarketReviewStatusUpdate(
   if (!market) {
     throw new MarketNotIndexedError(update);
   }
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Market review log is missing ${name}.`);
-  }
-
-  return value;
 }
