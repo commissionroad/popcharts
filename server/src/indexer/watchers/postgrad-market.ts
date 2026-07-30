@@ -31,6 +31,7 @@ import {
   type PostgradMarketCancelledLog,
   type PostgradMarketResolvedLog,
 } from "src/indexer/handlers/postgrad-resolution";
+import { retryUntilMarketIndexed } from "src/indexer/handlers/market-projection";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 import {
@@ -233,9 +234,22 @@ const watcher = createDynamicAddressWatcher({
     );
     const blockTimestamp = await getBlockTimestamp(client, log.blockNumber!);
 
-    await handle(
-      { blockTimestamp, config, contractId, marketId: market.marketId },
-      log,
+    // Wait for the markets row rather than treating its absence as a fault,
+    // matching every other watcher that projects onto markets (settlement,
+    // market-review, receipt-placed). A postgrad market reaches this registry
+    // through GraduationFinalized, whose handler writes the row, so the race
+    // should not be reachable — but "should not" is why the other watchers
+    // wrap it too, and an unwrapped MarketNotIndexedError parks this market's
+    // cursor on the first tick instead of after the wait it would have needed.
+    // Wrapping the dispatch rather than each handler keeps the ten entries in
+    // POSTGRAD_MARKET_HANDLERS from each having to remember.
+    await retryUntilMarketIndexed(
+      () =>
+        handle(
+          { blockTimestamp, config, contractId, marketId: market.marketId },
+          log,
+        ),
+      { label: log.eventName ?? LABEL },
     );
   },
   label: LABEL,

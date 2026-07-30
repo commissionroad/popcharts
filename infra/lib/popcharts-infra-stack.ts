@@ -243,17 +243,19 @@ export class PopChartsInfraStack extends cdk.Stack {
     });
 
     // A status-projecting event reached a market in a status the projection
-    // does not accept. The throw abandons the sweep that hit it and the next
-    // tick faults on the same log, so that watcher stalls for at least every
-    // market sharing the cursor and never self-clears — nothing crashes and
-    // nothing is lost, which is why it needs a page to be seen at all.
+    // does not accept. The indexer parks that market's cursor and keeps
+    // faulting on the same log every tick, so its lifecycle events stop
+    // arriving and never resume on their own. Nothing crashes, nothing is
+    // lost, and every other market keeps indexing — which is exactly why this
+    // needs a page to be noticed at all.
     new LogPatternAlarm(this, "MarketStatusOutOfOrderAlarm", {
       alarmDescription: [
-        "The indexer rejected a market status projection as out of order,",
-        "stalling that watcher's market lifecycle indexing for at least every",
-        "market sharing the cursor until a human intervenes. The matching",
-        "record in the indexer log group carries the market, the status pair",
-        "that tripped the guard, and the log to replay.",
+        "The indexer rejected a market status projection as out of order and",
+        "parked that market's cursor; its lifecycle events stop arriving and",
+        "will not resume until a human intervenes. Other markets are",
+        "unaffected. The matching record in the indexer log group carries the",
+        "market, the status pair that tripped the guard, and the log to",
+        "replay.",
       ].join(" "),
       alarmName: `${namePrefix}-market-status-out-of-order`,
       filterPattern: logs.FilterPattern.allTerms(

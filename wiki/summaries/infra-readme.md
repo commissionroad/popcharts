@@ -68,10 +68,9 @@ pages exist:
 
 - **Resolution disputed** (repo ADR 0024 phase 5) — a dispute freezes a market
   until a human settles it.
-- **Market status out of order** — a status projection rejected an event, and
-  that throw abandons the sweep it was running under, so that watcher's market
-  lifecycle indexing stalls for at least every market sharing the cursor — not
-  just the offending one — and never self-clears.
+- **Market status out of order** — a status projection rejected an event, so
+  the indexer parked that market's cursor: its lifecycle events stop arriving
+  and never resume on their own. Other markets keep indexing.
 
 The topic subscriber is context (`-c operatorAlertEmail=…`), optional, so the
 stack synthesizes with no subscriber configured. The marker terms the filters

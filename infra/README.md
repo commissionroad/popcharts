@@ -50,9 +50,8 @@ command selects either `/app/dist/api/index.js` or
 - CloudWatch log groups for API, indexer, and migration tasks.
 - An SNS operator-alert topic, plus a metric filter and alarm per operator page
   the indexer records: a resolution dispute (repo ADR 0024), and an
-  out-of-order market status projection, which stalls that watcher's market
-  lifecycle indexing for at least every market sharing the cursor until a human
-  intervenes.
+  out-of-order market status projection, which parks that market's cursor so
+  its lifecycle events stop arriving until a human intervenes.
 - Fargate task definitions for API, indexer, and one-off Drizzle migrations.
 - Optional API ALB, API ECS service with autoscaling, and singleton indexer ECS
   service when `enableServices=true`.

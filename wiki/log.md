@@ -1225,3 +1225,27 @@ that contrast is now written down on both sides. The infra assertion test
 generalized from one alarm to a table over both, and gained two pins the
 single-alarm version could not express: the filter set on the indexer log
 group is exhaustive, and neither page's filter matches the other's record.
+
+## [2026-07-29] ingest | parked sweeps replace the abandon-the-pass fault
+Pages: ~entities/indexer.md, ~summaries/infra-readme.md
+Notes: Directly corrects the blast radius recorded in the entry above, which
+described the code as it then was. A handler fault used to escape the per-log
+loop AND the loop over contract groups, so one market in an unexpected status
+abandoned the whole sweep and starved every group the loop had not reached.
+The gentler pattern already existed in the same file — an unknown address
+returns false and parks one group — so the fix was to give handlers a way to
+say the same thing: a `ParkSweepError` base class the watcher catches at the
+per-log boundary. `MarketNotIndexedError` and `MarketStatusOutOfOrderError`
+both carry it; anything else still propagates, which stays right for a failure
+nobody anticipated. Blast radius is now one market rather than a range topping
+out at the whole watcher, so the ADR 0024 alarm's description was narrowed to
+match. Worth recording because a review caught it: the first cut parked the
+cursor *group*, which is wrong in the exact case that matters — in steady state
+every contract shares one watermark and so one group, swept in chain order, so
+parking the group still starves every market sorting after the bad log. Parking
+the individual address is what actually confines it, and a two-contract test
+with differing start blocks passes under both, which is how the first cut looked
+fine. Separately, the postgrad-market watcher was the last markets-projecting
+watcher not wrapping its dispatch in `retryUntilMarketIndexed`, so a benign
+"MarketCreated has not landed yet" race faulted there where it waits
+everywhere else.

@@ -116,21 +116,49 @@ commit rule is the *opposite* of the dispute page: it is raised inside the
 transaction that is about to roll back, because there the rollback is the
 incident and no committed row will record any of it.
 
-The page matters because the throw is blunter than one stalled event. It
-unwinds out of the watcher's per-log loop and its loop over contract groups,
-abandoning the rest of that sweep, and the next discovery tick re-fetches the
-same log and faults again — nothing self-clears. How far it spreads is set by
-the cursor grouping: contracts are grouped by shared watermark, so in steady
-state one market takes the whole pass with it, while once cursors diverge the
-groups split and only the faulting contract's group stays wedged. Floor is one
-cursor group, ceiling is every contract that watcher follows — and it stops
-there, because each watcher is its own closure, interval and cursor name, so
-the venue-order, pool-tick and token-transfer watchers keep indexing the same
-markets throughout. Live delivery is the other exception — `onLogs` catches per
-log, so a fault there is skipped rather than fatal, but it never moves a
-watermark, so the sweep hits the same wall. Nothing crashes and nothing is
-lost, which is exactly why the stall would otherwise be invisible. The record
+The page matters because nothing self-clears: the fault parks that market's
+cursor, the next discovery tick re-fetches the same log, and it faults again.
+The market's lifecycle events simply stop arriving. Other markets keep
+indexing, and sibling watchers (venue orders, pool ticks, token transfers) hold
+their own cursors and never notice — see [Parked sweeps](#parked-sweeps-built-2026-07-29)
+for why the blast radius is one market rather than the whole watcher. Live
+delivery is a separate path: `onLogs` catches per log, so a fault there parks
+nothing, but it never moves a watermark, so the sweep reaches the same
+conclusion. Nothing crashes and nothing is lost, which is exactly why the stall
+would otherwise be invisible. The record
 repeats each tick, holding the alarm in ALARM rather than lapsing back to OK.
+
+## Parked sweeps (built 2026-07-29)
+
+A handler that cannot apply a log yet — as opposed to one that is broken —
+raises a `ParkSweepError`. The watcher catches it at the per-log boundary and
+parks that **contract** below the offending block: its cursor never passes an
+unapplied event and it is held back from its own later logs, while every other
+contract in the sweep carries on and checkpoints normally. It is the same
+treatment a log from an unknown address already got. Two errors carry it:
+`MarketNotIndexedError` (the markets row has not landed yet) and
+`MarketStatusOutOfOrderError`. Anything else still propagates and abandons the
+pass, which stays the right default for a failure nobody anticipated.
+
+Parking the *address* rather than the *cursor group* is load-bearing, and the
+distinction is easy to get wrong: contracts are grouped by shared watermark, so
+in steady state they all sit in one group, and a group is swept in chain order.
+Parking the group would therefore starve every market whose logs sort after the
+offending one — exactly the failure being fixed, in a smaller costume. A
+two-contract test with differing start blocks passes either way; the regression
+test deliberately gives both contracts the same start block.
+
+This replaced a much larger blast radius. The throw used to escape the per-log
+loop *and* the loop over contract groups, so one market in an unexpected status
+abandoned the whole pass and starved every group the loop had not yet reached —
+permanently, since the fault reproduces on every tick. The floor was one cursor
+group and the ceiling was every contract the watcher followed; it is now one
+market either way.
+
+Watchers that project onto `markets` also wrap their dispatch in
+`retryUntilMarketIndexed`, so a market row that simply has not landed yet is a
+wait rather than a fault. The postgrad-market watcher was the last one missing
+that wrapper.
 
 ## Related pages
 
