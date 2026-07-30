@@ -777,6 +777,56 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/venue-price-history": {
+      "get": {
+        "operationId": "getMarketVenuePriceHistory",
+        "summary": "Get a market's post-graduation price history",
+        "description": "Returns the price history of a graduated market's bounded venue as whole-cent YES and NO probabilities: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketVenuePriceHistory"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}/orders": {
       "get": {
         "operationId": "listMarketOrders",
@@ -3175,6 +3225,50 @@
           "resolution_pending",
           "disputed"
         ]
+      },
+      "MarketVenuePriceHistory": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "marketId",
+          "points"
+        ],
+        "properties": {
+          "chainId": {
+            "type": "number"
+          },
+          "graduatedAt": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenuePricePoint"
+            }
+          }
+        }
+      },
+      "VenuePricePoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "noPriceCents",
+          "yesPriceCents"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "noPriceCents": {
+            "type": "number"
+          },
+          "yesPriceCents": {
+            "type": "number"
+          }
+        }
       },
       "ReceiptPlacedEvent": {
         "type": "object",
