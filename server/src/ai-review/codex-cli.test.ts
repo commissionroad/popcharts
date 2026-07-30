@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { CliRunner } from "./cli-support";
+import type { CliRunner } from "src/shared/cli-runner";
 import { reviewWithCodexCli } from "./codex-cli";
 import type { MarketReviewRequest } from "./types";
 

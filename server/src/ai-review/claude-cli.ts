@@ -1,11 +1,10 @@
+import { buildCliReviewPrompt, parseCliReviewFinding } from "./cli-support";
 import {
-  buildCliReviewPrompt,
   cliExitError,
-  parseCliReviewFinding,
   runWithBunSpawn,
   truncate,
   type CliRunner,
-} from "./cli-support";
+} from "src/shared/cli-runner";
 import type { AiReviewConfig } from "./config";
 import type { MarketReviewRequest, PolicyFinding } from "./types";
 

@@ -73,8 +73,15 @@ what ships. *Landed:* the review-side eval slice in PR #226 (runner +
 dataset (clear-YES/clear-NO controls, too_early, draw, abstain, injection —
 all forced through the LLM path) in PR #236, plus the CI regression lane in
 PR #237 (all 2026-07-16). Still open on the resolution side: the
-confidence-corroboration parking policy, dataset expansion, and the
-local-default heuristic → Ollama flip.
+confidence-corroboration parking policy and dataset expansion. The
+service default stays `ollama` for a structural reason discovered on
+2026-07-29: `resolver.ts` needs at least one **evidence** item before it will
+return `resolve_yes`/`resolve_no`, and drops any source check no evidence
+backs. The CLI providers browse natively and capture no evidence, so a
+CLI default would park every decided market at `manual_review`. Only `ollama`
+(pre-collected) and `anthropic` (extracted from tool results) can auto-resolve.
+The service timeout default did rise from 8 s to 300 s, with the runner's
+request timeout raised above it, because no model-backed provider fits in 8 s.
 
 ## Provenance caveat
 
