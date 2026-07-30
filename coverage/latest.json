@@ -2,23 +2,23 @@
   "version": 1,
   "workspaces": {
     "app": {
-      "commit": "bb2b91ef1c04c34d2a1a4855eefbe3f2e09a2dc8",
-      "updatedAt": "2026-07-29T12:49:04.725Z",
+      "commit": "adcaf60856b4e8bc391080649a5d458956de36c1",
+      "updatedAt": "2026-07-30T16:37:05.765Z",
       "summary": {
-        "files": 130,
+        "files": 131,
         "lines": {
-          "hit": 3215,
-          "found": 3215,
+          "hit": 3219,
+          "found": 3219,
           "pct": 100
         },
         "functions": {
-          "hit": 903,
-          "found": 907,
+          "hit": 905,
+          "found": 909,
           "pct": 99.56
         },
         "branches": {
-          "hit": 3010,
-          "found": 3017,
+          "hit": 3011,
+          "found": 3018,
           "pct": 99.77
         }
       }
