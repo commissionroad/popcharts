@@ -11,6 +11,12 @@ node_modules/
 .env.*
 !.env.example
 
+# Personal mise overrides
+mise.local.toml
+.mise.local.toml
+mise.*.local.toml
+.mise.*.local.toml
+
 # Build and test output
 .next/
 artifacts/

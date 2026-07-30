@@ -6,6 +6,7 @@ import type {
 } from "../types";
 import { anthropicProvider } from "./anthropic";
 import { claudeCliProvider } from "./claude-cli";
+import { codexCliProvider } from "./codex-cli";
 import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";
 import type { ReviewProvider } from "./types";
@@ -29,6 +30,7 @@ export type ReviewProviderRuntimeStatus = {
 export const reviewProviders = {
   anthropic: anthropicProvider,
   "claude-cli": claudeCliProvider,
+  "codex-cli": codexCliProvider,
   heuristic: heuristicProvider,
   ollama: ollamaProvider,
 } satisfies Record<ReviewProviderName, ReviewProvider>;
@@ -85,6 +87,10 @@ export function modelForProvider(
 
   if (providerName === "claude-cli") {
     return config.claudeCliModel;
+  }
+
+  if (providerName === "codex-cli") {
+    return config.codexCliModel;
   }
 
   if (providerName === "ollama") {

@@ -12,6 +12,7 @@ export type AiReviewProvider = (typeof AiReviewProvider)[keyof typeof AiReviewPr
 export const AiReviewProvider = {
   anthropic: "anthropic",
   "claude-cli": "claude-cli",
+  "codex-cli": "codex-cli",
   heuristic: "heuristic",
   ollama: "ollama",
 } as const;

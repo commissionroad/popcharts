@@ -16,6 +16,7 @@ export type InternetAccessMode = (typeof INTERNET_ACCESS_MODES)[number];
 export const REVIEW_PROVIDER_NAMES = [
   "anthropic",
   "claude-cli",
+  "codex-cli",
   "heuristic",
   "ollama",
 ] as const;

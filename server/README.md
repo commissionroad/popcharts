@@ -45,6 +45,22 @@ and enables Claude's native `web_search` and `web_fetch` tools. Hard-block
 heuristics still run before the model call, and Claude search/fetch usage is
 capped by the `AI_REVIEW_ANTHROPIC_MAX_WEB_*` settings.
 
+Two providers drive a coding CLI installed on the host instead of calling an
+API directly. `AI_REVIEW_PROVIDER=claude-cli` runs Claude Code in headless
+print mode (`AI_REVIEW_CLAUDE_CLI_COMMAND`, `AI_REVIEW_CLAUDE_CLI_MODEL`), and
+`AI_REVIEW_PROVIDER=codex-cli` runs Codex non-interactively
+(`AI_REVIEW_CODEX_CLI_COMMAND`, `AI_REVIEW_CODEX_CLI_MODEL`). Both let the model
+browse for itself, so neither needs pre-collected evidence. They differ in where
+the browsing happens: Claude Code fetches pages from this host, while Codex's
+web search runs on the provider's servers, so a Codex review host needs egress
+only to the Codex API. The Codex model is pinned rather than inherited — its CLI
+resolves a default from a server-side catalogue that can change tier, and cost,
+without a deploy here.
+
+`codex-cli` is the default when `AI_REVIEW_PROVIDER` is unset, so the service
+needs a Codex CLI install on the host. Every other provider stays one
+environment variable away.
+
 ```bash
 cd server
 ollama pull gpt-oss:20b

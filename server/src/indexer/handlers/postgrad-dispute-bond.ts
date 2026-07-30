@@ -4,6 +4,9 @@ import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
 import type { PostgradDisputeBondKind } from "src/db/schema/postgrad-dispute-bond-events";
 import { recordLiveChange } from "src/change-feed/writer";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Postgrad dispute bond log");
 
 export type { PostgradDisputeBondKind };
 
@@ -94,12 +97,4 @@ export async function persistPostgradDisputeBondRecord(
       logIndex: record.event.logIndex,
     });
   });
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Postgrad dispute bond log is missing ${name}.`);
-  }
-
-  return value;
 }

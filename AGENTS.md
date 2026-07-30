@@ -22,6 +22,9 @@
   without explicit user approval. If a tool installer may change shell profiles,
   global config, home-directory caches, keychains, or other user files, ask first
   or use a non-mutating/local alternative.
+- In restricted sandboxes that cannot write to user-level package stores, run
+  `mise exec -- just setup-sandbox` after `mise install`. Keep `just setup` as
+  the standard human path so pnpm and Bun retain their shared-store defaults.
 - For UI-impacting work, use `skills/engineering/ui-pr-verification/SKILL.md`
   before publishing or updating a PR. Verify the real local user path when
   feasible, capture a screenshot of the changed state, and include the local
@@ -52,6 +55,26 @@
   Hand-written fragments remain fine for third-party contracts outside the
   generated set, where there is no first-party source to drift from; name the
   contract and cite where the signature came from.
+- **Dedupe chores go straight to a labelled PR.** A consolidation chore —
+  collapsing duplicated copies of the same helper, constant, type, or fixture
+  onto one definition — does not need a design discussion first. Do the work,
+  run the workspace gate, and publish the PR yourself with the `dedupe` label
+  (`gh pr create --label dedupe`), so the review happens on the finished diff
+  instead of on a proposal. One PR per helper being consolidated; keep it
+  small enough to read in one sitting.
+
+  This standing authorization covers **behaviour-preserving** consolidation
+  only. Every call site must keep its existing semantics, including the exact
+  text of any error or log message — bind the differing part as a parameter
+  rather than flattening distinct messages into a generic one. The moment the
+  change needs a behaviour decision (messages that genuinely should change,
+  call sites that disagree on semantics, a public/exported surface changing
+  shape), stop and ask instead of publishing.
+
+  State plainly in the PR body what you found versus what was reported: the
+  actual count of duplicates, any copy you deliberately left alone, and why.
+  A miscount in the request is not a reason to widen or narrow the change
+  silently.
 
 # Personal Commands
 

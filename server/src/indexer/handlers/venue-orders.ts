@@ -7,6 +7,9 @@ import {
 import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 import { findVenuePoolMarketId } from "src/indexer/handlers/venue-pools";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Venue order log");
 
 type BaseOrderArgs = {
   orderId?: number;
@@ -475,12 +478,4 @@ function baseEventFields<TArgs extends BaseOrderArgs>({
     poolId: requireValue(log.args.poolId, "poolId").toLowerCase(),
     transactionHash: requireValue(log.transactionHash, "transactionHash"),
   };
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Venue order log is missing ${name}.`);
-  }
-
-  return value;
 }

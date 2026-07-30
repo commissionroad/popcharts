@@ -1195,6 +1195,17 @@ keeper is a test that builds a record with the server's own formatter. ADR
 0015's broader alarm checkbox is deliberately left open: none of the items it
 lists were built.
 
+## [2026-07-29] ingest | AI review default provider flipped to codex-cli
+Pages: ~summaries/server-readme.md, ~summaries/root-readme.md,
+~entities/ai-review-service.md, ~concepts/local-dev-orchestration.md, ~index.md
+Notes: `server/README.md` + root `README.md` changed the AI **review** default
+from `claude-cli` to `codex-cli`. Several pages still claimed Ollama was the
+local review default — that was already stale, having changed to `claude-cli`
+on 2026-07-25 (commit 0550844); corrected with the full date lineage rather
+than just the newest value. Resolution-side pages (ADR 0012/0019,
+concepts/ai-assisted-resolution) legitimately still say Ollama: that is the
+separate `ai-resolution` service and its default is unchanged.
+
 ## [2026-07-29] ingest | operator alarm on out-of-order market status projections
 Pages: ~summaries/infra-readme.md, ~entities/indexer.md, ~index.md
 Notes: Follow-up from a full-file review of the ADR 0024 indexer chain, not an

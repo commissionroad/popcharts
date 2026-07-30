@@ -19,6 +19,9 @@ import {
   formatOperatorAlert,
   OPERATOR_ALERT_EVENTS,
 } from "src/shared/operator-alert-log";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+
+const requireValue = logValueRequirer("Postgrad dispute log");
 
 export type { PostgradDisputeKind };
 
@@ -230,14 +233,6 @@ export async function persistPostgradDisputeRecord(
   if (applied && record.operatorAlert) {
     console.error(record.operatorAlert);
   }
-}
-
-function requireValue<T>(value: T | null | undefined, name: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`Postgrad dispute log is missing ${name}.`);
-  }
-
-  return value;
 }
 
 /**

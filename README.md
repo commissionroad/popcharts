@@ -28,6 +28,13 @@ pnpm run setup
 pnpm run dev
 ```
 
+In a restricted sandbox that cannot write to user-level package stores, keep
+the dependency stores inside the repository:
+
+```bash
+mise exec -- just setup-sandbox
+```
+
 The default dev server is the Next.js app in `app/`. Run `just --list` to see
 the full command menu.
 
@@ -49,9 +56,10 @@ browser wallet on the Hardhat local chain. Open `http://127.0.0.1:3000/create`,
 create a market, then refresh `http://127.0.0.1:3000/` to see it from the
 indexed markets API.
 
-The local review service defaults to the Ollama local-model provider on
+The local review service defaults to the codex-cli provider on
 `http://127.0.0.1:3002`, and the runner polls Postgres for `under_review`
-markets. It needs the model pulled once:
+markets. Set `LOCAL_AI_REVIEW_PROVIDER=ollama` to run a local model instead,
+which needs the model pulled once:
 
 ```sh
 ollama pull gpt-oss:20b   # the default; override with AI_REVIEW_OLLAMA_MODEL
@@ -134,6 +142,7 @@ an app metadata POST.
 
 ```bash
 just setup          # install app and protocol dependencies
+just setup-sandbox  # install dependencies using repo-local package stores
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
 just local-dev-control # run the split-log local dev control plane

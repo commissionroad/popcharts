@@ -20,6 +20,22 @@ afterEach(() => {
   }
 });
 
+describe("local AI review provider", () => {
+  it("defaults to the same provider as the service-side fallback", () => {
+    // scripts/ deliberately never imports server/src, so this default and the
+    // one in server/src/ai-review/config.ts cannot share a constant. Pinning
+    // it here at least makes a one-sided edit fail a test rather than silently
+    // pointing the local stack at a different provider than a deployment.
+    assert.equal(buildAiReviewEnv({}, resources).AI_REVIEW_PROVIDER, "codex-cli");
+  });
+
+  it("lets LOCAL_AI_REVIEW_PROVIDER select an alternative", () => {
+    process.env.LOCAL_AI_REVIEW_PROVIDER = "ollama";
+
+    assert.equal(buildAiReviewEnv({}, resources).AI_REVIEW_PROVIDER, "ollama");
+  });
+});
+
 describe("local AI review timing", () => {
   it("keeps the model budget below the runner timeout and job lease", () => {
     const service = buildAiReviewEnv({}, resources);

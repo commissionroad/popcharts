@@ -120,6 +120,6 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Component inventory](summaries/app-component-inventory.md) — the twelve shared UI components and designkit mappings
 - [App resolution README](summaries/app-domain-resolution-readme.md) — resolution is an intentional placeholder
 - [App integrations README](summaries/app-integrations-readme.md) — adapters-only boundary rule
-- [Server README](summaries/server-readme.md) — API + indexer + AI review setup (Ollama by default locally, heuristic fallback), endpoints, smoke flows
+- [Server README](summaries/server-readme.md) — API + indexer + AI review setup (codex-cli by default locally, heuristic fallback), endpoints, smoke flows
 - [Infra README](summaries/infra-readme.md) — AWS CDK shape plus the operator alarms, on resolution disputes and out-of-order status projections (stale: still targets Base, pre-Arc)
 - [Designkit README](summaries/designkit-readme.md) — brand voice, vocabulary table, visual foundations

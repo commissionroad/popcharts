@@ -30,6 +30,8 @@ export type AiReviewConfig = {
   anthropicWebFetchMaxContentTokens: number;
   claudeCliCommand: string;
   claudeCliModel: string;
+  codexCliCommand: string;
+  codexCliModel: string;
   /**
    * When the selected model provider is unavailable, keep the deterministic
    * heuristic verdict as-is instead of downgrading its `approve` to
@@ -54,8 +56,8 @@ export type AiReviewConfig = {
 /**
  * Config read once from the environment at startup. Invalid numeric or enum
  * values fall back to defaults rather than crashing; the defaults suit local
- * development and deployment: subscription-backed headless Claude Code
- * (`claude-cli`) on service port 3002. Anthropic (API key) and Ollama remain
+ * development and deployment: the host's Codex CLI (`codex-cli`) on service
+ * port 3002. Claude Code (`claude-cli`), Anthropic (API key), and Ollama remain
  * selectable alternatives.
  */
 export const aiReviewConfig: AiReviewConfig = {
@@ -81,6 +83,11 @@ export const aiReviewConfig: AiReviewConfig = {
   ),
   claudeCliCommand: process.env.AI_REVIEW_CLAUDE_CLI_COMMAND ?? "claude",
   claudeCliModel: process.env.AI_REVIEW_CLAUDE_CLI_MODEL ?? "sonnet",
+  codexCliCommand: process.env.AI_REVIEW_CODEX_CLI_COMMAND ?? "codex",
+  // Pinned deliberately: the Codex CLI resolves its default model from a
+  // server-side catalogue, so an unpinned default can change tier — and cost —
+  // without a deploy here.
+  codexCliModel: process.env.AI_REVIEW_CODEX_CLI_MODEL ?? "gpt-5.6-luna",
   fallbackApprove: readBooleanOrFallback(
     process.env.AI_REVIEW_FALLBACK_APPROVE,
     false,
@@ -105,14 +112,20 @@ export const aiReviewConfig: AiReviewConfig = {
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_REVIEW_OLLAMA_MODEL ?? "gpt-oss:20b",
   port: readPositiveIntegerOrFallback(process.env.AI_REVIEW_PORT, 3002),
+  // The local orchestrators set AI_REVIEW_PROVIDER explicitly and carry their
+  // own copy of this default in scripts/shared/aiReview/buildAiReviewEnv.ts;
+  // scripts/ deliberately never imports server/src, so the two cannot share a
+  // constant. Change both together or the local stack and a deployed service
+  // silently run different providers.
   provider: readEnumOrFallback(
     process.env.AI_REVIEW_PROVIDER,
     REVIEW_PROVIDER_NAMES,
-    "claude-cli",
+    "codex-cli",
   ),
-  // Sized for the default claude-cli provider, which spawns headless Claude
-  // Code (tens of seconds to a few minutes). The faster API/heuristic paths
-  // return well under this ceiling, so a generous default is safe for them.
+  // Sized for the default codex-cli provider, which spawns a headless coding
+  // CLI (tens of seconds to a few minutes); claude-cli is the same order. The
+  // faster API/heuristic paths return well under this ceiling, so a generous
+  // default is safe for them.
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_REVIEW_TIMEOUT_MS,
     300_000,
