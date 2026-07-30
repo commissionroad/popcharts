@@ -28,7 +28,7 @@ convention: **orchestrators read deployment manifests
   (`GET /markets?chainId=31337`).
 - `just devchain-e2e` — chain-backed Playwright `@chain` smoke.
 - `just local-ai-review` / `just server-ai-review-smoke` — AI review loop on
-  port 3002/3012 (Ollama by default locally, heuristic fallback).
+  port 3002/3012 (codex-cli by default locally, heuristic fallback).
 - Postgrad venue local deploy + `just local-market-health` /
   `just local-market-smoke` — the four venue flows.
 - `just local-create-market` — emits canonical JSON metadata in the

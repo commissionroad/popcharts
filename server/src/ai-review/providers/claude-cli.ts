@@ -5,9 +5,9 @@ import type { ReviewProvider } from "./types";
 
 /**
  * Drives the host's logged-in Claude Code in headless print mode using
- * subscription auth. This is the default review provider in both local and
- * deployed environments and requires a logged-in Claude Code install on the
- * host.
+ * subscription auth. Requires a logged-in Claude Code install on the host.
+ * Unlike codex-cli, its web search and page fetches originate from this host,
+ * so the review host needs egress to the open web.
  */
 export const claudeCliProvider: ReviewProvider = {
   capabilities: {

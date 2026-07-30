@@ -26,8 +26,8 @@ the app, and bring up progressively larger local stacks.
   [AI Review service](../entities/ai-review-service.md) and runner, and the
   Next.js app. Market creation is wallet-signed against the local chain
   (connect an injected wallet, use `/create`). The local review service
-  defaults to the **Ollama local-model provider** on `http://127.0.0.1:3002`
-  (changed 2026-07-13 from heuristic); the runner polls Postgres for
+  defaults to the **codex-cli provider** on `http://127.0.0.1:3002` (changed
+  2026-07-29; claude-cli from 2026-07-25, Ollama before that); the runner polls Postgres for
   `under_review` markets. Local model calls have a five-minute budget, with
   runner and lease margins above it. Transient provider failures remain pending
   and retry instead of creating a heuristic approval or scorecard; terminal
