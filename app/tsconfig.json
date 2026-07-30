@@ -10,6 +10,11 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "isolatedModules": true,
+    // Lets the local-dev market generator shim import the root scripts/ tree by
+    // relative path. That tree runs under `node --experimental-strip-types`, so
+    // its own imports carry the ".ts" extension and it cannot be published as a
+    // package the app could resolve. See src/integrations/local-market-generator.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

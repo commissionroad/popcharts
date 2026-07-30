@@ -182,3 +182,15 @@ export const MARKET_CATEGORIES: MarketCategory[] = [
   "Culture",
   "Econ",
 ];
+
+/**
+ * Narrows an untrusted string — metadata read from the chain, an API body, or a
+ * generated market — to a category the app offers. Lives beside the list it
+ * checks so a new category cannot reach half the callers: every guard in the
+ * app imports this one rather than re-testing `MARKET_CATEGORIES` itself.
+ */
+export function isMarketCategory(value: unknown): value is MarketCategory {
+  return (
+    typeof value === "string" && MARKET_CATEGORIES.includes(value as MarketCategory)
+  );
+}

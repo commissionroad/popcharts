@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
 
 import {
@@ -18,6 +18,7 @@ import type {
   CreateMarketDraft,
   CreateMarketValidationErrors,
 } from "@/domain/market-creation/types";
+import { subscribeToGeneratedMarketFill } from "@/features/dev-settings/generated-market-events";
 import {
   getPopChartsContractConfig,
   marketCreationMode,
@@ -33,6 +34,7 @@ import {
   submitMarketForReview,
   type SubmittedMarketReview,
 } from "./create-market-service";
+import { applyGeneratedMarketToDraft } from "./dev-autofill";
 import {
   countErrors,
   focusFirstReviewError,
@@ -75,6 +77,24 @@ export function useCreateMarketFormState(initialNow: string) {
   const [createdMarket, setCreatedMarket] = useState<CreatedMarket | null>(null);
   const [submittedReview, setSubmittedReview] = useState<SubmittedMarketReview | null>(
     null
+  );
+
+  // Local dev only: the dev menu generates a market and announces it here (see
+  // features/dev-settings/generated-market-events). This subscribes once and
+  // drives the setters directly rather than calling updateDraftWith, which
+  // closes over `stage` and would go stale inside a long-lived listener.
+  useEffect(
+    () =>
+      subscribeToGeneratedMarketFill((market) => {
+        setDraft((current) => applyGeneratedMarketToDraft(current, market));
+        // Every validated field was just replaced, so errors from an earlier
+        // review attempt no longer describe this draft.
+        setHasTriedReview(false);
+        setStage("edit");
+        setSubmitError(null);
+        setSubmittedReview(null);
+      }),
+    []
   );
 
   const walletCreationRequired =
