@@ -56,9 +56,10 @@ browser wallet on the Hardhat local chain. Open `http://127.0.0.1:3000/create`,
 create a market, then refresh `http://127.0.0.1:3000/` to see it from the
 indexed markets API.
 
-The local review service defaults to the Ollama local-model provider on
+The local review service defaults to the codex-cli provider on
 `http://127.0.0.1:3002`, and the runner polls Postgres for `under_review`
-markets. It needs the model pulled once:
+markets. Set `LOCAL_AI_REVIEW_PROVIDER=ollama` to run a local model instead,
+which needs the model pulled once:
 
 ```sh
 ollama pull gpt-oss:20b   # the default; override with AI_REVIEW_OLLAMA_MODEL

@@ -43,8 +43,9 @@ by `AI_REVIEW_ANTHROPIC_MAX_WEB*\*`). `AI_REVIEW_INTERNET_ACCESS=off|provided_ur
 restricts evidence. Response parsing (verdict/score clamping) is a single
 shared module — a deliberate security control (cleanup program B1).
 
-**Local default is `ollama`, not `heuristic`** (changed 2026-07-13): `just
-local-dev` starts the real agent-based path. Local provider latency now follows
+**Default provider is `codex-cli`** (changed 2026-07-29; `claude-cli` from
+2026-07-25, `ollama` before that): `just local-dev` starts the real
+agent-based path. Local provider latency now follows
 the durable queue rather than becoming a review result:
 
 - The model has a five-minute local budget; runner request and DB lease limits

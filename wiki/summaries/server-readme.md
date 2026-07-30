@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Server README
-description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and runner (Ollama by default locally), local chain smoke, indexed PregradManager events, and key endpoints
+description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and runner (codex-cli by default), local chain smoke, indexed PregradManager events, and key endpoints
 sources:
   - server/README.md
-updated: 2026-07-14
+updated: 2026-07-29
 ---
 
 # Server README
@@ -92,7 +92,7 @@ the heuristic provider (default port 3012).
 ## Local orchestration
 
 From the repo root: `just local-dev` starts the full local app stack plus AI
-review service and runner on the **Ollama** provider (pending retries, see
+review service and runner on the **codex-cli** provider (pending retries, see
 above); `just local-ai-review` starts just Postgres + review service + runner. `just setup && just local-smoke`
 runs the full local chain smoke: docker-compose Postgres, local protocol
 contracts on a Hardhat node ([devchain](../entities/devchain.md)), generated
