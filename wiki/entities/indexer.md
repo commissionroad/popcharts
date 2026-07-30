@@ -10,7 +10,7 @@ sources:
   - docs/portfolio-data-design.md
   - infra/README.md
   - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
-updated: 2026-07-24
+updated: 2026-07-29
 ---
 
 # Indexer
@@ -94,17 +94,43 @@ which an in-indexer-only emit would miss).
 
 ## Operator alert seam (built 2026-07-24, [root ADR 0024](../summaries/root-adr-0024-resolution-dispute-program.md))
 
-A dispute is the one indexed event that is an operator page rather than a
-background write: it means a user staked a bond asserting the resolver got a
-market wrong, and the market is frozen until a human settles it. So the
-dispute handler writes a marker-prefixed record to stderr carrying chain,
-market, disputer, bond, and transaction hash, and the
-[infra](../summaries/infra-readme.md) stack keys a CloudWatch metric filter
-and alarm on it. It is raised after the row commits and only when the insert
-actually landed, so a rolled-back write cannot page and a recovery replay
-cannot page twice. The server is the master of the marker terms; the alarm
-holds an intentional duplicate (`infra/` imports no workspace source), pinned
-by an infra assertion test that builds a record with the server's formatter.
+Two indexer conditions are operator pages rather than background writes. Each
+writes a marker-prefixed record to stderr, and the
+[infra](../summaries/infra-readme.md) stack keys one CloudWatch metric filter
+and alarm per event term. The server is the master of the marker terms; the
+alarms hold an intentional duplicate (`infra/` imports no workspace source),
+pinned by an infra assertion test that builds each record with the server's
+formatter.
+
+**Resolution disputed** — a user staked a bond asserting the resolver got a
+market wrong, and the market is frozen until a human settles it. The record
+carries chain, market, disputer, bond, and transaction hash. It is raised
+*after* the row commits and only when the insert actually landed, so a
+rolled-back write cannot page and a recovery replay cannot page twice.
+
+**Market status out of order** — a status-projecting event reached a market in
+a status the transition accepts as neither predecessor nor already-past. The
+record carries chain, market, the current and target statuses, the predecessors
+that would have been accepted, and the block/log/transaction to replay. Its
+commit rule is the *opposite* of the dispute page: it is raised inside the
+transaction that is about to roll back, because there the rollback is the
+incident and no committed row will record any of it.
+
+The page matters because the throw is blunter than one stalled event. It
+unwinds out of the watcher's per-log loop and its loop over contract groups,
+abandoning the rest of that sweep, and the next discovery tick re-fetches the
+same log and faults again — nothing self-clears. How far it spreads is set by
+the cursor grouping: contracts are grouped by shared watermark, so in steady
+state one market takes the whole pass with it, while once cursors diverge the
+groups split and only the faulting contract's group stays wedged. Floor is one
+cursor group, ceiling is every contract that watcher follows — and it stops
+there, because each watcher is its own closure, interval and cursor name, so
+the venue-order, pool-tick and token-transfer watchers keep indexing the same
+markets throughout. Live delivery is the other exception — `onLogs` catches per
+log, so a fault there is skipped rather than fatal, but it never moves a
+watermark, so the sweep hits the same wall. Nothing crashes and nothing is
+lost, which is exactly why the stall would otherwise be invisible. The record
+repeats each tick, holding the alarm in ALARM rather than lapsing back to OK.
 
 ## Related pages
 

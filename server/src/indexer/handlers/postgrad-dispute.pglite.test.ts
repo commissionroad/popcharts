@@ -31,6 +31,10 @@ import {
   type PostgradResolutionRecord,
 } from "src/indexer/handlers/postgrad-resolution";
 import type { MarketStatus } from "src/db/schema/markets";
+import {
+  formatOperatorAlert,
+  OPERATOR_ALERT_EVENTS,
+} from "src/shared/operator-alert-log";
 
 const CHAIN_ID = 31337;
 const MARKET_ID = 7n;
@@ -233,7 +237,7 @@ describe("persistPostgradDisputeRecord against real SQL (PGlite)", () => {
     }
   });
 
-  it("does not page for a dispute that rolls back as out of order", async () => {
+  it("pages the halt, not the dispute, when a dispute rolls back as out of order", async () => {
     await setMarketStatus("bootstrap");
     const alerts = spyOn(console, "error").mockImplementation(() => {});
 
@@ -242,9 +246,29 @@ describe("persistPostgradDisputeRecord against real SQL (PGlite)", () => {
         persistPostgradDisputeRecord(disputedRecord(), dbc),
       ).rejects.toThrow(MarketStatusOutOfOrderError);
 
-      // Paging for an event whose row rolled back would send an operator to a
-      // market that never entered the window. The retry pages when it lands.
-      expect(alerts.mock.calls).toEqual([]);
+      // Two pages with opposite commit rules meet here. The dispute page must
+      // not fire: its row rolled back, so it would send an operator to a market
+      // that never entered the window, and the retry pages when it lands. The
+      // guard's own page must fire: the throw abandons the sweep that hit it,
+      // wedging a whole cursor group, not one event waiting its turn.
+      //
+      // Pinned whole. Everything in the record rolled back with the row, so
+      // this is the only surviving statement of which market to unwedge and
+      // which log to replay.
+      expect(alerts.mock.calls).toEqual([
+        [
+          formatOperatorAlert(OPERATOR_ALERT_EVENTS.marketStatusOutOfOrder, {
+            allowedFrom: "resolution_pending,graduated",
+            blockNumber: "100",
+            chainId: CHAIN_ID,
+            currentStatus: "bootstrap",
+            logIndex: 4,
+            marketId: MARKET_ID.toString(),
+            targetStatus: "disputed",
+            transactionHash: `0x${"22".repeat(32)}`,
+          }),
+        ],
+      ]);
     } finally {
       alerts.mockRestore();
     }
