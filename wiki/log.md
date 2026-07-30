@@ -1225,3 +1225,15 @@ that contrast is now written down on both sides. The infra assertion test
 generalized from one alarm to a table over both, and gained two pins the
 single-alarm version could not express: the filter set on the indexer log
 group is exhaustive, and neither page's filter matches the other's record.
+
+## [2026-07-29] ingest | AI resolution gains a codex-cli provider (default unchanged)
+Pages: ~concepts/ai-assisted-resolution.md, ~summaries/server-readme.md
+Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli` one.
+Its default deliberately stays `ollama`: `resolver.ts` requires an evidence
+item to auto-resolve, and CLI providers capture none, so a CLI default would
+park every decided market. The service
+timeout default rose 8s → 300s in the same change: 8 s could not cover any
+model-backed provider, and `server/src/ai-resolution/evals/README.md` already
+told operators to override it after it cost a full eval run. ADR 0019's planned
+"local default heuristic → Ollama" flip is now moot for the service; the local
+orchestrators still pass `heuristic` explicitly, which is unchanged.

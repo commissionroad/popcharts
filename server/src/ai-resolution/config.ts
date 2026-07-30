@@ -33,6 +33,8 @@ export type AiResolutionConfig = {
   anthropicModel: string;
   claudeCliCommand: string;
   claudeCliModel: string;
+  codexCliCommand: string;
+  codexCliModel: string;
   anthropicWebFetchMaxContentTokens: number;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
@@ -75,6 +77,10 @@ export const aiResolutionConfig: AiResolutionConfig = {
     process.env.AI_RESOLUTION_ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
   claudeCliCommand: process.env.AI_RESOLUTION_CLAUDE_CLI_COMMAND ?? "claude",
   claudeCliModel: process.env.AI_RESOLUTION_CLAUDE_CLI_MODEL ?? "sonnet",
+  codexCliCommand: process.env.AI_RESOLUTION_CODEX_CLI_COMMAND ?? "codex",
+  // Pinned deliberately: the Codex CLI resolves its default model from a
+  // server-side catalogue that can change tier, and cost, without a deploy.
+  codexCliModel: process.env.AI_RESOLUTION_CODEX_CLI_MODEL ?? "gpt-5.6-luna",
   anthropicWebFetchMaxContentTokens: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS,
     12_000,
@@ -102,11 +108,23 @@ export const aiResolutionConfig: AiResolutionConfig = {
   provider: readEnumOrFallback(
     process.env.AI_RESOLUTION_PROVIDER,
     RESOLUTION_MODEL_PROVIDER_NAMES,
+    // Deliberately NOT a CLI provider. resolver.ts requires evidenceCount >= 1
+    // before it will return resolve_yes/resolve_no, and filterSourceChecksByEvidence
+    // drops every source check that no evidence item backs. The CLI providers
+    // browse natively and return `evidence: []`, so making one the default would
+    // park every decided market at manual_review and persist no source trail.
+    // ollama pre-collects evidence and anthropic extracts it from tool results;
+    // only those two can actually auto-resolve.
     "ollama",
   ),
+  // Sized for a real model call: local ollama models routinely take minutes per
+  // resolution, as do the CLI providers. The previous 8s default silently
+  // fail-safed every model-backed resolution to manual_review/service_error,
+  // which is why evals/README.md told operators to override it. Kept in step
+  // with the runner's own request timeout, which must exceed this budget.
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_TIMEOUT_MS,
-    8_000,
+    300_000,
   ),
   userAgent:
     process.env.AI_RESOLUTION_USER_AGENT ??

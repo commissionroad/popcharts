@@ -19,6 +19,7 @@ export type { ConfigValidationResult, InternetAccessMode };
 export const RESOLUTION_MODEL_PROVIDER_NAMES = [
   "anthropic",
   "claude-cli",
+  "codex-cli",
   "heuristic",
   "ollama",
 ] as const;

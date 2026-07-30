@@ -5,6 +5,7 @@ import type {
 } from "../types";
 import { anthropicProvider } from "./anthropic";
 import { claudeCliProvider } from "./claude-cli";
+import { codexCliProvider } from "./codex-cli";
 import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";
 import type { ResolutionProvider } from "./types";
@@ -17,6 +18,7 @@ import type { ResolutionProvider } from "./types";
 export const resolutionProviders = {
   anthropic: anthropicProvider,
   "claude-cli": claudeCliProvider,
+  "codex-cli": codexCliProvider,
   heuristic: heuristicProvider,
   ollama: ollamaProvider,
 } satisfies Record<ResolutionModelProviderName, ResolutionProvider>;
