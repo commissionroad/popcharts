@@ -135,10 +135,13 @@ raises a `ParkSweepError`. The watcher catches it at the per-log boundary and
 parks that **contract** below the offending block: its cursor never passes an
 unapplied event and it is held back from its own later logs, while every other
 contract in the sweep carries on and checkpoints normally. It is the same
-treatment a log from an unknown address already got. Two errors carry it:
-`MarketNotIndexedError` (the markets row has not landed yet) and
-`MarketStatusOutOfOrderError`. Anything else still propagates and abandons the
-pass, which stays the right default for a failure nobody anticipated.
+treatment a log from an unknown address already got. Three errors carry it —
+`MarketNotIndexedError` and `VenueOrderNotIndexedError` (a prerequisite row has
+not landed yet) and `MarketStatusOutOfOrderError` — and a census test enumerates
+them, because an error that means "not yet" and forgets the base class silently
+gets the harshest handling available while its own tests still pass. Anything
+else still propagates and abandons the pass, which stays the right default for
+a failure nobody anticipated.
 
 Parking the *address* rather than the *cursor group* is load-bearing, and the
 distinction is easy to get wrong: contracts are grouped by shared watermark, so

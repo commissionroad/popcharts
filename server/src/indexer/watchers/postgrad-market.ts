@@ -241,8 +241,8 @@ const watcher = createDynamicAddressWatcher({
     // should not be reachable — but "should not" is why the other watchers
     // wrap it too, and an unwrapped MarketNotIndexedError parks this market's
     // cursor on the first tick instead of after the wait it would have needed.
-    // Wrapping the dispatch rather than each handler keeps the ten entries in
-    // POSTGRAD_MARKET_HANDLERS from each having to remember.
+    // Wrapping the dispatch rather than each handler keeps every entry in
+    // POSTGRAD_MARKET_HANDLERS from having to remember.
     await retryUntilMarketIndexed(
       () =>
         handle(

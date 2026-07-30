@@ -222,8 +222,11 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
         throw error;
       }
 
+      // Worded for both callers: the sweep parks this address below the log,
+      // and live delivery — which owns no cursor — simply drops it. "Left for
+      // the next sweep" is the one thing true of both.
       console.warn(
-        `[${label}] ${error.name} for ${address}; parking the sweep below block ${log.blockNumber}: ${error.message}`,
+        `[${label}] ${error.name} for ${address} at block ${log.blockNumber}; left for the next sweep: ${error.message}`,
       );
       return false;
     }

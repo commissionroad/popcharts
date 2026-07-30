@@ -1247,9 +1247,12 @@ abandoned the whole sweep and starved every group the loop had not reached.
 The gentler pattern already existed in the same file — an unknown address
 returns false and parks one group — so the fix was to give handlers a way to
 say the same thing: a `ParkSweepError` base class the watcher catches at the
-per-log boundary. `MarketNotIndexedError` and `MarketStatusOutOfOrderError`
-both carry it; anything else still propagates, which stays right for a failure
-nobody anticipated. Blast radius is now one market rather than a range topping
+per-log boundary. `MarketNotIndexedError`, `VenueOrderNotIndexedError` and
+`MarketStatusOutOfOrderError` all carry it; anything else still propagates,
+which stays right for a failure nobody anticipated. The venue-order one was
+missed on the first pass and caught in review — the general lesson being that a
+nominal marker is only as good as its adoption, so a census test now enumerates
+the parkable errors rather than trusting each to remember. Blast radius is now one market rather than a range topping
 out at the whole watcher, so the ADR 0024 alarm's description was narrowed to
 match. Worth recording because a review caught it: the first cut parked the
 cursor *group*, which is wrong in the exact case that matters — in steady state
