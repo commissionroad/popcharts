@@ -64,8 +64,9 @@ moderation and knowability checks — see
 `AI_REVIEW_INTERNET_ACCESS` can be `off` or `provided_urls` to restrict
 evidence collection.
 
-**Local default is Ollama** (changed 2026-07-13): `just local-dev` starts the
-real agent-based path rather than the heuristic. The stock local timing is five
+**Default provider is Codex CLI** (changed 2026-07-29; Claude CLI from
+2026-07-25, Ollama before that): `just local-dev` starts the real agent-based
+path rather than the heuristic. The stock local timing is five
 minutes for the model call, six for the runner request, and ten for the DB
 lease. Transient provider failures return a retryable response, keep the market
 pending, and do not persist a heuristic review or scorecard. Completed reviews

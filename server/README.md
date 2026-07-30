@@ -57,6 +57,10 @@ only to the Codex API. The Codex model is pinned rather than inherited — its C
 resolves a default from a server-side catalogue that can change tier, and cost,
 without a deploy here.
 
+`codex-cli` is the default when `AI_REVIEW_PROVIDER` is unset, so the service
+needs a Codex CLI install on the host. Every other provider stays one
+environment variable away.
+
 ```bash
 cd server
 ollama pull gpt-oss:20b

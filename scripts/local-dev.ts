@@ -360,15 +360,15 @@ Start the full local Pop Charts stack:
   - Next.js app configured for devchain market creation
 
 Prerequisite for model review:
-  The default claude-cli provider requires a logged-in Claude Code install on
-  the host and uses subscription auth. Set LOCAL_AI_REVIEW_PROVIDER to ollama,
-  heuristic, or anthropic to override it.
+  The default codex-cli provider requires a Codex CLI install on the host. Set
+  LOCAL_AI_REVIEW_PROVIDER to claude-cli, ollama, heuristic, or anthropic to
+  override it.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=claude-cli
+  LOCAL_AI_REVIEW_PROVIDER=codex-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_TIMEOUT_MS=300000
   LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
