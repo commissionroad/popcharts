@@ -8,6 +8,7 @@ import type { NetworkConfig } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 import { findVenuePoolMarketId } from "src/indexer/handlers/venue-pools";
 import { logValueRequirer } from "src/indexer/utils/log-values";
+import { ParkSweepError } from "src/indexer/utils/park-sweep-error";
 
 const requireValue = logValueRequirer("Venue order log");
 
@@ -109,9 +110,12 @@ export type OrderRequeuedRecord = VenueOrderEventRecord & {
  * independent cursor, so a fill or cancellation can be processed first.
  * Handlers throw this instead of silently matching zero rows; watchers wrap
  * persistence in retryUntilVenueOrderIndexed so an unresolved miss keeps the
- * event's block cursor behind and recovery replays it.
+ * event's block cursor behind and recovery replays it. It is a ParkSweepError
+ * for the same reason MarketNotIndexedError is: exhausted retries mean "this
+ * pool's order log still cannot be applied", not "the indexer is broken", so
+ * it must park that one contract rather than abandon the pass.
  */
-export class VenueOrderNotIndexedError extends Error {
+export class VenueOrderNotIndexedError extends ParkSweepError {
   constructor({
     chainId,
     orderId,

@@ -4,6 +4,7 @@ import type { MarketStatus } from "src/db/schema/markets";
 // type; declared once for the change-feed writer and reused here rather than
 // restated.
 import type { LiveChangeWriter } from "src/change-feed/writer";
+import { ParkSweepError } from "src/indexer/utils/park-sweep-error";
 import { retryUntilIndexed } from "src/indexer/utils/retry-until-indexed";
 import {
   formatOperatorAlert,
@@ -17,10 +18,11 @@ import {
  * processed first. Handlers throw MarketNotIndexedError to signal that
  * ordering hazard instead of silently matching zero rows, and watchers wrap
  * persistence in retryUntilMarketIndexed to wait for the market-created
- * watcher to catch up. If retries run out the error propagates, the event's
- * block cursor is never advanced, and recovery replays the event later.
+ * watcher to catch up. If retries run out the error parks the sweep at this
+ * log, the event's block cursor is never advanced, and recovery replays the
+ * event later.
  */
-export class MarketNotIndexedError extends Error {
+export class MarketNotIndexedError extends ParkSweepError {
   constructor({ chainId, marketId }: { chainId: number; marketId: bigint }) {
     super(
       `Market chainId=${chainId} marketId=${marketId} has no markets row yet; MarketCreated has not been persisted.`,
@@ -54,8 +56,8 @@ export type MarketStatusTransition = {
    * Statuses at or past `to`; reaching one means the move already happened, so
    * the event is a no-op rather than a fault. Keep terminal statuses here even
    * when they look like they belong in the fault branch: the fault branch does
-   * not stall one event, it abandons the sweep that hit it and wedges at least
-   * that contract's whole cursor group until a human intervenes — see
+   * not stall one event, it parks this market's cursor until a human
+   * intervenes and pages an operator on the way — see
    * applyMarketStatusTransition.
    */
   atOrPast: readonly MarketStatus[];
@@ -64,11 +66,16 @@ export type MarketStatusTransition = {
 /**
  * Thrown when a status-projecting event arrives while the market sits in a
  * status that is neither a valid predecessor nor already at or past the
- * target — an ordering fault between watchers. It must not be swallowed: the
- * raw event row commits on first sight, so a silently skipped projection is
- * skipped forever once `onConflictDoNothing` starts deduping the replay.
+ * target — an ordering fault between watchers.
+ *
+ * It must not be caught and shrugged off inside the handler. Returning
+ * normally here would commit the raw event row without its projection, and
+ * every later replay dedupes out on `onConflictDoNothing` before reaching the
+ * projection again — so the transition would be lost permanently. Throwing is
+ * what rolls the row back and keeps the event replayable; parking (below) is
+ * what keeps that from costing more than the one market.
  */
-export class MarketStatusOutOfOrderError extends Error {
+export class MarketStatusOutOfOrderError extends ParkSweepError {
   constructor({
     chainId,
     current,
@@ -95,38 +102,31 @@ export class MarketStatusOutOfOrderError extends Error {
  * read so a concurrent writer cannot move the status between the check and the
  * write.
  *
- * The out-of-order throw is blunter than "this event's cursor stalls", and
- * anything that widens the fault branch has to price that in. It unwinds out of
- * the watcher's per-log loop and out of the loop over contract groups above it
- * (processLog -> sweepGroup -> sweep in
- * src/indexer/watchers/dynamic-address-watcher.ts), abandoning the rest of that
- * sweep: the faulting group never checkpoints its chunk, and groups the pass
- * had not reached are not swept at all. The discovery tick catches it, logs and
- * reschedules, so the next sweep re-fetches the same log and faults on it
- * again. Nothing self-clears.
+ * Both throws are ParkSweepErrors, so the watcher parks this one market's
+ * cursor below the offending log and sweeps every other contract past it
+ * (processLog in src/indexer/watchers/dynamic-address-watcher.ts). The cursor
+ * never moves past an unapplied event, so the next sweep re-fetches the same
+ * log — and, for the out-of-order case, faults on it again. Nothing
+ * self-clears; that is deliberate, because refusing to checkpoint is exactly
+ * what keeps the event replayable once the cause is fixed.
  *
- * How far that spreads is set by the cursor grouping, so state it as a range
- * rather than guessing. Contracts are grouped by shared watermark: in steady
- * state they all sit on one, so a single market in an unexpected status takes
- * the entire pass with it. Once the fault leaves cursors uneven the groups
- * split, and groups the loop reaches before the faulting one go back to
- * completing — the faulting contract's group never does. The floor is therefore
- * one contract group wedged until a human intervenes, and the ceiling is every
- * contract the offending watcher follows; one delayed event is not on the
- * range. The ceiling stops at that watcher, though: each is its own closure,
- * interval and cursor name, so the other postgraduation watchers (venue
- * orders, pool ticks, token transfers) keep indexing throughout — which is
- * part of why the stall reads as "some data is late", not as an outage.
+ * What it costs while it sits there is one market's lifecycle events, which
+ * stop arriving. Every other market keeps indexing, and sibling watchers
+ * (venue orders, pool ticks, token transfers) hold their own cursors and never
+ * notice. Nothing crashes and nothing is lost, which is precisely why it would
+ * otherwise be invisible — hence the operator page below.
  *
- * Live delivery is the exception that proves it: onLogs catches per log, so a
- * fault there is skipped rather than fatal, and the page can precede any stall.
+ * This used to be far worse, and the history is the reason to keep the
+ * ParkSweepError base rather than "simplifying" back to a bare throw: the
+ * error escaped the per-log loop *and* the loop over contract groups, so one
+ * market in an unexpected status abandoned the whole pass and starved every
+ * group the loop had not yet reached — permanently, since the fault reproduces
+ * on every tick.
+ *
+ * Live delivery is a separate path: onLogs catches per log, so a fault there
+ * is skipped rather than parking anything, and the page can precede any stall.
  * But live delivery never moves a watermark, so the sweep re-fetches that same
- * log and hits the same wall.
- *
- * Nothing crashes and nothing is lost: refusing to checkpoint is exactly what
- * keeps the events replayable once the cause is fixed. That is also why the
- * stall would otherwise be invisible, so the fault branch raises an operator
- * page before it throws.
+ * log and reaches the same conclusion.
  */
 export async function applyMarketStatusTransition(
   tx: LiveChangeWriter,
@@ -174,13 +174,14 @@ export async function applyMarketStatusTransition(
     // discovery tick and faults on it again. That is wanted: it holds the
     // alarm in ALARM instead of lapsing back to OK after one quiet minute,
     // and SNS notifies on the state change, so the operator is paged once and
-    // can see the halt is still live.
+    // can see the stall is still live.
     console.error(
       formatOperatorAlert(OPERATOR_ALERT_EVENTS.marketStatusOutOfOrder, {
-        // Which market, which status pair, and which log. A stalled cursor
-        // reported without them leaves an operator grepping the log group for
-        // the market to unwedge and the chain for the event to replay — and
-        // the rollback means nothing else will record either.
+        // Which market, which status pair, and which log. The stall is now
+        // confined to one market, which makes it quieter, not easier to find:
+        // reported without these an operator has to grep the log group for the
+        // market to unwedge and the chain for the event to replay — and the
+        // rollback means nothing else will record either.
         allowedFrom: transition.from.join(","),
         // uint256s render as decimal strings: JSON.stringify throws on bigint.
         blockNumber: sourceEvent.blockNumber.toString(),
@@ -207,6 +208,12 @@ export async function applyMarketStatusTransition(
     .where(where);
 }
 
+/**
+ * How long to wait for the MarketCreated watcher, and what to call the wait in
+ * the log. `attempts` and `delayMs` fall back to retryUntilIndexed's defaults;
+ * `label` is required because an unlabelled wait is indistinguishable from
+ * every other watcher's wait in a shared log group.
+ */
 export type RetryUntilMarketIndexedOptions = {
   attempts?: number;
   delayMs?: number;
