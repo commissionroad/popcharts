@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { MarketMetadata } from "@/domain/market-creation/types";
-import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
+import { isMarketCategory } from "@/domain/markets/types";
 import { presentError } from "@/lib/error-handling";
 import { isRecord } from "@/lib/is-record";
 
@@ -194,10 +194,6 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isVersionOne(value: unknown): value is 1 {
   return value === 1;
-}
-
-function isMarketCategory(value: unknown): value is MarketCategory {
-  return isString(value) && MARKET_CATEGORIES.includes(value as MarketCategory);
 }
 
 function isMetadataHash(value: unknown): value is `0x${string}` {

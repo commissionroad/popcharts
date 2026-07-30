@@ -6,8 +6,10 @@ import {
   RESOLUTION_PRESETS,
 } from "@/domain/market-creation/create-market";
 import type { CreatedMarket } from "@/domain/market-creation/types";
+import { dispatchGeneratedMarketFill } from "@/features/dev-settings/generated-market-events";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { useTrustedCreatorStatus } from "@/integrations/contracts/hooks/use-trusted-creator-status";
+import type { GeneratedLocalMarket } from "@/integrations/local-market-generator/types";
 import type { WalletAccountValue } from "@/integrations/wallet/wallet-provider";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 
@@ -393,8 +395,61 @@ describe("useCreateMarketFormState trusted creators", () => {
   });
 });
 
+describe("useCreateMarketFormState local dev autofill", () => {
+  it("fills the draft from a market the dev menu announced", () => {
+    const { result } = renderForm();
+
+    act(() => dispatchGeneratedMarketFill(generatedMarket()));
+
+    expect(result.current.draft.question).toBe(
+      "Will the max NYC METAR temperature be higher than 80°F?"
+    );
+    expect(result.current.draft.category).toBe("Weather");
+    expect(result.current.draft.resolutionPreset).toBe("custom");
+  });
+
+  it("returns a reviewed draft to editing and clears its review errors", () => {
+    const { result } = renderForm();
+
+    // An empty draft fails review, which is what turns field errors on.
+    act(() => result.current.handleReview());
+    expect(result.current.reviewErrorCount).toBeGreaterThan(0);
+
+    act(() => dispatchGeneratedMarketFill(generatedMarket()));
+
+    expect(result.current.stage).toBe("edit");
+    expect(result.current.reviewErrorCount).toBe(0);
+    expect(result.current.visibleErrors).toEqual({});
+  });
+
+  it("stops listening once the form unmounts", () => {
+    const { result, unmount } = renderForm();
+    const before = result.current.draft.question;
+
+    unmount();
+    dispatchGeneratedMarketFill(generatedMarket());
+
+    expect(result.current.draft.question).toBe(before);
+  });
+});
+
 function renderForm() {
   return renderHook(() => useCreateMarketFormState(INITIAL_NOW));
+}
+
+function generatedMarket(): GeneratedLocalMarket {
+  return {
+    graduationAt: "2030-07-01T13:00:00.000Z",
+    metadata: {
+      category: "Weather",
+      createdAt: "2030-07-01T12:00:00.000Z",
+      description: "Auto-generated local-dev market.",
+      question: "Will the max NYC METAR temperature be higher than 80°F?",
+      resolutionCriteria: "Resolve YES if the max observation is higher.",
+      version: 1,
+    },
+    resolutionAt: "2030-07-01T14:00:00.000Z",
+  };
 }
 
 function devchainWalletSigner() {

@@ -216,6 +216,14 @@ upstream provenance pins, and update procedure.
 
 ## Developer Helpers
 
+The dev-tools menu (the gear in the top bar) has a **Create form** section with a
+**Random market** button. On `/create` it fills every field with the same
+generated crypto or weather market `just local-create-market` would create —
+threshold priced off a live public source, deadlines matching the generated
+question — leaving you at the normal Review and Create steps. Nothing is created
+on-chain until you click through them. Like the rest of the menu it needs
+`NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED=true`, which the local stack sets.
+
 Use `scripts/land` to merge a GitHub pull request, fast-forward the base branch locally, remove the feature worktree, and delete the feature branch.
 
 ```bash

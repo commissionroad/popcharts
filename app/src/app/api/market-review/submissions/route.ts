@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { MarketMetadata } from "@/domain/market-creation/types";
-import { MARKET_CATEGORIES, type MarketCategory } from "@/domain/markets/types";
+import { isMarketCategory } from "@/domain/markets/types";
 import {
   parseSerializedProtocolCreateMarketParams,
   type SerializedProtocolCreateMarketParams,
@@ -265,10 +265,6 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function isMarketCategory(value: unknown): value is MarketCategory {
-  return isString(value) && MARKET_CATEGORIES.includes(value as MarketCategory);
 }
 
 function isMetadataHash(value: unknown): value is `0x${string}` {
