@@ -33,6 +33,8 @@ export type AiResolutionConfig = {
   anthropicModel: string;
   claudeCliCommand: string;
   claudeCliModel: string;
+  codexCliCommand: string;
+  codexCliModel: string;
   anthropicWebFetchMaxContentTokens: number;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
@@ -75,6 +77,10 @@ export const aiResolutionConfig: AiResolutionConfig = {
     process.env.AI_RESOLUTION_ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
   claudeCliCommand: process.env.AI_RESOLUTION_CLAUDE_CLI_COMMAND ?? "claude",
   claudeCliModel: process.env.AI_RESOLUTION_CLAUDE_CLI_MODEL ?? "sonnet",
+  codexCliCommand: process.env.AI_RESOLUTION_CODEX_CLI_COMMAND ?? "codex",
+  // Pinned deliberately: the Codex CLI resolves its default model from a
+  // server-side catalogue that can change tier, and cost, without a deploy.
+  codexCliModel: process.env.AI_RESOLUTION_CODEX_CLI_MODEL ?? "gpt-5.6-luna",
   anthropicWebFetchMaxContentTokens: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_ANTHROPIC_WEB_FETCH_MAX_CONTENT_TOKENS,
     12_000,
@@ -102,11 +108,16 @@ export const aiResolutionConfig: AiResolutionConfig = {
   provider: readEnumOrFallback(
     process.env.AI_RESOLUTION_PROVIDER,
     RESOLUTION_MODEL_PROVIDER_NAMES,
-    "ollama",
+    "codex-cli",
   ),
+  // Sized for the default codex-cli provider, which spawns a headless coding
+  // CLI and needs minutes, not seconds; the ollama path is the same order. The
+  // previous 8s default predated any model-backed default and silently
+  // fail-safed every real resolution to manual_review/service_error, which is
+  // why evals/README.md tells operators to override it.
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_TIMEOUT_MS,
-    8_000,
+    300_000,
   ),
   userAgent:
     process.env.AI_RESOLUTION_USER_AGENT ??

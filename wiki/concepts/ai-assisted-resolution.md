@@ -73,8 +73,12 @@ what ships. *Landed:* the review-side eval slice in PR #226 (runner +
 dataset (clear-YES/clear-NO controls, too_early, draw, abstain, injection —
 all forced through the LLM path) in PR #236, plus the CI regression lane in
 PR #237 (all 2026-07-16). Still open on the resolution side: the
-confidence-corroboration parking policy, dataset expansion, and the
-local-default heuristic → Ollama flip.
+confidence-corroboration parking policy and dataset expansion. The
+local-default flip was overtaken by events: the **service** default moved
+straight from `ollama` to `codex-cli` on 2026-07-29, and the service timeout
+default rose from 8 s to 300 s at the same time, because a CLI provider cannot
+answer inside 8 s. The local orchestrators still pass `heuristic` explicitly,
+so `just local-dev` resolution stays deterministic and free.
 
 ## Provenance caveat
 

@@ -1205,3 +1205,13 @@ on 2026-07-25 (commit 0550844); corrected with the full date lineage rather
 than just the newest value. Resolution-side pages (ADR 0012/0019,
 concepts/ai-assisted-resolution) legitimately still say Ollama: that is the
 separate `ai-resolution` service and its default is unchanged.
+
+## [2026-07-29] ingest | AI resolution gains a codex-cli provider and defaults to it
+Pages: ~concepts/ai-assisted-resolution.md, ~summaries/server-readme.md
+Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli`
+one, and its service default moved from `ollama` to `codex-cli`. The service
+timeout default rose 8s → 300s in the same change: 8 s could not cover any
+model-backed provider, and `server/src/ai-resolution/evals/README.md` already
+told operators to override it after it cost a full eval run. ADR 0019's planned
+"local default heuristic → Ollama" flip is now moot for the service; the local
+orchestrators still pass `heuristic` explicitly, which is unchanged.
