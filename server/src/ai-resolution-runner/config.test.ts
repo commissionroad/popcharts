@@ -8,9 +8,20 @@ describe("getAiResolutionRunnerConfig", () => {
 
     expect(config.serviceUrl).toBe("http://127.0.0.1:3004");
     expect(config.pollMs).toBe(5_000);
-    expect(config.leaseMs).toBe(60_000);
+    expect(config.leaseMs).toBe(1_200_000);
     expect(config.maxAttempts).toBe(5);
     expect(config.runnerId).toContain("ai-resolution-runner-");
+  });
+
+  it("keeps the request budget above the service's own timeout", () => {
+    // The resolution service allows a model call 300s. A runner that aborts
+    // sooner burns an attempt on work the service is still doing, and the
+    // lease has to outlast several such attempts.
+    const config = getAiResolutionRunnerConfig({});
+
+    expect(config.requestTimeoutMs).toBe(360_000);
+    expect(config.requestTimeoutMs).toBeGreaterThan(300_000);
+    expect(config.leaseMs).toBeGreaterThanOrEqual(3 * config.requestTimeoutMs);
   });
 
   it("reads overrides and normalizes the service url", () => {

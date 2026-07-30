@@ -108,13 +108,20 @@ export const aiResolutionConfig: AiResolutionConfig = {
   provider: readEnumOrFallback(
     process.env.AI_RESOLUTION_PROVIDER,
     RESOLUTION_MODEL_PROVIDER_NAMES,
-    "codex-cli",
+    // Deliberately NOT a CLI provider. resolver.ts requires evidenceCount >= 1
+    // before it will return resolve_yes/resolve_no, and filterSourceChecksByEvidence
+    // drops every source check that no evidence item backs. The CLI providers
+    // browse natively and return `evidence: []`, so making one the default would
+    // park every decided market at manual_review and persist no source trail.
+    // ollama pre-collects evidence and anthropic extracts it from tool results;
+    // only those two can actually auto-resolve.
+    "ollama",
   ),
-  // Sized for the default codex-cli provider, which spawns a headless coding
-  // CLI and needs minutes, not seconds; the ollama path is the same order. The
-  // previous 8s default predated any model-backed default and silently
-  // fail-safed every real resolution to manual_review/service_error, which is
-  // why evals/README.md tells operators to override it.
+  // Sized for a real model call: local ollama models routinely take minutes per
+  // resolution, as do the CLI providers. The previous 8s default silently
+  // fail-safed every model-backed resolution to manual_review/service_error,
+  // which is why evals/README.md told operators to override it. Kept in step
+  // with the runner's own request timeout, which must exceed this budget.
   requestTimeoutMs: readPositiveIntegerOrFallback(
     process.env.AI_RESOLUTION_TIMEOUT_MS,
     300_000,

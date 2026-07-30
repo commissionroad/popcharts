@@ -1208,8 +1208,10 @@ separate `ai-resolution` service and its default is unchanged.
 
 ## [2026-07-29] ingest | AI resolution gains a codex-cli provider and defaults to it
 Pages: ~concepts/ai-assisted-resolution.md, ~summaries/server-readme.md
-Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli`
-one, and its service default moved from `ollama` to `codex-cli`. The service
+Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli` one.
+Its default deliberately stays `ollama`: `resolver.ts` requires an evidence
+item to auto-resolve, and CLI providers capture none, so a CLI default would
+park every decided market. The service
 timeout default rose 8s → 300s in the same change: 8 s could not cover any
 model-backed provider, and `server/src/ai-resolution/evals/README.md` already
 told operators to override it after it cost a full eval run. ADR 0019's planned

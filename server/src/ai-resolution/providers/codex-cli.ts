@@ -9,6 +9,14 @@ import type { ResolutionProvider } from "./types";
  * CLI install on the host. Its search runs on the provider's servers, so the
  * resolution host needs egress only to the Codex API — unlike the claude-cli
  * provider, which fetches pages from the host itself.
+ *
+ * Eval/local-dev only, like claude-cli, and for a structural reason: browsing
+ * natively means there is no captured evidence trail, so this returns
+ * `evidence: []`. resolver.ts requires at least one evidence item before it
+ * will return resolve_yes/resolve_no, and drops source checks no evidence
+ * backs — so this provider parks every decided market at manual_review. It
+ * cannot be the service default until source-check provenance is captured
+ * from the CLI's own tool-use records.
  */
 export const codexCliProvider: ResolutionProvider = {
   capabilities: {
