@@ -11,12 +11,24 @@ import { presentError } from "@/lib/error-handling";
 const LOG_LABEL = "app-dev-autofill";
 
 /**
+ * The dev-tools flag gates the menu that calls this, so it gates the route too
+ * — but the flag is a public build-time env var, and a deployment that shipped
+ * it on by accident would expose an unauthenticated endpoint that makes
+ * outbound requests on the server's behalf. The menu's read-only toggles can
+ * live with that; a fetching endpoint should not, so this also refuses in any
+ * production build regardless of the flag.
+ */
+function generatedMarketRouteEnabled() {
+  return devToolsEnabled() && process.env.NODE_ENV !== "production";
+}
+
+/**
  * Generates one local-dev market — the same live crypto or weather market the
  * local CLI creates — for the create form's autofill tool. Nothing is created
  * on-chain and nothing is persisted: the response is form content.
  */
 export async function GET() {
-  if (!devToolsEnabled()) {
+  if (!generatedMarketRouteEnabled()) {
     return NextResponse.json(
       { error: "Local dev tools are not enabled." },
       { status: 404 }

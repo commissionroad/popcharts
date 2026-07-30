@@ -29,6 +29,7 @@ const generated = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   devToolsState.enabled = true;
   vi.mocked(generateLocalMarket).mockResolvedValue(generated);
 });
@@ -66,7 +67,7 @@ describe("GET /api/dev/generated-market", () => {
     );
   });
 
-  it("is not found outside local development", async () => {
+  it("is not found when dev tools are off", async () => {
     devToolsState.enabled = false;
 
     const response = await GET();
@@ -75,6 +76,15 @@ describe("GET /api/dev/generated-market", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Local dev tools are not enabled.",
     });
+  });
+
+  it("is not found in a production build even with dev tools on", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    const response = await GET();
+
+    expect(response.status).toBe(404);
+    expect(generateLocalMarket).not.toHaveBeenCalled();
   });
 
   it("reports an unreachable source without leaking the raw failure", async () => {
