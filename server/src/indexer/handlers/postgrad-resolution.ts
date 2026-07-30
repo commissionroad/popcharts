@@ -142,6 +142,7 @@ export async function persistPostgradResolutionRecord(
     await applyMarketStatusTransition(tx, {
       chainId: record.event.chainId,
       marketId: record.event.marketId,
+      sourceEvent: record.event,
       transition: {
         atOrPast: SETTLED_STATUSES,
         from: RESOLVABLE_STATUSES,

@@ -49,7 +49,7 @@ jobs:
             - infra/**
             # infra/tsconfig.json extends the repo-root base config.
             - tsconfig.base.json
-            # The dispute alarm's marker terms are deliberately duplicated
+            # The operator alarms' marker terms are deliberately duplicated
             # from this server module (infra imports no workspace source), and
             # the assertion tests pin the two copies together; a change there
             # must re-run this lane or the drift lands unseen.

@@ -1206,7 +1206,27 @@ than just the newest value. Resolution-side pages (ADR 0012/0019,
 concepts/ai-assisted-resolution) legitimately still say Ollama: that is the
 separate `ai-resolution` service and its default is unchanged.
 
-## [2026-07-29] ingest | AI resolution gains a codex-cli provider and defaults to it
+## [2026-07-29] ingest | operator alarm on out-of-order market status projections
+Pages: ~summaries/infra-readme.md, ~entities/indexer.md, ~index.md
+Notes: Follow-up from a full-file review of the ADR 0024 indexer chain, not an
+ADR item of its own. The market-projection guard's out-of-order throw is much
+blunter than its comment claimed: it unwinds through processLog -> sweepGroup
+-> sweep, abandoning the rest of that sweep, and the next tick faults on the
+same log again, so nothing self-clears. Blast radius is a range, not a number —
+contracts are grouped by shared watermark, so the floor is one cursor group
+wedged and the ceiling (steady state, all cursors level) is every contract that
+watcher follows — and no further, since sibling watchers hold their own cursors
+and keep indexing the same markets. Nothing crashes and nothing is lost, so the
+stall was silent — hence a second operator page,
+built on ADR 0024 phase 5's pattern rather than a new one. Its commit rule is
+deliberately the inverse of the dispute page's (raised inside the transaction
+that is about to roll back, because there the rollback *is* the incident), and
+that contrast is now written down on both sides. The infra assertion test
+generalized from one alarm to a table over both, and gained two pins the
+single-alarm version could not express: the filter set on the indexer log
+group is exhaustive, and neither page's filter matches the other's record.
+
+## [2026-07-29] ingest | AI resolution gains a codex-cli provider (default unchanged)
 Pages: ~concepts/ai-assisted-resolution.md, ~summaries/server-readme.md
 Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli` one.
 Its default deliberately stays `ollama`: `resolver.ts` requires an evidence
