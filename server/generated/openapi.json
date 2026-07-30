@@ -1224,6 +1224,7 @@
         "enum": [
           "anthropic",
           "claude-cli",
+          "codex-cli",
           "heuristic",
           "ollama"
         ]

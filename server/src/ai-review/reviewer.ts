@@ -156,14 +156,21 @@ function modelUnavailableReview({
   };
 }
 
+/**
+ * Operator-facing name for the provider that failed, used in the stored
+ * "review unavailable" reason. A total record rather than a fallback chain:
+ * the previous chain returned "Heuristic" for every unlisted provider, so a
+ * claude-cli outage was recorded as a heuristic failure and hid which backend
+ * actually broke. The satisfies clause makes a new provider a compile error.
+ */
+const PROVIDER_DISPLAY_NAMES = {
+  anthropic: "Anthropic",
+  "claude-cli": "Claude CLI",
+  "codex-cli": "Codex CLI",
+  heuristic: "Heuristic",
+  ollama: "Ollama",
+} satisfies Record<ReviewProviderName, string>;
+
 function displayProviderName(providerName: ReviewProviderName) {
-  if (providerName === "anthropic") {
-    return "Anthropic";
-  }
-
-  if (providerName === "ollama") {
-    return "Ollama";
-  }
-
-  return "Heuristic";
+  return PROVIDER_DISPLAY_NAMES[providerName];
 }

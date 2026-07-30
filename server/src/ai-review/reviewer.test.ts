@@ -12,6 +12,8 @@ const baseConfig: AiReviewConfig = {
   anthropicWebFetchMaxContentTokens: 1_000,
   claudeCliCommand: "claude",
   claudeCliModel: "sonnet",
+  codexCliCommand: "codex",
+  codexCliModel: "gpt-5.6-luna",
   fallbackApprove: false,
   fetchSearchResults: false,
   internetAccess: "off",

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ai_review_provider" ADD VALUE 'codex-cli' BEFORE 'heuristic';

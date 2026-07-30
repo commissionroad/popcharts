@@ -30,6 +30,8 @@ export type AiReviewConfig = {
   anthropicWebFetchMaxContentTokens: number;
   claudeCliCommand: string;
   claudeCliModel: string;
+  codexCliCommand: string;
+  codexCliModel: string;
   /**
    * When the selected model provider is unavailable, keep the deterministic
    * heuristic verdict as-is instead of downgrading its `approve` to
@@ -81,6 +83,11 @@ export const aiReviewConfig: AiReviewConfig = {
   ),
   claudeCliCommand: process.env.AI_REVIEW_CLAUDE_CLI_COMMAND ?? "claude",
   claudeCliModel: process.env.AI_REVIEW_CLAUDE_CLI_MODEL ?? "sonnet",
+  codexCliCommand: process.env.AI_REVIEW_CODEX_CLI_COMMAND ?? "codex",
+  // Pinned deliberately: the Codex CLI resolves its default model from a
+  // server-side catalogue, so an unpinned default can change tier — and cost —
+  // without a deploy here.
+  codexCliModel: process.env.AI_REVIEW_CODEX_CLI_MODEL ?? "gpt-5.6-luna",
   fallbackApprove: readBooleanOrFallback(
     process.env.AI_REVIEW_FALLBACK_APPROVE,
     false,
