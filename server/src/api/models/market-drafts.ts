@@ -179,6 +179,22 @@ export const MarketDraftValidationErrorsSchema = t.Object(
   { $id: "MarketDraftValidationErrors" },
 );
 
+/**
+ * Why a submission was refused by the review-bond meter (ADR 0022 §3), with
+ * the figures the app needs to prompt a deposit. Amounts are native-unit
+ * strings ($1 = 1e18).
+ */
+export const MarketDraftBondShortfallSchema = t.Object(
+  {
+    availableWad: t.String(),
+    message: t.String(),
+    minimumStandingBondWad: t.String(),
+    requiredWad: t.String(),
+    standingBondWad: t.String(),
+  },
+  { $id: "MarketDraftBondShortfall" },
+);
+
 /** Wire-serialized createMarket params, minted at publish time. */
 export const MarketDraftPublishParamsSchema = t.Object(
   {

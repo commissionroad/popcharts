@@ -27,6 +27,7 @@ export function buildLocalServerEnv(
     LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
+    LOCAL_REVIEW_BOND_VAULT_ADDRESS: overrides.reviewBondVaultAddress ?? "",
     NETWORK: "local",
     PORT: process.env.LOCAL_API_PORT ?? String(resources.apiPort),
     POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
