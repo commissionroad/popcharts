@@ -92,9 +92,7 @@ export function getPopChartsContractConfig(): PopChartsContractConfig | null {
     nativeCurrency: getNativeCurrency(popChartsChainEnv),
     pregradManagerAddress,
     reviewBondVaultAddress:
-      parseAddress(
-        process.env.NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS
-      ) ?? null,
+      parseAddress(process.env.NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS) ?? null,
     rpcUrl: configuredPopChartsRpcUrl,
   };
 }

@@ -110,8 +110,9 @@ export function useCreateDraftFlow({
     null
   );
   const [templateSaved, setTemplateSaved] = useState(false);
-  const [bondShortfall, setBondShortfall] =
-    useState<MarketDraftBondShortfall | null>(null);
+  const [bondShortfall, setBondShortfall] = useState<MarketDraftBondShortfall | null>(
+    null
+  );
   const [loadedDraftId, setLoadedDraftId] = useState<number | null>(null);
   const skipNextAutosave = useRef(false);
   // Monotonic save generation: every save (and submit, which supersedes any

@@ -14,13 +14,10 @@ import { ReviewRow } from "../create-market-panels/shared";
  * The native deposit that clears a shortfall: enough to reach the $5
  * standing-bond floor and cover the queued charge, whichever is larger.
  */
-export function suggestedDepositWad(
-  shortfall: MarketDraftBondShortfall
-): bigint {
+export function suggestedDepositWad(shortfall: MarketDraftBondShortfall): bigint {
   const standingGap =
     BigInt(shortfall.minimumStandingBondWad) - BigInt(shortfall.standingBondWad);
-  const chargeGap =
-    BigInt(shortfall.requiredWad) - BigInt(shortfall.availableWad);
+  const chargeGap = BigInt(shortfall.requiredWad) - BigInt(shortfall.availableWad);
   const largest = standingGap > chargeGap ? standingGap : chargeGap;
 
   return largest > 0n ? largest : 0n;
@@ -92,8 +89,8 @@ export function BondShortfallPanel({
           />
         </div>
         <p className="text-[12.5px] leading-5 text-[var(--text-muted)]">
-          The bond is a prepaid, refundable balance — reviews meter against it,
-          and you can withdraw the unused remainder anytime.
+          The bond is a prepaid, refundable balance — reviews meter against it, and you
+          can withdraw the unused remainder anytime.
         </p>
         {bond.error ? (
           <p className="text-[12.5px] leading-5 text-[var(--no)]" role="alert">
