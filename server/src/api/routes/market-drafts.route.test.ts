@@ -8,6 +8,8 @@ import {
 } from "bun:test";
 import { exportSPKI, generateKeyPair, SignJWT } from "jose";
 
+import { markMarketDraftPublished } from "src/api/services/market-drafts";
+import { config } from "src/config";
 import type { db as productionDb } from "src/db/client";
 import { eq, schema, setDbForTesting } from "src/db/client";
 import { processDraftReviewJobsOnce } from "src/draft-review/runner";
@@ -398,7 +400,36 @@ describe("publish arc", () => {
     expect(parsed.question).toBe(REVIEWABLE_CONTENT.question);
   });
 
-  it("records the publish and links the market", async () => {
+  it("refuses to record a publish it cannot verify on-chain", async () => {
+    const draft = await createDraft(REVIEWABLE_CONTENT);
+
+    await request(`/drafts/${draft.id}/submit`, { method: "POST" });
+    await processDraftReviewJobsOnce();
+
+    // The test RPC is dead, so the receipt can never be read: the route must
+    // fail closed rather than link (and bridge-approve) a claimed market.
+    const response = await request(`/drafts/${draft.id}/published`, {
+      body: {
+        chainId: config.chainId,
+        marketId: "12",
+        transactionHash: `0x${"ab".repeat(32)}`,
+      },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(
+      "The publish transaction could not be read from the chain.",
+    );
+
+    const after = (await (await request(`/drafts/${draft.id}`)).json()) as {
+      status: string;
+    };
+
+    expect(after.status).toBe("approved");
+  });
+
+  it("rejects a publish for a chain this API does not serve", async () => {
     const draft = await createDraft(REVIEWABLE_CONTENT);
 
     await request(`/drafts/${draft.id}/submit`, { method: "POST" });
@@ -406,30 +437,79 @@ describe("publish arc", () => {
 
     const response = await request(`/drafts/${draft.id}/published`, {
       body: {
-        chainId: 31337,
+        chainId: config.chainId + 1,
         marketId: "12",
         transactionHash: `0x${"ab".repeat(32)}`,
       },
       method: "POST",
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(
+      `This API serves chain ${config.chainId}, not ${config.chainId + 1}.`,
+    );
+  });
 
-    const body = (await response.json()) as {
-      bridgeApproved: boolean;
-      draft: { publishedMarketId: string | null; status: string };
-    };
+  it("records the publish once the receipt verifies", async () => {
+    const draft = await createDraft(REVIEWABLE_CONTENT);
+
+    await request(`/drafts/${draft.id}/submit`, { method: "POST" });
+    await processDraftReviewJobsOnce();
+
+    // Service-level with an injected verifier: the route always uses the real
+    // chain reader, which the dead-RPC test above pins.
+    const result = await markMarketDraftPublished(
+      {
+        chainId: config.chainId,
+        draftId: draft.id,
+        marketId: 12n,
+        owner: OWNER,
+        transactionHash: `0x${"ab".repeat(32)}`,
+      },
+      { verifyReceipt: async () => ({ kind: "verified" }) },
+    );
+
+    expect(result.kind).toBe("published");
+
+    if (result.kind !== "published") {
+      throw new Error("Expected a published result.");
+    }
 
     // The dead test RPC makes the on-chain bridge fail; publish still lands.
-    expect(body.bridgeApproved).toBe(false);
-    expect(body.draft.status).toBe("published");
-    expect(body.draft.publishedMarketId).toBe("12");
+    expect(result.bridgeApproved).toBe(false);
+    expect(result.draft.status).toBe("published");
+    expect(result.draft.publishedMarketId).toBe("12");
 
     const resubmit = await request(`/drafts/${draft.id}/submit`, {
       method: "POST",
     });
 
     expect(resubmit.status).toBe(409);
+  });
+
+  it("drops a receipt whose content is not the reviewed snapshot", async () => {
+    const draft = await createDraft(REVIEWABLE_CONTENT);
+
+    await request(`/drafts/${draft.id}/submit`, { method: "POST" });
+    await processDraftReviewJobsOnce();
+
+    const result = await markMarketDraftPublished(
+      {
+        chainId: config.chainId,
+        draftId: draft.id,
+        marketId: 12n,
+        owner: OWNER,
+        transactionHash: `0x${"ab".repeat(32)}`,
+      },
+      {
+        verifyReceipt: async ({ metadataHash }) => ({
+          kind: "failed",
+          message: `The published market's content is not this draft's reviewed content. (${metadataHash.slice(0, 6)})`,
+        }),
+      },
+    );
+
+    expect(result.kind).toBe("verification_failed");
   });
 });
 

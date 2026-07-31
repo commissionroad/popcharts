@@ -394,7 +394,10 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         return "Draft not found.";
       }
 
-      if (result.kind === "wrong_status") {
+      if (
+        result.kind === "wrong_status" ||
+        result.kind === "verification_failed"
+      ) {
         set.status = 409;
         return result.message;
       }

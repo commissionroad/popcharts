@@ -1,3 +1,7 @@
+import { parseEventLogs } from "viem";
+
+import { pregradManagerAbi } from "@popcharts/protocol";
+
 import { transitionReviewedMarketOnChain } from "src/ai-review-runner/chain-review";
 import type {
   ReviewProviderName,
@@ -7,6 +11,7 @@ import type {
   ReviewVerdict,
 } from "src/ai-review/types";
 import { createReadOnlyClient } from "src/blockchain/client";
+import { config } from "src/config";
 import { and, db, desc, eq, inArray, schema } from "src/db/client";
 import type { DraftReviewFeedback } from "src/db/schema/market-draft-reviews";
 import type {
@@ -259,6 +264,10 @@ export async function updateMarketDraft({
 
   const columns = contentColumns(patch);
   const contentChanged = draftContentChanges(draft, columns);
+  // Conditional on the status and version observed above, so a transition
+  // that lands between the read and this write (a concurrent submit locking
+  // the draft, another tab's edit) turns into a conflict instead of a write
+  // against a state this handler never checked.
   const [updated] = await db
     .update(schema.marketDrafts)
     .set({
@@ -268,15 +277,26 @@ export async function updateMarketDraft({
         ? { status: "editing" as const, submittedMetadataHash: null }
         : {}),
     })
-    .where(eq(schema.marketDrafts.id, draft.id))
+    .where(
+      and(
+        eq(schema.marketDrafts.id, draft.id),
+        eq(schema.marketDrafts.status, draft.status),
+        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+      ),
+    )
     .returning();
+
+  if (!updated) {
+    return {
+      kind: "locked",
+      message: "This draft just changed elsewhere — reload and try again.",
+    };
+  }
+
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
-    draft: serializeMarketDraft(
-      assertRow(updated),
-      reviews.get(draft.id) ?? null,
-    ),
+    draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "updated",
   };
 }
@@ -402,6 +422,10 @@ export async function submitMarketDraft({
   const { metadataHash } = buildDraftMetadata(draft);
   const now = new Date();
   const updated = await db.transaction(async (tx) => {
+    // Conditional on the state and version observed above: the validated
+    // content and the snapshot hash were computed from that read, so a
+    // concurrent edit or duplicate submit must turn into a conflict rather
+    // than enqueue a review of content nobody checked.
     const [row] = await tx
       .update(schema.marketDrafts)
       .set({
@@ -410,15 +434,34 @@ export async function submitMarketDraft({
         submittedMetadataHash: metadataHash,
         updatedAt: now,
       })
-      .where(eq(schema.marketDrafts.id, draft.id))
+      .where(
+        and(
+          eq(schema.marketDrafts.id, draft.id),
+          eq(schema.marketDrafts.status, draft.status),
+          eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        ),
+      )
       .returning();
+
+    if (!row) {
+      return null;
+    }
+
     await tx.insert(schema.marketDraftReviewJobs).values({
       draftId: draft.id,
       metadataHash,
     });
 
-    return assertRow(row);
+    return row;
   });
+
+  if (!updated) {
+    return {
+      kind: "wrong_status",
+      message: "This draft just changed elsewhere — reload and try again.",
+    };
+  }
+
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
@@ -427,21 +470,39 @@ export async function submitMarketDraft({
   };
 }
 
+/** A database handle the review-apply helper can write through: the process
+ * `db` or the runner's enclosing transaction (see the runner's fenced
+ * completion). */
+export type DraftReviewWriter =
+  typeof db | Parameters<Parameters<(typeof db)["transaction"]>[0]>[0];
+
 /**
  * Runner-facing: records a completed review and moves the draft out of
  * `in_review`. Guarded on the draft still being in review of the same content
  * snapshot, so a late result for edited content is recorded but changes
- * nothing.
+ * nothing. Callers that must couple this to other writes (the runner's job
+ * completion) pass their transaction as `writer`.
  */
-export async function applyDraftReviewResult({
-  draftId,
-  metadataHash,
-  result,
-}: {
-  draftId: number;
-  metadataHash: string;
-  result: ReviewResult;
-}): Promise<{ reviewId: number }> {
+export async function applyDraftReviewResult(
+  {
+    draftId,
+    metadataHash,
+    result,
+  }: {
+    draftId: number;
+    metadataHash: string;
+    result: ReviewResult;
+  },
+  writer: DraftReviewWriter = db,
+): Promise<{ reviewId: number }> {
+  // Standalone calls stay atomic: the review row and the draft transition
+  // must land together, so without an enclosing transaction we open one.
+  if (writer === db) {
+    return db.transaction((tx) =>
+      applyDraftReviewResult({ draftId, metadataHash, result }, tx),
+    );
+  }
+
   const feedback = buildDraftReviewFeedback(result);
   const now = new Date();
   const nextStatus: MarketDraftStatus =
@@ -451,39 +512,37 @@ export async function applyDraftReviewResult({
         ? "rejected"
         : "changes_requested";
 
-  return db.transaction(async (tx) => {
-    const [review] = await tx
-      .insert(schema.marketDraftReviews)
-      .values({
-        draftId,
-        evidence: result.evidence,
-        feedback,
-        hardFlags: result.hardFlags,
-        metadataHash,
-        ...(result.modelId ? { modelId: result.modelId } : {}),
-        promptVersion: result.promptVersion,
-        provider: result.provider,
-        reasons: result.reasons,
-        reviewedAt: now,
-        scoreRationales: result.scoreRationales,
-        scores: result.scores,
-        sourceChecks: result.sourceChecks,
-        verdict: result.verdict,
-      })
-      .returning();
-    await tx
-      .update(schema.marketDrafts)
-      .set({ reviewedAt: now, status: nextStatus, updatedAt: now })
-      .where(
-        and(
-          eq(schema.marketDrafts.id, draftId),
-          eq(schema.marketDrafts.status, "in_review"),
-          eq(schema.marketDrafts.submittedMetadataHash, metadataHash),
-        ),
-      );
+  const [review] = await writer
+    .insert(schema.marketDraftReviews)
+    .values({
+      draftId,
+      evidence: result.evidence,
+      feedback,
+      hardFlags: result.hardFlags,
+      metadataHash,
+      ...(result.modelId ? { modelId: result.modelId } : {}),
+      promptVersion: result.promptVersion,
+      provider: result.provider,
+      reasons: result.reasons,
+      reviewedAt: now,
+      scoreRationales: result.scoreRationales,
+      scores: result.scores,
+      sourceChecks: result.sourceChecks,
+      verdict: result.verdict,
+    })
+    .returning();
+  await writer
+    .update(schema.marketDrafts)
+    .set({ reviewedAt: now, status: nextStatus, updatedAt: now })
+    .where(
+      and(
+        eq(schema.marketDrafts.id, draftId),
+        eq(schema.marketDrafts.status, "in_review"),
+        eq(schema.marketDrafts.submittedMetadataHash, metadataHash),
+      ),
+    );
 
-    return { reviewId: assertRow(review).id };
-  });
+  return { reviewId: assertRow(review).id };
 }
 
 /** The publish payload: wire-serialized createMarket params minus collateral,
@@ -578,42 +637,143 @@ export type MarkMarketDraftPublishedResult =
       kind: "published";
     }
   | { kind: "not_found" }
+  | { kind: "verification_failed"; message: string }
   | { kind: "wrong_status"; message: string };
 
+export type PublishReceiptVerification =
+  { kind: "verified" } | { kind: "failed"; message: string };
+
 /**
- * Records a confirmed publish transaction: links the draft to its market and
- * bridge-approves the market on-chain with the review-manager key, because the
- * review already happened on the draft. The bridge is best-effort — until the
- * ADR 0022 P4 contract lands, a market is still born `UnderReview`, and a
- * failed bridge just leaves it for the market review runner.
+ * Confirms on-chain that the claimed publish transaction really created the
+ * claimed market with EXACTLY the approved draft's content: the receipt must
+ * carry a MarketCreated event from our PregradManager whose marketId matches
+ * and whose metadataHash equals the draft's reviewed snapshot. Without this,
+ * the caller-supplied ids would let any owner of one approved draft point
+ * "published" at an unrelated market and have the bridge approve it.
  */
-export async function markMarketDraftPublished({
+async function verifyPublishReceipt({
   chainId,
-  draftId,
+  metadataHash,
   marketId,
-  owner,
   transactionHash,
 }: {
   chainId: number;
-  draftId: number;
+  metadataHash: string;
   marketId: bigint;
-  owner: string;
   transactionHash: string;
-}): Promise<MarkMarketDraftPublishedResult> {
+}): Promise<PublishReceiptVerification> {
+  if (chainId !== config.chainId) {
+    return {
+      kind: "failed",
+      message: `This API serves chain ${config.chainId}, not ${chainId}.`,
+    };
+  }
+
+  let logs;
+
+  try {
+    const receipt = await createReadOnlyClient().getTransactionReceipt({
+      hash: transactionHash as `0x${string}`,
+    });
+
+    if (receipt.status !== "success") {
+      return { kind: "failed", message: "The publish transaction reverted." };
+    }
+
+    logs = parseEventLogs({
+      abi: pregradManagerAbi,
+      eventName: "MarketCreated",
+      logs: receipt.logs.filter(
+        (log) =>
+          log.address.toLowerCase() ===
+          config.contracts.pregradManager.toLowerCase(),
+      ),
+    });
+  } catch {
+    return {
+      kind: "failed",
+      message: "The publish transaction could not be read from the chain.",
+    };
+  }
+
+  const created = logs.find((log) => log.args.marketId === marketId);
+
+  if (!created) {
+    return {
+      kind: "failed",
+      message: "That transaction did not create the claimed market.",
+    };
+  }
+
+  if (created.args.metadataHash.toLowerCase() !== metadataHash.toLowerCase()) {
+    return {
+      kind: "failed",
+      message:
+        "The published market's content is not this draft's reviewed content.",
+    };
+  }
+
+  return { kind: "verified" };
+}
+
+export type MarkMarketDraftPublishedDependencies = {
+  verifyReceipt: typeof verifyPublishReceipt;
+};
+
+/**
+ * Records a confirmed publish transaction: verifies on-chain that the
+ * transaction created the claimed market with the draft's reviewed content,
+ * links the draft to it, and bridge-approves the market with the
+ * review-manager key — the review already happened on the draft. The bridge
+ * is best-effort — until the ADR 0022 P4 contract lands, a market is still
+ * born `UnderReview`, and a failed bridge just leaves it for the market
+ * review runner.
+ */
+export async function markMarketDraftPublished(
+  {
+    chainId,
+    draftId,
+    marketId,
+    owner,
+    transactionHash,
+  }: {
+    chainId: number;
+    draftId: number;
+    marketId: bigint;
+    owner: string;
+    transactionHash: string;
+  },
+  dependencies: MarkMarketDraftPublishedDependencies = {
+    verifyReceipt: verifyPublishReceipt,
+  },
+): Promise<MarkMarketDraftPublishedResult> {
   const draft = await selectOwnedDraft(owner, draftId);
 
   if (!draft) {
     return { kind: "not_found" };
   }
 
-  if (draft.status !== "approved") {
+  if (draft.status !== "approved" || !draft.submittedMetadataHash) {
     return {
       kind: "wrong_status",
       message: "Only approved drafts can be marked published.",
     };
   }
 
+  const verification = await dependencies.verifyReceipt({
+    chainId,
+    metadataHash: draft.submittedMetadataHash,
+    marketId,
+    transactionHash,
+  });
+
+  if (verification.kind === "failed") {
+    return { kind: "verification_failed", message: verification.message };
+  }
+
   const now = new Date();
+  // Conditional on the approved status observed above, so two racing publish
+  // confirmations (or a concurrent edit) cannot both land.
   const [updated] = await db
     .update(schema.marketDrafts)
     .set({
@@ -624,8 +784,21 @@ export async function markMarketDraftPublished({
       status: "published",
       updatedAt: now,
     })
-    .where(eq(schema.marketDrafts.id, draft.id))
+    .where(
+      and(
+        eq(schema.marketDrafts.id, draft.id),
+        eq(schema.marketDrafts.status, "approved"),
+        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+      ),
+    )
     .returning();
+
+  if (!updated) {
+    return {
+      kind: "wrong_status",
+      message: "This draft just changed elsewhere — reload and try again.",
+    };
+  }
 
   let bridgeApproved = false;
 
@@ -647,10 +820,7 @@ export async function markMarketDraftPublished({
 
   return {
     bridgeApproved,
-    draft: serializeMarketDraft(
-      assertRow(updated),
-      reviews.get(draft.id) ?? null,
-    ),
+    draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "published",
   };
 }

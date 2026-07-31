@@ -82,7 +82,7 @@ export async function processDraftReviewJobsOnce(
   const outcomes: DraftReviewJobOutcome[] = [];
 
   for (const job of jobs) {
-    outcomes.push(await processClaimedJob(job, dependencies));
+    outcomes.push(await processClaimedJob(job, runnerId, dependencies));
   }
 
   return outcomes;
@@ -147,6 +147,7 @@ async function claimDraftReviewJobs({
 
 async function processClaimedJob(
   job: ClaimedJob,
+  runnerId: string,
   dependencies: ProcessDraftReviewJobsDependencies,
 ): Promise<DraftReviewJobOutcome> {
   const drafts = await db
@@ -173,7 +174,7 @@ async function processClaimedJob(
         status: "cancelled",
         updatedAt: new Date(),
       })
-      .where(eq(schema.marketDraftReviewJobs.id, job.id));
+      .where(claimedBy(job, runnerId));
 
     return { draftId: job.draftId, jobId: job.id, outcome: "cancelled" };
   }
@@ -183,23 +184,47 @@ async function processClaimedJob(
       context: {},
       metadata: buildDraftReviewMetadata(draft, job.metadataHash),
     });
-    const { reviewId } = await applyDraftReviewResult({
-      draftId: draft.id,
-      metadataHash: job.metadataHash,
-      result,
+    // The review may have outlived the lease and been reclaimed by another
+    // runner. Completion is fenced: re-lock the claim row inside one
+    // transaction and persist nothing if this runner no longer holds it.
+    const applied = await db.transaction(async (tx) => {
+      const held = await tx
+        .select({ id: schema.marketDraftReviewJobs.id })
+        .from(schema.marketDraftReviewJobs)
+        .where(claimedBy(job, runnerId))
+        .for("update");
+
+      if (held.length === 0) {
+        return null;
+      }
+
+      const { reviewId } = await applyDraftReviewResult(
+        {
+          draftId: draft.id,
+          metadataHash: job.metadataHash,
+          result,
+        },
+        tx,
+      );
+      await tx
+        .update(schema.marketDraftReviewJobs)
+        .set({
+          completedAt: new Date(),
+          lastError: null,
+          leaseUntil: null,
+          lockedBy: null,
+          reviewId,
+          status: "succeeded",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.marketDraftReviewJobs.id, job.id));
+
+      return reviewId;
     });
-    await db
-      .update(schema.marketDraftReviewJobs)
-      .set({
-        completedAt: new Date(),
-        lastError: null,
-        leaseUntil: null,
-        lockedBy: null,
-        reviewId,
-        status: "succeeded",
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.marketDraftReviewJobs.id, job.id));
+
+    if (applied === null) {
+      return { draftId: draft.id, jobId: job.id, outcome: "cancelled" };
+    }
 
     return {
       draftId: draft.id,
@@ -208,13 +233,26 @@ async function processClaimedJob(
       verdict: result.verdict,
     };
   } catch (error) {
-    await recordJobFailure(job, error);
+    await recordJobFailure(job, runnerId, error);
 
     return { draftId: job.draftId, jobId: job.id, outcome: "failed" };
   }
 }
 
-async function recordJobFailure(job: ClaimedJob, error: unknown) {
+/** The fencing condition: this job row, still running, still this runner's. */
+function claimedBy(job: ClaimedJob, runnerId: string) {
+  return and(
+    eq(schema.marketDraftReviewJobs.id, job.id),
+    eq(schema.marketDraftReviewJobs.status, "running"),
+    eq(schema.marketDraftReviewJobs.lockedBy, runnerId),
+  );
+}
+
+async function recordJobFailure(
+  job: ClaimedJob,
+  runnerId: string,
+  error: unknown,
+) {
   // The claim update already counted this attempt into the returned row.
   const attemptCount = job.attemptCount;
   const terminal = attemptCount >= job.maxAttempts;
@@ -225,7 +263,9 @@ async function recordJobFailure(job: ClaimedJob, error: unknown) {
   const message =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
 
-  await db
+  // Fenced like completion: if another runner reclaimed the job after our
+  // lease lapsed, its outcome owns the row and this failure is dropped.
+  const [failed] = await db
     .update(schema.marketDraftReviewJobs)
     .set({
       ...(terminal ? { completedAt: new Date() } : {}),
@@ -236,12 +276,13 @@ async function recordJobFailure(job: ClaimedJob, error: unknown) {
       status: terminal ? "terminal_failed" : "retryable_failed",
       updatedAt: new Date(),
     })
-    .where(eq(schema.marketDraftReviewJobs.id, job.id));
+    .where(claimedBy(job, runnerId))
+    .returning({ id: schema.marketDraftReviewJobs.id });
 
   // The creator should not be stuck on a silent terminal failure: surface it
   // as a changes-requested style transition would be dishonest, so release
   // the draft back to editing with no review row.
-  if (terminal) {
+  if (terminal && failed) {
     await db
       .update(schema.marketDrafts)
       .set({ status: "editing", updatedAt: new Date() })
