@@ -285,7 +285,7 @@ export async function updateMarketDraft({
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, draft.status),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -499,7 +499,7 @@ export async function submitMarketDraft(
         and(
           eq(schema.marketDrafts.id, draft.id),
           eq(schema.marketDrafts.status, draft.status),
-          eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+          draftVersionMatches(draft),
         ),
       )
       .returning();
@@ -870,7 +870,7 @@ export async function markMarketDraftPublished(
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, "approved"),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -905,6 +905,16 @@ export async function markMarketDraftPublished(
     draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "published",
   };
+}
+
+/**
+ * The optimistic-version condition for guarded transitions. Compared at
+ * millisecond precision on both sides: the driver round-trips timestamps as
+ * JS Dates (milliseconds), while rows written by the column's defaultNow()
+ * carry microseconds — a raw equality would never match those rows.
+ */
+function draftVersionMatches(draft: MarketDraftRow) {
+  return sql`date_trunc('milliseconds', ${schema.marketDrafts.updatedAt}) = ${draft.updatedAt}`;
 }
 
 async function selectOwnedDraft(

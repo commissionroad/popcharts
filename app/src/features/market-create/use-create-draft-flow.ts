@@ -118,6 +118,11 @@ export function useCreateDraftFlow({
   // save) bumps it, and a response is applied only while its generation is
   // still current — a slow older PATCH can never overwrite a newer one.
   const saveSeq = useRef(0);
+  // The autosave request currently on the wire, if any. Submit awaits it
+  // before flushing so the two writes never race server-side — the version
+  // guard there would surface a conflict banner for what is really just one
+  // client typing quickly.
+  const inflightSave = useRef<Promise<unknown> | null>(null);
 
   // Loading is derived, never set synchronously: the draft is "loading" until
   // the fetch keyed by (initialDraftId, client) lands and records its id.
@@ -215,6 +220,8 @@ export function useCreateDraftFlow({
             ...write,
             intendedCreatorAddress: creatorAddress,
           });
+
+      inflightSave.current = save.catch(() => undefined);
 
       save
         .then((saved) => {
@@ -339,8 +346,11 @@ export function useCreateDraftFlow({
     setIsSubmitting(true);
     setFlowError(null);
     // Submit supersedes any in-flight autosave: its response is dropped so a
-    // slow PATCH can never overwrite what this flush is about to persist.
+    // slow PATCH can never overwrite what this flush is about to persist —
+    // and the request itself is awaited so the flush never races it into the
+    // server's version guard.
     saveSeq.current += 1;
+    await inflightSave.current;
 
     try {
       // Flush any unsaved edits so the review sees exactly what's on screen.
