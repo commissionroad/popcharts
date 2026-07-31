@@ -18,9 +18,7 @@ const FETCH_SUMMARY_LIMIT = 500;
 export function evidenceFromClaudeCliStream(
   stream: ClaudeCliStream,
 ): EvidenceItem[] {
-  const resultsByToolUseId = new Map(
-    stream.toolResults.map((result) => [result.toolUseId, result]),
-  );
+  const resultsByToolUseId = pairResultsToUses(stream);
   const evidence: EvidenceItem[] = [];
 
   for (const toolUse of stream.toolUses) {
@@ -45,6 +43,42 @@ export function evidenceFromClaudeCliStream(
   }
 
   return dedupeEvidence(evidence);
+}
+
+/**
+ * Pairs each tool result with its invocation, keeping only ids that appear
+ * exactly once on each side.
+ *
+ * The CLI assigns these ids and does not repeat them, so a duplicate means the
+ * transcript is malformed. Resolving one anyway would let a single successful
+ * result vouch for a second, unrelated invocation — a WebFetch of a
+ * model-chosen URL could inherit a WebSearch's success and be credited as
+ * retrieved. An ambiguous pairing proves nothing, so it is dropped.
+ */
+function pairResultsToUses(stream: ClaudeCliStream) {
+  const useCounts = countById(stream.toolUses.map((toolUse) => toolUse.id));
+  const resultCounts = countById(
+    stream.toolResults.map((result) => result.toolUseId),
+  );
+
+  return new Map(
+    stream.toolResults
+      .filter(
+        (result) =>
+          useCounts.get(result.toolUseId) === 1 &&
+          resultCounts.get(result.toolUseId) === 1,
+      )
+      .map((result) => [result.toolUseId, result]),
+  );
+}
+
+function countById(ids: string[]) {
+  const counts = new Map<string, number>();
+  for (const id of ids) {
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 /**

@@ -197,6 +197,33 @@ describe("reviewWithClaudeCli", () => {
     expect(finding.scores.sourceQuality).toBe(1);
   });
 
+  it("gives no credit when one result could vouch for two invocations", async () => {
+    // The CLI does not reuse tool ids, so a duplicate means a malformed
+    // transcript. Resolving it anyway would let the search's success stand in
+    // for the fetch, crediting a URL the model chose and nothing retrieved.
+    const finding = await reviewWithClaudeCli({
+      config: CONFIG,
+      request: REQUEST,
+      runCommand: runnerReturning(
+        stream([
+          toolUse("toolu_1", "WebSearch", { query: "measured value" }),
+          toolUse("toolu_1", "WebFetch", { url: "https://example.com/data" }),
+          toolResult(
+            "toolu_1",
+            searchResultText([
+              { title: "Unrelated", url: "https://unrelated.test/page" },
+            ]),
+          ),
+          resultEvent(REVIEW_REPLY),
+        ]),
+      ),
+    });
+
+    expect(finding.evidence).toEqual([]);
+    expect(finding.sourceChecks).toEqual([]);
+    expect(finding.scores.sourceQuality).toBe(1);
+  });
+
   it("credits a search hit on the same domain as the claimed source", async () => {
     const finding = await reviewWithClaudeCli({
       config: CONFIG,

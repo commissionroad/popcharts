@@ -44,6 +44,31 @@ describe("evidenceItemFromUrl", () => {
     expect(item("http://db.internal/")).toBeNull();
   });
 
+  it("rejects internal IPv6 spellings that a prefix match would miss", () => {
+    // `new URL()` canonicalizes the dotted mapped form, so the stored hostname
+    // is "[::ffff:7f00:1]" and no "::ffff:127." test can see it.
+    expect(new URL("http://[::ffff:127.0.0.1]/").hostname).toBe(
+      "[::ffff:7f00:1]",
+    );
+    expect(item("http://[::ffff:127.0.0.1]/")).toBeNull();
+    expect(item("http://[::ffff:7f00:1]/")).toBeNull();
+    expect(item("http://[::ffff:192.168.1.1]/")).toBeNull();
+    expect(item("http://[::ffff:a00:1]/")).toBeNull();
+    // fe80::/10 spans fe80 through febf, not just the fe80: prefix.
+    expect(item("http://[fe90::1]/")).toBeNull();
+    expect(item("http://[feb0::1]/")).toBeNull();
+    expect(item("http://[fd00::1]/")).toBeNull();
+    expect(item("http://[::]/")).toBeNull();
+  });
+
+  it("keeps public IPv6 literals outside the reserved ranges", () => {
+    expect(item("http://[2606:4700:4700::1111]/")?.domain).toBe(
+      "[2606:4700:4700::1111]",
+    );
+    // fec0::/10 is deprecated site-local, outside fe80::/10 and fc00::/7.
+    expect(item("http://[fec0::1]/")).not.toBeNull();
+  });
+
   it("keeps public hostnames that merely look like private IPv6 prefixes", () => {
     // isPrivateIpv6 matches the string prefixes "fc" and "fd", so a check that
     // skips the isIP guard silently drops these primary sources.
