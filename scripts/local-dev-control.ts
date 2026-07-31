@@ -432,6 +432,9 @@ async function deployContracts(): Promise<void> {
     deployBlock: deploy.deployBlock,
     postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
+    ...(deploy.reviewBondVaultAddress
+      ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
+      : {}),
   });
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 

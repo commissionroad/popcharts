@@ -193,6 +193,9 @@ async function main(): Promise<void> {
       deployBlock: deploy.deployBlock,
       postgradAdapterAddress: deploy.postgradAdapterAddress,
       pregradManagerAddress: deploy.pregradManagerAddress,
+      ...(deploy.reviewBondVaultAddress
+        ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
+        : {}),
     }),
     ...postgradServerEnv(postgrad),
   };
