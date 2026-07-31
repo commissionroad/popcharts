@@ -28,6 +28,8 @@ export type ContractAddresses = {
   /** Adapter dev graduation finalizes with; ZERO_ADDRESS when unconfigured. */
   postgradAdapter: `0x${string}`;
   pregradManager: `0x${string}`;
+  /** Review-bond escrow vault (ADR 0022 P3); ZERO_ADDRESS disables the meter. */
+  reviewBondVault: `0x${string}`;
   /** v4 state view lens; ZERO_ADDRESS when no venue is deployed. */
   stateView: `0x${string}`;
   /** Minimal v4 swap/liquidity router; ZERO_ADDRESS when no venue is deployed. */
@@ -121,6 +123,10 @@ function createLocalConfig(): NetworkConfig {
         "LOCAL_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
       ]),
+      reviewBondVault: readAddress([
+        "LOCAL_REVIEW_BOND_VAULT_ADDRESS",
+        "REVIEW_BOND_VAULT_ADDRESS",
+      ]),
       stateView: readAddress([
         "LOCAL_STATE_VIEW_ADDRESS",
         "STATE_VIEW_ADDRESS",
@@ -175,6 +181,10 @@ function createArcTestnetConfig(): NetworkConfig {
       pregradManager: readAddress([
         "ARC_TESTNET_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
+      ]),
+      reviewBondVault: readAddress([
+        "ARC_TESTNET_REVIEW_BOND_VAULT_ADDRESS",
+        "REVIEW_BOND_VAULT_ADDRESS",
       ]),
       stateView: readAddress([
         "ARC_TESTNET_STATE_VIEW_ADDRESS",
