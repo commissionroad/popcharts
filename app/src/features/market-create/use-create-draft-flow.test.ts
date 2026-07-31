@@ -78,6 +78,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
+  reviewBondVaultAddress: "0x0000000000000000000000000000000000000042",
   rpcUrl: "http://127.0.0.1:8545",
 };
 
@@ -545,6 +546,83 @@ describe("useCreateDraftFlow review submission", () => {
 
     await waitFor(() => expect(result.current.stage).toBe("approved"));
     expect(result.current.formLocked).toBe(false);
+  });
+});
+
+describe("useCreateDraftFlow bond shortfall", () => {
+  it("prompts to fund the bond instead of raising a flow error", async () => {
+    const api = stubApi();
+
+    api.submit.mockRejectedValueOnce(meterRefusal());
+    const { result } = renderFlow();
+
+    act(() => fillValidDraft(result));
+
+    await act(async () => {
+      await result.current.submitForReview();
+    });
+
+    expect(result.current.bondShortfall).toEqual(meterRefusal().bondShortfall);
+    expect(result.current.flowError).toBeNull();
+    expect(result.current.isSubmitting).toBe(false);
+    expect(result.current.stage).toBe("editing");
+  });
+
+  it("clears the shortfall prompt on dismiss", async () => {
+    const api = stubApi();
+
+    api.submit.mockRejectedValueOnce(meterRefusal());
+    const { result } = renderFlow();
+
+    act(() => fillValidDraft(result));
+
+    await act(async () => {
+      await result.current.submitForReview();
+    });
+
+    act(() => result.current.clearBondShortfall());
+
+    expect(result.current.bondShortfall).toBeNull();
+    expect(result.current.flowError).toBeNull();
+  });
+
+  it("clears the shortfall once a resubmission goes through", async () => {
+    const api = stubApi();
+
+    api.submit.mockRejectedValueOnce(meterRefusal());
+    const { result } = renderFlow();
+
+    act(() => fillValidDraft(result));
+
+    await act(async () => {
+      await result.current.submitForReview();
+    });
+
+    expect(result.current.bondShortfall).not.toBeNull();
+
+    await act(async () => {
+      await result.current.submitForReview();
+    });
+
+    expect(result.current.bondShortfall).toBeNull();
+    expect(result.current.stage).toBe("in_review");
+  });
+
+  it("clears the shortfall when starting fresh", async () => {
+    const api = stubApi();
+
+    api.submit.mockRejectedValueOnce(meterRefusal());
+    const { result } = renderFlow();
+
+    act(() => fillValidDraft(result));
+
+    await act(async () => {
+      await result.current.submitForReview();
+    });
+
+    act(() => result.current.startFresh());
+
+    expect(result.current.bondShortfall).toBeNull();
   });
 });
 
@@ -1036,6 +1114,20 @@ function publishParamsFixture(): MarketDraftPublishParams {
     resolutionTime: "1900600000",
     yesNotBefore: "1900600000",
   };
+}
+
+// The review-bond meter's 402 refusal (ADR 0022 §3): the shortfall rides on
+// the error so the aside can offer a one-click deposit.
+function meterRefusal() {
+  return new DraftsApiError("Your available bond doesn't cover this submission.", 402, {
+    bondShortfall: {
+      availableWad: "100000000000000000",
+      message: "Your available bond doesn't cover this submission.",
+      minimumStandingBondWad: "5000000000000000000",
+      requiredWad: "200000000000000000",
+      standingBondWad: "5000000000000000000",
+    },
+  });
 }
 
 function fieldlessFeedbackItem() {

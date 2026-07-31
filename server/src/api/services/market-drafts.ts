@@ -914,7 +914,10 @@ export async function markMarketDraftPublished(
  * carry microseconds — a raw equality would never match those rows.
  */
 function draftVersionMatches(draft: MarketDraftRow) {
-  return sql`date_trunc('milliseconds', ${schema.marketDrafts.updatedAt}) = ${draft.updatedAt}`;
+  // The version token travels as an ISO string: postgres-js refuses raw
+  // Date params inside sql fragments (PGlite accepts them, so tests alone
+  // would not catch it).
+  return sql`date_trunc('milliseconds', ${schema.marketDrafts.updatedAt}) = ${draft.updatedAt.toISOString()}::timestamp`;
 }
 
 async function selectOwnedDraft(

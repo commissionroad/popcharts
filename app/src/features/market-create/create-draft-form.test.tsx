@@ -198,6 +198,8 @@ function stubFlow(overrides: Partial<DraftFlow> = {}): DraftFlow {
     canPersist: true,
     errorCount: 0,
     fieldFeedback: {},
+    bondShortfall: null,
+    clearBondShortfall: vi.fn(),
     flowError: null,
     formDraft: draft,
     formLocked: false,
