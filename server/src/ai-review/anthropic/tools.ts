@@ -1,4 +1,5 @@
 import type { AiReviewConfig } from "../config";
+import { domainFromUrl } from "../evidence-item";
 import {
   MARKET_REVIEW_EXAMPLES,
   MARKET_REVIEW_OUTPUT_CONTRACT,
@@ -6,7 +7,6 @@ import {
 } from "../policy";
 import { unique } from "../response-parsing";
 import type { InternetAccessMode, MarketReviewRequest } from "../types";
-import { domainFromUrl } from "./evidence";
 
 export type AnthropicTool =
   | {

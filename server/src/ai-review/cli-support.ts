@@ -7,13 +7,14 @@ import {
   adjustModelScoresForEvidence,
   alignScoreRationalesWithAdjustedScores,
   arrayOfStrings,
+  filterSourceChecksByEvidence,
   parseModelReview,
   parseScoreRationales,
   parseSourceChecks,
   parseVerdict,
 } from "./response-parsing";
 import { normalizeScores } from "./scoring";
-import type { MarketReviewRequest, PolicyFinding } from "./types";
+import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /**
  * Shared plumbing for the headless-CLI review providers (Claude Code, Codex).
@@ -61,19 +62,30 @@ export function buildCliReviewPrompt(request: MarketReviewRequest): string {
  * Parses one CLI's raw model reply into a finding. Model output is untrusted:
  * scores are normalized, then lowered wherever the claimed sourceChecks are
  * not backed by evidence the model actually gathered.
+ *
+ * `evidence` is what the CLI's own tool records prove was retrieved, and it
+ * defaults to none on purpose. A CLI that cannot report its tool use gets no
+ * evidence credit at all rather than being taken at its word — otherwise a
+ * hallucinating or prompt-injected model could invent resolution sources and
+ * keep approval-grade corroboration and sourceQuality scores.
  */
 export function parseCliReviewFinding({
+  evidence = [],
   modelId,
   raw,
   source,
 }: {
+  evidence?: EvidenceItem[];
   modelId: string;
   raw: string;
   source: string;
 }): PolicyFinding & { modelId: string } {
   const parsed = parseModelReview(raw, source);
   const hardFlags = arrayOfStrings(parsed.hardFlags);
-  const sourceChecks = parseSourceChecks(parsed.sourceChecks);
+  const sourceChecks = filterSourceChecksByEvidence(
+    parseSourceChecks(parsed.sourceChecks),
+    evidence,
+  );
   const rawScores = normalizeScores(
     typeof parsed.scores === "object" && parsed.scores !== null
       ? (parsed.scores as Record<string, unknown>)

@@ -433,7 +433,14 @@ function truncateQuery(value: string) {
   return value.length <= 240 ? value : value.slice(0, 240);
 }
 
-function isUnsafeIpAddress(value: string) {
+/**
+ * True when `value` is a literal IP address in a range an evidence fetch must
+ * never reach. The `isIP` check is load-bearing, not defensive: the private-IP
+ * predicates match on string prefixes, so `isPrivateIpv6` alone would call
+ * hostnames like "fcc.gov" and "fda.gov" private. Every caller must come
+ * through here rather than reaching for those predicates directly.
+ */
+export function isUnsafeIpAddress(value: string) {
   const ipVersion = isIP(value);
 
   if (ipVersion === 4) {

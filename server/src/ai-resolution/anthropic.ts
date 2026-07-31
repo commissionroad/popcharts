@@ -1,9 +1,9 @@
 import {
   collectText,
-  domainFromUrl,
   evidenceFromContent,
 } from "src/ai-review/anthropic/evidence";
 import type { AnthropicContentBlock } from "src/ai-review/anthropic/http";
+import { domainFromUrl } from "src/ai-review/evidence-item";
 import type { AnthropicTool } from "src/ai-review/anthropic/tools";
 import { unique } from "src/ai-review/response-parsing";
 import type { EvidenceItem } from "src/ai-review/types";
