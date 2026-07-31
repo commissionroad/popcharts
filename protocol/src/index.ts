@@ -18,6 +18,14 @@ export type {
 } from "./generated/pregrad-manager.js";
 
 export {
+  reviewBondVaultAbi,
+  reviewBondVaultContract,
+  reviewBondVaultDeployments,
+} from "./generated/review-bond-vault.js";
+
+export type { ReviewBondVaultDeploymentMap } from "./generated/review-bond-vault.js";
+
+export {
   boundedPoolOrderManagerAbi,
   boundedPredictionHookAbi,
   completeSetBinaryMarketAbi,
