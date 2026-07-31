@@ -90,7 +90,7 @@ export function LivePreviewPanel({
   );
 }
 
-function PreviewOutcome({
+export function PreviewOutcome({
   label,
   price,
   side,
@@ -117,7 +117,7 @@ function PreviewOutcome({
   );
 }
 
-function CompactMetric({ label, value }: { label: string; value: string }) {
+export function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase">

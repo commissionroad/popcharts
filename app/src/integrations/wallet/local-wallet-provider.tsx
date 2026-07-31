@@ -3,6 +3,7 @@
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 
+import { DRAFT_OWNER_HEADER } from "@/integrations/indexer/drafts-api";
 import {
   defaultEvmChain,
   findSupportedEvmChain,
@@ -121,11 +122,16 @@ export function LocalWalletAccountProvider({ children }: { children: ReactNode }
       displayAddress: activeAddress ? formatAddress(activeAddress) : null,
       enabled: true,
       errorMessage,
+      // The local stack has no token issuer; the server's dev-header mode
+      // (local network only) trusts the connected address as the identity.
+      getDraftAuthHeaders: async () =>
+        activeAddress ? { [DRAFT_OWNER_HEADER]: activeAddress.toLowerCase() } : {},
       isSupportedChain,
       linkWallet: connectWallet,
       login: connectWallet,
       loginLabel: "Connect wallet",
       logout,
+      ownerUserId: activeAddress?.toLowerCase() ?? null,
       pendingAction,
       ready: true,
       setActiveWallet: noopAsync,

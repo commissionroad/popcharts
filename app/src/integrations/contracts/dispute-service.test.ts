@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { PopChartsContractConfig } from "./config";
 import {
-  type DisputeStep,
   disputeResolution,
+  type DisputeStep,
   getDisputeErrorMessage,
 } from "./dispute-service";
 import { erc20Abi } from "./erc20";
-import { POSTGRAD_MARKET_STATUS, completeSetBinaryMarketAbi } from "./postgrad-venue";
+import { completeSetBinaryMarketAbi, POSTGRAD_MARKET_STATUS } from "./postgrad-venue";
 
 const WAD = 10n ** 18n;
 const BOND = 100n * WAD;
