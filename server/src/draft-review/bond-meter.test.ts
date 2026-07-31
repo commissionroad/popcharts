@@ -318,9 +318,7 @@ describe("settleOutstandingCharges", () => {
 
     expect(outcome).toBe("settled");
     // The resolver attests the LIFETIME total: settled + newly covered rows.
-    expect(calls).toEqual([
-      { address: WALLET, consumedTotal: WAD + WAD / 5n },
-    ]);
+    expect(calls).toEqual([{ address: WALLET, consumedTotal: WAD + WAD / 5n }]);
     expect(await unsettledChargesWad(WALLET)).toBe(0n);
   });
 

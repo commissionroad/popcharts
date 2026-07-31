@@ -11,6 +11,7 @@ import {
 } from "@popcharts/api-client/drafts";
 import type {
   MarketDraft,
+  MarketDraftBondShortfall,
   MarketDraftCloneRequest,
   MarketDraftPublished,
   MarketDraftPublishedWrite,
@@ -38,15 +39,27 @@ import { DisplayableError } from "@/lib/error-handling";
  * passes them through instead of masking them with a fallback.
  */
 export class DraftsApiError extends DisplayableError {
+  /** Set when the review-bond meter refused the submission (HTTP 402). */
+  readonly bondShortfall: MarketDraftBondShortfall | undefined;
   readonly fieldErrors: Record<string, string> | undefined;
   readonly status: number;
 
-  constructor(message: string, status: number, fieldErrors?: Record<string, string>) {
+  constructor(
+    message: string,
+    status: number,
+    details: {
+      bondShortfall?: MarketDraftBondShortfall;
+      fieldErrors?: Record<string, string>;
+    } = {}
+  ) {
     super(message);
     this.name = "DraftsApiError";
     this.status = status;
-    if (fieldErrors) {
-      this.fieldErrors = fieldErrors;
+    if (details.bondShortfall) {
+      this.bondShortfall = details.bondShortfall;
+    }
+    if (details.fieldErrors) {
+      this.fieldErrors = details.fieldErrors;
     }
   }
 }
@@ -155,12 +168,16 @@ async function toDraftsApiError(response: Response): Promise<DraftsApiError> {
   const text = await response.text();
   const parsed = parseBody(text);
 
+  if (isBondShortfall(parsed)) {
+    return new DraftsApiError(parsed.message, response.status, {
+      bondShortfall: parsed,
+    });
+  }
+
   if (isValidationErrors(parsed)) {
-    return new DraftsApiError(
-      parsed.message,
-      response.status,
-      compactFieldErrors(parsed.errors)
-    );
+    return new DraftsApiError(parsed.message, response.status, {
+      fieldErrors: compactFieldErrors(parsed.errors),
+    });
   }
 
   if (typeof parsed === "string" && parsed.length > 0) {
@@ -192,6 +209,18 @@ function parseBody(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function isBondShortfall(value: unknown): value is MarketDraftBondShortfall {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "availableWad" in value &&
+    "requiredWad" in value &&
+    "minimumStandingBondWad" in value &&
+    "message" in value &&
+    typeof value.message === "string"
+  );
 }
 
 function isValidationErrors(value: unknown): value is MarketDraftValidationErrors {

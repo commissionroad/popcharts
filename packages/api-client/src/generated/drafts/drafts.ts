@@ -7,6 +7,7 @@
  */
 import type {
   MarketDraft,
+  MarketDraftBondShortfall,
   MarketDraftCloneRequest,
   MarketDraftList,
   MarketDraftPublishParams,
@@ -394,6 +395,11 @@ export type submitMarketDraftResponse401 = {
   status: 401;
 };
 
+export type submitMarketDraftResponse402 = {
+  data: MarketDraftBondShortfall;
+  status: 402;
+};
+
 export type submitMarketDraftResponse404 = {
   data: string;
   status: 404;
@@ -414,15 +420,22 @@ export type submitMarketDraftResponse501 = {
   status: 501;
 };
 
+export type submitMarketDraftResponse503 = {
+  data: string;
+  status: 503;
+};
+
 export type submitMarketDraftResponseSuccess = submitMarketDraftResponse202 & {
   headers: Headers;
 };
 export type submitMarketDraftResponseError = (
   | submitMarketDraftResponse401
+  | submitMarketDraftResponse402
   | submitMarketDraftResponse404
   | submitMarketDraftResponse409
   | submitMarketDraftResponse422
   | submitMarketDraftResponse501
+  | submitMarketDraftResponse503
 ) & {
   headers: Headers;
 };

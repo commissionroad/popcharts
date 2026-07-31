@@ -1,6 +1,10 @@
 "use client";
 
-import type { DraftFeedbackItem, MarketDraft } from "@popcharts/api-client/models";
+import type {
+  DraftFeedbackItem,
+  MarketDraft,
+  MarketDraftBondShortfall,
+} from "@popcharts/api-client/models";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
 
@@ -29,6 +33,7 @@ import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import {
   createDraftsApiClient,
   type DraftsApiClient,
+  DraftsApiError,
 } from "@/integrations/indexer/drafts-api";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { presentError } from "@/lib/error-handling";
@@ -105,6 +110,8 @@ export function useCreateDraftFlow({
     null
   );
   const [templateSaved, setTemplateSaved] = useState(false);
+  const [bondShortfall, setBondShortfall] =
+    useState<MarketDraftBondShortfall | null>(null);
   const [loadedDraftId, setLoadedDraftId] = useState<number | null>(null);
   const skipNextAutosave = useRef(false);
   // Monotonic save generation: every save (and submit, which supersedes any
@@ -346,8 +353,15 @@ export function useCreateDraftFlow({
       const submitted = await client.submit(saved.id);
       setServerDraft(submitted);
       setSavedAt(submitted.updatedAt);
+      setBondShortfall(null);
     } catch (error) {
-      setFlowError(describeError(error, "submit-draft"));
+      // A meter refusal is a prompt to fund the bond, not an error banner:
+      // the shortfall panel takes over the aside with a one-click deposit.
+      if (error instanceof DraftsApiError && error.bondShortfall) {
+        setBondShortfall(error.bondShortfall);
+      } else {
+        setFlowError(describeError(error, "submit-draft"));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -415,8 +429,13 @@ export function useCreateDraftFlow({
     document.getElementById("question")?.focus();
   }
 
+  function clearBondShortfall() {
+    setBondShortfall(null);
+  }
+
   function startFresh() {
     skipNextAutosave.current = true;
+    setBondShortfall(null);
     setServerDraft(null);
     setPublishedMarket(null);
     setFormDraft(createInitialMarketDraft());
@@ -446,6 +465,8 @@ export function useCreateDraftFlow({
     advanced,
     applyGraduationPreset,
     applyResolutionPreset,
+    bondShortfall,
+    clearBondShortfall,
     canPersist: Boolean(client),
     errorCount,
     fieldFeedback,

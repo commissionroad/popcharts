@@ -126,3 +126,4 @@ export * from "./venueOrderList";
 export * from "./venueOrderStatus";
 export * from "./venuePoolSide";
 export * from "./versionInfo";
+export * from "./marketDraftBondShortfall";
