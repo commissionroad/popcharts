@@ -129,6 +129,14 @@ Today it is realized by append-only event tables mirrored 1:1 from chain:
   **collateral paid out**, from the market's `Redeemed`/`CancelledRedeemed`
   events. The token-burn leg of the same transaction also appears in
   `outcome_token_transfer_events`; this table records the collateral leg.
+- `review_bond_events` — per value transfer through the `ReviewBondVault`, the
+  prepaid market-review escrow (repo ADR 0022): user **deposits**, resolver
+  **settlements** moving consumed review fees into the collected pool, user
+  **withdrawals** of unconsumed bond, and owner **fee sweeps**, from the
+  vault's `ReviewBondDeposited`/`ReviewFeesSettled`/`ReviewBondWithdrawn`/
+  `ReviewFeesWithdrawn` events. Each row also carries the event's own
+  cumulative figure (`running_total`; null for sweeps), so the off-chain bond
+  meter reconciles against on-chain state without replaying history.
 
 Because refunds are pull-based, a per-receipt record appears when money actually
 moves (the claim), not when it becomes owed. The owed amount is always
