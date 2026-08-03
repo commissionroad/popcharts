@@ -4,6 +4,8 @@ export * from "./contracts";
 export * from "./indexer-state";
 export * from "./market-ai-review-jobs";
 export * from "./market-ai-reviews";
+export * from "./market-draft-reviews";
+export * from "./market-drafts";
 export * from "./market-events";
 export * from "./market-metadata";
 export * from "./market-resolution-jobs";
