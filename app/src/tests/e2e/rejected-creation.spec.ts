@@ -1,19 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-import { lifecycleEnv, marketPath } from "./support/lifecycle";
-import { createRejectedMarket, FORCED_REJECTION_REASON } from "./support/lifecycle-ui";
+import { lifecycleEnv } from "./support/lifecycle";
+import { connectTestWallet, installTestWallet } from "./support/test-wallet";
 
 /**
- * ADR 0017 C4 journey 2 — rejected creation. The dev review endpoint forces a
- * `reject` verdict with a known reason, and the creator sees the rejected
- * status and that reason on the market page. There is no money-out moment
- * here; the deliverable is the rejection surface. Review is a controlled input,
- * so this tests the UI, not how the AI reviewer scores a market.
+ * ADR 0017 C4 journey 2 — rejected creation, updated for review-first
+ * creation (ADR 0022). A rejection now happens on the off-chain draft before
+ * anything touches the chain: the creator keeps the draft, sees why it was
+ * rejected and how to fix it, and pays nothing. The old on-chain `rejected`
+ * market surface this journey used to assert no longer exists in the create
+ * path. The heuristic reviewer's private-knowledge rule makes the verdict a
+ * deterministic, controlled input — no AI dependency.
  *
  * Runs only under `pnpm lifecycle:e2e` (full local stack), single-worker.
  */
 
 const LIFECYCLE_TIMEOUT_MS = 300_000;
+const REVIEW_VERDICT_TIMEOUT_MS = 30_000;
 
 test.describe("@lifecycle rejected creation", () => {
   test.skip(
@@ -21,29 +24,40 @@ test.describe("@lifecycle rejected creation", () => {
     "Run via 'pnpm lifecycle:e2e' — this spec needs the full local stack."
   );
 
-  test("a rejected market shows the rejected status and the reason", async ({
+  test("a rejected draft keeps the creator's work and explains the rejection", async ({
     page,
   }) => {
     test.setTimeout(LIFECYCLE_TIMEOUT_MS);
     const env = lifecycleEnv();
+    const runTag = Date.now().toString(36);
+    const question = `Will my roommate adopt a cat this winter? (${runTag})`;
 
-    const marketId = await createRejectedMarket(
-      page,
-      env,
-      "Will the rejected-creation e2e market be rejected?"
-    );
+    await installTestWallet(page, { rpcUrl: env.rpcUrl });
+    await page.goto("/create");
+    await connectTestWallet(page);
 
-    await page.goto(marketPath(env, marketId));
+    await page.getByLabel("Market question").fill(question);
+    await page
+      .getByLabel("Resolution criteria")
+      .fill("Resolves YES when the cat arrives.");
+    await page.getByRole("button", { name: "Submit for AI review" }).click();
 
-    // Rejected status renders on the status pill and the AI review verdict.
-    await expect(page.getByText("Rejected").first()).toBeVisible({
-      timeout: 30_000,
+    // The rejection lands as draft feedback: status, blocker, and the fix.
+    await expect(page.getByText("Not approved")).toBeVisible({
+      timeout: REVIEW_VERDICT_TIMEOUT_MS,
     });
-    // The forced reason is listed in the AI review card's reviewer notes. The
-    // card renders a hidden responsive duplicate, so match only the visible
-    // instance rather than a DOM-order .first().
     await expect(
-      page.getByText(FORCED_REJECTION_REASON).filter({ visible: true })
-    ).toBeVisible({ timeout: 30_000 });
+      page.getByText("This market can't run as written", { exact: false })
+    ).toBeVisible();
+    await expect(page.getByText("Make it publicly checkable").first()).toBeVisible();
+
+    // The draft survives the rejection, editable, on the studio's shelf.
+    await page.goto("/studio");
+    await connectTestWallet(page);
+    await page.getByRole("button", { name: "Needs fixes" }).click();
+
+    const card = page.locator("article", { hasText: question }).first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("Rejected")).toBeVisible();
   });
 });
