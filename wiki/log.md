@@ -1273,3 +1273,23 @@ existing tables; index description unchanged (still "home of the money
 invariant"). Pre-existing drift left alone: the catalogue still omits
 `postgrad_dispute_bond_events` and `complete_set_events`, which the
 postgrad-market watcher cites against this doc.
+
+## [2026-08-03] ingest | docs/adr/0022-review-first-market-creation.md — status reconciled with what shipped
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md, ~entities/ai-review-service.md, ~index.md
+Notes: the ADR had drifted hard — still "Proposed" with all 8 phases unticked while
+P1/P2/P3/P7 plus P4's app half were on main (PRs #412–#417, #419). Source doc updated
+first, then these pages. Three things the wiki had wrong beyond the checkboxes, all now
+recorded: (1) the shipped draft state machine has a **third** outcome,
+`changes_requested` (quality) alongside `rejected` (policy) — the ADR specified only
+two; (2) on-chain `createMarket` is **still ungated** — publish calls it and then
+force-approves with the review-manager key, so pages claiming markets are born Active
+were describing the design, not the system, and P5 is blocked because that bridge needs
+the very review states it would delete; (3) the creation fee is now fee-on-accept in
+practice but its `MarketCreationFeePaid` indexing is still open, so it remains the one
+value transfer with no receipt-linked record — creation-fee-custody said the ADR "adds
+that indexing" without noting it hadn't. Also carried over the two documented bond
+caveats (withdraw gated on the resolver's settled total, not the meter; `lifecycle:e2e`
+runs with no vault deployed so the 402/deposit path is uncovered). Verified against code
+rather than the landing notes: `GET /markets` still takes only `chainId`/`since`,
+confirming P8 untouched; no EIP-712 or nonce in `PregradManager.sol`, confirming P4's
+contract half open.

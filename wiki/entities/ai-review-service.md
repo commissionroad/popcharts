@@ -91,19 +91,33 @@ hard-flag agreement or second-run concurrence; lone LLM rejects park as
 manual_review) and the `AI_REVIEW_PROMPT_VERSION` eval policy that closes
 the 0011 checkbox.
 
-## Proposed change (ADR 0022, Proposed — not yet built)
+## Draft review (ADR 0022, built 2026-08-03)
 
-[Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) would
-relocate review **off-chain, onto Drafts, before any market exists**. The runner
-and its tables (`market_ai_reviews`/`market_ai_review_jobs`) are on-chain-market-
-bound (`marketId NOT NULL`, FKs to `markets`/`market_metadata`), so this needs
-**new draft-keyed tables + a reworked runner** that applies verdicts as draft-state
-transitions with no on-chain `approveMarket`/`rejectMarket`. The reusable part is
-the *pattern* (content-addressed metadata keyed to the draft's snapshot hash, the
-leased-job queue, the stateless service), not the tables.
+[Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md)
+relocates review **off-chain, onto Drafts, before any market exists**. The original
+runner and its tables (`market_ai_reviews`/`market_ai_review_jobs`) are
+on-chain-market-bound (`marketId NOT NULL`, FKs to `markets`/`market_metadata`), so
+this needed **new draft-keyed tables + a second runner** applying verdicts as
+draft-state transitions with no on-chain `approveMarket`/`rejectMarket`. The reused
+part is the *pattern* (content-addressed metadata keyed to the draft's snapshot
+hash, the leased-job queue, the stateless service), not the tables.
+
+This is built: `market_draft_reviews` / `market_draft_review_jobs`, the draft-review
+runner started from the API main block (heuristic provider by default,
+`POPCHARTS_DRAFT_REVIEW_PROVIDER` overrides), and a creator-facing feedback
+translator turning hard flags and scores into per-field
+`{title, issue, howToFix, severity}`. Verdicts land as
+`approved | rejected | changes_requested` — the third state, absent from the original
+design, carries *quality* feedback (from a `manual_review` verdict) as distinct from
+a *policy* rejection.
+
+**The on-chain review path still exists alongside it.** Publish bridges to the
+ungated `createMarket` and force-approves with the review-manager key, so this
+service's on-chain transition path stays live until ADR 0022's P4 lands and P5
+retires it.
 
 ## Related pages
 
 - [Market lifecycle](../concepts/market-lifecycle.md) — the gate it operates
-- [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) — Proposed: review moves off-chain onto drafts
+- [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) — review moved off-chain onto drafts (built); the on-chain path retires with its P5
 - [Server workspace](server-workspace.md), [indexer](indexer.md)
