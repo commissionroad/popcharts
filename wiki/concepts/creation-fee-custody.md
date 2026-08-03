@@ -34,14 +34,18 @@ the owner. It only binds once public creation unpauses.
   the fee's real value under [Arc Testnet](../entities/arc-testnet.md)'s
   18-decimal-native vs 6-decimal-ERC20 USDC duality.
 
-## Proposed change (ADR 0022, Proposed — not yet built)
+## Change from ADR 0022 (fee-on-accept in effect; fee indexing still open)
 
 [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) moves
 the fee to **fee-on-accept**: it is collected when the creator *publishes* an
 already-approved off-chain draft, not at submit, so a rejected market never pays
-(removing the reject-burns-the-fee pain). It also notes the fee currently has **no
-event-sourced record** — `MarketCreationFeePaid` is emitted but indexed nowhere —
-and adds that indexing so the fee finally satisfies the money-paper-trail invariant.
+(removing the reject-burns-the-fee pain). **This is in effect** as of the
+2026-08-03 draft-flow build — a draft that never reaches `approved` never pays.
+The ADR also notes the fee has **no event-sourced record** —
+`MarketCreationFeePaid` is emitted but indexed nowhere — and adds that indexing so
+the fee finally satisfies the money-paper-trail invariant. **That indexing is still
+open** (it rides P4), so the creation fee remains the one value transfer without a
+receipt-linked record.
 
 ADR 0022 also introduces a **second, separate fee flow**: a prepaid refundable
 **review bond** in a standalone `ReviewBondVault` escrow (min $5, drawn down by
@@ -50,3 +54,8 @@ pipeline as the Sybil defence. Unlike the creation fee (an abstract base mixed i
 `PregradManager`, keyed to `marketId`), the bond is a standalone contract keyed to
 the submitter and collected at submit-time when no market exists — same native-USDC
 `msg.value` denomination, its own deposit/settlement/withdrawal money-trail events.
+The bond **is built** (contract, meter and the four bond events indexed, 2026-08-03),
+so it — unlike the creation fee — already has its receipt-linked record. One v1
+caveat: `withdrawBond` is gated on the resolver's *settled* total, so between
+settlements a creator can withdraw against reviews already consumed (bounded by the
+unsettled tally, ~$1).
