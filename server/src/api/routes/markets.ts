@@ -46,6 +46,7 @@ import {
   MarketSchema,
   MarketStatusSchema,
   MarketVenuePoolSchema,
+  MarketVenuePriceHistorySchema,
   MarketVenueSchema,
   ReceiptPlacedEventListSchema,
   ReceiptPlacedEventSchema,
@@ -56,6 +57,7 @@ import {
   VenueOrderSchema,
   VenueOrderStatusSchema,
   VenuePoolSideSchema,
+  VenuePricePointSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
@@ -79,6 +81,7 @@ import {
   getMarketVenueOrders,
   VENUE_ORDER_STATUS_FILTERS,
 } from "src/api/services/venue-orderbook";
+import { getMarketVenuePriceHistory } from "src/api/services/venue-price-history";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -135,6 +138,8 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     MarketMetadataWrite: MarketMetadataWriteSchema,
     MarketOrderBook: MarketOrderBookSchema,
     MarketStatus: MarketStatusSchema,
+    MarketVenuePriceHistory: MarketVenuePriceHistorySchema,
+    VenuePricePoint: VenuePricePointSchema,
     ReceiptPlacedEvent: ReceiptPlacedEventSchema,
     ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
     VenueOrder: VenueOrderSchema,
@@ -608,6 +613,39 @@ export const marketRoutes = marketRoutesWithDevTools
         summary: "Get a market's venue order book",
         description:
           "Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/venue-price-history",
+    async ({ params, set }) => {
+      const history = await getMarketVenuePriceHistory({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (!history) {
+        set.status = 404;
+        return "Market not found";
+      }
+
+      return history;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "MarketVenuePriceHistory",
+        404: t.String(),
+      },
+      detail: {
+        operationId: "getMarketVenuePriceHistory",
+        summary: "Get a market's post-graduation price history",
+        description:
+          "Returns the price history of a graduated market's bounded venue as YES and NO probabilities in cents: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Cents are fractional — a bounded pool can take several swaps inside one cent — so round at display. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.",
         tags: ["Markets"],
       },
     },

@@ -401,6 +401,44 @@ export const MarketOrderBookSchema = t.Object(
 );
 
 /**
+ * One sample on a graduated market's venue price history. Both outcomes are
+ * quoted at every sample even though a swap only ever moves one pool: the
+ * untouched side carries its last observed price forward, so a chart can plot
+ * the pair without re-deriving the fill itself.
+ *
+ * Prices are cents (0-100) rather than WAD, because an outcome token redeeming
+ * for one collateral on a win makes them the same scale as the pre-graduation
+ * implied probabilities the same chart draws. Fractional, for the same reason
+ * that half of the chart is: a bounded pool can take several swaps inside one
+ * cent, and rounding here would plot them as a flat line. Round at display.
+ */
+export const VenuePricePointSchema = t.Object(
+  {
+    at: t.String(),
+    noPriceCents: t.Number(),
+    yesPriceCents: t.Number(),
+  },
+  { $id: "VenuePricePoint" },
+);
+
+/**
+ * A graduated market's post-graduation price history. The first point is the
+ * handoff itself — the pools open where the pregrad book closed — followed by
+ * one point per indexed taker swap. A market that has not graduated, or whose
+ * venue pools are not indexed, returns no points rather than an error.
+ */
+export const MarketVenuePriceHistorySchema = t.Object(
+  {
+    chainId: t.Number(),
+    /** Handoff time, and the timestamp of the opening point when present. */
+    graduatedAt: t.Optional(t.String()),
+    marketId: t.String(),
+    points: t.Array(t.Ref(VenuePricePointSchema)),
+  },
+  { $id: "MarketVenuePriceHistory" },
+);
+
+/**
  * One indexed bounded-venue maker order. `priceWad` follows the ladder's
  * price convention; `sizeWad` / `remainingSizeWad` are the outcome-token
  * quantities (WAD) of the order's total and remaining liquidity over its
@@ -820,6 +858,10 @@ export type VenueOrderBookPoolResponse = Static<
   typeof VenueOrderBookPoolSchema
 >;
 export type MarketOrderBookResponse = Static<typeof MarketOrderBookSchema>;
+export type VenuePricePointResponse = Static<typeof VenuePricePointSchema>;
+export type MarketVenuePriceHistoryResponse = Static<
+  typeof MarketVenuePriceHistorySchema
+>;
 export type VenueOrderResponse = Static<typeof VenueOrderSchema>;
 export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
 export type MarketVenueResponse = Static<typeof MarketVenueSchema>;
