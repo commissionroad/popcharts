@@ -77,8 +77,28 @@ describe("reviewWithCodexCli", () => {
 
     expect(finding.verdict).toBe("approve");
     expect(finding.modelId).toBe("gpt-5.6-luna");
-    expect(finding.scores.sourceQuality).toBe(5);
-    expect(finding.sourceChecks).toHaveLength(1);
+    expect(finding.reasons).toEqual([
+      "The market is measurable and publicly resolvable.",
+    ]);
+    expect(finding.scores.objectivity).toBe(5);
+  });
+
+  it("gives the model's claimed sources no evidence credit", async () => {
+    // `codex exec --json` reports only the model's own search query, never the
+    // URLs the hosted search returned, so nothing here can corroborate a
+    // sourceCheck. Unbacked claims are dropped rather than trusted.
+    const finding = await reviewWithCodexCli({
+      config: CONFIG,
+      request: REQUEST,
+      runCommand: runnerReturning(REVIEW),
+    });
+
+    expect(finding.sourceChecks).toEqual([]);
+    expect(finding.scores.corroboration).toBe(1);
+    expect(finding.scores.sourceQuality).toBe(1);
+    expect(finding.scoreRationales.sourceQuality).toContain(
+      "No source check matched the collected evidence",
+    );
   });
 
   it("coerces scores the model emitted as strings", async () => {
@@ -97,9 +117,11 @@ describe("reviewWithCodexCli", () => {
     });
 
     // Without coercion these silently fall back to the conservative
-    // DEFAULT_SCORES (corroboration 0, sourceQuality 0) with no error.
-    expect(finding.scores.sourceQuality).toBe(5);
-    expect(finding.scores.corroboration).toBe(4);
+    // DEFAULT_SCORES (objectivity 0, publicKnowability 0) with no error.
+    // Asserted on dimensions the no-evidence cap leaves alone, so the cap
+    // cannot mask a coercion failure.
+    expect(finding.scores.objectivity).toBe(5);
+    expect(finding.scores.publicKnowability).toBe(5);
   });
 
   it("runs a read-only exec with web search enabled", async () => {
