@@ -8,7 +8,7 @@ import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
 import { assertEqual, assertTruthy } from "../asserts";
-import { jumpChainTimeTo, resolutionRunnerTimeoutMs } from "../chain-time";
+import { resolutionRunnerTimeoutMs } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import { waitForApiStatus, waitForIndexedRows } from "../market-checks";
 import { cancelPostgradMarketAsResolver } from "../operator";
@@ -76,8 +76,9 @@ export const drawCancel: Scenario = {
     const postgradMarketAddress = graduated.postgrad?.marketAddress as Address;
 
     await step("resolution runner parks the draw for a human", async () => {
-      await jumpChainTimeTo(market.resolutionTime + 1n);
-
+      // No chain jump — see the note in happy-path: the gate is waited out on
+      // the wall clock either way, and jumping only leaves a permanent offset
+      // for the scenarios that follow.
       const verdict = await waitForCondition(
         `market ${market.marketId} draw verdict recorded`,
         async () => {
