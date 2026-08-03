@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { PricePathPoint } from "@/domain/markets/types";
 
-import { PriceCurve, windowPricePath } from "./price-curve";
+import { PriceCurve, toCurvePoints, windowPricePath } from "./price-curve";
 
 // Companion to price-curve.test.tsx: covers only the branches the main suite
 // leaves out (unmeasured layout, degenerate timestamps, tooltip edge flips).
@@ -68,16 +68,20 @@ describe("PriceCurve edge branches", () => {
 
   it("spreads samples evenly when every trade shares one timestamp", () => {
     const at = "2026-06-13T12:00:00.000Z";
-    const samples = windowPricePath(
-      [
-        { at, cents: 40 },
-        { at, cents: 50 },
-        { at, cents: 60 },
-      ],
+    const { samples, timeSpan } = windowPricePath(
+      toCurvePoints({
+        points: [
+          { at, cents: 40 },
+          { at, cents: 50 },
+          { at, cents: 60 },
+        ],
+      }),
       null
     );
 
     expect(samples.map((sample) => sample.x)).toEqual([0, 0.5, 1]);
+    // A zero-width window cannot place a dated annotation either.
+    expect(timeSpan).toBeNull();
     // A zero-width window has no meaningful time axis.
     renderCurve([
       { at, cents: 40 },
