@@ -1287,3 +1287,19 @@ the collateral leg — and the dispute-bond bullet distinguishes itself from
 money. No entity/concept page needed updating: the catalogue lives only here,
 and protocol-adr-0013 already names the three bond events. Index description
 unchanged.
+
+Reviewing the diff surfaced a third money event with no table at all —
+`RetainedCollateralFunded`, the retained graduation collateral moving manager →
+postgrad adapter → new market. It is NOT a gap, and the catalogue now says so
+explicitly instead of leaving it to be re-flagged (it was raised three times in
+one day): no user is on either end, there is no receipt to link a row to, and
+the amount is already held as a total in
+`graduation_finalized_events.retained_cost_total` and per-receipt in
+`graduated_receipt_claimed_events.retained_cost`. The decision was already made
+and documented — in a code comment in `server/src/lifecycle-nightly/paper-trail.ts`,
+where the nightly check consumes the event straight from chain as a solvency
+bound rather than from the DB, deliberately not trusting the projection it
+audits. The doc and that comment now agree. Also corrected in this pass: the
+first draft of the complete-set bullet claimed mint/merge is *how* collateral
+enters and leaves outside resolution, but `fundRetainedCollateral` is a second
+such path — the overbroad sentence was dropped.

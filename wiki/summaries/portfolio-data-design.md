@@ -69,6 +69,17 @@ append-only event tables mirrored 1:1 from chain:
   cumulative figure (`running_total`; null for sweeps) so the off-chain bond
   meter reconciles against chain state without replaying history.
 
+**One omission is deliberate**, and the doc now says so rather than leaving it
+to be re-flagged: `RetainedCollateralFunded` (retained graduation collateral
+moving manager → postgrad adapter → new market) has no table, because no user is
+on either end, there is no receipt to link a row to, and the amount is already
+held as a total in `graduation_finalized_events.retained_cost_total` and
+per-receipt in `graduated_receipt_claimed_events.retained_cost`. The nightly
+paper-trail check reads it from chain as a solvency bound instead — deliberately
+not trusting the projection it audits. Stated as a rule: protocol-internal
+movement of already-recorded collateral earns no row; a new user-facing value
+transfer always does.
+
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is
 deliberate — the owed amount is always recoverable from chain (receipt cost plus
