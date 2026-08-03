@@ -4,7 +4,9 @@ import { Elysia } from "elysia";
 
 import { config } from "src/config";
 import { startChangeFeedRetention } from "src/change-feed/retention";
+import { startDraftReviewRunner } from "src/draft-review/runner";
 import { eventsRoutes } from "./routes/events";
+import { marketDraftRoutes } from "./routes/market-drafts";
 import { marketRoutes } from "./routes/markets";
 import { portfolioRoutes } from "./routes/portfolio";
 import { systemRoutes } from "./routes/system";
@@ -25,6 +27,7 @@ export const app = new Elysia()
   .use(systemRoutes)
   .use(eventsRoutes)
   .use(marketRoutes)
+  .use(marketDraftRoutes)
   .use(portfolioRoutes);
 
 if (import.meta.main) {
@@ -34,6 +37,11 @@ if (import.meta.main) {
   console.log(
     `OpenAPI docs available at http://localhost:${app.server?.port}/openapi`,
   );
+
+  // Draft reviews run in-process with the API for now: the queue table keeps
+  // the work durable, and the loop is cheap because the local default
+  // provider is the deterministic heuristic (see draft-review/runner.ts).
+  startDraftReviewRunner();
 
   // Age-based retention for the change-feed outbox — runs with the API, not
   // gated on SSE clients, since the indexer appends regardless (ADR 0021).
