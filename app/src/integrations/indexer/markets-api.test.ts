@@ -121,6 +121,43 @@ describe("createMarketsApiClient", () => {
     ).resolves.toBeNull();
   });
 
+  it("fetches a market's venue price history from the chain-scoped path", async () => {
+    const history = {
+      chainId: 5042002,
+      graduatedAt: "2026-07-01T00:00:00.000Z",
+      marketId: "7",
+      points: [{ at: "2026-07-01T00:00:00.000Z", noPriceCents: 50, yesPriceCents: 50 }],
+    };
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse(history)
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarketVenuePriceHistory({ chainId: 5042002, marketId: "7" })
+    ).resolves.toEqual(history);
+    expect(String(firstFetchCall(fetcher)[0])).toBe(
+      "http://localhost:3001/markets/5042002/7/venue-price-history"
+    );
+  });
+
+  it("returns null when the venue price history targets a missing market", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("not found", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.getMarketVenuePriceHistory({ chainId: 5042002, marketId: "404" })
+    ).resolves.toBeNull();
+  });
+
   it("fetches a wallet's portfolio for the requested chain and owner", async () => {
     const portfolio = {
       chainId: 5042002,

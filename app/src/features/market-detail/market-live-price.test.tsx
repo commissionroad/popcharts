@@ -2,7 +2,7 @@ import { type PriceTickWire, serializeChangeSignal } from "@popcharts/live-chann
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PricePathPoint } from "@/domain/markets/types";
+import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
 import type { LiveSignal } from "@/integrations/live-updates/live-connection";
 
 import { MarketLivePrice } from "./market-live-price";
@@ -25,18 +25,27 @@ vi.mock("@/integrations/live-updates/use-live-channel", () => ({
 // gets asserted, independent of the SVG plotting.
 vi.mock("@/components/charts/price-curve", () => ({
   PriceCurve: ({
+    graduatedAt,
     noLabel,
     points,
+    postgradPoints,
     yesLabel,
   }: {
+    graduatedAt?: string;
     noLabel: string;
     points: PricePathPoint[];
+    postgradPoints?: PostgradPricePoint[];
     yesLabel: string;
   }) => (
     <div data-testid="price-curve">
       <span data-testid="chart-labels">{`${yesLabel}/${noLabel}`}</span>
       <span data-testid="chart-latest-cents">{points.at(-1)?.cents ?? "none"}</span>
       <span data-testid="chart-point-count">{points.length}</span>
+      <span data-testid="chart-graduated-at">{graduatedAt ?? "none"}</span>
+      <span data-testid="chart-venue-count">{postgradPoints?.length ?? "none"}</span>
+      <span data-testid="chart-venue-latest">
+        {postgradPoints?.at(-1)?.yesCents ?? "none"}
+      </span>
     </div>
   ),
 }));
@@ -81,6 +90,45 @@ describe("MarketLivePrice", () => {
 
     expect(screen.getByText("settled summary")).toBeInTheDocument();
     expect(screen.getByText("Pre-graduation price history")).toBeInTheDocument();
+  });
+
+  it("refetches instead of appending a price tick after graduation", () => {
+    // A graduated market's receipt book is closed, so a tick can only be a
+    // venue price — and the append path plots on the pre-graduation series,
+    // where that does not belong. Refetching keeps both halves authoritative.
+    renderIsland({ graduatedAt: "2026-07-24T00:00:00.000Z" });
+
+    emit(tickSignal({ sequence: 6, yesPriceCents: 70, noPriceCents: 30 }));
+
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    // The headline and chart still show the SSR state, not the tick's.
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
+  });
+
+  it("passes the venue prices and graduation time through to the chart", () => {
+    renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+      postgradPoints: [
+        { at: "2026-07-24T01:00:00.000Z", noCents: 54.2, yesCents: 46.1 },
+      ],
+    });
+
+    // They stay a separate series: the LMSR path is untouched, and the venue
+    // prices arrive whole rather than folded into it.
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("chart-venue-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("chart-venue-latest")).toHaveTextContent("46.1");
+    expect(screen.getByTestId("chart-graduated-at")).toHaveTextContent(
+      "2026-07-24T00:00:00.000Z"
+    );
+  });
+
+  it("leaves the chart's postgrad inputs unset for a pregrad market", () => {
+    renderIsland();
+
+    expect(screen.getByTestId("chart-graduated-at")).toHaveTextContent("none");
+    expect(screen.getByTestId("chart-venue-count")).toHaveTextContent("none");
   });
 
   it("appends a consecutive price tick to the chart and headline without refetching", () => {

@@ -9,6 +9,7 @@ import { parseApiMarketAppId } from "@/lib/app-id";
 
 import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
+import type { PostgradPricePoint } from "./types";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
 export type DevMarketResolutionSide = "yes" | "no";
@@ -74,6 +75,38 @@ export async function getMarketReceipts(id: string, options: MarketQueryOptions 
   }
 
   return config.client.getMarketReceipts(lookup);
+}
+
+/**
+ * Fetches a graduated market's bounded-venue price history — the prices its
+ * outcome pools traded at after the handoff, oldest first. Returns an empty
+ * list for anything without one: a fixture-backed market, a market that has
+ * not graduated, and one whose venue pools are not indexed yet all have no
+ * venue prices, which is a normal state rather than a failure.
+ */
+export async function getMarketVenuePricePath(
+  id: string,
+  options: MarketQueryOptions = {}
+): Promise<PostgradPricePoint[]> {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    return [];
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    return [];
+  }
+
+  const history = await config.client.getMarketVenuePriceHistory(lookup);
+
+  return (history?.points ?? []).map((point) => ({
+    at: point.at,
+    noCents: point.noPriceCents,
+    yesCents: point.yesPriceCents,
+  }));
 }
 
 export async function getMarkets(options: MarketQueryOptions = {}) {

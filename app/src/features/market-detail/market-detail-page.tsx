@@ -8,6 +8,7 @@ import { isAwaitingResolution } from "@/domain/markets/status";
 import {
   type Market,
   marketSideLabel,
+  type PostgradPricePoint,
   type PricePathPoint,
 } from "@/domain/markets/types";
 import { OrderBookCard } from "@/features/order-book/order-book-card";
@@ -29,9 +30,11 @@ import { MarketPositionPanel } from "./market-position-panel";
 export function MarketDetailPage({
   market,
   pricePath,
+  venuePricePath,
 }: {
   market: Market;
   pricePath?: PricePathPoint[];
+  venuePricePath?: PostgradPricePoint[];
 }) {
   const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
   // Once a market graduates the receipt book is history: the page leads with
@@ -98,15 +101,13 @@ export function MarketDetailPage({
               to match still resets the appended ticks instead of reusing them. */}
           <MarketLivePrice
             key={market.id}
-            chartHeading={
-              settled
-                ? "Pre-graduation price history"
-                : "Virtual LMSR - implied probability"
-            }
+            chartHeading={chartHeading({ market, settled, venuePricePath })}
+            {...(market.postgrad ? { graduatedAt: market.postgrad.finalizedAt } : {})}
             marketAppId={market.id}
             noLabel={marketSideLabel(market, "no")}
             noPriceCents={market.noPriceCents}
             points={chartPoints}
+            {...(venuePricePath ? { postgradPoints: venuePricePath } : {})}
             seedSequence={market.receiptCount}
             yesLabel={marketSideLabel(market, "yes")}
             yesPriceCents={market.yesPriceCents}
@@ -199,6 +200,32 @@ export function MarketDetailPage({
       </div>
     </div>
   );
+}
+
+/**
+ * What the chart is actually showing, which depends on how much of the
+ * market's life it covers. A graduated market whose venue has traded spans
+ * both mechanisms, so naming either one would be wrong; before graduation the
+ * curve is purely the virtual LMSR. A settled market with no venue prices —
+ * graduated but not yet traded, or never indexed — really is showing only its
+ * pre-graduation history, and still says so.
+ */
+function chartHeading({
+  market,
+  settled,
+  venuePricePath,
+}: {
+  market: Market;
+  settled: boolean;
+  venuePricePath: PostgradPricePoint[] | undefined;
+}) {
+  if (!settled) {
+    return "Virtual LMSR - implied probability";
+  }
+
+  return venuePricePath && venuePricePath.length > 0 && market.postgrad
+    ? "Price history"
+    : "Pre-graduation price history";
 }
 
 /**
