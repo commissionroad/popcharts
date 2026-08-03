@@ -19,13 +19,15 @@ export type DeploySummary = {
   deployBlock: string;
   postgradAdapterAddress: Address;
   pregradManagerAddress: Address;
+  reviewBondVaultAddress: Address;
 };
 
 /**
  * Deploys the smallest useful protocol surface for local development:
  * collateral for market config, the singleton manager whose MarketCreated
- * event the indexer watches, and a postgrad adapter so dev tooling can
- * finalize graduations end to end.
+ * event the indexer watches, a postgrad adapter so dev tooling can finalize
+ * graduations end to end, and the review-bond vault (ADR 0022) with the
+ * deployer standing in as both owner and settlement resolver.
  */
 export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<DeploySummary> {
   const publicClient = await viem.getPublicClient();
@@ -44,6 +46,10 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     OUTCOME_DECIMALS,
     ...localDisputeConfigArgs(),
   ]);
+  const reviewBondVault = await viem.deployContract("ReviewBondVault", [
+    deployerAddress,
+    deployerAddress,
+  ]);
 
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.
@@ -55,5 +61,6 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     deployBlock: deployBlock.toString(),
     postgradAdapterAddress: postgradAdapter.address,
     pregradManagerAddress: manager.address,
+    reviewBondVaultAddress: reviewBondVault.address,
   };
 }
