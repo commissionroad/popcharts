@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./development": "./src/generated/development/development.ts",
+    "./drafts": "./src/generated/drafts/drafts.ts",
     "./graduation": "./src/generated/graduation/graduation.ts",
     "./markets": "./src/generated/markets/markets.ts",
     "./models": "./src/generated/models/index.ts",
