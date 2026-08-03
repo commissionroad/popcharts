@@ -214,7 +214,7 @@ export const getMarketOrderBook = async (
 };
 
 /**
- * Returns the price history of a graduated market's bounded venue as whole-cent YES and NO probabilities: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.
+ * Returns the price history of a graduated market's bounded venue as YES and NO probabilities in cents: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Cents are fractional — a bounded pool can take several swaps inside one cent — so round at display. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.
  * @summary Get a market's post-graduation price history
  */
 export type getMarketVenuePriceHistoryResponse200 = {
