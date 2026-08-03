@@ -43,7 +43,14 @@ export const PanelPreviewContext = createContext<PanelPreview>({
 });
 
 export function useWalletAccount() {
-  return { address: useContext(PanelPreviewContext).address };
+  const address = useContext(PanelPreviewContext).address;
+
+  return {
+    address,
+    getDraftAuthHeaders: async () =>
+      address ? { "x-popcharts-draft-owner": address.toLowerCase() } : {},
+    ownerUserId: address?.toLowerCase() ?? null,
+  };
 }
 
 export function usePortfolio() {

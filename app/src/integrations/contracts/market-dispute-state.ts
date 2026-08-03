@@ -3,7 +3,7 @@ import type { PublicClient } from "viem";
 import type { MarketSide } from "@/domain/markets/types";
 
 import { contractSideToMarketSide } from "./market-side";
-import { POSTGRAD_MARKET_STATUS, completeSetBinaryMarketAbi } from "./postgrad-venue";
+import { completeSetBinaryMarketAbi, POSTGRAD_MARKET_STATUS } from "./postgrad-venue";
 
 /**
  * Where a postgrad market sits in the propose → dispute → finalize window

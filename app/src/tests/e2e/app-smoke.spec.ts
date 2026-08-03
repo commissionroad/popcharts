@@ -39,7 +39,10 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
 
   await page.getByRole("link", { name: "Create" }).click();
   await expect(page.getByRole("heading", { name: "Bake a market" })).toBeVisible();
-  await expect(page.getByText("Bets are receipts, not fills")).toBeVisible();
+  // Review-first flow (ADR 0022): review is the front door, and drafts need
+  // an identity, so the wallet-less smoke journey sees the connect prompts.
+  await expect(page.getByText("An AI reviewer reads every draft")).toBeVisible();
+  await expect(page.getByText("Connect a wallet to save drafts")).toBeVisible();
   await expect(page.getByRole("button", { name: "1h" })).toHaveAttribute(
     "aria-pressed",
     "true"
@@ -68,24 +71,18 @@ test("@smoke user can move through the primary launchpad surfaces", async ({
   await expect(
     page.locator('[data-deadline-custom="resolution-time"]')
   ).toHaveAttribute("aria-current", "true");
-  await page.getByRole("button", { name: "Review market" }).click();
-  await expect(page.getByText("Fix 2 fields to review this market.")).toBeVisible();
-  await expect(page.getByLabel("Market question")).toBeFocused();
   await page.getByLabel("Market question").fill("Will the smoke test market graduate?");
   await page
     .getByLabel("Resolution criteria")
     .fill("Resolves YES if this mocked market reaches graduation.");
-  await page.getByRole("button", { name: "Review market" }).click();
-  await expect(page.getByText("Metadata hash")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create market" })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Submit for AI review" })
-  ).toBeVisible();
   await page.getByRole("button", { name: "Submit for AI review" }).click();
   await expect(
-    page.getByRole("heading", { name: "Submitted for AI review" })
+    page.getByText("Connect a wallet to submit drafts for review.")
   ).toBeVisible();
-  await expect(page.getByText("Review ticket")).toBeVisible();
+
+  // The studio is identity-scoped too, so it lands on its connect prompt.
+  await page.getByRole("link", { name: "Studio" }).click();
+  await expect(page.getByText("Connect to open your studio")).toBeVisible();
 
   await page.getByRole("link", { name: "Portfolio" }).click();
   await expect(

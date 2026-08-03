@@ -7,9 +7,9 @@ import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 
 import { getPopChartsContractConfig } from "../config";
 import {
+  disputeResolution,
   type DisputeResult,
   type DisputeStep,
-  disputeResolution,
   getDisputeErrorMessage,
 } from "../dispute-service";
 

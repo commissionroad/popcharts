@@ -1,0 +1,219 @@
+import {
+  getBuildMarketDraftPublishParamsUrl,
+  getCloneMarketDraftUrl,
+  getCreateMarketDraftUrl,
+  getDeleteMarketDraftUrl,
+  getGetMarketDraftUrl,
+  getListMarketDraftsUrl,
+  getMarkMarketDraftPublishedUrl,
+  getSubmitMarketDraftUrl,
+  getUpdateMarketDraftUrl,
+} from "@popcharts/api-client/drafts";
+import type {
+  MarketDraft,
+  MarketDraftCloneRequest,
+  MarketDraftPublished,
+  MarketDraftPublishedWrite,
+  MarketDraftPublishParams,
+  MarketDraftValidationErrors,
+  MarketDraftWrite,
+} from "@popcharts/api-client/models";
+
+/**
+ * Identity header the draft API accepts in dev-header auth mode (ADR 0022
+ * decision 8). In local dev the value is the connected wallet address; the
+ * production Privy JWT replaces this seam without touching callers.
+ */
+export const DRAFT_OWNER_HEADER = "x-popcharts-draft-owner";
+
+/** A fetch-compatible function, injectable for tests. */
+export type DraftsApiFetch = (url: string, init?: RequestInit) => Promise<Response>;
+
+import { DisplayableError } from "@/lib/error-handling";
+
+/**
+ * A draft API failure carrying the service's own message and, for submission
+ * validation failures, the field-keyed errors. A `DisplayableError` because
+ * the draft API's error bodies are curated user-facing copy — `presentError`
+ * passes them through instead of masking them with a fallback.
+ */
+export class DraftsApiError extends DisplayableError {
+  readonly fieldErrors: Record<string, string> | undefined;
+  readonly status: number;
+
+  constructor(message: string, status: number, fieldErrors?: Record<string, string>) {
+    super(message);
+    this.name = "DraftsApiError";
+    this.status = status;
+    if (fieldErrors) {
+      this.fieldErrors = fieldErrors;
+    }
+  }
+}
+
+export type DraftsApiClient = {
+  clone: (body: MarketDraftCloneRequest) => Promise<MarketDraft>;
+  create: (body: MarketDraftWrite) => Promise<MarketDraft>;
+  get: (draftId: number) => Promise<MarketDraft | null>;
+  list: () => Promise<MarketDraft[]>;
+  markPublished: (
+    draftId: number,
+    body: MarketDraftPublishedWrite
+  ) => Promise<MarketDraftPublished>;
+  publishParams: (draftId: number) => Promise<MarketDraftPublishParams>;
+  remove: (draftId: number) => Promise<void>;
+  submit: (draftId: number) => Promise<MarketDraft>;
+  update: (draftId: number, body: MarketDraftWrite) => Promise<MarketDraft>;
+};
+
+/**
+ * Client for the draft endpoints, routed through the same-origin `/api` proxy
+ * by default so the browser never needs the indexer URL. Every request
+ * carries the identity headers `getAuthHeaders` produces — the Privy bearer
+ * token in production, the local-dev owner header on the local stack (see
+ * WalletAccountValue.getDraftAuthHeaders) — read per request because bearer
+ * tokens refresh.
+ */
+export function createDraftsApiClient({
+  basePath = "/api",
+  fetcher = fetch,
+  getAuthHeaders,
+}: {
+  basePath?: string;
+  fetcher?: DraftsApiFetch;
+  getAuthHeaders: () => Promise<Record<string, string>>;
+}): DraftsApiClient {
+  const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+    const response = await fetcher(`${basePath}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        ...(await getAuthHeaders()),
+        ...(init.body ? { "content-type": "application/json" } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      throw await toDraftsApiError(response);
+    }
+
+    return (await response.json()) as T;
+  };
+
+  return {
+    clone: (body) =>
+      request<MarketDraft>(getCloneMarketDraftUrl(), {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+    create: (body) =>
+      request<MarketDraft>(getCreateMarketDraftUrl(), {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+    get: async (draftId) => {
+      try {
+        return await request<MarketDraft>(getGetMarketDraftUrl(String(draftId)));
+      } catch (error) {
+        if (error instanceof DraftsApiError && error.status === 404) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
+    list: () => request<MarketDraft[]>(getListMarketDraftsUrl()),
+    markPublished: (draftId, body) =>
+      request<MarketDraftPublished>(getMarkMarketDraftPublishedUrl(String(draftId)), {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+    publishParams: (draftId) =>
+      request<MarketDraftPublishParams>(
+        getBuildMarketDraftPublishParamsUrl(String(draftId)),
+        { method: "POST" }
+      ),
+    remove: async (draftId) => {
+      await request<string>(getDeleteMarketDraftUrl(String(draftId)), {
+        method: "DELETE",
+      });
+    },
+    submit: (draftId) =>
+      request<MarketDraft>(getSubmitMarketDraftUrl(String(draftId)), {
+        method: "POST",
+      }),
+    update: (draftId, body) =>
+      request<MarketDraft>(getUpdateMarketDraftUrl(String(draftId)), {
+        body: JSON.stringify(body),
+        method: "PATCH",
+      }),
+  };
+}
+
+async function toDraftsApiError(response: Response): Promise<DraftsApiError> {
+  const text = await response.text();
+  const parsed = parseBody(text);
+
+  if (isValidationErrors(parsed)) {
+    return new DraftsApiError(
+      parsed.message,
+      response.status,
+      compactFieldErrors(parsed.errors)
+    );
+  }
+
+  if (typeof parsed === "string" && parsed.length > 0) {
+    return new DraftsApiError(parsed, response.status);
+  }
+
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    "error" in parsed &&
+    typeof parsed.error === "string"
+  ) {
+    return new DraftsApiError(parsed.error, response.status);
+  }
+
+  return new DraftsApiError(
+    `Draft request failed (${response.status}).`,
+    response.status
+  );
+}
+
+function parseBody(text: string): unknown {
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function isValidationErrors(value: unknown): value is MarketDraftValidationErrors {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "errors" in value &&
+    "message" in value &&
+    typeof (value as { message: unknown }).message === "string"
+  );
+}
+
+function compactFieldErrors(
+  errors: MarketDraftValidationErrors["errors"]
+): Record<string, string> {
+  const compact: Record<string, string> = {};
+
+  for (const [field, message] of Object.entries(errors)) {
+    if (typeof message === "string") {
+      compact[field] = message;
+    }
+  }
+
+  return compact;
+}
