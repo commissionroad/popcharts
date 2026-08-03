@@ -63,8 +63,10 @@ run, in order:
 
 The orchestrators read those manifests (not stdout) for addresses, print them
 in the ready summary, and record them in `server/.env.local-chain` and the app
-env block as documentation for the upcoming server/app integration. Pass
-`--no-postgrad` to `just local-dev` to skip the venue deployment entirely.
+env block as documentation for the upcoming server/app integration. To skip the
+venue deployment entirely, run the pre-control-plane orchestrator with
+`pnpm run local:dev:inline -- --no-postgrad`; `just local-dev` always deploys
+it.
 
 Run the pieces individually against an already-running local chain:
 

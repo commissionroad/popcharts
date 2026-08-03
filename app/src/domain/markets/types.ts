@@ -88,6 +88,25 @@ export type PricePathPoint = {
 };
 
 /**
+ * One sample of a graduated market's traded prices on the bounded venue.
+ *
+ * Both prices are carried explicitly rather than deriving NO from YES: after
+ * graduation the two outcomes trade in *separate* pools, so their prices are
+ * independent observations that only sum to 100 once arbitrage has closed the
+ * complete-set gap. Deriving one from the other would invent a price no swap
+ * ever paid. Pre-graduation the same two prices come from one LMSR state, so
+ * {@link PricePathPoint} carries YES alone.
+ *
+ * Always timestamped: a venue price exists only because a swap moved a pool.
+ */
+export type PostgradPricePoint = {
+  /** ISO timestamp of the swap behind this sample. */
+  at: string;
+  noCents: number;
+  yesCents: number;
+};
+
+/**
  * One outcome-token pool on the bounded postgrad venue. `apiMarketToMarket`
  * passes the wire value straight through, so this aliases the contract type
  * rather than copying it: a restated copy would keep compiling while silently
