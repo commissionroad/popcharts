@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-31
+updated: 2026-08-03
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -50,6 +50,17 @@ append-only event tables mirrored 1:1 from chain:
   market's `Redeemed`/`CancelledRedeemed` events. The token-burn leg of the
   same transaction also lands in `outcome_token_transfer_events`; this table
   records the collateral leg.
+- `postgrad_dispute_bond_events` — per movement of a resolution dispute bond
+  ([ADR 0024](root-adr-0024-resolution-dispute-program.md)): collateral posted
+  into bond custody by the disputer, refunded when the dispute is upheld, or
+  forfeited to the protocol owner when it is not. The dispute's status
+  transitions live separately in `postgrad_dispute_events`; this table records
+  only collateral that actually moved.
+- `complete_set_events` — per complete-set mint or merge: the collateral a
+  postgrad market pulled in (mint) or paid out (merge), with the YES+NO sets
+  created or destroyed. The matching token mints/burns land in
+  `outcome_token_transfer_events`, so — as with redemption — this table records
+  the collateral leg.
 - `review_bond_events` *(added 2026-07-31 with the review-bond indexing)* — per
   value transfer through the `ReviewBondVault`, the prepaid market-review
   escrow of [ADR 0022](root-adr-0022-review-first-market-creation.md): user

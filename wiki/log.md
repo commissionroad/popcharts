@@ -1273,3 +1273,17 @@ existing tables; index description unchanged (still "home of the money
 invariant"). Pre-existing drift left alone: the catalogue still omits
 `postgrad_dispute_bond_events` and `complete_set_events`, which the
 postgrad-market watcher cites against this doc.
+
+## [2026-08-03] ingest | docs/portfolio-data-design.md — dispute-bond and complete-set events join the money-paper-trail catalogue
+Pages: ~summaries/portfolio-data-design.md
+Notes: closes the drift the 2026-07-31 entry recorded and left alone. Both
+tables already existed and already cited this doc as their rationale — the
+catalogue was simply behind: `postgrad_dispute_bond_events` (posted/refunded/
+forfeited bond movements, ADR 0024) and `complete_set_events` (collateral in on
+mint, out on merge). Each bullet draws the same line the redemption bullet does
+— the token leg lands in `outcome_token_transfer_events`, these tables record
+the collateral leg — and the dispute-bond bullet distinguishes itself from
+`postgrad_dispute_events`, which carries the status transitions rather than
+money. No entity/concept page needed updating: the catalogue lives only here,
+and protocol-adr-0013 already names the three bond events. Index description
+unchanged.

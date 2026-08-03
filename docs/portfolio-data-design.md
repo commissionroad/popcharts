@@ -129,6 +129,19 @@ Today it is realized by append-only event tables mirrored 1:1 from chain:
   **collateral paid out**, from the market's `Redeemed`/`CancelledRedeemed`
   events. The token-burn leg of the same transaction also appears in
   `outcome_token_transfer_events`; this table records the collateral leg.
+- `postgrad_dispute_bond_events` — per movement of a resolution dispute bond on
+  a postgrad market (repo ADR 0024): collateral **posted** into bond custody by
+  the disputer, **refunded** when the dispute is upheld, or **forfeited** to the
+  protocol owner when it is not, from the market's
+  `DisputeBondPosted`/`DisputeBondRefunded`/`DisputeBondForfeited` events. The
+  dispute's status transitions live separately in `postgrad_dispute_events`;
+  this table records only collateral that actually moved.
+- `complete_set_events` — per complete-set mint or merge on a postgrad market:
+  the collateral the market **pulled in** (mint) or **paid out** (merge), with
+  the YES+NO sets created or destroyed, from the market's
+  `CompleteSetsMinted`/`CompleteSetsMerged` events. The matching token mints
+  and burns surface independently in `outcome_token_transfer_events`, so — as
+  with redemption — this table records the collateral leg.
 - `review_bond_events` — per value transfer through the `ReviewBondVault`, the
   prepaid market-review escrow (repo ADR 0022): user **deposits**, resolver
   **settlements** moving consumed review fees into the collected pool, user
