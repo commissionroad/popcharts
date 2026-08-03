@@ -1,4 +1,4 @@
-import { expect, type Page,test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { lifecycleEnv, marketPath, waitForMarketStatus } from "./support/lifecycle";
 import { connectTestWallet, installTestWallet } from "./support/test-wallet";
