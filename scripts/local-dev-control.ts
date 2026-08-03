@@ -155,6 +155,11 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
   if (keepDb) {
     env.POPCHARTS_LOCAL_DEV_KEEP_DB = "true";
   }
+  if (aiReviewOnly) {
+    // prepare-database runs as its own process-compose child, so the flag has
+    // to travel through the environment to reach it.
+    env.POPCHARTS_LOCAL_DEV_AI_REVIEW_ONLY = "true";
+  }
 
   mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
@@ -292,7 +297,13 @@ async function prepareDatabase(): Promise<void> {
     logLabel: LOG_LABEL,
   });
 
-  const reuseExistingChainRpc = await canReuseChainPort();
+  // An --ai-review-only run starts no chain and no deploy-contracts, so a dead
+  // RPC port means "no chain here to attach to", not "a fresh chain is coming".
+  // Treating it as fresh would delete the generated env the review runner waits
+  // on and drop the very rows the run exists to review.
+  const aiReviewOnlyRun =
+    process.env.POPCHARTS_LOCAL_DEV_AI_REVIEW_ONLY === "true";
+  const reuseExistingChainRpc = aiReviewOnlyRun || (await canReuseChainPort());
   if (!reuseExistingChainRpc) {
     // A fresh chain invalidates previously deployed addresses; drop the stale
     // generated env so review-runner waits for the new deployment instead of
@@ -543,7 +554,7 @@ async function ensureToolInstalled(): Promise<void> {
   }
 
   throw new Error(
-    "process-compose is required for this spike. Install it with " +
+    "process-compose is required by 'just local-dev'. Install it with " +
       "'brew install f1bonacc1/tap/process-compose' or see " +
       "https://f1bonacc1.github.io/process-compose/installation/.",
   );

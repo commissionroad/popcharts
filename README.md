@@ -98,12 +98,16 @@ just local-dev --keep-db
 just local-dev api
 ```
 
-The last form starts only the named processes, for focused debugging.
+The last form starts the named processes and whatever they depend on, for
+focused debugging — `api` also pulls in `deploy-contracts`, `chain`, and
+`prepare-database`.
 
 `just local-dev-control` is a deprecated alias for `just local-dev`. The
-pre-control-plane orchestrator, which runs the same stack with interleaved logs
-in one process and no Process Compose dependency, is still reachable as
-`pnpm run local:dev:inline`; it is the only path with `--no-postgrad`.
+pre-control-plane orchestrator is still reachable as
+`pnpm run local:dev:inline`: one process with interleaved logs and no Process
+Compose dependency, and the only path that accepts `--no-postgrad`. It starts a
+smaller stack than the control plane does — it has no AI resolution service or
+runner.
 
 After the local chain contracts deploy, create an extra local market with:
 

@@ -38,15 +38,17 @@ the app, and bring up progressively larger local stacks.
   failures surface as delayed review. The detail page refreshes while pending,
   and completed reviews explain every score. Harmful markets are still rejected
   before model work by the deterministic hard-flag gate. Variants:
-  `--no-ai-review`, `--ai-review-only`, `--keep-db`, or a bare process name to
-  start just that process. `just local-reset` wipes the Postgres
-  container/volumes.
+  `--no-ai-review`, `--ai-review-only`, `--keep-db`, or bare process names,
+  which start those processes *and their control-plane dependencies* (`api`
+  drags in `deploy-contracts` → `chain` → `prepare-database`).
+  `just local-reset` wipes the Postgres container/volumes.
 - **Retired entry points**: `just local-dev-control` is now a deprecated alias
   for `just local-dev` (they were separate until 2026-08-03, when the control
   plane became the default). The pre-control-plane orchestrator
   (`scripts/local-dev.ts`) survives as `pnpm run local:dev:inline` — one
   process, interleaved logs, no Process Compose dependency, and the only path
-  that still accepts `--no-postgrad`.
+  that still accepts `--no-postgrad`. It starts a strictly smaller stack: no AI
+  resolution service or runner.
 - **`just local-create-market`**: creates one extra market against the running
   local chain, loading the generated `server/.env.local-chain` so it targets
   the current local PregradManager and collateral addresses. By default it

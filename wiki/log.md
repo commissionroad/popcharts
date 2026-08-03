@@ -1286,3 +1286,12 @@ bullet. Devchain page: `--no-postgrad` is no longer a `just local-dev` flag —
 only `pnpm run local:dev:inline` still has it.
 concepts/local-dev-orchestration.md already described `just local-dev` as the
 control plane, so it needed no edit; it was ahead of the wiring, not stale.
+
+## [2026-08-03] ingest | README.md — control-plane variant semantics corrected
+Pages: ~summaries/root-readme.md
+Notes: a review of the same change caught two false claims the first pass
+carried over from the old spike section. Passing bare process names starts
+those processes *and their dependencies* (`api` pulls deploy-contracts →
+chain → prepare-database), not only the named ones; and the inline
+orchestrator is not "the same stack" — it has no AI resolution service or
+runner.
