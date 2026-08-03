@@ -29,6 +29,8 @@ export type PopChartsContractConfig = {
   collateralAddress: `0x${string}`;
   nativeCurrency: PopChartsNativeCurrency;
   pregradManagerAddress: `0x${string}`;
+  /** Review-bond escrow (ADR 0022 P3); null until the vault is deployed. */
+  reviewBondVaultAddress: `0x${string}` | null;
   rpcUrl: string;
 };
 
@@ -89,6 +91,8 @@ export function getPopChartsContractConfig(): PopChartsContractConfig | null {
     collateralAddress,
     nativeCurrency: getNativeCurrency(popChartsChainEnv),
     pregradManagerAddress,
+    reviewBondVaultAddress:
+      parseAddress(process.env.NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS) ?? null,
     rpcUrl: configuredPopChartsRpcUrl,
   };
 }

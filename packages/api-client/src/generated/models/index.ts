@@ -79,6 +79,7 @@ export * from "./marketAiReviewJob";
 export * from "./marketCreatedEvent";
 export * from "./marketCreatedEventList";
 export * from "./marketDraft";
+export * from "./marketDraftBondShortfall";
 export * from "./marketDraftCloneRequest";
 export * from "./marketDraftCloneRequestFromMarket";
 export * from "./marketDraftList";

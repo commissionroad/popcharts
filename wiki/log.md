@@ -1264,3 +1264,12 @@ fine. Separately, the postgrad-market watcher was the last markets-projecting
 watcher not wrapping its dispatch in `retryUntilMarketIndexed`, so a benign
 "MarketCreated has not landed yet" race faulted there where it waits
 everywhere else.
+
+## [2026-07-31] ingest | docs/portfolio-data-design.md — review_bond_events joins the money-paper-trail catalogue
+Pages: ~summaries/portfolio-data-design.md
+Notes: the doc's invariant catalogue gained `review_bond_events` (ReviewBondVault
+deposits/settlements/withdrawals/fee sweeps, ADR 0022) alongside the four
+existing tables; index description unchanged (still "home of the money
+invariant"). Pre-existing drift left alone: the catalogue still omits
+`postgrad_dispute_bond_events` and `complete_set_events`, which the
+postgrad-market watcher cites against this doc.

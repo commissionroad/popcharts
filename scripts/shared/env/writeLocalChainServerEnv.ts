@@ -44,6 +44,9 @@ export function writeLocalChainServerEnv({
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
     `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
+    ...(deploy.reviewBondVaultAddress
+      ? [`LOCAL_REVIEW_BOND_VAULT_ADDRESS=${deploy.reviewBondVaultAddress}`]
+      : []),
     ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",

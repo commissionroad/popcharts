@@ -186,6 +186,35 @@ describe("createDraftsApiClient failures", () => {
     expect(error.fieldErrors).toEqual({ question: "Add a market question." });
   });
 
+  it("carries the bond shortfall from a 402 meter refusal", async () => {
+    const shortfall = {
+      availableWad: "100000000000000000",
+      message: "Your available bond doesn't cover this submission.",
+      minimumStandingBondWad: "5000000000000000000",
+      requiredWad: "200000000000000000",
+      standingBondWad: "5000000000000000000",
+    };
+    stubFetch(jsonResponse(shortfall, 402));
+
+    const error = await captureError(client().submit(8));
+
+    expect(error).toBeInstanceOf(DraftsApiError);
+    expect(error.message).toBe("Your available bond doesn't cover this submission.");
+    expect(error.status).toBe(402);
+    expect(error.bondShortfall).toEqual(shortfall);
+    expect(error.fieldErrors).toBeUndefined();
+  });
+
+  it("does not invent a shortfall for a plain 402 message", async () => {
+    stubFetch(jsonResponse("Payment required.", 402));
+
+    const error = await captureError(client().submit(8));
+
+    expect(error.message).toBe("Payment required.");
+    expect(error.status).toBe(402);
+    expect(error.bondShortfall).toBeUndefined();
+  });
+
   it("uses a JSON string body as the message", async () => {
     stubFetch(jsonResponse("Draft is not approved.", 409));
 

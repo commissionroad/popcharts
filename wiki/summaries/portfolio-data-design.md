@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-15
+updated: 2026-07-31
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -50,6 +50,13 @@ append-only event tables mirrored 1:1 from chain:
   market's `Redeemed`/`CancelledRedeemed` events. The token-burn leg of the
   same transaction also lands in `outcome_token_transfer_events`; this table
   records the collateral leg.
+- `review_bond_events` *(added 2026-07-31 with the review-bond indexing)* — per
+  value transfer through the `ReviewBondVault`, the prepaid market-review
+  escrow of [ADR 0022](root-adr-0022-review-first-market-creation.md): user
+  deposits, resolver settlements of consumed review fees, user withdrawals of
+  unconsumed bond, and owner fee sweeps. Each row carries the event's own
+  cumulative figure (`running_total`; null for sweeps) so the off-chain bond
+  meter reconciles against chain state without replaying history.
 
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is

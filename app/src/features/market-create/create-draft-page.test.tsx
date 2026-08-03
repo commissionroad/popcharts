@@ -1,3 +1,4 @@
+import type { MarketDraftBondShortfall } from "@popcharts/api-client/models";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,7 @@ import {
   createInitialMarketDraft,
 } from "@/domain/market-creation/create-market";
 import type { CreateMarketDraft } from "@/domain/market-creation/types";
+import type { ReviewBondState } from "@/integrations/contracts/hooks/use-review-bond";
 import { draftReviewFactory, marketDraftFactory } from "@/test/factories/drafts";
 
 import { CreateDraftPage } from "./create-draft-page";
@@ -26,11 +28,21 @@ vi.mock("@/integrations/contracts/config", () => ({
   },
 }));
 
+// The real BondShortfallPanel renders inside the page; stub its chain hook so
+// the page test stays off wagmi and the wallet stack.
+const reviewBondMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/integrations/contracts/hooks/use-review-bond", () => ({
+  useReviewBond: reviewBondMock,
+}));
+
 const INITIAL_NOW = "2030-07-01T12:00:00.000Z";
 const QUESTION = "Will bitcoin close above $100k on 2027-01-01?";
 
 beforeEach(() => {
   useDraftFlowMock.mockReset();
+  reviewBondMock.mockReset();
+  reviewBondMock.mockReturnValue(reviewBondState());
   configState.marketCreationMode = "mock";
 });
 
@@ -212,6 +224,31 @@ describe("CreateDraftPage", () => {
 
     expect(screen.getByText("Live preview")).toBeInTheDocument();
   });
+
+  it("takes the aside over with the bond panel when the meter refuses", () => {
+    const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Review bond needed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your available bond doesn't cover this submission.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Live preview")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss bond prompt" }));
+
+    expect(flow.clearBondShortfall).toHaveBeenCalledTimes(1);
+  });
+
+  it("resubmits the draft once the bond deposit confirms", () => {
+    reviewBondMock.mockReturnValue(reviewBondState({ status: "success" }));
+    const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(flow.submitForReview).toHaveBeenCalledTimes(1);
+  });
 });
 
 type DraftFlow = ReturnType<typeof useCreateDraftFlow>;
@@ -234,13 +271,39 @@ function readyWalletAction(): WalletCreateAction {
   };
 }
 
+function bondShortfallFixture(): MarketDraftBondShortfall {
+  return {
+    availableWad: "100000000000000000",
+    message: "Your available bond doesn't cover this submission.",
+    minimumStandingBondWad: "5000000000000000000",
+    requiredWad: "200000000000000000",
+    standingBondWad: "5000000000000000000",
+  };
+}
+
+function reviewBondState(overrides: Partial<ReviewBondState> = {}): ReviewBondState {
+  return {
+    availableWad: 0n,
+    deposit: vi.fn(),
+    depositedWad: 0n,
+    enabled: true,
+    error: null,
+    refresh: vi.fn(),
+    status: "idle",
+    withdraw: vi.fn(),
+    ...overrides,
+  };
+}
+
 function stubFlow(overrides: Partial<DraftFlow> = {}): DraftFlow {
   const draft = draftFixture();
   const flow: DraftFlow = {
     advanced: false,
     applyGraduationPreset: vi.fn(),
     applyResolutionPreset: vi.fn(),
+    bondShortfall: null,
     canPersist: false,
+    clearBondShortfall: vi.fn(),
     errorCount: 0,
     fieldFeedback: {},
     flowError: null,

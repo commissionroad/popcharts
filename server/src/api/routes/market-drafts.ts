@@ -3,6 +3,7 @@ import { Elysia, t } from "elysia";
 import { resolveDraftOwner } from "src/api/draft-auth";
 import {
   DraftFeedbackFieldSchema,
+  MarketDraftBondShortfallSchema,
   DraftFeedbackItemSchema,
   DraftFeedbackSeveritySchema,
   DraftReviewFeedbackSchema,
@@ -44,6 +45,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
     DraftFeedbackSeverity: DraftFeedbackSeveritySchema,
     DraftReviewFeedback: DraftReviewFeedbackSchema,
     MarketDraft: MarketDraftSchema,
+    MarketDraftBondShortfall: MarketDraftBondShortfallSchema,
     MarketDraftCloneRequest: MarketDraftCloneRequestSchema,
     MarketDraftList: MarketDraftListSchema,
     MarketDraftPublished: MarketDraftPublishedSchema,
@@ -300,6 +302,30 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         };
       }
 
+      if (result.kind === "missing_wallet") {
+        set.status = 409;
+        return "Connect the wallet that will publish this market before submitting.";
+      }
+
+      if (result.kind === "bond_unavailable") {
+        set.status = 503;
+        return "The review bond service is unreachable — try again shortly.";
+      }
+
+      if (result.kind === "insufficient_bond") {
+        set.status = 402;
+        return {
+          availableWad: result.availableWad.toString(),
+          message:
+            result.standingBondWad < result.minimumStandingBondWad
+              ? "Submitting for review requires a standing bond of at least $5. Deposit to your review bond to continue."
+              : "Your review bond doesn't cover this submission. Top it up to continue.",
+          minimumStandingBondWad: result.minimumStandingBondWad.toString(),
+          requiredWad: result.requiredWad.toString(),
+          standingBondWad: result.standingBondWad.toString(),
+        };
+      }
+
       set.status = 202;
 
       return result.draft;
@@ -309,9 +335,11 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       response: {
         202: "MarketDraft",
         401: t.String(),
+        402: "MarketDraftBondShortfall",
         404: t.String(),
         409: t.String(),
         422: "MarketDraftValidationErrors",
+        503: t.String(),
         501: t.String(),
       },
       detail: {

@@ -12,12 +12,16 @@ import type {
 } from "src/ai-review/types";
 import { createReadOnlyClient } from "src/blockchain/client";
 import { config } from "src/config";
-import { and, db, desc, eq, inArray, schema } from "src/db/client";
+import { and, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import type { DraftReviewFeedback } from "src/db/schema/market-draft-reviews";
 import type {
   MarketDraftRow,
   MarketDraftStatus,
 } from "src/db/schema/market-drafts";
+import {
+  quoteSubmissionCharge,
+  settleOutstandingCharges,
+} from "src/draft-review/bond-meter";
 import {
   buildDraftMetadata,
   validateDraftForSubmission,
@@ -281,7 +285,7 @@ export async function updateMarketDraft({
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, draft.status),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -380,21 +384,50 @@ export async function cloneMarketDraft({
 export type SubmitMarketDraftResult =
   | { draft: MarketDraftResponse; kind: "submitted" }
   | { errors: DraftValidationErrors; kind: "invalid" }
+  | {
+      availableWad: bigint;
+      kind: "insufficient_bond";
+      minimumStandingBondWad: bigint;
+      requiredWad: bigint;
+      standingBondWad: bigint;
+    }
+  | { kind: "bond_unavailable" }
+  | { kind: "missing_wallet" }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
 
+export type SubmitMarketDraftDependencies = {
+  quoteCharge: typeof quoteSubmissionCharge;
+  settleCharges: (address: string) => void;
+};
+
+const defaultSubmitDependencies: SubmitMarketDraftDependencies = {
+  quoteCharge: quoteSubmissionCharge,
+  // Fire-and-forget: settlement is bookkeeping catch-up, not part of the
+  // submission's success; failures log and retry on the next charge.
+  settleCharges: (address) => {
+    void settleOutstandingCharges(address);
+  },
+};
+
 /**
- * Submits a draft for AI review: validates completeness, snapshots the content
- * hash, locks the draft in `in_review`, and enqueues a review job for the
- * runner. Resubmitting after edits produces a fresh hash and a fresh review.
+ * Submits a draft for AI review: validates completeness, prices the review
+ * run against the creator's on-chain bond (ADR 0022 §3 — the meter refuses
+ * before any provider money is spent), snapshots the content hash, locks the
+ * draft in `in_review`, and enqueues a review job for the runner, recording
+ * the meter charge in the same transaction. Resubmitting after edits
+ * produces a fresh hash and a fresh review.
  */
-export async function submitMarketDraft({
-  draftId,
-  owner,
-}: {
-  draftId: number;
-  owner: string;
-}): Promise<SubmitMarketDraftResult> {
+export async function submitMarketDraft(
+  {
+    draftId,
+    owner,
+  }: {
+    draftId: number;
+    owner: string;
+  },
+  dependencies: SubmitMarketDraftDependencies = defaultSubmitDependencies,
+): Promise<SubmitMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
 
   if (!draft) {
@@ -419,6 +452,34 @@ export async function submitMarketDraft({
     return { errors, kind: "invalid" };
   }
 
+  const [{ priorReviewRuns }] = (await db
+    .select({
+      priorReviewRuns: sql<number>`count(*)::int`,
+    })
+    .from(schema.marketDraftReviewJobs)
+    .where(eq(schema.marketDraftReviewJobs.draftId, draft.id))) as [
+    { priorReviewRuns: number },
+  ];
+  const quote = await dependencies.quoteCharge({ draft, priorReviewRuns });
+
+  if (quote.kind === "missing_wallet") {
+    return { kind: "missing_wallet" };
+  }
+
+  if (quote.kind === "unavailable") {
+    return { kind: "bond_unavailable" };
+  }
+
+  if (quote.kind === "insufficient") {
+    return {
+      availableWad: quote.availableWad,
+      kind: "insufficient_bond",
+      minimumStandingBondWad: quote.minimumStandingBondWad,
+      requiredWad: quote.requiredWad,
+      standingBondWad: quote.standingBondWad,
+    };
+  }
+
   const { metadataHash } = buildDraftMetadata(draft);
   const now = new Date();
   const updated = await db.transaction(async (tx) => {
@@ -438,7 +499,7 @@ export async function submitMarketDraft({
         and(
           eq(schema.marketDrafts.id, draft.id),
           eq(schema.marketDrafts.status, draft.status),
-          eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+          draftVersionMatches(draft),
         ),
       )
       .returning();
@@ -452,6 +513,23 @@ export async function submitMarketDraft({
       metadataHash,
     });
 
+    // The meter charge rides the same transaction as the job it pays for:
+    // a conflicted submit charges nothing, a charged submit always has its
+    // job. `chargeKind === null` is a bundled run (first-submission $1
+    // covers five reviews).
+    if (
+      quote.kind === "chargeable" &&
+      quote.chargeKind !== null &&
+      draft.intendedCreatorAddress
+    ) {
+      await tx.insert(schema.draftReviewCharges).values({
+        amount: quote.amountWad,
+        chargedAddress: draft.intendedCreatorAddress.toLowerCase(),
+        draftId: draft.id,
+        kind: quote.chargeKind,
+      });
+    }
+
     return row;
   });
 
@@ -460,6 +538,10 @@ export async function submitMarketDraft({
       kind: "wrong_status",
       message: "This draft just changed elsewhere — reload and try again.",
     };
+  }
+
+  if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
+    dependencies.settleCharges(draft.intendedCreatorAddress);
   }
 
   const reviews = await latestReviewsFor([draft.id]);
@@ -788,7 +870,7 @@ export async function markMarketDraftPublished(
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, "approved"),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -823,6 +905,19 @@ export async function markMarketDraftPublished(
     draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "published",
   };
+}
+
+/**
+ * The optimistic-version condition for guarded transitions. Compared at
+ * millisecond precision on both sides: the driver round-trips timestamps as
+ * JS Dates (milliseconds), while rows written by the column's defaultNow()
+ * carry microseconds — a raw equality would never match those rows.
+ */
+function draftVersionMatches(draft: MarketDraftRow) {
+  // The version token travels as an ISO string: postgres-js refuses raw
+  // Date params inside sql fragments (PGlite accepts them, so tests alone
+  // would not catch it).
+  return sql`date_trunc('milliseconds', ${schema.marketDrafts.updatedAt}) = ${draft.updatedAt.toISOString()}::timestamp`;
 }
 
 async function selectOwnedDraft(
