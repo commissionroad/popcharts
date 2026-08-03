@@ -1,4 +1,4 @@
-import { sourceTierForDomain } from "../scoring";
+import { evidenceItemFromUrl } from "../evidence-item";
 import type { EvidenceItem } from "../types";
 import type {
   AnthropicContentBlock,
@@ -33,7 +33,7 @@ function evidenceFromSearchResults(content: AnthropicContentBlock[]) {
     }
 
     for (const result of block.content) {
-      const item = evidenceFromUrl({
+      const item = evidenceItemFromUrl({
         kind: "search_result",
         summary: result.page_age
           ? `Claude web search result. Page age: ${result.page_age}.`
@@ -61,7 +61,7 @@ function evidenceFromFetchResults(content: AnthropicContentBlock[]) {
       continue;
     }
 
-    const item = evidenceFromUrl({
+    const item = evidenceItemFromUrl({
       kind: "fetched_page",
       summary: result.retrieved_at
         ? `Claude web fetch result retrieved at ${result.retrieved_at}.`
@@ -87,7 +87,7 @@ function evidenceFromCitations(content: AnthropicContentBlock[]) {
     }
 
     for (const citation of block.citations) {
-      const item = evidenceFromUrl({
+      const item = evidenceItemFromUrl({
         kind: "search_result",
         summary: citation.cited_text ?? "Claude cited source.",
         title: citation.title,
@@ -101,33 +101,6 @@ function evidenceFromCitations(content: AnthropicContentBlock[]) {
   }
 
   return evidence;
-}
-
-function evidenceFromUrl({
-  kind,
-  summary,
-  title,
-  url,
-}: {
-  kind: EvidenceItem["kind"];
-  summary: string;
-  title?: string;
-  url?: string;
-}) {
-  const parsed = parseHttpUrl(url);
-  if (!parsed) {
-    return null;
-  }
-
-  const domain = parsed.hostname.toLowerCase();
-  return {
-    domain,
-    kind,
-    sourceTier: sourceTierForDomain(domain),
-    summary,
-    title,
-    url: parsed.toString(),
-  } satisfies EvidenceItem;
 }
 
 function dedupeEvidence(evidence: EvidenceItem[]) {
@@ -160,26 +133,4 @@ function isWebFetchResult(value: unknown): value is AnthropicWebFetchResult {
     !Array.isArray(value) &&
     (value as { type?: unknown }).type === "web_fetch_result"
   );
-}
-
-export function domainFromUrl(value?: string) {
-  return parseHttpUrl(value)?.hostname.toLowerCase();
-}
-
-function parseHttpUrl(value?: string) {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-
-    url.hash = "";
-    return url;
-  } catch {
-    return null;
-  }
 }

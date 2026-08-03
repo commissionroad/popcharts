@@ -492,7 +492,16 @@ function truncateQuery(value: string) {
   return value.length <= 240 ? value : value.slice(0, 240);
 }
 
-function isUnsafeIpAddress(value: string) {
+/**
+ * True when `value` is a literal IP address in a range an evidence fetch must
+ * never reach.
+ *
+ * Exported as the one door to that question. `assertPublicHostname` asks it of
+ * every DNS answer before a fetch, and `evidenceItemFromUrl` asks it of every
+ * URL before storing one, so both stay on the same definition of "unsafe"
+ * rather than each assembling its own from the per-family predicates.
+ */
+export function isUnsafeIpAddress(value: string) {
   const ipVersion = isIP(value);
 
   if (ipVersion === 4) {
