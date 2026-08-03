@@ -133,9 +133,12 @@ verdict-evals:
         echo "(see server/src/ai-review/evals/baselines/README.md)"
     fi
 
+[doc('Run the full local stack on the Process Compose control plane')]
 local-dev *args:
     pnpm run local:dev -- {{args}}
 
+[group('deprecated')]
+[doc('DEPRECATED - use: just local-dev')]
 local-dev-control *args:
     pnpm run local:dev:control -- {{args}}
 

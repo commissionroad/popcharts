@@ -243,7 +243,7 @@ async function runInternal(name: string): Promise<void> {
 }
 
 function printUsage(): void {
-  console.log(`Usage: pnpm run local:dev:control -- [options] [process...]
+  console.log(`Usage: pnpm run local:dev -- [options] [process...]
 
 Start the Pop Charts local dev stack through the local control-plane config.
 
@@ -254,8 +254,8 @@ Options:
   -h, --help        Show this help.
 
 Selected processes can be passed through for focused debugging, for example:
-  pnpm run local:dev:control -- app
-  pnpm run local:dev:control -- review-service review-runner
+  pnpm run local:dev -- app
+  pnpm run local:dev -- review-service review-runner
 
 Prerequisite for model-backed review:
   The default codex-cli provider requires a Codex CLI install on the host. Set
@@ -595,7 +595,7 @@ function ensureDependenciesInstalled(): void {
   }
 
   throw new Error(
-    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev-control'.`,
+    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
   );
 }
 

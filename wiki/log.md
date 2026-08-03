@@ -1273,3 +1273,16 @@ existing tables; index description unchanged (still "home of the money
 invariant"). Pre-existing drift left alone: the catalogue still omits
 `postgrad_dispute_bond_events` and `complete_set_events`, which the
 postgrad-market watcher cites against this doc.
+
+## [2026-08-03] ingest | README.md + docs/devchain.md — `just local-dev` becomes the Process Compose control plane
+Pages: ~summaries/root-readme.md, ~summaries/devchain.md
+Notes: the control-plane "spike" stopped being a spike — `just local-dev` now
+runs `scripts/local-dev-control.ts`, and `just local-dev-control` is a
+deprecated alias. Rewrote the root-readme full-local-stack bullet around the
+control plane (process-compose prerequisite, bootstrap ordering, per-process
+logs under `.local-dev/logs/`, the AI resolution pair the old orchestrator
+never started) and replaced the spike bullet with a retired-entry-points
+bullet. Devchain page: `--no-postgrad` is no longer a `just local-dev` flag —
+only `pnpm run local:dev:inline` still has it.
+concepts/local-dev-orchestration.md already described `just local-dev` as the
+control plane, so it needed no edit; it was ahead of the wiring, not stale.

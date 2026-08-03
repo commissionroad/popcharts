@@ -36,6 +36,11 @@ import {
 import { waitFor } from "./shared/wait/waitFor.ts";
 
 /**
+ * Pre-control-plane local dev orchestrator, reachable as
+ * `pnpm run local:dev:inline`. `just local-dev` runs local-dev-control.ts
+ * instead; this path stays for runs that cannot use Process Compose or that
+ * need `--no-postgrad`, which the control plane does not offer.
+ *
  * Full local dev orchestrator: docker-compose Postgres, Hardhat chain, local
  * protocol deployment (pregrad + postgrad venue + demo market), Bun API and
  * indexer, the local AI review service/runner, and the Next.js app wired for
@@ -343,11 +348,10 @@ async function main(): Promise<void> {
 }
 
 function printUsage(): void {
-  console.log(`Usage: pnpm run local:dev
-       pnpm run local:dev -- --no-ai-review
-       pnpm run local:dev -- --keep-db
-       pnpm run local:dev -- --no-postgrad
-       pnpm run local:ai-review
+  console.log(`Usage: pnpm run local:dev:inline
+       pnpm run local:dev:inline -- --no-ai-review
+       pnpm run local:dev:inline -- --keep-db
+       pnpm run local:dev:inline -- --ai-review-only
 
 Start the full local Pop Charts stack:
   - docker-compose Postgres
@@ -425,7 +429,7 @@ function ensureDependenciesInstalled(): void {
   }
 
   throw new Error(
-    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
+    `Missing ${missing.join(", ")}. Run 'just setup' before 'pnpm run local:dev:inline'.`,
   );
 }
 
