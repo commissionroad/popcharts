@@ -46,14 +46,19 @@ export type PoolPriceTickWithPool = {
 };
 
 /**
- * Converts a WAD display price (collateral per outcome token) into the whole
- * cents the chart plots. A token pays one collateral when its outcome wins, so
- * its price *is* the implied probability and 1 WAD is 100 cents. Rounded to
- * whole cents because the chart's y axis is a percentage; the unrounded WAD
- * stays available on the order book for anyone pricing a trade.
+ * Converts a WAD display price (collateral per outcome token) into the cents
+ * the chart plots. A token pays one collateral when its outcome wins, so its
+ * price *is* the implied probability and 1 WAD is 100 cents.
+ *
+ * Deliberately *not* rounded to whole cents. The pre-graduation half of the
+ * same chart plots `marginalPriceCents`, which is fractional and rounds only
+ * where it is displayed — so rounding here would make the venue half of one
+ * line stair-step while the LMSR half stayed smooth. It also erases real
+ * movement: a bounded pool can take six swaps inside a single cent, which
+ * plots as a flat line if the API has already thrown the detail away.
  */
 export function displayPriceWadToCents(displayPriceWad: bigint): number {
-  return Math.round((Number(displayPriceWad) / Number(WAD)) * 100);
+  return (Number(displayPriceWad) / Number(WAD)) * 100;
 }
 
 /**

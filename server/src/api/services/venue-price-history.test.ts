@@ -36,16 +36,28 @@ function centsAtTick(tick: number, outcomeIsCurrency0: boolean) {
 }
 
 describe("displayPriceWadToCents", () => {
-  it("reads a WAD display price as a whole-cent probability", () => {
+  it("reads a WAD display price as a cent-scale probability", () => {
     expect(displayPriceWadToCents(WAD / 2n)).toBe(50);
     expect(displayPriceWadToCents(0n)).toBe(0);
     expect(displayPriceWadToCents(WAD)).toBe(100);
     expect(displayPriceWadToCents((WAD * 37n) / 100n)).toBe(37);
   });
 
-  it("rounds to the nearest cent", () => {
-    expect(displayPriceWadToCents((WAD * 6249n) / 10_000n)).toBe(62);
-    expect(displayPriceWadToCents((WAD * 6251n) / 10_000n)).toBe(63);
+  it("keeps sub-cent movement instead of rounding it away", () => {
+    // A bounded pool can take several swaps inside one cent. Rounding here
+    // would collapse them to a flat line, and would stair-step the venue half
+    // of a chart whose pre-graduation half plots fractional cents.
+    expect(displayPriceWadToCents((WAD * 6249n) / 10_000n)).toBeCloseTo(
+      62.49,
+      6,
+    );
+    expect(displayPriceWadToCents((WAD * 6251n) / 10_000n)).toBeCloseTo(
+      62.51,
+      6,
+    );
+    expect(displayPriceWadToCents((WAD * 6249n) / 10_000n)).not.toBe(
+      displayPriceWadToCents((WAD * 6251n) / 10_000n),
+    );
   });
 });
 
@@ -82,7 +94,9 @@ describe("venueOpeningPoint", () => {
     );
 
     expect(point.yesPriceCents).toBeGreaterThan(50);
-    expect(point.yesPriceCents + point.noPriceCents).toBe(100);
+    // Complementary to float precision: the pair is derived as WAD - yes, so
+    // it sums to one complete set, not to exactly 100 in binary floating point.
+    expect(point.yesPriceCents + point.noPriceCents).toBeCloseTo(100, 9);
   });
 });
 
