@@ -32,6 +32,13 @@ export function evidenceFromOpenAiOutput(
  * returned. A call that did not complete is skipped: a failed or in-flight
  * search proves no retrieval, the same rule the Claude Code CLI provider
  * applies to an errored tool result.
+ *
+ * Observed against gpt-5.6-luna: entries arrive as bare `{"type":"url","url":…}`
+ * with no title and no snippet, and a single review can produce several search
+ * calls of which only some carry sources at all — one run made three calls and
+ * returned sources on the last. So this trail is URL-only, thinner than the
+ * Anthropic provider's (title and page_age per result). `title` and `snippet`
+ * are still read because they are documented and cost nothing to accept.
  */
 function evidenceFromSearchSources(output: OpenAiOutputItem[]) {
   const evidence: EvidenceItem[] = [];
