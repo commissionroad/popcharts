@@ -1,8 +1,4 @@
-import {
-  contractSideToMarketSide,
-  wadToCents,
-  wadToNumber,
-} from "@popcharts/protocol";
+import { contractSideToMarketSide, wadToNumber } from "@popcharts/protocol";
 import {
   createOpeningState,
   marginalPriceCents,
@@ -44,10 +40,20 @@ import {
 
 /**
  * Ceiling on returned samples, kept at the app replay's historical cap. The
- * ADR's "one downsample cap": applied once, across the whole unified path,
- * always keeping the opening and latest samples.
+ * ADR's "one downsample cap": each phase is thinned within one shared budget,
+ * always keeping the opening, the handoff, and the latest samples.
  */
 const MAX_PRICE_HISTORY_POINTS = 256;
+
+/**
+ * Ceiling on receipts loaded and replayed per request. The replay is linear
+ * in receipt count with no way to start mid-stream (state is cumulative), so
+ * an unbounded read would let one runaway market dictate per-request DB and
+ * CPU cost (Codex P3 review finding). Past the cap the pregrad half degrades
+ * to its exact endpoints — the opening state and the market row's locked
+ * cumulative state — which keeps the handoff continuous while bounding work.
+ */
+const REPLAY_RECEIPT_CAP = 5_000;
 
 /** Drizzle select shape of a receipt_placed_events row. */
 type ReceiptPlacedRow = typeof schema.receiptPlacedEvents.$inferSelect;
@@ -56,6 +62,7 @@ type ReceiptPlacedRow = typeof schema.receiptPlacedEvents.$inferSelect;
 export type PriceHistoryDependencies = VenuePriceHistoryDependencies & {
   selectReceiptEvents: (args: {
     chainId: number;
+    limit: number;
     marketId: bigint;
   }) => Promise<ReceiptPlacedRow[]>;
 };
@@ -75,7 +82,12 @@ export function pregradPricePoints(
 ): PricePointResponse[] {
   let state = createOpeningState({
     b: wadToNumber(market.liquidityParameter),
-    openingProbability: wadToCents(market.openingProbabilityWad),
+    // Full-precision fractional cents, NOT wadToCents: that helper rounds to
+    // whole cents and clamps to [1, 99], while the venue handoff derives from
+    // the unrounded WAD probability — a fractional opening (say 55.5%) would
+    // otherwise replay from 56% and hand off at 55.5%, a false jump at the
+    // seam (Codex P3 review finding).
+    openingProbability: wadToNumber(market.openingProbabilityWad) * 100,
   });
   const toPoint = (at: Date): PricePointResponse => {
     const yesCents = marginalPriceCents(state, "yes");
@@ -144,16 +156,23 @@ export async function getMarketPriceHistory(
   }
 
   const [receipts, graduatedAt, pools] = await Promise.all([
-    dependencies.selectReceiptEvents({ chainId, marketId: parsedMarketId }),
+    dependencies.selectReceiptEvents({
+      chainId,
+      limit: REPLAY_RECEIPT_CAP + 1,
+      marketId: parsedMarketId,
+    }),
     dependencies.selectGraduatedAt({ chainId, marketId: parsedMarketId }),
     dependencies.selectVenuePools({ chainId, marketId: parsedMarketId }),
   ]);
 
-  const points = pregradPricePoints(market, receipts);
+  const pregradPoints =
+    receipts.length > REPLAY_RECEIPT_CAP
+      ? pregradEndpoints(market, graduatedAt)
+      : pregradPricePoints(market, receipts);
   const response: MarketPriceHistoryResponse = {
     chainId,
     marketId: parsedMarketId.toString(),
-    points,
+    points: pregradPoints,
   };
 
   if (graduatedAt !== null) {
@@ -181,13 +200,42 @@ export async function getMarketPriceHistory(
       ticks,
     });
 
-    response.points = points.concat(
-      venuePoints.map((point) => ({
-        at: point.at,
-        noCents: point.noPriceCents,
-        yesCents: point.yesPriceCents,
-      })),
-    );
+    const venueHalf = venuePoints.map((point) => ({
+      at: point.at,
+      noCents: point.noPriceCents,
+      yesCents: point.yesPriceCents,
+    }));
+
+    // Thin each phase within one shared budget instead of thinning the
+    // concat: a single global pass keeps only the overall first and last
+    // samples, so a long history could drop the synthesized handoff and draw
+    // pregrad movement straight into a later venue trade (Codex P3 review
+    // finding). Per-phase thinning keeps each half's endpoints — opening,
+    // last pregrad point, handoff, and newest venue point all survive.
+    const total = pregradPoints.length + venueHalf.length;
+    if (total <= MAX_PRICE_HISTORY_POINTS) {
+      response.points = pregradPoints.concat(venueHalf);
+    } else {
+      const pregradBudget = Math.min(
+        Math.max(
+          2,
+          Math.round((MAX_PRICE_HISTORY_POINTS * pregradPoints.length) / total),
+        ),
+        MAX_PRICE_HISTORY_POINTS - 2,
+      );
+
+      response.points = downsamplePricePoints(
+        pregradPoints,
+        pregradBudget,
+      ).concat(
+        downsamplePricePoints(
+          venueHalf,
+          MAX_PRICE_HISTORY_POINTS - pregradBudget,
+        ),
+      );
+    }
+
+    return response;
   }
 
   response.points = downsamplePricePoints(
@@ -196,6 +244,51 @@ export async function getMarketPriceHistory(
   );
 
   return response;
+}
+
+/**
+ * The pregrad path reduced to its exact endpoints, for histories too long to
+ * replay per request: the opening state at creation, and the market row's
+ * locked cumulative state — the same numbers a full replay would start and
+ * end at, so the handoff stays continuous. The closing timestamp is the
+ * graduation when there is one (receipts stop there), otherwise the row's
+ * last update, which the receipt handler bumps on every trade.
+ */
+function pregradEndpoints(
+  market: Pick<
+    MarketRow,
+    | "createdBlockTimestamp"
+    | "liquidityParameter"
+    | "noShares"
+    | "openingProbabilityWad"
+    | "updatedAt"
+    | "yesShares"
+  >,
+  graduatedAt: Date | null,
+): PricePointResponse[] {
+  const opening = createOpeningState({
+    b: wadToNumber(market.liquidityParameter),
+    openingProbability: wadToNumber(market.openingProbabilityWad) * 100,
+  });
+  const closing = stateAfterBuy({
+    shares: wadToNumber(market.yesShares),
+    side: "yes",
+    state: stateAfterBuy({
+      shares: wadToNumber(market.noShares),
+      side: "no",
+      state: opening,
+    }),
+  });
+  const toPoint = (at: Date, state: typeof opening): PricePointResponse => {
+    const yesCents = marginalPriceCents(state, "yes");
+
+    return { at: at.toISOString(), noCents: 100 - yesCents, yesCents };
+  };
+
+  return [
+    toPoint(market.createdBlockTimestamp, opening),
+    toPoint(graduatedAt ?? market.updatedAt, closing),
+  ];
 }
 
 function parseMarketId(marketId: string): bigint | null {
@@ -208,7 +301,7 @@ function parseMarketId(marketId: string): bigint | null {
 
 const defaultDependencies: PriceHistoryDependencies = {
   ...venuePriceHistoryReads,
-  selectReceiptEvents: async ({ chainId, marketId }) =>
+  selectReceiptEvents: async ({ chainId, limit, marketId }) =>
     db
       .select()
       .from(schema.receiptPlacedEvents)
@@ -218,5 +311,6 @@ const defaultDependencies: PriceHistoryDependencies = {
           eq(schema.receiptPlacedEvents.marketId, marketId),
         ),
       )
-      .orderBy(asc(schema.receiptPlacedEvents.sequence)),
+      .orderBy(asc(schema.receiptPlacedEvents.sequence))
+      .limit(limit),
 };

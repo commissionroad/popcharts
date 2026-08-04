@@ -88,6 +88,39 @@ describe("downsamplePricePoints", () => {
   });
 });
 
+describe("pregrad opening precision", () => {
+  it("replays from the full-precision opening probability, not rounded cents", () => {
+    // 55.5%: wadToCents would round to 56 and diverge from the venue handoff,
+    // which derives from the unrounded WAD (Codex P3 review finding).
+    const points = pregradPricePoints(
+      marketRow({ openingProbabilityWad: (WAD * 555n) / 1000n }),
+      [],
+    );
+
+    expect(points[0]?.yesCents).toBeCloseTo(55.5, 9);
+  });
+
+  it("keeps the handoff continuous for a fractional opening probability", async () => {
+    const fractional = marketRow({
+      openingProbabilityWad: (WAD * 555n) / 1000n,
+      yesShares: 100n * WAD,
+    });
+    const history = await getMarketPriceHistory(
+      { chainId: 31337, marketId: "7" },
+      createDependencies({ selectMarket: async () => fractional }),
+    );
+
+    const handoffIndex = history!.points.findIndex(
+      (point) => point.at === GRADUATED_AT.toISOString(),
+    );
+    expect(handoffIndex).toBeGreaterThan(0);
+    expect(history!.points[handoffIndex]!.yesCents).toBeCloseTo(
+      history!.points[handoffIndex - 1]!.yesCents,
+      6,
+    );
+  });
+});
+
 describe("getMarketPriceHistory", () => {
   it("serves the pregrad path alone for an ungraduated market", async () => {
     const history = await getMarketPriceHistory(
@@ -173,6 +206,40 @@ describe("getMarketPriceHistory", () => {
     expect(history?.points[0]?.at).toBe(CREATED_AT.toISOString());
     // The newest venue point survives the thinning.
     expect(history?.points.at(-1)?.at).toBe("2026-07-01T01:00:00.000Z");
+    // And so does the synthesized handoff — per-phase thinning keeps each
+    // half's endpoints (Codex P3 review finding).
+    expect(
+      history?.points.some((point) => point.at === GRADUATED_AT.toISOString()),
+    ).toBe(true);
+  });
+
+  it("degrades to exact pregrad endpoints past the replay cap", async () => {
+    // 5001 receipts exceed REPLAY_RECEIPT_CAP: the pregrad half collapses to
+    // its opening and closing states, both exact, so the handoff still lines
+    // up with the venue opening while the request stays bounded.
+    const receipts = Array.from({ length: 5_001 }, (_, index) =>
+      receiptRow({
+        blockTimestamp: new Date(CREATED_AT.getTime() + index * 1_000),
+        logIndex: index,
+        sequence: BigInt(index + 1),
+        shares: WAD,
+        side: 0,
+      }),
+    );
+    const history = await getMarketPriceHistory(
+      { chainId: 31337, marketId: "7" },
+      createDependencies({ selectReceiptEvents: async () => receipts }),
+    );
+
+    // 2 pregrad endpoint samples + handoff + 1 swap.
+    expect(history?.points).toHaveLength(4);
+    const [opening, closing, handoff] = history!.points;
+    expect(opening!.at).toBe(CREATED_AT.toISOString());
+    expect(opening!.yesCents).toBeCloseTo(50, 9);
+    // Closing derives from the row's locked shares (100 YES in this fixture),
+    // matching the venue handoff exactly.
+    expect(closing!.at).toBe(GRADUATED_AT.toISOString());
+    expect(handoff!.yesCents).toBeCloseTo(closing!.yesCents, 6);
   });
 });
 

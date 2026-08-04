@@ -162,13 +162,15 @@ describe("selectGraduatedAt against real SQL (PGlite)", () => {
 });
 
 describe("selectPoolPriceTicks against real SQL (PGlite)", () => {
-  it("orders ticks by block time then log index, not by insertion", async () => {
-    // Inserted newest-first, and with the second block's two swaps reversed,
-    // so an unordered query cannot pass by accident.
+  it("orders ticks by chain order, not timestamp or insertion", async () => {
+    // Inserted newest-first, with two blocks SHARING a timestamp (routine on
+    // a subsecond chain) and the later block carrying a LOWER logIndex — a
+    // (blockTimestamp, logIndex) sort would misorder them, a (blockNumber,
+    // logIndex) sort cannot.
     await insertTick({
       blockNumber: 12n,
-      blockTimestamp: new Date("2026-07-14T02:00:00Z"),
-      logIndex: 5,
+      blockTimestamp: new Date("2026-07-14T01:00:00Z"),
+      logIndex: 1,
       tick: 300,
     });
     await insertTick({
