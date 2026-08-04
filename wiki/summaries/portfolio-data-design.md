@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-31
+updated: 2026-08-03
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -50,6 +50,17 @@ append-only event tables mirrored 1:1 from chain:
   market's `Redeemed`/`CancelledRedeemed` events. The token-burn leg of the
   same transaction also lands in `outcome_token_transfer_events`; this table
   records the collateral leg.
+- `postgrad_dispute_bond_events` — per movement of a resolution dispute bond
+  ([ADR 0024](root-adr-0024-resolution-dispute-program.md)): collateral posted
+  into bond custody by the disputer, refunded when the dispute is upheld, or
+  forfeited to the protocol owner when it is not. The dispute's status
+  transitions live separately in `postgrad_dispute_events`; this table records
+  only collateral that actually moved.
+- `complete_set_events` — per complete-set mint or merge: the collateral a
+  postgrad market pulled in (mint) or paid out (merge), with the YES+NO sets
+  created or destroyed. The matching token mints/burns land in
+  `outcome_token_transfer_events`, so — as with redemption — this table records
+  the collateral leg.
 - `review_bond_events` *(added 2026-07-31 with the review-bond indexing)* — per
   value transfer through the review-credit vault of
   [ADR 0022](root-adr-0022-review-first-market-creation.md): user deposits,
@@ -61,6 +72,17 @@ append-only event tables mirrored 1:1 from chain:
   user withdrawal, leaving **deposits and owner sweeps only**; the table becomes
   the source the submission gate reads its balance from, rather than a
   reconciliation record against a chain-side consumed total.
+
+**One omission is deliberate**, and the doc now says so rather than leaving it
+to be re-flagged: `RetainedCollateralFunded` (retained graduation collateral
+moving manager → postgrad adapter → new market) has no table, because no user is
+on either end, there is no receipt to link a row to, and the amount is already
+held as a total in `graduation_finalized_events.retained_cost_total` and
+per-receipt in `graduated_receipt_claimed_events.retained_cost`. The nightly
+paper-trail check reads it from chain as a solvency bound instead — deliberately
+not trusting the projection it audits. Stated as a rule: protocol-internal
+movement of already-recorded collateral earns no row; a new user-facing value
+transfer always does.
 
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is

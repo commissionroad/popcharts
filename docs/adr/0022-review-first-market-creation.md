@@ -1,6 +1,8 @@
 # Review-first market creation: off-chain drafts, gated on-chain publish, and creator surfaces
 
-Status: Proposed
+Status: Accepted — P1, P2, P3 and P7 built 2026-07-30..08-03 (plus P4's app half);
+P4's contract/indexer/fee-indexing work and P5, P6, P8 are open. On-chain
+`createMarket` is still ungated in the interim — see P4 below.
 
 ## Context
 
@@ -50,14 +52,21 @@ Concretely:
 2. **Draft lifecycle:**
 
    ```
-   editing ──submit──▶ in_review ──reject──▶ rejected ──edit──▶ editing
+   editing ──submit──▶ in_review ──reject──────────────▶ rejected ──edit──▶ editing
       ▲ (templates                │
-        live here)                └──approve──▶ approved ──publish&pay──▶ published
+        live here)                ├──changes_requested ─▶ changes_requested ──edit──▶ editing
+                                  │
+                                  └──approve──▶ approved ──publish&pay──▶ published
                                                                              │
                                                               (on-chain Market born Active;
                                                                draft retained, linked, cloneable)
    deleted = soft-delete flag, valid from any state
    ```
+
+   `rejected` is the *policy* outcome and `changes_requested` the *quality* one (a
+   `manual_review` verdict lands here); both are editable and resubmittable, so the
+   creator's loop is the same either way. `changes_requested` was added during the
+   build — see P2 in the phased plan.
 
 3. **Two separate charges: the creation fee (at publish) and the review bond (at submit).**
    > **Superseded in part — see "Amendment: prepaid review credit" below.** The refundable
@@ -424,17 +433,55 @@ Ordered so each phase is independently shippable and the keystone (drafts + off-
 review) lands before the contract changes. **Public draft submission does not open until the
 review bond (P3) is live** — until then P2's review runs internally/allow-listed.
 
-- [ ] **P1 — Draft entity + Privy-authenticated CRUD.** `market_drafts` table (content with
+- [x] **P1 — Draft entity + Privy-authenticated CRUD.** Delivered 2026-08-03 as #412
+      (schema) → #413 (server) → #414 (client regen) → #415 (app) → #416 (e2e).
+      `market_drafts` table (content with
       relative-duration deadlines + bookkeeping columns, `is_template`, `visibility`,
       `deleted`, `owner_user_id`, `intended_creator_address`, `published_market_id`), server
       routes for create/read/update/soft-delete scoped to the **verified Privy user**, and the
       creator "my drafts" surface. Edit/iterate loop, no chain interaction yet.
-- [ ] **P2 — Off-chain AI review on drafts.** New **draft-keyed** review + job tables and a
+      Privy JWTs are verified for real (ES256 via `jose`, fail-closed).
+- [x] **P2 — Off-chain AI review on drafts.** Delivered 2026-08-03 in the same stack.
+      New **draft-keyed** review + job tables and a
       reworked runner that enqueues from `market_drafts`; snapshot `metadataHash` on submit;
-      `in_review → approved | rejected`; user-appropriate rejection reasons; edit → re-review.
-      Keystone; runs internally/allow-listed until P3 gates public submission.
-- [x] **P3 — Review-bond escrow + off-chain meter.** Shipped as specified, then withdrawn —
-      see "Amendment: prepaid review credit". Superseded by P3a.
+      user-appropriate rejection reasons; edit → re-review.
+      **Divergence from the decision above:** the terminal states are
+      `in_review → approved | rejected | changes_requested`, not the two this ADR
+      first specified. A `manual_review` verdict maps to `changes_requested`, which
+      separates *quality* ("fix this and resubmit") from *policy* (`rejected`); both
+      are editable and resubmittable, so the creator-facing loop is unchanged.
+- [x] **P3 — Review-bond escrow + off-chain meter.** Contract delivered as #417
+      (independent of the draft stack), meter + indexing as #419. Standalone
+      `ReviewBondVault` contract
+      (native-USDC `msg.value`: `depositBond` / `settle`(onlyResolver) / `withdrawBond` /
+      `withdrawCollectedFees`; regenerate ABIs); the off-chain fee meter ($5 min bond, $1/submit
+      incl. 5 reviews, $0.20/review after) gating submission on bonded balance; the resolver
+      settlement path; and indexing of the four bond events + `portfolio-data-design.md`
+      entries. **Opens public draft submission.** Submission over an exhausted balance
+      answers 402 and the app offers one-click deposit-and-resubmit.
+
+      **Withdrawn 2026-08-04 — superseded by P3a** (see "Amendment: prepaid review
+      credit"). Two v1 caveats were recorded here; the first is why the design was
+      withdrawn rather than patched:
+
+      - **`withdrawBond` is gated on the *settled* total, not the metered one.**
+        `available = _deposited - _settledConsumed`, and `_settledConsumed` only moves
+        when the resolver settles. Between settlements a creator can withdraw funds
+        covering reviews they have already consumed. Recorded here as "bounded by the
+        unsettled tally, roughly a dollar, priced in rather than fixed" — but that
+        understated it on two counts. The bound only holds while settlement
+        *succeeds*; failing settlements let the tally grow unchecked. And the same
+        withdrawal decrements `deposited`, which makes `settle` revert permanently
+        once the lifetime consumed total exceeds it, **wedging settlement for that
+        wallet forever**. Both are removed with the withdrawal itself in P3a.
+      - **The `lifecycle:e2e` lane runs unmetered.** `scripts/local-lifecycle-nightly.ts`
+        never deploys the vault and its env has no `reviewBondVaultAddress`, so those
+        journeys exercise draft → review → publish with the bond gate absent
+        entirely; the 402-and-deposit path has no coverage there. Threading it
+        through must add the field in **both** `scripts/local-dev.ts` and
+        `scripts/local-dev-control.ts` — they rebuild deploy overrides
+        field-by-field, so a field added to only one is silently dropped. Still open;
+        carried into P3a.
 - [ ] **P3a — Prepaid review credit.** Rewrite the vault to `depositFor(beneficiary)` +
       `withdrawCollectedFees` only (delete `settle`, `withdrawBond`, `setResolver`, the
       resolver key, and on-chain consumption tracking; regenerate ABIs). Meter becomes a
@@ -442,17 +489,28 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       deposits rather than the chain; drop the $5 floor, the bundling, and `settledAt`. Rewrite
       the `review_bond_event_kind` enum down to deposit + sweep. Emit `recordLiveChange` from
       the deposit handler. Extend the nightly lifecycle stack to deploy the vault and cover the
-      funded journey end to end (refused → deposit → notified → submitted). **Does not open
+      funded journey end to end (refused → deposit → notified → submitted). **Does not reopen
       public draft submission** — that waits on a rate at or above cost (see the amendment).
-- [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** Contract: EIP-712
+- [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** *App half delivered*
+      2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
+      `published_market_id` back-link all ship. **The contract, indexer and fee-indexing work
+      is open, and it is the keystone of what remains** — until it lands, on-chain
+      `createMarket` stays ungated and publish bridges over it: the server calls
+      `createMarket` (market born `UnderReview`) and then immediately force-approves with
+      the review-manager key (`markMarketDraftPublished` → `transitionReviewedMarketOnChain`).
+      That interim puts the gate in server code that has to be right on every path rather
+      than in a signature check the chain enforces — one hole in it (unverified publish
+      receipts) was already found and fixed in review before #415 shipped.
+      Remaining — Contract: EIP-712
       authorizer signature over the **full params** with an **on-chain single-use nonce** +
       expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer:
       project new markets as **`bootstrap`** (change `market-created.ts` + column default).
       Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
       resolve durations → absolute deadlines); add the `MarketCreationFeePaid` watcher +
-      fee-events table + `portfolio-data-design.md` entry. App: "Publish & pay" step,
-      `publishing` transient state, `published_market_id` back-link.
-- [ ] **P5 — Retire on-chain review machinery.** Remove `UnderReview` / `approveMarket` /
+      fee-events table + `portfolio-data-design.md` entry.
+- [ ] **P5 — Retire on-chain review machinery.** Blocked on P4 — both the review-manager key
+      and the on-chain review states are load-bearing for the interim publish bridge.
+      Remove `UnderReview` / `approveMarket` /
       `rejectMarket` (tail-only enum removal, no renumber), the review-manager key, and the
       indexer market-review watcher; migrate existing `under_review` / `rejected` rows to a
       chosen surviving status (enum type rewrite or dead-label); audit the hand-written
@@ -460,10 +518,12 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
 - [ ] **P6 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
       `MarketCreated` event the indexer already reads; drop the best-effort off-chain
       metadata POST.
-- [ ] **P7 — Templates + clone.** Universal clone (own drafts / own markets / any market by
+- [x] **P7 — Templates + clone.** Delivered 2026-08-03 (#413 server, #415 app) as the
+      `/studio` surface. Universal clone (own drafts / own markets / any market by
       id) → new `editing` draft, verbatim copy; `is_template` shelf; schema ready for future
       sharing.
-- [ ] **P8 — Discovery filters, server-side.** Real-markets-only board; status filters
+- [ ] **P8 — Discovery filters, server-side.** Not started — `GET /markets` still takes only
+      `chainId` and `since`, with no status filter. Real-markets-only board; status filters
       (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
       Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
       into SQL.

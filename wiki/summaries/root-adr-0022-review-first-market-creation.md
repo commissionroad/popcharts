@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated publish, fee-on-accept)
-description: Proposed inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board.
+description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. Drafts, draft review, the review bond and templates are built; the contract gate is not.
 sources:
   - docs/adr/0022-review-first-market-creation.md
 updated: 2026-08-04
@@ -9,15 +9,17 @@ updated: 2026-08-04
 
 # Repo ADR 0022: Review-first Market Creation
 
-**Status: Proposed.** Dated 2026-07-21. Designed via a `/grill` session and
-adversarially red-teamed before proposal. Not part of the M1–M5 launch chain.
+**Status: Accepted, partially built.** Dated 2026-07-21. Designed via a `/grill`
+session and adversarially red-teamed before proposal. Not part of the M1–M5 launch
+chain. P1 (drafts + Privy auth), P2 (draft review), P3 (review bond) and P7
+(templates/clone) landed 2026-08-03, along with P4's app half; **P4's contract and
+indexer work is open, so on-chain `createMarket` is still ungated** and publish
+bridges over it (see the phased plan below). P5, P6 and P8 are open.
 
-> **P1, P2, P3 and P7 landed on main 2026-08-03** (PRs #412–#417, #419); the ADR
-> doc itself still reads "Proposed" with unticked phases — known drift.
-> **P3 was then withdrawn and replaced** by the 2026-08-04 amendment: the
-> refundable bond becomes a non-refundable **prepaid review credit**. See
-> "Amendment: prepaid review credit" at the bottom of this page — the bond
-> decision described below is superseded.
+> **P3 was withdrawn 2026-08-04** and replaced by the amendment: the refundable
+> bond becomes a non-refundable **prepaid review credit**. See "Amendment: prepaid
+> review credit" at the bottom of this page — the bond decision described below,
+> and P3 in the phased plan, are superseded by P3a.
 
 ## Context
 
@@ -114,18 +116,38 @@ paid AI-review pipeline Sybil-exposed under rate-limiting-only — now closed by
 prepaid review-bond escrow (decision above), which superseded the initial
 rate-limiting-only stance.
 
-## Phased build plan (all open)
+## Phased build plan
 
 Public draft submission opens at P3 (the bond); until then P2 review runs internally.
 
-1. **P1** Draft entity + Privy-authenticated CRUD + "my drafts" surface.
-2. **P2** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
-3. **P3** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. **Opens public submission.**
-4. **P4** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
-5. **P5** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
-6. **P6** Populate `market_metadata` from the event; drop the off-chain POST.
-7. **P7** Templates + clone.
-8. **P8** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
+1. **P1 — built.** Draft entity + Privy-authenticated CRUD + "my drafts" surface.
+2. **P2 — built.** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
+3. **P3 — built.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. **Opens public submission.**
+4. **P4 — app half built, contract open.** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
+5. **P5 — open, blocked on P4.** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
+6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
+7. **P7 — built.** Templates + clone (the `/studio` surface).
+8. **P8 — open.** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
+
+## What shipped differently from the design
+
+Three notes the ADR now records, all from the 2026-08-03 build:
+
+- **A third review outcome.** The designed state machine was
+  `in_review → approved | rejected`; the build added **`changes_requested`**, which a
+  `manual_review` verdict maps to. It separates *quality* feedback from *policy*
+  rejection; both are editable and resubmittable, so the creator loop is unchanged.
+- **Publish bridges over the ungated contract until P4.** The server calls
+  `createMarket` (market still born `UnderReview`) and immediately force-approves with
+  the review-manager key. The gate therefore lives in server code rather than in the
+  signature check the design specifies — the reason P4 is the keystone of what remains,
+  and why P5 cannot start (the review-manager key and the on-chain review states are
+  both load-bearing for the bridge).
+- **The bond's withdraw gate lags the meter.** `withdrawBond` allows
+  `deposited - settledConsumed`, and `settledConsumed` only moves when the resolver
+  settles, so between settlements a creator can withdraw against reviews already
+  consumed. Bounded by the unsettled tally (~$1 at this price schedule) and accepted
+  for v1.
 
 ## Consequences
 

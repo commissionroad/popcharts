@@ -1296,6 +1296,56 @@ chain → prepare-database), not only the named ones; and the inline
 orchestrator is not "the same stack" — it has no AI resolution service or
 runner.
 
+## [2026-08-03] ingest | docs/portfolio-data-design.md — dispute-bond and complete-set events join the money-paper-trail catalogue
+Pages: ~summaries/portfolio-data-design.md
+Notes: closes the drift the 2026-07-31 entry recorded and left alone. Both
+tables already existed and already cited this doc as their rationale — the
+catalogue was simply behind: `postgrad_dispute_bond_events` (posted/refunded/
+forfeited bond movements, ADR 0024) and `complete_set_events` (collateral in on
+mint, out on merge). Each bullet draws the same line the redemption bullet does
+— the token leg lands in `outcome_token_transfer_events`, these tables record
+the collateral leg — and the dispute-bond bullet distinguishes itself from
+`postgrad_dispute_events`, which carries the status transitions rather than
+money. No entity/concept page needed updating: the catalogue lives only here,
+and protocol-adr-0013 already names the three bond events. Index description
+unchanged.
+
+Reviewing the diff surfaced a third money event with no table at all —
+`RetainedCollateralFunded`, the retained graduation collateral moving manager →
+postgrad adapter → new market. It is NOT a gap, and the catalogue now says so
+explicitly instead of leaving it to be re-flagged (it was raised three times in
+one day): no user is on either end, there is no receipt to link a row to, and
+the amount is already held as a total in
+`graduation_finalized_events.retained_cost_total` and per-receipt in
+`graduated_receipt_claimed_events.retained_cost`. The decision was already made
+and documented — in a code comment in `server/src/lifecycle-nightly/paper-trail.ts`,
+where the nightly check consumes the event straight from chain as a solvency
+bound rather than from the DB, deliberately not trusting the projection it
+audits. The doc and that comment now agree. Also corrected in this pass: the
+first draft of the complete-set bullet claimed mint/merge is *how* collateral
+enters and leaves outside resolution, but `fundRetainedCollateral` is a second
+such path — the overbroad sentence was dropped.
+
+## [2026-08-03] ingest | docs/adr/0022-review-first-market-creation.md — status reconciled with what shipped
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md, ~entities/ai-review-service.md, ~index.md
+Notes: the ADR had drifted hard — still "Proposed" with all 8 phases unticked while
+P1/P2/P3/P7 plus P4's app half were on main (PRs #412–#417, #419). Source doc updated
+first, then these pages. Three things the wiki had wrong beyond the checkboxes, all now
+recorded: (1) the shipped draft state machine has a **third** outcome,
+`changes_requested` (quality) alongside `rejected` (policy) — the ADR specified only
+two; (2) on-chain `createMarket` is **still ungated** — publish calls it and then
+force-approves with the review-manager key, so pages claiming markets are born Active
+were describing the design, not the system, and P5 is blocked because that bridge needs
+the very review states it would delete; (3) the creation fee is now fee-on-accept in
+practice but its `MarketCreationFeePaid` indexing is still open, so it remains the one
+value transfer with no receipt-linked record — creation-fee-custody said the ADR "adds
+that indexing" without noting it hadn't. Also carried over the two documented bond
+caveats (withdraw gated on the resolver's settled total, not the meter; `lifecycle:e2e`
+runs with no vault deployed so the 402/deposit path is uncovered). Verified against code
+rather than the landing notes: `GET /markets` still takes only `chainId`/`since`,
+confirming P8 untouched; no EIP-712 or nonce in `PregradManager.sol`, confirming P4's
+contract half open.
+
 ## [2026-08-04] ingest | root ADR 0022 — amendment: prepaid review credit supersedes the refundable bond
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md,
 ~concepts/creation-fee-custody.md, ~summaries/portfolio-data-design.md, ~index.md
@@ -1311,5 +1361,6 @@ Follow-ups: (1) the $0.10 rate is BELOW COST ($0.169/run on claude-cli) — publ
 submission must not open at it; (2) the deposit handler does not call
 `recordLiveChange`, so the change-feed half of the model is unwired; (3) the
 nightly lifecycle stack never deploys the vault, so the payment path has no
-end-to-end coverage; (4) ADR 0022 still reads "Status: Proposed" with every phase
-unticked despite P1/P2/P3/P7 being on main — pre-existing drift, not fixed here.
+end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had just landed the
+Accepted status and phase ticks; its "two documented bond caveats" note is now
+half-resolved — the withdraw caveat is what withdrew the design.

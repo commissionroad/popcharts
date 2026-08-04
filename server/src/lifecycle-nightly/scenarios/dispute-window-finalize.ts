@@ -110,8 +110,9 @@ export const disputeWindowFinalize: Scenario = {
     const disputeDeadline = await step(
       "resolution runner proposes YES instead of resolving",
       async () => {
-        await jumpChainTimeTo(market.resolutionTime + 1n);
-
+        // No chain jump — see the note in happy-path. The dispute-window jump
+        // further down stays: nothing waits that window out on the wall clock,
+        // so jumping it is the only way to close it.
         const pending = await waitForApiStatus(
           market.marketId,
           "resolution_pending",
