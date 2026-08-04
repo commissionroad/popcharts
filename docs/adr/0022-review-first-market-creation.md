@@ -515,7 +515,8 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       project new markets as **`bootstrap`** (change `market-created.ts` + column default).
       Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
       resolve durations → absolute deadlines); add the `MarketCreationFeePaid` watcher +
-      fee-events table + `portfolio-data-design.md` entry.
+      fee-events table + `portfolio-data-design.md` entry. Design locked 2026-08-04 — see
+      "P4 build decisions" below.
 - [ ] **P5 — Retire on-chain review machinery.** Blocked on P4 — both the review-manager key
       and the on-chain review states are load-bearing for the interim publish bridge.
       Remove `UnderReview` / `approveMarket` /
@@ -535,6 +536,81 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
       Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
       into SQL.
+
+## P4 build decisions (2026-08-04)
+
+Locked before the build. The phase entry above says *what* P4 does; this says how, on the
+points where the design admitted more than one answer.
+
+**The authorization.**
+
+- **A new authorizer key, separate from the review-manager key.** Reusing the review-manager
+  key would make P5's "remove the review-manager key" a rename rather than a removal, and
+  would grow that key's blast radius at the moment we are trying to retire it.
+- **Bound to the creator's address.** Only the approved creator's wallet can spend the
+  authorization, so a leaked signature is inert without their wallet key. The cost is that
+  publishing from a different wallet than the draft was approved under stops working; if
+  that is ever wanted it is a separate feature, not a hole left open in advance.
+- **Unordered single-use nonce.** Each authorization carries an arbitrary unused nonce that
+  the contract marks spent. A per-creator counter is marginally cheaper but serialises
+  publishing: a creator with two approved drafts, or one whose first transaction fails,
+  would be blocked behind it. Several drafts in flight is the normal case the studio exists
+  to support.
+- **Expiry: 15 minutes.**
+
+**Why the expiry is minutes rather than days.** Not to stop a thief — creator binding
+already does that. The authorization carries **absolute** deadlines resolved from the
+draft's relative durations at mint time, so its lifetime is exactly how far the market's
+dates can drift from the ones the creator chose and the reviewer saw. A 90-day market
+published against a month-old authorization is a 60-day market, and it does not revert:
+`_validateCreateMarketParams` only rejects a `graduationDeadline` already in the past, so
+full staleness is caught while partial staleness ships as a quietly wrong market. Two
+smaller reasons point the same way: an outstanding authorization is a standing right to mint
+that market and there is no revocation list, so the window is also how long an approval
+cannot be taken back; and with a single-setter rotation (below), rotating invalidates every
+outstanding authorization, so the window is the rotation blast radius. The window is cheap
+because the server can mint freely — **the app must re-mint on expiry rather than surfacing
+an error.** That is a requirement of choosing a short window, not an optional nicety.
+
+**Key handling.**
+
+- **Rotation is a single owner setter.** Accepting an outgoing and incoming key
+  simultaneously would avoid mid-rotation failures, but roughly doubles the key-handling
+  code to protect a 15-minute window of publishes that can simply be retried.
+- **Locally the authorizer key follows the review-manager key's existing pattern** — derived
+  from the local stack's dev accounts and threaded through the env writers. Per ADR 0020,
+  that means **both** `scripts/local-dev.ts` and `scripts/local-dev-control.ts`, which
+  rebuild deploy overrides field-by-field and silently drop a field added to only one.
+
+**Cutover.**
+
+- **The on-chain review runner is switched off the day P4 lands.** After P4 nothing can
+  create an `under_review` market — the signature is required, and trusted creators are born
+  `Active` too — so the runner has nothing left to sweep. (An earlier draft of this decision
+  worried about stranding directly-created markets; that concern was wrong, because the gate
+  removes the ability to create them.)
+- **Existing `under_review` / `rejected` rows are testnet data and may be wiped.** P5's
+  migration does not need to preserve them, which removes the enum-rewrite pressure from
+  that phase.
+
+**Shape of the work.** Small PRs split by workspace, which the contract↔indexer coupling
+otherwise fights: `market-created.ts` hard-codes `status: "under_review"`, so whichever of
+protocol/server lands first, `main` spends the gap recording new markets with the wrong
+status. Resolved by making the indexer **read the market's real on-chain status instead of
+assuming it**, which is correct under both the old contract and the new one and so can land
+alone, ahead of either. That deletes the coupling rather than sequencing around it once; it
+costs one extra chain read per market creation, on the rare path rather than the hot one.
+The resulting order, every step independently safe:
+
+1. **server** — `MarketCreationFeePaid` watcher + fee-events table + `portfolio-data-design.md`
+   entry. Independent of the gate; pulled ahead of the rest of P4 because until it lands the
+   creation fee is the one value transfer in the system with no receipt-linked record.
+2. **server** — the indexer reads the market's actual on-chain status.
+3. **protocol** — signature verification, nonce, expiry, authorizer setter, born `Active`;
+   regenerate ABIs.
+4. **server** — mint the publish authorization.
+5. **scripts** — the dev authorizer key through both orchestrators and the e2e env writer.
+6. **app** — re-mint transparently on expiry.
 
 ## Deferred / out of scope
 
