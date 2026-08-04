@@ -446,32 +446,6 @@ export const MarketPriceHistorySchema = t.Object(
   { $id: "MarketPriceHistory" },
 );
 
-export const VenuePricePointSchema = t.Object(
-  {
-    at: t.String(),
-    noPriceCents: t.Number(),
-    yesPriceCents: t.Number(),
-  },
-  { $id: "VenuePricePoint" },
-);
-
-/**
- * A graduated market's post-graduation price history. The first point is the
- * handoff itself — the pools open where the pregrad book closed — followed by
- * one point per indexed taker swap. A market that has not graduated, or whose
- * venue pools are not indexed, returns no points rather than an error.
- */
-export const MarketVenuePriceHistorySchema = t.Object(
-  {
-    chainId: t.Number(),
-    /** Handoff time, and the timestamp of the opening point when present. */
-    graduatedAt: t.Optional(t.String()),
-    marketId: t.String(),
-    points: t.Array(t.Ref(VenuePricePointSchema)),
-  },
-  { $id: "MarketVenuePriceHistory" },
-);
-
 /**
  * One indexed bounded-venue maker order. `priceWad` follows the ladder's
  * price convention; `sizeWad` / `remainingSizeWad` are the outcome-token
@@ -895,10 +869,6 @@ export type MarketOrderBookResponse = Static<typeof MarketOrderBookSchema>;
 export type PricePointResponse = Static<typeof PricePointSchema>;
 export type MarketPriceHistoryResponse = Static<
   typeof MarketPriceHistorySchema
->;
-export type VenuePricePointResponse = Static<typeof VenuePricePointSchema>;
-export type MarketVenuePriceHistoryResponse = Static<
-  typeof MarketVenuePriceHistorySchema
 >;
 export type VenueOrderResponse = Static<typeof VenueOrderSchema>;
 export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;

@@ -5,10 +5,6 @@ import {
   WAD,
 } from "@popcharts/protocol";
 
-import type {
-  MarketVenuePriceHistoryResponse,
-  VenuePricePointResponse,
-} from "src/api/models/markets";
 import { and, asc, db, desc, eq, inArray, schema } from "src/db/client";
 import { displayPriceWadToCents } from "src/shared/venue-prices";
 
@@ -34,8 +30,16 @@ import type { VenuePoolRow } from "./venue-orderbook";
  * deterministic off the indexed rows and the market's own locked LMSR state.
  */
 
-/** Ceiling on returned samples, matching the app's receipt-path downsampling. */
-const MAX_VENUE_PRICE_POINTS = 240;
+/**
+ * One folded venue sample. Formerly the deleted venue-only endpoint's wire
+ * shape; now internal to the unified price-history read, which maps it onto
+ * the phase-blind PricePoint (repo ADR 0025 P4).
+ */
+export type VenuePricePointResponse = {
+  at: string;
+  noPriceCents: number;
+  yesPriceCents: number;
+};
 
 /** Drizzle select shape of a pool_price_ticks row. */
 export type PoolPriceTickRow = typeof schema.poolPriceTicks.$inferSelect;
@@ -138,27 +142,6 @@ export function foldVenuePricePoints({
   return points;
 }
 
-/**
- * Thins a history to at most `maxPoints` by even stride, always keeping the
- * opening and latest samples. Mirrors the app's receipt-path downsampling so
- * both halves of the chart are thinned the same way.
- */
-export function downsampleVenuePricePoints(
-  points: VenuePricePointResponse[],
-  maxPoints: number,
-): VenuePricePointResponse[] {
-  if (points.length <= maxPoints) {
-    return points;
-  }
-
-  const stride = (points.length - 1) / (maxPoints - 1);
-
-  return Array.from(
-    { length: maxPoints },
-    (_, index) => points[Math.round(index * stride)]!,
-  );
-}
-
 /** Data and chain reads the venue price history depends on, injectable in tests. */
 export type VenuePriceHistoryDependencies = {
   readCollateralDecimals: (collateral: `0x${string}`) => Promise<number>;
@@ -179,90 +162,6 @@ export type VenuePriceHistoryDependencies = {
     marketId: bigint;
   }) => Promise<VenuePoolRow[]>;
 };
-
-/**
- * Assembles a market's post-graduation price history, or null when the market
- * id is malformed or unknown (the route answers 404, matching getMarketById).
- *
- * An empty `points` array is a normal answer, not a failure: a market that has
- * not graduated has no venue, and one whose pools are not indexed yet has no
- * prices to report. Both are states the market page renders every day.
- */
-export async function getMarketVenuePriceHistory(
-  { chainId, marketId }: { chainId: number; marketId: string },
-  dependencies: VenuePriceHistoryDependencies = venuePriceHistoryReads,
-): Promise<MarketVenuePriceHistoryResponse | null> {
-  const parsedMarketId = parseMarketId(marketId);
-
-  if (parsedMarketId === null) {
-    return null;
-  }
-
-  const market = await dependencies.selectMarket({
-    chainId,
-    marketId: parsedMarketId,
-  });
-
-  if (!market) {
-    return null;
-  }
-
-  const response: MarketVenuePriceHistoryResponse = {
-    chainId,
-    marketId: parsedMarketId.toString(),
-    points: [],
-  };
-  const [graduatedAt, pools] = await Promise.all([
-    dependencies.selectGraduatedAt({ chainId, marketId: parsedMarketId }),
-    dependencies.selectVenuePools({ chainId, marketId: parsedMarketId }),
-  ]);
-
-  // Reported as soon as the handoff is known, independently of whether any
-  // price followed it: "graduated at T with no venue prices yet" is a state
-  // the caller must be able to tell apart from "not graduated".
-  if (graduatedAt !== null) {
-    response.graduatedAt = graduatedAt.toISOString();
-  }
-
-  // Both are required to price anything: without the handoff there is no
-  // opening price, and without pools there is nothing to attribute a tick to.
-  if (graduatedAt === null || pools.length === 0) {
-    return response;
-  }
-
-  const poolsById = new Map(pools.map((pool) => [pool.poolId, pool]));
-  const [collateralDecimals, tickRows] = await Promise.all([
-    dependencies.readCollateralDecimals(market.collateral as `0x${string}`),
-    dependencies.selectPoolPriceTicks({
-      chainId,
-      poolIds: pools.map((pool) => pool.poolId),
-    }),
-  ]);
-  const ticks = tickRows.flatMap((tick) => {
-    const pool = poolsById.get(tick.poolId);
-
-    return pool ? [{ pool, tick }] : [];
-  });
-
-  response.points = downsampleVenuePricePoints(
-    foldVenuePricePoints({
-      collateralDecimals,
-      opening: venueOpeningPoint(market, graduatedAt),
-      ticks,
-    }),
-    MAX_VENUE_PRICE_POINTS,
-  );
-
-  return response;
-}
-
-function parseMarketId(marketId: string): bigint | null {
-  try {
-    return BigInt(marketId);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The production reads. Exported so the database-backed suite can exercise the
