@@ -69,6 +69,12 @@ Concretely:
    build — see P2 in the phased plan.
 
 3. **Two separate charges: the creation fee (at publish) and the review bond (at submit).**
+   > **Superseded in part — see "Amendment: prepaid review credit" below.** The refundable
+   > standing bond, the $5 floor, the $1/5-reviews + $0.20 price schedule, and on-chain
+   > settlement are all replaced by a non-refundable prepaid credit at a single per-review
+   > rate. The split between creation fee and review charge, the off-chain metering, and the
+   > native-USDC denomination described here are unchanged.
+
    The existing **creation fee** stays fee-on-accept — paid by the creator when they publish
    (`createMarket`); rejected/iterated drafts never pay it. Separately, a **prepaid, refundable
    review bond** funds the AI-review pipeline and is the Sybil defence (rate limiting alone is
@@ -206,6 +212,10 @@ publish; the ADR does not require that.
 
 ## Review-bond escrow contract
 
+> **Superseded — see "Amendment: prepaid review credit" below.** The reasoning for a
+> standalone, submitter-keyed contract survives; the surface described here (settlement,
+> withdrawal, resolver) does not.
+
 The review bond is a **separate, standalone deployed contract** — not folded into
 `PregradManager`. The existing creation fee lives as an abstract base (`CreationFeeVault`)
 mixed into `PregradManager` and is keyed to `marketId`, because it is collected *inside*
@@ -319,14 +329,14 @@ withdrawal, and the $0.20 granularity lives in the meter, not on-chain.
   (`UnderReview`=7, `Rejected`=8) and never renumbered, because server code hand-decodes raw
   `uint8` status ordinals (`pregrad-refund.ts`, `dev-market-graduate.ts`) that ABI
   regeneration would not catch.
-- **A new money contract + flow: the review-bond escrow.** A standalone contract holding
-  user funds, with an owner-set resolver that settles off-chain-metered consumption on-chain.
-  Its deposit/settlement/withdrawal events must be indexed (money-invariant), and the
-  off-chain meter is now a correctness-critical accounting surface (over-metering strands a
-  user's refund; under-metering leaks review cost).
-- **SSO users must fund their embedded wallet twice over** — the review bond (≥$5) before
-  submitting, and the creation fee + gas before publishing — a funding-UX problem to solve
-  separately (onramp/faucet), out of scope here.
+- **A new money contract + flow: the review-credit vault.** A standalone contract holding
+  user funds. Its events must be indexed (money-invariant), and the off-chain meter is a
+  correctness-critical accounting surface: under-metering leaks review cost. *(Amended: the
+  resolver, on-chain settlement, and the over-metering-strands-a-refund risk are gone with
+  refunds; see the amendment.)*
+- **SSO users must fund their embedded wallet twice over** — review credit before submitting,
+  and the creation fee + gas before publishing — a funding-UX problem to solve separately
+  (onramp/faucet), out of scope here.
 - **Draft content is private and mutable**, so draft endpoints are the app's first surface
   needing real authenticated writes; get the Privy JWT verification right or drafts leak.
 
@@ -340,12 +350,82 @@ Two on-chain value flows must each leave an event-sourced DB record:
   watcher keyed by `(chainId, marketId, transactionHash, logIndex)`, covered by the paper-trail
   test. Moving collection from submit to publish makes no transfer inferred or droppable; it
   *gains* the record it previously lacked.
-- **Review bond.** New flow: `ReviewBondDeposited` / `ReviewFeesSettled` / `ReviewBondWithdrawn`
+- **Review bond.** *Amended — the flow is now deposit and owner sweep only; the settlement and
+  user-withdrawal events below no longer exist.* New flow: `ReviewBondDeposited` /
+  `ReviewFeesSettled` / `ReviewBondWithdrawn`
   / `ReviewFeesWithdrawn` are each indexed into their own events table keyed by
   `(chainId, user, transactionHash, logIndex)`. The **actual value transfers are the on-chain
   deposit/settlement/withdrawal**; the per-review $0.20 metering is DB accounting that nets out
   at settlement, so no value moves without an on-chain event. The off-chain meter reconciles to
   the on-chain `settledConsumed` at every settlement.
+
+## Amendment: prepaid review credit (2026-08-04)
+
+P3 shipped as specified above and the shipped design has been withdrawn. What follows
+replaces the refundable-bond model wholesale; the rest of this ADR stands.
+
+**What went wrong.** The escrow section above specifies withdrawal "gated on settlement being
+current". The shipped `withdrawBond` is not: it checks the on-chain `settledConsumed`, which
+is a lagging replica of the off-chain meter, so a creator could withdraw money covering
+reviews they had already consumed. The leak is small (settlement fires at a $1 unsettled
+tally, so under a dollar per wallet in normal operation) but unbounded when settlement
+transactions fail. Worse, withdrawing decrements `deposited`, and `settle` reverts when the
+lifetime consumed total exceeds `deposited` — so a withdrawal can wedge settlement for that
+wallet permanently, leaving the server retrying and warning forever.
+
+Both defects have one root: **the withdrawal path is on-chain and therefore cannot see the
+off-chain meter.** Rather than build the machinery to close that gap — resolver-signed
+withdrawal authorizations, settle-before-withdraw, or a held-back floor — we remove the
+withdrawal.
+
+**The replacement.** Review capacity is bought, not bonded:
+
+- A creator **deposits native USDC and it is not refundable**. There is no withdrawal path
+  for users; the deposit buys review runs and nothing else. This is a **prepaid credit**, not
+  a bond — the word "bond" is retired (see `CONTEXT.md`).
+- Deposits carry an explicit beneficiary: **`depositFor(address beneficiary)`**, never
+  `msg.sender`. A creator with both an embedded wallet and an external wallet would otherwise
+  be one mis-selected wallet away from an unrecoverable payment, since nothing can move a
+  balance afterwards. The app always passes the draft's intended creator address. There is
+  deliberately **no owner-side reassignment function** — a privileged "move user funds" call
+  is a worse audit surface than the mistake it cleans up after.
+- **One rate, one unit: a review run.** Each review run debits the current rate; there is no
+  bundling, no first-submission surcharge, and no minimum standing balance. The $5 floor is
+  redundant now that money is non-refundable — a refundable floor only ever cost an attacker
+  the time-value of the deposit.
+- **The rate is provisionally $0.10 per review run and is configuration, not a constant.**
+  This is a *testing* rate and it is below cost: a review run measures at $0.169 on the
+  claude-cli provider, so every run at $0.10 loses money and iterating loses more, which
+  inverts the anti-spam incentive. Either the rate rises to $0.20+ or review moves to a
+  cheaper provider before public submission opens. **Do not open public draft submission at
+  $0.10.**
+- Balance is priced **at spend time**, not minted as credits at deposit: the DB stores the
+  deposited amount as the event reported it and debits the rate in force per run, stamping
+  that rate onto each charge row. A rate change therefore reprices unspent balance —
+  acceptable while testing, a fairness question to revisit before launch.
+
+**On-chain surface** — `depositFor(address beneficiary) payable` emitting a deposit event, and
+`withdrawCollectedFees(recipient)` `onlyOwner`. `settle`, `withdrawBond`, `setResolver`, the
+resolver key, and the on-chain consumed-total tracking are all deleted. Since the vault is
+deployed on local stacks only and appears in no infrastructure or CI configuration, this is a
+rewrite rather than a migration.
+
+**Balance reads come from the indexed database, never from a direct chain read.** The gate
+computes `indexedDeposits(beneficiary) − sum(charges)`. This is the repo-wide direction —
+one data source, served fast from the indexer, with the client notified by the change feed —
+and it is safe here by construction: charges are written synchronously while deposits lag, so
+indexer staleness can only make a balance look *too low*, never too high. The gate fails
+closed without needing error handling to do it. The deposit handler must call
+`recordLiveChange` so a creator who tops up is told immediately; without that the model is
+fast but does not feel fast.
+
+**Consequences of the amendment.** The off-chain meter stops being a two-way reconciliation
+surface and becomes a one-way ledger: deposits in from events, charges out from reviews, no
+netting and no settlement. The "over-metering strands a user's refund" risk in the
+Consequences section disappears with refunds. The money invariant narrows to two events —
+deposit and owner sweep — both still indexed and receipt-linked. The **operator can sweep
+funds covering reviews not yet delivered**, which is inherent to prepayment and accepted at
+this price point; it would need revisiting if balances grew large.
 
 ## Phased build plan
 
@@ -380,22 +460,37 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       entries. **Opens public draft submission.** Submission over an exhausted balance
       answers 402 and the app offers one-click deposit-and-resubmit.
 
-      Two v1 caveats, both still open:
+      **Withdrawn 2026-08-04 — superseded by P3a** (see "Amendment: prepaid review
+      credit"). Two v1 caveats were recorded here; the first is why the design was
+      withdrawn rather than patched:
 
       - **`withdrawBond` is gated on the *settled* total, not the metered one.**
         `available = _deposited - _settledConsumed`, and `_settledConsumed` only moves
         when the resolver settles. Between settlements a creator can withdraw funds
-        covering reviews they have already consumed. The leak is bounded by the
-        unsettled tally — roughly a dollar at this price schedule — so it is priced
-        in rather than fixed; closing it means settling more eagerly or adding a
-        withdraw delay, and is a design call for P4's contract pass.
+        covering reviews they have already consumed. Recorded here as "bounded by the
+        unsettled tally, roughly a dollar, priced in rather than fixed" — but that
+        understated it on two counts. The bound only holds while settlement
+        *succeeds*; failing settlements let the tally grow unchecked. And the same
+        withdrawal decrements `deposited`, which makes `settle` revert permanently
+        once the lifetime consumed total exceeds it, **wedging settlement for that
+        wallet forever**. Both are removed with the withdrawal itself in P3a.
       - **The `lifecycle:e2e` lane runs unmetered.** `scripts/local-lifecycle-nightly.ts`
         never deploys the vault and its env has no `reviewBondVaultAddress`, so those
         journeys exercise draft → review → publish with the bond gate absent
         entirely; the 402-and-deposit path has no coverage there. Threading it
         through must add the field in **both** `scripts/local-dev.ts` and
         `scripts/local-dev-control.ts` — they rebuild deploy overrides
-        field-by-field, so a field added to only one is silently dropped.
+        field-by-field, so a field added to only one is silently dropped. Still open;
+        carried into P3a.
+- [ ] **P3a — Prepaid review credit.** Rewrite the vault to `depositFor(beneficiary)` +
+      `withdrawCollectedFees` only (delete `settle`, `withdrawBond`, `setResolver`, the
+      resolver key, and on-chain consumption tracking; regenerate ABIs). Meter becomes a
+      one-way ledger at a single configurable per-run rate, reading balance from the indexed
+      deposits rather than the chain; drop the $5 floor, the bundling, and `settledAt`. Rewrite
+      the `review_bond_event_kind` enum down to deposit + sweep. Emit `recordLiveChange` from
+      the deposit handler. Extend the nightly lifecycle stack to deploy the vault and cover the
+      funded journey end to end (refused → deposit → notified → submitted). **Does not reopen
+      public draft submission** — that waits on a rate at or above cost (see the amendment).
 - [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** *App half delivered*
       2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
       `published_market_id` back-link all ship. **The contract, indexer and fee-indexing work
@@ -444,9 +539,11 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
 - **The `1e18`-native real-dollar peg** (protocol ADR 0009 Q1) — this ADR fixes the bond in
   the *same* native-USDC unit as the existing creation fee (so $1 = `1e18`), but whether that
   native unit is exactly $1 on Arc is the inherited open item, unchanged.
-- **Resolver settlement cadence for the bond** (batched on-chain `settle` vs a resolver-signed
-  consumed-total at withdraw) — an implementation choice for P3, not decided here; both keep
-  the money invariant.
+- ~~**Resolver settlement cadence for the bond**~~ — moot. The amendment removes settlement
+  entirely; there is no resolver and no consumed total on chain.
+- **The per-review rate at public launch**, and whether it is set by cost recovery on the
+  current review provider or by moving review to a cheaper one. The $0.10 testing rate is
+  below cost and must not open public submission.
 - **Keyset pagination** for the discovery board (pre-existing 200-row cap) — not made worse
   by this ADR; the portfolio surface already covers claim-finding.
 - **Reject-corroboration policy** (ADR 0019) still governs when an LLM-only reject is

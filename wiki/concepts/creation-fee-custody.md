@@ -47,15 +47,21 @@ the fee finally satisfies the money-paper-trail invariant. **That indexing is st
 open** (it rides P4), so the creation fee remains the one value transfer without a
 receipt-linked record.
 
-ADR 0022 also introduces a **second, separate fee flow**: a prepaid refundable
-**review bond** in a standalone `ReviewBondVault` escrow (min $5, drawn down by
-$1/submission-incl.-5-reviews then $0.20/review, no slashing), funding the AI-review
-pipeline as the Sybil defence. Unlike the creation fee (an abstract base mixed into
-`PregradManager`, keyed to `marketId`), the bond is a standalone contract keyed to
-the submitter and collected at submit-time when no market exists — same native-USDC
-`msg.value` denomination, its own deposit/settlement/withdrawal money-trail events.
-The bond **is built** (contract, meter and the four bond events indexed, 2026-08-03),
-so it — unlike the creation fee — already has its receipt-linked record. One v1
-caveat: `withdrawBond` is gated on the resolver's *settled* total, so between
-settlements a creator can withdraw against reviews already consumed (bounded by the
-unsettled tally, ~$1).
+ADR 0022 also introduces a **second, separate fee flow**: **prepaid review credit**
+in a standalone vault, funding the AI-review pipeline as the Sybil defence. Unlike
+the creation fee (an abstract base mixed into `PregradManager`, keyed to
+`marketId`), it is a standalone contract keyed to the depositor's named beneficiary
+and collected at submit-time when no market exists — same native-USDC `msg.value`
+denomination, its own money-trail events. It **is built** (contract, meter and the
+bond events indexed, 2026-08-03), so it — unlike the creation fee — already has its
+receipt-linked record.
+
+*Amended 2026-08-04:* this began as a **refundable** bond (min $5, $1/submission
+incl. 5 reviews then $0.20/review, on-chain settlement, user withdrawal). Both of
+its defects lived in the withdrawal path — a creator could withdraw against reviews
+already consumed, and the same withdrawal could wedge settlement for that wallet
+permanently — so refunds were removed rather than policed: deposits are now
+non-refundable, taken via `depositFor(beneficiary)`, and spent at a single
+configurable per-review-run rate. Settlement, the resolver, and user withdrawal are
+deleted; the only money-trail events left are deposit and owner sweep. See the
+[ADR 0022 summary](../summaries/root-adr-0022-review-first-market-creation.md).
