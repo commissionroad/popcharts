@@ -1365,6 +1365,23 @@ end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had jus
 Accepted status and phase ticks; its "two documented bond caveats" note is now
 half-resolved — the withdraw caveat is what withdrew the design.
 
+## [2026-08-04] ingest | root ADR 0025 — one price stream across graduation
+Pages: +summaries/root-adr-0025-unified-price-stream.md, +concepts/price-stream.md,
+~index.md, ~summaries/root-adr-0021-live-market-updates.md
+Notes: new concept page created because the price path now has two sources
+discussing it (ADR 0021's tick payload, ADR 0025's unification) plus shipped
+code that contradicts neither but implements only half. Three findings worth
+carrying: (1) the pregrad ordinal is free because `receiptCount` was already in
+the `GraduationSnapshot` EIP-712 struct — the chart is a beneficiary, not the
+reason; (2) the bounded hook's `SwapTickObservation` is 7 bytes of a 32-byte
+slot already written every swap, so a sequence packs in near-free, but only
+until first deploy since the hook address is part of every pool id; (3) an
+indexer-minted ordinal was rejected on a correctness argument, not cost — it
+would be stamped in write order, so it could be contiguous and wrong while the
+client's gap check passed. ADR 0025's P1 is gated on measuring (2) rather than
+trusting it; the earlier version of this analysis rejected the hook counter on
+an unmeasured gas assumption and was wrong.
+
 ## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
 Pages: ~summaries/portfolio-data-design.md
 Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,
@@ -1376,7 +1393,9 @@ from the log rather than the fee constant, so changing the fee never rewrites
 what past creators are recorded as paying; and trusted creators pay nothing and
 the contract emits no log for them (`createMarket` only emits when the fee is
 non-zero), so an absent row means "no fee was due", never "a payment was
-missed". `market_id` deliberately carries no FK to `markets`, matching the
-other market-scoped tables — the fee log and `MarketCreated` share a
-transaction but are consumed by independent watchers, so an FK would make the
-money record depend on projection ordering.
+missed". `market_id` is foreign-keyed to `markets` on `(chain_id, market_id)`,
+following `market_ai_reviews`. The fee log can outrun the independent
+`MarketCreated` watcher on the live path; that is handled in the handler,
+which waits for the market row and parks the sweep, rather than by dropping
+the relation. Standing rule confirmed by the repo owner 2026-08-04: tables
+are always related by real foreign keys.

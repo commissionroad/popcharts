@@ -197,6 +197,7 @@ function stubFlow(overrides: Partial<DraftFlow> = {}): DraftFlow {
     applyResolutionPreset: vi.fn(),
     canPersist: true,
     errorCount: 0,
+    fetchCredit: null,
     fieldFeedback: {},
     bondShortfall: null,
     clearBondShortfall: vi.fn(),

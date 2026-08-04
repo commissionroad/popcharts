@@ -1,6 +1,6 @@
 {
-  "id": "7a35cdfa-95a3-4acf-802f-6125f675e1f8",
-  "prevId": "6efec5ae-7608-4406-aac7-e42f17dc5b5c",
+  "id": "df51a729-1114-4fce-b0e8-aa61583d0897",
+  "prevId": "7a35cdfa-95a3-4acf-802f-6125f675e1f8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -363,12 +363,6 @@
           "notNull": true,
           "default": "0"
         },
-        "settled_at": {
-          "name": "settled_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -378,17 +372,11 @@
         }
       },
       "indexes": {
-        "draft_review_charges_address_settled_idx": {
-          "name": "draft_review_charges_address_settled_idx",
+        "draft_review_charges_address_idx": {
+          "name": "draft_review_charges_address_idx",
           "columns": [
             {
               "expression": "charged_address",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "settled_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

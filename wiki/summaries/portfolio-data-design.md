@@ -44,6 +44,10 @@ append-only event tables mirrored 1:1 from chain:
   no receipt-linked record**. Amount comes from the log rather than the fee
   constant, so a fee change never rewrites history; trusted creators owe
   nothing and emit no log, so an absent row means "no fee was due".
+  Foreign-keyed to `markets` on `(chain_id, market_id)` — the fee log can
+  outrun the independent `MarketCreated` watcher on the live path, and the
+  handler parks the sweep until the market row lands rather than dropping the
+  relation.
 - `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
   `retainedCost`, and the **partial** refund. The record that a graduated receipt
   was filled, and by how much.

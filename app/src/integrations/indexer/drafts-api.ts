@@ -3,6 +3,7 @@ import {
   getCloneMarketDraftUrl,
   getCreateMarketDraftUrl,
   getDeleteMarketDraftUrl,
+  getGetMarketDraftReviewCreditUrl,
   getGetMarketDraftUrl,
   getListMarketDraftsUrl,
   getMarkMarketDraftPublishedUrl,
@@ -16,6 +17,7 @@ import type {
   MarketDraftPublished,
   MarketDraftPublishedWrite,
   MarketDraftPublishParams,
+  MarketDraftReviewCredit,
   MarketDraftValidationErrors,
   MarketDraftWrite,
 } from "@popcharts/api-client/models";
@@ -39,7 +41,7 @@ import { DisplayableError } from "@/lib/error-handling";
  * passes them through instead of masking them with a fallback.
  */
 export class DraftsApiError extends DisplayableError {
-  /** Set when the review-bond meter refused the submission (HTTP 402). */
+  /** Set when the review-credit meter refused the submission (HTTP 402). */
   readonly bondShortfall: MarketDraftBondShortfall | undefined;
   readonly fieldErrors: Record<string, string> | undefined;
   readonly status: number;
@@ -67,6 +69,8 @@ export class DraftsApiError extends DisplayableError {
 export type DraftsApiClient = {
   clone: (body: MarketDraftCloneRequest) => Promise<MarketDraft>;
   create: (body: MarketDraftWrite) => Promise<MarketDraft>;
+  /** The wallet's prepaid review-credit position, from the indexed view. */
+  credit: (address: string) => Promise<MarketDraftReviewCredit>;
   get: (draftId: number) => Promise<MarketDraft | null>;
   list: () => Promise<MarketDraft[]>;
   markPublished: (
@@ -125,6 +129,8 @@ export function createDraftsApiClient({
         body: JSON.stringify(body),
         method: "POST",
       }),
+    credit: (address) =>
+      request<MarketDraftReviewCredit>(getGetMarketDraftReviewCreditUrl({ address })),
     get: async (draftId) => {
       try {
         return await request<MarketDraft>(getGetMarketDraftUrl(String(draftId)));
@@ -217,7 +223,7 @@ function isBondShortfall(value: unknown): value is MarketDraftBondShortfall {
     value !== null &&
     "availableWad" in value &&
     "requiredWad" in value &&
-    "minimumStandingBondWad" in value &&
+    "runsUsed" in value &&
     "message" in value &&
     typeof value.message === "string"
   );

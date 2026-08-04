@@ -8,14 +8,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReviewBondVault} from "../../contracts/ReviewBondVault.sol";
 
 /// Recipient with no receive/fallback, so native transfers to it fail and the
-/// vault's withdrawal-failed revert paths can be exercised.
+/// vault's sweep-failed revert path can be exercised.
 contract RejectingRecipient {
-  function depositTo(ReviewBondVault vault) external payable {
-    vault.depositBond{value: msg.value}();
-  }
-
-  function withdrawFrom(ReviewBondVault vault, uint256 amount) external {
-    vault.withdrawBond(amount);
+  function depositTo(ReviewBondVault vault, address beneficiary) external payable {
+    vault.depositFor{value: msg.value}(beneficiary);
   }
 }
 
@@ -25,17 +21,15 @@ contract ReviewBondVaultTest is Test {
   uint256 internal constant WAD = 1e18;
 
   ReviewBondVault private vault;
-  address private resolver;
   address private alice;
   address private bob;
   address payable private treasury;
 
   function setUp() public {
-    resolver = makeAddr("resolver");
     alice = makeAddr("alice");
     bob = makeAddr("bob");
     treasury = payable(makeAddr("treasury"));
-    vault = new ReviewBondVault(address(this), resolver);
+    vault = new ReviewBondVault(address(this));
 
     vm.deal(alice, 100 * WAD);
     vm.deal(bob, 100 * WAD);
@@ -45,433 +39,197 @@ contract ReviewBondVaultTest is Test {
 
   function test_DepositAccumulatesAndEmits() public {
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondDeposited(alice, 5 * WAD, 5 * WAD);
+    emit ReviewBondVault.ReviewBondDeposited(alice, alice, 5 * WAD, 5 * WAD);
     vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
+    vault.depositFor{value: 5 * WAD}(alice);
 
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondDeposited(alice, 2 * WAD, 7 * WAD);
+    emit ReviewBondVault.ReviewBondDeposited(alice, alice, 2 * WAD, 7 * WAD);
     vm.prank(alice);
-    vault.depositBond{value: 2 * WAD}();
+    vault.depositFor{value: 2 * WAD}(alice);
 
     assertEq(vault.depositedOf(alice), 7 * WAD);
-    assertEq(vault.settledConsumedOf(alice), 0);
-    assertEq(vault.availableBond(alice), 7 * WAD);
-    assertEq(vault.collectedFees(), 0);
+    assertEq(vault.collectedFees(), 7 * WAD);
     assertEq(address(vault).balance, 7 * WAD);
   }
 
-  function test_ZeroDepositReverts() public {
-    vm.expectRevert(ReviewBondVault.InvalidReviewBondDeposit.selector);
-    vm.prank(alice);
-    vault.depositBond{value: 0}();
-  }
-
-  // -------------------------------------------------------------- settlement
-
-  function test_SettleMovesDeltaIntoPoolAndEmits() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-
+  function test_DepositCreditsTheNamedBeneficiaryNotThePayer() public {
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewFeesSettled(alice, 2 * WAD, 2 * WAD);
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
-
-    assertEq(vault.settledConsumedOf(alice), 2 * WAD);
-    assertEq(vault.availableBond(alice), 3 * WAD);
-    assertEq(vault.collectedFees(), 2 * WAD);
-    assertEq(address(vault).balance, 5 * WAD);
-
-    // A later settlement only moves the newly consumed delta.
-    vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewFeesSettled(alice, WAD, 3 * WAD);
-    vm.prank(resolver);
-    vault.settle(alice, 3 * WAD);
-
-    assertEq(vault.settledConsumedOf(alice), 3 * WAD);
-    assertEq(vault.availableBond(alice), 2 * WAD);
-    assertEq(vault.collectedFees(), 3 * WAD);
-  }
-
-  function test_SettleByNonResolverReverts() public {
+    emit ReviewBondVault.ReviewBondDeposited(bob, alice, 3 * WAD, 3 * WAD);
     vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
+    vault.depositFor{value: 3 * WAD}(bob);
 
-    // Even the owner cannot settle without the resolver role.
-    vm.expectRevert(
-      abi.encodeWithSelector(ReviewBondVault.UnauthorizedSettlementResolver.selector, address(this))
-    );
-    vault.settle(alice, WAD);
-
-    address rando = makeAddr("rando");
-    vm.expectRevert(
-      abi.encodeWithSelector(ReviewBondVault.UnauthorizedSettlementResolver.selector, rando)
-    );
-    vm.prank(rando);
-    vault.settle(alice, WAD);
-  }
-
-  function test_SettleRegressionReverts() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 3 * WAD);
-
-    vm.expectRevert(
-      abi.encodeWithSelector(ReviewBondVault.SettlementRegression.selector, 3 * WAD, 2 * WAD)
-    );
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
-  }
-
-  function test_SettleAboveDepositsReverts() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-
-    vm.expectRevert(
-      abi.encodeWithSelector(ReviewBondVault.SettlementExceedsDeposits.selector, 5 * WAD, 6 * WAD)
-    );
-    vm.prank(resolver);
-    vault.settle(alice, 6 * WAD);
-  }
-
-  function test_SettleEqualTotalReverts() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
-
-    vm.expectRevert(abi.encodeWithSelector(ReviewBondVault.SettlementUnchanged.selector, 2 * WAD));
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
-
-    // The never-settled zero total is equally a no-op delta.
-    vm.expectRevert(abi.encodeWithSelector(ReviewBondVault.SettlementUnchanged.selector, 0));
-    vm.prank(resolver);
-    vault.settle(bob, 0);
-  }
-
-  // ------------------------------------------------------------- withdrawals
-
-  function test_WithdrawUpToAvailable() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-
-    uint256 balanceBefore = alice.balance;
-
-    vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondWithdrawn(alice, 5 * WAD, 0);
-    vm.prank(alice);
-    vault.withdrawBond(5 * WAD);
-
-    assertEq(alice.balance, balanceBefore + 5 * WAD);
+    assertEq(vault.depositedOf(bob), 3 * WAD);
     assertEq(vault.depositedOf(alice), 0);
-    assertEq(vault.availableBond(alice), 0);
-    assertEq(address(vault).balance, 0);
   }
 
-  function test_WithdrawOverdrawReverts() public {
+  function test_DepositsFromSeveralPayersAccrueToOneBeneficiary() public {
     vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
+    vault.depositFor{value: 1 * WAD}(bob);
+    vm.prank(bob);
+    vault.depositFor{value: 4 * WAD}(bob);
 
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        ReviewBondVault.ReviewBondWithdrawalExceedsAvailable.selector,
-        3 * WAD,
-        3 * WAD + 1
-      )
-    );
-    vm.prank(alice);
-    vault.withdrawBond(3 * WAD + 1);
-  }
-
-  function test_WithdrawZeroReverts() public {
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-
-    vm.expectRevert(ReviewBondVault.InvalidReviewBondWithdrawal.selector);
-    vm.prank(alice);
-    vault.withdrawBond(0);
-  }
-
-  function test_WithdrawAfterSettleLeavesConsumedLocked() public {
-    vm.prank(alice);
-    vault.depositBond{value: 10 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 4 * WAD);
-
-    vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondWithdrawn(alice, 6 * WAD, 0);
-    vm.prank(alice);
-    vault.withdrawBond(6 * WAD);
-
-    // Deposits shrink with the withdrawal; the settled consumption stays.
-    assertEq(vault.depositedOf(alice), 4 * WAD);
-    assertEq(vault.settledConsumedOf(alice), 4 * WAD);
-    assertEq(vault.availableBond(alice), 0);
-    // The vault still holds exactly the collected-but-unswept fees.
-    assertEq(address(vault).balance, vault.collectedFees());
-    assertEq(vault.collectedFees(), 4 * WAD);
-  }
-
-  function test_SettleAfterWithdrawalBoundsToReducedDeposits() public {
-    vm.prank(alice);
-    vault.depositBond{value: 10 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 3 * WAD);
-    vm.prank(alice);
-    vault.withdrawBond(5 * WAD);
-
-    assertEq(vault.depositedOf(alice), 5 * WAD);
-
-    // Above the reduced deposits: the withdrawn value is gone and can no
-    // longer be consumed.
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        ReviewBondVault.SettlementExceedsDeposits.selector,
-        5 * WAD,
-        5 * WAD + 1
-      )
-    );
-    vm.prank(resolver);
-    vault.settle(alice, 5 * WAD + 1);
-
-    // Up to the reduced deposits: the remaining bond is still consumable.
-    vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewFeesSettled(alice, 2 * WAD, 5 * WAD);
-    vm.prank(resolver);
-    vault.settle(alice, 5 * WAD);
-
-    assertEq(vault.availableBond(alice), 0);
+    assertEq(vault.depositedOf(bob), 5 * WAD);
     assertEq(vault.collectedFees(), 5 * WAD);
   }
 
-  function test_WithdrawToRejectingCallerReverts() public {
-    RejectingRecipient rejector = new RejectingRecipient();
-    vm.deal(address(this), 10 * WAD);
-    rejector.depositTo{value: 2 * WAD}(vault);
+  function test_DepositBalancesAreIndependentPerBeneficiary() public {
+    vm.prank(alice);
+    vault.depositFor{value: 6 * WAD}(alice);
+    vm.prank(bob);
+    vault.depositFor{value: 2 * WAD}(bob);
 
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        ReviewBondVault.ReviewBondWithdrawalFailed.selector,
-        address(rejector),
-        WAD
-      )
-    );
-    rejector.withdrawFrom(vault, WAD);
+    assertEq(vault.depositedOf(alice), 6 * WAD);
+    assertEq(vault.depositedOf(bob), 2 * WAD);
   }
 
-  // -------------------------------------------------------------- fee sweeps
-
-  function test_OwnerSweepsCollectedFees() public {
+  function test_DepositRevertsWithoutValue() public {
+    vm.expectRevert(ReviewBondVault.InvalidReviewCreditDeposit.selector);
     vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
+    vault.depositFor{value: 0}(alice);
+  }
+
+  function test_DepositRevertsForZeroBeneficiary() public {
+    vm.expectRevert(ReviewBondVault.InvalidReviewCreditBeneficiary.selector);
+    vm.prank(alice);
+    vault.depositFor{value: 1 * WAD}(address(0));
+  }
+
+  /// The zero-beneficiary check runs first, so a call that is wrong on both
+  /// counts names the unrecoverable mistake rather than the recoverable one.
+  function test_DepositRevertsForZeroBeneficiaryBeforeZeroValue() public {
+    vm.expectRevert(ReviewBondVault.InvalidReviewCreditBeneficiary.selector);
+    vm.prank(alice);
+    vault.depositFor{value: 0}(address(0));
+  }
+
+  function test_DepositedOfIsZeroForAnUnknownAccount() public view {
+    assertEq(vault.depositedOf(address(0xdead)), 0);
+  }
+
+  // --------------------------------------------------------- no way back out
+
+  /// Credit is non-refundable by construction: the vault exposes no user-facing
+  /// exit, and a plain native transfer cannot manufacture one either because
+  /// there is no receive or fallback function.
+  function test_StrayNativeTransferReverts() public {
+    vm.prank(alice);
+    (bool success, ) = address(vault).call{value: 1 * WAD}("");
+
+    assertFalse(success);
+    assertEq(address(vault).balance, 0);
+  }
+
+  function test_RetiredWithdrawBondSelectorIsGone() public {
+    vm.prank(alice);
+    (bool success, ) = address(vault).call(abi.encodeWithSignature("withdrawBond(uint256)", WAD));
+
+    assertFalse(success);
+  }
+
+  // ------------------------------------------------------------------ sweeps
+
+  function test_OwnerSweepsTheWholeBalance() public {
+    vm.prank(alice);
+    vault.depositFor{value: 5 * WAD}(alice);
+    vm.prank(bob);
+    vault.depositFor{value: 3 * WAD}(bob);
 
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewFeesWithdrawn(treasury, 2 * WAD);
+    emit ReviewBondVault.ReviewFeesWithdrawn(treasury, 8 * WAD);
     vault.withdrawCollectedFees(treasury);
 
-    assertEq(treasury.balance, 2 * WAD);
+    assertEq(treasury.balance, 8 * WAD);
+    assertEq(address(vault).balance, 0);
     assertEq(vault.collectedFees(), 0);
-    assertEq(address(vault).balance, 3 * WAD);
   }
 
-  function test_SweepByNonOwnerReverts() public {
-    address rando = makeAddr("rando");
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, rando));
-    vm.prank(rando);
+  /// Sweeping moves value out but changes nobody's recorded deposits — the
+  /// off-chain meter reads `depositedOf`, so a sweep must not look like spending.
+  function test_SweepLeavesDepositTotalsIntact() public {
+    vm.prank(alice);
+    vault.depositFor{value: 5 * WAD}(alice);
+
+    vault.withdrawCollectedFees(treasury);
+
+    assertEq(vault.depositedOf(alice), 5 * WAD);
+  }
+
+  function test_DepositAfterSweepAccumulatesOnTop() public {
+    vm.prank(alice);
+    vault.depositFor{value: 5 * WAD}(alice);
+    vault.withdrawCollectedFees(treasury);
+
+    vm.prank(alice);
+    vault.depositFor{value: 2 * WAD}(alice);
+
+    assertEq(vault.depositedOf(alice), 7 * WAD);
+    assertEq(vault.collectedFees(), 2 * WAD);
+  }
+
+  function test_SweepRevertsForNonOwner() public {
+    vm.prank(alice);
+    vault.depositFor{value: 1 * WAD}(alice);
+
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+    vm.prank(alice);
     vault.withdrawCollectedFees(treasury);
   }
 
-  function test_SweepToZeroRecipientReverts() public {
+  function test_SweepRevertsForZeroRecipient() public {
+    vm.prank(alice);
+    vault.depositFor{value: 1 * WAD}(alice);
+
     vm.expectRevert(ReviewBondVault.InvalidReviewFeeRecipient.selector);
     vault.withdrawCollectedFees(payable(address(0)));
   }
 
-  function test_SweepEmptyPoolReverts() public {
+  function test_SweepRevertsWhenEmpty() public {
     vm.expectRevert(ReviewBondVault.NoCollectedReviewFees.selector);
     vault.withdrawCollectedFees(treasury);
   }
 
-  function test_SweepToRejectingRecipientReverts() public {
+  function test_SweepRevertsWhenTheRecipientRejectsValue() public {
+    RejectingRecipient rejecting = new RejectingRecipient();
     vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
-    vm.prank(resolver);
-    vault.settle(alice, 2 * WAD);
+    vault.depositFor{value: 4 * WAD}(alice);
 
-    RejectingRecipient rejector = new RejectingRecipient();
     vm.expectRevert(
       abi.encodeWithSelector(
         ReviewBondVault.ReviewFeeWithdrawalFailed.selector,
-        address(rejector),
-        2 * WAD
+        address(rejecting),
+        4 * WAD
       )
     );
-    vault.withdrawCollectedFees(payable(address(rejector)));
+    vault.withdrawCollectedFees(payable(address(rejecting)));
+
+    // The revert unwinds the whole sweep, so the balance is still claimable.
+    assertEq(vault.collectedFees(), 4 * WAD);
   }
 
-  // ---------------------------------------------------------------- resolver
+  /// A contract with no receive function can still fund credit, because
+  /// depositing pushes value in rather than pulling it back.
+  function test_ContractWithoutReceiveCanFundABeneficiary() public {
+    RejectingRecipient payer = new RejectingRecipient();
+    vm.deal(address(payer), 3 * WAD);
 
-  function test_ResolverRotation() public {
-    address nextResolver = makeAddr("next-resolver");
-    vm.prank(alice);
-    vault.depositBond{value: 5 * WAD}();
+    payer.depositTo{value: 3 * WAD}(vault, alice);
 
-    vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.SettlementResolverUpdated(nextResolver);
-    vault.setResolver(nextResolver);
-    assertEq(vault.resolver(), nextResolver);
-
-    // The rotated-out resolver loses the settlement right.
-    vm.expectRevert(
-      abi.encodeWithSelector(ReviewBondVault.UnauthorizedSettlementResolver.selector, resolver)
-    );
-    vm.prank(resolver);
-    vault.settle(alice, WAD);
-
-    vm.prank(nextResolver);
-    vault.settle(alice, WAD);
-    assertEq(vault.settledConsumedOf(alice), WAD);
+    assertEq(vault.depositedOf(alice), 3 * WAD);
   }
 
-  function test_SetResolverValidatesOwnerAndZeroAccount() public {
-    address rando = makeAddr("rando");
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, rando));
-    vm.prank(rando);
-    vault.setResolver(rando);
+  // -------------------------------------------------------------------- fuzz
 
-    vm.expectRevert(ReviewBondVault.InvalidSettlementResolver.selector);
-    vault.setResolver(address(0));
-  }
+  function testFuzz_DepositsSumIntoTheBeneficiaryTotal(uint96 first, uint96 second) public {
+    vm.assume(first > 0 && second > 0);
+    vm.deal(alice, uint256(first) + uint256(second));
 
-  function test_ConstructorRejectsZeroResolver() public {
-    vm.expectRevert(ReviewBondVault.InvalidSettlementResolver.selector);
-    new ReviewBondVault(address(this), address(0));
-  }
+    vm.startPrank(alice);
+    vault.depositFor{value: first}(bob);
+    vault.depositFor{value: second}(bob);
+    vm.stopPrank();
 
-  // ---------------------------------------------------------- native custody
-
-  function test_StrayNativeSendReverts() public {
-    vm.deal(address(this), 2 * WAD);
-
-    // Plain value transfer: no receive function, so it must revert.
-    (bool plainSendOk, ) = address(vault).call{value: WAD}("");
-    assertFalse(plainSendOk);
-
-    // Value transfer with unknown calldata: no fallback either.
-    (bool dataSendOk, ) = address(vault).call{value: WAD}(hex"deadbeef");
-    assertFalse(dataSendOk);
-
-    assertEq(address(vault).balance, 0);
-  }
-
-  // --------------------------------------------------------------- invariant
-
-  function test_BalanceInvariantAcrossMixedSequence() public {
-    // Every value transfer leaves the vault balance equal to the sum of
-    // unconsumed bonds plus the collected pool.
-    vm.prank(alice);
-    vault.depositBond{value: 10 * WAD}();
-    _assertBalanceInvariant();
-
-    vm.prank(bob);
-    vault.depositBond{value: 4 * WAD}();
-    _assertBalanceInvariant();
-
-    vm.prank(resolver);
-    vault.settle(alice, 3 * WAD);
-    _assertBalanceInvariant();
-
-    vm.prank(alice);
-    vault.withdrawBond(5 * WAD);
-    _assertBalanceInvariant();
-
-    vm.prank(resolver);
-    vault.settle(bob, 4 * WAD);
-    _assertBalanceInvariant();
-
-    vm.prank(resolver);
-    vault.settle(alice, 5 * WAD);
-    _assertBalanceInvariant();
-
-    vault.withdrawCollectedFees(treasury);
-    _assertBalanceInvariant();
-
-    vm.prank(alice);
-    vault.depositBond{value: 2 * WAD}();
-    _assertBalanceInvariant();
-
-    vm.prank(alice);
-    vault.withdrawBond(2 * WAD);
-    _assertBalanceInvariant();
-
-    assertEq(vault.availableBond(alice), 0);
-    assertEq(vault.availableBond(bob), 0);
-    assertEq(vault.collectedFees(), 0);
-    assertEq(address(vault).balance, 0);
-    // Swept fees: alice 3 + bob 4 + alice 2 more after the withdrawal.
-    assertEq(treasury.balance, 9 * WAD);
-  }
-
-  function testFuzz_BalanceInvariantAcrossDepositSettleWithdraw(
-    uint96 aliceDeposit,
-    uint96 bobDeposit,
-    uint256 firstSettleSeed,
-    uint256 withdrawSeed,
-    uint256 secondSettleSeed
-  ) public {
-    uint256 aliceAmount = bound(uint256(aliceDeposit), 1, 100 * WAD);
-    uint256 bobAmount = bound(uint256(bobDeposit), 1, 100 * WAD);
-
-    vm.prank(alice);
-    vault.depositBond{value: aliceAmount}();
-    _assertBalanceInvariant();
-
-    vm.prank(bob);
-    vault.depositBond{value: bobAmount}();
-    _assertBalanceInvariant();
-
-    uint256 firstSettle = bound(firstSettleSeed, 0, aliceAmount);
-    if (firstSettle > 0) {
-      vm.prank(resolver);
-      vault.settle(alice, firstSettle);
-      _assertBalanceInvariant();
-    }
-
-    uint256 withdrawal = bound(withdrawSeed, 0, vault.availableBond(alice));
-    if (withdrawal > 0) {
-      vm.prank(alice);
-      vault.withdrawBond(withdrawal);
-      _assertBalanceInvariant();
-    }
-
-    // A later settlement is bounded by the withdrawal-reduced deposits.
-    uint256 secondSettle = bound(secondSettleSeed, firstSettle, vault.depositedOf(alice));
-    if (secondSettle > firstSettle) {
-      vm.prank(resolver);
-      vault.settle(alice, secondSettle);
-      _assertBalanceInvariant();
-    }
-
-    if (vault.collectedFees() > 0) {
-      vault.withdrawCollectedFees(treasury);
-      _assertBalanceInvariant();
-    }
-
-    vm.prank(bob);
-    vault.withdrawBond(bobAmount);
-    _assertBalanceInvariant();
-  }
-
-  function _assertBalanceInvariant() private view {
-    assertEq(
-      address(vault).balance,
-      vault.availableBond(alice) + vault.availableBond(bob) + vault.collectedFees()
-    );
+    assertEq(vault.depositedOf(bob), uint256(first) + uint256(second));
+    assertEq(vault.collectedFees(), uint256(first) + uint256(second));
   }
 }

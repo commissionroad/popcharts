@@ -7,6 +7,7 @@ import {
 } from "./review-bond";
 
 const USER = "0xAAAAAAAA00000000000000000000000000000009";
+const PAYER = "0xCCCCCCCC00000000000000000000000000000003";
 const RECIPIENT = "0xBBBBBBBB00000000000000000000000000000007";
 
 const BASE_LOG = {
@@ -32,9 +33,10 @@ function build(
 }
 
 describe("buildReviewBondRecord", () => {
-  it("maps ReviewBondDeposited to a deposited row with the lowercased user and lifetime-deposit total", () => {
+  it("maps ReviewBondDeposited to a deposited row keyed on the lowercased beneficiary, not the payer", () => {
     const record = build("deposited", {
       amount: 5_000_000n,
+      payer: PAYER,
       totalDeposited: 12_000_000n,
       user: USER,
     });
@@ -48,38 +50,9 @@ describe("buildReviewBondRecord", () => {
       contractId: 42,
       kind: "deposited",
       logIndex: 4,
+      payer: "0xcccccccc00000000000000000000000000000003",
       runningTotal: 12_000_000n,
       transactionHash: BASE_LOG.transactionHash,
-    });
-  });
-
-  it("maps ReviewFeesSettled to a settled row carrying the consumed delta and lifetime consumption", () => {
-    const record = build("settled", {
-      consumedDelta: 1_000_000n,
-      consumedTotal: 3_000_000n,
-      user: USER,
-    });
-
-    expect(record.event).toMatchObject({
-      account: USER.toLowerCase(),
-      amount: 1_000_000n,
-      kind: "settled",
-      runningTotal: 3_000_000n,
-    });
-  });
-
-  it("maps ReviewBondWithdrawn to a bond_withdrawn row carrying the remaining available bond", () => {
-    const record = build("bond_withdrawn", {
-      amount: 4_000_000n,
-      remainingAvailable: 8_000_000n,
-      user: USER,
-    });
-
-    expect(record.event).toMatchObject({
-      account: USER.toLowerCase(),
-      amount: 4_000_000n,
-      kind: "bond_withdrawn",
-      runningTotal: 8_000_000n,
     });
   });
 
@@ -93,31 +66,32 @@ describe("buildReviewBondRecord", () => {
       account: "0xbbbbbbbb00000000000000000000000000000007",
       amount: 2_500_000n,
       kind: "fees_withdrawn",
-      // The sweep event reports no cumulative figure on-chain.
+      // The sweep event reports no payer or cumulative figure on-chain.
+      payer: null,
       runningTotal: null,
     });
   });
 
-  it("throws when a user-scoped log is missing its user", () => {
+  it("throws when a deposit log is missing its beneficiary", () => {
     expect(() =>
-      build("deposited", { amount: 1n, totalDeposited: 1n }),
+      build("deposited", { amount: 1n, payer: PAYER, totalDeposited: 1n }),
     ).toThrow("user");
+  });
+
+  it("throws when a deposit log is missing its payer", () => {
+    expect(() =>
+      build("deposited", { amount: 1n, totalDeposited: 1n, user: USER }),
+    ).toThrow("payer");
   });
 
   it("throws when the sweep log is missing its recipient", () => {
     expect(() => build("fees_withdrawn", { amount: 1n })).toThrow("recipient");
   });
 
-  it("throws when a log is missing its kind-specific amount or running total", () => {
-    expect(() => build("settled", { consumedTotal: 1n, user: USER })).toThrow(
-      "consumedDelta",
-    );
-    expect(() => build("deposited", { amount: 1n, user: USER })).toThrow(
-      "totalDeposited",
-    );
-    expect(() => build("bond_withdrawn", { amount: 1n, user: USER })).toThrow(
-      "remainingAvailable",
-    );
+  it("throws when a deposit log is missing its running total", () => {
+    expect(() =>
+      build("deposited", { amount: 1n, payer: PAYER, user: USER }),
+    ).toThrow("totalDeposited");
   });
 
   it("throws when required log metadata is missing", () => {
@@ -129,7 +103,7 @@ describe("buildReviewBondRecord", () => {
         kind: "deposited",
         log: {
           ...BASE_LOG,
-          args: { amount: 1n, totalDeposited: 1n, user: USER },
+          args: { amount: 1n, payer: PAYER, totalDeposited: 1n, user: USER },
           transactionHash: null,
         } as unknown as ReviewBondDepositedLog,
       }),

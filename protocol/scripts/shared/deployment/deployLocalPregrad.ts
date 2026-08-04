@@ -46,10 +46,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     OUTCOME_DECIMALS,
     ...localDisputeConfigArgs(),
   ]);
-  const reviewBondVault = await viem.deployContract("ReviewBondVault", [
-    deployerAddress,
-    deployerAddress,
-  ]);
+  const reviewBondVault = await viem.deployContract("ReviewBondVault", [deployerAddress]);
 
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.

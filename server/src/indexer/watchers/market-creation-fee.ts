@@ -63,9 +63,12 @@ const watcher = createDynamicAddressWatcher({
     // The fee log can outrun the independent MarketCreated watcher; wait for
     // the markets row rather than failing the money record. If retries run
     // out, the thrown MarketNotIndexedError parks the sweep so it replays.
-    await retryUntilMarketIndexed(() => persistMarketCreationFeeRecord(record), {
-      label: log.eventName!,
-    });
+    await retryUntilMarketIndexed(
+      () => persistMarketCreationFeeRecord(record),
+      {
+        label: log.eventName!,
+      },
+    );
   },
   label: LABEL,
   subject: "pregrad manager",

@@ -1,6 +1,6 @@
 {
-  "id": "7a35cdfa-95a3-4acf-802f-6125f675e1f8",
-  "prevId": "6efec5ae-7608-4406-aac7-e42f17dc5b5c",
+  "id": "65fc2aad-eeb8-447b-90ca-9c9b014f700e",
+  "prevId": "df51a729-1114-4fce-b0e8-aa61583d0897",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -363,12 +363,6 @@
           "notNull": true,
           "default": "0"
         },
-        "settled_at": {
-          "name": "settled_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -378,17 +372,11 @@
         }
       },
       "indexes": {
-        "draft_review_charges_address_settled_idx": {
-          "name": "draft_review_charges_address_settled_idx",
+        "draft_review_charges_address_idx": {
+          "name": "draft_review_charges_address_idx",
           "columns": [
             {
               "expression": "charged_address",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "settled_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -960,6 +948,185 @@
           "columnsTo": [
             "chain_id",
             "metadata_hash"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.market_creation_fee_events": {
+      "name": "market_creation_fee_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_number": {
+          "name": "block_number",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_timestamp": {
+          "name": "block_timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_index": {
+          "name": "log_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "market_id": {
+          "name": "market_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creator": {
+          "name": "creator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(78, 0)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "market_creation_fee_events_chain_tx_log_idx": {
+          "name": "market_creation_fee_events_chain_tx_log_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "transaction_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "log_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "market_creation_fee_events_chain_market_idx": {
+          "name": "market_creation_fee_events_chain_market_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "market_creation_fee_events_chain_creator_idx": {
+          "name": "market_creation_fee_events_chain_creator_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "creator",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "market_creation_fee_events_contract_id_contracts_id_fk": {
+          "name": "market_creation_fee_events_contract_id_contracts_id_fk",
+          "tableFrom": "market_creation_fee_events",
+          "tableTo": "contracts",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "market_creation_fee_events_market_fk": {
+          "name": "market_creation_fee_events_market_fk",
+          "tableFrom": "market_creation_fee_events",
+          "tableTo": "markets",
+          "columnsFrom": [
+            "chain_id",
+            "market_id"
+          ],
+          "columnsTo": [
+            "chain_id",
+            "market_id"
           ],
           "onDelete": "restrict",
           "onUpdate": "cascade"

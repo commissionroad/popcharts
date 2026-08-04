@@ -479,6 +479,11 @@ export function useCreateDraftFlow({
     bondShortfall,
     clearBondShortfall,
     canPersist: Boolean(client),
+    /** Reads the intended creator's credit position; null until both exist. */
+    fetchCredit:
+      client && serverDraft?.intendedCreatorAddress
+        ? () => client.credit(serverDraft.intendedCreatorAddress!)
+        : null,
     errorCount,
     fieldFeedback,
     flowError,
