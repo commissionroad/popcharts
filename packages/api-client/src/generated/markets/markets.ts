@@ -15,7 +15,6 @@ import type {
   MarketMetadataWrite,
   MarketOrderBook,
   MarketPriceHistory,
-  MarketVenuePriceHistory,
   ReceiptPlacedEventList,
   VenueOrderList,
 } from ".././models";
@@ -261,57 +260,6 @@ export const getMarketPriceHistory = async (
     status: res.status,
     headers: res.headers,
   } as getMarketPriceHistoryResponse;
-};
-
-/**
- * Returns the price history of a graduated market's bounded venue as YES and NO probabilities in cents: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Cents are fractional — a bounded pool can take several swaps inside one cent — so round at display. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.
- * @summary Get a market's post-graduation price history
- */
-export type getMarketVenuePriceHistoryResponse200 = {
-  data: MarketVenuePriceHistory;
-  status: 200;
-};
-
-export type getMarketVenuePriceHistoryResponse404 = {
-  data: string;
-  status: 404;
-};
-
-export type getMarketVenuePriceHistoryResponseSuccess =
-  getMarketVenuePriceHistoryResponse200 & {
-    headers: Headers;
-  };
-export type getMarketVenuePriceHistoryResponseError =
-  getMarketVenuePriceHistoryResponse404 & {
-    headers: Headers;
-  };
-
-export type getMarketVenuePriceHistoryResponse =
-  | getMarketVenuePriceHistoryResponseSuccess
-  | getMarketVenuePriceHistoryResponseError;
-
-export const getGetMarketVenuePriceHistoryUrl = (chainId: string, marketId: string) => {
-  return `/markets/${chainId}/${marketId}/venue-price-history`;
-};
-
-export const getMarketVenuePriceHistory = async (
-  chainId: string,
-  marketId: string,
-  options?: RequestInit
-): Promise<getMarketVenuePriceHistoryResponse> => {
-  const res = await fetch(getGetMarketVenuePriceHistoryUrl(chainId, marketId), {
-    ...options,
-    method: "GET",
-  });
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-
-  const data: getMarketVenuePriceHistoryResponse["data"] = body ? JSON.parse(body) : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as getMarketVenuePriceHistoryResponse;
 };
 
 /**
