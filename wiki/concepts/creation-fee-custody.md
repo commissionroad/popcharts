@@ -24,8 +24,13 @@ the owner. It only binds once public creation unpauses.
 
 ## Constraints
 
-- The whitepaper mechanism charges **no fees**; its rule is that any fee must
-  appear explicitly in the identity (`E = R + L + fees`) and never
+- Whitepaper v4 charged **no fees**, requiring any future fee to appear
+  explicitly in the identity. v0.6 §7 takes that option up with an entry fee
+  and a withdrawal fee held outside escrow as `E = R + L + Φ`, whose proceeds
+  seed the post-graduation pools
+  ([protocol ADR 0014](../summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md)).
+  The constraint is unchanged and now binds two fee surfaces rather than one:
+  a fee must appear explicitly in the identity (`E = R + L + fees`) and never
   implicitly, and receipt escrow has exactly two destinations — refund or
   locked collateral — never bond/insurance/working capital. Creation fees are
   a repo extension charged at creation, outside the trade identity; wiki

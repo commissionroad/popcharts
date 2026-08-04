@@ -1,17 +1,24 @@
 ---
 type: summary
 title: Whitepaper v4 — Virtual LMSR and Band-Pass Graduation Clearing
-description: Full mechanism spec (rev 0.4, June 2026) — virtual LMSR pricing of receipt intents, band-pass graduation clearing, the E = R + L solvency identity, fill-outcome bounds, and worked golden examples
+description: Full mechanism spec (rev 0.4, June 2026) — virtual LMSR, band-pass clearing, E = R + L, fill bounds, golden examples; superseded as source of truth by v0.6 but still accurate for everything v0.6 left alone
 sources:
   - documents/whitepaper_v4.pdf
-updated: 2026-07-07
+updated: 2026-08-04
 ---
 
 # Whitepaper v4 — Virtual LMSR and Band-Pass Graduation Clearing
 
 _PredictFun: Bootstrapping Prediction Markets With Virtual LMSR And Band-Pass
 Graduation Clearing_, Matthew Brown, June 2026, WORKING DRAFT rev. 0.4
-(19 pages). This is the **mechanism source of truth** per protocol ADR 0002 —
+(19 pages).
+
+**No longer the source of truth** — [v0.6](whitepaper-v6.md) is, as of
+2026-08-04. This page stays the fullest mechanism digest and is accurate for
+everything v0.6 did not change; the two places it is now wrong are the
+no-withdrawal rights list (§4) and "this mechanism charges no fees" (§6), both
+replaced in v0.6. Originally designated the mechanism source of truth by
+protocol ADR 0002 —
 see [mechanism whitepaper](../concepts/mechanism-whitepaper.md). Everything
 below is what the paper actually specifies, with section references.
 

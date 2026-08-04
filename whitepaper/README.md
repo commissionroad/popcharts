@@ -2,14 +2,15 @@
 
 Source of truth for the pre-graduation mechanism, per
 [protocol ADR 0002](../protocol/docs/adr/0002-treat-whitepaper-v4-as-mechanism-source.md).
-Imported from the `predictfun` repository, where every revision below was
-written.
+Imported from the `predictfun` repository, which is where revisions v0.1–v0.5
+were written.
 
 ## Revisions
 
 | File | Status |
 | --- | --- |
-| [v0.5.md](v0.5.md) | **Current.** Shortened rewrite of v0.4 with the graduation-solvency proof. Never published as a PDF. |
+| [v0.6.md](v0.6.md) | **Current.** Adds pre-graduation withdrawals (lock the overlap), fees, and post-graduation pool seeding. |
+| [v0.5.md](v0.5.md) | Shortened rewrite of v0.4 with the graduation-solvency proof. Never published as a PDF. |
 | [v0.4.md](v0.4.md) | Source of `documents/whitepaper_v4.pdf`. |
 | [v0.3.md](v0.3.md) | Source of `documents/whitepaper_v3.pdf`. |
 | [v0.2.md](v0.2.md) | Preserved. |

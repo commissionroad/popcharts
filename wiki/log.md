@@ -1194,3 +1194,33 @@ spirit rather than imported: `infra/` imports no workspace source, so the
 keeper is a test that builds a record with the server's own formatter. ADR
 0015's broader alarm checkbox is deliberately left open: none of the items it
 lists were built.
+
+## [2026-08-04] ingest | whitepaper v0.6 + protocol ADR 0014 — pre-graduation withdrawals, fees, seeding
+Pages: +summaries/whitepaper-v6.md,
++summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md,
+~summaries/whitepaper-v4.md, ~summaries/whitepaper-history.md,
+~summaries/protocol-adr-0002-whitepaper-v4-mechanism-source.md,
+~summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md,
+~concepts/mechanism-whitepaper.md, ~concepts/graduation-clearing.md,
+~concepts/creation-fee-custody.md, ~entities/pregrad-manager.md,
+~CLAUDE.md, ~index.md
+Notes: The whitepaper's markdown source moved into the repo (`whitepaper/`,
+imported from the `predictfun` repo's `codex/slim-whitepaper` worktree) along
+with its MathJax build, so the schema's raw-source layer now lists
+`whitepaper/*.md` as authority and `documents/*.pdf` as rendered artifacts.
+Two surprises worth recording. First, **v0.5 existed and no one knew**: an
+unpublished, uncommitted rewrite of v0.4 sitting in that worktree, which had
+already replaced the informal solvency argument with Lemmas 1–2 and the
+exact-collateralization theorem. v0.6 branches from it, so the repo skipped a
+revision it had never seen. Second, whitepaper v0.4 §4 gave two justifications
+for locking receipts and **both are wrong**: solvency (a virtual LMSR has no
+pooled reserve to drain) and determinism (the sweep is deterministic because
+the book is frozen at clearing, and `computeBandPassClearing` never reads
+`market.state.path`). The genuine objection — a graduation veto — was never
+stated in the paper, and Lemma 3 removes it. ADR 0002 is amended rather than
+superseded, since the decision (the whitepaper governs) never changed, only
+which revision; its filename keeps the stale `v4` slug deliberately.
+Follow-up: `wiki/concepts/product-honesty-rule.md` was not re-read this pass
+and may need a line about not presenting withdrawal as free exit — ADR 0014
+measures ~86% of a book as still locked.
+
