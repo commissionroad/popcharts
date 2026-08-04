@@ -187,6 +187,10 @@ async function main(): Promise<void> {
       deployBlock: deploy.deployBlock,
       postgradAdapterAddress: deploy.postgradAdapterAddress,
       pregradManagerAddress: deploy.pregradManagerAddress,
+      // Activates the review-credit meter (ADR 0022 P3a): without this the
+      // lifecycle lane runs unmetered and the funded-deposit journey has
+      // nothing to exercise.
+      reviewBondVaultAddress: deploy.reviewBondVaultAddress,
     }),
     ...postgradServerEnv(postgrad),
   };
@@ -347,6 +351,11 @@ function buildServerEnv(
     LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
     LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
+    // An override key this builder does not map is dropped silently (the
+    // parameter type admits every PregradDeploy field), and a blank value
+    // turns the review-credit meter off — which is exactly the unmetered
+    // lane this line exists to prevent.
+    LOCAL_REVIEW_BOND_VAULT_ADDRESS: overrides.reviewBondVaultAddress ?? "",
     NETWORK: "local",
     PORT: apiPort,
     // The lifecycle e2e lane drives graduation/resolution through the local
@@ -381,6 +390,13 @@ function writeLocalEnv(
     `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
     `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
     `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
+    // The lifecycle e2e orchestrator reads this file for the vault address it
+    // hands the specs; dropping the line silently de-meters the whole lane
+    // (this list is hand-built field by field — a new deploy field must be
+    // added here as well as in the server-env builders).
+    ...(deploy.reviewBondVaultAddress
+      ? [`LOCAL_REVIEW_BOND_VAULT_ADDRESS=${deploy.reviewBondVaultAddress}`]
+      : []),
     ...postgradEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",

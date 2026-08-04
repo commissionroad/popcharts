@@ -209,6 +209,15 @@ held-back floor), the withdrawal is removed:
   whole payment path is untested end to end.
 
 Phase plan below is superseded at P3: **P3a — prepaid review credit** replaces it.
+**P3a delivered 2026-08-04** (#431 + the lifecycle-lane PR): vault rewritten to
+`depositFor(beneficiary)` + owner sweep, one-way meter at a configurable per-run
+rate over chain/vault-scoped indexed deposits, change-feed signal on deposit, and
+the lifecycle lane running metered with the funded journey covered end to end. A
+pre-publish review caught a concurrent-overspend race (fixed with a wallet-scoped
+advisory lock), unscoped credit across deployments, and the migrations silently
+reinterpreting refundable-bond history. The retired enum values stay (Postgres
+cannot drop them in place); the app-side "notified" is a poll until the ADR 0021
+SSE subscription lands.
 
 ## Related pages
 

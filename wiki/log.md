@@ -1382,6 +1382,14 @@ client's gap check passed. ADR 0025's P1 is gated on measuring (2) rather than
 trusting it; the earlier version of this analysis rejected the hook counter on
 an unmeasured gas assumption and was wrong.
 
+## [2026-08-04] ingest | root ADR 0022 — P3a delivered (prepaid review credit built)
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
+Notes: same-day follow-up to the amendment ingest — the replacement design is now
+code (#431 + the lifecycle-lane PR) and P3a is ticked in the ADR. Recorded the
+three pre-publish review findings (concurrent overspend, unscoped credit,
+legacy-ledger reinterpretation) and the two deviations from P3a as written
+(enum values retained, poll instead of SSE).
+
 ## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
 Pages: ~summaries/portfolio-data-design.md
 Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,

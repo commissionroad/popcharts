@@ -482,14 +482,22 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
         `scripts/local-dev-control.ts` — they rebuild deploy overrides
         field-by-field, so a field added to only one is silently dropped. Still open;
         carried into P3a.
-- [ ] **P3a — Prepaid review credit.** Rewrite the vault to `depositFor(beneficiary)` +
-      `withdrawCollectedFees` only (delete `settle`, `withdrawBond`, `setResolver`, the
-      resolver key, and on-chain consumption tracking; regenerate ABIs). Meter becomes a
-      one-way ledger at a single configurable per-run rate, reading balance from the indexed
-      deposits rather than the chain; drop the $5 floor, the bundling, and `settledAt`. Rewrite
-      the `review_bond_event_kind` enum down to deposit + sweep. Emit `recordLiveChange` from
-      the deposit handler. Extend the nightly lifecycle stack to deploy the vault and cover the
-      funded journey end to end (refused → deposit → notified → submitted). **Does not reopen
+- [x] **P3a — Prepaid review credit.** Delivered 2026-08-04 (#431 + the lifecycle-lane PR).
+      Vault rewritten to `depositFor(beneficiary)` + `withdrawCollectedFees` (settle /
+      withdrawBond / setResolver / on-chain consumption tracking deleted; ABIs regenerated).
+      Meter is a one-way ledger at a single configurable per-run rate
+      (`POPCHARTS_REVIEW_RUN_RATE_WAD`), reading balance from the indexed deposits scoped to
+      the configured chain + vault; $5 floor, bundling, and `settledAt` dropped. The deposit
+      handler signals the change feed on the beneficiary's portfolio channel. The lifecycle
+      lane now boots with the vault configured and covers the funded journey end to end
+      (refused → panel deposit → indexed → auto-resubmitted → approved). Deviations from the
+      plan as written: the `review_bond_event_kind` enum keeps its retired values (Postgres
+      cannot drop enum values in place; nothing writes them, and the meter counts only what
+      the prepaid model wrote), and the app-side "notified" is a credit-endpoint poll — the
+      SSE portfolio-channel subscription upgrade belongs to the live-updates slices
+      (ADR 0021). An independent pre-publish review caught and fixed a concurrent-overspend
+      race (wallet-scoped advisory lock), unscoped-credit leakage across deployments, and
+      the migrations' silent reinterpretation of refundable-bond history. **Does not reopen
       public draft submission** — that waits on a rate at or above cost (see the amendment).
 - [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** *App half delivered*
       2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
