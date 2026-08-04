@@ -55,6 +55,12 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
   // a dedicated authorizer key instead.
   await manager.write.setMarketCreationAuthorizer([deployerAddress]);
 
+  // The deployer is also a trusted creator: protocol-workspace tooling (boot
+  // seeding, smoke lanes, tests) creates markets with a zeroed authorization
+  // now that the ungated path is gone (repo ADR 0022 P5). The product path
+  // never uses this — the app publishes with a real server-minted signature.
+  await manager.write.setTrustedCreator([deployerAddress, true]);
+
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.
   const deployBlock = await publicClient.getBlockNumber();

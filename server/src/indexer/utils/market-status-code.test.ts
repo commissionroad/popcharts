@@ -12,15 +12,11 @@ describe("marketStatusFromCode", () => {
   });
 
   it("maps every status a market can currently hold", () => {
-    expect(marketStatusFromCode(MARKET_STATUS.underReview)).toBe(
-      "under_review",
-    );
     expect(marketStatusFromCode(MARKET_STATUS.graduating)).toBe("graduating");
     expect(marketStatusFromCode(MARKET_STATUS.graduated)).toBe("graduated");
     expect(marketStatusFromCode(MARKET_STATUS.refunded)).toBe("refunded");
     expect(marketStatusFromCode(MARKET_STATUS.resolved)).toBe("resolved");
     expect(marketStatusFromCode(MARKET_STATUS.cancelled)).toBe("cancelled");
-    expect(marketStatusFromCode(MARKET_STATUS.rejected)).toBe("rejected");
   });
 
   it("refuses Frozen rather than inventing a projection for it", () => {

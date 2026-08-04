@@ -64,10 +64,12 @@ export const happyPath: Scenario = {
     // Pre-graduation step timeouts must sum below graduationSeconds (240s)
     // so a slow stack fails at the slow step with a clear message instead of
     // silently crossing the graduation deadline and reporting a confusing
-    // refunded market: 45s indexing + 90s review + 30s receipt indexing
-    // leaves ≥75s for the keeper's pass to start graduation.
-    await step("indexer serves the market as under_review", async () => {
-      const indexed = await waitForApiStatus(market.marketId, "under_review", {
+    // refunded market: 45s indexing + 30s receipt indexing leaves ≥165s for
+    // the keeper's pass to start graduation. Markets are born Active on-chain
+    // (repo ADR 0022 P5 — review happens on drafts before creation), so the
+    // indexer serves bootstrap straight away and there is no review wait.
+    await step("indexer serves the market as bootstrap", async () => {
+      const indexed = await waitForApiStatus(market.marketId, "bootstrap", {
         timeoutMs: 45_000,
       });
       assertEqual(
@@ -75,27 +77,9 @@ export const happyPath: Scenario = {
         indexed.metadataHash.toLowerCase(),
         market.metadataHash.toLowerCase(),
       );
-    });
-
-    await step("review runner approves via heuristic provider", async () => {
-      await waitForApiStatus(market.marketId, "bootstrap", {
-        timeoutMs: 90_000,
-      });
-
-      const [review] = await db
-        .select()
-        .from(schema.marketAiReviews)
-        .where(
-          and(
-            eq(schema.marketAiReviews.chainId, config.chainId),
-            eq(schema.marketAiReviews.marketId, market.marketId),
-          ),
-        )
-        .limit(1);
-      assertEqual("review verdict", review?.verdict, "approve");
 
       await assertChainStatus(
-        "on-chain status after approval",
+        "on-chain status at creation",
         market.marketId,
         MARKET_STATUS.active,
       );

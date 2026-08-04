@@ -101,8 +101,8 @@ onchainDescribe("band-pass clearing on-chain", async function () {
         resolutionTime,
         bypassAiResolution: false,
       },
+      { nonce: 0n, expiry: 0n, signature: "0x" },
     ]);
-    await manager.write.approveMarket([1n]);
 
     // A two-sided book that only partially overlaps: YES sweeps [0, 100], NO
     // sweeps [40, 100]. The band [40, 100] (width 60) matches; the YES-only band

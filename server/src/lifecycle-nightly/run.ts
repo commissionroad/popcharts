@@ -10,7 +10,6 @@ import { drawCancel } from "./scenarios/draw-cancel";
 import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
 import { indexerRestart } from "./scenarios/indexer-restart";
-import { manualReview } from "./scenarios/manual-review";
 import { partialClearing } from "./scenarios/partial-clearing";
 
 /**
@@ -47,7 +46,6 @@ const SCENARIOS: readonly Scenario[] = [
   disputeSettlement,
   partialClearing,
   failedGraduation,
-  manualReview,
   indexerRestart,
   aiOutage,
 ];

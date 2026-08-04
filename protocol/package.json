@@ -53,6 +53,7 @@
     "format:check": "prettier --check .",
     "lint:sol": "solhint \"contracts/**/*.sol\" \"test/solidity/**/*.sol\"",
     "local:create-market": "hardhat run scripts/create-local-market.ts --network localhost",
+    "local:publish-authorized-market": "hardhat run scripts/publish-authorized-market.ts --network localhost",
     "local:create-complete-set-market": "hardhat run scripts/create-complete-set-market.ts --network localhost",
     "local:deploy-pregrad": "hardhat run scripts/deploy-local-pregrad.ts --network localhost",
     "local:deploy-venue": "hardhat run scripts/deploy-venue-stack.ts --network localhost",

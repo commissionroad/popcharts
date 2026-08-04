@@ -6,7 +6,15 @@ import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 import { parseSerializedProtocolCreateMarketParams } from "@/integrations/contracts/protocol-params";
 import { formatTokenAmount } from "@/lib/format";
 
-import type { CreateMarketWallet } from "./create-market-service";
+import type { PublicClient, WalletClient } from "viem";
+
+/** The connected wallet trio a publish signs and confirms with. */
+export type CreateMarketWallet = {
+  accountAddress: `0x${string}`;
+  activeChainId: number | null;
+  publicClient: PublicClient;
+  walletClient: WalletClient;
+};
 
 /** A confirmed on-chain publish: the market the approved draft became. */
 export type PublishedDraftMarket = {

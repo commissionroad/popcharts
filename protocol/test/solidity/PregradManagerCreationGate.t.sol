@@ -14,19 +14,6 @@ import {BaseTest} from "./BaseTest.sol";
 /// deliberately untouched by the gate and keeps its own coverage in
 /// PregradManager.t.sol until it retires.
 contract PregradManagerCreationGateTest is BaseTest {
-  // The test signs with a raw key so it exercises the contract's real
-  // recovery path; these constants mirror the contract's typehashes, and the
-  // happy-path test is what fails if either side's encodeType drifts.
-  // solhint-disable max-line-length
-  bytes32 private constant CREATE_MARKET_PARAMS_TYPEHASH = keccak256(
-    "CreateMarketParams(address collateral,bytes32 metadataHash,string metadata,uint256 openingProbabilityWad,uint256 liquidityParameter,uint256 graduationThreshold,uint64 graduationDeadline,uint64 resolutionTime,uint64 yesNotBefore,bool bypassAiResolution)"
-  );
-  bytes32 private constant MARKET_CREATION_AUTHORIZATION_TYPEHASH = keccak256(
-    "MarketCreationAuthorization(address creator,CreateMarketParams params,uint256 nonce,uint64 expiry)CreateMarketParams(address collateral,bytes32 metadataHash,string metadata,uint256 openingProbabilityWad,uint256 liquidityParameter,uint256 graduationThreshold,uint64 graduationDeadline,uint64 resolutionTime,uint64 yesNotBefore,bool bypassAiResolution)"
-  );
-  // solhint-enable max-line-length
-
-  uint256 private constant AUTHORIZER_KEY = 0xA11CE;
   uint256 private constant MALLORY_KEY = 0xBADD1E;
 
   PregradManager private manager;
@@ -36,8 +23,8 @@ contract PregradManagerCreationGateTest is BaseTest {
   function setUp() public override {
     super.setUp();
     manager = _deployPregradManager();
+    // _deployPregradManager arms this key as the authorizer.
     authorizer = vm.addr(AUTHORIZER_KEY);
-    manager.setMarketCreationAuthorizer(authorizer);
     vm.deal(creator, 10e18);
   }
 
@@ -64,17 +51,6 @@ contract PregradManagerCreationGateTest is BaseTest {
     );
     assertTrue(manager.isCreationAuthorizationNonceUsed(1));
     assertEq(manager.collectedCreationFees(), manager.MARKET_CREATION_FEE());
-  }
-
-  function test_BarePathStillBornUnderReview() public {
-    // The interim contract carries both doors; the bare one keeps its exact
-    // pre-gate behavior until publish switches over and it retires.
-    uint256 marketId = manager.createMarket(_params());
-
-    assertEq(
-      uint8(manager.getMarketState(marketId).status),
-      uint8(MarketTypes.MarketStatus.UnderReview)
-    );
   }
 
   function test_RevertWhenAuthorizerUnset() public {
@@ -287,7 +263,7 @@ contract PregradManagerCreationGateTest is BaseTest {
       abi.encode(
         MARKET_CREATION_AUTHORIZATION_TYPEHASH,
         boundCreator,
-        _hashParams(params),
+        _hashCreateMarketParams(params),
         nonce,
         expiry
       )
@@ -301,26 +277,5 @@ contract PregradManagerCreationGateTest is BaseTest {
         expiry: expiry,
         signature: abi.encodePacked(r, s, v)
       });
-  }
-
-  function _hashParams(
-    MarketTypes.CreateMarketParams memory params
-  ) private pure returns (bytes32) {
-    return
-      keccak256(
-        abi.encode(
-          CREATE_MARKET_PARAMS_TYPEHASH,
-          params.collateral,
-          params.metadataHash,
-          keccak256(bytes(params.metadata)),
-          params.openingProbabilityWad,
-          params.liquidityParameter,
-          params.graduationThreshold,
-          params.graduationDeadline,
-          params.resolutionTime,
-          params.yesNotBefore,
-          params.bypassAiResolution
-        )
-      );
   }
 }

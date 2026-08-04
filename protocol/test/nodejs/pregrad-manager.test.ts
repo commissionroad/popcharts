@@ -3,6 +3,12 @@ import { describe, it } from "node:test";
 import { network } from "hardhat";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
+import {
+  buildMarketCreationAuthorizationTypedData,
+  generateCreationAuthorizationNonce,
+  type MarketCreationParams,
+} from "../../src/market-creation-authorization.js";
+
 const WAD = 10n ** 18n;
 const DEFAULT_METADATA =
   '{"version":1,"question":"Will this test market resolve?","description":"","category":"Test","resolutionCriteria":"Resolves according to test fixtures.","createdAt":"2026-01-01T00:00:00.000Z"}';
@@ -10,7 +16,6 @@ const DEFAULT_METADATA_HASH = keccak256(stringToBytes(DEFAULT_METADATA));
 const MarketStatus = {
   Active: 0,
   Graduating: 2,
-  UnderReview: 7,
 } as const;
 
 type MarketConfig = {
@@ -69,17 +74,44 @@ type ClearingRoot = {
 describe("PregradManager", async function () {
   const { viem, networkHelpers } = await network.create();
 
+  /** Spendable only by trusted creators: skips signature verification. */
+  const ZEROED_AUTHORIZATION = { nonce: 0n, expiry: 0n, signature: "0x" as const };
+
+  /** Signs a real authorization with the fixture's authorizer (wallet #1). */
+  async function authorizeCreation(
+    managerAddress: `0x${string}`,
+    creator: `0x${string}`,
+    params: MarketCreationParams,
+  ) {
+    const [, authorizer] = await viem.getWalletClients();
+    const nonce = generateCreationAuthorizationNonce();
+    const expiry = BigInt(await networkHelpers.time.latest()) + 900n;
+    const signature = await authorizer.signTypedData(
+      buildMarketCreationAuthorizationTypedData({
+        chainId: authorizer.chain.id,
+        creator,
+        expiry,
+        nonce,
+        params,
+        verifyingContract: managerAddress,
+      }),
+    );
+    return { expiry, nonce, signature };
+  }
+
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
     const manager = await viem.deployContract("PregradManager");
     const [owner] = await viem.getWalletClients();
 
     await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
+    const [, authorizer] = await viem.getWalletClients();
+    await manager.write.setMarketCreationAuthorizer([getAddress(authorizer.account.address)]);
 
     return { collateral, manager };
   }
 
-  it("creates an under-review market with a stable market ID", async function () {
+  it("creates a market born Active with a stable market ID", async function () {
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
 
@@ -102,6 +134,7 @@ describe("PregradManager", async function () {
           yesNotBefore: resolutionTime,
           bypassAiResolution: false,
         },
+        ZEROED_AUTHORIZATION,
       ]),
       manager,
       "MarketCreated",
@@ -138,7 +171,7 @@ describe("PregradManager", async function () {
     assert.equal(config.graduationDeadline, graduationDeadline);
     assert.equal(config.resolutionTime, resolutionTime);
     assert.equal(config.bypassAiResolution, false);
-    assert.equal(Number(state.status), MarketStatus.UnderReview);
+    assert.equal(Number(state.status), MarketStatus.Active);
     assert.equal(state.receiptCount, 0n);
     assert.equal(state.totalEscrowed, 0n);
     assert.equal(state.path, 0n);
@@ -159,38 +192,42 @@ describe("PregradManager", async function () {
     const firstMetadataHash = DEFAULT_METADATA_HASH;
     const secondMetadataHash = DEFAULT_METADATA_HASH;
 
+    const aliceParams: MarketCreationParams = {
+      collateral: collateral.address,
+      metadataHash: firstMetadataHash,
+      metadata: DEFAULT_METADATA,
+      openingProbabilityWad: (20n * WAD) / 100n,
+      liquidityParameter: 2_500n * WAD,
+      graduationThreshold: 1_250n * WAD,
+      graduationDeadline: firstGraduationDeadline,
+      resolutionTime: firstResolutionTime,
+      yesNotBefore: firstResolutionTime,
+      bypassAiResolution: false,
+    };
     await manager.write.createMarket(
       [
-        {
-          collateral: collateral.address,
-          metadataHash: firstMetadataHash,
-          metadata: DEFAULT_METADATA,
-          openingProbabilityWad: (20n * WAD) / 100n,
-          liquidityParameter: 2_500n * WAD,
-          graduationThreshold: 1_250n * WAD,
-          graduationDeadline: firstGraduationDeadline,
-          resolutionTime: firstResolutionTime,
-          yesNotBefore: firstResolutionTime,
-          bypassAiResolution: false,
-        },
+        aliceParams,
+        await authorizeCreation(manager.address, getAddress(alice.account.address), aliceParams),
       ],
       { account: alice.account, value: WAD },
     );
 
+    const bobParams: MarketCreationParams = {
+      collateral: collateral.address,
+      metadataHash: secondMetadataHash,
+      metadata: DEFAULT_METADATA,
+      openingProbabilityWad: (80n * WAD) / 100n,
+      liquidityParameter: 8_000n * WAD,
+      graduationThreshold: 4_000n * WAD,
+      graduationDeadline: secondGraduationDeadline,
+      resolutionTime: secondResolutionTime,
+      yesNotBefore: secondResolutionTime,
+      bypassAiResolution: false,
+    };
     await manager.write.createMarket(
       [
-        {
-          collateral: collateral.address,
-          metadataHash: secondMetadataHash,
-          metadata: DEFAULT_METADATA,
-          openingProbabilityWad: (80n * WAD) / 100n,
-          liquidityParameter: 8_000n * WAD,
-          graduationThreshold: 4_000n * WAD,
-          graduationDeadline: secondGraduationDeadline,
-          resolutionTime: secondResolutionTime,
-          yesNotBefore: secondResolutionTime,
-          bypassAiResolution: false,
-        },
+        bobParams,
+        await authorizeCreation(manager.address, getAddress(bob.account.address), bobParams),
       ],
       { account: bob.account, value: WAD },
     );
@@ -224,21 +261,27 @@ describe("PregradManager", async function () {
     assert.equal(await manager.read.marketCreationFee([publicCreator.account.address]), WAD);
     assert.equal(await manager.read.marketCreationFee([owner.account.address]), 0n);
 
+    const publicParams: MarketCreationParams = {
+      collateral: collateral.address,
+      metadataHash,
+      metadata: DEFAULT_METADATA,
+      openingProbabilityWad: (50n * WAD) / 100n,
+      liquidityParameter: 5_000n * WAD,
+      graduationThreshold: 2_500n * WAD,
+      graduationDeadline,
+      resolutionTime,
+      yesNotBefore: resolutionTime,
+      bypassAiResolution: false,
+    };
     await viem.assertions.emitWithArgs(
       manager.write.createMarket(
         [
-          {
-            collateral: collateral.address,
-            metadataHash,
-            metadata: DEFAULT_METADATA,
-            openingProbabilityWad: (50n * WAD) / 100n,
-            liquidityParameter: 5_000n * WAD,
-            graduationThreshold: 2_500n * WAD,
-            graduationDeadline,
-            resolutionTime,
-            yesNotBefore: resolutionTime,
-            bypassAiResolution: false,
-          },
+          publicParams,
+          await authorizeCreation(
+            manager.address,
+            getAddress(publicCreator.account.address),
+            publicParams,
+          ),
         ],
         { account: publicCreator.account, value: WAD },
       ),
@@ -250,21 +293,27 @@ describe("PregradManager", async function () {
     assert.equal(await manager.read.collectedCreationFees(), WAD);
     assert.equal(await publicClient.getBalance({ address: manager.address }), WAD);
 
+    const retryParams: MarketCreationParams = {
+      collateral: collateral.address,
+      metadataHash: DEFAULT_METADATA_HASH,
+      metadata: DEFAULT_METADATA,
+      openingProbabilityWad: (50n * WAD) / 100n,
+      liquidityParameter: 5_000n * WAD,
+      graduationThreshold: 2_500n * WAD,
+      graduationDeadline,
+      resolutionTime,
+      yesNotBefore: resolutionTime,
+      bypassAiResolution: false,
+    };
     await viem.assertions.revertWithCustomErrorWithArgs(
       manager.write.createMarket(
         [
-          {
-            collateral: collateral.address,
-            metadataHash: DEFAULT_METADATA_HASH,
-            metadata: DEFAULT_METADATA,
-            openingProbabilityWad: (50n * WAD) / 100n,
-            liquidityParameter: 5_000n * WAD,
-            graduationThreshold: 2_500n * WAD,
-            graduationDeadline,
-            resolutionTime,
-            yesNotBefore: resolutionTime,
-            bypassAiResolution: false,
-          },
+          retryParams,
+          await authorizeCreation(
+            manager.address,
+            getAddress(publicCreator.account.address),
+            retryParams,
+          ),
         ],
         { account: publicCreator.account },
       ),
@@ -312,8 +361,8 @@ describe("PregradManager", async function () {
         yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
+      ZEROED_AUTHORIZATION,
     ]);
-    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {
@@ -406,8 +455,8 @@ describe("PregradManager", async function () {
         yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
+      ZEROED_AUTHORIZATION,
     ]);
-    await manager.write.approveMarket([1n]);
 
     await collateral.write.mint([buyer.account.address, 1_000n * WAD]);
     await collateral.write.approve([manager.address, 1_000n * WAD], {

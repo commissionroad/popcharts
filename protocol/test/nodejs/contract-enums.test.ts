@@ -109,6 +109,9 @@ describe("generated Solidity enum tables", () => {
   // already use. So every ordinal of both enums is pinned literally here, and
   // changing one has to be an explicit, reviewed edit to this file.
   it("pins every ordinal deployed contracts and indexed data already encode", () => {
+    // UnderReview (7) and Rejected (8) were removed from the TAIL by repo
+    // ADR 0022 P5 — a tail removal never re-encodes surviving ordinals, which
+    // is the only removal shape this pin permits.
     assert.deepEqual(MARKET_STATUS, {
       active: 0,
       frozen: 1,
@@ -117,8 +120,6 @@ describe("generated Solidity enum tables", () => {
       refunded: 4,
       resolved: 5,
       cancelled: 6,
-      underReview: 7,
-      rejected: 8,
     });
 
     // `resolutionPending` and `disputed` were appended by the dispute-window
