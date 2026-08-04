@@ -1364,3 +1364,22 @@ nightly lifecycle stack never deploys the vault, so the payment path has no
 end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had just landed the
 Accepted status and phase ticks; its "two documented bond caveats" note is now
 half-resolved — the withdraw caveat is what withdrew the design.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 build decisions locked
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: ten open design points on P4 were decided and written into the ADR as a
+"P4 build decisions" section. The non-obvious one is the expiry rationale: a
+15-minute window is not anti-theft (binding the authorization to the creator's
+address already covers that) but a bound on how far a market's absolute
+deadlines can drift from the ones reviewed — and partial staleness does *not*
+revert, since `_validateCreateMarketParams` only rejects an already-past
+`graduationDeadline`, so a stale authorization ships a quietly shortened market.
+That choice obliges the app to re-mint on expiry rather than surface an error.
+Second thing worth carrying: the contract↔indexer coupling that would have
+forced a single fat PR dissolves if the indexer reads a market's real on-chain
+status instead of hard-coding `under_review` — correct under both contracts, so
+it lands alone. Creation-fee receipts are pulled ahead of the rest of P4 as
+their own PR; they are independent of the gate and close a standing money-
+paper-trail exception. No entity/concept page needed updating — pregrad-manager
+and creation-fee-custody already describe the gate as designed, and these
+decisions refine how, not what.

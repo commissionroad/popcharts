@@ -210,6 +210,39 @@ held-back floor), the withdrawal is removed:
 
 Phase plan below is superseded at P3: **P3a — prepaid review credit** replaces it.
 
+## P4 build decisions (locked 2026-08-04)
+
+The phase entry says what P4 does; a decisions section in the ADR now says how, on the
+points that admitted more than one answer.
+
+- **A new authorizer key, not the review-manager key** — otherwise P5's removal of that key
+  is a rename, and its blast radius grows exactly when we are retiring it.
+- **The authorization is bound to the creator's address** and carries an **unordered
+  single-use nonce** — bearer signatures would be free markets if leaked; a per-creator
+  counter would serialise a creator's drafts behind one failed transaction.
+- **15-minute expiry.** Not an anti-theft measure (creator binding covers that): the
+  authorization carries absolute deadlines resolved at mint time, so its lifetime is how far
+  a market's dates can drift from what was reviewed. Partial staleness does not revert —
+  `_validateCreateMarketParams` only rejects an already-past `graduationDeadline` — so a
+  stale authorization ships a quietly shortened market. Requires the app to **re-mint on
+  expiry** rather than error.
+- **Rotation is a single owner setter**; a two-key overlap is not worth doubling the key
+  code to protect a 15-minute retry window.
+- **The on-chain review runner switches off the day P4 lands** — after the gate, nothing can
+  create an `under_review` market, so it has nothing to sweep. Existing `under_review` /
+  `rejected` rows are **testnet data and may be wiped**, which removes the enum-rewrite
+  pressure from P5.
+- **Small PRs split by workspace**, made safe by having the **indexer read a market's real
+  on-chain status instead of hard-coding `under_review`** — correct under both the old and
+  new contract, so it lands alone and dissolves the contract↔indexer coupling instead of
+  sequencing around it. Order: fee receipts → indexer status read → contract → mint
+  authorization → dev key wiring → app re-mint.
+
+The creation-fee receipt work is **pulled ahead of the rest of P4**: it does not depend on
+the gate, and until it lands the creation fee is the only value transfer in the system with
+no receipt-linked record — a standing exception to the invariant in
+[portfolio-data-design](portfolio-data-design.md).
+
 ## Related pages
 
 - [../entities/pregrad-manager.md](../entities/pregrad-manager.md) — `createMarket` gains the authorizer-signature gate + born-Active; loses `approveMarket`/`rejectMarket`
