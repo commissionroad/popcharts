@@ -53,7 +53,7 @@ export type ReviewCreditSummary = {
   rateWad: bigint;
   /** Whole review runs the remaining credit covers at the current rate. */
   runsRemaining: number;
-  /** Lifetime review runs charged to this wallet. */
+  /** Review runs charged to this wallet under the prepaid-credit model. */
   runsUsed: number;
 };
 
@@ -67,9 +67,29 @@ const defaultDependencies: ReviewCreditDependencies = {
   vaultAddress: () => config.contracts.reviewBondVault,
 };
 
+/** A drizzle handle: the shared client or an open transaction. */
+type DbHandle = Pick<typeof db, "select">;
+
 /**
- * A wallet's remaining review credit: indexed lifetime deposits minus every
- * review run metered against it.
+ * Serializes same-wallet credit operations for the duration of the current
+ * transaction via a Postgres advisory lock keyed on the wallet address. The
+ * quote-then-charge sequence is not otherwise atomic: two drafts submitting
+ * for the same wallet would each read the same balance, each pass, and
+ * together overspend it. `hashtextextended` collides only across unrelated
+ * wallets, where a spurious wait is harmless.
+ */
+export async function lockWalletCredit(
+  tx: Pick<typeof db, "execute">,
+  address: string,
+): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${address.toLowerCase()}, 42))`,
+  );
+}
+
+/**
+ * A wallet's remaining review credit: indexed deposits into the *configured*
+ * vault minus every review run metered against the wallet.
  *
  * Both halves come from the database — deliberately, and never from a direct
  * chain read. Deposits are indexed from the vault's events; charges are written
@@ -79,6 +99,15 @@ const defaultDependencies: ReviewCreditDependencies = {
  * that a creator who has just deposited can be briefly refused, which is why
  * the deposit handler signals the change feed.
  *
+ * Two scoping rules keep old ledgers from leaking into the new one:
+ * - Deposits count only when their event row belongs to the configured
+ *   vault's contract on the configured chain — a redeploy (or another
+ *   network's rows in a shared DB) contributes nothing.
+ * - Charges count only the prepaid-model `review_run` kind. Legacy
+ *   `submission` / `extra_review` rows were priced against the refundable
+ *   bond and settled on-chain under the withdrawn design; debiting them
+ *   again here would double-charge history the old system already collected.
+ *
  * Clamped at zero: charges can only be written against a balance that covered
  * them, so a negative result would mean a deposit row vanished, and refusing
  * the next run is the safe reading of that.
@@ -86,26 +115,39 @@ const defaultDependencies: ReviewCreditDependencies = {
 export async function reviewCreditSummary(
   address: string,
   dependencies: ReviewCreditDependencies = defaultDependencies,
+  dbc: DbHandle = db,
 ): Promise<ReviewCreditSummary> {
   const normalized = address.toLowerCase();
-  const [deposits] = await db
+  const vault = dependencies.vaultAddress().toLowerCase();
+  const [deposits] = await dbc
     .select({
       total: sql<string>`coalesce(sum(${schema.reviewBondEvents.amount}), 0)`,
     })
     .from(schema.reviewBondEvents)
+    .innerJoin(
+      schema.contracts,
+      eq(schema.reviewBondEvents.contractId, schema.contracts.id),
+    )
     .where(
       and(
         eq(schema.reviewBondEvents.account, normalized),
         eq(schema.reviewBondEvents.kind, "deposited"),
+        eq(schema.reviewBondEvents.chainId, config.chainId),
+        sql`lower(${schema.contracts.address}) = ${vault}`,
       ),
     );
-  const [charges] = await db
+  const [charges] = await dbc
     .select({
       count: sql<number>`count(*)::int`,
       total: sql<string>`coalesce(sum(${schema.draftReviewCharges.amount}), 0)`,
     })
     .from(schema.draftReviewCharges)
-    .where(eq(schema.draftReviewCharges.chargedAddress, normalized));
+    .where(
+      and(
+        eq(schema.draftReviewCharges.chargedAddress, normalized),
+        eq(schema.draftReviewCharges.kind, "review_run"),
+      ),
+    );
 
   const remaining =
     BigInt(deposits?.total ?? "0") - BigInt(charges?.total ?? "0");
@@ -125,9 +167,13 @@ export async function reviewCreditSummary(
  * Prices one review run of a draft and checks the creator's credit covers it.
  * The meter is active whenever a vault address is configured; without one (a
  * local stack booted before the vault deploy, tests) drafts submit unmetered.
+ *
+ * Callers charging on the result must run quote and charge inside one
+ * transaction under {@link lockWalletCredit} — the submit path does — or two
+ * concurrent submissions can both pass on the same remaining run.
  */
 export async function quoteReviewRun(
-  { draft }: { draft: MarketDraftRow },
+  { dbc = db, draft }: { dbc?: DbHandle; draft: MarketDraftRow },
   dependencies: ReviewCreditDependencies = defaultDependencies,
 ): Promise<ReviewCreditQuote> {
   if (dependencies.vaultAddress() === ZERO_ADDRESS) {
@@ -140,7 +186,7 @@ export async function quoteReviewRun(
     return { kind: "missing_wallet" };
   }
 
-  const summary = await reviewCreditSummary(address, dependencies);
+  const summary = await reviewCreditSummary(address, dependencies, dbc);
 
   if (summary.availableWad < summary.rateWad) {
     return {

@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 
 import { submitMarketDraft } from "src/api/services/market-drafts";
+import { config } from "src/config";
 import type { db as productionDb } from "src/db/client";
 import { eq, schema, setDbForTesting } from "src/db/client";
 import type { MarketDraftRow } from "src/db/schema/market-drafts";
@@ -77,17 +78,23 @@ async function seedDraft(
   return draft!;
 }
 
-/** Indexes a deposit the way the review-bond watcher would. */
+/** Indexes a deposit the way the review-bond watcher would. The credit query
+ * scopes to the configured chain and vault contract, so the defaults match
+ * the meter's view and the overrides seed rows it must ignore. */
 async function seedDeposit({
   amount,
+  chainId = config.chainId,
   logIndex = 0,
+  vault = VAULT,
 }: {
   amount: bigint;
+  chainId?: number;
   logIndex?: number;
+  vault?: string;
 }) {
   const [contract] = await dbc
     .insert(schema.contracts)
-    .values({ address: VAULT, chainId: 31337, name: "ReviewBondVault" })
+    .values({ address: vault, chainId, name: "ReviewBondVault" })
     .onConflictDoNothing()
     .returning();
   const contractId =
@@ -96,7 +103,7 @@ async function seedDeposit({
       await dbc
         .select()
         .from(schema.contracts)
-        .where(eq(schema.contracts.address, VAULT))
+        .where(eq(schema.contracts.address, vault))
     )[0]!.id;
 
   await dbc.insert(schema.reviewBondEvents).values({
@@ -104,28 +111,30 @@ async function seedDeposit({
     amount,
     blockNumber: 1n,
     blockTimestamp: new Date(),
-    chainId: 31337,
+    chainId,
     contractId,
     kind: "deposited",
     logIndex,
     payer: WALLET,
     runningTotal: amount,
-    transactionHash: `0xdeposit${logIndex}`,
+    transactionHash: `0xdeposit${chainId}${vault}${logIndex}`,
   });
 }
 
 async function seedCharge({
   amount,
   draftId,
+  kind = "review_run" as const,
 }: {
   amount: bigint;
   draftId: number;
+  kind?: (typeof schema.draftReviewCharges.$inferInsert)["kind"];
 }) {
   await dbc.insert(schema.draftReviewCharges).values({
     amount,
     chargedAddress: WALLET,
     draftId,
-    kind: "review_run",
+    kind,
     rate: amount,
   });
 }
@@ -178,6 +187,36 @@ describe("reviewCreditSummary", () => {
     expect(summary.availableWad).toBe(0n);
     expect(summary.runsRemaining).toBe(0);
     expect(summary.runsUsed).toBe(1);
+  });
+
+  it("ignores deposits indexed from another chain or another vault", async () => {
+    await seedDeposit({ amount: WAD, chainId: 31337 });
+    await seedDeposit({
+      amount: WAD,
+      logIndex: 1,
+      vault: "0x00000000000000000000000000000000000000ce",
+    });
+
+    const summary = await reviewCreditSummary(WALLET, meterDeps());
+
+    expect(summary.availableWad).toBe(0n);
+  });
+
+  it("ignores legacy bundled-schedule charges — the old system settled them", async () => {
+    const draft = await seedDraft();
+
+    await seedDeposit({ amount: WAD });
+    await seedCharge({ amount: WAD, draftId: draft.id, kind: "submission" });
+    await seedCharge({
+      amount: 2n * (WAD / 10n),
+      draftId: draft.id,
+      kind: "extra_review",
+    });
+
+    const summary = await reviewCreditSummary(WALLET, meterDeps());
+
+    expect(summary.availableWad).toBe(WAD);
+    expect(summary.runsUsed).toBe(0);
   });
 
   it("reports no runs at a zero rate instead of dividing by zero", async () => {
