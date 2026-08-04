@@ -3,6 +3,10 @@ export {
   watchMarketCreatedEvents,
 } from "./market-created";
 export {
+  recoverMarketCreationFeeEvents,
+  watchMarketCreationFeeEvents,
+} from "./market-creation-fee";
+export {
   recoverMarketReviewEvents,
   watchMarketReviewEvents,
 } from "./market-review";

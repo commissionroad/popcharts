@@ -5,6 +5,7 @@ export * from "./draft-review-charges";
 export * from "./indexer-state";
 export * from "./market-ai-review-jobs";
 export * from "./market-ai-reviews";
+export * from "./market-creation-fee-events";
 export * from "./market-draft-reviews";
 export * from "./market-drafts";
 export * from "./market-events";

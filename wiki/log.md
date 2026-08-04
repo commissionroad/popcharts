@@ -1364,3 +1364,19 @@ nightly lifecycle stack never deploys the vault, so the payment path has no
 end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had just landed the
 Accepted status and phase ticks; its "two documented bond caveats" note is now
 half-resolved — the withdraw caveat is what withdrew the design.
+
+## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
+Pages: ~summaries/portfolio-data-design.md
+Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,
+closing the gap the ADR 0022 red-team found in 2026-07 — `MarketCreationFeePaid`
+was emitted on-chain but indexed nowhere, leaving the creation fee as the only
+value transfer in the system with no receipt-linked record. Two details the
+bullet records because they are easy to get wrong later: the amount is read
+from the log rather than the fee constant, so changing the fee never rewrites
+what past creators are recorded as paying; and trusted creators pay nothing and
+the contract emits no log for them (`createMarket` only emits when the fee is
+non-zero), so an absent row means "no fee was due", never "a payment was
+missed". `market_id` deliberately carries no FK to `markets`, matching the
+other market-scoped tables — the fee log and `MarketCreated` share a
+transaction but are consumed by independent watchers, so an FK would make the
+money record depend on projection ordering.
