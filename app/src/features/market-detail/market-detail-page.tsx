@@ -31,11 +31,19 @@ export function MarketDetailPage({
   pricePath?: PricePoint[];
 }) {
   // Fallback for fixture-backed markets and a failed history read: the
-  // market's synthetic YES path, with NO as its complement (synthetic paths
-  // are pregrad-shaped by construction).
+  // market's synthetic YES path, with NO as its complement — but only while
+  // the market is pregrad-shaped. A graduated or resolved market's synthetic
+  // path ends at a venue or terminal price, so dressing it up as an LMSR
+  // curve would invent history and misstate NO (Codex P4 review finding);
+  // those markets render the chart's honest empty state instead.
   const chartPoints =
     pricePath ??
-    market.pricePath.map((cents) => ({ noCents: 100 - cents, yesCents: cents }));
+    (market.postgrad
+      ? []
+      : market.pricePath.map((cents) => ({
+          noCents: 100 - cents,
+          yesCents: cents,
+        })));
   // Once a market graduates the receipt book is history: the page leads with
   // the graduation outcome and drops the pre-graduation progress/trading UI.
   // This holds for the whole dispute window too — a market in

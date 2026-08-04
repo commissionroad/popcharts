@@ -2,17 +2,8 @@ import {
   wadToCents as wadBigintToCents,
   wadToNumber as wadBigintToNumber,
 } from "@/domain/tokens/wad";
-import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
-import {
-  createOpeningState,
-  currentYesPriceCents,
-  marginalPriceCents,
-  stateAfterBuy,
-} from "@/integrations/contracts/virtual-lmsr";
-import type {
-  ApiMarket,
-  ApiReceiptPlacedEvent,
-} from "@/integrations/indexer/markets-api";
+import { currentYesPriceCents } from "@/integrations/contracts/virtual-lmsr";
+import type { ApiMarket } from "@/integrations/indexer/markets-api";
 import { apiMarketAppId } from "@/lib/app-id";
 
 import { isAwaitingResolution } from "./status";
@@ -22,8 +13,6 @@ import type {
   MarketPostgradHandoff,
   MarketResolution,
 } from "./types";
-
-const MAX_PRICE_PATH_POINTS = 256;
 
 const generatedCategories: MarketCategory[] = [
   "Crypto",
