@@ -400,6 +400,61 @@ describe("publish arc", () => {
     expect(parsed.question).toBe(REVIEWABLE_CONTENT.question);
   });
 
+  it("attaches a creator-bound authorization when the stack can sign", async () => {
+    // The hermetic env has no contracts and no authorizer key; arm both for
+    // this test the way the review-bond tests patch the vault address.
+    const originalManager = config.contracts.pregradManager;
+    const originalCollateral = config.contracts.collateral;
+    config.contracts.pregradManager =
+      "0x00000000000000000000000000000000000000e1";
+    config.contracts.collateral = "0x00000000000000000000000000000000000000dd";
+    process.env.POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY =
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
+    try {
+      const draft = await createDraft(REVIEWABLE_CONTENT);
+      await request(`/drafts/${draft.id}/submit`, { method: "POST" });
+      await processDraftReviewJobsOnce();
+
+      // Without a creator wallet there is nothing to bind: params only.
+      const unbound = await request(`/drafts/${draft.id}/publish-params`, {
+        method: "POST",
+      });
+      expect(unbound.status).toBe(200);
+      expect(
+        ((await unbound.json()) as { authorization?: unknown }).authorization,
+      ).toBeUndefined();
+
+      const creatorAddress = "0x00000000000000000000000000000000000000ab";
+      const response = await request(
+        `/drafts/${draft.id}/publish-params?creatorAddress=${creatorAddress}`,
+        { method: "POST" },
+      );
+      expect(response.status).toBe(200);
+
+      const minted = (await response.json()) as {
+        collateral: string;
+        authorization?: { expiry: string; nonce: string; signature: string };
+      };
+
+      expect(minted.collateral).toBe(config.contracts.collateral);
+      expect(minted.authorization).toBeDefined();
+      expect(minted.authorization!.signature).toMatch(/^0x[0-9a-f]+$/);
+      expect(BigInt(minted.authorization!.nonce)).toBeGreaterThan(0n);
+      // 15-minute window anchored at mint time; recovery-level verification
+      // lives in publish-authorization.test.ts and the protocol package's
+      // on-chain vector test.
+      expect(
+        BigInt(minted.authorization!.expiry) -
+          BigInt(Math.floor(Date.now() / 1000)),
+      ).toBeLessThanOrEqual(900n + 60n);
+    } finally {
+      delete process.env.POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY;
+      config.contracts.pregradManager = originalManager;
+      config.contracts.collateral = originalCollateral;
+    }
+  });
+
   it("refuses to record a publish it cannot verify on-chain", async () => {
     const draft = await createDraft(REVIEWABLE_CONTENT);
 

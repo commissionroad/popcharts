@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  BuildMarketDraftPublishParamsParams,
   GetMarketDraftReviewCreditParams,
   MarketDraft,
   MarketDraftBondShortfall,
@@ -586,15 +587,31 @@ export type buildMarketDraftPublishParamsResponse =
   | buildMarketDraftPublishParamsResponseSuccess
   | buildMarketDraftPublishParamsResponseError;
 
-export const getBuildMarketDraftPublishParamsUrl = (draftId: string) => {
-  return `/drafts/${draftId}/publish-params`;
+export const getBuildMarketDraftPublishParamsUrl = (
+  draftId: string,
+  params?: BuildMarketDraftPublishParamsParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/drafts/${draftId}/publish-params?${stringifiedParams}`
+    : `/drafts/${draftId}/publish-params`;
 };
 
 export const buildMarketDraftPublishParams = async (
   draftId: string,
+  params?: BuildMarketDraftPublishParamsParams,
   options?: RequestInit
 ): Promise<buildMarketDraftPublishParamsResponse> => {
-  const res = await fetch(getBuildMarketDraftPublishParamsUrl(draftId), {
+  const res = await fetch(getBuildMarketDraftPublishParamsUrl(draftId, params), {
     ...options,
     method: "POST",
   });

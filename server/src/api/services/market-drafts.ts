@@ -3,6 +3,10 @@ import { parseEventLogs } from "viem";
 import { pregradManagerAbi } from "@popcharts/protocol";
 
 import { transitionReviewedMarketOnChain } from "src/ai-review-runner/chain-review";
+import {
+  mintPublishAuthorization,
+  type SerializedPublishAuthorization,
+} from "src/api/services/publish-authorization";
 import type {
   ReviewProviderName,
   ReviewResult,
@@ -11,7 +15,7 @@ import type {
   ReviewVerdict,
 } from "src/ai-review/types";
 import { createReadOnlyClient } from "src/blockchain/client";
-import { config } from "src/config";
+import { config, ZERO_ADDRESS } from "src/config";
 import { and, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import type { DraftReviewFeedback } from "src/db/schema/market-draft-reviews";
 import type {
@@ -616,6 +620,7 @@ export async function applyDraftReviewResult(
  * which the app fills from its own chain config. */
 export type DraftPublishParams = {
   bypassAiResolution: boolean;
+  collateral: string;
   graduationDeadline: string;
   graduationThreshold: string;
   liquidityParameter: string;
@@ -627,7 +632,12 @@ export type DraftPublishParams = {
 };
 
 export type BuildDraftPublishParamsResult =
-  | { kind: "ready"; params: DraftPublishParams }
+  | {
+      kind: "ready";
+      params: DraftPublishParams;
+      /** Present when this deployment can sign (ADR 0022 P4); absent unarmed. */
+      authorization?: SerializedPublishAuthorization;
+    }
   | { kind: "content_changed"; message: string }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
@@ -639,9 +649,12 @@ export type BuildDraftPublishParamsResult =
  * draft that lingered for weeks still publishes with full windows.
  */
 export async function buildDraftPublishParams({
+  creatorAddress,
   draftId,
   owner,
 }: {
+  /** Wallet that will send createMarket; binds the minted authorization. */
+  creatorAddress?: `0x${string}`;
   draftId: number;
   owner: string;
 }): Promise<BuildDraftPublishParamsResult> {
@@ -672,27 +685,53 @@ export async function buildDraftPublishParams({
   const graduationDeadline = nowSeconds + BigInt(draft.graduationWindowSeconds);
   const resolutionTime = nowSeconds + BigInt(draft.resolutionWindowSeconds);
   const liquidityParameter = wholeToWad(draft.liquidityParameter);
+  const openingProbabilityWad = (BigInt(draft.openingProbability) * WAD) / 100n;
+  const graduationThreshold =
+    (liquidityParameter * GRADUATION_THRESHOLD_MULTIPLE_BPS) / 10_000n;
+  const collateral = config.contracts.collateral;
+  // No early-YES control on drafts yet; gate YES at the resolution deadline,
+  // matching the create form (ADR 0012 slice 2).
+  const yesNotBefore = resolutionTime;
+
+  // The signature must cover the exact values the app will submit, so it is
+  // minted over the same resolved bigints this response serializes — never
+  // re-derived from the draft later. Absent when this deployment cannot sign
+  // or the caller did not say which wallet publishes (the authorization binds
+  // the creator, so there is nothing to mint without one).
+  const authorization =
+    creatorAddress && collateral !== ZERO_ADDRESS
+      ? await mintPublishAuthorization({
+          chainSeconds: nowSeconds,
+          creator: creatorAddress,
+          params: {
+            bypassAiResolution: false,
+            collateral,
+            graduationDeadline,
+            graduationThreshold,
+            liquidityParameter,
+            metadata: metadataPayload,
+            metadataHash: metadataHash as `0x${string}`,
+            openingProbabilityWad,
+            resolutionTime,
+            yesNotBefore,
+          },
+        })
+      : undefined;
 
   return {
+    authorization,
     kind: "ready",
     params: {
       bypassAiResolution: false,
+      collateral,
       graduationDeadline: graduationDeadline.toString(),
-      graduationThreshold: (
-        (liquidityParameter * GRADUATION_THRESHOLD_MULTIPLE_BPS) /
-        10_000n
-      ).toString(),
+      graduationThreshold: graduationThreshold.toString(),
       liquidityParameter: liquidityParameter.toString(),
       metadata: metadataPayload,
       metadataHash,
-      openingProbabilityWad: (
-        (BigInt(draft.openingProbability) * WAD) /
-        100n
-      ).toString(),
+      openingProbabilityWad: openingProbabilityWad.toString(),
       resolutionTime: resolutionTime.toString(),
-      // No early-YES control on drafts yet; gate YES at the resolution
-      // deadline, matching the create form (ADR 0012 slice 2).
-      yesNotBefore: resolutionTime.toString(),
+      yesNotBefore: yesNotBefore.toString(),
     },
   };
 }

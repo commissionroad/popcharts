@@ -230,6 +230,7 @@ describe("persistPublishedMetadata", () => {
 function publishParams(): MarketDraftPublishParams {
   return {
     bypassAiResolution: false,
+    collateral: "0x00000000000000000000000000000000000000dd",
     graduationDeadline: "1900000000",
     graduationThreshold: "2500000000000000000000",
     liquidityParameter: "5000000000000000000000",
