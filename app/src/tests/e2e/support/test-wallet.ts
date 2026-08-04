@@ -22,12 +22,14 @@ export const TEST_WALLET_ADDRESS = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
 
 /**
  * The header shows the account truncated (leading and trailing characters
- * around an ellipsis). Derived from the address once, here, so no spec can
- * drift from the account the provider actually reports.
+ * around an ellipsis). Derived from the address, so no spec can drift from
+ * the account the provider actually reports.
  */
-export const TEST_WALLET_ADDRESS_PATTERN = new RegExp(
-  `${TEST_WALLET_ADDRESS.slice(0, 5)}.*${TEST_WALLET_ADDRESS.slice(-3)}`
-);
+export function walletAddressPattern(address: string): RegExp {
+  return new RegExp(`${address.slice(0, 5)}.*${address.slice(-3)}`);
+}
+
+export const TEST_WALLET_ADDRESS_PATTERN = walletAddressPattern(TEST_WALLET_ADDRESS);
 
 /**
  * Where the provider forwards when the caller names no chain.
@@ -162,8 +164,11 @@ export async function installTestWallet(
  * state the spec wanted. So the outcome is what's polled here, and a click
  * that misses its node is progress rather than an error.
  */
-export async function connectTestWallet(page: Page): Promise<void> {
-  const chip = page.getByText(TEST_WALLET_ADDRESS_PATTERN);
+export async function connectTestWallet(
+  page: Page,
+  address: string = TEST_WALLET_ADDRESS
+): Promise<void> {
+  const chip = page.getByText(walletAddressPattern(address));
   const connect = page.getByRole("button", { name: "Connect wallet" });
   const deadline = Date.now() + 30_000;
 

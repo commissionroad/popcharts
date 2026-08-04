@@ -5,11 +5,11 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
+import type { MarketDraftBondShortfallRunsUsed } from "./marketDraftBondShortfallRunsUsed";
 
 export interface MarketDraftBondShortfall {
   availableWad: string;
   message: string;
-  minimumStandingBondWad: string;
   requiredWad: string;
-  standingBondWad: string;
+  runsUsed: MarketDraftBondShortfallRunsUsed;
 }

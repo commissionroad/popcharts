@@ -122,7 +122,7 @@ Public draft submission opens at P3 (the bond); until then P2 review runs intern
 
 1. **P1 — built.** Draft entity + Privy-authenticated CRUD + "my drafts" surface.
 2. **P2 — built.** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
-3. **P3 — built.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. **Opens public submission.**
+3. **P3 — built, then withdrawn; see P3a below.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. Replaced 2026-08-04 by **P3a — prepaid review credit** (built): non-refundable `depositFor`, one per-run rate, no settlement or withdrawal.
 4. **P4 — app half built, contract open.** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
 5. **P5 — open, blocked on P4.** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
 6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
@@ -209,6 +209,15 @@ held-back floor), the withdrawal is removed:
   whole payment path is untested end to end.
 
 Phase plan below is superseded at P3: **P3a — prepaid review credit** replaces it.
+**P3a delivered 2026-08-04** (#431 + the lifecycle-lane PR): vault rewritten to
+`depositFor(beneficiary)` + owner sweep, one-way meter at a configurable per-run
+rate over chain/vault-scoped indexed deposits, change-feed signal on deposit, and
+the lifecycle lane running metered with the funded journey covered end to end. A
+pre-publish review caught a concurrent-overspend race (fixed with a wallet-scoped
+advisory lock), unscoped credit across deployments, and the migrations silently
+reinterpreting refundable-bond history. The retired enum values stay (Postgres
+cannot drop them in place); the app-side "notified" is a poll until the ADR 0021
+SSE subscription lands.
 
 ## P4 build decisions (locked 2026-08-04)
 

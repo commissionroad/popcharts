@@ -74,18 +74,14 @@ export function useRefundClaim() {
   };
 }
 
-export function useReviewBond() {
+export function useReviewCreditDeposit() {
   const address = useContext(PanelPreviewContext).address;
 
   return {
-    availableWad: address ? 0n : null,
     deposit: () => undefined,
-    depositedWad: address ? 0n : null,
     enabled: Boolean(address),
     error: null,
-    refresh: () => undefined,
     status: "idle" as const,
-    withdraw: () => undefined,
   };
 }
 

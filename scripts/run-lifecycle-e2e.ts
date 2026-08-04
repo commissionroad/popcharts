@@ -128,6 +128,10 @@ try {
       generatedEnv,
       "PREGRAD_MANAGER_ADDRESS",
     ),
+    reviewBondVaultAddress: requireEnvValue(
+      generatedEnv,
+      "LOCAL_REVIEW_BOND_VAULT_ADDRESS",
+    ),
   };
   const apiBaseUrl = parseApiBaseUrl(smokeStdout);
   const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
@@ -150,6 +154,13 @@ try {
       POPCHARTS_E2E_LIFECYCLE: "true",
       POPCHARTS_E2E_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
       POPCHARTS_E2E_RPC_URL: rpcHttpUrl,
+      // The metered lane's vault: specs fund review credit against it before
+      // submitting drafts, and the funded-deposit journey asserts the gate.
+      POPCHARTS_E2E_REVIEW_BOND_VAULT_ADDRESS: requireEnvValue(
+        generatedEnv,
+        "LOCAL_REVIEW_BOND_VAULT_ADDRESS",
+      ),
+
     },
   });
 } finally {

@@ -17,13 +17,12 @@ import {
 } from "src/indexer/watchers/dynamic-address-watcher";
 
 /**
- * Watches the ReviewBondVault's four money events — user deposits, resolver
- * settlements of consumed review fees, user withdrawals of unconsumed bond,
- * and owner fee sweeps — so every value transfer through the review-bond
- * escrow (ADR 0022) leaves an immutable review_bond_events row
- * (docs/portfolio-data-design.md money invariant). The vault is standalone:
- * nothing here touches markets, so events apply in any order and the persist
- * is a pure deduped append.
+ * Watches the vault's two money events — credit deposits and owner fee
+ * sweeps — so every value transfer through the prepaid review credit
+ * (ADR 0022's prepaid-credit amendment) leaves an immutable
+ * review_bond_events row (docs/portfolio-data-design.md money invariant).
+ * The vault is standalone: nothing here touches markets, so events apply in
+ * any order and the persist is a pure deduped append.
  */
 
 const CURSOR_NAME = "ReviewBond";
@@ -31,15 +30,11 @@ const LABEL = "ReviewBond";
 
 const EVENTS = [
   getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewBondDeposited" }),
-  getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewFeesSettled" }),
-  getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewBondWithdrawn" }),
   getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewFeesWithdrawn" }),
 ];
 
 const KIND_BY_EVENT: Record<string, ReviewBondEventKind> = {
   ReviewBondDeposited: "deposited",
-  ReviewFeesSettled: "settled",
-  ReviewBondWithdrawn: "bond_withdrawn",
   ReviewFeesWithdrawn: "fees_withdrawn",
 };
 
