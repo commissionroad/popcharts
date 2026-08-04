@@ -400,15 +400,19 @@ export function useCreateDraftFlow({
     setFlowError(null);
 
     try {
-      const params = await client.publishParams(draftId);
+      const creatorAddress = wallet.address as `0x${string}`;
+      const params = await client.publishParams(draftId, creatorAddress);
       const walletContext: CreateMarketWallet = {
-        accountAddress: wallet.address as `0x${string}`,
+        accountAddress: creatorAddress,
         activeChainId: wallet.activeChainId,
         publicClient,
         walletClient,
       };
       const published = await publishDraftMarket({
         params,
+        // An authorization left on a wallet prompt past its 15-minute window
+        // is re-minted transparently — minting is free (ADR 0022 P4).
+        remint: () => client.publishParams(draftId, creatorAddress),
         wallet: walletContext,
       });
 

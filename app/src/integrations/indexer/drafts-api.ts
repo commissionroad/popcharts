@@ -77,7 +77,10 @@ export type DraftsApiClient = {
     draftId: number,
     body: MarketDraftPublishedWrite
   ) => Promise<MarketDraftPublished>;
-  publishParams: (draftId: number) => Promise<MarketDraftPublishParams>;
+  publishParams: (
+    draftId: number,
+    creatorAddress?: string
+  ) => Promise<MarketDraftPublishParams>;
   remove: (draftId: number) => Promise<void>;
   submit: (draftId: number) => Promise<MarketDraft>;
   update: (draftId: number, body: MarketDraftWrite) => Promise<MarketDraft>;
@@ -148,9 +151,12 @@ export function createDraftsApiClient({
         body: JSON.stringify(body),
         method: "POST",
       }),
-    publishParams: (draftId) =>
+    publishParams: (draftId, creatorAddress) =>
       request<MarketDraftPublishParams>(
-        getBuildMarketDraftPublishParamsUrl(String(draftId)),
+        getBuildMarketDraftPublishParamsUrl(
+          String(draftId),
+          creatorAddress ? { creatorAddress } : undefined
+        ),
         { method: "POST" }
       ),
     remove: async (draftId) => {

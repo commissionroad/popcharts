@@ -657,9 +657,10 @@ describe("useCreateDraftFlow publish", () => {
       await result.current.publish();
     });
 
-    expect(api.publishParams).toHaveBeenCalledWith(12);
+    expect(api.publishParams).toHaveBeenCalledWith(12, ADDRESS);
     expect(publishDraftMarket).toHaveBeenCalledWith({
       params: publishParamsFixture(),
+      remint: expect.any(Function),
       wallet: {
         accountAddress: ADDRESS,
         activeChainId: 31337,
