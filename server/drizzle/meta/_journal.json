@@ -246,6 +246,13 @@
       "when": 1785873299508,
       "tag": "0034_bumpy_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785874145258,
+      "tag": "0035_dapper_ultimo",
+      "breakpoints": true
     }
   ]
 }
