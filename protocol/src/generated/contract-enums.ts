@@ -19,8 +19,6 @@ export const MARKET_STATUS_MEMBERS = [
   "Refunded",
   "Resolved",
   "Cancelled",
-  "UnderReview",
-  "Rejected",
 ] as const;
 
 /**
@@ -35,8 +33,6 @@ export const MARKET_STATUS = {
   refunded: 4,
   resolved: 5,
   cancelled: 6,
-  underReview: 7,
-  rejected: 8,
 } as const;
 
 /** A `MarketTypes.MarketStatus` contract encoding. */
