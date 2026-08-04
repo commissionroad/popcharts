@@ -306,10 +306,13 @@ export const venuePriceHistoryReads: VenuePriceHistoryDependencies = {
           inArray(schema.poolPriceTicks.poolId, [...poolIds]),
         ),
       )
-      // Chain order, and total within a chain: two swaps in one block are
-      // separated by log index. Served by pool_price_ticks_chain_pool_time_idx.
+      // Chain order: block number then log index. NOT blockTimestamp — on a
+      // subsecond chain two blocks routinely share a timestamp while logIndex
+      // resets per block, which would interleave their swaps out of order and
+      // corrupt the forward-fill (Codex P3 review finding). The timestamp only
+      // labels the resulting point.
       .orderBy(
-        asc(schema.poolPriceTicks.blockTimestamp),
+        asc(schema.poolPriceTicks.blockNumber),
         asc(schema.poolPriceTicks.logIndex),
       ),
   selectVenuePools: async ({ chainId, marketId }) =>

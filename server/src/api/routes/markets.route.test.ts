@@ -395,6 +395,37 @@ describe("market routes", () => {
     expect(await response.text()).toBe("Market not found");
   });
 
+  it("serves the whole-life price history for a pregrad market", async () => {
+    // The seeded market has no receipts, so the unified history is its
+    // opening point alone — and no graduatedAt. Also the only check that the
+    // new response's schema refs resolve at validation time.
+    const response = await app.handle(
+      new Request(
+        `http://localhost/markets/${chainId}/${MARKET_ID}/price-history`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    const history = (await response.json()) as {
+      graduatedAt?: string;
+      points: Array<{ at: string; noCents: number; yesCents: number }>;
+    };
+    expect(history.graduatedAt).toBeUndefined();
+    expect(history.points).toHaveLength(1);
+    expect(history.points[0]?.at).toBe(CREATED_BLOCK_TIMESTAMP.toISOString());
+    expect(
+      history.points[0]!.yesCents + history.points[0]!.noCents,
+    ).toBeCloseTo(100, 9);
+  });
+
+  it("returns 404 for price history on an unknown market", async () => {
+    const response = await app.handle(
+      new Request(`http://localhost/markets/${chainId}/999999/price-history`),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("reports a graduated market's handoff time with no venue prices yet", async () => {
     // Graduated (a GraduationFinalized row) but with no indexed venue pools,
     // so there is nothing to price — the caller still learns it graduated.
