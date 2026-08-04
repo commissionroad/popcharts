@@ -186,17 +186,38 @@ contract HookSkeletonAndPriceBoundsTest is Test {
     (, , , uint64 sequenceAfterFirst) = hook.lastSwapTickObservation(poolId);
     assertEq(sequenceAfterFirst, 1);
 
-    vm.expectRevert();
-    router.swap(
-      poolKey,
-      SwapParams({
-        zeroForOne: true,
-        amountSpecified: -int256(uint256(1_000 * COLLATERAL_UNIT)),
-        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-      }),
-      address(this),
-      ""
-    );
+    // try/catch instead of expectRevert so the failure can be pinned to the
+    // afterSwap bounds rejection specifically — the exact out-of-bounds tick
+    // is price-path dependent, but the wrapped selectors are not. A revert for
+    // any other reason (say, insufficient balance) must fail this test rather
+    // than masquerade as the rollback being proven.
+    try
+      router.swap(
+        poolKey,
+        SwapParams({
+          zeroForOne: true,
+          amountSpecified: -int256(uint256(1_000 * COLLATERAL_UNIT)),
+          sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+        }),
+        address(this),
+        ""
+      )
+    {
+      fail();
+    } catch (bytes memory reason) {
+      assertEq(bytes4(reason), CustomRevert.WrappedError.selector);
+      bytes memory args = new bytes(reason.length - 4);
+      for (uint256 i = 0; i < args.length; ++i) {
+        args[i] = reason[i + 4];
+      }
+      (address target, bytes4 selector, bytes memory inner, ) = abi.decode(
+        args,
+        (address, bytes4, bytes, bytes)
+      );
+      assertEq(target, address(hook));
+      assertEq(selector, BoundedPredictionHook.afterSwap.selector);
+      assertEq(bytes4(inner), PoolTickBounds.PoolTickOutOfBounds.selector);
+    }
 
     (, , , uint64 sequenceAfterRevert) = hook.lastSwapTickObservation(poolId);
     assertEq(sequenceAfterRevert, 1);
@@ -204,6 +225,78 @@ contract HookSkeletonAndPriceBoundsTest is Test {
     _swapWithinBounds(false);
     (, , , uint64 sequenceAfterNext) = hook.lastSwapTickObservation(poolId);
     assertEq(sequenceAfterNext, 2);
+  }
+
+  function test_SwapSequencesAreIndependentPerPool() public {
+    // Interleaved swaps across two pools served by the same hook: each pool
+    // must count 1, 2 on its own. A single pool cannot distinguish a per-pool
+    // counter from an accidentally global one — interleaving can (a global
+    // counter would show pool B starting at 2).
+    _initializeBoundedPool(-120, 120);
+    _addLiquidity();
+
+    (PoolKey memory secondKey, PoolId secondPoolId) = _initializeSecondBoundedPool();
+
+    _swapWithinBounds(true);
+    _swapOnKey(secondKey, true);
+    _swapWithinBounds(false);
+    _swapOnKey(secondKey, false);
+
+    (, , , uint64 firstPoolSequence) = hook.lastSwapTickObservation(poolId);
+    (, , , uint64 secondPoolSequence) = hook.lastSwapTickObservation(secondPoolId);
+    assertEq(firstPoolSequence, 2);
+    assertEq(secondPoolSequence, 2);
+  }
+
+  function _initializeSecondBoundedPool()
+    private
+    returns (PoolKey memory secondKey, PoolId secondPoolId)
+  {
+    // A second outcome token above token0 keeps the sort order stable without
+    // re-mining the hook: the pair (token0, second) is distinct from
+    // (token0, token1) even if the new token sorts between or above them.
+    V4TestERC20 secondOutcome = new V4TestERC20("Second Outcome", "OUT2", OUTCOME_DECIMALS);
+    secondOutcome.mint(address(this), STARTING_RAW_BALANCE);
+    secondOutcome.approve(address(router), type(uint256).max);
+
+    (Currency currency0, Currency currency1) = address(token0) < address(secondOutcome)
+      ? (Currency.wrap(address(token0)), Currency.wrap(address(secondOutcome)))
+      : (Currency.wrap(address(secondOutcome)), Currency.wrap(address(token0)));
+
+    secondKey = PoolKey({
+      currency0: currency0,
+      currency1: currency1,
+      fee: FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(hook))
+    });
+    secondPoolId = secondKey.toId();
+
+    poolTickBounds.setPoolTickBounds(secondPoolId, -120, 120);
+    poolManager.initialize(secondKey, TickMath.getSqrtPriceAtTick(0));
+    router.modifyLiquidity(
+      secondKey,
+      ModifyLiquidityParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        liquidityDelta: int256(uint256(LIQUIDITY)),
+        salt: bytes32(0)
+      }),
+      ""
+    );
+  }
+
+  function _swapOnKey(PoolKey memory key, bool zeroForOne) private {
+    router.swap(
+      key,
+      SwapParams({
+        zeroForOne: zeroForOne,
+        amountSpecified: -int256(uint256(EXACT_INPUT)),
+        sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+      }),
+      address(this),
+      ""
+    );
   }
 
   function _swapWithinBounds(bool zeroForOne) private {

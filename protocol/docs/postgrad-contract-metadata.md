@@ -348,15 +348,16 @@ Address: postgrad manifest `contracts.boundedHook`, with the mined CREATE2
 salt in the manifest's top-level `hookSalt` (mirrored in the market manifest
 `venue.boundedHook` and every pool's `poolKey.hooks`).
 
-| Event                    | Fires when                                    | Fields                                        |
-| ------------------------ | --------------------------------------------- | --------------------------------------------- |
-| `BeforeSwapTickObserved` | The hook records the pool tick before a swap. | `poolId`, `tick` (pool tick before the swap). |
-| `AfterSwapTickObserved`  | The hook records the pool tick after a swap.  | `poolId`, `tick` (pool tick after the swap).  |
+| Event                    | Fires when                                    | Fields                                                                                                               |
+| ------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `BeforeSwapTickObserved` | The hook records the pool tick before a swap. | `poolId`, `tick` (pool tick before the swap).                                                                        |
+| `AfterSwapTickObserved`  | The hook records the pool tick after a swap.  | `poolId`, `tick` (pool tick after the swap), `sequence` (per-pool swap ordinal, from 1, contiguous — repo ADR 0025). |
 
 Key read helpers:
 
-- `lastSwapTickObservation(PoolId)` — `(observed, beforeTick, afterTick)` for
-  the most recent swap.
+- `lastSwapTickObservation(PoolId)` — `(observed, beforeTick, afterTick, sequence)`
+  for the most recent swap; `sequence` is the per-pool ordinal of the last
+  completed swap (0 before any).
 - `hookPermissionFlags()` / `getHookPermissions()` — the permission mask the
   deployment address must encode (address mining check).
 - `poolManager()`, `poolTickBounds()`, `poolOrderManager()` — wired venue

@@ -119,9 +119,12 @@ contract BoundedHookSwapGasTest is Test {
     uint256 gasUsed = gasBefore - gasleft();
 
     emit log_named_uint("steady-state swap gas through bounded hook", gasUsed);
-    // Generous ceiling: this exists so a mistake that adds a cold SSTORE per
-    // swap (20k+) fails loudly, not to pin the exact number.
-    assertLt(gasUsed, 200_000);
+    // Regression bound: measured 65,127 with the swap sequence (64,574
+    // without — ADR 0025 P1). Tight enough that adding a fresh storage write
+    // per swap (~20k cold, ~5k warm-nonzero) fails loudly, loose enough to
+    // absorb compiler/dependency drift. Re-baseline deliberately if the hook
+    // legitimately grows.
+    assertLt(gasUsed, 80_000);
   }
 
   function _swap(bool zeroForOne) private {
