@@ -17,12 +17,8 @@ export const anthropicProvider: ReviewProvider = {
     supportsNativeWebSearch: true,
   },
   name: "anthropic",
-  async review({ config, model, request }) {
-    return reviewWithAnthropic({
-      config,
-      model,
-      request,
-    });
+  async review({ config, evidence, model, request }) {
+    return reviewWithAnthropic({ config, evidence, model, request });
   },
   validateConfig(config) {
     return validateAnthropicConfig(config);

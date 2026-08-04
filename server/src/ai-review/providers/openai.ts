@@ -23,8 +23,8 @@ export const openaiProvider: ReviewProvider = {
     supportsNativeWebSearch: true,
   },
   name: "openai",
-  async review({ config, model, request }) {
-    return reviewWithOpenAi({ config, model, request });
+  async review({ config, evidence, model, request }) {
+    return reviewWithOpenAi({ config, evidence, model, request });
   },
   validateConfig(config) {
     return validateOpenAiConfig(config);
