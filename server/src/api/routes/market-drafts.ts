@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 
 import { resolveDraftOwner } from "src/api/draft-auth";
 import { config, ZERO_ADDRESS } from "src/config";
-import { reviewCreditSummary } from "src/draft-review/bond-meter";
+import { reviewCreditSummary } from "src/draft-review/review-credit-meter";
 import {
   DraftFeedbackFieldSchema,
   MarketDraftBondShortfallSchema,
@@ -103,7 +103,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         return "address must be a 0x-prefixed 20-byte hex address.";
       }
 
-      if (config.contracts.reviewBondVault === ZERO_ADDRESS) {
+      if (config.contracts.reviewCreditVault === ZERO_ADDRESS) {
         return {
           availableWad: "0",
           metered: false,

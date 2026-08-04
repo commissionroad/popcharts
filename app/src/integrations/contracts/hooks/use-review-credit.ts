@@ -7,7 +7,7 @@ import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { presentError } from "@/lib/error-handling";
 
 import { getPopChartsContractConfig } from "../config";
-import { reviewBondVaultAbi } from "../review-bond-vault";
+import { reviewCreditVaultAbi } from "../review-credit-vault";
 
 /** Lifecycle of a credit deposit write. */
 export type ReviewCreditDepositStatus = "error" | "idle" | "pending" | "success";
@@ -39,7 +39,7 @@ export type ReviewCreditDepositState = {
 export function useReviewCreditDeposit(): ReviewCreditDepositState {
   const wallet = useWalletAccount();
   const config = useMemo(() => getPopChartsContractConfig(), []);
-  const vault = config?.reviewBondVaultAddress ?? null;
+  const vault = config?.reviewCreditVaultAddress ?? null;
   const address = (wallet.address ?? undefined) as `0x${string}` | undefined;
   const publicClient = usePublicClient({ chainId: config?.chainId });
   const { data: walletClient } = useWalletClient({ chainId: config?.chainId });
@@ -62,7 +62,7 @@ export function useReviewCreditDeposit(): ReviewCreditDepositState {
       void (async () => {
         try {
           const hash = await walletClient.writeContract({
-            abi: reviewBondVaultAbi,
+            abi: reviewCreditVaultAbi,
             account: address,
             address: vault,
             args: [beneficiary],

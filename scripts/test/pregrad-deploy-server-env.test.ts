@@ -25,7 +25,7 @@ const DEPLOY: Required<PregradDeploy> = {
   deployBlock: "42",
   postgradAdapterAddress: "0x0000000000000000000000000000000000000ada",
   pregradManagerAddress: "0x0000000000000000000000000000000000000b01",
-  reviewBondVaultAddress: "0x0000000000000000000000000000000000000bd0",
+  reviewCreditVaultAddress: "0x0000000000000000000000000000000000000bd0",
 };
 
 describe("pregradDeployServerEnv", function () {
@@ -49,7 +49,7 @@ describe("pregradDeployServerEnv", function () {
     const env = pregradDeployServerEnv();
 
     assert.equal(env.LOCAL_COLLATERAL_ADDRESS, "");
-    assert.equal(env.LOCAL_REVIEW_BOND_VAULT_ADDRESS, "");
+    assert.equal(env.LOCAL_REVIEW_CREDIT_VAULT_ADDRESS, "");
     assert.equal(env.PREGRAD_MANAGER_DEPLOY_BLOCK, "0");
   });
 });
@@ -71,7 +71,7 @@ describe("pregradDeployServerEnvLines", function () {
   });
 
   it("omits blank keys instead of writing empty assignments", function () {
-    const { reviewBondVaultAddress: _omitted, ...withoutVault } = DEPLOY;
+    const { reviewCreditVaultAddress: _omitted, ...withoutVault } = DEPLOY;
     const lines = pregradDeployServerEnvLines(withoutVault);
 
     assert.ok(
@@ -79,7 +79,7 @@ describe("pregradDeployServerEnvLines", function () {
       "an empty assignment would read as configured to fail-loud consumers",
     );
     assert.ok(
-      lines.every((line) => !line.startsWith("LOCAL_REVIEW_BOND_VAULT")),
+      lines.every((line) => !line.startsWith("LOCAL_REVIEW_CREDIT_VAULT")),
     );
   });
 });
@@ -93,13 +93,13 @@ describe("pregradDeployOverrides", function () {
       deployBlock: DEPLOY.deployBlock,
       postgradAdapterAddress: DEPLOY.postgradAdapterAddress,
       pregradManagerAddress: DEPLOY.pregradManagerAddress,
-      reviewBondVaultAddress: DEPLOY.reviewBondVaultAddress,
+      reviewCreditVaultAddress: DEPLOY.reviewCreditVaultAddress,
     });
   });
 
   it("omits the vault on legacy deploys that predate it", function () {
-    const { reviewBondVaultAddress: _omitted, ...legacy } = DEPLOY;
+    const { reviewCreditVaultAddress: _omitted, ...legacy } = DEPLOY;
 
-    assert.ok(!("reviewBondVaultAddress" in pregradDeployOverrides(legacy)));
+    assert.ok(!("reviewCreditVaultAddress" in pregradDeployOverrides(legacy)));
   });
 });

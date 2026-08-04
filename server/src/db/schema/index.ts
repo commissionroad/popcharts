@@ -19,7 +19,7 @@ export * from "./postgrad-dispute-bond-events";
 export * from "./postgrad-dispute-events";
 export * from "./postgrad-redemption-events";
 export * from "./postgrad-resolution-events";
-export * from "./review-bond-events";
+export * from "./review-credit-events";
 export * from "./venue-order-events";
 export * from "./venue-orders";
 export * from "./venue-pools";

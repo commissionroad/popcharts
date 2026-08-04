@@ -64,7 +64,7 @@ export type ReviewCreditDependencies = {
 
 const defaultDependencies: ReviewCreditDependencies = {
   rateWad: () => readReviewRunRateWad(),
-  vaultAddress: () => config.contracts.reviewBondVault,
+  vaultAddress: () => config.contracts.reviewCreditVault,
 };
 
 /** A drizzle handle: the shared client or an open transaction. */
@@ -121,18 +121,18 @@ export async function reviewCreditSummary(
   const vault = dependencies.vaultAddress().toLowerCase();
   const [deposits] = await dbc
     .select({
-      total: sql<string>`coalesce(sum(${schema.reviewBondEvents.amount}), 0)`,
+      total: sql<string>`coalesce(sum(${schema.reviewCreditEvents.amount}), 0)`,
     })
-    .from(schema.reviewBondEvents)
+    .from(schema.reviewCreditEvents)
     .innerJoin(
       schema.contracts,
-      eq(schema.reviewBondEvents.contractId, schema.contracts.id),
+      eq(schema.reviewCreditEvents.contractId, schema.contracts.id),
     )
     .where(
       and(
-        eq(schema.reviewBondEvents.account, normalized),
-        eq(schema.reviewBondEvents.kind, "deposited"),
-        eq(schema.reviewBondEvents.chainId, config.chainId),
+        eq(schema.reviewCreditEvents.account, normalized),
+        eq(schema.reviewCreditEvents.kind, "deposited"),
+        eq(schema.reviewCreditEvents.chainId, config.chainId),
         sql`lower(${schema.contracts.address}) = ${vault}`,
       ),
     );

@@ -5,22 +5,22 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReviewBondVault} from "../../contracts/ReviewBondVault.sol";
+import {ReviewCreditVault} from "../../contracts/ReviewCreditVault.sol";
 
 /// Recipient with no receive/fallback, so native transfers to it fail and the
 /// vault's sweep-failed revert path can be exercised.
 contract RejectingRecipient {
-  function depositTo(ReviewBondVault vault, address beneficiary) external payable {
+  function depositTo(ReviewCreditVault vault, address beneficiary) external payable {
     vault.depositFor{value: msg.value}(beneficiary);
   }
 }
 
 /// The vault holds plain native value and needs no collateral token, so this
 /// suite intentionally does not inherit from BaseTest.
-contract ReviewBondVaultTest is Test {
+contract ReviewCreditVaultTest is Test {
   uint256 internal constant WAD = 1e18;
 
-  ReviewBondVault private vault;
+  ReviewCreditVault private vault;
   address private alice;
   address private bob;
   address payable private treasury;
@@ -29,7 +29,7 @@ contract ReviewBondVaultTest is Test {
     alice = makeAddr("alice");
     bob = makeAddr("bob");
     treasury = payable(makeAddr("treasury"));
-    vault = new ReviewBondVault(address(this));
+    vault = new ReviewCreditVault(address(this));
 
     vm.deal(alice, 100 * WAD);
     vm.deal(bob, 100 * WAD);
@@ -39,12 +39,12 @@ contract ReviewBondVaultTest is Test {
 
   function test_DepositAccumulatesAndEmits() public {
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondDeposited(alice, alice, 5 * WAD, 5 * WAD);
+    emit ReviewCreditVault.ReviewCreditDeposited(alice, alice, 5 * WAD, 5 * WAD);
     vm.prank(alice);
     vault.depositFor{value: 5 * WAD}(alice);
 
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondDeposited(alice, alice, 2 * WAD, 7 * WAD);
+    emit ReviewCreditVault.ReviewCreditDeposited(alice, alice, 2 * WAD, 7 * WAD);
     vm.prank(alice);
     vault.depositFor{value: 2 * WAD}(alice);
 
@@ -55,7 +55,7 @@ contract ReviewBondVaultTest is Test {
 
   function test_DepositCreditsTheNamedBeneficiaryNotThePayer() public {
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewBondDeposited(bob, alice, 3 * WAD, 3 * WAD);
+    emit ReviewCreditVault.ReviewCreditDeposited(bob, alice, 3 * WAD, 3 * WAD);
     vm.prank(alice);
     vault.depositFor{value: 3 * WAD}(bob);
 
@@ -84,13 +84,13 @@ contract ReviewBondVaultTest is Test {
   }
 
   function test_DepositRevertsWithoutValue() public {
-    vm.expectRevert(ReviewBondVault.InvalidReviewCreditDeposit.selector);
+    vm.expectRevert(ReviewCreditVault.InvalidReviewCreditDeposit.selector);
     vm.prank(alice);
     vault.depositFor{value: 0}(alice);
   }
 
   function test_DepositRevertsForZeroBeneficiary() public {
-    vm.expectRevert(ReviewBondVault.InvalidReviewCreditBeneficiary.selector);
+    vm.expectRevert(ReviewCreditVault.InvalidReviewCreditBeneficiary.selector);
     vm.prank(alice);
     vault.depositFor{value: 1 * WAD}(address(0));
   }
@@ -98,7 +98,7 @@ contract ReviewBondVaultTest is Test {
   /// The zero-beneficiary check runs first, so a call that is wrong on both
   /// counts names the unrecoverable mistake rather than the recoverable one.
   function test_DepositRevertsForZeroBeneficiaryBeforeZeroValue() public {
-    vm.expectRevert(ReviewBondVault.InvalidReviewCreditBeneficiary.selector);
+    vm.expectRevert(ReviewCreditVault.InvalidReviewCreditBeneficiary.selector);
     vm.prank(alice);
     vault.depositFor{value: 0}(address(0));
   }
@@ -136,7 +136,7 @@ contract ReviewBondVaultTest is Test {
     vault.depositFor{value: 3 * WAD}(bob);
 
     vm.expectEmit(true, true, true, true, address(vault));
-    emit ReviewBondVault.ReviewFeesWithdrawn(treasury, 8 * WAD);
+    emit ReviewCreditVault.ReviewFeesWithdrawn(treasury, 8 * WAD);
     vault.withdrawCollectedFees(treasury);
 
     assertEq(treasury.balance, 8 * WAD);
@@ -180,12 +180,12 @@ contract ReviewBondVaultTest is Test {
     vm.prank(alice);
     vault.depositFor{value: 1 * WAD}(alice);
 
-    vm.expectRevert(ReviewBondVault.InvalidReviewFeeRecipient.selector);
+    vm.expectRevert(ReviewCreditVault.InvalidReviewFeeRecipient.selector);
     vault.withdrawCollectedFees(payable(address(0)));
   }
 
   function test_SweepRevertsWhenEmpty() public {
-    vm.expectRevert(ReviewBondVault.NoCollectedReviewFees.selector);
+    vm.expectRevert(ReviewCreditVault.NoCollectedReviewFees.selector);
     vault.withdrawCollectedFees(treasury);
   }
 
@@ -196,7 +196,7 @@ contract ReviewBondVaultTest is Test {
 
     vm.expectRevert(
       abi.encodeWithSelector(
-        ReviewBondVault.ReviewFeeWithdrawalFailed.selector,
+        ReviewCreditVault.ReviewFeeWithdrawalFailed.selector,
         address(rejecting),
         4 * WAD
       )

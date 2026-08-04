@@ -1,13 +1,13 @@
-import { reviewBondVaultAbi } from "@popcharts/protocol";
+import { reviewCreditVaultAbi } from "@popcharts/protocol";
 import { getAbiItem } from "viem";
 
 import { config, ZERO_ADDRESS } from "src/config";
 import {
-  buildReviewBondRecord,
-  persistReviewBondRecord,
-  type ReviewBondEventKind,
-  type ReviewBondLog,
-} from "src/indexer/handlers/review-bond";
+  buildReviewCreditRecord,
+  persistReviewCreditRecord,
+  type ReviewCreditEventKind,
+  type ReviewCreditLog,
+} from "src/indexer/handlers/review-credit";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
@@ -25,16 +25,18 @@ import {
  * any order and the persist is a pure deduped append.
  */
 
+// The cursor row in existing dev databases carries the legacy name; renaming
+// it would orphan the stored position and force a full re-sweep for nothing.
 const CURSOR_NAME = "ReviewBond";
-const LABEL = "ReviewBond";
+const LABEL = "ReviewCredit";
 
 const EVENTS = [
-  getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewBondDeposited" }),
-  getAbiItem({ abi: reviewBondVaultAbi, name: "ReviewFeesWithdrawn" }),
+  getAbiItem({ abi: reviewCreditVaultAbi, name: "ReviewCreditDeposited" }),
+  getAbiItem({ abi: reviewCreditVaultAbi, name: "ReviewFeesWithdrawn" }),
 ];
 
-const KIND_BY_EVENT: Record<string, ReviewBondEventKind> = {
-  ReviewBondDeposited: "deposited",
+const KIND_BY_EVENT: Record<string, ReviewCreditEventKind> = {
+  ReviewCreditDeposited: "deposited",
   ReviewFeesWithdrawn: "fees_withdrawn",
 };
 
@@ -54,37 +56,37 @@ const watcher = createDynamicAddressWatcher({
     }
 
     const contractId = await getOrCreateContractId(
-      config.contracts.reviewBondVault,
-      "ReviewBondVault",
+      config.contracts.reviewCreditVault,
+      "ReviewCreditVault",
     );
     const blockTimestamp = await getBlockTimestamp(client, log.blockNumber!);
-    const record = buildReviewBondRecord({
+    const record = buildReviewCreditRecord({
       blockTimestamp,
       config,
       contractId,
       kind,
-      log: log as ReviewBondLog,
+      log: log as ReviewCreditLog,
     });
 
     console.log(
       `[${log.eventName}] account=${record.event.account} amount=${record.event.amount}`,
     );
 
-    await persistReviewBondRecord(record);
+    await persistReviewCreditRecord(record);
   },
   label: LABEL,
-  subject: "review bond vault",
-  // The vault address is unset until the review-bond escrow deploys on a
+  subject: "review credit vault",
+  // The vault address is unset until the review-credit vault deploys on a
   // chain; an unconfigured vault contributes no addresses, so the watcher
   // idles instead of subscribing to the zero address.
   ...staticContractSet(() =>
-    config.contracts.reviewBondVault === ZERO_ADDRESS
+    config.contracts.reviewCreditVault === ZERO_ADDRESS
       ? null
-      : config.contracts.reviewBondVault,
+      : config.contracts.reviewCreditVault,
   ),
 });
 
-/** Catch-up sweep over review-bond vault logs up to currentBlock. */
-export const recoverReviewBondEvents = watcher.recover;
+/** Catch-up sweep over review-credit vault logs up to currentBlock. */
+export const recoverReviewCreditEvents = watcher.recover;
 /** Discovery loop + live subscription; returns a stop function. */
-export const watchReviewBondEvents = watcher.watch;
+export const watchReviewCreditEvents = watcher.watch;

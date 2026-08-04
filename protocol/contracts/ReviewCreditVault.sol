@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title ReviewBondVault
+/// @title ReviewCreditVault
 /// @author Pop Charts
 /// @notice Collector for prepaid, **non-refundable** market-review credit in the
 ///   chain's native token (native USDC on Arc). A depositor names the account the
@@ -20,10 +20,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///   reviews already consumed (the on-chain withdrawal check read a settled total
 ///   that lagged the off-chain meter), and the same withdrawal could make
 ///   settlement revert permanently for that account. Both defects lived in the
-///   withdrawal path, so the withdrawal is gone rather than policed. The `Bond`
-///   in the contract name is legacy and is renamed with the rest of the
-///   `review_bond_*` surface in its own pass.
-contract ReviewBondVault is Ownable, ReentrancyGuard {
+///   withdrawal path, so the withdrawal is gone rather than policed.
+contract ReviewCreditVault is Ownable, ReentrancyGuard {
   /// @notice Reverts when a deposit carries no native value.
   error InvalidReviewCreditDeposit();
   /// @notice Reverts when a deposit names the zero account as beneficiary.
@@ -42,7 +40,7 @@ contract ReviewBondVault is Ownable, ReentrancyGuard {
   /// @param payer Account that actually sent the value.
   /// @param amount Native amount deposited.
   /// @param totalDeposited Lifetime deposits recorded for the user after this deposit.
-  event ReviewBondDeposited(
+  event ReviewCreditDeposited(
     address indexed user,
     address indexed payer,
     uint256 amount,
@@ -79,7 +77,7 @@ contract ReviewBondVault is Ownable, ReentrancyGuard {
     uint256 totalDeposited = _deposited[beneficiary] + msg.value;
     _deposited[beneficiary] = totalDeposited;
 
-    emit ReviewBondDeposited(beneficiary, msg.sender, msg.value, totalDeposited);
+    emit ReviewCreditDeposited(beneficiary, msg.sender, msg.value, totalDeposited);
   }
 
   /// @notice Sweeps the whole collected balance to the recipient.

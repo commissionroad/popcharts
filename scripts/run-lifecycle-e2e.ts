@@ -103,11 +103,13 @@ try {
   });
 
   await Promise.race([
-    waitFor("lifecycle stack readiness", () =>
-      smokeStdout.includes(SMOKE_READINESS_LINE),
-    {
-      timeoutMs: SMOKE_STARTUP_TIMEOUT_MS,
-    }),
+    waitFor(
+      "lifecycle stack readiness",
+      () => smokeStdout.includes(SMOKE_READINESS_LINE),
+      {
+        timeoutMs: SMOKE_STARTUP_TIMEOUT_MS,
+      },
+    ),
     smokeExitedEarly,
   ]);
 
@@ -118,7 +120,10 @@ try {
   const rpcHttpUrl = requireEnvValue(generatedEnv, "RPC_HTTP_URL");
   const deploy: PregradDeploy = {
     chainId: await readChainId(rpcHttpUrl),
-    collateralAddress: requireEnvValue(generatedEnv, "LOCAL_COLLATERAL_ADDRESS"),
+    collateralAddress: requireEnvValue(
+      generatedEnv,
+      "LOCAL_COLLATERAL_ADDRESS",
+    ),
     deployBlock: requireEnvValue(generatedEnv, "PREGRAD_MANAGER_DEPLOY_BLOCK"),
     postgradAdapterAddress: requireEnvValue(
       generatedEnv,
@@ -128,9 +133,9 @@ try {
       generatedEnv,
       "PREGRAD_MANAGER_ADDRESS",
     ),
-    reviewBondVaultAddress: requireEnvValue(
+    reviewCreditVaultAddress: requireEnvValue(
       generatedEnv,
-      "LOCAL_REVIEW_BOND_VAULT_ADDRESS",
+      "LOCAL_REVIEW_CREDIT_VAULT_ADDRESS",
     ),
   };
   const apiBaseUrl = parseApiBaseUrl(smokeStdout);
@@ -156,11 +161,10 @@ try {
       POPCHARTS_E2E_RPC_URL: rpcHttpUrl,
       // The metered lane's vault: specs fund review credit against it before
       // submitting drafts, and the funded-deposit journey asserts the gate.
-      POPCHARTS_E2E_REVIEW_BOND_VAULT_ADDRESS: requireEnvValue(
+      POPCHARTS_E2E_REVIEW_CREDIT_VAULT_ADDRESS: requireEnvValue(
         generatedEnv,
-        "LOCAL_REVIEW_BOND_VAULT_ADDRESS",
+        "LOCAL_REVIEW_CREDIT_VAULT_ADDRESS",
       ),
-
     },
   });
 } finally {

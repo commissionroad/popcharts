@@ -26,7 +26,10 @@ describe("local AI review provider", () => {
     // one in server/src/ai-review/config.ts cannot share a constant. Pinning
     // it here at least makes a one-sided edit fail a test rather than silently
     // pointing the local stack at a different provider than a deployment.
-    assert.equal(buildAiReviewEnv({}, resources).AI_REVIEW_PROVIDER, "codex-cli");
+    assert.equal(
+      buildAiReviewEnv({}, resources).AI_REVIEW_PROVIDER,
+      "codex-cli",
+    );
   });
 
   it("lets LOCAL_AI_REVIEW_PROVIDER select an alternative", () => {

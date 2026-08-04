@@ -19,7 +19,7 @@ import {
   readReviewRunRateWad,
   reviewCreditSummary,
   type ReviewCreditDependencies,
-} from "./bond-meter";
+} from "./review-credit-meter";
 
 let dbc: typeof productionDb;
 let reset: () => Promise<void>;
@@ -94,7 +94,7 @@ async function seedDeposit({
 }) {
   const [contract] = await dbc
     .insert(schema.contracts)
-    .values({ address: vault, chainId, name: "ReviewBondVault" })
+    .values({ address: vault, chainId, name: "ReviewCreditVault" })
     .onConflictDoNothing()
     .returning();
   const contractId =
@@ -106,7 +106,7 @@ async function seedDeposit({
         .where(eq(schema.contracts.address, vault))
     )[0]!.id;
 
-  await dbc.insert(schema.reviewBondEvents).values({
+  await dbc.insert(schema.reviewCreditEvents).values({
     account: WALLET,
     amount,
     blockNumber: 1n,

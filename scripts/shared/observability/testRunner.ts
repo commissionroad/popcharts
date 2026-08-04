@@ -130,7 +130,8 @@ export function createTestRunner(cwd: string): TestRunner {
 
   return {
     start(id) {
-      if (state.running) return { ok: false, reason: "a run is already active" };
+      if (state.running)
+        return { ok: false, reason: "a run is already active" };
       const runnable = RUNNABLE.find((entry) => entry.id === id);
       if (!runnable) return { ok: false, reason: `unknown command: ${id}` };
 

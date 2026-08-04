@@ -246,7 +246,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
-  reviewBondVaultAddress: null,
+  reviewCreditVaultAddress: null,
   rpcUrl: "http://127.0.0.1:8545",
 };
 

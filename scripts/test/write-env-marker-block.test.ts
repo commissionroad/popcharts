@@ -7,7 +7,10 @@ import { describe, it } from "node:test";
 import { writeEnvMarkerBlock } from "../shared/env/writeEnvMarkerBlock.ts";
 
 function tempEnvFile(): string {
-  return join(mkdtempSync(join(tmpdir(), "popcharts-env-block-")), ".env.development.local");
+  return join(
+    mkdtempSync(join(tmpdir(), "popcharts-env-block-")),
+    ".env.development.local",
+  );
 }
 
 // The per-tool blocks written before the marker was unified. Their keys
@@ -56,17 +59,22 @@ describe("writeEnvMarkerBlock", function () {
 
   it("migrates legacy per-tool blocks so their duplicate keys cannot shadow ours", function () {
     const filePath = tempEnvFile();
-    writeFileSync(filePath, `${LEGACY_LOCAL_DEV_BLOCK}\n${LEGACY_DEVCHAIN_BLOCK}`);
-
-    writeEnvMarkerBlock(
-      { env: { NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: "0xfresh" }, filePath },
+    writeFileSync(
+      filePath,
+      `${LEGACY_LOCAL_DEV_BLOCK}\n${LEGACY_DEVCHAIN_BLOCK}`,
     );
+
+    writeEnvMarkerBlock({
+      env: { NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: "0xfresh" },
+      filePath,
+    });
 
     const content = readFileSync(filePath, "utf8");
     assert.doesNotMatch(content, /POPCHARTS LOCAL DEV|POPCHARTS DEVCHAIN/);
-    assert.deepEqual(content.match(/^NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=.*$/gm), [
-      "NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xfresh",
-    ]);
+    assert.deepEqual(
+      content.match(/^NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=.*$/gm),
+      ["NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS=0xfresh"],
+    );
   });
 
   it("keeps hand-written content while migrating a legacy block", function () {

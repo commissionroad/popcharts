@@ -70,20 +70,27 @@ export function readPostgradDeployment(
   const venue = readJsonFile<ContractsManifest>(
     resolve(
       deploymentsDir,
-      manifestFileName(VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV)),
+      manifestFileName(
+        VENUE_STACK_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV),
+      ),
     ),
   ).contracts;
   const postgradContracts = readJsonFile<ContractsManifest>(
     resolve(
       deploymentsDir,
-      manifestFileName(POSTGRAD_VENUE_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV)),
+      manifestFileName(
+        POSTGRAD_VENUE_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV),
+      ),
     ),
   ).contracts;
   const market = readJsonFile<MarketManifest>(
     resolve(
       deploymentsDir,
       manifestFileName(
-        COMPLETE_SET_MARKET_DEPLOYMENT.defaultDeploymentFile(LOCAL_CHAIN_ENV, marketSymbol),
+        COMPLETE_SET_MARKET_DEPLOYMENT.defaultDeploymentFile(
+          LOCAL_CHAIN_ENV,
+          marketSymbol,
+        ),
       ),
     ),
   );

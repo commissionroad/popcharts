@@ -7,10 +7,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import type { StackDescriptor } from "../shared/localStack/registry.ts";
-import {
-  parseLauncherArgs,
-  targetStackEnv,
-} from "../with-target-stack.ts";
+import { parseLauncherArgs, targetStackEnv } from "../with-target-stack.ts";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const slotProbePath = join(testDir, "support", "slotProbe.ts");
@@ -123,7 +120,10 @@ test("parseLauncherArgs accepts --stack=<token>", () => {
 
 test("parseLauncherArgs throws when no command follows --", () => {
   assert.throws(() => parseLauncherArgs(["--stack", "1"]), /no command to run/);
-  assert.throws(() => parseLauncherArgs(["--stack", "1", "--"]), /no command to run/);
+  assert.throws(
+    () => parseLauncherArgs(["--stack", "1", "--"]),
+    /no command to run/,
+  );
 });
 
 test("targetStackEnv exports the slot's chain/api aliases", () => {
@@ -134,7 +134,10 @@ test("targetStackEnv exports the slot's chain/api aliases", () => {
   assert.equal(env.RPC_HTTP_URL, "http://127.0.0.1:8555");
   assert.equal(env.RPC_WSS_URL, "ws://127.0.0.1:8555");
   assert.equal(env.LOCAL_API_PORT, "3011");
-  assert.equal(env.POPCHARTS_LOCAL_CHAIN_ENV_FILE, "/nonexistent/.env.local-chain.1");
+  assert.equal(
+    env.POPCHARTS_LOCAL_CHAIN_ENV_FILE,
+    "/nonexistent/.env.local-chain.1",
+  );
 });
 
 test("targetStackEnv merges the slot's generated env file when present", () => {
@@ -173,7 +176,9 @@ test("the command the launcher spawns derives the targeted slot, not slot 0", as
   // announces slot 1 (ADR 0020). The inherited slot is pinned to a different
   // value so a passing assertion cannot come from the ambient environment of
   // whichever stack runs this suite.
-  const registryDir = mkdtempSync(join(tmpdir(), "with-target-stack-registry-"));
+  const registryDir = mkdtempSync(
+    join(tmpdir(), "with-target-stack-registry-"),
+  );
   try {
     // A live control pid inside the startup grace period keeps the descriptor
     // alive without a chain answering on its port (registry.ts).
@@ -183,7 +188,14 @@ test("the command the launcher spawns derives the targeted slot, not slot 0", as
     });
     const { stdout, code } = await runNode(
       launcherPath,
-      ["--stack", "1", "--", process.execPath, "--experimental-strip-types", slotProbePath],
+      [
+        "--stack",
+        "1",
+        "--",
+        process.execPath,
+        "--experimental-strip-types",
+        slotProbePath,
+      ],
       {
         ...process.env,
         POPCHARTS_STACK_SLOT: "0",

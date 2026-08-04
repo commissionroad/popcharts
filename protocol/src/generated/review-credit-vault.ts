@@ -9,12 +9,12 @@ import type { Abi } from "viem";
 
 import type { ProtocolContractDeployment, ProtocolNetworkId } from "./pregrad-manager.js";
 
-export type ReviewBondVaultDeploymentMap = Record<
+export type ReviewCreditVaultDeploymentMap = Record<
   ProtocolNetworkId,
   ProtocolContractDeployment | undefined
 >;
 
-export const reviewBondVaultAbi = [
+export const reviewCreditVaultAbi = [
   {
     inputs: [
       {
@@ -136,7 +136,7 @@ export const reviewBondVaultAbi = [
         type: "uint256",
       },
     ],
-    name: "ReviewBondDeposited",
+    name: "ReviewCreditDeposited",
     type: "event",
   },
   {
@@ -251,13 +251,13 @@ export const reviewBondVaultAbi = [
   },
 ] as const satisfies Abi;
 
-export const reviewBondVaultDeployments = {
+export const reviewCreditVaultDeployments = {
   local: undefined,
   arcTestnet: undefined,
-} as const satisfies ReviewBondVaultDeploymentMap;
+} as const satisfies ReviewCreditVaultDeploymentMap;
 
-export const reviewBondVaultContract = {
-  name: "ReviewBondVault",
-  abi: reviewBondVaultAbi,
-  deployments: reviewBondVaultDeployments,
+export const reviewCreditVaultContract = {
+  name: "ReviewCreditVault",
+  abi: reviewCreditVaultAbi,
+  deployments: reviewCreditVaultDeployments,
 } as const;
