@@ -36,7 +36,7 @@ make a sum other than 100 normal post-graduation, not a defect.
 | Indexer | replays LMSR, attaches a priced `PriceTickWire` | derives both pools' cents (sibling forward-filled) and attaches the same shape (P2) |
 | Live frame | `PriceTickWire` with `stream: "receipts"` | `PriceTickWire` with `stream: <poolId>` |
 | Page load | one `/price-history` read: server-side LMSR replay + venue fold, one 256 cap, phase-blind `{at, yesCents, noCents}` points (P3/P4) | same read, same shape |
-| Client | appends one point per consecutive tick | still refetches per tick until P5 keys the gap check per stream |
+| Client | appends one point per consecutive tick | appends too — the gap check is keyed per stream, seeded from the read's per-pool `streams` ordinals (P5) |
 
 The event asymmetry is forced — the two contracts were written for different
 jobs, and `PregradManager` gets its sequence free because `receiptCount` is
@@ -68,6 +68,17 @@ That matters concretely: the change-feed relay documents that a lower
 `change_feed.id` can commit after a higher one has been read. When that race
 reorders delivery, the sequence check sees a gap and forces a refetch, and the
 chart stays correct.
+
+Per-stream sequences alone cannot see **cross-stream** reordering — two pool
+streams can each be internally contiguous while their interleaving runs
+backwards in chain time. The client therefore also keeps the chain coordinates
+(`blockNumber`, `logIndex`) of the newest appended frame and refetches when a
+frame lands strictly behind it. A stream with no seed (the venue's first swap)
+appends on trust and is checked strictly from then on; a later refetch whose
+base proves that trust misplaced drops the non-contiguous suffix rather than
+plot around a hole. All of this ran end to end on a live stack on 2026-08-04
+(ADR 0025 P6): both lifecycle halves appended without refetching, and
+hidden-tab gaps healed through the refetch path.
 
 The lesson generalises: an ordinal minted by the indexer would be stamped in
 write order rather than chain order, so it could be perfectly contiguous while

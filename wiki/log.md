@@ -1559,3 +1559,11 @@ Notes: the page described the pre-ADR-0025 split (app /receipts replay, 240-cap
 venue endpoint, payload-less postgrad frames) as current after P1–P4 landed;
 caught by the Codex P4 review. Now records the unified route and marks the
 client's per-stream gap check as the remaining P5 gap.
+
+## [2026-08-04] ingest | price-stream — P5/P6 landed, ADR 0025 complete
+Pages: ~concepts/price-stream.md
+Notes: the client gap check is now per stream (seeded from the unified read's
+per-pool `streams` ordinals), hardened by a chain-coordinate ordering guard and
+an append-on-trust rule for unseeded streams; the P6 live-stack proof ran
+2026-08-04 and ADR 0025's checklist is fully ticked. The page's "still
+refetches until P5" row corrected.
