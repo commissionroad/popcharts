@@ -9,11 +9,7 @@ import { parseUnits, type Address } from "viem";
 import { schema } from "src/db/client";
 
 import { assertEqual } from "../asserts";
-import {
-  chainNowSeconds,
-  jumpChainTimeTo,
-  resolutionRunnerTimeoutMs,
-} from "../chain-time";
+import { chainNowSeconds, resolutionRunnerTimeoutMs } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import { waitForApiStatus, waitForIndexedRows } from "../market-checks";
 import {
@@ -132,8 +128,7 @@ export const disputeSettlement: Scenario = {
     });
 
     await step("resolution runner proposes YES", async () => {
-      await jumpChainTimeTo(market.resolutionTime + 1n);
-
+      // No chain jump — see the note in happy-path.
       await waitForApiStatus(market.marketId, "resolution_pending", {
         // Derived, not hardcoded: the runner's eligibility clock is wall time
         // against the chain-anchored gate.
