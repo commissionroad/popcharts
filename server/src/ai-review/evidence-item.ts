@@ -38,7 +38,12 @@ export function evidenceItemFromUrl({
     kind,
     sourceTier: sourceTierForDomain(domain),
     summary,
-    title,
+    // Narrowed rather than passed through: these fields come from provider
+    // tool results, where a missing title arrives as `null` rather than
+    // absent. `null` serializes into the response and fails the evidence
+    // schema's optional-string check, which rejects the whole review with a
+    // 422 — observed on Anthropic citation blocks.
+    title: typeof title === "string" ? title : undefined,
     url: parsed.toString(),
   } satisfies EvidenceItem;
 }
