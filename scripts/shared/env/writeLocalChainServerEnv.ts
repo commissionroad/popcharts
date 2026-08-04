@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
 import { type PostgradDeployment } from "../deployments/readPostgradDeployment.ts";
 import { postgradServerEnvLines } from "./postgradEnv.ts";
+import { pregradDeployServerEnvLines } from "./pregradDeployServerEnv.ts";
 
 /**
  * Writes the generated local-chain server env file that downstream tools ride
@@ -38,15 +39,7 @@ export function writeLocalChainServerEnv({
     `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
-    ...(deploy.reviewBondVaultAddress
-      ? [`LOCAL_REVIEW_BOND_VAULT_ADDRESS=${deploy.reviewBondVaultAddress}`]
-      : []),
+    ...pregradDeployServerEnvLines(deploy),
     ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
