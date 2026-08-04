@@ -324,14 +324,14 @@ async function startAiServices(
     { env: buildAiResolutionRunnerEnv(serverEnv, resources) },
   );
 
-  return [reviewRunner, resolutionRunner];
+  return [resolutionRunner];
 }
 
 function printUsage(): void {
   console.log(`Usage: pnpm run local:lifecycle-nightly -- [options]
 
 Boot the full local stack (chain, contracts, Postgres, API, indexer, keeper,
-heuristic AI review + resolution services and runners) and run the lifecycle
+heuristic AI review + resolution services and the resolution runner) and run the lifecycle
 nightly scenarios against it (ADR 0017 Track C / ADR 0014 checklist).
 
 Options:
