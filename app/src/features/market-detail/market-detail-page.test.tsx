@@ -184,6 +184,60 @@ describe("MarketDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("spans both mechanisms once the venue has traded", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+        })}
+        pricePath={[
+          { at: "2026-06-30T00:00:00.000Z", cents: 40 },
+          { at: "2026-06-30T23:00:00.000Z", cents: 44 },
+        ]}
+        venuePricePath={[
+          { at: "2026-07-01T02:00:00.000Z", noCents: 54.2, yesCents: 46.1 },
+        ]}
+      />
+    );
+
+    // The curve now covers the LMSR and the venue, so naming either would be
+    // wrong. The graduation rule marks where one handed off to the other.
+    expect(screen.getByText("Price history")).toBeInTheDocument();
+    expect(screen.queryByText("Pre-graduation price history")).not.toBeInTheDocument();
+    expect(screen.getByTestId("graduation-marker")).toBeInTheDocument();
+    expect(screen.getByTestId("legend-yes-value")).toHaveTextContent("46%");
+    expect(screen.getByTestId("legend-no-value")).toHaveTextContent("54%");
+  });
+
+  it("still calls the chart pre-graduation history when the venue has not traded", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+        })}
+        venuePricePath={[]}
+      />
+    );
+
+    expect(screen.getByText("Pre-graduation price history")).toBeInTheDocument();
+  });
+
   it.each(["resolution_pending", "disputed"] as const)(
     "keeps the postgrad surfaces while a %s market waits out its dispute window",
     (status) => {
