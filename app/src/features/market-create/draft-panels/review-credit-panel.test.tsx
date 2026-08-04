@@ -12,6 +12,20 @@ vi.mock("@/integrations/contracts/hooks/use-review-credit", () => ({
   useReviewCreditDeposit: depositMock,
 }));
 
+// Captures the panel's live-channel subscription so tests can fire the
+// change-feed nudge; the real hook no-ops without a LiveProvider anyway.
+const liveChannel = vi.hoisted(() => ({
+  channel: null as string | null,
+  handler: null as ((signal: unknown) => void) | null,
+}));
+
+vi.mock("@/integrations/live-updates/use-live-channel", () => ({
+  useLiveChannel: (channel: string | null, onSignal: (signal: unknown) => void) => {
+    liveChannel.channel = channel;
+    liveChannel.handler = channel ? onSignal : null;
+  },
+}));
+
 const WAD = 10n ** 18n;
 const RATE = WAD / 10n;
 const BENEFICIARY = "0x2222222222222222222222222222222222222222" as const;
@@ -53,6 +67,8 @@ function fundedCredit(availableWad: bigint) {
 beforeEach(() => {
   depositMock.mockReset();
   depositMock.mockReturnValue(creditState());
+  liveChannel.channel = null;
+  liveChannel.handler = null;
 });
 
 afterEach(() => {
@@ -189,10 +205,21 @@ describe("ReviewCreditPanel", () => {
     expect(onFunded).toHaveBeenCalledTimes(1);
   });
 
-  it("polls the indexed view after confirmation and funds once it covers the run", async () => {
+  it("checks immediately on confirmation and funds when the view already covers the run", async () => {
     depositMock.mockReturnValue(creditState({ status: "success" }));
     const onFunded = vi.fn();
-    // First read still stale, second read shows the indexed deposit.
+    const fetchCredit = vi.fn().mockResolvedValue(fundedCredit(WAD));
+
+    renderPanel({ fetchCredit, onFunded });
+
+    await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1));
+    expect(fetchCredit).toHaveBeenCalledTimes(1);
+  });
+
+  it("subscribes to the beneficiary's portfolio channel while indexing and funds on the nudge", async () => {
+    depositMock.mockReturnValue(creditState({ status: "success" }));
+    const onFunded = vi.fn();
+    // Stale until the change-feed signal announces the indexed deposit.
     const fetchCredit = vi
       .fn()
       .mockResolvedValueOnce(fundedCredit(0n))
@@ -205,13 +232,66 @@ describe("ReviewCreditPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deposit 1.00" })).toBeDisabled();
 
-    await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1), {
-      timeout: 3_000,
-    });
+    await waitFor(() => expect(liveChannel.channel).toBe(`portfolio:${BENEFICIARY}`));
+    await waitFor(() => expect(fetchCredit).toHaveBeenCalledTimes(1));
+    liveChannel.handler?.({ kind: "change" });
+
+    await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1));
     expect(fetchCredit).toHaveBeenCalledTimes(2);
   });
 
-  it("treats a failed credit read as not-yet-indexed and keeps polling", async () => {
+  it("ignores a nudge that lands while a check is already in flight", async () => {
+    depositMock.mockReturnValue(creditState({ status: "success" }));
+    const onFunded = vi.fn();
+    let resolveRead: (value: ReturnType<typeof fundedCredit>) => void = () => {};
+    const fetchCredit = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+
+    renderPanel({ fetchCredit, onFunded });
+
+    await waitFor(() => expect(fetchCredit).toHaveBeenCalledTimes(1));
+
+    // The change feed can deliver several rows for one deposit; a nudge
+    // during the in-flight read must not stack a second request.
+    liveChannel.handler?.({ kind: "change" });
+    liveChannel.handler?.({ kind: "change" });
+    expect(fetchCredit).toHaveBeenCalledTimes(1);
+
+    resolveRead(fundedCredit(WAD));
+    await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1));
+  });
+
+  it("subscribes to nothing outside the indexing phase", () => {
+    renderPanel();
+
+    expect(liveChannel.channel).toBeNull();
+  });
+
+  it("falls back to the slow poll when no signal arrives", async () => {
+    vi.useFakeTimers();
+    depositMock.mockReturnValue(creditState({ status: "success" }));
+    const onFunded = vi.fn();
+    const fetchCredit = vi
+      .fn()
+      .mockResolvedValueOnce(fundedCredit(0n))
+      .mockResolvedValue(fundedCredit(WAD));
+
+    renderPanel({ fetchCredit, onFunded });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_100);
+    });
+
+    expect(onFunded).toHaveBeenCalledTimes(1);
+    expect(fetchCredit).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a failed credit read as not-yet-indexed and keeps watching", async () => {
+    vi.useFakeTimers();
     depositMock.mockReturnValue(creditState({ status: "success" }));
     const onFunded = vi.fn();
     const fetchCredit = vi
@@ -221,9 +301,11 @@ describe("ReviewCreditPanel", () => {
 
     renderPanel({ fetchCredit, onFunded });
 
-    await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1), {
-      timeout: 3_000,
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_100);
     });
+
+    expect(onFunded).toHaveBeenCalledTimes(1);
   });
 
   it("stalls with guidance when the deposit never appears in the index", async () => {
@@ -235,8 +317,10 @@ describe("ReviewCreditPanel", () => {
     renderPanel({ fetchCredit, onFunded });
 
     // Timer callbacks land React state updates, so the advance wraps in act.
+    // Fallback checks run every 5s; the timeout is noticed on the first
+    // check after the 30s mark, so advance past 35s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(31_000);
+      await vi.advanceTimersByTimeAsync(41_000);
     });
 
     expect(onFunded).not.toHaveBeenCalled();
