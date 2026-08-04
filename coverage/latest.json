@@ -24,14 +24,14 @@
       }
     },
     "protocol-solidity": {
-      "commit": "3c886afc2adf000d2ebb75e73a3fc9f6c8bb3bf1",
-      "updatedAt": "2026-08-04T19:36:57.803Z",
+      "commit": "d8d1d55cbe1bd24a7e3ddb0cef99a07970f01254",
+      "updatedAt": "2026-08-04T20:50:43.338Z",
       "summary": {
         "files": 20,
         "lines": {
-          "hit": 1577,
-          "found": 1625,
-          "pct": 97.05
+          "hit": 1629,
+          "found": 1677,
+          "pct": 97.14
         },
         "functions": {
           "hit": 0,
@@ -68,24 +68,24 @@
       }
     },
     "protocol-ts": {
-      "commit": "3c886afc2adf000d2ebb75e73a3fc9f6c8bb3bf1",
-      "updatedAt": "2026-08-04T19:36:57.901Z",
+      "commit": "d8d1d55cbe1bd24a7e3ddb0cef99a07970f01254",
+      "updatedAt": "2026-08-04T20:50:43.415Z",
       "summary": {
-        "files": 44,
+        "files": 45,
         "lines": {
-          "hit": 1365,
-          "found": 2792,
-          "pct": 48.89
+          "hit": 1465,
+          "found": 2898,
+          "pct": 50.55
         },
         "functions": {
-          "hit": 66,
-          "found": 105,
-          "pct": 62.86
+          "hit": 69,
+          "found": 108,
+          "pct": 63.89
         },
         "branches": {
-          "hit": 185,
-          "found": 209,
-          "pct": 88.52
+          "hit": 188,
+          "found": 212,
+          "pct": 88.68
         }
       }
     }
