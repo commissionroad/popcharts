@@ -207,6 +207,20 @@ describe("publishDraftMarket", () => {
     });
   });
 
+  it("treats a non-Error rejection as non-expiry and surfaces it", async () => {
+    configState.config = contractConfig;
+    const { clients, wallet } = mockWallet();
+    // Wallets can reject with plain objects; the expiry matcher must not
+    // assume an Error chain.
+    clients.writeContract.mockRejectedValueOnce("user rejected");
+    const remint = vi.fn();
+
+    await expect(
+      publishDraftMarket({ params: publishParams(), remint, wallet })
+    ).rejects.toBe("user rejected");
+    expect(remint).not.toHaveBeenCalled();
+  });
+
   it("surfaces a non-expiry revert without re-minting", async () => {
     configState.config = contractConfig;
     const { clients, wallet } = mockWallet();

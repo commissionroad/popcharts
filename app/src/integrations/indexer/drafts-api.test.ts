@@ -147,6 +147,19 @@ describe("createDraftsApiClient requests", () => {
     expect(init?.method).toBe("POST");
   });
 
+  it("binds the publishing wallet into the publish-params query", async () => {
+    const fetcher = stubFetch(
+      jsonResponse({ metadataHash: `0x${"ab".repeat(32)}` }, 200)
+    );
+
+    await client().publishParams(8, "0x1111111111111111111111111111111111111111");
+
+    const [url] = lastCall(fetcher);
+    expect(url).toBe(
+      "/api/drafts/8/publish-params?creatorAddress=0x1111111111111111111111111111111111111111"
+    );
+  });
+
   it("records a confirmed publish transaction", async () => {
     const fetcher = stubFetch(
       jsonResponse(
