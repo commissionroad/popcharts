@@ -165,6 +165,10 @@ async function main(): Promise<void> {
       deployBlock: deploy.deployBlock,
       postgradAdapterAddress: deploy.postgradAdapterAddress,
       pregradManagerAddress: deploy.pregradManagerAddress,
+      // The nightly scenarios create markets on-chain (pre-P4 path), so the
+      // meter never gates them — but the env should mirror the real stack
+      // rather than silently running vault-less.
+      reviewBondVaultAddress: deploy.reviewBondVaultAddress,
     }),
     ...postgradServerEnv(postgrad),
   };

@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 import { dateTimeLocalAtMs } from "./datetime";
 import {
   chainNowMs,
+  depositReviewCredit,
   forceReview,
   graduateMarket,
   type LifecycleEnv,
@@ -10,7 +11,11 @@ import {
   mintCollateral,
   waitForMarketStatus,
 } from "./lifecycle";
-import { connectTestWallet, installTestWallet } from "./test-wallet";
+import {
+  connectTestWallet,
+  installTestWallet,
+  TEST_WALLET_ADDRESS,
+} from "./test-wallet";
 
 /**
  * Browser actions shared by the `@lifecycle` UI journeys (ADR 0017 C4): the
@@ -48,6 +53,11 @@ export async function createMarketViaUi(
   question: string,
   resolutionCriteria = DEFAULT_RESOLUTION_CRITERIA
 ): Promise<bigint> {
+  // Fund review credit before touching the page: the submission gate reads
+  // the *indexed* deposit, and depositing first gives the indexer the whole
+  // form-filling window to catch up. If it still loses the race, the create
+  // flow's credit panel auto-resubmits once the deposit lands.
+  await depositReviewCredit(env, TEST_WALLET_ADDRESS, 10n ** 18n);
   await installTestWallet(page, { rpcUrl: env.rpcUrl });
 
   await page.goto("/create");

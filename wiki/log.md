@@ -1364,3 +1364,11 @@ nightly lifecycle stack never deploys the vault, so the payment path has no
 end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had just landed the
 Accepted status and phase ticks; its "two documented bond caveats" note is now
 half-resolved — the withdraw caveat is what withdrew the design.
+
+## [2026-08-04] ingest | root ADR 0022 — P3a delivered (prepaid review credit built)
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
+Notes: same-day follow-up to the amendment ingest — the replacement design is now
+code (#431 + the lifecycle-lane PR) and P3a is ticked in the ADR. Recorded the
+three pre-publish review findings (concurrent overspend, unscoped credit,
+legacy-ledger reinterpretation) and the two deviations from P3a as written
+(enum values retained, poll instead of SSE).
