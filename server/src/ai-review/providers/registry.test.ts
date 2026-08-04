@@ -1,32 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import type { AiReviewConfig } from "../config";
+import { buildReviewConfig } from "../test-support/review-config";
 import { getReviewProviderStatus } from "./registry";
 
-const baseConfig: AiReviewConfig = {
-  anthropicBaseUrl: "https://api.anthropic.test",
-  anthropicMaxOutputTokens: 512,
-  anthropicMaxWebFetches: 1,
-  anthropicMaxWebSearches: 1,
-  anthropicModel: "claude-sonnet-4-6",
-  anthropicWebFetchMaxContentTokens: 1_000,
-  claudeCliCommand: "claude",
-  claudeCliModel: "sonnet",
-  codexCliCommand: "codex",
-  codexCliModel: "gpt-5.6-luna",
-  fallbackApprove: false,
-  fetchSearchResults: false,
-  internetAccess: "search",
-  maxFetchBytes: 10_000,
-  maxSearchResults: 3,
-  ollamaBaseUrl: "http://127.0.0.1:11434",
-  ollamaModel: "gpt-oss:20b",
-  port: 3002,
-  provider: "ollama",
-  requestTimeoutMs: 100,
-  retryProviderFailures: false,
-  userAgent: "popcharts-test",
-};
+const baseConfig = buildReviewConfig();
 
 describe("review provider registry", () => {
   it("reports Claude CLI as subscription-backed native web search", () => {
