@@ -1567,3 +1567,16 @@ per-pool `streams` ordinals), hardened by a chain-coordinate ordering guard and
 an append-on-trust rule for unseeded streams; the P6 live-stack proof ran
 2026-08-04 and ADR 0025's checklist is fully ticked. The page's "still
 refetches until P5" row corrected.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 delivered in full
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: P4 ticked the same day it finished, closing the loop the morning's
+reconciliation opened. Seven PRs: #430 fee receipts, #439/#441 indexer
+status-from-chain + default drop, #442 contract gate, #445 typed-data export
+with the cross-language on-chain vector test, #447 server mint (creator-bound,
+graceful when unarmed), #448 deploy-time arming (no env threading — the
+account-0 convention already aligned server key and deployer/authorizer), #449
+app switch with transparent re-mint on expiry. The end-to-end proof was #449's
+own CI smoke lane: a fresh armed stack walked draft → approve → publish and
+the market was born Active. P5 is now unblocked and its scope GREW: the interim
+bare createMarket overload and the no-op publish bridge join the removal list.

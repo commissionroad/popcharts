@@ -1,8 +1,10 @@
 # Review-first market creation: off-chain drafts, gated on-chain publish, and creator surfaces
 
-Status: Accepted — P1, P2, P3 and P7 built 2026-07-30..08-03 (plus P4's app half);
-P4's contract/indexer/fee-indexing work and P5, P6, P8 are open. On-chain
-`createMarket` is still ungated in the interim — see P4 below.
+Status: Accepted — P1, P2, P3 (superseded by P3a, also built) and P7 built
+2026-07-30..08-03; **P4 built 2026-08-04** (#430, #439/#441, #442, #445, #447,
+#448, #449): authorized creation is live end to end and markets are born
+Active through the draft flow. P5 (retire the on-chain review machinery,
+including the interim bare `createMarket` path), P6 and P8 are open.
 
 ## Context
 
@@ -499,7 +501,8 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       race (wallet-scoped advisory lock), unscoped-credit leakage across deployments, and
       the migrations' silent reinterpretation of refundable-bond history. **Does not reopen
       public draft submission** — that waits on a rate at or above cost (see the amendment).
-- [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** *App half delivered*
+- [x] **P4 — Gated `createMarket` + publish + creation-fee indexing.** Delivered in full
+      2026-08-04; see the delivery notes below and "P4 build decisions". *App half delivered*
       2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
       `published_market_id` back-link all ship. *Fee indexing delivered* 2026-08-04 (#430):
       the `MarketCreationFeePaid` watcher, `market_creation_fee_events` (composite FK to
@@ -509,22 +512,25 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       through the generated `MARKET_STATUS` table instead of assuming `under_review`, and
       the `markets.status` column default is gone — so the indexer is already correct under
       the born-`Active` contract before that contract exists.
-      **The contract gate is the keystone of what remains** — until it lands, on-chain
-      `createMarket` stays ungated and publish bridges over it: the server calls
-      `createMarket` (market born `UnderReview`) and then immediately force-approves with
-      the review-manager key (`markMarketDraftPublished` → `transitionReviewedMarketOnChain`).
-      That interim puts the gate in server code that has to be right on every path rather
-      than in a signature check the chain enforces — one hole in it (unverified publish
-      receipts) was already found and fixed in review before #415 shipped.
-      Remaining — Contract: EIP-712
-      authorizer signature over the **full params** with an **on-chain single-use nonce** +
-      expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs.
-      Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
-      resolve durations → absolute deadlines). App: send the authorized call and re-mint on
-      expiry. Scripts: the dev authorizer key through both orchestrators. Design locked
-      2026-08-04 — see "P4 build decisions" below.
-- [ ] **P5 — Retire on-chain review machinery.** Blocked on P4 — both the review-manager key
-      and the on-chain review states are load-bearing for the interim publish bridge.
+      *Contract gate delivered* (#442): an authorized `createMarket` overload verifies an
+      EIP-712 authorizer signature over the full params with an unordered on-chain
+      single-use nonce + 15-minute expiry, trusted-creator bypass, market **born
+      `Active`**. The typed data is exported from `@popcharts/protocol` (#445) with an
+      on-chain vector test, minted by the server alongside the publish params (#447,
+      creator-bound via `?creatorAddress=`), armed at local deploy with the deployer as
+      authorizer (#448 — no env threading needed; the server's local key convention
+      already matches), and spent by the app (#449), which re-mints transparently on an
+      expiry revert. The first end-to-end authorized publish ran in #449's own CI smoke
+      lane: server-minted signature, contract-verified, market born `Active`, indexer
+      projecting `bootstrap`.
+
+      **The interim bare `createMarket(params)` path still exists** — ungated, born
+      `UnderReview` — and the publish bridge's force-approve is now a no-op (it sees
+      `Active` and returns `already_transitioned`). Both are dead weight for P5 to
+      remove; nothing legitimate uses either after #449.
+- [ ] **P5 — Retire on-chain review machinery.** Unblocked 2026-08-04 by P4: the bridge
+      no-ops and nothing creates `under_review` markets any more. Also in scope now: the
+      interim bare `createMarket(params)` overload and the publish bridge itself.
       Remove `UnderReview` / `approveMarket` /
       `rejectMarket` (tail-only enum removal, no renumber), the review-manager key, and the
       indexer market-review watcher; migrate existing `under_review` / `rejected` rows to a
