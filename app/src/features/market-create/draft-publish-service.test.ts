@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
-import type { CreateMarketWallet } from "./create-market-service";
+import type { CreateMarketWallet } from "./draft-publish-service";
 import { persistPublishedMetadata, publishDraftMarket } from "./draft-publish-service";
 
 const configState = vi.hoisted(() => ({

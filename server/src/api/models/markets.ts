@@ -58,20 +58,6 @@ export const DEV_MARKET_CLOSE_INELIGIBLE_REASONS = [
 export type DevMarketCloseIneligibleReason =
   (typeof DEV_MARKET_CLOSE_INELIGIBLE_REASONS)[number];
 
-/**
- * Why a dev-only forced review was refused. Deliberately its own set rather
- * than a reuse of the close reasons it currently matches: the two endpoints
- * refuse for unrelated conditions and are free to diverge.
- */
-export const DEV_MARKET_REVIEW_INELIGIBLE_REASONS = [
-  "chain_status",
-  "wrong_status",
-] as const;
-
-/** One of {@link DEV_MARKET_REVIEW_INELIGIBLE_REASONS}. */
-export type DevMarketReviewIneligibleReason =
-  (typeof DEV_MARKET_REVIEW_INELIGIBLE_REASONS)[number];
-
 /** Why a dev-only end-to-end graduation was refused. */
 export const DEV_MARKET_GRADUATE_INELIGIBLE_REASONS = [
   "adapter_unconfigured",
@@ -711,28 +697,6 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   { $id: "DevMarketCloseIneligible" },
 );
 
-/** Result of a dev-only forced market review. */
-export const DevMarketReviewResponseSchema = t.Object(
-  {
-    market: t.Ref(MarketSchema),
-    status: t.Literal("reviewed"),
-    transactionHash: t.Optional(t.String()),
-    verdict: t.Ref(AiReviewVerdictSchema),
-  },
-  { $id: "DevMarketReviewResponse" },
-);
-
-/** Dev-only forced-review refusal, with the reason. */
-export const DevMarketReviewIneligibleSchema = t.Object(
-  {
-    message: t.String(),
-    market: t.Ref(MarketSchema),
-    reason: literalUnion(DEV_MARKET_REVIEW_INELIGIBLE_REASONS),
-    status: t.Literal("ineligible"),
-  },
-  { $id: "DevMarketReviewIneligible" },
-);
-
 /** Result of a dev-only end-to-end market graduation. */
 export const DevMarketGraduateResponseSchema = t.Object(
   {
@@ -866,12 +830,6 @@ export type DevMarketCloseResponse = Static<
 >;
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
->;
-export type DevMarketReviewResponse = Static<
-  typeof DevMarketReviewResponseSchema
->;
-export type DevMarketReviewIneligibleResponse = Static<
-  typeof DevMarketReviewIneligibleSchema
 >;
 export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
 export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;

@@ -1,10 +1,11 @@
 # Review-first market creation: off-chain drafts, gated on-chain publish, and creator surfaces
 
-Status: Accepted — P1, P2, P3 (superseded by P3a, also built) and P7 built
-2026-07-30..08-03; **P4 built 2026-08-04** (#430, #439/#441, #442, #445, #447,
-#448, #449): authorized creation is live end to end and markets are born
-Active through the draft flow. P5 (retire the on-chain review machinery,
-including the interim bare `createMarket` path), P6 and P8 are open.
+Status: Accepted — P1, P2, P3/P3a, P7 built 2026-07-30..08-03; **P4 built
+2026-08-04** (authorized creation live end to end, markets born Active);
+**P5 built 2026-08-04** (#451 + the removal PR): the on-chain review
+machinery, the ungated `createMarket`, and the app's legacy create surface
+are gone — `just local-create-market` now drives the API's draft flow as
+hardhat account #0. P6 and P8 are open.
 
 ## Context
 
@@ -528,14 +529,28 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       `UnderReview` — and the publish bridge's force-approve is now a no-op (it sees
       `Active` and returns `already_transitioned`). Both are dead weight for P5 to
       remove; nothing legitimate uses either after #449.
-- [ ] **P5 — Retire on-chain review machinery.** Unblocked 2026-08-04 by P4: the bridge
-      no-ops and nothing creates `under_review` markets any more. Also in scope now: the
-      interim bare `createMarket(params)` overload and the publish bridge itself.
-      Remove `UnderReview` / `approveMarket` /
-      `rejectMarket` (tail-only enum removal, no renumber), the review-manager key, and the
-      indexer market-review watcher; migrate existing `under_review` / `rejected` rows to a
-      chosen surviving status (enum type rewrite or dead-label); audit the hand-written
-      ordinal decoders.
+- [x] **P5 — Retire on-chain review machinery.** Delivered 2026-08-04 in two slices.
+      #451: the market-review runner process, the publish bridge (and its
+      `bridgeApproved` API field), the runner-dependent nightly scenario, and the
+      orphaned change-feed source. The removal PR: the bare `createMarket(params)`
+      overload (authorized creation is now the only door; local tooling passes a zeroed
+      authorization as a trusted creator, which the local deploy now marks the deployer
+      as), `approveMarket` / `rejectMarket` + their events, the **tail-only** removal of
+      `UnderReview` / `Rejected` from the Solidity enum (surviving ordinals unchanged —
+      the pin test in contract-enums makes any other removal shape an explicit reviewed
+      edit), the review-manager role and key plumbing, the indexer market-review watcher,
+      `chain-review.ts` (and with it the last hand-written status ordinal), the dev
+      forced-review override and its endpoint, the nightly manual-review scenario, and the
+      app's **entire legacy create surface** (old form, panels, service, and the devchain
+      seed route — `/create` renders the draft flow, which was already the only routed
+      path). `just local-create-market` now creates through the API: draft → heuristic
+      review → creator-bound publish authorization → authorized `createMarket` as hardhat
+      account #0, with `--rejectable` surfacing the draft feedback instead of publishing.
+      Existing `under_review` / `rejected` DB rows: **dead-label** — the Postgres enum
+      keeps both labels, nothing writes them, and local data was wipeable by decision.
+      Deliberately left for a follow-up: the admin re-review service and the
+      `market_ai_reviews` / `market_ai_review_jobs` tables (DB-only, no contract
+      dependency, historical rows).
 - [ ] **P6 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
       `MarketCreated` event the indexer already reads; drop the best-effort off-chain
       metadata POST.

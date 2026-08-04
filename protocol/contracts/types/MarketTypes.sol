@@ -16,10 +16,11 @@ library MarketTypes {
   /// @notice Lifecycle status for a market managed by the pregrad singleton.
   /// @notice One-way market lifecycle. Every status-changing function in
   ///         `PregradManager` guards on a specific *pre-terminal* status
-  ///         (approve/reject require UnderReview; startGraduation, markRefundable,
-  ///         and cancelMarket require Active; finalizeGraduation requires
-  ///         Graduating). Consequently the terminal statuses — Graduated,
-  ///         Refunded, Cancelled, Rejected — can NEVER transition again: no
+  ///         (startGraduation, markRefundable, and cancelMarket require
+  ///         Active; finalizeGraduation requires Graduating; markets are born
+  ///         Active — review happens off-chain on drafts, repo ADR 0022).
+  ///         Consequently the terminal statuses — Graduated,
+  ///         Refunded, Cancelled — can NEVER transition again: no
   ///         function accepts them as a precursor. Once a market is refunded or
   ///         cancelled it is final; only per-receipt refund claims remain, and
   ///         those flip `receipt.active`, never the market status. Any new
@@ -40,11 +41,7 @@ library MarketTypes {
     /// @notice The postgrad outcome has been resolved.
     Resolved,
     /// @notice Terminal. The market was cancelled (moderation) and full receipt escrow is refundable — status never changes again.
-    Cancelled,
-    /// @notice The market is awaiting review and does not accept receipts.
-    UnderReview,
-    /// @notice Terminal. The market failed review and remains closed to receipt placement.
-    Rejected
+    Cancelled
   }
 
   /// @notice Immutable creation-time configuration for a pregrad market.

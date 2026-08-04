@@ -38,7 +38,7 @@ import {
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { presentError } from "@/lib/error-handling";
 
-import type { CreateMarketWallet } from "./create-market-service";
+import type { CreateMarketWallet } from "./draft-publish-service";
 import { applyGeneratedMarketToDraft } from "./dev-autofill";
 import {
   persistPublishedMetadata,

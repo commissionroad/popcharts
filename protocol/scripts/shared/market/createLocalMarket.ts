@@ -8,6 +8,13 @@ import {
 } from "./localMarketMetadata.js";
 import { resolveDeadlineAnchor, type MarketTiming } from "./localMarketTiming.js";
 
+/** Spendable only by trusted creators: skips signature verification entirely. */
+const ZEROED_CREATION_AUTHORIZATION = {
+  nonce: 0n,
+  expiry: 0n,
+  signature: "0x" as const,
+};
+
 const WAD = 10n ** 18n;
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
@@ -79,6 +86,10 @@ export async function createLocalMarket(args: CreateLocalMarketArgs): Promise<Ma
         yesNotBefore: resolutionTime,
         bypassAiResolution: false,
       },
+      // Zeroed authorization: the deployer is a trusted creator on local
+      // deployments, so the signature check is skipped (repo ADR 0022 P5 —
+      // the ungated path is gone; trusted is the tooling seam).
+      ZEROED_CREATION_AUTHORIZATION,
     ],
     { value: creationFee },
   );

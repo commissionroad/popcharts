@@ -12,11 +12,14 @@ updated: 2026-08-04
 **Status: Accepted, partially built.** Dated 2026-07-21. Designed via a `/grill`
 session and adversarially red-teamed before proposal. Not part of the M1–M5 launch
 chain. P1 (drafts + Privy auth), P2 (draft review), P3/P3a (review credit) and P7
-(templates/clone) landed 2026-08-03..04; **P4 landed in full 2026-08-04** — authorized
-creation is live end to end (#430, #439/#441, #442, #445, #447, #448, #449) and
-draft-flow markets are born `Active`. The interim ungated `createMarket` overload and
-the now-no-op publish bridge remain as dead weight for P5, which is unblocked. P6 and
-P8 are open.
+(templates/clone) landed 2026-08-03..04; **P4 landed in full 2026-08-04** (authorized
+creation live end to end, markets born `Active`); **P5 landed 2026-08-04** — the
+on-chain review machinery is gone: no ungated `createMarket`, no
+`approveMarket`/`rejectMarket`, no `UnderReview`/`Rejected` enum members (tail-only
+removal), no review-manager role, no market-review watcher, no publish bridge, and no
+legacy app create surface. `just local-create-market` drives the API draft flow as
+hardhat account #0. Leftover for a small follow-up: the admin re-review service and
+the historical `market_ai_reviews`/`market_ai_review_jobs` tables. P6 and P8 are open.
 
 > **P3 was withdrawn 2026-08-04** and replaced by the amendment: the refundable
 > bond becomes a non-refundable **prepaid review credit**. See "Amendment: prepaid
@@ -126,7 +129,7 @@ Public draft submission opens at P3 (the bond); until then P2 review runs intern
 2. **P2 — built.** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
 3. **P3 — built, then withdrawn; see P3a below.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. Replaced 2026-08-04 by **P3a — prepaid review credit** (built): non-refundable `depositFor`, one per-run rate, no settlement or withdrawal.
 4. **P4 — built (2026-08-04).** Gated `createMarket` (full-params EIP-712, unordered single-use nonce, 15-min expiry, trusted bypass, born `Active`, #442); typed data exported from the protocol package with an on-chain vector test (#445); server mints the creator-bound authorization with the publish params (#447); local deploy arms the deployer as authorizer (#448); the app spends it and re-mints on expiry (#449). Plus the earlier halves: "Publish & pay" (#415), `MarketCreationFeePaid` indexing (#430), chain-read status projection with the `under_review` default dropped (#439/#441). First end-to-end authorized publish ran in #449's CI smoke lane.
-5. **P5 — open, blocked on P4.** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
+5. **P5 — built (2026-08-04, #451 + the removal PR).** On-chain review machinery, the ungated `createMarket`, and the legacy app create surface all removed; `under_review`/`rejected` live on only as dead Postgres enum labels. The just command creates through the API draft flow.
 6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
 7. **P7 — built.** Templates + clone (the `/studio` surface).
 8. **P8 — open.** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).

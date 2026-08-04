@@ -7,10 +7,6 @@ export {
   watchMarketCreationFeeEvents,
 } from "./market-creation-fee";
 export {
-  recoverMarketReviewEvents,
-  watchMarketReviewEvents,
-} from "./market-review";
-export {
   recoverOutcomeTokenTransferEvents,
   watchOutcomeTokenTransferEvents,
 } from "./outcome-token-transfers";

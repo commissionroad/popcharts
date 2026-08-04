@@ -35,7 +35,7 @@ contract PregradManagerTest is BaseTest {
     manager = _deployPregradManager();
   }
 
-  function test_CreateMarketStoresUnderReviewConfigAndEmitsEvent() public {
+  function test_CreateMarketStoresActiveConfigAndEmitsEvent() public {
     bytes32 metadataHash = _defaultMetadataHash();
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(metadataHash);
 
@@ -55,7 +55,7 @@ contract PregradManagerTest is BaseTest {
       params.bypassAiResolution
     );
 
-    uint256 marketId = manager.createMarket(params);
+    uint256 marketId = manager.createMarket(params, _zeroedAuthorization());
 
     MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
     MarketTypes.MarketState memory state = manager.getMarketState(marketId);
@@ -72,9 +72,9 @@ contract PregradManagerTest is BaseTest {
     assertEq(config.graduationThreshold, 2_500 * WAD);
     assertEq(config.graduationDeadline, params.graduationDeadline);
     assertEq(config.resolutionTime, params.resolutionTime);
-    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.UnderReview));
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertFalse(config.bypassAiResolution);
-    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.UnderReview));
+    assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Active));
     assertEq(state.receiptCount, 0);
     assertEq(state.totalEscrowed, 0);
     assertEq(state.path, int256(0));
@@ -94,7 +94,7 @@ contract PregradManagerTest is BaseTest {
     assertTrue(manager.marketCreationPaused());
 
     vm.expectRevert(PregradManager.MarketCreationPaused.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     assertEq(manager.nextMarketId(), 1);
     assertEq(manager.marketCount(), 0);
@@ -104,7 +104,7 @@ contract PregradManagerTest is BaseTest {
     manager.setMarketCreationPaused(false);
 
     assertFalse(manager.marketCreationPaused());
-    assertEq(manager.createMarket(params), 1);
+    assertEq(manager.createMarket(params, _zeroedAuthorization()), 1);
     assertEq(manager.nextMarketId(), 2);
     assertEq(manager.marketCount(), 1);
   }
@@ -149,128 +149,6 @@ contract PregradManagerTest is BaseTest {
     assertEq(uint256(state.status), uint256(MarketTypes.MarketStatus.Graduated));
   }
 
-  function test_ReviewManagersApproveAndRejectUnderReviewMarkets() public {
-    address notManager = makeAddr("not-reviewer");
-    uint256 approvedMarketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-
-    assertTrue(manager.isReviewManager(address(this)));
-    assertFalse(manager.isReviewManager(notManager));
-
-    vm.prank(notManager);
-    vm.expectRevert(
-      abi.encodeWithSelector(PregradManager.UnauthorizedReviewManager.selector, notManager)
-    );
-    manager.approveMarket(approvedMarketId);
-
-    vm.expectEmit(true, true, true, true, address(manager));
-    emit PregradManager.MarketReviewApproved(approvedMarketId, address(this));
-    manager.approveMarket(approvedMarketId);
-
-    MarketTypes.MarketState memory approvedState = manager.getMarketState(approvedMarketId);
-    assertEq(uint256(approvedState.status), uint256(MarketTypes.MarketStatus.Active));
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        approvedMarketId,
-        MarketTypes.MarketStatus.Active,
-        MarketTypes.MarketStatus.UnderReview
-      )
-    );
-    manager.rejectMarket(approvedMarketId);
-
-    uint256 rejectedMarketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-
-    vm.expectEmit(true, true, true, true, address(manager));
-    emit PregradManager.MarketReviewRejected(rejectedMarketId, address(this));
-    manager.rejectMarket(rejectedMarketId);
-
-    MarketTypes.MarketState memory rejectedState = manager.getMarketState(rejectedMarketId);
-    assertEq(uint256(rejectedState.status), uint256(MarketTypes.MarketStatus.Rejected));
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        rejectedMarketId,
-        MarketTypes.MarketStatus.Rejected,
-        MarketTypes.MarketStatus.UnderReview
-      )
-    );
-    manager.approveMarket(rejectedMarketId);
-  }
-
-  function test_ApproveMarketRequiresDeadline() public {
-    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-    MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
-
-    vm.warp(config.graduationDeadline);
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.MarketPastGraduationDeadline.selector,
-        marketId,
-        config.graduationDeadline
-      )
-    );
-    manager.approveMarket(marketId);
-  }
-
-  function test_UnderReviewAndRejectedMarketsDoNotAcceptReceipts() public {
-    address buyer = makeAddr("buyer");
-    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-    uint256 shares = 100 * WAD;
-    MarketTypes.PlaceReceiptParams memory params = MarketTypes.PlaceReceiptParams({
-      marketId: marketId,
-      side: MarketTypes.Side.Yes,
-      shares: shares,
-      maxCost: type(uint256).max
-    });
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        marketId,
-        MarketTypes.MarketStatus.UnderReview,
-        MarketTypes.MarketStatus.Active
-      )
-    );
-    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
-
-    vm.prank(buyer);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        marketId,
-        MarketTypes.MarketStatus.UnderReview,
-        MarketTypes.MarketStatus.Active
-      )
-    );
-    manager.placeReceipt(params);
-
-    manager.rejectMarket(marketId);
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        marketId,
-        MarketTypes.MarketStatus.Rejected,
-        MarketTypes.MarketStatus.Active
-      )
-    );
-    manager.quoteReceipt(marketId, MarketTypes.Side.Yes, shares);
-
-    vm.prank(buyer);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        PregradManager.InvalidMarketStatus.selector,
-        marketId,
-        MarketTypes.MarketStatus.Rejected,
-        MarketTypes.MarketStatus.Active
-      )
-    );
-    manager.placeReceipt(params);
-  }
-
   function test_CreateMarketIdsIncrementAndMarketsAreIsolated() public {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
@@ -280,37 +158,45 @@ contract PregradManagerTest is BaseTest {
     vm.deal(alice, 10 * WAD);
     vm.deal(bob, 10 * WAD);
 
+    MarketTypes.CreateMarketParams memory aliceParams = MarketTypes.CreateMarketParams({
+      collateral: address(collateral),
+      metadataHash: aliceMetadataHash,
+      metadata: _defaultMetadata(),
+      openingProbabilityWad: (20 * WAD) / 100,
+      liquidityParameter: 2_500 * WAD,
+      graduationThreshold: 1_250 * WAD,
+      graduationDeadline: uint64(block.timestamp + 3 days),
+      resolutionTime: uint64(block.timestamp + 30 days),
+      yesNotBefore: uint64(block.timestamp + 30 days),
+      bypassAiResolution: false
+    });
+    MarketTypes.MarketCreationAuthorization memory aliceAuthorization = _authorizeCreation(
+      manager,
+      alice,
+      aliceParams
+    );
     vm.prank(alice);
-    uint256 aliceMarketId = manager.createMarket{value: WAD}(
-      MarketTypes.CreateMarketParams({
-        collateral: address(collateral),
-        metadataHash: aliceMetadataHash,
-        metadata: _defaultMetadata(),
-        openingProbabilityWad: (20 * WAD) / 100,
-        liquidityParameter: 2_500 * WAD,
-        graduationThreshold: 1_250 * WAD,
-        graduationDeadline: uint64(block.timestamp + 3 days),
-        resolutionTime: uint64(block.timestamp + 30 days),
-        yesNotBefore: uint64(block.timestamp + 30 days),
-        bypassAiResolution: false
-      })
-    );
+    uint256 aliceMarketId = manager.createMarket{value: WAD}(aliceParams, aliceAuthorization);
 
-    vm.prank(bob);
-    uint256 bobMarketId = manager.createMarket{value: WAD}(
-      MarketTypes.CreateMarketParams({
-        collateral: address(collateral),
-        metadataHash: bobMetadataHash,
-        metadata: _defaultMetadata(),
-        openingProbabilityWad: (80 * WAD) / 100,
-        liquidityParameter: 8_000 * WAD,
-        graduationThreshold: 4_000 * WAD,
-        graduationDeadline: uint64(block.timestamp + 14 days),
-        resolutionTime: uint64(block.timestamp + 60 days),
-        yesNotBefore: uint64(block.timestamp + 60 days),
-        bypassAiResolution: false
-      })
+    MarketTypes.CreateMarketParams memory bobParams = MarketTypes.CreateMarketParams({
+      collateral: address(collateral),
+      metadataHash: bobMetadataHash,
+      metadata: _defaultMetadata(),
+      openingProbabilityWad: (80 * WAD) / 100,
+      liquidityParameter: 8_000 * WAD,
+      graduationThreshold: 4_000 * WAD,
+      graduationDeadline: uint64(block.timestamp + 14 days),
+      resolutionTime: uint64(block.timestamp + 60 days),
+      yesNotBefore: uint64(block.timestamp + 60 days),
+      bypassAiResolution: false
+    });
+    MarketTypes.MarketCreationAuthorization memory bobAuthorization = _authorizeCreation(
+      manager,
+      bob,
+      bobParams
     );
+    vm.prank(bob);
+    uint256 bobMarketId = manager.createMarket{value: WAD}(bobParams, bobAuthorization);
 
     MarketTypes.MarketConfig memory aliceConfig = manager.getMarketConfig(aliceMarketId);
     MarketTypes.MarketConfig memory bobConfig = manager.getMarketConfig(bobMarketId);
@@ -356,25 +242,40 @@ contract PregradManagerTest is BaseTest {
     vm.expectEmit(true, true, true, true, address(manager));
     emit CreationFeeVault.MarketCreationFeePaid(1, publicCreator, WAD);
 
+    MarketTypes.MarketCreationAuthorization memory authorization = _authorizeCreation(
+      manager,
+      publicCreator,
+      params
+    );
     vm.prank(publicCreator);
-    uint256 marketId = manager.createMarket{value: WAD}(params);
+    uint256 marketId = manager.createMarket{value: WAD}(params, authorization);
 
     assertEq(marketId, 1);
     assertEq(manager.collectedCreationFees(), WAD);
     assertEq(address(manager).balance, WAD);
     assertEq(publicCreator.balance, 9 * WAD);
 
+    MarketTypes.CreateMarketParams memory retryParams = _defaultMarketParams(
+      _defaultMetadataHash()
+    );
+    MarketTypes.MarketCreationAuthorization memory retryAuthorization = _authorizeCreation(
+      manager,
+      publicCreator,
+      retryParams
+    );
+
     vm.prank(publicCreator);
     vm.expectRevert(
       abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, WAD, 0)
     );
-    manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
+    manager.createMarket(retryParams, retryAuthorization);
 
+    // The fee revert undid the nonce spend, so the same authorization retries.
     vm.prank(publicCreator);
     vm.expectRevert(
       abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, WAD, WAD + 1)
     );
-    manager.createMarket{value: WAD + 1}(_defaultMarketParams(_defaultMetadataHash()));
+    manager.createMarket{value: WAD + 1}(retryParams, retryAuthorization);
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -547,21 +448,21 @@ contract PregradManagerTest is BaseTest {
     });
 
     vm.expectRevert(PregradManager.InvalidCollateral.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.collateral = address(collateral);
     params.metadataHash = bytes32(0);
     vm.expectRevert(PregradManager.InvalidMetadataHash.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.metadataHash = _defaultMetadataHash();
     params.metadata = "";
     vm.expectRevert(PregradManager.InvalidMetadata.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.metadata = "not matching the committed hash";
     vm.expectRevert(PregradManager.InvalidMetadataHash.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.metadata = _longMetadata();
     vm.expectRevert(
@@ -571,40 +472,40 @@ contract PregradManagerTest is BaseTest {
         manager.MAX_METADATA_BYTES()
       )
     );
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.metadata = _defaultMetadata();
     params.openingProbabilityWad = 0;
     vm.expectRevert(abi.encodeWithSelector(LmsrMath.InvalidProbability.selector, 0));
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.openingProbabilityWad = WAD;
     vm.expectRevert(abi.encodeWithSelector(LmsrMath.InvalidProbability.selector, WAD));
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.openingProbabilityWad = (50 * WAD) / 100;
     params.liquidityParameter = 0;
     vm.expectRevert(LmsrMath.InvalidLiquidityParameter.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.liquidityParameter = 5_000 * WAD;
     params.graduationThreshold = 0;
     vm.expectRevert(PregradManager.InvalidGraduationThreshold.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.graduationThreshold = 2_500 * WAD;
     params.graduationDeadline = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidGraduationDeadline.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.graduationDeadline = uint64(block.timestamp + 7 days);
     params.resolutionTime = params.graduationDeadline;
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     params.resolutionTime = uint64(block.timestamp);
     vm.expectRevert(PregradManager.InvalidResolutionTime.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
   }
 
   function test_RevertsWhenYesNotBeforeOutsideWindow() public {
@@ -613,12 +514,12 @@ contract PregradManagerTest is BaseTest {
     // At or before the graduation deadline is too early for the YES gate.
     params.yesNotBefore = params.graduationDeadline;
     vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
 
     // After the resolution deadline is too late.
     params.yesNotBefore = params.resolutionTime + 1;
     vm.expectRevert(PregradManager.InvalidYesNotBefore.selector);
-    manager.createMarket(params);
+    manager.createMarket(params, _zeroedAuthorization());
   }
 
   function test_RevertsWhenPublicMarketLeavesCreationEnvelope() public {
@@ -634,7 +535,7 @@ contract PregradManagerTest is BaseTest {
       )
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
 
     params.openingProbabilityWad = (99 * WAD) / 100;
     vm.expectRevert(
@@ -644,7 +545,7 @@ contract PregradManagerTest is BaseTest {
       )
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
 
     params.openingProbabilityWad = (50 * WAD) / 100;
     params.liquidityParameter = 499 * WAD;
@@ -656,7 +557,7 @@ contract PregradManagerTest is BaseTest {
       )
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
 
     params.liquidityParameter = 10_001 * WAD;
     params.graduationThreshold = params.liquidityParameter / 2;
@@ -667,7 +568,7 @@ contract PregradManagerTest is BaseTest {
       )
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
 
     params.liquidityParameter = 5_000 * WAD;
     params.graduationThreshold = 2_501 * WAD;
@@ -679,7 +580,7 @@ contract PregradManagerTest is BaseTest {
       )
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
   }
 
   function test_TrustedCreatorsCanBypassPublicEnvelopeAndAiResolution() public {
@@ -698,7 +599,7 @@ contract PregradManagerTest is BaseTest {
     assertEq(manager.marketCreationFee(partner), 0);
 
     vm.prank(partner);
-    uint256 marketId = manager.createMarket(params);
+    uint256 marketId = manager.createMarket(params, _zeroedAuthorization());
 
     MarketTypes.MarketConfig memory config = manager.getMarketConfig(marketId);
     assertEq(config.creator, partner);
@@ -717,7 +618,10 @@ contract PregradManagerTest is BaseTest {
     vm.expectRevert(
       abi.encodeWithSelector(CreationFeeVault.InvalidMarketCreationFee.selector, 0, WAD)
     );
-    manager.createMarket{value: WAD}(_defaultMarketParams(_defaultMetadataHash()));
+    manager.createMarket{value: WAD}(
+      _defaultMarketParams(_defaultMetadataHash()),
+      _zeroedAuthorization()
+    );
   }
 
   function test_RevertsWhenPublicCreatorBypassesAiResolution() public {
@@ -729,7 +633,7 @@ contract PregradManagerTest is BaseTest {
       abi.encodeWithSelector(PregradManager.UnauthorizedAiResolutionBypass.selector, publicCreator)
     );
     vm.prank(publicCreator);
-    manager.createMarket(params);
+    manager.createMarket(params, _authorizeCreation(manager, publicCreator, params));
   }
 
   function test_RevertsWhenTrustedCreatorIsZeroAddress() public {
@@ -804,9 +708,9 @@ contract PregradManagerTest is BaseTest {
         resolutionTime: uint64(block.timestamp + 14 days),
         yesNotBefore: uint64(block.timestamp + 14 days),
         bypassAiResolution: false
-      })
+      }),
+      _zeroedAuthorization()
     );
-    manager.approveMarket(marketId);
 
     uint256 shares = 100 * WAD;
     MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
@@ -1454,10 +1358,6 @@ contract PregradManagerTest is BaseTest {
     // (submitClearingRoot/finalizeGraduation require Graduating, which is
     // unreachable because startGraduation itself reverts here.)
     vm.expectRevert();
-    manager.approveMarket(marketId);
-    vm.expectRevert();
-    manager.rejectMarket(marketId);
-    vm.expectRevert();
     manager.startGraduation(marketId);
     vm.expectRevert();
     manager.markRefundable(marketId);
@@ -1577,23 +1477,19 @@ contract PregradManagerTest is BaseTest {
   }
 
   function _createDefaultMarket() private returns (uint256) {
-    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-    manager.approveMarket(marketId);
-    return marketId;
+    return
+      manager.createMarket(_defaultMarketParams(_defaultMetadataHash()), _zeroedAuthorization());
   }
 
   function _createSecondDefaultMarket() private returns (uint256) {
-    uint256 marketId = manager.createMarket(_defaultMarketParams(_defaultMetadataHash()));
-    manager.approveMarket(marketId);
-    return marketId;
+    return
+      manager.createMarket(_defaultMarketParams(_defaultMetadataHash()), _zeroedAuthorization());
   }
 
   function _createGraduatableMarket() private returns (uint256) {
     MarketTypes.CreateMarketParams memory params = _defaultMarketParams(_defaultMetadataHash());
     params.graduationThreshold = 50 * WAD;
-    manager.setTrustedCreator(address(this), true);
-    uint256 marketId = manager.createMarket(params);
-    manager.approveMarket(marketId);
+    uint256 marketId = manager.createMarket(params, _zeroedAuthorization());
     return marketId;
   }
 

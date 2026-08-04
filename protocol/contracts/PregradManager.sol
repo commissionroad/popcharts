@@ -112,9 +112,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   /// @notice Reverts when an account is not allowed to manage graduation.
   /// @param account Unauthorized account.
   error UnauthorizedGraduationManager(address account);
-  /// @notice Reverts when an account is not allowed to review markets.
-  /// @param account Unauthorized account.
-  error UnauthorizedReviewManager(address account);
   /// @notice Reverts when authorized creation is attempted before an authorizer is set.
   error MarketCreationAuthorizerUnset();
   /// @notice Reverts when a creation authorization is past its expiry.
@@ -202,16 +199,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     uint64 yesNotBefore,
     bool bypassAiResolution
   );
-
-  /// @notice Emitted when review approves a market for receipt placement.
-  /// @param marketId Market that entered Active status.
-  /// @param reviewer Account that approved the market.
-  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
-
-  /// @notice Emitted when review rejects a market before receipt placement opens.
-  /// @param marketId Market that entered Rejected status.
-  /// @param reviewer Account that rejected the market.
-  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
 
   /// @notice Emitted when the owner grants or revokes trusted creator privileges.
   /// @param account Account whose trusted creator status changed.
@@ -371,28 +358,12 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     _;
   }
 
-  /// @notice Restricts a function to the contract's current review manager set.
-  modifier onlyReviewManager() {
-    _requireReviewManager(msg.sender);
-    _;
-  }
-
-  /// @notice Creates a new market in UnderReview status.
-  /// @dev Ungated interim path (repo ADR 0022 P4): retires once publish sends
-  ///      authorized creations, at which point creation is signature-gated only.
-  /// @param params Market creation parameters, excluding creator.
-  /// @return marketId Canonical pregrad market ID.
-  function createMarket(
-    MarketTypes.CreateMarketParams calldata params
-  ) external payable nonReentrant returns (uint256 marketId) {
-    return _createMarket(params, MarketTypes.MarketStatus.UnderReview);
-  }
-
   /// @notice Creates a market born Active under a server-minted authorization.
-  /// @dev The review already happened off-chain on the draft (repo ADR 0022);
-  ///      the signature is the proof, so there is no on-chain review stop.
-  ///      Trusted creators skip verification entirely — pass a zeroed
-  ///      authorization — exactly as they already skip the creation fee.
+  /// @dev The only creation path (repo ADR 0022 P5 removed the ungated one):
+  ///      review happens off-chain on the draft, the signature is the proof,
+  ///      so there is no on-chain review stop. Trusted creators skip
+  ///      verification entirely — pass a zeroed authorization — exactly as
+  ///      they already skip the creation fee.
   /// @param params Market creation parameters, excluding creator.
   /// @param authorization Authorizer-signed permission binding these exact params.
   /// @return marketId Canonical pregrad market ID.
@@ -404,7 +375,7 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       _consumeCreationAuthorization(params, authorization);
     }
 
-    return _createMarket(params, MarketTypes.MarketStatus.Active);
+    return _createMarket(params);
   }
 
   /// @dev EIP-712 type of the full creation params. Every economic field is
@@ -486,13 +457,11 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       );
   }
 
-  /// @notice Shared creation core; the entry points differ only in gating and birth status.
+  /// @notice Creation core: validates, collects the fee, and records the market.
   /// @param params Market creation parameters, excluding creator.
-  /// @param initialStatus Status the market is born in.
   /// @return marketId Canonical pregrad market ID.
   function _createMarket(
-    MarketTypes.CreateMarketParams calldata params,
-    MarketTypes.MarketStatus initialStatus
+    MarketTypes.CreateMarketParams calldata params
   ) private returns (uint256 marketId) {
     _requireMarketCreationOpen();
     _validateCreateMarketParams(params);
@@ -516,7 +485,7 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       yesNotBefore: params.yesNotBefore,
       bypassAiResolution: params.bypassAiResolution
     });
-    market.state.status = initialStatus;
+    market.state.status = MarketTypes.MarketStatus.Active;
     market.state.path = LmsrMath.openingPath(
       params.openingProbabilityWad,
       params.liquidityParameter
@@ -551,33 +520,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       params.yesNotBefore,
       params.bypassAiResolution
     );
-  }
-
-  /// @notice Approves an under-review market so it can accept pre-graduation receipts.
-  /// @param marketId Market that passed review.
-  function approveMarket(uint256 marketId) external onlyReviewManager {
-    _requireMarketExists(marketId);
-
-    MarketTypes.MarketRecord storage market = _markets[marketId];
-    _requireUnderReviewMarket(marketId, market);
-    _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
-
-    market.state.status = MarketTypes.MarketStatus.Active;
-
-    emit MarketReviewApproved(marketId, msg.sender);
-  }
-
-  /// @notice Rejects an under-review market and keeps it closed to receipt placement.
-  /// @param marketId Market that failed review.
-  function rejectMarket(uint256 marketId) external onlyReviewManager {
-    _requireMarketExists(marketId);
-
-    MarketTypes.MarketRecord storage market = _markets[marketId];
-    _requireUnderReviewMarket(marketId, market);
-
-    market.state.status = MarketTypes.MarketStatus.Rejected;
-
-    emit MarketReviewRejected(marketId, msg.sender);
   }
 
   /// @notice Grants or revokes public creation guardrail bypass privileges.
@@ -667,13 +609,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   function getMarketState(uint256 marketId) external view returns (MarketTypes.MarketState memory) {
     _requireMarketExists(marketId);
     return _markets[marketId].state;
-  }
-
-  /// @notice Returns whether `account` can review markets.
-  /// @param account Account to check.
-  /// @return True if the account can approve or reject markets.
-  function isReviewManager(address account) public view returns (bool) {
-    return account == owner();
   }
 
   /// @notice Returns whether `account` can manage graduation.
@@ -1260,22 +1195,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     }
   }
 
-  /// @notice Requires a market to be in UnderReview status.
-  /// @param marketId Market ID being guarded.
-  /// @param market Market storage record being guarded.
-  function _requireUnderReviewMarket(
-    uint256 marketId,
-    MarketTypes.MarketRecord storage market
-  ) private view {
-    if (market.state.status != MarketTypes.MarketStatus.UnderReview) {
-      revert InvalidMarketStatus(
-        marketId,
-        market.state.status,
-        MarketTypes.MarketStatus.UnderReview
-      );
-    }
-  }
-
   /// @notice Requires a market to be in Active status.
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
@@ -1371,14 +1290,6 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   function _requireGraduationManager(address account) private view {
     if (!isGraduationManager(account)) {
       revert UnauthorizedGraduationManager(account);
-    }
-  }
-
-  /// @notice Requires an account to be authorized for market review.
-  /// @param account Account to check.
-  function _requireReviewManager(address account) private view {
-    if (!isReviewManager(account)) {
-      revert UnauthorizedReviewManager(account);
     }
   }
 

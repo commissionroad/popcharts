@@ -21,8 +21,6 @@ const STATUS_BY_CODE: ReadonlyMap<number, MarketStatus> = new Map([
   [MARKET_STATUS.refunded, "refunded"],
   [MARKET_STATUS.resolved, "resolved"],
   [MARKET_STATUS.cancelled, "cancelled"],
-  [MARKET_STATUS.underReview, "under_review"],
-  [MARKET_STATUS.rejected, "rejected"],
 ]);
 
 /**

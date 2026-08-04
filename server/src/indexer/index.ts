@@ -8,7 +8,6 @@ import {
 import {
   recoverMarketCreatedEvents,
   recoverMarketCreationFeeEvents,
-  recoverMarketReviewEvents,
   recoverOutcomeTokenTransferEvents,
   recoverPoolPriceTickEvents,
   recoverPostgradMarketEvents,
@@ -18,7 +17,6 @@ import {
   recoverVenueOrderEvents,
   watchMarketCreatedEvents,
   watchMarketCreationFeeEvents,
-  watchMarketReviewEvents,
   watchOutcomeTokenTransferEvents,
   watchPoolPriceTickEvents,
   watchPostgradMarketEvents,
@@ -69,7 +67,6 @@ async function main() {
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
   const unwatchMarketCreationFee = watchMarketCreationFeeEvents(client);
-  const unwatchMarketReview = watchMarketReviewEvents(client);
   const unwatchReviewBond = watchReviewCreditEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
@@ -100,7 +97,6 @@ async function main() {
     markUnhealthy();
     unwatchMarketCreated();
     unwatchMarketCreationFee();
-    unwatchMarketReview();
     unwatchReviewBond();
     unwatchReceiptPlaced();
     unwatchSettlement();
@@ -126,7 +122,6 @@ async function recoverMissedEvents(
 
   await recoverMarketCreatedEvents(client, currentBlock, { quiet });
   await recoverMarketCreationFeeEvents(client, currentBlock, { quiet });
-  await recoverMarketReviewEvents(client, currentBlock, { quiet });
   await recoverReviewCreditEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });

@@ -1580,3 +1580,19 @@ app switch with transparent re-mint on expiry. The end-to-end proof was #449's
 own CI smoke lane: a fresh armed stack walked draft → approve → publish and
 the market was born Active. P5 is now unblocked and its scope GREW: the interim
 bare createMarket overload and the no-op publish bridge join the removal list.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P5 delivered
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: the retirement itself. Contract: bare createMarket, approveMarket/
+rejectMarket + events, UnderReview/Rejected removed from the enum TAIL
+(surviving ordinals untouched — the contract-enums pin test makes any other
+shape an explicit edit), review-manager role gone; local deploys now mark the
+deployer a trusted creator so protocol tooling creates with a zeroed
+authorization. Server: market-review watcher, chain-review (last hand-written
+ordinal), dev forced-review endpoint, manual-review scenario; happy-path now
+expects bootstrap immediately (born Active). App: the entire legacy create
+surface deleted — /create already rendered the draft flow. just
+local-create-market now walks draft → review → authorized publish as hardhat
+account #0 via the API, with a new protocol helper owning the one on-chain
+send. DB keeps under_review/rejected as dead labels. Follow-up left: admin
+re-review service + market_ai_reviews tables (DB-only).
