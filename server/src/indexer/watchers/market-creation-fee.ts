@@ -7,6 +7,7 @@ import {
   persistMarketCreationFeeRecord,
   type MarketCreationFeePaidLog,
 } from "src/indexer/handlers/market-creation-fee";
+import { retryUntilMarketIndexed } from "src/indexer/handlers/market-projection";
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
@@ -21,11 +22,12 @@ import {
  * (docs/portfolio-data-design.md money invariant). The fee is collected
  * atomically inside `createMarket` and was previously indexed nowhere.
  *
- * The persist is a pure deduped append with no market projection, so — unlike
- * the market-review watcher — it does not wrap in `retryUntilMarketIndexed`.
- * The fee log and `MarketCreated` share a transaction but are consumed by
- * independent watchers; making the money record wait on the market row would
- * risk dropping the payment record to preserve an ordering nothing here needs.
+ * The row is foreign-keyed to `markets`, so — like the market-review watcher —
+ * the persist waits for the `MarketCreated` watcher rather than assuming it
+ * ran first. Both events come from the same transaction but different
+ * watchers, so on the live path the fee log can arrive first. Nothing is lost
+ * when it does: the wait ends in a ParkSweepError, which holds this address
+ * below the log without advancing its cursor, and the next sweep retries it.
  */
 
 const CURSOR_NAME = "MarketCreationFee";
@@ -58,7 +60,12 @@ const watcher = createDynamicAddressWatcher({
       `[${log.eventName}] marketId=${record.event.marketId} creator=${record.event.creator} amount=${record.event.amount}`,
     );
 
-    await persistMarketCreationFeeRecord(record);
+    // The fee log can outrun the independent MarketCreated watcher; wait for
+    // the markets row rather than failing the money record. If retries run
+    // out, the thrown MarketNotIndexedError parks the sweep so it replays.
+    await retryUntilMarketIndexed(() => persistMarketCreationFeeRecord(record), {
+      label: log.eventName!,
+    });
   },
   label: LABEL,
   subject: "pregrad manager",

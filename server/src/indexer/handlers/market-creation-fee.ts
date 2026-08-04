@@ -1,7 +1,9 @@
+import { and, eq } from "drizzle-orm";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
+import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
 import { logValueRequirer } from "src/indexer/utils/log-values";
 
 const requireValue = logValueRequirer("Market creation fee log");
@@ -58,11 +60,39 @@ export function buildMarketCreationFeeRecord({
  * Deliberately no change-feed signal: market_creation_fee_events is not a
  * registered live-update source, and registering a route belongs to whichever
  * build adds a surface that reads it.
+ *
+ * The row is foreign-keyed to `markets`, and `MarketCreationFeePaid` shares a
+ * transaction with `MarketCreated` but is consumed by a separate watcher, so
+ * on the live path this can run before the market row exists. The explicit
+ * check exists to make that case a **parkable** `MarketNotIndexedError` rather
+ * than a raw foreign-key violation: an unrecognized error propagates out of
+ * the per-log boundary and abandons the whole sweep pass, while a
+ * ParkSweepError parks this address below the log so the next sweep retries
+ * it. The foreign key still backstops the check — a market row deleted
+ * between the select and the insert raises the constraint, which is the
+ * correct hard failure.
  */
 export async function persistMarketCreationFeeRecord(
   record: MarketCreationFeeRecord,
   dbc: typeof db = db,
 ) {
+  const [market] = await dbc
+    .select({ id: schema.markets.id })
+    .from(schema.markets)
+    .where(
+      and(
+        eq(schema.markets.chainId, record.event.chainId),
+        eq(schema.markets.marketId, record.event.marketId),
+      ),
+    );
+
+  if (!market) {
+    throw new MarketNotIndexedError({
+      chainId: record.event.chainId,
+      marketId: record.event.marketId,
+    });
+  }
+
   await dbc
     .insert(schema.marketCreationFeeEvents)
     .values(record.event)

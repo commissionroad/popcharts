@@ -1,5 +1,6 @@
 import {
   bigint,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -10,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { contracts } from "./contracts";
+import { markets } from "./markets";
 import { uint256 } from "./uint256";
 
 /**
@@ -20,12 +22,14 @@ import { uint256 } from "./uint256";
  * it; before this table the fee was the one value transfer in the system with
  * no event-sourced record.
  *
- * `marketId` is a plain column with no foreign key to `markets`, matching the
- * other market-scoped `*_events` tables: the fee log and `MarketCreated` are
- * emitted in the same transaction but consumed by independent watchers, so
- * requiring the market row first would make the money record depend on
- * projection ordering. Deduped on (chain, tx, log) like the other `*_events`
- * tables so indexer replays stay idempotent.
+ * Related to `markets` by a real foreign key on (chainId, marketId), following
+ * `market_ai_reviews`. The fee log and `MarketCreated` are emitted in the same
+ * transaction but consumed by independent watchers, so on the live path a fee
+ * log can arrive before its market row exists. That is handled where it
+ * belongs — the handler waits for the market row and parks the sweep until it
+ * lands (see `persistMarketCreationFeeRecord`) — rather than by loosening the
+ * relation. Deduped on (chain, tx, log) like the other `*_events` tables so
+ * indexer replays stay idempotent.
  *
  * Trusted creators pay nothing and the contract emits no log for them
  * (`createMarket` only emits when the fee is non-zero), so an absent row means
@@ -43,7 +47,7 @@ export const marketCreationFeeEvents = pgTable(
     blockTimestamp: timestamp("block_timestamp").notNull(),
     transactionHash: text("transaction_hash").notNull(),
     logIndex: integer("log_index").notNull(),
-    /** Market the fee bought. No FK — see the table comment. */
+    /** Market the fee bought; foreign-keyed to `markets` below. */
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
     /** Wallet that paid the fee, lowercased. */
     creator: text("creator").notNull(),
@@ -52,6 +56,13 @@ export const marketCreationFeeEvents = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.chainId, table.marketId],
+      foreignColumns: [markets.chainId, markets.marketId],
+      name: "market_creation_fee_events_market_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("cascade"),
     uniqueIndex("market_creation_fee_events_chain_tx_log_idx").on(
       table.chainId,
       table.transactionHash,
