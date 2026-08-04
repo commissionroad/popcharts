@@ -154,7 +154,7 @@ describe("market queries", () => {
       },
     });
 
-    const points = await getMarketPricePath("5042002:7", {
+    const path = await getMarketPricePath("5042002:7", {
       client,
       source: "api",
     });
@@ -164,10 +164,32 @@ describe("market queries", () => {
       marketId: "7",
     });
     // The wire shape IS the chart shape — no mapping, no rounding.
-    expect(points).toEqual([
+    expect(path.points).toEqual([
       { at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 },
       { at: "2026-07-01T01:00:00.000Z", noCents: 46.0491, yesCents: 49.7945 },
     ]);
+    // No live venue ticks in the read -> no venue seeds.
+    expect(path.streams).toEqual({});
+  });
+
+  it("carries the per-stream seed ordinals alongside the points", async () => {
+    const pool = `0x${"aa".repeat(32)}`;
+    const client = createClient({
+      priceHistory: {
+        chainId: 5042002,
+        graduatedAt: "2026-07-01T00:00:00.000Z",
+        marketId: "7",
+        points: [{ at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 }],
+        streams: { [pool]: 4 },
+      },
+    });
+
+    await expect(
+      getMarketPricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual({
+      points: [{ at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 }],
+      streams: { [pool]: 4 },
+    });
   });
 
   it("returns an empty path when the read answers an empty history", async () => {
@@ -177,7 +199,7 @@ describe("market queries", () => {
 
     await expect(
       getMarketPricePath("5042002:7", { client, source: "api" })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ points: [], streams: {} });
   });
 
   it("returns an empty path when the read answers nothing", async () => {
@@ -185,13 +207,13 @@ describe("market queries", () => {
 
     await expect(
       getMarketPricePath("5042002:7", { client, source: "api" })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ points: [], streams: {} });
   });
 
   it("returns an empty path for fixture-backed markets", async () => {
     await expect(
       getMarketPricePath("eth-5000-august", { source: "fixtures" })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ points: [], streams: {} });
   });
 
   it("degrades to an empty path when the history read fails", async () => {
@@ -207,7 +229,7 @@ describe("market queries", () => {
 
     await expect(
       getMarketPricePath("5042002:7", { client, source: "api" })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ points: [], streams: {} });
     // Degraded, not silent.
     expect(logged).toHaveBeenCalledWith(
       "[popcharts] error",
@@ -221,9 +243,10 @@ describe("market queries", () => {
   it("returns an empty path for bare ids without a chain id", async () => {
     const client = createClient();
 
-    await expect(getMarketPricePath("7", { client, source: "api" })).resolves.toEqual(
-      []
-    );
+    await expect(getMarketPricePath("7", { client, source: "api" })).resolves.toEqual({
+      points: [],
+      streams: {},
+    });
     expect(client.getMarketPriceHistory).not.toHaveBeenCalled();
   });
 

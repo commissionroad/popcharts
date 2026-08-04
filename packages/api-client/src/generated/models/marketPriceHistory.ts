@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PricePoint } from "./pricePoint";
+import type { MarketPriceHistoryStreams } from "./marketPriceHistoryStreams";
 
 export interface MarketPriceHistory {
   chainId: number;
   graduatedAt?: string;
   marketId: string;
   points: PricePoint[];
+  streams?: MarketPriceHistoryStreams;
 }

@@ -10,7 +10,6 @@ import {
   getGetMarketUrl,
   getListMarketEventsUrl,
   getListMarketOrdersUrl,
-  getListMarketReceiptsUrl,
   getListMarketsUrl,
 } from "@popcharts/api-client/markets";
 import type {

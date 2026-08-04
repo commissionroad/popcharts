@@ -70,32 +70,43 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
  * not: the page falls back to the market's own synthetic path, so losing
  * chart fidelity beats losing the page.
  */
+export type MarketPricePath = {
+  points: PricePoint[];
+  /** Last live-tick ordinal per venue stream, the client's gap-check seed. */
+  streams: Record<string, number>;
+};
+
+const EMPTY_PRICE_PATH: MarketPricePath = { points: [], streams: {} };
+
 export async function getMarketPricePath(
   id: string,
   options: MarketQueryOptions = {}
-): Promise<PricePoint[]> {
+): Promise<MarketPricePath> {
   const config = resolveMarketQueryConfig(options);
 
   if (!config.useApi) {
-    return [];
+    return EMPTY_PRICE_PATH;
   }
 
   const lookup = resolveMarketLookup(id, config.chainId);
 
   if (!lookup) {
-    return [];
+    return EMPTY_PRICE_PATH;
   }
 
   try {
     const history = await config.client.getMarketPriceHistory(lookup);
 
-    return history?.points ?? [];
+    return {
+      points: history?.points ?? [],
+      streams: history?.streams ?? {},
+    };
   } catch (error) {
     // Degraded, not silent: the chart falls back to the market's synthetic
     // path and the failure still reaches the logs rather than disappearing.
     logError(error, { marketId: id, operation: "getMarketPricePath" });
 
-    return [];
+    return EMPTY_PRICE_PATH;
   }
 }
 

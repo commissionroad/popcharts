@@ -50,7 +50,8 @@ export default async function Page({ params }: PageProps) {
   return (
     <MarketDetailPage
       market={market}
-      {...(pricePath.length > 0 ? { pricePath } : {})}
+      {...(pricePath.points.length > 0 ? { pricePath: pricePath.points } : {})}
+      venueSeedStreams={pricePath.streams}
     />
   );
 }

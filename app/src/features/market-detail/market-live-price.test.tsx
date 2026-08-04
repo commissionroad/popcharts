@@ -89,18 +89,101 @@ describe("MarketLivePrice", () => {
     expect(screen.getByText("Pre-graduation price history")).toBeInTheDocument();
   });
 
-  it("refetches instead of appending a price tick after graduation", () => {
-    // A graduated market's receipt book is closed, so a tick can only be a
-    // venue price — and the append path plots on the pre-graduation series,
-    // where that does not belong. Refetching keeps both halves authoritative.
-    renderIsland({ graduatedAt: "2026-07-24T00:00:00.000Z" });
+  it("appends a venue tick against its own stream's seed", () => {
+    const pool = `0x${"aa".repeat(32)}`;
+    renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+      seedStreams: { receipts: 5, [pool]: 3 },
+    });
+
+    emit(
+      tickSignal({
+        noPriceCents: 45,
+        sequence: 4,
+        stream: pool,
+        yesPriceCents: 52,
+      })
+    );
+
+    // 4 is the pool stream's next ordinal — appended, no refetch, even though
+    // the receipts stream sits at 5.
+    expect(screen.getByText("52%")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("3");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("refetches on a gap within a venue stream", () => {
+    const pool = `0x${"aa".repeat(32)}`;
+    renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+      seedStreams: { receipts: 5, [pool]: 3 },
+    });
+
+    emit(
+      tickSignal({
+        noPriceCents: 45,
+        sequence: 6,
+        stream: pool,
+        yesPriceCents: 52,
+      })
+    );
+
+    // Pool ordinal jumped 3 -> 6: a swap never reached us.
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
+  });
+
+  it("tracks each stream's ordinal independently", () => {
+    const pool = `0x${"aa".repeat(32)}`;
+    renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+      seedStreams: { receipts: 5, [pool]: 3 },
+    });
 
     emit(tickSignal({ sequence: 6, yesPriceCents: 70, noPriceCents: 30 }));
+    emit(
+      tickSignal({
+        noPriceCents: 44,
+        sequence: 4,
+        stream: pool,
+        yesPriceCents: 53,
+      })
+    );
+    emit(tickSignal({ sequence: 7, yesPriceCents: 71, noPriceCents: 29 }));
 
+    // receipts advanced 5 -> 7 and the pool 3 -> 4, interleaved, no refetch.
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("5");
+    expect(screen.getByText("71%")).toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("appends the first tick of a stream it has no seed for", () => {
+    const pool = `0x${"bb".repeat(32)}`;
+    renderIsland({ graduatedAt: "2026-07-24T00:00:00.000Z" });
+
+    // The venue's very first swap: no seed exists, so there is nothing to
+    // gap-check against — append on trust, then be strict.
+    emit(
+      tickSignal({
+        noPriceCents: 48,
+        sequence: 1,
+        stream: pool,
+        yesPriceCents: 51,
+      })
+    );
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("3");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+
+    // Now seeded by the append: a gap refetches.
+    emit(
+      tickSignal({
+        noPriceCents: 47,
+        sequence: 3,
+        stream: pool,
+        yesPriceCents: 52,
+      })
+    );
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
-    // The headline and chart still show the SSR state, not the tick's.
-    expect(screen.getByText("64%")).toBeInTheDocument();
-    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
   });
 
   it("passes the unified points and graduation annotation to the chart", () => {
@@ -229,7 +312,7 @@ describe("MarketLivePrice", () => {
           { noCents: 60, yesCents: 40 },
           { noCents: 29, yesCents: 71 },
         ]}
-        seedSequence={8}
+        seedStreams={{ receipts: 8 }}
         yesLabel="YES"
         yesPriceCents={71}
       />
@@ -263,7 +346,7 @@ describe("MarketLivePrice", () => {
           { noCents: 40, yesCents: 60 },
           { noCents: 35, yesCents: 65 },
         ]}
-        seedSequence={7}
+        seedStreams={{ receipts: 7 }}
         yesLabel="YES"
         yesPriceCents={65}
       />
@@ -356,7 +439,7 @@ function islandProps(
       { noCents: 60, yesCents: 40 },
       { noCents: 52, yesCents: 48 },
     ],
-    seedSequence: 5,
+    seedStreams: { receipts: 5 },
     yesLabel: "YES",
     yesPriceCents: 64,
     ...overrides,

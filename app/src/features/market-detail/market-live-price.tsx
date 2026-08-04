@@ -15,36 +15,30 @@ import { formatPercent } from "@/lib/format";
  * The market's live price surface — the headline YES/NO and the price chart —
  * as one client island (repo ADR 0021, the sole "data-in-message" exception).
  *
- * A pregrad chart is append-mostly: each trade adds one point. Refetching the
- * whole receipt history and replaying the LMSR for every trade is O(history)
- * work for O(1) new information, so a pregrad trade instead rides its resulting
- * price on the change-feed frame (`signal.tick`) and this island appends that
- * point and moves the headline off the same tick — no refetch, no flicker.
+ * A price chart is append-mostly: each trade adds one point. Refetching the
+ * whole history for every trade is O(history) work for O(1) new information,
+ * so a trade instead rides its resulting price on the change-feed frame
+ * (`signal.tick`) and this island appends that point and moves the headline
+ * off the same tick — no refetch, no flicker. Since ADR 0025 this holds on
+ * both sides of graduation: pregrad receipts and postgrad venue swaps push
+ * the same `PriceTickWire`, differing only in which `stream` they belong to.
  *
  * Everything else still resyncs from authoritative SSR state via a full
- * `router.refresh()` (the server page is a server component, so a refresh *is*
- * the whole-page refetch): a non-price change (graduation, resolution, a
- * cancel), a `reset` (the resume cursor aged out), or a **gap** in the tick
+ * `router.refresh()`: a non-price change (graduation, resolution, a cancel),
+ * a `reset` (the resume cursor aged out), or a **gap** in a stream's
  * `sequence` — the ADR's "incremental steady-state, full refetch on
- * gap/reconnect". This one island therefore subsumes the old blunt
- * refresh-on-every-signal island; a single subscription owns the decision, so
- * an appended point can never be clobbered by a competing refetch.
+ * gap/reconnect".
  *
- * Seeding and reconciliation both key off `seedSequence` — the market's
- * `receiptCount`, which the indexer sets to the latest receipt's `sequence`, so
- * it is exactly the ordinal the SSR headline/chart already reflect. A tick is
- * the next point only when its `sequence` is `seedSequence + 1` (accounting for
- * ticks appended since). After a refetch the server re-renders with an advanced
- * `receiptCount`; the appended ticks are already folded into that fresh base,
- * so they are dropped and the island re-seeds — no double-plotted point.
- *
- * The seeded `points` span the market's whole life from the unified read
- * (repo ADR 0025), with `graduatedAt` marking the handoff as an annotation.
- * Post-graduation swap frames DO carry a priced tick since ADR 0025 P2, but
- * the append path below still keys its gap check on the receipt sequence, so
- * `handleSignal` refetches for any tick after graduation rather than
- * appending it against the wrong ordinal space. P5 replaces this guard with
- * per-stream sequence tracking, making venue ticks append too.
+ * The gap check is **per stream** (ADR 0025 P5). Each stream — the receipt
+ * book, or one venue pool — numbers its own ticks contiguously with a
+ * chain-assigned ordinal, so `sequence === last + 1` is checked against that
+ * stream's own last-known ordinal. `seedStreams` carries each stream's
+ * ordinal as of the SSR read: `receiptCount` for the receipts stream, the
+ * unified read's per-pool `streams` for the venue. A tick for a stream with
+ * no seed (the venue's very first swap, or a fallback render whose read
+ * failed) has nothing to check against and is appended on trust — every
+ * subsequent tick on that stream is then checked strictly, and a refetch
+ * reconciles everything to the durable base anyway.
  *
  * Deferred (see the PR): the graduation bar, volume, and receipt counts still
  * settle via the refetch path, because `matchedUsd` is not in the tick payload
@@ -63,7 +57,7 @@ export function MarketLivePrice({
   noLabel,
   noPriceCents,
   points,
-  seedSequence,
+  seedStreams,
   yesLabel,
   yesPriceCents,
 }: {
@@ -76,7 +70,8 @@ export function MarketLivePrice({
   noPriceCents: number;
   /** Whole-life history from the unified read (repo ADR 0025), oldest first. */
   points: PricePoint[];
-  seedSequence: number;
+  /** Last known ordinal per stream as of the SSR read. */
+  seedStreams: Record<string, number>;
   yesLabel: string;
   yesPriceCents: number;
 }) {
@@ -84,63 +79,54 @@ export function MarketLivePrice({
   const parsed = parseApiMarketAppId(marketAppId);
   const channel = parsed ? marketChannel(parsed.chainId, parsed.marketId) : null;
 
-  const [live, setLive] = useState<LiveState>({ seedSequence, ticks: [] });
+  const [live, setLive] = useState<LiveState>({ seeds: seedStreams, ticks: [] });
 
   // Reconcile to fresh SSR after a refetch. A server re-render reaches this
-  // island with an advanced `seedSequence` once a refetch has landed; the
-  // refreshed base already holds every receipt through that sequence, so keep
-  // only the ticks beyond it. Dropping *all* of them would briefly lose the
-  // newest point when a refetch raced an in-flight tick and returned an
-  // intermediate seed (see `reseed`). Runs during render, not in an effect, so
-  // the throwaway frame never double-plots points the base now contains.
-  const reconciled = reseed(live, seedSequence);
-  if (live.seedSequence !== seedSequence) {
+  // island with advanced seeds once a refetch has landed; the refreshed base
+  // already holds every point through those ordinals, so keep only the ticks
+  // beyond them. Dropping *all* of them would briefly lose the newest point
+  // when a refetch raced an in-flight tick and returned an intermediate seed
+  // (see `reseed`). Runs during render, not in an effect, so the throwaway
+  // frame never double-plots points the base now contains.
+  const seedsChanged = !seedsEqual(live.seeds, seedStreams);
+  const reconciled = seedsChanged ? reseed(live, seedStreams) : live;
+  if (seedsChanged) {
     setLive(reconciled);
   }
-  const effective = live.seedSequence === seedSequence ? live : reconciled;
-
-  const lastSequence = effective.ticks.at(-1)?.sequence ?? effective.seedSequence;
+  const effective = reconciled;
 
   function handleSignal(signal: LiveSignal) {
-    // Only the next consecutive price tick is an incremental append; anything
-    // else falls back to a full refetch of authoritative SSR state.
+    // Only the next consecutive price tick on its stream is an incremental
+    // append; anything else falls back to a full refetch of SSR state.
     if (signal.type !== "change" || signal.tick === null) {
       router.refresh();
       return;
     }
-    // After graduation, ticks arrive from the venue pools (priced since ADR
-    // 0025 P2) — but this island's gap check below still counts in the
-    // receipt-sequence ordinal space, which venue ticks do not share.
-    // Appending one against the wrong ordinal space could silently skip or
-    // duplicate points, so every post-graduation tick refetches instead.
-    // P5 keys the check per stream and retires this guard.
-    if (graduatedAt !== undefined) {
-      router.refresh();
-      return;
-    }
     const { tick } = signal;
-    if (tick.sequence <= lastSequence) {
+    const last = lastSequenceFor(effective, tick.stream);
+    if (last !== undefined && tick.sequence <= last) {
       // Already reflected in the seeded or appended state — an SSR-vs-stream
       // overlap, or a frame the transport replayed on reconnect. Appending
       // would double-plot the point, so ignore it.
       return;
     }
-    if (tick.sequence > lastSequence + 1) {
-      // A gap: at least one receipt never reached us, so appending from here
-      // would draw the wrong curve. Refetch to resync from the DB.
+    if (last !== undefined && tick.sequence > last + 1) {
+      // A gap: at least one trade on this stream never reached us, so
+      // appending from here would draw the wrong curve. Refetch to resync.
       router.refresh();
       return;
     }
     setLive((current) => {
-      const currentLast = current.ticks.at(-1)?.sequence ?? current.seedSequence;
+      const currentLast = lastSequenceFor(current, tick.stream);
       // Re-check against the latest committed state, not just the render-time
-      // `lastSequence` the branch above used: a second signal arriving in the
-      // same React batch shares that stale closure, so only the genuinely next
-      // tick is appended here — never a duplicate or an out-of-order point.
-      if (tick.sequence !== currentLast + 1) {
+      // value the branches above used: a second signal arriving in the same
+      // React batch shares that stale closure, so only the genuinely next
+      // tick per stream is appended here — never a duplicate or an
+      // out-of-order point.
+      if (currentLast !== undefined && tick.sequence !== currentLast + 1) {
         return current;
       }
-      return { seedSequence: current.seedSequence, ticks: [...current.ticks, tick] };
+      return { seeds: current.seeds, ticks: [...current.ticks, tick] };
     });
   }
 
@@ -201,22 +187,51 @@ export function MarketLivePrice({
   );
 }
 
-/** SSR seed ordinal plus the ticks appended on top of it since the last read. */
+/** SSR seed ordinals plus the ticks appended on top since the last read. */
 type LiveState = {
-  seedSequence: number;
+  seeds: Record<string, number>;
   ticks: PriceTickWire[];
 };
 
+/** A stream's last known ordinal: its newest appended tick, else its seed. */
+function lastSequenceFor(state: LiveState, stream: string): number | undefined {
+  for (let index = state.ticks.length - 1; index >= 0; index -= 1) {
+    const tick = state.ticks[index];
+
+    if (tick && tick.stream === stream) {
+      return tick.sequence;
+    }
+  }
+
+  return state.seeds[stream];
+}
+
 /**
- * Re-seeds live state onto a refreshed SSR sequence: the new base already holds
- * every receipt through `nextSeed`, so only ticks beyond it are kept. Because
- * ticks are only ever appended consecutively, the kept suffix stays consecutive
- * with `nextSeed` — and a tick that raced the refetch (already received but not
- * yet in the base) survives instead of vanishing until the next signal.
+ * Re-seeds live state onto refreshed SSR ordinals: the new base already holds
+ * every point through each stream's seed, so only ticks beyond it are kept.
+ * Because ticks are only ever appended consecutively per stream, each kept
+ * suffix stays consecutive with its seed — and a tick that raced the refetch
+ * (already received but not yet in the base) survives instead of vanishing
+ * until the next signal. A stream the new seeds do not mention keeps its
+ * appended ticks whole: the unified read derives `streams` from the same rows
+ * as the points, so a missing stream means the base holds none of its ticks.
  */
-function reseed(state: LiveState, nextSeed: number): LiveState {
+function reseed(state: LiveState, nextSeeds: Record<string, number>): LiveState {
   return {
-    seedSequence: nextSeed,
-    ticks: state.ticks.filter((tick) => tick.sequence > nextSeed),
+    seeds: nextSeeds,
+    ticks: state.ticks.filter((tick) => {
+      const seed = nextSeeds[tick.stream];
+
+      return seed === undefined || tick.sequence > seed;
+    }),
   };
+}
+
+/** Shallow equality over seed maps, so a refetch with unchanged ordinals
+ * (a non-price change) never churns appended ticks. */
+function seedsEqual(a: Record<string, number>, b: Record<string, number>): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+
+  return aKeys.length === bKeys.length && aKeys.every((key) => a[key] === b[key]);
 }
