@@ -19,6 +19,8 @@ export type NetworkId = "local" | "arcTestnet";
 export type ContractAddresses = {
   /** Shared bounded prediction hook; ZERO_ADDRESS when no venue is deployed. */
   boundedHook: `0x${string}`;
+  /** Native-fee markets' collateral token; ZERO_ADDRESS before deploy. */
+  collateral: `0x${string}`;
   /** Bounded pool order manager; ZERO_ADDRESS when no venue is deployed. */
   orderManager: `0x${string}`;
   /** v4 pool manager; ZERO_ADDRESS when no venue is deployed. */
@@ -103,6 +105,10 @@ function createLocalConfig(): NetworkConfig {
         "LOCAL_BOUNDED_HOOK_ADDRESS",
         "BOUNDED_HOOK_ADDRESS",
       ]),
+      collateral: readAddress([
+        "LOCAL_COLLATERAL_ADDRESS",
+        "COLLATERAL_ADDRESS",
+      ]),
       orderManager: readAddress([
         "LOCAL_ORDER_MANAGER_ADDRESS",
         "ORDER_MANAGER_ADDRESS",
@@ -161,6 +167,10 @@ function createArcTestnetConfig(): NetworkConfig {
       boundedHook: readAddress([
         "ARC_TESTNET_BOUNDED_HOOK_ADDRESS",
         "BOUNDED_HOOK_ADDRESS",
+      ]),
+      collateral: readAddress([
+        "ARC_TESTNET_COLLATERAL_ADDRESS",
+        "COLLATERAL_ADDRESS",
       ]),
       orderManager: readAddress([
         "ARC_TESTNET_ORDER_MANAGER_ADDRESS",

@@ -212,10 +212,29 @@ export const MarketDraftReviewCreditSchema = t.Object(
   { $id: "MarketDraftReviewCredit" },
 );
 
+/**
+ * The authorizer's signature over one exact publish (ADR 0022 P4): spend it
+ * as createMarket's second argument. Minutes-lived; re-request on expiry.
+ */
+export const MarketDraftPublishAuthorizationSchema = t.Object(
+  {
+    expiry: t.String(),
+    nonce: t.String(),
+    signature: t.String(),
+  },
+  { $id: "MarketDraftPublishAuthorization" },
+);
+
 /** Wire-serialized createMarket params, minted at publish time. */
 export const MarketDraftPublishParamsSchema = t.Object(
   {
+    /**
+     * Present when this deployment holds the authorizer key and the caller
+     * named the publishing wallet; absent on an unarmed stack.
+     */
+    authorization: t.Optional(t.Ref(MarketDraftPublishAuthorizationSchema)),
     bypassAiResolution: t.Boolean(),
+    collateral: t.String(),
     graduationDeadline: t.String(),
     graduationThreshold: t.String(),
     liquidityParameter: t.String(),

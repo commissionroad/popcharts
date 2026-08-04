@@ -14,6 +14,7 @@ import {
   MarketDraftListSchema,
   MarketDraftPublishedSchema,
   MarketDraftPublishedWriteSchema,
+  MarketDraftPublishAuthorizationSchema,
   MarketDraftPublishParamsSchema,
   MarketDraftReviewSchema,
   MarketDraftSchema,
@@ -52,6 +53,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
     MarketDraftCloneRequest: MarketDraftCloneRequestSchema,
     MarketDraftReviewCredit: MarketDraftReviewCreditSchema,
     MarketDraftList: MarketDraftListSchema,
+    MarketDraftPublishAuthorization: MarketDraftPublishAuthorizationSchema,
     MarketDraftPublished: MarketDraftPublishedSchema,
     MarketDraftPublishedWrite: MarketDraftPublishedWriteSchema,
     MarketDraftPublishParams: MarketDraftPublishParamsSchema,
@@ -401,12 +403,13 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
   )
   .post(
     "/drafts/:draftId/publish-params",
-    async ({ ownerResolution, params, set }) => {
+    async ({ ownerResolution, params, query, set }) => {
       if (ownerResolution.kind !== "resolved") {
         return ownerFailure(ownerResolution, set);
       }
 
       const result = await buildDraftPublishParams({
+        creatorAddress: query.creatorAddress as `0x${string}` | undefined,
         draftId: Number.parseInt(params.draftId, 10),
         owner: ownerResolution.owner,
       });
@@ -421,10 +424,18 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         return result.message;
       }
 
-      return result.params;
+      return { ...result.params, authorization: result.authorization };
     },
     {
       params: t.Object({ draftId: t.String() }),
+      // Wallet identity as a query param, the house pattern (orders?owner=).
+      // Optional: without it the response carries no authorization, since
+      // there is no wallet to bind one to.
+      query: t.Object({
+        creatorAddress: t.Optional(
+          t.String({ pattern: "^0x[0-9a-fA-F]{40}$" }),
+        ),
+      }),
       response: {
         200: "MarketDraftPublishParams",
         401: t.String(),
