@@ -9,6 +9,7 @@ Scheduled full-stack lifecycle run (ADR 0017 Track C). Newest first; the result 
 
 | Date | Commit | Result | Chain smoke | Lifecycle scenarios | Chain-backed e2e | UI journeys |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-04 | `ec0966c` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/30904424537) | ✓ | ✗ | ✓ | ✗ |
 | 2026-08-03 | `fe5ee55` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/30813036988) | ✗ | ✗ | ✓ | ✓ |
 | 2026-08-02 | `fe5ee55` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/30744103245) | ✓ | ✗ | ✓ | ✓ |
 | 2026-08-01 | `fe5ee55` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/30696091482) | ✗ | ✗ | ✓ | ✓ |
