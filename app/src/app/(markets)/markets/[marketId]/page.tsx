@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { pricePathFromReceipts } from "@/domain/markets/api-market";
 import {
   getMarketById,
-  getMarketReceipts,
+  getMarketPricePath,
   getMarkets,
-  getMarketVenuePricePath,
 } from "@/domain/markets/queries";
 import { MarketDetailPage } from "@/features/market-detail/market-detail-page";
 
@@ -36,28 +34,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function Page({ params }: PageProps) {
   const { marketId } = await params;
-  // The venue history is fetched unconditionally alongside the receipts rather
-  // than after checking the market's status: it is the same round trip either
-  // way, and gating on status would serialize two requests to save a read that
-  // answers with an empty list for every market that has not graduated.
-  const [market, receipts, venuePricePath] = await Promise.all([
+  // One read covers the chart's whole life (repo ADR 0025): the server owns
+  // the LMSR replay and the venue prices, so the page no longer fetches raw
+  // receipts or replays anything itself. A failed or empty history falls back
+  // to the market's own synthetic path inside MarketDetailPage.
+  const [market, pricePath] = await Promise.all([
     getMarketById(marketId),
-    getMarketReceipts(marketId),
-    getMarketVenuePricePath(marketId),
+    getMarketPricePath(marketId),
   ]);
 
   if (!market) {
     notFound();
   }
 
-  const pricePath =
-    receipts.length > 0 ? pricePathFromReceipts(market, receipts) : null;
-
   return (
     <MarketDetailPage
       market={market}
-      {...(pricePath ? { pricePath } : {})}
-      {...(venuePricePath.length > 0 ? { venuePricePath } : {})}
+      {...(pricePath.length > 0 ? { pricePath } : {})}
     />
   );
 }

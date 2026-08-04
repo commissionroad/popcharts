@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 
 import { PriceCurve } from "./price-curve";
 
@@ -21,9 +21,12 @@ const pregradCents = [
   50, 52, 51, 55, 58, 56, 60, 63, 61, 65, 68, 66, 70, 69, 72, 74, 73, 76,
 ];
 
-const pregradPoints: PricePathPoint[] = pregradCents.map((cents, index) => ({
+// Pregrad points are complementary by construction — one LMSR state prices
+// both sides — which the unified shape carries explicitly.
+const pregradPoints: PricePoint[] = pregradCents.map((cents, index) => ({
   at: at(index * 20),
-  cents,
+  noCents: 100 - cents,
+  yesCents: cents,
 }));
 
 /**
@@ -54,13 +57,16 @@ const postgradPairs: Array<[number, number]> = [
   [89, 12],
 ];
 
-const postgradPoints: PostgradPricePoint[] = postgradPairs.map(
+const postgradPoints: PricePoint[] = postgradPairs.map(
   ([yesCents, noCents], index) => ({
     at: at(pregradCents.length * 20 + 40 + index * 15),
     noCents,
     yesCents,
   })
 );
+
+/** The whole life as the unified read serves it: one list, no phase marker. */
+const wholeLifePoints: PricePoint[] = [...pregradPoints, ...postgradPoints];
 
 const meta = {
   args: {
@@ -93,7 +99,7 @@ export const Pregrad: Story = {};
 export const GraduatedWithVenueTrading: Story = {
   args: {
     graduatedAt,
-    postgradPoints,
+    points: wholeLifePoints,
   },
 };
 
@@ -116,7 +122,7 @@ export const CustomOutcomeLabels: Story = {
   args: {
     graduatedAt,
     noLabel: "Egypt",
-    postgradPoints,
+    points: wholeLifePoints,
     yesLabel: "Argentina",
   },
 };
@@ -129,10 +135,13 @@ export const CustomOutcomeLabels: Story = {
 export const WideCompleteSetGap: Story = {
   args: {
     graduatedAt,
-    postgradPoints: postgradPoints.map((point, index) => ({
-      ...point,
-      noCents: point.noCents + (index > 5 ? 14 : 2),
-    })),
+    points: [
+      ...pregradPoints,
+      ...postgradPoints.map((point, index) => ({
+        ...point,
+        noCents: point.noCents + (index > 5 ? 14 : 2),
+      })),
+    ],
   },
 };
 
@@ -144,6 +153,9 @@ export const WideCompleteSetGap: Story = {
 export const UntimedFixturePath: Story = {
   args: {
     graduatedAt,
-    points: pregradCents.map((cents) => ({ cents })),
+    points: pregradCents.map((cents) => ({
+      noCents: 100 - cents,
+      yesCents: cents,
+    })),
   },
 };

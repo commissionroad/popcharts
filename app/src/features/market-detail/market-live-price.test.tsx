@@ -2,7 +2,7 @@ import { type PriceTickWire, serializeChangeSignal } from "@popcharts/live-chann
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 import type { LiveSignal } from "@/integrations/live-updates/live-connection";
 
 import { MarketLivePrice } from "./market-live-price";
@@ -28,24 +28,21 @@ vi.mock("@/components/charts/price-curve", () => ({
     graduatedAt,
     noLabel,
     points,
-    postgradPoints,
     yesLabel,
   }: {
     graduatedAt?: string;
     noLabel: string;
-    points: PricePathPoint[];
-    postgradPoints?: PostgradPricePoint[];
+    points: PricePoint[];
     yesLabel: string;
   }) => (
     <div data-testid="price-curve">
       <span data-testid="chart-labels">{`${yesLabel}/${noLabel}`}</span>
-      <span data-testid="chart-latest-cents">{points.at(-1)?.cents ?? "none"}</span>
+      <span data-testid="chart-latest-cents">{points.at(-1)?.yesCents ?? "none"}</span>
+      <span data-testid="chart-latest-no-cents">
+        {points.at(-1)?.noCents ?? "none"}
+      </span>
       <span data-testid="chart-point-count">{points.length}</span>
       <span data-testid="chart-graduated-at">{graduatedAt ?? "none"}</span>
-      <span data-testid="chart-venue-count">{postgradPoints?.length ?? "none"}</span>
-      <span data-testid="chart-venue-latest">
-        {postgradPoints?.at(-1)?.yesCents ?? "none"}
-      </span>
     </div>
   ),
 }));
@@ -106,29 +103,29 @@ describe("MarketLivePrice", () => {
     expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
   });
 
-  it("passes the venue prices and graduation time through to the chart", () => {
+  it("passes the unified points and graduation annotation to the chart", () => {
     renderIsland({
       graduatedAt: "2026-07-24T00:00:00.000Z",
-      postgradPoints: [
+      points: [
+        { at: "2026-07-23T00:00:00.000Z", noCents: 60, yesCents: 40 },
         { at: "2026-07-24T01:00:00.000Z", noCents: 54.2, yesCents: 46.1 },
       ],
     });
 
-    // They stay a separate series: the LMSR path is untouched, and the venue
-    // prices arrive whole rather than folded into it.
+    // One list, no phase marker: the venue point arrives whole and the chart
+    // receives graduation purely as an annotation (repo ADR 0025).
     expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
-    expect(screen.getByTestId("chart-venue-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("chart-venue-latest")).toHaveTextContent("46.1");
+    expect(screen.getByTestId("chart-latest-cents")).toHaveTextContent("46.1");
+    expect(screen.getByTestId("chart-latest-no-cents")).toHaveTextContent("54.2");
     expect(screen.getByTestId("chart-graduated-at")).toHaveTextContent(
       "2026-07-24T00:00:00.000Z"
     );
   });
 
-  it("leaves the chart's postgrad inputs unset for a pregrad market", () => {
+  it("leaves the graduation annotation unset for a pregrad market", () => {
     renderIsland();
 
     expect(screen.getByTestId("chart-graduated-at")).toHaveTextContent("none");
-    expect(screen.getByTestId("chart-venue-count")).toHaveTextContent("none");
   });
 
   it("appends a consecutive price tick to the chart and headline without refetching", () => {
@@ -228,7 +225,10 @@ describe("MarketLivePrice", () => {
         marketAppId="31337:9"
         noLabel="NO"
         noPriceCents={29}
-        points={[{ cents: 40 }, { cents: 71 }]}
+        points={[
+          { noCents: 60, yesCents: 40 },
+          { noCents: 29, yesCents: 71 },
+        ]}
         seedSequence={8}
         yesLabel="YES"
         yesPriceCents={71}
@@ -258,7 +258,11 @@ describe("MarketLivePrice", () => {
         marketAppId="31337:9"
         noLabel="NO"
         noPriceCents={35}
-        points={[{ cents: 40 }, { cents: 60 }, { cents: 65 }]}
+        points={[
+          { noCents: 60, yesCents: 40 },
+          { noCents: 40, yesCents: 60 },
+          { noCents: 35, yesCents: 65 },
+        ]}
         seedSequence={7}
         yesLabel="YES"
         yesPriceCents={65}
@@ -348,7 +352,10 @@ function islandProps(
     marketAppId: "31337:9",
     noLabel: "NO",
     noPriceCents: 36,
-    points: [{ cents: 40 }, { cents: 48 }],
+    points: [
+      { noCents: 60, yesCents: 40 },
+      { noCents: 52, yesCents: 48 },
+    ],
     seedSequence: 5,
     yesLabel: "YES",
     yesPriceCents: 64,

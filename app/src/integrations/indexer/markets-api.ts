@@ -6,8 +6,8 @@ import {
 import { getGraduateMarketUrl } from "@popcharts/api-client/graduation";
 import {
   getGetMarketOrderBookUrl,
+  getGetMarketPriceHistoryUrl,
   getGetMarketUrl,
-  getGetMarketVenuePriceHistoryUrl,
   getListMarketEventsUrl,
   getListMarketOrdersUrl,
   getListMarketReceiptsUrl,
@@ -24,7 +24,7 @@ import type {
   MarketCreatedEvent,
   MarketMetadata,
   MarketOrderBook,
-  MarketVenuePriceHistory,
+  MarketPriceHistory,
   Portfolio,
   ReceiptPlacedEvent,
   VenueOrder,
@@ -34,7 +34,7 @@ import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
 export type ApiMarketOrderBook = MarketOrderBook;
-export type ApiMarketVenuePriceHistory = MarketVenuePriceHistory;
+export type ApiMarketPriceHistory = MarketPriceHistory;
 export type ApiPortfolio = Portfolio;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
@@ -68,10 +68,9 @@ export type MarketsApiClient = {
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
   getMarketOrderBook: (lookup: MarketApiLookup) => Promise<ApiMarketOrderBook | null>;
-  getMarketReceipts: (lookup: MarketApiLookup) => Promise<ApiReceiptPlacedEvent[]>;
-  getMarketVenuePriceHistory: (
+  getMarketPriceHistory: (
     lookup: MarketApiLookup
-  ) => Promise<ApiMarketVenuePriceHistory | null>;
+  ) => Promise<ApiMarketPriceHistory | null>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
   getPortfolio: (args: {
     chainId: number | string;
@@ -224,26 +223,12 @@ export function createMarketsApiClient({
         )
       );
     },
-    async getMarketReceipts({ chainId, marketId }) {
-      const response = await requestJson<ApiReceiptPlacedEvent[]>(
+    getMarketPriceHistory({ chainId, marketId }) {
+      return requestJson<ApiMarketPriceHistory>(
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          getListMarketReceiptsUrl(
-            encodeURIComponent(String(chainId)),
-            encodeURIComponent(marketId)
-          )
-        )
-      );
-
-      return response ?? [];
-    },
-    getMarketVenuePriceHistory({ chainId, marketId }) {
-      return requestJson<ApiMarketVenuePriceHistory>(
-        fetcher,
-        buildUrl(
-          normalizedBaseUrl,
-          getGetMarketVenuePriceHistoryUrl(
+          getGetMarketPriceHistoryUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )

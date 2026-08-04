@@ -9,9 +9,8 @@ import type {
 import { markets as fixtureMarkets } from "./fixtures";
 import {
   getMarketById,
-  getMarketReceipts,
   getMarkets,
-  getMarketVenuePricePath,
+  getMarketPricePath,
   requestDevMarketGraduation,
   requestDevMarketResolution,
   requestMarketGraduation,
@@ -142,137 +141,90 @@ describe("market queries", () => {
     expect(market?.id).toBe("5042002:7");
   });
 
-  it("reads market receipts by chain-prefixed app id", async () => {
-    const receipt = {
-      blockNumber: "111",
-      blockTimestamp: "2026-06-13T12:05:00.000Z",
-      chainId: 5042002,
-      cost: "3288901914750925000",
-      logIndex: 1,
-      marketId: "7",
-      owner: "0x0000000000000000000000000000000000000003",
-      receiptId: "1",
-      sequence: "1",
-      shares: "6000000000000000000",
-      side: 0,
-      transactionHash:
-        "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    };
-    const client = createClient({ receipts: [receipt] });
-
-    const receipts = await getMarketReceipts("5042002:7", {
-      client,
-      source: "api",
-    });
-
-    expect(client.getMarketReceipts).toHaveBeenCalledWith({
-      chainId: 5042002,
-      marketId: "7",
-    });
-    expect(receipts).toEqual([receipt]);
-  });
-
-  it("returns no receipts for fixture-backed markets", async () => {
-    await expect(
-      getMarketReceipts("eth-5000-august", { source: "fixtures" })
-    ).resolves.toEqual([]);
-  });
-
-  it("maps venue price history onto the chart's postgrad point shape", async () => {
+  it("serves the unified price path as-is", async () => {
     const client = createClient({
-      venuePriceHistory: {
+      priceHistory: {
         chainId: 5042002,
         graduatedAt: "2026-07-01T00:00:00.000Z",
         marketId: "7",
         points: [
-          {
-            at: "2026-07-01T00:00:00.000Z",
-            noPriceCents: 50,
-            yesPriceCents: 50,
-          },
-          {
-            at: "2026-07-01T01:00:00.000Z",
-            noPriceCents: 46.0491,
-            yesPriceCents: 49.7945,
-          },
+          { at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 },
+          { at: "2026-07-01T01:00:00.000Z", noCents: 46.0491, yesCents: 49.7945 },
         ],
       },
     });
 
-    const points = await getMarketVenuePricePath("5042002:7", {
+    const points = await getMarketPricePath("5042002:7", {
       client,
       source: "api",
     });
 
-    expect(client.getMarketVenuePriceHistory).toHaveBeenCalledWith({
+    expect(client.getMarketPriceHistory).toHaveBeenCalledWith({
       chainId: 5042002,
       marketId: "7",
     });
-    // Sub-cent precision survives the mapping: the API deliberately does not
-    // round, so neither may this.
+    // The wire shape IS the chart shape — no mapping, no rounding.
     expect(points).toEqual([
       { at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 },
       { at: "2026-07-01T01:00:00.000Z", noCents: 46.0491, yesCents: 49.7945 },
     ]);
   });
 
-  it("returns no venue prices for a market that never graduated", async () => {
-    // The endpoint answers with an empty list rather than a 404, and a market
-    // with no venue history is a normal state, not an error.
+  it("returns an empty path when the read answers an empty history", async () => {
     const client = createClient({
-      venuePriceHistory: { chainId: 5042002, marketId: "7", points: [] },
+      priceHistory: { chainId: 5042002, marketId: "7", points: [] },
     });
 
     await expect(
-      getMarketVenuePricePath("5042002:7", { client, source: "api" })
+      getMarketPricePath("5042002:7", { client, source: "api" })
     ).resolves.toEqual([]);
   });
 
-  it("returns no venue prices when the market read answers nothing", async () => {
+  it("returns an empty path when the read answers nothing", async () => {
     const client = createClient();
 
     await expect(
-      getMarketVenuePricePath("5042002:7", { client, source: "api" })
+      getMarketPricePath("5042002:7", { client, source: "api" })
     ).resolves.toEqual([]);
   });
 
-  it("returns no venue prices for fixture-backed markets", async () => {
+  it("returns an empty path for fixture-backed markets", async () => {
     await expect(
-      getMarketVenuePricePath("eth-5000-august", { source: "fixtures" })
+      getMarketPricePath("eth-5000-august", { source: "fixtures" })
     ).resolves.toEqual([]);
   });
 
-  it("degrades to no venue prices when the venue read fails", async () => {
-    // The market and its receipts are load-bearing; this read is not. A page
-    // that threw here would lose its whole chart — including the pregrad half
-    // of a market that never graduated and never needed this endpoint.
+  it("degrades to an empty path when the history read fails", async () => {
+    // The market read is load-bearing; this one is not. A page that threw
+    // here would lose its whole chart instead of falling back to the market's
+    // synthetic path.
     const failure = new Error("Markets API request failed (502): bad gateway");
     const client = createClient();
-    client.getMarketVenuePriceHistory = vi.fn(async () => {
+    client.getMarketPriceHistory = vi.fn(async () => {
       throw failure;
     });
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
-      getMarketVenuePricePath("5042002:7", { client, source: "api" })
+      getMarketPricePath("5042002:7", { client, source: "api" })
     ).resolves.toEqual([]);
     // Degraded, not silent.
     expect(logged).toHaveBeenCalledWith(
       "[popcharts] error",
       failure,
-      expect.objectContaining({ operation: "getMarketVenuePricePath" })
+      expect.objectContaining({ operation: "getMarketPricePath" })
     );
 
     logged.mockRestore();
   });
 
-  it("returns no venue prices for bare ids without a chain id", async () => {
+  it("returns an empty path for bare ids without a chain id", async () => {
     const client = createClient();
 
-    await expect(
-      getMarketVenuePricePath("7", { client, source: "api" })
-    ).resolves.toEqual([]);
-    expect(client.getMarketVenuePriceHistory).not.toHaveBeenCalled();
+    await expect(getMarketPricePath("7", { client, source: "api" })).resolves.toEqual(
+      []
+    );
+    expect(client.getMarketPriceHistory).not.toHaveBeenCalled();
   });
 
   it("reads individual API markets by URL-encoded chain-prefixed app id", async () => {
@@ -467,15 +419,6 @@ describe("market queries", () => {
       getMarketById("eth-5000-august", { client, source: "auto" })
     ).resolves.toBe(fixtureMarkets[0]);
     expect(client.getMarket).not.toHaveBeenCalled();
-  });
-
-  it("returns no receipts for bare ids without a chain id", async () => {
-    const client = createClient();
-
-    await expect(getMarketReceipts("7", { client, source: "api" })).resolves.toEqual(
-      []
-    );
-    expect(client.getMarketReceipts).not.toHaveBeenCalled();
   });
 
   it("forwards the since parameter to the API client", async () => {
@@ -697,8 +640,7 @@ function createClient({
   graduation,
   market = null,
   markets = [],
-  receipts = [],
-  venuePriceHistory = null,
+  priceHistory = null,
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   devGraduation?: Awaited<ReturnType<MarketsApiClient["graduateDevMarket"]>>;
@@ -706,10 +648,7 @@ function createClient({
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
-  receipts?: Awaited<ReturnType<MarketsApiClient["getMarketReceipts"]>>;
-  venuePriceHistory?: Awaited<
-    ReturnType<MarketsApiClient["getMarketVenuePriceHistory"]>
-  >;
+  priceHistory?: Awaited<ReturnType<MarketsApiClient["getMarketPriceHistory"]>>;
 } = {}): MarketsApiClient {
   return {
     closePregradMarket: vi.fn(async () => {
@@ -743,8 +682,7 @@ function createClient({
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
     getMarketOrderBook: vi.fn(async () => null),
-    getMarketReceipts: vi.fn(async () => receipts),
-    getMarketVenuePriceHistory: vi.fn(async () => venuePriceHistory),
+    getMarketPriceHistory: vi.fn(async () => priceHistory),
     getMarkets: vi.fn(async () => markets),
     getPortfolio: vi.fn(async () => null),
     listMarketOrders: vi.fn(async () => []),

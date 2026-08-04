@@ -1,15 +1,21 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 
-import { PriceCurve, toCurvePoints, windowPricePath } from "./price-curve";
+import { PriceCurve, windowPricePath } from "./price-curve";
 
 // Companion to price-curve.test.tsx: covers only the branches the main suite
 // leaves out (unmeasured layout, degenerate timestamps, tooltip edge flips).
 describe("PriceCurve edge branches", () => {
   it("ignores pointer movement while the chart has no measured width", () => {
-    const plot = renderCurve([{ cents: 30 }, { cents: 45 }], 0);
+    const plot = renderCurve(
+      [
+        { noCents: 70, yesCents: 30 },
+        { noCents: 55, yesCents: 45 },
+      ],
+      0
+    );
 
     pointerMove(plot, 150);
 
@@ -18,8 +24,8 @@ describe("PriceCurve edge branches", () => {
 
   it("omits time labels when timestamps cannot be parsed", () => {
     const plot = renderCurve([
-      { at: "not-a-date", cents: 50 },
-      { at: "also-not-a-date", cents: 62 },
+      { at: "not-a-date", noCents: 50, yesCents: 50 },
+      { at: "also-not-a-date", noCents: 38, yesCents: 62 },
     ]);
 
     pointerMove(plot, 290);
@@ -31,9 +37,9 @@ describe("PriceCurve edge branches", () => {
 
   it("hides the range selector when any point lacks a timestamp", () => {
     renderCurve([
-      { at: "2026-06-13T12:00:00.000Z", cents: 50 },
-      { cents: 55 },
-      { at: "2026-06-13T13:00:00.000Z", cents: 62 },
+      { at: "2026-06-13T12:00:00.000Z", noCents: 50, yesCents: 50 },
+      { noCents: 45, yesCents: 55 },
+      { at: "2026-06-13T13:00:00.000Z", noCents: 38, yesCents: 62 },
     ]);
 
     expect(screen.queryByRole("button", { name: "ALL" })).not.toBeInTheDocument();
@@ -41,8 +47,8 @@ describe("PriceCurve edge branches", () => {
 
   it("drops the time of day once the window spans multiple days", () => {
     const plot = renderCurve([
-      { at: "2026-06-13T12:00:00.000Z", cents: 50 },
-      { at: "2026-06-16T12:00:00.000Z", cents: 62 },
+      { at: "2026-06-13T12:00:00.000Z", noCents: 50, yesCents: 50 },
+      { at: "2026-06-16T12:00:00.000Z", noCents: 38, yesCents: 62 },
     ]);
 
     pointerMove(plot, 290);
@@ -54,8 +60,8 @@ describe("PriceCurve edge branches", () => {
 
   it("flips the tooltip inward near the right edge", () => {
     const plot = renderCurve([
-      { at: "2026-06-13T12:00:00.000Z", cents: 50 },
-      { at: "2026-06-13T12:15:00.000Z", cents: 62 },
+      { at: "2026-06-13T12:00:00.000Z", noCents: 50, yesCents: 50 },
+      { at: "2026-06-13T12:15:00.000Z", noCents: 38, yesCents: 62 },
     ]);
 
     pointerMove(plot, 290);
@@ -69,13 +75,11 @@ describe("PriceCurve edge branches", () => {
   it("spreads samples evenly when every trade shares one timestamp", () => {
     const at = "2026-06-13T12:00:00.000Z";
     const { samples, timeSpan } = windowPricePath(
-      toCurvePoints({
-        points: [
-          { at, cents: 40 },
-          { at, cents: 50 },
-          { at, cents: 60 },
-        ],
-      }),
+      [
+        { at, noCents: 60, yesCents: 40 },
+        { at, noCents: 50, yesCents: 50 },
+        { at, noCents: 40, yesCents: 60 },
+      ],
       null
     );
 
@@ -84,8 +88,8 @@ describe("PriceCurve edge branches", () => {
     expect(timeSpan).toBeNull();
     // A zero-width window has no meaningful time axis.
     renderCurve([
-      { at, cents: 40 },
-      { at, cents: 60 },
+      { at, noCents: 60, yesCents: 40 },
+      { at, noCents: 40, yesCents: 60 },
     ]);
     expect(screen.queryByText(/\d{1,2}:\d{2}/)).not.toBeInTheDocument();
   });
@@ -100,14 +104,14 @@ describe("PriceCurve edge branches", () => {
   });
 
   it("draws a flat line for a single windowed sample", () => {
-    renderCurve([{ at: "2026-06-13T12:00:00.000Z", cents: 40 }]);
+    renderCurve([{ at: "2026-06-13T12:00:00.000Z", noCents: 60, yesCents: 40 }]);
 
     const [yesLine] = document.querySelectorAll("polyline");
     expect(yesLine?.getAttribute("points")).toBe("0.0,60.0 300.0,60.0");
   });
 });
 
-function renderCurve(points: PricePathPoint[], width = 300) {
+function renderCurve(points: PricePoint[], width = 300) {
   render(<PriceCurve points={points} />);
   const plot = screen.getByTestId("price-curve-plot");
   vi.spyOn(plot, "getBoundingClientRect").mockReturnValue({
