@@ -46,7 +46,9 @@ if (!rawPayload) {
 const payload = JSON.parse(rawPayload) as SerializedPublishPayload;
 
 if (!isAddress(payload.params.collateral)) {
-  throw new Error(`Payload collateral must be an EVM address; received ${payload.params.collateral}`);
+  throw new Error(
+    `Payload collateral must be an EVM address; received ${payload.params.collateral}`,
+  );
 }
 
 const { viem } = await network.create();
