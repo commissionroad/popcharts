@@ -242,6 +242,30 @@ describe("market queries", () => {
     ).resolves.toEqual([]);
   });
 
+  it("degrades to no venue prices when the venue read fails", async () => {
+    // The market and its receipts are load-bearing; this read is not. A page
+    // that threw here would lose its whole chart — including the pregrad half
+    // of a market that never graduated and never needed this endpoint.
+    const failure = new Error("Markets API request failed (502): bad gateway");
+    const client = createClient();
+    client.getMarketVenuePriceHistory = vi.fn(async () => {
+      throw failure;
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      getMarketVenuePricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual([]);
+    // Degraded, not silent.
+    expect(logged).toHaveBeenCalledWith(
+      "[popcharts] error",
+      failure,
+      expect.objectContaining({ operation: "getMarketVenuePricePath" })
+    );
+
+    logged.mockRestore();
+  });
+
   it("returns no venue prices for bare ids without a chain id", async () => {
     const client = createClient();
 

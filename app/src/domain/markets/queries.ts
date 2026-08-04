@@ -6,6 +6,7 @@ import {
   type MarketsApiFetch,
 } from "@/integrations/indexer/markets-api";
 import { parseApiMarketAppId } from "@/lib/app-id";
+import { logError } from "@/lib/error-logger";
 
 import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
@@ -83,6 +84,16 @@ export async function getMarketReceipts(id: string, options: MarketQueryOptions 
  * list for anything without one: a fixture-backed market, a market that has
  * not graduated, and one whose venue pools are not indexed yet all have no
  * venue prices, which is a normal state rather than a failure.
+ *
+ * A failed read reports the same empty list rather than throwing, which is the
+ * one place this module deliberately swallows an error. Every other market
+ * read is load-bearing — without the market or its receipts there is no page —
+ * so letting those propagate is right. This one is supplementary: the market
+ * page renders its whole pre-graduation chart without it, and most markets
+ * have no venue history to fetch in the first place. Propagating would let an
+ * unrelated outage blank the chart on markets that never graduated, which is
+ * exactly the failure the chart work exists to prevent. Losing the tail of one
+ * line beats losing the page.
  */
 export async function getMarketVenuePricePath(
   id: string,
@@ -100,13 +111,21 @@ export async function getMarketVenuePricePath(
     return [];
   }
 
-  const history = await config.client.getMarketVenuePriceHistory(lookup);
+  try {
+    const history = await config.client.getMarketVenuePriceHistory(lookup);
 
-  return (history?.points ?? []).map((point) => ({
-    at: point.at,
-    noCents: point.noPriceCents,
-    yesCents: point.yesPriceCents,
-  }));
+    return (history?.points ?? []).map((point) => ({
+      at: point.at,
+      noCents: point.noPriceCents,
+      yesCents: point.yesPriceCents,
+    }));
+  } catch (error) {
+    // Degraded, not silent: the chart drops its venue half and the failure
+    // still reaches the logs rather than disappearing.
+    logError(error, { marketId: id, operation: "getMarketVenuePricePath" });
+
+    return [];
+  }
 }
 
 export async function getMarkets(options: MarketQueryOptions = {}) {
