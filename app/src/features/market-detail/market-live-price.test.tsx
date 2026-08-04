@@ -310,9 +310,11 @@ function emit(signal: LiveSignal) {
 }
 
 /** A `change` frame carrying a price tick, or with `null` a pure nudge (a
- * lifecycle change that drives a refetch). `t` is filled in so callers vary
- * only the fields the decision keys on. */
-function tickSignal(fields: Omit<PriceTickWire, "t"> | null): LiveSignal {
+ * lifecycle change that drives a refetch). `t` and the receipts `stream` are
+ * filled in so callers vary only the fields the decision keys on. */
+function tickSignal(
+  fields: (Omit<PriceTickWire, "t" | "stream"> & { stream?: string }) | null
+): LiveSignal {
   return {
     type: "change",
     ...serializeChangeSignal({
@@ -325,7 +327,10 @@ function tickSignal(fields: Omit<PriceTickWire, "t"> | null): LiveSignal {
       owner: null,
       blockNumber: null,
       logIndex: null,
-      tick: fields === null ? null : { t: TICK_TIME, ...fields },
+      tick:
+        fields === null
+          ? null
+          : { t: TICK_TIME, stream: "receipts", ...fields },
     }),
   };
 }

@@ -8,18 +8,22 @@ import { createPgliteDb } from "src/test-support/pglite-db";
 import {
   buildPoolPriceTickRecord,
   persistPoolPriceTickRecord,
+  type PoolPriceTickDependencies,
   type PoolPriceTickLog,
 } from "src/indexer/handlers/pool-price-ticks";
+import { venueOpeningCents, venueTickToCents } from "src/shared/venue-prices";
 
 const CHAIN_ID = 5042002;
 const POOL_ID = `0x${"AB".repeat(32)}` as `0x${string}`;
 const TX_HASH = `0x${"cc".repeat(32)}`;
 const BLOCK_TIMESTAMP = new Date("2026-07-17T00:00:00Z");
+const COLLATERAL_DECIMALS = 18;
+const WAD = 10n ** 18n;
 
 describe("buildPoolPriceTickRecord", () => {
   it("maps a tick observation log and lowercases the poolId", () => {
     const record = buildPoolPriceTickRecord(
-      buildInput({ poolId: POOL_ID, tick: -1573 }),
+      buildInput({ poolId: POOL_ID, sequence: 7n, tick: -1573 }),
     );
 
     expect(record).toEqual({
@@ -29,6 +33,7 @@ describe("buildPoolPriceTickRecord", () => {
       contractId: 9,
       logIndex: 7,
       poolId: POOL_ID.toLowerCase(),
+      sequence: 7n,
       tick: -1573,
       transactionHash: TX_HASH,
     });
@@ -36,15 +41,16 @@ describe("buildPoolPriceTickRecord", () => {
 
   it("keeps a zero tick", () => {
     const record = buildPoolPriceTickRecord(
-      buildInput({ poolId: POOL_ID, tick: 0 }),
+      buildInput({ poolId: POOL_ID, sequence: 1n, tick: 0 }),
     );
 
     expect(record.tick).toBe(0);
   });
 
   it.each([
-    ["poolId", { tick: 42 }],
-    ["tick", { poolId: POOL_ID }],
+    ["poolId", { sequence: 1n, tick: 42 }],
+    ["tick", { poolId: POOL_ID, sequence: 1n }],
+    ["sequence", { poolId: POOL_ID, tick: 42 }],
   ])("throws when the log is missing %s", (name, args) => {
     expect(() => buildPoolPriceTickRecord(buildInput(args))).toThrow(
       `Pool price tick log is missing ${name}.`,
@@ -52,7 +58,7 @@ describe("buildPoolPriceTickRecord", () => {
   });
 
   it("throws when the log is missing blockNumber", () => {
-    const input = buildInput({ poolId: POOL_ID, tick: 42 });
+    const input = buildInput({ poolId: POOL_ID, sequence: 1n, tick: 42 });
     input.log.blockNumber = null;
 
     expect(() => buildPoolPriceTickRecord(input)).toThrow(
@@ -65,10 +71,25 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
   let dbc: typeof productionDb;
   let teardownDb: () => Promise<void>;
 
-  // POOL_ID deliberately has no venue_pools row; MAPPED_POOL_ID does, so the
-  // suite covers both sides of the live-signal routing decision.
-  const MAPPED_POOL_ID = `0x${"ef".repeat(32)}`;
+  // POOL_ID deliberately has no venue_pools row; the yes/no pool ids do, so
+  // the suite covers both sides of the live-signal routing decision.
+  const YES_POOL_ID = `0x${"ef".repeat(32)}`;
+  const NO_POOL_ID = `0x${"e0".repeat(32)}`;
+  // A second market whose YES pool has no indexed sibling, so the payload
+  // degrades to a plain nudge while the tick row still lands.
+  const LONELY_POOL_ID = `0x${"e1".repeat(32)}`;
   const MARKET_ID = 42n;
+  const LONELY_MARKET_ID = 43n;
+
+  const dependencies: PoolPriceTickDependencies = {
+    readCollateralDecimals: async () => COLLATERAL_DECIMALS,
+  };
+  const marketLmsr = {
+    liquidityParameter: 5_000n * WAD,
+    noShares: 0n,
+    openingProbabilityWad: WAD / 2n,
+    yesShares: 0n,
+  };
 
   beforeAll(async () => {
     ({ dbc, teardown: teardownDb } = await createPgliteDb());
@@ -78,15 +99,57 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
       chainId: CHAIN_ID,
       name: "BoundedPredictionHook",
     });
-    await dbc.insert(schema.venuePools).values({
-      chainId: CHAIN_ID,
-      marketId: MARKET_ID,
-      outcomeIsCurrency0: true,
-      outcomeToken: "0x00000000000000000000000000000000000000ee",
-      poolId: MAPPED_POOL_ID,
-      postgradMarket: "0x00000000000000000000000000000000000000ff",
-      side: "yes",
-    });
+    for (const [index, market] of [
+      { marketId: MARKET_ID },
+      { marketId: LONELY_MARKET_ID },
+    ].entries()) {
+      await dbc.insert(schema.markets).values({
+        chainId: CHAIN_ID,
+        collateral: "0x00000000000000000000000000000000000000dd",
+        contractId: 1,
+        createdBlockNumber: 99n,
+        createdBlockTimestamp: new Date("2026-07-13T00:00:00Z"),
+        createdLogIndex: index,
+        createdTransactionHash: `0x${"33".repeat(32)}`,
+        creator: "0x00000000000000000000000000000000000000aa",
+        graduationThreshold: 1_000_000n,
+        graduationTime: new Date("2026-08-01T00:00:00Z"),
+        marketId: market.marketId,
+        metadataHash: `0x${"22".repeat(32)}`,
+        resolutionTime: new Date("2026-09-01T00:00:00Z"),
+        status: "graduated",
+        ...marketLmsr,
+      });
+    }
+    await dbc.insert(schema.venuePools).values([
+      {
+        chainId: CHAIN_ID,
+        marketId: MARKET_ID,
+        outcomeIsCurrency0: true,
+        outcomeToken: "0x00000000000000000000000000000000000000ee",
+        poolId: YES_POOL_ID,
+        postgradMarket: "0x00000000000000000000000000000000000000ff",
+        side: "yes",
+      },
+      {
+        chainId: CHAIN_ID,
+        marketId: MARKET_ID,
+        outcomeIsCurrency0: false,
+        outcomeToken: "0x00000000000000000000000000000000000000ea",
+        poolId: NO_POOL_ID,
+        postgradMarket: "0x00000000000000000000000000000000000000ff",
+        side: "no",
+      },
+      {
+        chainId: CHAIN_ID,
+        marketId: LONELY_MARKET_ID,
+        outcomeIsCurrency0: true,
+        outcomeToken: "0x00000000000000000000000000000000000000eb",
+        poolId: LONELY_POOL_ID,
+        postgradMarket: "0x00000000000000000000000000000000000000fe",
+        side: "yes",
+      },
+    ]);
   });
 
   afterAll(async () => {
@@ -105,7 +168,7 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
   }
 
   it("persists the tick row without a live signal for an unmapped pool", async () => {
-    await persistPoolPriceTickRecord(tickRecord(), dbc);
+    await persistPoolPriceTickRecord(tickRecord(), dbc, dependencies);
 
     expect(await tickCount()).toBe(1);
     // The market route is a tick's only one, so an unmapped pool records no
@@ -114,21 +177,31 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
   });
 
   it("dedups a replay via the real unique index", async () => {
-    await persistPoolPriceTickRecord(tickRecord(), dbc);
+    await persistPoolPriceTickRecord(tickRecord(), dbc, dependencies);
 
     expect(await tickCount()).toBe(1);
   });
 
   it("stores a second observation in the same tx under a new log index", async () => {
-    await persistPoolPriceTickRecord(tickRecord({ logIndex: 8 }), dbc);
+    await persistPoolPriceTickRecord(
+      tickRecord({ logIndex: 8 }),
+      dbc,
+      dependencies,
+    );
 
     expect(await tickCount()).toBe(2);
   });
 
-  it("signals the pool's market for a fresh tick on a mapped pool", async () => {
+  it("signals a priced tick, forward-filling the untraded sibling from the opening price", async () => {
     await persistPoolPriceTickRecord(
-      tickRecord({ logIndex: 9, poolId: MAPPED_POOL_ID }),
+      tickRecord({
+        logIndex: 9,
+        poolId: YES_POOL_ID,
+        sequence: 1n,
+        tick: -6960,
+      }),
       dbc,
+      dependencies,
     );
 
     const signals = await liveSignals();
@@ -142,22 +215,113 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
       blockNumber: 321n,
       logIndex: 9,
     });
+    // The payload carries the moved pool's new price, the never-traded
+    // sibling's opening price, the pool-id stream, and the hook sequence —
+    // derived through the same shared module the API reads with.
+    expect(signals[0]?.payload).toEqual({
+      t: BLOCK_TIMESTAMP.toISOString(),
+      stream: YES_POOL_ID,
+      sequence: 1,
+      yesPriceCents: venueTickToCents({
+        collateralDecimals: COLLATERAL_DECIMALS,
+        outcomeIsCurrency0: true,
+        tick: -6960,
+      }),
+      noPriceCents: venueOpeningCents(marketLmsr, "no"),
+    });
+  });
+
+  it("forward-fills the sibling from its own latest tick once it has traded", async () => {
+    await persistPoolPriceTickRecord(
+      tickRecord({
+        logIndex: 10,
+        poolId: NO_POOL_ID,
+        sequence: 1n,
+        tick: 7054,
+      }),
+      dbc,
+      dependencies,
+    );
+
+    const signals = await liveSignals();
+    expect(signals).toHaveLength(2);
+    expect(signals[1]?.payload).toEqual({
+      t: BLOCK_TIMESTAMP.toISOString(),
+      stream: NO_POOL_ID,
+      sequence: 1,
+      // YES now carries its last recorded tick (-6960 from the prior test),
+      // not the opening price.
+      yesPriceCents: venueTickToCents({
+        collateralDecimals: COLLATERAL_DECIMALS,
+        outcomeIsCurrency0: true,
+        tick: -6960,
+      }),
+      noPriceCents: venueTickToCents({
+        collateralDecimals: COLLATERAL_DECIMALS,
+        outcomeIsCurrency0: false,
+        tick: 7054,
+      }),
+    });
   });
 
   it("does not re-signal a replayed mapped-pool tick", async () => {
     await persistPoolPriceTickRecord(
-      tickRecord({ logIndex: 9, poolId: MAPPED_POOL_ID }),
+      tickRecord({
+        logIndex: 9,
+        poolId: YES_POOL_ID,
+        sequence: 1n,
+        tick: -6960,
+      }),
       dbc,
+      dependencies,
     );
 
-    expect(await liveSignals()).toHaveLength(1);
+    expect(await liveSignals()).toHaveLength(2);
+  });
+
+  it("degrades to a payload-less nudge when the sibling pool is not indexed", async () => {
+    await persistPoolPriceTickRecord(
+      tickRecord({ logIndex: 11, poolId: LONELY_POOL_ID, sequence: 1n }),
+      dbc,
+      dependencies,
+    );
+
+    const signals = await liveSignals();
+    expect(signals).toHaveLength(3);
+    expect(signals[2]).toMatchObject({
+      marketId: String(LONELY_MARKET_ID),
+      payload: null,
+    });
+  });
+
+  it("degrades to a payload-less nudge when the decimals read fails", async () => {
+    await persistPoolPriceTickRecord(
+      tickRecord({ logIndex: 12, poolId: YES_POOL_ID, sequence: 2n }),
+      dbc,
+      {
+        readCollateralDecimals: async () => {
+          throw new Error("rpc down");
+        },
+      },
+    );
+
+    const signals = await liveSignals();
+    expect(signals).toHaveLength(4);
+    // The tick row still lands (paper trail) and the market still hears a
+    // nudge — only the incremental payload is lost.
+    expect(signals[3]).toMatchObject({
+      marketId: String(MARKET_ID),
+      payload: null,
+    });
   });
 
   function tickRecord(
     overrides: Partial<typeof schema.poolPriceTicks.$inferInsert> = {},
   ) {
     return {
-      ...buildPoolPriceTickRecord(buildInput({ poolId: POOL_ID, tick: -1573 })),
+      ...buildPoolPriceTickRecord(
+        buildInput({ poolId: POOL_ID, sequence: 1n, tick: -1573 }),
+      ),
       contractId: 1,
       ...overrides,
     };

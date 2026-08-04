@@ -84,6 +84,7 @@ describe("change feed registry", () => {
   it("carries a stored price tick onto the routed event, and null when absent", () => {
     const tick = {
       t: "2026-07-24T00:00:00.000Z",
+      stream: "receipts",
       sequence: 4,
       yesPriceCents: 51,
       noPriceCents: 49,

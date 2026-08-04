@@ -12,7 +12,6 @@ import {
   sqrtPriceX96ToDisplayPriceWad,
   stateViewAbi,
   WAD,
-  wadToNumber,
   type CompleteSetMarketManifestData,
   type CompleteSetMarketPool,
 } from "@popcharts/protocol";
@@ -29,6 +28,7 @@ import {
 } from "src/blockchain/client";
 import { retryOnceOnNonceCollision } from "src/blockchain/nonce-collision";
 import { config, ZERO_ADDRESS } from "src/config";
+import { createCollateralDecimalsReader } from "src/shared/venue-prices";
 
 /**
  * Wires graduated markets into the bounded v4 venue. The postgrad adapter
@@ -54,39 +54,10 @@ export function postgradVenueConfigured(): boolean {
   );
 }
 
-/**
- * Derives the market's closing YES probability from its locked virtual LMSR
- * state, clamped into the ADR 0009 display-price band. The postgrad pools
- * open where the pregrad book closed, so the handoff does not jump price.
- */
-export function closingYesDisplayPriceWad({
-  liquidityParameter,
-  noShares,
-  openingProbabilityWad,
-  yesShares,
-}: {
-  liquidityParameter: bigint;
-  noShares: bigint;
-  openingProbabilityWad: bigint;
-  yesShares: bigint;
-}): bigint {
-  const b = wadToNumber(liquidityParameter);
-  const opening = Math.min(
-    Math.max(wadToNumber(openingProbabilityWad), 1e-9),
-    1 - 1e-9,
-  );
-
-  if (!(b > 0)) {
-    return clampDisplayPriceWad(openingProbabilityWad);
-  }
-
-  const exponent =
-    (wadToNumber(yesShares) - wadToNumber(noShares)) / b +
-    Math.log(opening / (1 - opening));
-  const probability = 1 / (1 + Math.exp(-exponent));
-
-  return clampDisplayPriceWad(BigInt(Math.round(probability * 1e18)));
-}
+// Moved to the shared venue-price module when the indexer's priced-tick emit
+// became a second consumer (repo ADR 0025); re-exported so this service's
+// call sites and tests keep their import path.
+export { closingYesDisplayPriceWad } from "src/shared/venue-prices";
 
 type VenueClients = {
   publicClient: BlockchainClient;
@@ -389,31 +360,15 @@ async function readOutcomePool({
   });
 }
 
-const collateralDecimalsCache = new Map<string, number>();
-
 /**
  * Reads (and memoizes) the ERC-20 decimals of a collateral token through the
  * venue RPC client. Decimals are immutable, so each collateral address is
- * read at most once per process.
+ * read at most once per process. Built from the shared reader (repo ADR 0025)
+ * so the indexer's own instance cannot drift from this one.
  */
-export async function readCollateralDecimals(
-  collateral: `0x${string}`,
-): Promise<number> {
-  const cached = collateralDecimalsCache.get(collateral.toLowerCase());
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const decimals = await getVenuePublicClient().readContract({
-    abi: ERC20_DECIMALS_ABI,
-    address: collateral,
-    functionName: "decimals",
-  });
-  collateralDecimalsCache.set(collateral.toLowerCase(), decimals);
-
-  return decimals;
-}
+export const readCollateralDecimals = createCollateralDecimalsReader(() =>
+  getVenuePublicClient(),
+);
 
 /**
  * Reads the current slot0 sqrt price for each pool id through the StateView

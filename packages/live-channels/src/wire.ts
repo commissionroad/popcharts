@@ -16,13 +16,27 @@
  * A gap in the tick `sequence` or a reconnect still falls back to a refetch.
  */
 
-/** The pushed price datum on a `change` frame from a pregrad trade (repo ADR
- * 0021). Cents are the marginal YES/NO price after the trade, computed once at
- * the seam via the shared virtual LMSR; `sequence` is the market's receipt
- * ordinal, so the client detects a gap (`!= last + 1`) and resyncs. */
+/**
+ * The stream id of the pregrad receipt book. A market has one pregrad stream
+ * and, after graduation, one stream per outcome pool (the pool id hex) — each
+ * stream numbers its own ticks contiguously, so the client keys its gap check
+ * by stream instead of branching on lifecycle phase (repo ADR 0025).
+ */
+export const RECEIPTS_STREAM = "receipts";
+
+/** The pushed price datum on a `change` frame from a trade (repo ADR 0021 for
+ * the pregrad receipt path; ADR 0025 extends it to postgrad venue swaps).
+ * Cents are the YES/NO price after the trade — LMSR-derived pregrad, pool-tick
+ * derived (with the untouched side carried forward) postgrad. `sequence` is
+ * the stream's own contiguous ordinal — the receipt sequence for
+ * {@link RECEIPTS_STREAM}, the hook's per-pool swap sequence for a pool stream
+ * — so the client detects a gap (`!= last + 1`) per stream and resyncs. */
 export interface PriceTickWire {
   /** ISO timestamp of the trade — the chart point's x value. */
   t: string;
+  /** Which contiguous ordinal space `sequence` lives in: {@link RECEIPTS_STREAM}
+   * or a venue pool id. */
+  stream: string;
   sequence: number;
   yesPriceCents: number;
   noPriceCents: number;
@@ -141,6 +155,8 @@ export function parsePriceTick(raw: unknown): PriceTickWire | null {
 
   if (
     typeof tick.t !== "string" ||
+    typeof tick.stream !== "string" ||
+    tick.stream.length === 0 ||
     typeof tick.sequence !== "number" ||
     typeof tick.yesPriceCents !== "number" ||
     typeof tick.noPriceCents !== "number"
@@ -150,6 +166,7 @@ export function parsePriceTick(raw: unknown): PriceTickWire | null {
 
   return {
     t: tick.t,
+    stream: tick.stream,
     sequence: tick.sequence,
     yesPriceCents: tick.yesPriceCents,
     noPriceCents: tick.noPriceCents,
