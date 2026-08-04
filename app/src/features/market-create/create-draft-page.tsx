@@ -6,10 +6,10 @@ import { marketCreationMode } from "@/integrations/contracts/config";
 
 import { CreateDraftForm } from "./create-draft-form";
 import { ApprovedPanel } from "./draft-panels/approved-panel";
-import { BondShortfallPanel } from "./draft-panels/bond-shortfall-panel";
 import { DraftPreviewPanel } from "./draft-panels/draft-preview-panel";
 import { FeedbackPanel } from "./draft-panels/feedback-panel";
 import { PublishedPanel } from "./draft-panels/published-panel";
+import { ReviewCreditPanel } from "./draft-panels/review-credit-panel";
 import { ReviewProgressPanel } from "./draft-panels/review-progress-panel";
 import { SaveIndicator } from "./draft-panels/save-indicator";
 import { useCreateDraftFlow } from "./use-create-draft-flow";
@@ -84,12 +84,16 @@ function renderStagePanel(
   const latestReview = flow.latestReview;
   const serverDraft = flow.serverDraft;
 
-  // A meter refusal takes the aside over: fund the bond, resubmit in one
+  // A meter refusal takes the aside over: buy review credit, resubmit in one
   // click. It can only arise from a submittable stage, so it never shadows
   // the in-review or published panels.
   if (flow.bondShortfall) {
     return (
-      <BondShortfallPanel
+      <ReviewCreditPanel
+        beneficiary={
+          (serverDraft?.intendedCreatorAddress ?? null) as `0x${string}` | null
+        }
+        fetchCredit={flow.fetchCredit}
         onDismiss={flow.clearBondShortfall}
         onFunded={() => void flow.submitForReview()}
         shortfall={flow.bondShortfall}

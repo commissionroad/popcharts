@@ -1116,16 +1116,16 @@ function publishParamsFixture(): MarketDraftPublishParams {
   };
 }
 
-// The review-bond meter's 402 refusal (ADR 0022 §3): the shortfall rides on
-// the error so the aside can offer a one-click deposit.
+// The review-credit meter's 402 refusal (ADR 0022, prepaid-credit
+// amendment): the shortfall rides on the error so the aside can offer the
+// deposit presets.
 function meterRefusal() {
-  return new DraftsApiError("Your available bond doesn't cover this submission.", 402, {
+  return new DraftsApiError("You're out of review credit.", 402, {
     bondShortfall: {
-      availableWad: "100000000000000000",
-      message: "Your available bond doesn't cover this submission.",
-      minimumStandingBondWad: "5000000000000000000",
-      requiredWad: "200000000000000000",
-      standingBondWad: "5000000000000000000",
+      availableWad: "0",
+      message: "You're out of review credit.",
+      requiredWad: "100000000000000000",
+      runsUsed: 3,
     },
   });
 }

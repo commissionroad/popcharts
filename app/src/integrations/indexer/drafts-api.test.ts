@@ -48,6 +48,22 @@ describe("createDraftsApiClient requests", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ question: "Will it save?" });
   });
 
+  it("reads a wallet's review credit with the address in the query", async () => {
+    const position = {
+      availableWad: "900000000000000000",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 9,
+      runsUsed: 1,
+    };
+    const fetcher = stubFetch(jsonResponse(position, 200));
+
+    const credit = await client().credit(OWNER);
+
+    expect(credit).toEqual(position);
+    expect(lastCall(fetcher)[0]).toBe(`/api/drafts/credit?address=${OWNER}`);
+  });
+
   it("reads one draft by id", async () => {
     const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: 8 }), 200));
 
@@ -186,20 +202,19 @@ describe("createDraftsApiClient failures", () => {
     expect(error.fieldErrors).toEqual({ question: "Add a market question." });
   });
 
-  it("carries the bond shortfall from a 402 meter refusal", async () => {
+  it("carries the credit shortfall from a 402 meter refusal", async () => {
     const shortfall = {
-      availableWad: "100000000000000000",
-      message: "Your available bond doesn't cover this submission.",
-      minimumStandingBondWad: "5000000000000000000",
-      requiredWad: "200000000000000000",
-      standingBondWad: "5000000000000000000",
+      availableWad: "0",
+      message: "You're out of review credit.",
+      requiredWad: "100000000000000000",
+      runsUsed: 3,
     };
     stubFetch(jsonResponse(shortfall, 402));
 
     const error = await captureError(client().submit(8));
 
     expect(error).toBeInstanceOf(DraftsApiError);
-    expect(error.message).toBe("Your available bond doesn't cover this submission.");
+    expect(error.message).toBe("You're out of review credit.");
     expect(error.status).toBe(402);
     expect(error.bondShortfall).toEqual(shortfall);
     expect(error.fieldErrors).toBeUndefined();

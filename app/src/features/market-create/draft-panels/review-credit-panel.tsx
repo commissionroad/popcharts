@@ -1,0 +1,198 @@
+"use client";
+
+import type {
+  MarketDraftBondShortfall,
+  MarketDraftReviewCredit,
+} from "@popcharts/api-client/models";
+import { PiggyBank, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { useReviewCreditDeposit } from "@/integrations/contracts/hooks/use-review-credit";
+import { formatTokenAmount } from "@/lib/format";
+
+import { ReviewRow } from "../create-market-panels/shared";
+
+/** The deposit presets, in native units ($1 = 1e18). */
+export const DEPOSIT_PRESETS_WAD = [
+  10n ** 18n,
+  5n * 10n ** 18n,
+  10n * 10n ** 18n,
+] as const;
+
+/** How long to wait for a confirmed deposit to appear in the indexed view. */
+const INDEXING_POLL_INTERVAL_MS = 1_000;
+const INDEXING_POLL_TIMEOUT_MS = 30_000;
+
+/**
+ * Shown when the review-credit meter refuses a submission (ADR 0022,
+ * prepaid-credit amendment): the wallet's credit position with its run
+ * counts, and $1 / $5 / $10 deposit presets. Credit is non-refundable —
+ * the copy says so before the money moves, not after.
+ *
+ * A confirmed deposit is not yet spendable: the submission gate reads the
+ * server's indexed rows, which lag the chain by a beat. After the transaction
+ * confirms the panel polls the credit endpoint until the balance covers the
+ * run, then resubmits via {@link onFunded} — the creator never retypes
+ * anything.
+ */
+export function ReviewCreditPanel({
+  beneficiary,
+  fetchCredit,
+  onDismiss,
+  onFunded,
+  shortfall,
+}: {
+  /** The draft's intended creator — the account the deposit credits. */
+  beneficiary: `0x${string}` | null;
+  /** Reads the beneficiary's indexed credit position; null when unavailable. */
+  fetchCredit: (() => Promise<MarketDraftReviewCredit>) | null;
+  onDismiss: () => void;
+  onFunded: () => void;
+  shortfall: MarketDraftBondShortfall;
+}) {
+  const credit = useReviewCreditDeposit();
+  // Set asynchronously by the poll loop when the indexed view never catches
+  // up; cleared when the creator starts another deposit. "Indexing" needs no
+  // state of its own — it is derived from a confirmed write that has neither
+  // funded nor stalled.
+  const [stalled, setStalled] = useState(false);
+  const notified = useRef(false);
+
+  // One funded notification per refusal: once the deposit confirms, poll the
+  // indexed view until the balance covers the run, then hand back to the
+  // parent to resubmit. Without a poller (no wallet on the draft — the panel
+  // is not reachable that way, but belt and braces) fund immediately and let
+  // the resubmit's own 402 re-open this panel.
+  useEffect(() => {
+    if (credit.status !== "success" || notified.current) {
+      return;
+    }
+
+    if (!fetchCredit) {
+      notified.current = true;
+      onFunded();
+      return;
+    }
+
+    let cancelled = false;
+    const startedAt = Date.now();
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const position = await fetchCredit();
+
+          if (BigInt(position.availableWad) >= BigInt(shortfall.requiredWad)) {
+            if (!cancelled && !notified.current) {
+              notified.current = true;
+              onFunded();
+            }
+            return;
+          }
+        } catch {
+          // A transient read failure is the same as "not indexed yet".
+        }
+
+        if (Date.now() - startedAt > INDEXING_POLL_TIMEOUT_MS) {
+          if (!cancelled) {
+            setStalled(true);
+          }
+          return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, INDEXING_POLL_INTERVAL_MS));
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [credit.status, fetchCredit, onFunded, shortfall.requiredWad]);
+
+  const rate = BigInt(shortfall.requiredWad);
+  const available = BigInt(shortfall.availableWad);
+  const runsLeft = rate > 0n ? Number(available / rate) : 0;
+  const indexing = credit.status === "success" && !stalled;
+  const busy = credit.status === "pending" || indexing;
+
+  return (
+    <>
+      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--pc-amber)] bg-[var(--surface-card)] p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <PiggyBank color="var(--pc-amber)" size={20} />
+            <span className="font-mono text-[10px] font-bold tracking-[0.14em] text-[var(--pc-amber)] uppercase">
+              Review credit needed
+            </span>
+          </div>
+          <button
+            aria-label="Dismiss credit prompt"
+            className="focus-ring text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            onClick={onDismiss}
+            type="button"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-[13px] leading-5 text-[var(--text-secondary)]">
+          {shortfall.message}
+        </p>
+        <div className="divide-y divide-[var(--border-soft)] rounded-[var(--radius-md)] border border-[var(--border-soft)]">
+          <ReviewRow
+            label="Credit left"
+            value={`${formatTokenAmount(available)} pUSD`}
+          />
+          <ReviewRow
+            label="Price per review"
+            value={`${formatTokenAmount(rate)} pUSD`}
+          />
+          <ReviewRow label="Reviews used" value={String(shortfall.runsUsed)} />
+          <ReviewRow label="Reviews left" value={String(runsLeft)} />
+        </div>
+        <p className="text-[12.5px] leading-5 text-[var(--text-muted)]">
+          Credit is prepaid and non-refundable — each review of a question spends{" "}
+          {formatTokenAmount(rate)} pUSD from it.
+        </p>
+        {credit.error ? (
+          <p className="text-[12.5px] leading-5 text-[var(--no)]" role="alert">
+            {credit.error}
+          </p>
+        ) : null}
+        {stalled ? (
+          <p className="text-[12.5px] leading-5 text-[var(--no)]" role="alert">
+            Your deposit confirmed but hasn&apos;t been indexed yet. It isn&apos;t lost
+            — resubmit in a moment.
+          </p>
+        ) : null}
+      </div>
+      <div className="flex gap-2">
+        {DEPOSIT_PRESETS_WAD.map((amount) => (
+          <Button
+            className="flex-1"
+            disabled={!credit.enabled || !beneficiary || busy}
+            glow
+            key={amount.toString()}
+            onClick={() => {
+              if (beneficiary) {
+                setStalled(false);
+                credit.deposit(beneficiary, amount);
+              }
+            }}
+            size="lg"
+          >
+            {`Deposit ${formatTokenAmount(amount)}`}
+          </Button>
+        ))}
+      </div>
+      <span className="text-center font-mono text-[11px] text-[var(--text-muted)]">
+        {indexing
+          ? "Deposit confirmed — waiting for it to be indexed…"
+          : credit.status === "pending"
+            ? "Confirm the deposit in your wallet…"
+            : "One transaction — your draft resubmits automatically"}
+      </span>
+    </>
+  );
+}

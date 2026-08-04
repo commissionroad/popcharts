@@ -7,7 +7,7 @@ import {
   createInitialMarketDraft,
 } from "@/domain/market-creation/create-market";
 import type { CreateMarketDraft } from "@/domain/market-creation/types";
-import type { ReviewBondState } from "@/integrations/contracts/hooks/use-review-bond";
+import type { ReviewCreditDepositState } from "@/integrations/contracts/hooks/use-review-credit";
 import { draftReviewFactory, marketDraftFactory } from "@/test/factories/drafts";
 
 import { CreateDraftPage } from "./create-draft-page";
@@ -28,12 +28,12 @@ vi.mock("@/integrations/contracts/config", () => ({
   },
 }));
 
-// The real BondShortfallPanel renders inside the page; stub its chain hook so
+// The real ReviewCreditPanel renders inside the page; stub its chain hook so
 // the page test stays off wagmi and the wallet stack.
-const reviewBondMock = vi.hoisted(() => vi.fn());
+const reviewCreditMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/integrations/contracts/hooks/use-review-bond", () => ({
-  useReviewBond: reviewBondMock,
+vi.mock("@/integrations/contracts/hooks/use-review-credit", () => ({
+  useReviewCreditDeposit: reviewCreditMock,
 }));
 
 const INITIAL_NOW = "2030-07-01T12:00:00.000Z";
@@ -41,8 +41,8 @@ const QUESTION = "Will bitcoin close above $100k on 2027-01-01?";
 
 beforeEach(() => {
   useDraftFlowMock.mockReset();
-  reviewBondMock.mockReset();
-  reviewBondMock.mockReturnValue(reviewBondState());
+  reviewCreditMock.mockReset();
+  reviewCreditMock.mockReturnValue(reviewCreditState());
   configState.marketCreationMode = "mock";
 });
 
@@ -225,24 +225,24 @@ describe("CreateDraftPage", () => {
     expect(screen.getByText("Live preview")).toBeInTheDocument();
   });
 
-  it("takes the aside over with the bond panel when the meter refuses", () => {
+  it("takes the aside over with the credit panel when the meter refuses", () => {
     const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);
 
-    expect(screen.getByText("Review bond needed")).toBeInTheDocument();
-    expect(
-      screen.getByText("Your available bond doesn't cover this submission.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Review credit needed")).toBeInTheDocument();
+    expect(screen.getByText("You're out of review credit.")).toBeInTheDocument();
     expect(screen.queryByText("Live preview")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss bond prompt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss credit prompt" }));
 
     expect(flow.clearBondShortfall).toHaveBeenCalledTimes(1);
   });
 
-  it("resubmits the draft once the bond deposit confirms", () => {
-    reviewBondMock.mockReturnValue(reviewBondState({ status: "success" }));
+  it("resubmits the draft once the deposit confirms, without a poller", () => {
+    // No fetchCredit on the flow: the panel funds immediately on confirm and
+    // the resubmit's own 402 would re-open it if the indexer still lags.
+    reviewCreditMock.mockReturnValue(reviewCreditState({ status: "success" }));
     const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);
@@ -273,24 +273,21 @@ function readyWalletAction(): WalletCreateAction {
 
 function bondShortfallFixture(): MarketDraftBondShortfall {
   return {
-    availableWad: "100000000000000000",
-    message: "Your available bond doesn't cover this submission.",
-    minimumStandingBondWad: "5000000000000000000",
-    requiredWad: "200000000000000000",
-    standingBondWad: "5000000000000000000",
+    availableWad: "0",
+    message: "You're out of review credit.",
+    requiredWad: "100000000000000000",
+    runsUsed: 3,
   };
 }
 
-function reviewBondState(overrides: Partial<ReviewBondState> = {}): ReviewBondState {
+function reviewCreditState(
+  overrides: Partial<ReviewCreditDepositState> = {}
+): ReviewCreditDepositState {
   return {
-    availableWad: 0n,
     deposit: vi.fn(),
-    depositedWad: 0n,
     enabled: true,
     error: null,
-    refresh: vi.fn(),
     status: "idle",
-    withdraw: vi.fn(),
     ...overrides,
   };
 }
@@ -305,6 +302,7 @@ function stubFlow(overrides: Partial<DraftFlow> = {}): DraftFlow {
     canPersist: false,
     clearBondShortfall: vi.fn(),
     errorCount: 0,
+    fetchCredit: null,
     fieldFeedback: {},
     flowError: null,
     formDraft: draft,
