@@ -1,0 +1,14 @@
+{
+  "name": "@popcharts/whitepaper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mechanism white paper sources and the markdown-to-print HTML build.",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --version latest --out /dev/null"
+  },
+  "devDependencies": {
+    "mathjax-full": "^3.2.1"
+  }
+}

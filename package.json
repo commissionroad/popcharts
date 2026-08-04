@@ -52,6 +52,8 @@
     "local:cancel-market": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:cancel-market",
     "local:keeper": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:keeper",
     "local:inspect-orders": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:inspect-orders",
+    "whitepaper": "pnpm --dir whitepaper build",
+    "whitepaper:check": "pnpm --dir whitepaper check",
     "infra:check": "pnpm --dir infra run build && pnpm --dir infra run test && pnpm --dir infra run synth --quiet",
     "scripts:check": "tsc -p scripts && pnpm run scripts:test",
     "scripts:test": "node --experimental-strip-types --test \"scripts/test/*.test.ts\"",
