@@ -123,7 +123,7 @@ Public draft submission opens at P3 (the bond); until then P2 review runs intern
 1. **P1 — built.** Draft entity + Privy-authenticated CRUD + "my drafts" surface.
 2. **P2 — built.** Off-chain AI review on drafts (new draft-keyed tables + reworked runner) — keystone.
 3. **P3 — built, then withdrawn; see P3a below.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. Replaced 2026-08-04 by **P3a — prepaid review credit** (built): non-refundable `depositFor`, one per-run rate, no settlement or withdrawal.
-4. **P4 — app half built, contract open.** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + indexer projects `bootstrap` + publish-time authorization + "Publish & pay" + `MarketCreationFeePaid` indexing.
+4. **P4 — app, fee-indexing and indexer halves built; contract gate open.** Gated `createMarket` (full-params EIP-712, on-chain single-use nonce, trusted bypass, born Active) + publish-time authorization are the remainder. Delivered: "Publish & pay" (#415), `MarketCreationFeePaid` indexing (#430), and the indexer projecting the status read from chain with the `under_review` column default removed (#439 + follow-up) — the indexer is correct under the born-`Active` contract before that contract exists.
 5. **P5 — open, blocked on P4.** Retire on-chain review machinery + migrate legacy `under_review`/`rejected` rows (tail-only enum removal).
 6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
 7. **P7 — built.** Templates + clone (the `/studio` surface).
