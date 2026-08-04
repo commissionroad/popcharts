@@ -24,14 +24,14 @@
       }
     },
     "protocol-solidity": {
-      "commit": "0c31807809f79da18f366bb63eb9ace6f8f91afb",
-      "updatedAt": "2026-08-04T15:47:35.754Z",
+      "commit": "0c9ee97aeee2f0b1e469c6c465ea385dc3a765e5",
+      "updatedAt": "2026-08-04T18:46:39.305Z",
       "summary": {
         "files": 20,
         "lines": {
-          "hit": 1606,
-          "found": 1654,
-          "pct": 97.1
+          "hit": 1570,
+          "found": 1618,
+          "pct": 97.03
         },
         "functions": {
           "hit": 0,
@@ -68,8 +68,8 @@
       }
     },
     "protocol-ts": {
-      "commit": "0c31807809f79da18f366bb63eb9ace6f8f91afb",
-      "updatedAt": "2026-08-04T15:47:35.844Z",
+      "commit": "0c9ee97aeee2f0b1e469c6c465ea385dc3a765e5",
+      "updatedAt": "2026-08-04T18:46:39.404Z",
       "summary": {
         "files": 44,
         "lines": {
