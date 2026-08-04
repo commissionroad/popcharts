@@ -10,7 +10,10 @@ import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv
 import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
 import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutionEndpoint.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
-import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  pregradDeployOverrides,
+} from "./shared/deployments/pregradDeploy.ts";
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
@@ -160,16 +163,7 @@ async function main(): Promise<void> {
   const postgrad = await deployPostgradVenue(run, deploy);
 
   const serverEnv = {
-    ...buildLocalServerEnv(resources, {
-      collateralAddress: deploy.collateralAddress,
-      deployBlock: deploy.deployBlock,
-      postgradAdapterAddress: deploy.postgradAdapterAddress,
-      pregradManagerAddress: deploy.pregradManagerAddress,
-      // The nightly scenarios create markets on-chain (pre-P4 path), so the
-      // meter never gates them — but the env should mirror the real stack
-      // rather than silently running vault-less.
-      reviewBondVaultAddress: deploy.reviewBondVaultAddress,
-    }),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
     ...postgradServerEnv(postgrad),
   };
   writeLocalChainServerEnv({
