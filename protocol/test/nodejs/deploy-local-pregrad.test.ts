@@ -46,6 +46,14 @@ describe("deploy-local-pregrad helper", async function () {
       getAddress(deployer as `0x${string}`),
     );
     assert.equal(await vault.read.collectedFees(), 0n);
+
+    // The creation gate arms at deploy (repo ADR 0022 P4): the deployer is
+    // the local authorizer, matching the API's local default signing key, so
+    // server-minted publish authorizations verify without any env threading.
+    assert.equal(
+      getAddress((await manager.read.marketCreationAuthorizer()) as `0x${string}`),
+      getAddress(deployer as `0x${string}`),
+    );
   });
 
   it("emits the summary fields the local dev orchestrators parse", async function () {

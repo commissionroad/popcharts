@@ -48,6 +48,13 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
   ]);
   const reviewCreditVault = await viem.deployContract("ReviewCreditVault", [deployerAddress]);
 
+  // Arm the creation gate (repo ADR 0022 P4): the deployer account doubles as
+  // the local market-creation authorizer, matching the server's local default
+  // signing key (hardhat account #0), so publish authorizations minted by the
+  // API verify against this deployment out of the box. Production deploys set
+  // a dedicated authorizer key instead.
+  await manager.write.setMarketCreationAuthorizer([deployerAddress]);
+
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.
   const deployBlock = await publicClient.getBlockNumber();
