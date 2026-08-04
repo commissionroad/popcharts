@@ -117,6 +117,18 @@ clearing, refunds, cancellation, resolution redemption, and postgrad trades.
 
 Today it is realized by append-only event tables mirrored 1:1 from chain:
 
+- `market_creation_fee_events` — per creation fee actually paid, from the
+  `MarketCreationFeePaid` event the `PregradManager`'s creation-fee base emits
+  inside `createMarket`. The fee moves atomically with market creation, so this
+  row is the only evidence a creator paid it; the amount is taken from the log
+  rather than the fee constant, so changing the fee never rewrites what past
+  creators are recorded as having paid. Trusted creators owe nothing and the
+  contract emits no log for them, so an absent row means "no fee was due",
+  never "a payment was missed". Related to `markets` by a real foreign key on
+  `(chain_id, market_id)`. The fee log and `MarketCreated` share a transaction
+  but are consumed by independent watchers, so the fee log can arrive first on
+  the live path; the handler waits for the market row and parks the sweep until
+  it lands, rather than loosening the relation to accommodate the race.
 - `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
   `retainedCost`, and the **partial refund** (`refund`). This is the record that
   a graduated receipt was filled and how much, if any, was returned.

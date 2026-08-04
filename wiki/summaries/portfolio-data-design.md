@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -36,6 +36,18 @@ It binds every money-touching feature: graduation clearing, refunds,
 cancellation, resolution redemption, and postgrad trades. Today it is realized by
 append-only event tables mirrored 1:1 from chain:
 
+- `market_creation_fee_events` *(added 2026-08-04 with the creation-fee
+  indexing)* — per creation fee actually paid, from `MarketCreationFeePaid`,
+  which the `PregradManager`'s creation-fee base emits inside `createMarket`.
+  This closes the gap the ADR 0022 red-team found: the fee was emitted on-chain
+  but indexed nowhere, making it the **only value transfer in the system with
+  no receipt-linked record**. Amount comes from the log rather than the fee
+  constant, so a fee change never rewrites history; trusted creators owe
+  nothing and emit no log, so an absent row means "no fee was due".
+  Foreign-keyed to `markets` on `(chain_id, market_id)` — the fee log can
+  outrun the independent `MarketCreated` watcher on the live path, and the
+  handler parks the sweep until the market row lands rather than dropping the
+  relation.
 - `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
   `retainedCost`, and the **partial** refund. The record that a graduated receipt
   was filled, and by how much.

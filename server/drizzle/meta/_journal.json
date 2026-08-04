@@ -232,6 +232,13 @@
       "when": 1785866767143,
       "tag": "0032_salty_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785870372388,
+      "tag": "0033_lyrical_redwing",
+      "breakpoints": true
     }
   ]
 }

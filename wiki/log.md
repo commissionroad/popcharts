@@ -1415,3 +1415,21 @@ their own PR; they are independent of the gate and close a standing money-
 paper-trail exception. No entity/concept page needed updating — pregrad-manager
 and creation-fee-custody already describe the gate as designed, and these
 decisions refine how, not what.
+
+## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
+Pages: ~summaries/portfolio-data-design.md
+Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,
+closing the gap the ADR 0022 red-team found in 2026-07 — `MarketCreationFeePaid`
+was emitted on-chain but indexed nowhere, leaving the creation fee as the only
+value transfer in the system with no receipt-linked record. Two details the
+bullet records because they are easy to get wrong later: the amount is read
+from the log rather than the fee constant, so changing the fee never rewrites
+what past creators are recorded as paying; and trusted creators pay nothing and
+the contract emits no log for them (`createMarket` only emits when the fee is
+non-zero), so an absent row means "no fee was due", never "a payment was
+missed". `market_id` is foreign-keyed to `markets` on `(chain_id, market_id)`,
+following `market_ai_reviews`. The fee log can outrun the independent
+`MarketCreated` watcher on the live path; that is handled in the handler,
+which waits for the market row and parks the sweep, rather than by dropping
+the relation. Standing rule confirmed by the repo owner 2026-08-04: tables
+are always related by real foreign keys.

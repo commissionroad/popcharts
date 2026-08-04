@@ -7,6 +7,7 @@ import {
 } from "src/blockchain/client";
 import {
   recoverMarketCreatedEvents,
+  recoverMarketCreationFeeEvents,
   recoverMarketReviewEvents,
   recoverOutcomeTokenTransferEvents,
   recoverPoolPriceTickEvents,
@@ -16,6 +17,7 @@ import {
   recoverSettlementEvents,
   recoverVenueOrderEvents,
   watchMarketCreatedEvents,
+  watchMarketCreationFeeEvents,
   watchMarketReviewEvents,
   watchOutcomeTokenTransferEvents,
   watchPoolPriceTickEvents,
@@ -66,6 +68,7 @@ async function main() {
 
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
+  const unwatchMarketCreationFee = watchMarketCreationFeeEvents(client);
   const unwatchMarketReview = watchMarketReviewEvents(client);
   const unwatchReviewBond = watchReviewCreditEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
@@ -96,6 +99,7 @@ async function main() {
     }
     markUnhealthy();
     unwatchMarketCreated();
+    unwatchMarketCreationFee();
     unwatchMarketReview();
     unwatchReviewBond();
     unwatchReceiptPlaced();
@@ -121,6 +125,7 @@ async function recoverMissedEvents(
   const currentBlock = await client.getBlockNumber();
 
   await recoverMarketCreatedEvents(client, currentBlock, { quiet });
+  await recoverMarketCreationFeeEvents(client, currentBlock, { quiet });
   await recoverMarketReviewEvents(client, currentBlock, { quiet });
   await recoverReviewCreditEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
