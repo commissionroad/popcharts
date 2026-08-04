@@ -9,6 +9,7 @@ import { claudeCliProvider } from "./claude-cli";
 import { codexCliProvider } from "./codex-cli";
 import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";
+import { openaiProvider } from "./openai";
 import type { ReviewProvider } from "./types";
 
 /**
@@ -33,6 +34,7 @@ export const reviewProviders = {
   "codex-cli": codexCliProvider,
   heuristic: heuristicProvider,
   ollama: ollamaProvider,
+  openai: openaiProvider,
 } satisfies Record<ReviewProviderName, ReviewProvider>;
 
 /** Looks up a provider by name; total over ReviewProviderName, never throws. */
@@ -95,6 +97,10 @@ export function modelForProvider(
 
   if (providerName === "ollama") {
     return config.ollamaModel;
+  }
+
+  if (providerName === "openai") {
+    return config.openaiModel;
   }
 
   return undefined;

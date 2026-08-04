@@ -46,6 +46,10 @@ export type AiReviewConfig = {
   maxSearchResults: number;
   ollamaBaseUrl: string;
   ollamaModel: string;
+  openaiApiKey?: string;
+  openaiBaseUrl: string;
+  openaiMaxOutputTokens: number;
+  openaiModel: string;
   port: number;
   provider: ReviewProviderName;
   requestTimeoutMs: number;
@@ -111,6 +115,16 @@ export const aiReviewConfig: AiReviewConfig = {
   ),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_REVIEW_OLLAMA_MODEL ?? "gpt-oss:20b",
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com",
+  openaiMaxOutputTokens: readPositiveIntegerOrFallback(
+    process.env.AI_REVIEW_OPENAI_MAX_OUTPUT_TOKENS,
+    2048,
+  ),
+  // Pinned rather than left to an alias for the same reason codexCliModel is:
+  // an alias can be repointed at a different tier server-side, changing both
+  // verdict quality and cost without a deploy here.
+  openaiModel: process.env.AI_REVIEW_OPENAI_MODEL ?? "gpt-5.6-luna",
   port: readPositiveIntegerOrFallback(process.env.AI_REVIEW_PORT, 3002),
   // The local orchestrators set AI_REVIEW_PROVIDER explicitly and carry their
   // own copy of this default in scripts/shared/aiReview/buildAiReviewEnv.ts;

@@ -169,6 +169,7 @@ const PROVIDER_DISPLAY_NAMES = {
   "codex-cli": "Codex CLI",
   heuristic: "Heuristic",
   ollama: "Ollama",
+  openai: "OpenAI",
 } satisfies Record<ReviewProviderName, string>;
 
 function displayProviderName(providerName: ReviewProviderName) {

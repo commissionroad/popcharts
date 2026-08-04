@@ -19,6 +19,7 @@ export const REVIEW_PROVIDER_NAMES = [
   "codex-cli",
   "heuristic",
   "ollama",
+  "openai",
 ] as const;
 
 /** One of {@link REVIEW_PROVIDER_NAMES}. */
