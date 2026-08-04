@@ -102,6 +102,24 @@ library MarketTypes {
     bool bypassAiResolution;
   }
 
+  /// @notice Server-minted permission to create one specific market (repo ADR 0022 P4).
+  /// @dev EIP-712-signed by the manager's creation authorizer over the creator,
+  ///      the full `CreateMarketParams`, the nonce, and the expiry — so no field
+  ///      of the reviewed market can be swapped after approval, and the
+  ///      signature is inert from any other sender. Nonces are unordered and
+  ///      single-use: any unused value spends, so a creator's publishes never
+  ///      queue behind each other. Expiry is minutes, not days — the params
+  ///      carry absolute deadlines resolved at mint time, and the window bounds
+  ///      how far those dates can drift from what was reviewed.
+  struct MarketCreationAuthorization {
+    /// @notice Arbitrary single-use value; consumed on successful creation.
+    uint256 nonce;
+    /// @notice Unix timestamp after which the authorization is unusable.
+    uint64 expiry;
+    /// @notice Authorizer's EIP-712 signature over the typed authorization.
+    bytes signature;
+  }
+
   /// @notice Mutable lifecycle and accounting state for a market.
   struct MarketState {
     /// @notice Current lifecycle status.
