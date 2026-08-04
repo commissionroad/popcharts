@@ -149,9 +149,9 @@ describe("publishDraftMarket", () => {
 
     const { authorization: _minted, ...unarmed } = publishParams();
 
-    await expect(
-      publishDraftMarket({ params: unarmed, wallet })
-    ).rejects.toThrow("minted no creation authorization");
+    await expect(publishDraftMarket({ params: unarmed, wallet })).rejects.toThrow(
+      "minted no creation authorization"
+    );
   });
 
   it("refuses a signed collateral that differs from the app's", async () => {
