@@ -4,7 +4,6 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
-import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv.ts";
 import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
@@ -306,12 +305,6 @@ async function startAiServices(
   controllers.set("ai-review", reviewController);
   await reviewController.start();
 
-  const reviewRunner = supervisor.start(
-    "ai-review-runner",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-review-runner"],
-    { env: buildAiReviewRunnerEnv(serverEnv, resources) },
-  );
 
   const resolutionController = createSupervisedController(supervisor, {
     name: "ai-resolution",
@@ -331,14 +324,14 @@ async function startAiServices(
     { env: buildAiResolutionRunnerEnv(serverEnv, resources) },
   );
 
-  return [reviewRunner, resolutionRunner];
+  return [resolutionRunner];
 }
 
 function printUsage(): void {
   console.log(`Usage: pnpm run local:lifecycle-nightly -- [options]
 
 Boot the full local stack (chain, contracts, Postgres, API, indexer, keeper,
-heuristic AI review + resolution services and runners) and run the lifecycle
+heuristic AI review + resolution services and the resolution runner) and run the lifecycle
 nightly scenarios against it (ADR 0017 Track C / ADR 0014 checklist).
 
 Options:

@@ -260,7 +260,6 @@ export const MarketDraftPublishedWriteSchema = t.Object(
 /** Result of recording a publish: the linked draft plus bridge outcome. */
 export const MarketDraftPublishedSchema = t.Object(
   {
-    bridgeApproved: t.Boolean(),
     draft: t.Ref(MarketDraftSchema),
   },
   { $id: "MarketDraftPublished" },

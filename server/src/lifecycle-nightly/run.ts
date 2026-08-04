@@ -12,7 +12,6 @@ import { happyPath } from "./scenarios/happy-path";
 import { indexerRestart } from "./scenarios/indexer-restart";
 import { manualReview } from "./scenarios/manual-review";
 import { partialClearing } from "./scenarios/partial-clearing";
-import { rejectedCreation } from "./scenarios/rejected-creation";
 
 /**
  * Entry point for the lifecycle nightly suite (ADR 0017 Track C item C3;
@@ -49,7 +48,6 @@ const SCENARIOS: readonly Scenario[] = [
   partialClearing,
   failedGraduation,
   manualReview,
-  rejectedCreation,
   indexerRestart,
   aiOutage,
 ];

@@ -3861,13 +3861,9 @@
       "MarketDraftPublished": {
         "type": "object",
         "required": [
-          "bridgeApproved",
           "draft"
         ],
         "properties": {
-          "bridgeApproved": {
-            "type": "boolean"
-          },
           "draft": {
             "$ref": "#/components/schemas/MarketDraft"
           }

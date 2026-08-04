@@ -530,8 +530,8 @@ describe("publish arc", () => {
       throw new Error("Expected a published result.");
     }
 
-    // The dead test RPC makes the on-chain bridge fail; publish still lands.
-    expect(result.bridgeApproved).toBe(false);
+    // No bridge any more (ADR 0022 P5): markets are born Active on-chain,
+    // so recording the publish touches nothing but the draft row.
     expect(result.draft.status).toBe("published");
     expect(result.draft.publishedMarketId).toBe("12");
 
