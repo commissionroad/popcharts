@@ -657,9 +657,18 @@ describe("useCreateDraftFlow publish", () => {
       await result.current.publish();
     });
 
-    expect(api.publishParams).toHaveBeenCalledWith(12);
+    expect(api.publishParams).toHaveBeenCalledWith(12, ADDRESS);
+
+    // Drive the remint callback the flow hands to the publish service: it
+    // must re-request wallet-bound params for the same draft.
+    const publishCall = vi.mocked(publishDraftMarket).mock.calls.at(-1)![0];
+    await publishCall.remint?.();
+    expect(api.publishParams).toHaveBeenLastCalledWith(12, ADDRESS);
+    expect(api.publishParams).toHaveBeenCalledTimes(2);
+
     expect(publishDraftMarket).toHaveBeenCalledWith({
       params: publishParamsFixture(),
+      remint: expect.any(Function),
       wallet: {
         accountAddress: ADDRESS,
         activeChainId: 31337,
