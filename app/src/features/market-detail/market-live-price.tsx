@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { PriceCurve } from "@/components/charts/price-curve";
-import type { PricePathPoint } from "@/domain/markets/types";
+import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
 import type { LiveSignal } from "@/integrations/live-updates/live-connection";
 import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { parseApiMarketAppId } from "@/lib/app-id";
@@ -38,8 +38,12 @@ import { formatPercent } from "@/lib/format";
  * `receiptCount`; the appended ticks are already folded into that fresh base,
  * so they are dropped and the island re-seeds — no double-plotted point.
  *
- * Source-agnostic over {@link PriceTickWire}: the postgrad price emit will push
- * the identical shape, so the same island handles it with no change here.
+ * After graduation the chart keeps going on the bounded venue's own prices,
+ * passed in as `postgradPoints` with `graduatedAt` marking the handoff. Those
+ * arrive only from SSR: a venue swap's change-feed frame carries no tick
+ * payload, so it lands on the refetch path above like any other non-price
+ * change. The append path below is pre-graduation only, and `handleSignal`
+ * guards that explicitly rather than relying on the payload staying absent.
  *
  * Deferred (see the PR): the graduation bar, volume, and receipt counts still
  * settle via the refetch path, because `matchedUsd` is not in the tick payload
@@ -53,20 +57,26 @@ import { formatPercent } from "@/lib/format";
 export function MarketLivePrice({
   chartHeading,
   children,
+  graduatedAt,
   marketAppId,
   noLabel,
   noPriceCents,
   points,
+  postgradPoints,
   seedSequence,
   yesLabel,
   yesPriceCents,
 }: {
   chartHeading: string;
   children?: ReactNode;
+  /** ISO graduation time, when the market has graduated. */
+  graduatedAt?: string;
   marketAppId: string;
   noLabel: string;
   noPriceCents: number;
   points: PricePathPoint[];
+  /** Bounded-venue prices after graduation, oldest first. */
+  postgradPoints?: PostgradPricePoint[];
   seedSequence: number;
   yesLabel: string;
   yesPriceCents: number;
@@ -96,6 +106,17 @@ export function MarketLivePrice({
     // Only the next consecutive price tick is an incremental append; anything
     // else falls back to a full refetch of authoritative SSR state.
     if (signal.type !== "change" || signal.tick === null) {
+      router.refresh();
+      return;
+    }
+    // After graduation the receipt book is closed, so a price tick can only
+    // have come from the bounded venue — and the append below plots ticks on
+    // the *pre-graduation* series, where a venue price does not belong.
+    // Refetching keeps both halves authoritative. This is not reachable today
+    // (the pool-tick emit carries no tick payload, so those signals already
+    // take the branch above), and the guard is here so that adding one later
+    // cannot silently graft venue prices onto the LMSR curve.
+    if (graduatedAt !== undefined) {
       router.refresh();
       return;
     }
@@ -168,7 +189,13 @@ export function MarketLivePrice({
         <div className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
           {chartHeading}
         </div>
-        <PriceCurve noLabel={noLabel} points={chartPoints} yesLabel={yesLabel} />
+        <PriceCurve
+          {...(graduatedAt === undefined ? {} : { graduatedAt })}
+          noLabel={noLabel}
+          points={chartPoints}
+          {...(postgradPoints === undefined ? {} : { postgradPoints })}
+          yesLabel={yesLabel}
+        />
       </div>
     </>
   );

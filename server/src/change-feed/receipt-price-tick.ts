@@ -1,6 +1,6 @@
 import { currentYesPriceCents } from "@popcharts/protocol/virtual-lmsr";
-import { wadToCents, wadToNumber } from "@popcharts/protocol/wad";
-import type { PriceTickWire } from "@popcharts/live-channels";
+import { wadToNumber } from "@popcharts/protocol/wad";
+import { RECEIPTS_STREAM, type PriceTickWire } from "@popcharts/live-channels";
 
 /**
  * Builds the price tick a pregrad trade pushes onto its change-feed frame (repo
@@ -26,12 +26,16 @@ export function buildPriceTick(args: {
   const yesPriceCents = currentYesPriceCents({
     b: wadToNumber(args.liquidityParameterWad),
     noShares: wadToNumber(args.noSharesWad),
-    openingProbability: wadToCents(args.openingProbabilityWad),
+    // Fractional, matching the unified read's replay (ADR 0025 P3): the
+    // rounded-and-clamped wadToCents would make a pushed point disagree with
+    // a refetched one for markets with fractional opening probabilities.
+    openingProbability: wadToNumber(args.openingProbabilityWad) * 100,
     yesShares: wadToNumber(args.yesSharesWad),
   });
 
   return {
     t: args.t.toISOString(),
+    stream: RECEIPTS_STREAM,
     sequence: Number(args.sequence),
     yesPriceCents,
     noPriceCents: 100 - yesPriceCents,

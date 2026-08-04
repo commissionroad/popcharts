@@ -180,19 +180,36 @@ export const MarketDraftValidationErrorsSchema = t.Object(
 );
 
 /**
- * Why a submission was refused by the review-bond meter (ADR 0022 §3), with
- * the figures the app needs to prompt a deposit. Amounts are native-unit
- * strings ($1 = 1e18).
+ * Why a submission was refused by the review-credit meter (ADR 0022,
+ * prepaid-credit amendment), with the figures the deposit panel renders.
+ * Amounts are native-unit strings ($1 = 1e18); `requiredWad` is the
+ * per-review-run rate in force.
  */
 export const MarketDraftBondShortfallSchema = t.Object(
   {
     availableWad: t.String(),
     message: t.String(),
-    minimumStandingBondWad: t.String(),
     requiredWad: t.String(),
-    standingBondWad: t.String(),
+    runsUsed: t.Integer(),
   },
   { $id: "MarketDraftBondShortfall" },
+);
+
+/**
+ * A wallet's review-credit position: what it has left, what a run costs, and
+ * how many runs that is. `metered: false` means no vault is configured (a
+ * local stack booted before the vault deploy) and submission is ungated; the
+ * numeric fields are zeros the app should not render.
+ */
+export const MarketDraftReviewCreditSchema = t.Object(
+  {
+    availableWad: t.String(),
+    metered: t.Boolean(),
+    rateWad: t.String(),
+    runsRemaining: t.Integer(),
+    runsUsed: t.Integer(),
+  },
+  { $id: "MarketDraftReviewCredit" },
 );
 
 /** Wire-serialized createMarket params, minted at publish time. */

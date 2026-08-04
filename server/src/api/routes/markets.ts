@@ -42,6 +42,7 @@ import {
   MarketMetadataWriteSchema,
   MarketOrderBookSchema,
   MarketPostgradSchema,
+  MarketPriceHistorySchema,
   MarketResolutionSchema,
   MarketSchema,
   MarketStatusSchema,
@@ -56,6 +57,7 @@ import {
   VenueOrderListSchema,
   VenueOrderSchema,
   VenueOrderStatusSchema,
+  PricePointSchema,
   VenuePoolSideSchema,
   VenuePricePointSchema,
 } from "src/api/models/markets";
@@ -81,6 +83,7 @@ import {
   getMarketVenueOrders,
   VENUE_ORDER_STATUS_FILTERS,
 } from "src/api/services/venue-orderbook";
+import { getMarketPriceHistory } from "src/api/services/price-history";
 import { getMarketVenuePriceHistory } from "src/api/services/venue-price-history";
 import { literalUnion } from "src/shared/typebox-literals";
 
@@ -137,8 +140,10 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     MarketMetadata: MarketMetadataSchema,
     MarketMetadataWrite: MarketMetadataWriteSchema,
     MarketOrderBook: MarketOrderBookSchema,
+    MarketPriceHistory: MarketPriceHistorySchema,
     MarketStatus: MarketStatusSchema,
     MarketVenuePriceHistory: MarketVenuePriceHistorySchema,
+    PricePoint: PricePointSchema,
     VenuePricePoint: VenuePricePointSchema,
     ReceiptPlacedEvent: ReceiptPlacedEventSchema,
     ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
@@ -613,6 +618,39 @@ export const marketRoutes = marketRoutesWithDevTools
         summary: "Get a market's venue order book",
         description:
           "Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/price-history",
+    async ({ params, set }) => {
+      const history = await getMarketPriceHistory({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (!history) {
+        set.status = 404;
+        return "Market not found";
+      }
+
+      return history;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "MarketPriceHistory",
+        404: t.String(),
+      },
+      detail: {
+        operationId: "getMarketPriceHistory",
+        summary: "Get a market's whole-life price history",
+        description:
+          "Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).",
         tags: ["Markets"],
       },
     },

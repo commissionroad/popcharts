@@ -412,6 +412,40 @@ export const MarketOrderBookSchema = t.Object(
  * that half of the chart is: a bounded pool can take several swaps inside one
  * cent, and rounding here would plot them as a flat line. Round at display.
  */
+/**
+ * One sample on a market's whole-life price history (repo ADR 0025). Cents
+ * are fractional (round at display). Pre-graduation the pair is complementary
+ * by construction — one LMSR state prices both sides; post-graduation the two
+ * pools price independently, and the pair only approaches a complete set as
+ * arbitrage closes the gap. The shape is identical across the seam, so a
+ * consumer cannot tell which mechanism produced a point.
+ */
+export const PricePointSchema = t.Object(
+  {
+    at: t.String(),
+    noCents: t.Number(),
+    yesCents: t.Number(),
+  },
+  { $id: "PricePoint" },
+);
+
+/**
+ * A market's price history across its whole trading life: the virtual LMSR
+ * path over the receipt book, then — once graduated — the bounded venue's own
+ * prices, joined by the synthesized handoff point. `graduatedAt` is present
+ * as soon as the handoff is indexed and is a pure chart annotation; the
+ * points themselves carry no phase marker.
+ */
+export const MarketPriceHistorySchema = t.Object(
+  {
+    chainId: t.Number(),
+    graduatedAt: t.Optional(t.String()),
+    marketId: t.String(),
+    points: t.Array(t.Ref(PricePointSchema)),
+  },
+  { $id: "MarketPriceHistory" },
+);
+
 export const VenuePricePointSchema = t.Object(
   {
     at: t.String(),
@@ -858,6 +892,10 @@ export type VenueOrderBookPoolResponse = Static<
   typeof VenueOrderBookPoolSchema
 >;
 export type MarketOrderBookResponse = Static<typeof MarketOrderBookSchema>;
+export type PricePointResponse = Static<typeof PricePointSchema>;
+export type MarketPriceHistoryResponse = Static<
+  typeof MarketPriceHistorySchema
+>;
 export type VenuePricePointResponse = Static<typeof VenuePricePointSchema>;
 export type MarketVenuePriceHistoryResponse = Static<
   typeof MarketVenuePriceHistorySchema

@@ -12,6 +12,7 @@ import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
+  pregradDeployOverrides,
   type PregradDeploy,
 } from "./shared/deployments/pregradDeploy.ts";
 import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
@@ -193,15 +194,7 @@ async function main(): Promise<void> {
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
   const serverEnv = {
-    ...buildLocalServerEnv(resources, {
-      collateralAddress: deploy.collateralAddress,
-      deployBlock: deploy.deployBlock,
-      postgradAdapterAddress: deploy.postgradAdapterAddress,
-      pregradManagerAddress: deploy.pregradManagerAddress,
-      ...(deploy.reviewBondVaultAddress
-        ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
-        : {}),
-    }),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
     ...postgradServerEnv(postgrad),
   };
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
@@ -465,8 +458,6 @@ async function startAiReviewStack(
 
   return [aiReview, runner];
 }
-
-
 
 async function run(
   name: string,

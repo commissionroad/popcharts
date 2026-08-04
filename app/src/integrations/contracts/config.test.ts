@@ -51,11 +51,11 @@ describe("getPopChartsContractConfig", () => {
     const config = await loadConfig({
       NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: COLLATERAL,
       NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
-      NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS:
+      NEXT_PUBLIC_POPCHARTS_REVIEW_CREDIT_VAULT_ADDRESS:
         "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
     });
 
-    expect(config.getPopChartsContractConfig()?.reviewBondVaultAddress).toBe(
+    expect(config.getPopChartsContractConfig()?.reviewCreditVaultAddress).toBe(
       "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
     );
   });
@@ -66,17 +66,17 @@ describe("getPopChartsContractConfig", () => {
       NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
     });
 
-    expect(unset.getPopChartsContractConfig()?.reviewBondVaultAddress).toBeNull();
+    expect(unset.getPopChartsContractConfig()?.reviewCreditVaultAddress).toBeNull();
 
     const malformed = await loadConfig({
       NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: COLLATERAL,
       NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
-      NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS: "0x123-not-an-address",
+      NEXT_PUBLIC_POPCHARTS_REVIEW_CREDIT_VAULT_ADDRESS: "0x123-not-an-address",
     });
 
     // A bad vault address never blocks the rest of the config.
     expect(malformed.getPopChartsContractConfig()).not.toBeNull();
-    expect(malformed.getPopChartsContractConfig()?.reviewBondVaultAddress).toBeNull();
+    expect(malformed.getPopChartsContractConfig()?.reviewCreditVaultAddress).toBeNull();
   });
 
   it("targets Arc Testnet when the local chain flag is off", async () => {
@@ -190,7 +190,7 @@ async function loadConfig(env: Record<string, string>) {
     "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_MODE",
     "NEXT_PUBLIC_POPCHARTS_MARKET_CREATION_SIGNER",
     "NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS",
-    "NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS",
+    "NEXT_PUBLIC_POPCHARTS_REVIEW_CREDIT_VAULT_ADDRESS",
     "NEXT_PUBLIC_POPCHARTS_RPC_URL",
   ]) {
     vi.stubEnv(name, env[name] ?? "");

@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { deriveStackResources } from "./shared/localStack/ports.ts";
 import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
-import { pruneDeadDescriptors, type StackDescriptor } from "./shared/localStack/registry.ts";
+import {
+  pruneDeadDescriptors,
+  type StackDescriptor,
+} from "./shared/localStack/registry.ts";
 import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import {
   resolveTargetStack,

@@ -154,11 +154,11 @@ describe("coverage workspaces", () => {
 
 describe("coverage comment", () => {
   it("renders a comment whose payload round-trips", () => {
-    const payload = upsertCommentEntry(
-      emptyCommentPayload(),
-      "server",
-      { summary: summaryFixture(60, 100), headSha: "a".repeat(40), baseline: null },
-    );
+    const payload = upsertCommentEntry(emptyCommentPayload(), "server", {
+      summary: summaryFixture(60, 100),
+      headSha: "a".repeat(40),
+      baseline: null,
+    });
     const body = renderComment(payload);
     assert.ok(body.startsWith(COMMENT_MARKER));
     assert.ok(body.includes("60.00% (60/100)"));
@@ -269,20 +269,18 @@ describe("coverage metrics", () => {
   });
 
   it("skips malformed history rows instead of failing", () => {
-    const rows = parseHistory('not json\n{"ts":"2026-07-14","workspace":"app","commit":"c","linesPct":1,"linesHit":1,"linesFound":100,"functionsPct":null,"branchesPct":null}\n');
+    const rows = parseHistory(
+      'not json\n{"ts":"2026-07-14","workspace":"app","commit":"c","linesPct":1,"linesHit":1,"linesFound":100,"functionsPct":null,"branchesPct":null}\n',
+    );
     assert.equal(rows.length, 1);
   });
 
   it("upserts latest.json per workspace", () => {
-    const latest = upsertLatestCoverage(
-      parseLatestCoverage(null),
-      "server",
-      {
-        commit: "d".repeat(40),
-        updatedAt: "2026-07-14T12:00:00Z",
-        summary: summaryFixture(60, 100),
-      },
-    );
+    const latest = upsertLatestCoverage(parseLatestCoverage(null), "server", {
+      commit: "d".repeat(40),
+      updatedAt: "2026-07-14T12:00:00Z",
+      summary: summaryFixture(60, 100),
+    });
     const reparsed = parseLatestCoverage(JSON.stringify(latest));
     assert.equal(reparsed.workspaces.server?.summary.lines.pct, 60);
   });
@@ -294,8 +292,18 @@ describe("coverage metrics", () => {
   });
 
   it("renders trends newest-first per workspace", () => {
-    const older = historyRow("app", "1".repeat(40), "2026-07-13T12:00:00Z", summaryFixture(98, 100));
-    const newer = historyRow("app", "2".repeat(40), "2026-07-14T12:00:00Z", summaryFixture(99, 100));
+    const older = historyRow(
+      "app",
+      "1".repeat(40),
+      "2026-07-13T12:00:00Z",
+      summaryFixture(98, 100),
+    );
+    const newer = historyRow(
+      "app",
+      "2".repeat(40),
+      "2026-07-14T12:00:00Z",
+      summaryFixture(99, 100),
+    );
     const md = renderTrends([older, newer]);
     assert.ok(md.indexOf("2026-07-14") < md.indexOf("2026-07-13"));
     assert.ok(md.includes("## App"));

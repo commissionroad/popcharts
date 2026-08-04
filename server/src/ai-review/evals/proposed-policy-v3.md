@@ -50,7 +50,7 @@ metric, source, and deadline should be approved.
 
 | Policy line           | Taxonomy classes it targets                                                                                                                                    | Real dispute it would have caught                      |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| WHAT sentence         | vagueness/*                                                                                                                                                    | Zelenskyy suit; Venezuela "invade"; Cardi B "performs" |
+| WHAT sentence         | vagueness/\*                                                                                                                                                   | Zelenskyy suit; Venezuela "invade"; Cardi B "performs" |
 | WHERE sentence        | sources/_, knowability/_                                                                                                                                       | Oscars viewership (secondary source)                   |
 | WHEN sentence         | timing/no-deadline, ambiguous-deadline                                                                                                                         | —                                                      |
 | red-flag line         | timing/event-vs-observation, initial-print-vs-revision, no-postponement-default, vagueness/compound, knowability/creator-controlled, timing/already-determined | MicroStrategy May sale; Oscars viewership              |
@@ -67,7 +67,7 @@ src/ai-review/server.ts`), re-run the evals with
    `--service-url http://127.0.0.1:3012`.
 3. Compare accuracy / strict accuracy / unanimous-rate per class; adopt only
    if overall accuracy and the dispute-class rows improve without the
-   good/* rows regressing.
+   good/\* rows regressing.
 
 ## Result (adopted iteration)
 

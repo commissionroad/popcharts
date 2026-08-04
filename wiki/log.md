@@ -1346,8 +1346,106 @@ rather than the landing notes: `GET /markets` still takes only `chainId`/`since`
 confirming P8 untouched; no EIP-712 or nonce in `PregradManager.sol`, confirming P4's
 contract half open.
 
-## [2026-08-04] lint | dispute window gets its concept page; ADR 0024 checklist drift; 4 missed ingests
-Pages: +concepts/dispute-window.md, ~concepts/ai-assisted-resolution.md,
+## [2026-08-04] ingest | root ADR 0022 — amendment: prepaid review credit supersedes the refundable bond
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md,
+~concepts/creation-fee-custody.md, ~summaries/portfolio-data-design.md, ~index.md
+Notes: P3 shipped and was then withdrawn. The ADR specified withdrawal "gated on
+settlement being current"; the shipped `withdrawBond` was not — a spec/code
+mismatch, not a documented gap. Two defects from one root (an on-chain withdrawal
+path cannot see an off-chain meter): withdrawal of already-consumed value, and a
+permanent settlement wedge because withdrawing decrements `deposited` while
+`settle` requires the lifetime total to stay under it. Fix is removal, not
+repair: non-refundable credit, `depositFor(beneficiary)`, one configurable
+per-review-run rate, balance read from the indexed DB.
+Follow-ups: (1) the $0.10 rate is BELOW COST ($0.169/run on claude-cli) — public
+submission must not open at it; (2) the deposit handler does not call
+`recordLiveChange`, so the change-feed half of the model is unwired; (3) the
+nightly lifecycle stack never deploys the vault, so the payment path has no
+end-to-end coverage; (4) merged with the same-day 2026-08-03 ingest that had just landed the
+Accepted status and phase ticks; its "two documented bond caveats" note is now
+half-resolved — the withdraw caveat is what withdrew the design.
+
+## [2026-08-04] ingest | root ADR 0025 — one price stream across graduation
+Pages: +summaries/root-adr-0025-unified-price-stream.md, +concepts/price-stream.md,
+~index.md, ~summaries/root-adr-0021-live-market-updates.md
+Notes: new concept page created because the price path now has two sources
+discussing it (ADR 0021's tick payload, ADR 0025's unification) plus shipped
+code that contradicts neither but implements only half. Three findings worth
+carrying: (1) the pregrad ordinal is free because `receiptCount` was already in
+the `GraduationSnapshot` EIP-712 struct — the chart is a beneficiary, not the
+reason; (2) the bounded hook's `SwapTickObservation` is 7 bytes of a 32-byte
+slot already written every swap, so a sequence packs in near-free, but only
+until first deploy since the hook address is part of every pool id; (3) an
+indexer-minted ordinal was rejected on a correctness argument, not cost — it
+would be stamped in write order, so it could be contiguous and wrong while the
+client's gap check passed. ADR 0025's P1 is gated on measuring (2) rather than
+trusting it; the earlier version of this analysis rejected the hook counter on
+an unmeasured gas assumption and was wrong.
+
+## [2026-08-04] ingest | root ADR 0022 — P3a delivered (prepaid review credit built)
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
+Notes: same-day follow-up to the amendment ingest — the replacement design is now
+code (#431 + the lifecycle-lane PR) and P3a is ticked in the ADR. Recorded the
+three pre-publish review findings (concurrent overspend, unscoped credit,
+legacy-ledger reinterpretation) and the two deviations from P3a as written
+(enum values retained, poll instead of SSE).
+
+## [2026-08-04] ingest | protocol postgrad-contract-metadata — swap sequence on AfterSwapTickObserved
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: ADR 0025 P1 added a per-pool `sequence` to `AfterSwapTickObserved` and a
+fourth return to `lastSwapTickObservation`; the raw doc's event/view tables were
+stale after the contract change (caught by the Codex P1 review) and are now
+updated alongside this summary.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 build decisions locked
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: ten open design points on P4 were decided and written into the ADR as a
+"P4 build decisions" section. The non-obvious one is the expiry rationale: a
+15-minute window is not anti-theft (binding the authorization to the creator's
+address already covers that) but a bound on how far a market's absolute
+deadlines can drift from the ones reviewed — and partial staleness does *not*
+revert, since `_validateCreateMarketParams` only rejects an already-past
+`graduationDeadline`, so a stale authorization ships a quietly shortened market.
+That choice obliges the app to re-mint on expiry rather than surface an error.
+Second thing worth carrying: the contract↔indexer coupling that would have
+forced a single fat PR dissolves if the indexer reads a market's real on-chain
+status instead of hard-coding `under_review` — correct under both contracts, so
+it lands alone. Creation-fee receipts are pulled ahead of the rest of P4 as
+their own PR; they are independent of the gate and close a standing money-
+paper-trail exception. No entity/concept page needed updating — pregrad-manager
+and creation-fee-custody already describe the gate as designed, and these
+decisions refine how, not what.
+
+## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
+Pages: ~summaries/portfolio-data-design.md
+Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,
+closing the gap the ADR 0022 red-team found in 2026-07 — `MarketCreationFeePaid`
+was emitted on-chain but indexed nowhere, leaving the creation fee as the only
+value transfer in the system with no receipt-linked record. Two details the
+bullet records because they are easy to get wrong later: the amount is read
+from the log rather than the fee constant, so changing the fee never rewrites
+what past creators are recorded as paying; and trusted creators pay nothing and
+the contract emits no log for them (`createMarket` only emits when the fee is
+non-zero), so an absent row means "no fee was due", never "a payment was
+missed". `market_id` is foreign-keyed to `markets` on `(chain_id, market_id)`,
+following `market_ai_reviews`. The fee log can outrun the independent
+`MarketCreated` watcher on the live path; that is handled in the handler,
+which waits for the market row and parks the sweep, rather than by dropping
+the relation. Standing rule confirmed by the repo owner 2026-08-04: tables
+are always related by real foreign keys.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 fee + indexer halves recorded delivered
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: the P4 entry's "Remaining" list was stale on two counts after #430
+(creation-fee receipts) and #439 (indexer reads on-chain status) landed the
+same day; the ADR now records both delivered, and the `markets.status`
+`under_review` column default is dropped with the same change — the last place
+the old born-under-review assumption lived in the schema. Remaining P4 work is
+the contract gate, the server publish-authorization mint, the app authorized
+call + re-mint, and the scripts dev-key wiring.
+
+## [2026-08-04] lint | dispute window gets its concept page; ADR 0024 + 0025 checklist drift; 5 missed ingests
+Pages: +concepts/dispute-window.md, ~summaries/root-adr-0025-unified-price-stream.md, ~concepts/ai-assisted-resolution.md,
 ~concepts/local-dev-orchestration.md, ~concepts/deployment-and-infrastructure.md,
 ~summaries/ai-resolution-service-design.md, ~summaries/root-adr-0024-resolution-dispute-program.md,
 ~summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
@@ -1355,12 +1453,17 @@ Pages: +concepts/dispute-window.md, ~concepts/ai-assisted-resolution.md,
 ~summaries/app-component-inventory.md, ~summaries/infra-readme.md,
 ~summaries/server-readme.md, ~entities/indexer.md, ~entities/ai-review-service.md, ~index.md
 
-Organic ingestion since last lint (2026-07-26): **13/17 doc-changing commits
+Organic ingestion since last lint (2026-07-26): **20/25 doc-changing commits
 self-ingested**. Missed: `docs/ai-resolution-service-design.md` (8187651, runner
 proposes instead of resolving), `app/docs/component-inventory.md` (7cdf860,
 postgrad price chart), `README.md` twice (4aaf3e5 dev-menu random market;
-fcd2611 `just setup-sandbox`). All four ingested here. Note the gap: the
+fcd2611 `just setup-sandbox`), and `docs/adr/0025-unified-price-stream.md`
+(df40f91, the measured P1 gas result). All five ingested here. Note the gap: the
 scheduled lint had not run since 2026-07-26, so this covers nine days.
+
+The last eight of those commits landed on `main` *while this lint was running* —
+they are counted above, and the count was revised upward from 13/17 at the merge
+rather than left standing against the stale base.
 
 **The one that mattered.** The missed resolution-design ingest had left a
 falsified claim standing on two pages: that a confident verdict is withheld
@@ -1396,6 +1499,17 @@ exists in the CDK stack. Only the lifecycle-harness propose→dispute scenario a
 the operator self-dispute/settle tooling have no code behind them. Recorded on
 the ADR 0024 summary page with the file-level evidence; the raw ADR is left
 alone per the never-edit-sources rule.
+
+**And the same drift on ADR 0025, hours old.** The unified-price-stream ADR
+landed today ticking only P1, but P2 (`pool_price_ticks` persists the hook's
+per-pool sequence, prices derived not stored) and P3
+(`api/services/price-history.ts`, the unified read) both landed the same day and
+are unticked. Also folded in the missed P1 result: the gas gate **passed** at
+64,574 → 65,127 (+553, ~0.9%) — worth recording because the gate existed
+precisely because an earlier pass rejected the hook counter on an *unmeasured*
+gas assumption and was wrong. Two ADRs drifting the same way in one lint is a
+pattern, not a coincidence: the checklist is updated in the design PR and then
+not re-touched by the build PRs that satisfy it.
 
 Integrity: clean after fixes — zero broken links (fixed one:
 protocol-adr-0013 pointed at `concepts/graduation-and-clearing.md`, which has
@@ -1434,6 +1548,7 @@ Follow-ups for next lint:
    `product-honesty-rule` vs `app/CONTEXT.md` (2026-07-21).
 2. `entities/devchain.md` (2026-07-14) is three sources behind and was not touched
    today — check it against the control-plane rewrite.
-3. Re-check whether ADR 0024's checklist has been reconciled upstream; if it has
-   not by the next run, that is worth raising with the user rather than
-   re-recording.
+3. Re-check whether ADR 0024's **and ADR 0025's** checklists have been reconciled
+   upstream. Two ADRs drifting the same way in one lint says the problem is the
+   workflow, not the documents: if neither is reconciled by the next run, raise
+   it with the user rather than re-recording it a third time.

@@ -19,9 +19,9 @@ import type {
   MarketDraftStatus,
 } from "src/db/schema/market-drafts";
 import {
-  quoteSubmissionCharge,
-  settleOutstandingCharges,
-} from "src/draft-review/bond-meter";
+  lockWalletCredit,
+  quoteReviewRun,
+} from "src/draft-review/review-credit-meter";
 import {
   buildDraftMetadata,
   validateDraftForSubmission,
@@ -387,36 +387,35 @@ export type SubmitMarketDraftResult =
   | {
       availableWad: bigint;
       kind: "insufficient_bond";
-      minimumStandingBondWad: bigint;
       requiredWad: bigint;
-      standingBondWad: bigint;
+      runsUsed: number;
     }
-  | { kind: "bond_unavailable" }
   | { kind: "missing_wallet" }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
 
 export type SubmitMarketDraftDependencies = {
-  quoteCharge: typeof quoteSubmissionCharge;
-  settleCharges: (address: string) => void;
+  quoteCharge: typeof quoteReviewRun;
 };
 
 const defaultSubmitDependencies: SubmitMarketDraftDependencies = {
-  quoteCharge: quoteSubmissionCharge,
-  // Fire-and-forget: settlement is bookkeeping catch-up, not part of the
-  // submission's success; failures log and retry on the next charge.
-  settleCharges: (address) => {
-    void settleOutstandingCharges(address);
-  },
+  quoteCharge: quoteReviewRun,
 };
 
 /**
  * Submits a draft for AI review: validates completeness, prices the review
- * run against the creator's on-chain bond (ADR 0022 §3 — the meter refuses
- * before any provider money is spent), snapshots the content hash, locks the
- * draft in `in_review`, and enqueues a review job for the runner, recording
- * the meter charge in the same transaction. Resubmitting after edits
- * produces a fresh hash and a fresh review.
+ * run against the creator's prepaid credit (the meter refuses before any
+ * provider money is spent), snapshots the content hash, locks the draft in
+ * `in_review`, and enqueues a review job for the runner, recording the meter
+ * charge in the same transaction. Resubmitting after edits produces a fresh
+ * hash and a fresh review.
+ *
+ * The quote runs *inside* the transaction, serialized per wallet by
+ * {@link lockWalletCredit}: the balance read and the charge insert are not
+ * otherwise atomic, so two drafts submitting concurrently for one wallet
+ * would each see the same remaining run and together overspend it. The lock
+ * makes the second submit wait, re-read the balance with the first charge
+ * committed, and get refused honestly.
  */
 export async function submitMarketDraft(
   {
@@ -452,102 +451,88 @@ export async function submitMarketDraft(
     return { errors, kind: "invalid" };
   }
 
-  const [{ priorReviewRuns }] = (await db
-    .select({
-      priorReviewRuns: sql<number>`count(*)::int`,
-    })
-    .from(schema.marketDraftReviewJobs)
-    .where(eq(schema.marketDraftReviewJobs.draftId, draft.id))) as [
-    { priorReviewRuns: number },
-  ];
-  const quote = await dependencies.quoteCharge({ draft, priorReviewRuns });
-
-  if (quote.kind === "missing_wallet") {
-    return { kind: "missing_wallet" };
-  }
-
-  if (quote.kind === "unavailable") {
-    return { kind: "bond_unavailable" };
-  }
-
-  if (quote.kind === "insufficient") {
-    return {
-      availableWad: quote.availableWad,
-      kind: "insufficient_bond",
-      minimumStandingBondWad: quote.minimumStandingBondWad,
-      requiredWad: quote.requiredWad,
-      standingBondWad: quote.standingBondWad,
-    };
-  }
-
   const { metadataHash } = buildDraftMetadata(draft);
   const now = new Date();
-  const updated = await db.transaction(async (tx) => {
-    // Conditional on the state and version observed above: the validated
-    // content and the snapshot hash were computed from that read, so a
-    // concurrent edit or duplicate submit must turn into a conflict rather
-    // than enqueue a review of content nobody checked.
-    const [row] = await tx
-      .update(schema.marketDrafts)
-      .set({
-        status: "in_review",
-        submittedAt: now,
-        submittedMetadataHash: metadataHash,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(schema.marketDrafts.id, draft.id),
-          eq(schema.marketDrafts.status, draft.status),
-          draftVersionMatches(draft),
-        ),
-      )
-      .returning();
+  const outcome = await db.transaction(
+    async (tx): Promise<SubmitMarketDraftResult | { row: MarketDraftRow }> => {
+      if (draft.intendedCreatorAddress) {
+        await lockWalletCredit(tx, draft.intendedCreatorAddress);
+      }
 
-    if (!row) {
-      return null;
-    }
+      const quote = await dependencies.quoteCharge({ dbc: tx, draft });
 
-    await tx.insert(schema.marketDraftReviewJobs).values({
-      draftId: draft.id,
-      metadataHash,
-    });
+      if (quote.kind === "missing_wallet") {
+        return { kind: "missing_wallet" };
+      }
 
-    // The meter charge rides the same transaction as the job it pays for:
-    // a conflicted submit charges nothing, a charged submit always has its
-    // job. `chargeKind === null` is a bundled run (first-submission $1
-    // covers five reviews).
-    if (
-      quote.kind === "chargeable" &&
-      quote.chargeKind !== null &&
-      draft.intendedCreatorAddress
-    ) {
-      await tx.insert(schema.draftReviewCharges).values({
-        amount: quote.amountWad,
-        chargedAddress: draft.intendedCreatorAddress.toLowerCase(),
+      if (quote.kind === "insufficient") {
+        return {
+          availableWad: quote.availableWad,
+          kind: "insufficient_bond",
+          requiredWad: quote.requiredWad,
+          runsUsed: quote.runsUsed,
+        };
+      }
+
+      // Conditional on the state and version observed above: the validated
+      // content and the snapshot hash were computed from that read, so a
+      // concurrent edit or duplicate submit must turn into a conflict rather
+      // than enqueue a review of content nobody checked.
+      const [row] = await tx
+        .update(schema.marketDrafts)
+        .set({
+          status: "in_review",
+          submittedAt: now,
+          submittedMetadataHash: metadataHash,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.marketDrafts.id, draft.id),
+            eq(schema.marketDrafts.status, draft.status),
+            draftVersionMatches(draft),
+          ),
+        )
+        .returning();
+
+      if (!row) {
+        return {
+          kind: "wrong_status",
+          message: "This draft just changed elsewhere — reload and try again.",
+        };
+      }
+
+      await tx.insert(schema.marketDraftReviewJobs).values({
         draftId: draft.id,
-        kind: quote.chargeKind,
+        metadataHash,
       });
-    }
 
-    return row;
-  });
+      // The meter charge rides the same transaction as the job it pays for:
+      // a conflicted submit charges nothing, a charged submit always has its
+      // job. Credit is non-refundable, so this row is final — there is no
+      // settlement to reconcile it against and nothing reverses it.
+      if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
+        await tx.insert(schema.draftReviewCharges).values({
+          amount: quote.amountWad,
+          chargedAddress: draft.intendedCreatorAddress.toLowerCase(),
+          draftId: draft.id,
+          kind: "review_run",
+          rate: quote.rateWad,
+        });
+      }
 
-  if (!updated) {
-    return {
-      kind: "wrong_status",
-      message: "This draft just changed elsewhere — reload and try again.",
-    };
-  }
+      return { row };
+    },
+  );
 
-  if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
-    dependencies.settleCharges(draft.intendedCreatorAddress);
+  if (!("row" in outcome)) {
+    return outcome;
   }
 
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
-    draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
+    draft: serializeMarketDraft(outcome.row, reviews.get(draft.id) ?? null),
     kind: "submitted",
   };
 }

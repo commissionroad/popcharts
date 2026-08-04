@@ -80,7 +80,10 @@ const latest = latestNightlyOf(
   parseLatestNightly(readTextOrNull(latestPath)).run,
   run,
 );
-writeFileSync(latestPath, `${JSON.stringify({ version: 1, run: latest }, null, 2)}\n`);
+writeFileSync(
+  latestPath,
+  `${JSON.stringify({ version: 1, run: latest }, null, 2)}\n`,
+);
 
 const historyPath = join(dir, "nightly", "history.jsonl");
 const history = upsertNightlyHistory(

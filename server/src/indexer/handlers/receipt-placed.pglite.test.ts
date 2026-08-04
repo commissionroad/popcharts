@@ -68,6 +68,9 @@ beforeAll(async () => {
     createdBlockTimestamp: new Date("2026-07-13T00:00:00Z"),
     createdTransactionHash: `0x${"33".repeat(32)}`,
     createdLogIndex: 0,
+    // Previously inherited the column default; a market taking receipts is on
+    // the board, so say so explicitly now that the column has no default.
+    status: "bootstrap",
   });
 });
 

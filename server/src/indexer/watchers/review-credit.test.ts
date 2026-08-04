@@ -3,9 +3,9 @@ import { describe, expect, it, spyOn } from "bun:test";
 import type { BlockchainClient } from "src/blockchain/client";
 import { config, ZERO_ADDRESS } from "src/config";
 import {
-  recoverReviewBondEvents,
-  watchReviewBondEvents,
-} from "src/indexer/watchers/review-bond";
+  recoverReviewCreditEvents,
+  watchReviewCreditEvents,
+} from "src/indexer/watchers/review-credit";
 
 const VAULT = "0x00000000000000000000000000000000000000AB";
 
@@ -50,16 +50,16 @@ async function waitFor(check: () => boolean, timeoutMs = 1_000) {
 // is pinned to a dead port and would throw.
 describe("review-bond watcher with an unconfigured vault address", () => {
   it("skips recovery without fetching logs or touching cursors", async () => {
-    expect(config.contracts.reviewBondVault).toBe(ZERO_ADDRESS);
+    expect(config.contracts.reviewCreditVault).toBe(ZERO_ADDRESS);
     const { calls, client } = buildClient();
     const logs = spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await recoverReviewBondEvents(client, 120n);
+      await recoverReviewCreditEvents(client, 120n);
 
       expect(calls).toEqual([]);
       expect(logs.mock.calls).toContainEqual([
-        "[ReviewBond] No review bond vaults known; skipping",
+        "[ReviewCredit] No review credit vaults known; skipping",
       ]);
     } finally {
       logs.mockRestore();
@@ -67,10 +67,10 @@ describe("review-bond watcher with an unconfigured vault address", () => {
   });
 
   it("subscribes to nothing when watching", async () => {
-    expect(config.contracts.reviewBondVault).toBe(ZERO_ADDRESS);
+    expect(config.contracts.reviewCreditVault).toBe(ZERO_ADDRESS);
     const { calls, client } = buildClient();
 
-    const stop = watchReviewBondEvents(client);
+    const stop = watchReviewCreditEvents(client);
     try {
       // The first discovery tick has finished deciding once it reads the head.
       await waitFor(() => calls.includes("getBlockNumber"));
@@ -85,14 +85,14 @@ describe("review-bond watcher with an unconfigured vault address", () => {
 
 describe("review-bond watcher with a configured vault address", () => {
   it("subscribes to the vault (positive control for the guard)", async () => {
-    const original = config.contracts.reviewBondVault;
-    config.contracts.reviewBondVault = VAULT;
+    const original = config.contracts.reviewCreditVault;
+    config.contracts.reviewCreditVault = VAULT;
     const { calls, client, watchedAddresses } = buildClient();
     // The tick's sweep then hits the dead test DB for its cursor; that error
     // is caught and logged by the discovery loop and is not under test here.
     const errors = spyOn(console, "error").mockImplementation(() => {});
 
-    const stop = watchReviewBondEvents(client);
+    const stop = watchReviewCreditEvents(client);
     try {
       await waitFor(() => calls.includes("watchEvent"));
       expect(watchedAddresses()).toEqual([VAULT.toLowerCase()]);
@@ -102,7 +102,7 @@ describe("review-bond watcher with a configured vault address", () => {
       await waitFor(() => errors.mock.calls.length > 0, 4_000);
     } finally {
       stop();
-      config.contracts.reviewBondVault = original;
+      config.contracts.reviewCreditVault = original;
       errors.mockRestore();
     }
   });

@@ -1,9 +1,12 @@
 import { Elysia, t } from "elysia";
 
 import { resolveDraftOwner } from "src/api/draft-auth";
+import { config, ZERO_ADDRESS } from "src/config";
+import { reviewCreditSummary } from "src/draft-review/review-credit-meter";
 import {
   DraftFeedbackFieldSchema,
   MarketDraftBondShortfallSchema,
+  MarketDraftReviewCreditSchema,
   DraftFeedbackItemSchema,
   DraftFeedbackSeveritySchema,
   DraftReviewFeedbackSchema,
@@ -47,6 +50,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
     MarketDraft: MarketDraftSchema,
     MarketDraftBondShortfall: MarketDraftBondShortfallSchema,
     MarketDraftCloneRequest: MarketDraftCloneRequestSchema,
+    MarketDraftReviewCredit: MarketDraftReviewCreditSchema,
     MarketDraftList: MarketDraftListSchema,
     MarketDraftPublished: MarketDraftPublishedSchema,
     MarketDraftPublishedWrite: MarketDraftPublishedWriteSchema,
@@ -79,6 +83,59 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         summary: "List the caller's market drafts",
         description:
           "Every live (non-deleted) draft owned by the authenticated user, most recently touched first, each with its latest review.",
+        tags: ["Drafts"],
+      },
+    },
+  )
+  .get(
+    "/drafts/credit",
+    async ({ ownerResolution, query, set }) => {
+      if (ownerResolution.kind !== "resolved") {
+        return ownerFailure(ownerResolution, set);
+      }
+
+      // Same wallet-identity convention as the portfolio surface: an explicit
+      // lowercased address (the draft's intended creator), validated here.
+      const address = query.address.toLowerCase();
+
+      if (!/^0x[0-9a-f]{40}$/.test(address)) {
+        set.status = 422;
+        return "address must be a 0x-prefixed 20-byte hex address.";
+      }
+
+      if (config.contracts.reviewCreditVault === ZERO_ADDRESS) {
+        return {
+          availableWad: "0",
+          metered: false,
+          rateWad: "0",
+          runsRemaining: 0,
+          runsUsed: 0,
+        };
+      }
+
+      const summary = await reviewCreditSummary(address);
+
+      return {
+        availableWad: summary.availableWad.toString(),
+        metered: true,
+        rateWad: summary.rateWad.toString(),
+        runsRemaining: summary.runsRemaining,
+        runsUsed: summary.runsUsed,
+      };
+    },
+    {
+      query: t.Object({ address: t.String() }),
+      response: {
+        200: "MarketDraftReviewCredit",
+        401: t.String(),
+        422: t.String(),
+        501: t.String(),
+      },
+      detail: {
+        operationId: "getMarketDraftReviewCredit",
+        summary: "Read a wallet's review credit",
+        description:
+          "The wallet's prepaid review credit: indexed deposits minus metered charges, the per-review rate, and run counts. metered=false means no vault is configured and submission is ungated.",
         tags: ["Drafts"],
       },
     },
@@ -307,22 +364,14 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         return "Connect the wallet that will publish this market before submitting.";
       }
 
-      if (result.kind === "bond_unavailable") {
-        set.status = 503;
-        return "The review bond service is unreachable — try again shortly.";
-      }
-
       if (result.kind === "insufficient_bond") {
         set.status = 402;
         return {
           availableWad: result.availableWad.toString(),
           message:
-            result.standingBondWad < result.minimumStandingBondWad
-              ? "Submitting for review requires a standing bond of at least $5. Deposit to your review bond to continue."
-              : "Your review bond doesn't cover this submission. Top it up to continue.",
-          minimumStandingBondWad: result.minimumStandingBondWad.toString(),
+            "You're out of review credit. Deposit to keep submitting — credit is spent per review and isn't refundable.",
           requiredWad: result.requiredWad.toString(),
-          standingBondWad: result.standingBondWad.toString(),
+          runsUsed: result.runsUsed,
         };
       }
 
@@ -339,7 +388,6 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         404: t.String(),
         409: t.String(),
         422: "MarketDraftValidationErrors",
-        503: t.String(),
         501: t.String(),
       },
       detail: {

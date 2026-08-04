@@ -78,7 +78,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
-  reviewBondVaultAddress: "0x0000000000000000000000000000000000000042",
+  reviewCreditVaultAddress: "0x0000000000000000000000000000000000000042",
   rpcUrl: "http://127.0.0.1:8545",
 };
 
@@ -330,6 +330,24 @@ describe("useCreateDraftFlow autosave", () => {
 });
 
 describe("useCreateDraftFlow loading", () => {
+  it("exposes a credit fetcher bound to the draft's intended creator", async () => {
+    const credit = vi.fn(async () => ({
+      availableWad: "0",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 0,
+      runsUsed: 0,
+    }));
+    stubApi({ credit });
+    const { result } = renderFlow(12);
+
+    await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
+
+    expect(result.current.fetchCredit).not.toBeNull();
+    await result.current.fetchCredit!();
+    expect(credit).toHaveBeenCalledWith("0x90f79bf6eb2c4f870365e785982e1f101e93b906");
+  });
+
   it("loads an existing draft into the form", async () => {
     const api = stubApi({
       get: vi.fn(async () =>
@@ -1055,6 +1073,7 @@ function interceptWindowTimers() {
 type ApiStub = {
   clone: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
+  credit: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
   list: ReturnType<typeof vi.fn>;
   markPublished: ReturnType<typeof vi.fn>;
@@ -1067,6 +1086,13 @@ type ApiStub = {
 function stubApi(overrides: Partial<ApiStub> = {}): ApiStub {
   const api: ApiStub = {
     clone: vi.fn(async () => marketDraftFactory({ id: 40, isTemplate: true })),
+    credit: vi.fn(async () => ({
+      availableWad: "0",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 0,
+      runsUsed: 0,
+    })),
     create: vi.fn(async (body: MarketDraftWrite) => savedDraft(21, body)),
     get: vi.fn(async () => marketDraftFactory()),
     list: vi.fn(async () => []),
@@ -1116,16 +1142,16 @@ function publishParamsFixture(): MarketDraftPublishParams {
   };
 }
 
-// The review-bond meter's 402 refusal (ADR 0022 §3): the shortfall rides on
-// the error so the aside can offer a one-click deposit.
+// The review-credit meter's 402 refusal (ADR 0022, prepaid-credit
+// amendment): the shortfall rides on the error so the aside can offer the
+// deposit presets.
 function meterRefusal() {
-  return new DraftsApiError("Your available bond doesn't cover this submission.", 402, {
+  return new DraftsApiError("You're out of review credit.", 402, {
     bondShortfall: {
-      availableWad: "100000000000000000",
-      message: "Your available bond doesn't cover this submission.",
-      minimumStandingBondWad: "5000000000000000000",
-      requiredWad: "200000000000000000",
-      standingBondWad: "5000000000000000000",
+      availableWad: "0",
+      message: "You're out of review credit.",
+      requiredWad: "100000000000000000",
+      runsUsed: 3,
     },
   });
 }

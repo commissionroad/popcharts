@@ -1,7 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { lifecycleEnv, marketPath, waitForMarketStatus } from "./support/lifecycle";
-import { connectTestWallet, installTestWallet } from "./support/test-wallet";
+import {
+  depositReviewCredit,
+  lifecycleEnv,
+  marketPath,
+  waitForMarketStatus,
+} from "./support/lifecycle";
+import {
+  connectTestWallet,
+  installTestWallet,
+  TEST_WALLET_ADDRESS,
+} from "./support/test-wallet";
 
 /**
  * ADR 0022 review-first creation journeys, driven through the real browser
@@ -16,6 +25,11 @@ import { connectTestWallet, installTestWallet } from "./support/test-wallet";
 
 const LIFECYCLE_TIMEOUT_MS = 300_000;
 
+/** Hardhat account #4 — funded with gas, never with review credit, so the
+ * refusal journey starts from a provably empty meter. Keep every other spec
+ * off it. */
+const UNFUNDED_WALLET_ADDRESS = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65";
+
 /** Heuristic reviews land in seconds; budget for polling, not for a model. */
 const REVIEW_VERDICT_TIMEOUT_MS = 30_000;
 
@@ -24,6 +38,59 @@ test.describe("@lifecycle review-first drafts", () => {
     process.env.POPCHARTS_E2E_LIFECYCLE !== "true",
     "Run via 'pnpm lifecycle:e2e' — this spec needs the full local stack."
   );
+
+  test("an unfunded creator is refused, deposits from the panel, and auto-resubmits", async ({
+    page,
+  }) => {
+    test.setTimeout(LIFECYCLE_TIMEOUT_MS);
+    const env = lifecycleEnv();
+    const runTag = Date.now().toString(36);
+
+    // A dedicated unlocked account with no review credit: the shared test
+    // wallet accumulates deposits from every other journey in the run, so
+    // the refusal can only be asserted from a wallet nothing else funds.
+    await installTestWallet(page, {
+      address: UNFUNDED_WALLET_ADDRESS,
+      rpcUrl: env.rpcUrl,
+    });
+    await page.goto("/create");
+    await connectTestWallet(page, UNFUNDED_WALLET_ADDRESS);
+
+    await page
+      .getByLabel("Market question")
+      .fill(`Will the funded-journey market publish? (${runTag})`);
+    await page
+      .getByLabel("Resolution criteria")
+      .fill("Resolves YES per the lifecycle harness after graduation.");
+    await page.getByLabel("Resolution sources").fill("https://example.com/source");
+    await page.getByRole("button", { name: "Submit for AI review" }).click();
+
+    // The meter refuses: the credit panel takes the aside over with the
+    // wallet's (empty) position and the deposit presets.
+    await expect(page.getByText("Review credit needed")).toBeVisible({
+      timeout: REVIEW_VERDICT_TIMEOUT_MS,
+    });
+    await expect(page.getByText("Reviews used")).toBeVisible();
+
+    // Opt-in verification artifact (skills/engineering/ui-pr-verification):
+    // set POPCHARTS_E2E_SCREENSHOT_DIR to capture the refusal surface.
+    if (process.env.POPCHARTS_E2E_SCREENSHOT_DIR) {
+      await page.screenshot({
+        fullPage: true,
+        path: `${process.env.POPCHARTS_E2E_SCREENSHOT_DIR}/review-credit-panel.png`,
+      });
+    }
+
+    // One preset deposit; the panel waits for the indexed balance and then
+    // resubmits on its own — no retyping, no second submit click.
+    await page.getByRole("button", { name: "Deposit 1.00" }).click();
+
+    await expect(page.getByText("Approved", { exact: true })).toBeVisible({
+      // Panel-poll (indexer sweep) + auto-resubmit + heuristic verdict, so
+      // this leg carries two indexing waits, not one.
+      timeout: 2 * REVIEW_VERDICT_TIMEOUT_MS,
+    });
+  });
 
   test("a weak draft gets fix-it feedback, approves after the fix, and publishes live", async ({
     page,
@@ -159,6 +226,9 @@ test.describe("@lifecycle review-first drafts", () => {
 });
 
 async function openCreatePage(page: Page, env: ReturnType<typeof lifecycleEnv>) {
+  // Fund before opening the page so the indexer has the navigation window to
+  // pick the deposit up; the credit panel recovers the race if it loses.
+  await depositReviewCredit(env, TEST_WALLET_ADDRESS, 10n ** 18n);
   await installTestWallet(page, { rpcUrl: env.rpcUrl });
   await page.goto("/create");
   await connectTestWallet(page);

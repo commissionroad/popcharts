@@ -777,6 +777,56 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/price-history": {
+      "get": {
+        "operationId": "getMarketPriceHistory",
+        "summary": "Get a market's whole-life price history",
+        "description": "Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketPriceHistory"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{chainId}/{marketId}/venue-price-history": {
       "get": {
         "operationId": "getMarketVenuePriceHistory",
@@ -1230,6 +1280,68 @@
         }
       }
     },
+    "/drafts/credit": {
+      "get": {
+        "operationId": "getMarketDraftReviewCredit",
+        "summary": "Read a wallet's review credit",
+        "description": "The wallet's prepaid review credit: indexed deposits minus metered charges, the per-review rate, and run counts. metered=false means no vault is configured and submission is ungated.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftReviewCredit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Response for status 422",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/drafts/{draftId}": {
       "get": {
         "operationId": "getMarketDraft",
@@ -1603,16 +1715,6 @@
           },
           "501": {
             "description": "Response for status 501",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Response for status 503",
             "content": {
               "text/plain": {
                 "schema": {
@@ -3211,6 +3313,31 @@
           }
         }
       },
+      "MarketPriceHistory": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "marketId",
+          "points"
+        ],
+        "properties": {
+          "chainId": {
+            "type": "number"
+          },
+          "graduatedAt": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            }
+          }
+        }
+      },
       "MarketStatus": {
         "type": "string",
         "enum": [
@@ -3248,6 +3375,25 @@
             "items": {
               "$ref": "#/components/schemas/VenuePricePoint"
             }
+          }
+        }
+      },
+      "PricePoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "noCents",
+          "yesCents"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "noCents": {
+            "type": "number"
+          },
+          "yesCents": {
+            "type": "number"
           }
         }
       },
@@ -3664,9 +3810,8 @@
         "required": [
           "availableWad",
           "message",
-          "minimumStandingBondWad",
           "requiredWad",
-          "standingBondWad"
+          "runsUsed"
         ],
         "properties": {
           "availableWad": {
@@ -3675,14 +3820,20 @@
           "message": {
             "type": "string"
           },
-          "minimumStandingBondWad": {
-            "type": "string"
-          },
           "requiredWad": {
             "type": "string"
           },
-          "standingBondWad": {
-            "type": "string"
+          "runsUsed": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
           }
         }
       },
@@ -3713,6 +3864,51 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "MarketDraftReviewCredit": {
+        "type": "object",
+        "required": [
+          "availableWad",
+          "metered",
+          "rateWad",
+          "runsRemaining",
+          "runsUsed"
+        ],
+        "properties": {
+          "availableWad": {
+            "type": "string"
+          },
+          "metered": {
+            "type": "boolean"
+          },
+          "rateWad": {
+            "type": "string"
+          },
+          "runsRemaining": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "runsUsed": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
           }
         }
       },

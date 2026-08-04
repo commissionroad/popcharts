@@ -65,9 +65,10 @@ describe("signalProcessGroup", () => {
 });
 
 /** Resolves with the first stdout chunk the child writes. */
-async function readFirstChunk(child: ReturnType<typeof spawn>): Promise<string> {
+async function readFirstChunk(
+  child: ReturnType<typeof spawn>,
+): Promise<string> {
   return new Promise<string>((resolve) => {
     child.stdout?.once("data", (chunk: Buffer) => resolve(chunk.toString()));
   });
 }
-

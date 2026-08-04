@@ -16,9 +16,12 @@ import { contracts } from "./contracts";
  * Raw AfterSwapTickObserved logs from the BoundedPredictionHook — the pool's
  * tick after every taker swap on a bounded pool. Taker swaps leave no other
  * database trace, so this stream is the price-history source for graduated
- * markets. Only the raw tick is stored; price derivation lives in the
- * API/app layer. Deduplicated on (chain, tx, log index) like the other
- * *_events tables so indexer replays stay idempotent.
+ * markets. Only raw event fields are stored (tick and the hook's per-pool
+ * sequence); cent prices are derived — at the emit seam for the live tick
+ * payload and in the API for historical reads, both through the shared
+ * venue-price module, a deliberate reversal (repo ADR 0025) of the earlier
+ * derive-only-in-the-API rule. Deduplicated on (chain, tx, log index) like
+ * the other *_events tables so indexer replays stay idempotent.
  */
 export const poolPriceTicks = pgTable(
   "pool_price_ticks",
@@ -36,6 +39,11 @@ export const poolPriceTicks = pgTable(
     logIndex: integer("log_index").notNull(),
     poolId: varchar("pool_id", { length: 66 }).notNull(),
     tick: integer("tick").notNull(),
+    // The hook's per-pool swap ordinal (contiguous from 1 over successful
+    // swaps, repo ADR 0025) — the stream sequence a live tick carries so the
+    // client can detect a missed swap. Persisted so a historical read serves
+    // the same ordinal a live frame did.
+    sequence: bigint("sequence", { mode: "bigint" }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

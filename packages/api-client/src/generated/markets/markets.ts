@@ -14,6 +14,7 @@ import type {
   MarketMetadata,
   MarketMetadataWrite,
   MarketOrderBook,
+  MarketPriceHistory,
   MarketVenuePriceHistory,
   ReceiptPlacedEventList,
   VenueOrderList,
@@ -211,6 +212,55 @@ export const getMarketOrderBook = async (
     status: res.status,
     headers: res.headers,
   } as getMarketOrderBookResponse;
+};
+
+/**
+ * Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).
+ * @summary Get a market's whole-life price history
+ */
+export type getMarketPriceHistoryResponse200 = {
+  data: MarketPriceHistory;
+  status: 200;
+};
+
+export type getMarketPriceHistoryResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type getMarketPriceHistoryResponseSuccess = getMarketPriceHistoryResponse200 & {
+  headers: Headers;
+};
+export type getMarketPriceHistoryResponseError = getMarketPriceHistoryResponse404 & {
+  headers: Headers;
+};
+
+export type getMarketPriceHistoryResponse =
+  | getMarketPriceHistoryResponseSuccess
+  | getMarketPriceHistoryResponseError;
+
+export const getGetMarketPriceHistoryUrl = (chainId: string, marketId: string) => {
+  return `/markets/${chainId}/${marketId}/price-history`;
+};
+
+export const getMarketPriceHistory = async (
+  chainId: string,
+  marketId: string,
+  options?: RequestInit
+): Promise<getMarketPriceHistoryResponse> => {
+  const res = await fetch(getGetMarketPriceHistoryUrl(chainId, marketId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getMarketPriceHistoryResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getMarketPriceHistoryResponse;
 };
 
 /**

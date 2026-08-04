@@ -7,21 +7,23 @@ import {
 } from "src/blockchain/client";
 import {
   recoverMarketCreatedEvents,
+  recoverMarketCreationFeeEvents,
   recoverMarketReviewEvents,
   recoverOutcomeTokenTransferEvents,
   recoverPoolPriceTickEvents,
   recoverPostgradMarketEvents,
   recoverReceiptPlacedEvents,
-  recoverReviewBondEvents,
+  recoverReviewCreditEvents,
   recoverSettlementEvents,
   recoverVenueOrderEvents,
   watchMarketCreatedEvents,
+  watchMarketCreationFeeEvents,
   watchMarketReviewEvents,
   watchOutcomeTokenTransferEvents,
   watchPoolPriceTickEvents,
   watchPostgradMarketEvents,
   watchReceiptPlacedEvents,
-  watchReviewBondEvents,
+  watchReviewCreditEvents,
   watchSettlementEvents,
   watchVenueOrderEvents,
 } from "src/indexer/watchers";
@@ -66,8 +68,9 @@ async function main() {
 
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
+  const unwatchMarketCreationFee = watchMarketCreationFeeEvents(client);
   const unwatchMarketReview = watchMarketReviewEvents(client);
-  const unwatchReviewBond = watchReviewBondEvents(client);
+  const unwatchReviewBond = watchReviewCreditEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
   const unwatchVenueOrders = watchVenueOrderEvents(client);
@@ -96,6 +99,7 @@ async function main() {
     }
     markUnhealthy();
     unwatchMarketCreated();
+    unwatchMarketCreationFee();
     unwatchMarketReview();
     unwatchReviewBond();
     unwatchReceiptPlaced();
@@ -121,8 +125,9 @@ async function recoverMissedEvents(
   const currentBlock = await client.getBlockNumber();
 
   await recoverMarketCreatedEvents(client, currentBlock, { quiet });
+  await recoverMarketCreationFeeEvents(client, currentBlock, { quiet });
   await recoverMarketReviewEvents(client, currentBlock, { quiet });
-  await recoverReviewBondEvents(client, currentBlock, { quiet });
+  await recoverReviewCreditEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
   await recoverVenueOrderEvents(client, currentBlock, { quiet });

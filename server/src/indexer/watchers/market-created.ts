@@ -11,6 +11,9 @@ import { persistMarketMetadataFromEventPayload } from "src/indexer/metadata/mark
 import { getBlockTimestamp } from "src/indexer/utils/block-timestamp";
 import { getDefaultStartBlock } from "src/indexer/utils/block-tracker";
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
+import { logValueRequirer } from "src/indexer/utils/log-values";
+import { marketStatusFromCode } from "src/indexer/utils/market-status-code";
+import { readMarketStatusCode } from "src/indexer/utils/read-market-status";
 import {
   createDynamicAddressWatcher,
   staticContractSet,
@@ -23,6 +26,8 @@ import { recordLiveChange } from "src/change-feed/writer";
  * market-metadata store; the review, receipt, and settlement watchers all
  * wait on the row this one writes.
  */
+
+const requireValue = logValueRequirer("MarketCreated log");
 
 const CURSOR_NAME = "MarketCreated";
 
@@ -38,19 +43,28 @@ const watcher = createDynamicAddressWatcher({
     getDefaultStartBlock(CURSOR_NAME, currentBlock),
   handleLog: async (client, log) => {
     const marketCreatedLog = log as MarketCreatedLog;
-    const marketId = marketCreatedLog.args.marketId?.toString() ?? "unknown";
-    console.log(`[MarketCreated] marketId=${marketId}`);
+    const marketId = requireValue(marketCreatedLog.args.marketId, "marketId");
+    console.log(`[MarketCreated] marketId=${marketId.toString()}`);
 
     const contractId = await getOrCreateContractId(
       config.contracts.pregradManager,
       "PregradManager",
     );
     const blockTimestamp = await getBlockTimestamp(client, log.blockNumber!);
+    // Read the status the contract actually holds rather than assuming the
+    // one it mints markets in. Which status that is belongs to the deployed
+    // contract (`UnderReview` today, `Active` after ADR 0022's P4 gate), so
+    // assuming it here would couple this handler to a contract version and
+    // mis-project every new market on the day that changed.
+    const status = marketStatusFromCode(
+      await readMarketStatusCode(client, marketId),
+    );
     const records = buildMarketCreatedRecords({
       blockTimestamp,
       config,
       contractId,
       log: marketCreatedLog,
+      status,
     });
 
     // Gated on the event insert like every other projection: watermark
