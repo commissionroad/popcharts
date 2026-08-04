@@ -149,7 +149,11 @@ export const markets = pgTable(
       .notNull()
       .references(() => contracts.id),
     marketId: bigint("market_id", { mode: "bigint" }).notNull(),
-    status: marketStatus("status").default("under_review").notNull(),
+    // No default on purpose: which status a market is born in is a property
+    // of the deployed contract, read at projection time (market-created.ts),
+    // and a schema-level "under_review" fallback would quietly resurrect the
+    // pre-ADR-0022 assumption if an insert ever forgot to supply it.
+    status: marketStatus("status").notNull(),
     creator: text("creator").notNull(),
     metadataHash: varchar("metadata_hash", { length: 66 }).notNull(),
     collateral: text("collateral").notNull(),

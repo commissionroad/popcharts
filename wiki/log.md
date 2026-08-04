@@ -1433,3 +1433,13 @@ following `market_ai_reviews`. The fee log can outrun the independent
 which waits for the market row and parks the sweep, rather than by dropping
 the relation. Standing rule confirmed by the repo owner 2026-08-04: tables
 are always related by real foreign keys.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 fee + indexer halves recorded delivered
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: the P4 entry's "Remaining" list was stale on two counts after #430
+(creation-fee receipts) and #439 (indexer reads on-chain status) landed the
+same day; the ADR now records both delivered, and the `markets.status`
+`under_review` column default is dropped with the same change — the last place
+the old born-under-review assumption lived in the schema. Remaining P4 work is
+the contract gate, the server publish-authorization mint, the app authorized
+call + re-mint, and the scripts dev-key wiring.

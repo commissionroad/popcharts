@@ -501,8 +501,15 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       public draft submission** — that waits on a rate at or above cost (see the amendment).
 - [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** *App half delivered*
       2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
-      `published_market_id` back-link all ship. **The contract, indexer and fee-indexing work
-      is open, and it is the keystone of what remains** — until it lands, on-chain
+      `published_market_id` back-link all ship. *Fee indexing delivered* 2026-08-04 (#430):
+      the `MarketCreationFeePaid` watcher, `market_creation_fee_events` (composite FK to
+      `markets`, park-and-retry on the write-ordering race), and the
+      `portfolio-data-design.md` entry. *Indexer half delivered* 2026-08-04 (#439 + the
+      default drop): `market-created.ts` projects the status read from `getMarketState`
+      through the generated `MARKET_STATUS` table instead of assuming `under_review`, and
+      the `markets.status` column default is gone — so the indexer is already correct under
+      the born-`Active` contract before that contract exists.
+      **The contract gate is the keystone of what remains** — until it lands, on-chain
       `createMarket` stays ungated and publish bridges over it: the server calls
       `createMarket` (market born `UnderReview`) and then immediately force-approves with
       the review-manager key (`markMarketDraftPublished` → `transitionReviewedMarketOnChain`).
@@ -511,12 +518,11 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       receipts) was already found and fixed in review before #415 shipped.
       Remaining — Contract: EIP-712
       authorizer signature over the **full params** with an **on-chain single-use nonce** +
-      expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer:
-      project new markets as **`bootstrap`** (change `market-created.ts` + column default).
+      expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs.
       Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
-      resolve durations → absolute deadlines); add the `MarketCreationFeePaid` watcher +
-      fee-events table + `portfolio-data-design.md` entry. Design locked 2026-08-04 — see
-      "P4 build decisions" below.
+      resolve durations → absolute deadlines). App: send the authorized call and re-mint on
+      expiry. Scripts: the dev authorizer key through both orchestrators. Design locked
+      2026-08-04 — see "P4 build decisions" below.
 - [ ] **P5 — Retire on-chain review machinery.** Blocked on P4 — both the review-manager key
       and the on-chain review states are load-bearing for the interim publish bridge.
       Remove `UnderReview` / `approveMarket` /
