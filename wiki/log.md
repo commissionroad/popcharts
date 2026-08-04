@@ -1552,3 +1552,10 @@ Follow-ups for next lint:
    upstream. Two ADRs drifting the same way in one lint says the problem is the
    workflow, not the documents: if neither is reconciled by the next run, raise
    it with the user rather than re-recording it a third time.
+
+## [2026-08-04] ingest | price-stream concept — ADR 0025 P1–P4 shipped state
+Pages: ~concepts/price-stream.md
+Notes: the page described the pre-ADR-0025 split (app /receipts replay, 240-cap
+venue endpoint, payload-less postgrad frames) as current after P1–P4 landed;
+caught by the Codex P4 review. Now records the unified route and marks the
+client's per-stream gap check as the remaining P5 gap.

@@ -3,7 +3,7 @@
 import { type PointerEvent, useState } from "react";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 import { formatPercent } from "@/lib/format";
 
 const VIEW_WIDTH = 300;
@@ -25,26 +25,10 @@ export const CHART_RANGES: Array<{ label: ChartRange; ms: number | null }> = [
   { label: "ALL", ms: null },
 ];
 
-/** Which trading mechanism produced a price. */
-export type CurvePhase = "postgrad" | "pregrad";
-
-/**
- * A price sample normalized across both trading phases, before windowing.
- * Carries both outcomes explicitly because only the pre-graduation half is
- * complementary — see {@link PostgradPricePoint}.
- */
-export type CurvePoint = {
-  at?: string;
-  noCents: number;
-  phase: CurvePhase;
-  yesCents: number;
-};
-
 /** One plot-ready sample: x runs 0..1 across the selected window. */
 export type ChartSample = {
   atMs: number | null;
   noCents: number;
-  phase: CurvePhase;
   x: number;
   yesCents: number;
 };
@@ -59,34 +43,6 @@ export type ChartWindow = {
   samples: ChartSample[];
   timeSpan: { spanMs: number; startMs: number } | null;
 };
-
-/**
- * Normalizes a market's two price sources into one chronological path. The
- * pre-graduation LMSR path prices YES and infers NO as its complement; the
- * post-graduation venue path prices each pool independently.
- */
-export function toCurvePoints({
-  points,
-  postgradPoints = [],
-}: {
-  points: PricePathPoint[];
-  postgradPoints?: PostgradPricePoint[];
-}): CurvePoint[] {
-  return [
-    ...points.map((point) => ({
-      ...(point.at === undefined ? {} : { at: point.at }),
-      noCents: 100 - point.cents,
-      phase: "pregrad" as const,
-      yesCents: point.cents,
-    })),
-    ...postgradPoints.map((point) => ({
-      at: point.at,
-      noCents: point.noCents,
-      phase: "postgrad" as const,
-      yesCents: point.yesCents,
-    })),
-  ];
-}
 
 const DATE_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
@@ -112,7 +68,7 @@ const DATE_TIME_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
  * timestamps fall back to even index spacing over the full history.
  */
 export function windowPricePath(
-  points: CurvePoint[],
+  points: PricePoint[],
   rangeMs: number | null
 ): ChartWindow {
   // Destructured rather than spread whole: `at` is replaced by `atMs` here, and
@@ -202,42 +158,37 @@ export function graduationOffset(
  * Outcome labels default to YES/NO; pass the market's creator-applied labels
  * to respect them.
  *
- * One chart spans a market's whole trading life. Before graduation the series
- * are the virtual LMSR's implied probabilities; after it they are the traded
- * prices of the two bounded venue pools. Passing `postgradPoints` and
- * `graduatedAt` draws the second half plus the rule that separates them, so
- * the mechanism change is visible instead of being hidden inside one
- * continuous line. Both are optional: a market that has not graduated renders
- * exactly as before.
+ * One chart, one list of points, spanning a market's whole trading life (repo
+ * ADR 0025): the chart cannot tell which mechanism produced a sample, and
+ * `graduatedAt` is a pure annotation — it places the handoff rule and the
+ * shaded venue region, and changes nothing about how the line is computed.
+ * The crosshair's complete-set row is likewise derived from the annotation:
+ * at or past the handoff the two outcomes trade in separate pools, so their
+ * sum is the live complete-set price rather than a constant 100.
  */
 export function PriceCurve({
   graduatedAt,
   noLabel = "NO",
   points,
-  postgradPoints,
   yesLabel = "YES",
 }: {
   /** ISO time the market graduated, when it has. */
   graduatedAt?: string;
   noLabel?: string;
-  points: PricePathPoint[];
-  postgradPoints?: PostgradPricePoint[];
+  points: PricePoint[];
   yesLabel?: string;
 }) {
   const [range, setRange] = useState<ChartRange>("ALL");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const curvePoints = toCurvePoints({
-    points,
-    ...(postgradPoints === undefined ? {} : { postgradPoints }),
-  });
   const hasTimestamps =
-    curvePoints.length > 0 && curvePoints.every((point) => point.at !== undefined);
+    points.length > 0 && points.every((point) => point.at !== undefined);
   const rangeMs = CHART_RANGES.find((option) => option.label === range)?.ms ?? null;
   // Not named `window`: this is a client component, where that shadows the DOM
   // global.
-  const chartWindow = windowPricePath(curvePoints, hasTimestamps ? rangeMs : null);
+  const chartWindow = windowPricePath(points, hasTimestamps ? rangeMs : null);
   const { samples } = chartWindow;
   const graduation = graduationOffset(chartWindow, graduatedAt);
+  const graduatedAtMs = graduatedAt === undefined ? null : Date.parse(graduatedAt);
   const hoverable = samples.length > 1;
   const hovered = hoverIndex === null ? null : samples[hoverIndex];
   const readout = hovered ?? samples.at(-1);
@@ -337,6 +288,7 @@ export function PriceCurve({
         ) : null}
         {hovered ? (
           <HoverMarker
+            graduatedAtMs={graduatedAtMs}
             intraday={intraday}
             noLabel={noLabel}
             sample={hovered}
@@ -456,11 +408,13 @@ function GraduationRule({ offset }: { offset: number }) {
  * children so the non-uniform SVG scaling never distorts the dots or text.
  */
 function HoverMarker({
+  graduatedAtMs,
   intraday,
   noLabel,
   sample,
   yesLabel,
 }: {
+  graduatedAtMs: number | null;
   intraday: boolean;
   noLabel: string;
   sample: ChartSample;
@@ -519,8 +473,13 @@ function HoverMarker({
           {/* Post-graduation the two pools price independently, so their sum
               is the live complete-set price rather than a constant 100% — the
               gap is the arbitrage on offer, and it is the one number the
-              pre-graduation readout cannot show. */}
-          {sample.phase === "postgrad" ? (
+              pre-graduation readout cannot show. Derived from the graduation
+              annotation, not a per-point phase marker: the points themselves
+              are mechanism-blind (repo ADR 0025). */}
+          {graduatedAtMs !== null &&
+          Number.isFinite(graduatedAtMs) &&
+          sample.atMs !== null &&
+          sample.atMs >= graduatedAtMs ? (
             <TooltipRow
               color="var(--text-muted)"
               label="Set"

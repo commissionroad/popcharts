@@ -47,7 +47,6 @@ import {
   MarketSchema,
   MarketStatusSchema,
   MarketVenuePoolSchema,
-  MarketVenuePriceHistorySchema,
   MarketVenueSchema,
   ReceiptPlacedEventListSchema,
   ReceiptPlacedEventSchema,
@@ -59,7 +58,6 @@ import {
   VenueOrderStatusSchema,
   PricePointSchema,
   VenuePoolSideSchema,
-  VenuePricePointSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
@@ -84,7 +82,6 @@ import {
   VENUE_ORDER_STATUS_FILTERS,
 } from "src/api/services/venue-orderbook";
 import { getMarketPriceHistory } from "src/api/services/price-history";
-import { getMarketVenuePriceHistory } from "src/api/services/venue-price-history";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -142,9 +139,7 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     MarketOrderBook: MarketOrderBookSchema,
     MarketPriceHistory: MarketPriceHistorySchema,
     MarketStatus: MarketStatusSchema,
-    MarketVenuePriceHistory: MarketVenuePriceHistorySchema,
     PricePoint: PricePointSchema,
-    VenuePricePoint: VenuePricePointSchema,
     ReceiptPlacedEvent: ReceiptPlacedEventSchema,
     ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
     VenueOrder: VenueOrderSchema,
@@ -651,39 +646,6 @@ export const marketRoutes = marketRoutesWithDevTools
         summary: "Get a market's whole-life price history",
         description:
           "Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).",
-        tags: ["Markets"],
-      },
-    },
-  )
-  .get(
-    "/markets/:chainId/:marketId/venue-price-history",
-    async ({ params, set }) => {
-      const history = await getMarketVenuePriceHistory({
-        chainId: Number.parseInt(params.chainId, 10),
-        marketId: params.marketId,
-      });
-
-      if (!history) {
-        set.status = 404;
-        return "Market not found";
-      }
-
-      return history;
-    },
-    {
-      params: t.Object({
-        chainId: t.String(),
-        marketId: t.String(),
-      }),
-      response: {
-        200: "MarketVenuePriceHistory",
-        404: t.String(),
-      },
-      detail: {
-        operationId: "getMarketVenuePriceHistory",
-        summary: "Get a market's post-graduation price history",
-        description:
-          "Returns the price history of a graduated market's bounded venue as YES and NO probabilities in cents: an opening point at the graduation handoff, where the pools were initialized at the pre-graduation book's closing price, followed by one point per indexed taker swap. A swap moves only one pool, so the untouched outcome carries its last observed price forward and every point quotes both. Cents are fractional — a bounded pool can take several swaps inside one cent — so round at display. Markets that have not graduated, or whose venue pools are not indexed, return an empty point list.",
         tags: ["Markets"],
       },
     },

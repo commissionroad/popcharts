@@ -10,7 +10,7 @@ import { logError } from "@/lib/error-logger";
 
 import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
-import type { PostgradPricePoint } from "./types";
+import type { PricePoint } from "./types";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
 export type DevMarketResolutionSide = "yes" | "no";
@@ -58,47 +58,22 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
 }
 
 /**
- * Fetches the indexed ReceiptPlaced events for one market, oldest first, so
- * the caller can rebuild the real LMSR price path. Fixture-backed markets have
- * no receipt history and yield an empty list.
- */
-export async function getMarketReceipts(id: string, options: MarketQueryOptions = {}) {
-  const config = resolveMarketQueryConfig(options);
-
-  if (!config.useApi) {
-    return [];
-  }
-
-  const lookup = resolveMarketLookup(id, config.chainId);
-
-  if (!lookup) {
-    return [];
-  }
-
-  return config.client.getMarketReceipts(lookup);
-}
-
-/**
- * Fetches a graduated market's bounded-venue price history — the prices its
- * outcome pools traded at after the handoff, oldest first. Returns an empty
- * list for anything without one: a fixture-backed market, a market that has
- * not graduated, and one whose venue pools are not indexed yet all have no
- * venue prices, which is a normal state rather than a failure.
+ * Fetches a market's whole-life price history (repo ADR 0025): the server
+ * replays the LMSR over the receipt book and, for a graduated market, appends
+ * the bounded venue's prices past the handoff — one shape, oldest first.
+ * Returns an empty list for a fixture-backed market, which has no indexer to
+ * ask.
  *
- * A failed read reports the same empty list rather than throwing, which is the
- * one place this module deliberately swallows an error. Every other market
- * read is load-bearing — without the market or its receipts there is no page —
- * so letting those propagate is right. This one is supplementary: the market
- * page renders its whole pre-graduation chart without it, and most markets
- * have no venue history to fetch in the first place. Propagating would let an
- * unrelated outage blank the chart on markets that never graduated, which is
- * exactly the failure the chart work exists to prevent. Losing the tail of one
- * line beats losing the page.
+ * A failed read reports the same empty list rather than throwing, which is
+ * the one place this module deliberately swallows an error. The market read
+ * itself is load-bearing — without it there is no page — but the chart is
+ * not: the page falls back to the market's own synthetic path, so losing
+ * chart fidelity beats losing the page.
  */
-export async function getMarketVenuePricePath(
+export async function getMarketPricePath(
   id: string,
   options: MarketQueryOptions = {}
-): Promise<PostgradPricePoint[]> {
+): Promise<PricePoint[]> {
   const config = resolveMarketQueryConfig(options);
 
   if (!config.useApi) {
@@ -112,17 +87,13 @@ export async function getMarketVenuePricePath(
   }
 
   try {
-    const history = await config.client.getMarketVenuePriceHistory(lookup);
+    const history = await config.client.getMarketPriceHistory(lookup);
 
-    return (history?.points ?? []).map((point) => ({
-      at: point.at,
-      noCents: point.noPriceCents,
-      yesCents: point.yesPriceCents,
-    }));
+    return history?.points ?? [];
   } catch (error) {
-    // Degraded, not silent: the chart drops its venue half and the failure
-    // still reaches the logs rather than disappearing.
-    logError(error, { marketId: id, operation: "getMarketVenuePricePath" });
+    // Degraded, not silent: the chart falls back to the market's synthetic
+    // path and the failure still reaches the logs rather than disappearing.
+    logError(error, { marketId: id, operation: "getMarketPricePath" });
 
     return [];
   }

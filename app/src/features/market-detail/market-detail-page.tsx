@@ -5,12 +5,7 @@ import { GraduationBar } from "@/components/ui/graduation-bar";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { isAwaitingResolution } from "@/domain/markets/status";
-import {
-  type Market,
-  marketSideLabel,
-  type PostgradPricePoint,
-  type PricePathPoint,
-} from "@/domain/markets/types";
+import { type Market, marketSideLabel, type PricePoint } from "@/domain/markets/types";
 import { OrderBookCard } from "@/features/order-book/order-book-card";
 import { OpenOrdersPanel } from "@/features/postgrad-ticket/open-orders-panel";
 import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
@@ -30,13 +25,25 @@ import { MarketPositionPanel } from "./market-position-panel";
 export function MarketDetailPage({
   market,
   pricePath,
-  venuePricePath,
 }: {
   market: Market;
-  pricePath?: PricePathPoint[];
-  venuePricePath?: PostgradPricePoint[];
+  /** Whole-life history from the unified read (repo ADR 0025), when it loaded. */
+  pricePath?: PricePoint[];
 }) {
-  const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
+  // Fallback for fixture-backed markets and a failed history read: the
+  // market's synthetic YES path, with NO as its complement — but only while
+  // the market is pregrad-shaped. A graduated or resolved market's synthetic
+  // path ends at a venue or terminal price, so dressing it up as an LMSR
+  // curve would invent history and misstate NO (Codex P4 review finding);
+  // those markets render the chart's honest empty state instead.
+  const chartPoints =
+    pricePath ??
+    (market.postgrad
+      ? []
+      : market.pricePath.map((cents) => ({
+          noCents: 100 - cents,
+          yesCents: cents,
+        })));
   // Once a market graduates the receipt book is history: the page leads with
   // the graduation outcome and drops the pre-graduation progress/trading UI.
   // This holds for the whole dispute window too — a market in
@@ -101,13 +108,12 @@ export function MarketDetailPage({
               to match still resets the appended ticks instead of reusing them. */}
           <MarketLivePrice
             key={market.id}
-            chartHeading={chartHeading({ market, settled, venuePricePath })}
+            chartHeading={chartHeading({ market, points: chartPoints, settled })}
             {...(market.postgrad ? { graduatedAt: market.postgrad.finalizedAt } : {})}
             marketAppId={market.id}
             noLabel={marketSideLabel(market, "no")}
             noPriceCents={market.noPriceCents}
             points={chartPoints}
-            {...(venuePricePath ? { postgradPoints: venuePricePath } : {})}
             seedSequence={market.receiptCount}
             yesLabel={marketSideLabel(market, "yes")}
             yesPriceCents={market.yesPriceCents}
@@ -212,20 +218,30 @@ export function MarketDetailPage({
  */
 function chartHeading({
   market,
+  points,
   settled,
-  venuePricePath,
 }: {
   market: Market;
+  points: PricePoint[];
   settled: boolean;
-  venuePricePath: PostgradPricePoint[] | undefined;
 }) {
   if (!settled) {
     return "Virtual LMSR - implied probability";
   }
 
-  return venuePricePath && venuePricePath.length > 0 && market.postgrad
-    ? "Price history"
-    : "Pre-graduation price history";
+  // The unified path carries no phase marker, so "does the curve extend past
+  // the handoff" is answered from the graduation annotation: any point at or
+  // after finalizedAt means the venue half is on screen.
+  const graduatedAtMs = market.postgrad
+    ? Date.parse(market.postgrad.finalizedAt)
+    : Number.NaN;
+  const spansVenue =
+    Number.isFinite(graduatedAtMs) &&
+    points.some(
+      (point) => point.at !== undefined && Date.parse(point.at) >= graduatedAtMs
+    );
+
+  return spansVenue ? "Price history" : "Pre-graduation price history";
 }
 
 /**

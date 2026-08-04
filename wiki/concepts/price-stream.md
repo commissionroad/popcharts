@@ -28,20 +28,24 @@ trade in **separate pools**, so the prices are independent observations that
 only approach a complete set as arbitrage closes the gap. Fees and arbitrage
 make a sum other than 100 normal post-graduation, not a defect.
 
-## The two routes
+## One route (since ADR 0025 P1–P4)
 
 | Stage | Before graduation | After graduation |
 | --- | --- | --- |
-| Chain event | `ReceiptPlaced` — market, side, size, per-market sequence | `AfterSwapTickObserved` — pool id, raw tick |
-| Indexer | replays LMSR, attaches price to the change frame | stores the raw tick, attaches nothing |
-| Live frame | carries a `PriceTickWire` | pure nudge |
-| Client | appends one point | `router.refresh()` — full page refetch |
-| Page load | `/receipts`, browser replays LMSR, cap 256 | `/venue-price-history`, server derives, cap 240 |
+| Chain event | `ReceiptPlaced` — market, side, size, per-market sequence | `AfterSwapTickObserved` — pool id, raw tick, per-pool sequence (P1) |
+| Indexer | replays LMSR, attaches a priced `PriceTickWire` | derives both pools' cents (sibling forward-filled) and attaches the same shape (P2) |
+| Live frame | `PriceTickWire` with `stream: "receipts"` | `PriceTickWire` with `stream: <poolId>` |
+| Page load | one `/price-history` read: server-side LMSR replay + venue fold, one 256 cap, phase-blind `{at, yesCents, noCents}` points (P3/P4) | same read, same shape |
+| Client | appends one point per consecutive tick | still refetches per tick until P5 keys the gap check per stream |
 
 The event asymmetry is forced — the two contracts were written for different
 jobs, and `PregradManager` gets its sequence free because `receiptCount` is
-already part of the `GraduationSnapshot` struct and the settlement path.
-Everything below the event is accidental divergence that ADR 0025 removes.
+already part of the `GraduationSnapshot` struct and the settlement path — but
+the hook now carries its own per-pool ordinal, packed into a storage slot the
+swap already writes. Everything below the events is unified: one derivation
+module (`server/src/shared/venue-prices.ts` plus the server LMSR replay), one
+endpoint, one cap, one point shape. The app's second LMSR implementation and
+the venue-only endpoint are deleted.
 
 ## The handoff
 
@@ -52,7 +56,7 @@ at the graduation timestamp from that same function, which is why a market that
 has graduated but not yet traded still charts a complete line up to the
 handoff.
 
-## Ordering: why one half can append and the other cannot
+## Ordering: why the append check is per stream
 
 Appending a point incrementally is only safe if the client can distinguish a
 fresh point from a missed one. The pre-graduation check is

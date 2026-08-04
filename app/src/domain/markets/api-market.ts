@@ -2,17 +2,8 @@ import {
   wadToCents as wadBigintToCents,
   wadToNumber as wadBigintToNumber,
 } from "@/domain/tokens/wad";
-import { contractSideToMarketSide } from "@/integrations/contracts/market-side";
-import {
-  createOpeningState,
-  currentYesPriceCents,
-  marginalPriceCents,
-  stateAfterBuy,
-} from "@/integrations/contracts/virtual-lmsr";
-import type {
-  ApiMarket,
-  ApiReceiptPlacedEvent,
-} from "@/integrations/indexer/markets-api";
+import { currentYesPriceCents } from "@/integrations/contracts/virtual-lmsr";
+import type { ApiMarket } from "@/integrations/indexer/markets-api";
 import { apiMarketAppId } from "@/lib/app-id";
 
 import { isAwaitingResolution } from "./status";
@@ -21,10 +12,7 @@ import type {
   MarketCategory,
   MarketPostgradHandoff,
   MarketResolution,
-  PricePathPoint,
 } from "./types";
-
-const MAX_PRICE_PATH_POINTS = 256;
 
 const generatedCategories: MarketCategory[] = [
   "Crypto",
@@ -209,61 +197,6 @@ function categoryForApiMarket(apiMarket: ApiMarket): MarketCategory {
 
 function isMarketCategory(value: string | undefined): value is MarketCategory {
   return Boolean(value && generatedCategories.includes(value as MarketCategory));
-}
-
-/**
- * Replays indexed ReceiptPlaced events through the virtual LMSR to recover the
- * market's actual price history: the opening price followed by the implied YES
- * price after each receipt, in on-chain sequence order. Each point carries the
- * timestamp of the trade behind it (the market creation time for the opening
- * point). Long histories are downsampled to MAX_PRICE_PATH_POINTS while always
- * keeping the first and latest prices.
- */
-export function pricePathFromReceipts(
-  market: Pick<Market, "b" | "createdAt" | "openingProbability">,
-  receipts: ApiReceiptPlacedEvent[]
-): PricePathPoint[] {
-  let state = createOpeningState({
-    b: market.b,
-    openingProbability: market.openingProbability,
-  });
-  const path: PricePathPoint[] = [
-    {
-      cents: marginalPriceCents(state, "yes"),
-      ...(market.createdAt ? { at: market.createdAt } : {}),
-    },
-  ];
-
-  const ordered = [...receipts].sort((a, b) =>
-    parseBigInt(a.sequence) < parseBigInt(b.sequence) ? -1 : 1
-  );
-
-  for (const receipt of ordered) {
-    state = stateAfterBuy({
-      shares: wadToNumber(receipt.shares),
-      side: contractSideToMarketSide(receipt.side),
-      state,
-    });
-    path.push({
-      at: receipt.blockTimestamp,
-      cents: marginalPriceCents(state, "yes"),
-    });
-  }
-
-  return downsamplePricePath(path, MAX_PRICE_PATH_POINTS);
-}
-
-function downsamplePricePath(path: PricePathPoint[], maxPoints: number) {
-  if (path.length <= maxPoints) {
-    return path;
-  }
-
-  const stride = (path.length - 1) / (maxPoints - 1);
-
-  return Array.from(
-    { length: maxPoints },
-    (_, index) => path[Math.round(index * stride)] ?? { cents: 0 }
-  );
 }
 
 function buildPricePath(openingPriceCents: number, currentPriceCents: number) {

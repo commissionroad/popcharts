@@ -426,51 +426,6 @@ describe("market routes", () => {
     expect(response.status).toBe(404);
   });
 
-  it("reports a graduated market's handoff time with no venue prices yet", async () => {
-    // Graduated (a GraduationFinalized row) but with no indexed venue pools,
-    // so there is nothing to price — the caller still learns it graduated.
-    // Also the only check that the response's schema refs resolve.
-    const response = await app.handle(
-      new Request(
-        `http://localhost/markets/${chainId}/${IN_DISPUTE_WINDOW_MARKET_ID}/venue-price-history`,
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      chainId,
-      graduatedAt: GRADUATED_AT.toISOString(),
-      marketId: IN_DISPUTE_WINDOW_MARKET_ID.toString(),
-      points: [],
-    });
-  });
-
-  it("omits the handoff time for a market that has not graduated", async () => {
-    const response = await app.handle(
-      new Request(
-        `http://localhost/markets/${chainId}/${MARKET_ID}/venue-price-history`,
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      chainId,
-      marketId: MARKET_ID.toString(),
-      points: [],
-    });
-  });
-
-  it("returns 404 for venue price history on an unknown market", async () => {
-    const response = await app.handle(
-      new Request(
-        `http://localhost/markets/${chainId}/999999/venue-price-history`,
-      ),
-    );
-
-    expect(response.status).toBe(404);
-    expect(await response.text()).toBe("Market not found");
-  });
-
   it("returns 400 for an invalid since query parameter", async () => {
     const response = await app.handle(
       new Request("http://localhost/markets?since=not-a-timestamp"),

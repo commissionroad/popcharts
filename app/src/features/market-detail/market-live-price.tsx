@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { PriceCurve } from "@/components/charts/price-curve";
-import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 import type { LiveSignal } from "@/integrations/live-updates/live-connection";
 import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { parseApiMarketAppId } from "@/lib/app-id";
@@ -38,12 +38,13 @@ import { formatPercent } from "@/lib/format";
  * `receiptCount`; the appended ticks are already folded into that fresh base,
  * so they are dropped and the island re-seeds — no double-plotted point.
  *
- * After graduation the chart keeps going on the bounded venue's own prices,
- * passed in as `postgradPoints` with `graduatedAt` marking the handoff. Those
- * arrive only from SSR: a venue swap's change-feed frame carries no tick
- * payload, so it lands on the refetch path above like any other non-price
- * change. The append path below is pre-graduation only, and `handleSignal`
- * guards that explicitly rather than relying on the payload staying absent.
+ * The seeded `points` span the market's whole life from the unified read
+ * (repo ADR 0025), with `graduatedAt` marking the handoff as an annotation.
+ * Post-graduation swap frames DO carry a priced tick since ADR 0025 P2, but
+ * the append path below still keys its gap check on the receipt sequence, so
+ * `handleSignal` refetches for any tick after graduation rather than
+ * appending it against the wrong ordinal space. P5 replaces this guard with
+ * per-stream sequence tracking, making venue ticks append too.
  *
  * Deferred (see the PR): the graduation bar, volume, and receipt counts still
  * settle via the refetch path, because `matchedUsd` is not in the tick payload
@@ -62,7 +63,6 @@ export function MarketLivePrice({
   noLabel,
   noPriceCents,
   points,
-  postgradPoints,
   seedSequence,
   yesLabel,
   yesPriceCents,
@@ -74,9 +74,8 @@ export function MarketLivePrice({
   marketAppId: string;
   noLabel: string;
   noPriceCents: number;
-  points: PricePathPoint[];
-  /** Bounded-venue prices after graduation, oldest first. */
-  postgradPoints?: PostgradPricePoint[];
+  /** Whole-life history from the unified read (repo ADR 0025), oldest first. */
+  points: PricePoint[];
   seedSequence: number;
   yesLabel: string;
   yesPriceCents: number;
@@ -109,13 +108,12 @@ export function MarketLivePrice({
       router.refresh();
       return;
     }
-    // After graduation the receipt book is closed, so a price tick can only
-    // have come from the bounded venue — and the append below plots ticks on
-    // the *pre-graduation* series, where a venue price does not belong.
-    // Refetching keeps both halves authoritative. This is not reachable today
-    // (the pool-tick emit carries no tick payload, so those signals already
-    // take the branch above), and the guard is here so that adding one later
-    // cannot silently graft venue prices onto the LMSR curve.
+    // After graduation, ticks arrive from the venue pools (priced since ADR
+    // 0025 P2) — but this island's gap check below still counts in the
+    // receipt-sequence ordinal space, which venue ticks do not share.
+    // Appending one against the wrong ordinal space could silently skip or
+    // duplicate points, so every post-graduation tick refetches instead.
+    // P5 keys the check per stream and retires this guard.
     if (graduatedAt !== undefined) {
       router.refresh();
       return;
@@ -151,6 +149,8 @@ export function MarketLivePrice({
   const latest = effective.ticks.at(-1);
   const displayYesCents = latest ? latest.yesPriceCents : yesPriceCents;
   const displayNoCents = latest ? latest.noPriceCents : noPriceCents;
+  // Appended ticks carry both outcomes, exactly like the unified points —
+  // the wire shape and the read shape agree by design (repo ADR 0025).
   const chartPoints =
     effective.ticks.length === 0
       ? points
@@ -158,7 +158,8 @@ export function MarketLivePrice({
           ...points,
           ...effective.ticks.map((tick) => ({
             at: tick.t,
-            cents: tick.yesPriceCents,
+            noCents: tick.noPriceCents,
+            yesCents: tick.yesPriceCents,
           })),
         ];
 
@@ -193,7 +194,6 @@ export function MarketLivePrice({
           {...(graduatedAt === undefined ? {} : { graduatedAt })}
           noLabel={noLabel}
           points={chartPoints}
-          {...(postgradPoints === undefined ? {} : { postgradPoints })}
           yesLabel={yesLabel}
         />
       </div>

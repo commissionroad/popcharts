@@ -2,21 +2,21 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { PostgradPricePoint, PricePathPoint } from "@/domain/markets/types";
+import type { PricePoint } from "@/domain/markets/types";
 
-import { PriceCurve, toCurvePoints, windowPricePath } from "./price-curve";
+import { PriceCurve, windowPricePath } from "./price-curve";
 
 const HOUR_MS = 60 * 60 * 1000;
 
-const points: PricePathPoint[] = [
-  { at: "2026-06-13T12:00:00.000Z", cents: 50 },
-  { at: "2026-06-13T12:05:00.000Z", cents: 60 },
-  { at: "2026-06-13T12:10:00.000Z", cents: 40 },
-  { at: "2026-06-13T12:15:00.000Z", cents: 75 },
+const points: PricePoint[] = [
+  { at: "2026-06-13T12:00:00.000Z", noCents: 50, yesCents: 50 },
+  { at: "2026-06-13T12:05:00.000Z", noCents: 40, yesCents: 60 },
+  { at: "2026-06-13T12:10:00.000Z", noCents: 60, yesCents: 40 },
+  { at: "2026-06-13T12:15:00.000Z", noCents: 25, yesCents: 75 },
 ];
 
 function renderCurve(
-  pathPoints: PricePathPoint[] = points,
+  pathPoints: PricePoint[] = points,
   props: Partial<ComponentProps<typeof PriceCurve>> = {}
 ) {
   render(<PriceCurve points={pathPoints} {...props} />);
@@ -42,46 +42,14 @@ function pointerMove(plot: HTMLElement, clientX: number) {
   fireEvent(plot, new MouseEvent("pointermove", { bubbles: true, clientX }));
 }
 
-describe("toCurvePoints", () => {
-  it("infers the pre-graduation complement and keeps venue prices as observed", () => {
-    expect(
-      toCurvePoints({
-        points: [{ at: "2026-06-13T12:00:00.000Z", cents: 40 }],
-        postgradPoints: [{ at: "2026-06-13T13:00:00.000Z", noCents: 44, yesCents: 58 }],
-      })
-    ).toEqual([
-      {
-        at: "2026-06-13T12:00:00.000Z",
-        noCents: 60,
-        phase: "pregrad",
-        yesCents: 40,
-      },
-      {
-        at: "2026-06-13T13:00:00.000Z",
-        noCents: 44,
-        phase: "postgrad",
-        yesCents: 58,
-      },
-    ]);
-  });
-
-  it("omits the timestamp of an untimed fixture point", () => {
-    expect(toCurvePoints({ points: [{ cents: 40 }] })).toEqual([
-      { noCents: 60, phase: "pregrad", yesCents: 40 },
-    ]);
-  });
-});
-
 describe("windowPricePath", () => {
   const now = Date.parse("2026-06-13T12:00:00.000Z");
-  const timed = toCurvePoints({
-    points: [
-      { at: new Date(now - 72 * HOUR_MS).toISOString(), cents: 30 },
-      { at: new Date(now - 2 * HOUR_MS).toISOString(), cents: 40 },
-      { at: new Date(now - HOUR_MS / 2).toISOString(), cents: 60 },
-      { at: new Date(now).toISOString(), cents: 70 },
-    ],
-  });
+  const timed: PricePoint[] = [
+    { at: new Date(now - 72 * HOUR_MS).toISOString(), noCents: 70, yesCents: 30 },
+    { at: new Date(now - 2 * HOUR_MS).toISOString(), noCents: 60, yesCents: 40 },
+    { at: new Date(now - HOUR_MS / 2).toISOString(), noCents: 40, yesCents: 60 },
+    { at: new Date(now).toISOString(), noCents: 30, yesCents: 70 },
+  ];
 
   it("spans the full history for the ALL range", () => {
     const { samples, timeSpan } = windowPricePath(timed, null);
@@ -112,13 +80,16 @@ describe("windowPricePath", () => {
 
   it("falls back to even spacing when timestamps are missing", () => {
     const { samples, timeSpan } = windowPricePath(
-      toCurvePoints({ points: [{ cents: 50 }, { cents: 62 }] }),
+      [
+        { noCents: 50, yesCents: 50 },
+        { noCents: 38, yesCents: 62 },
+      ],
       HOUR_MS
     );
 
     expect(samples).toEqual([
-      { atMs: null, noCents: 50, phase: "pregrad", x: 0, yesCents: 50 },
-      { atMs: null, noCents: 38, phase: "pregrad", x: 1, yesCents: 62 },
+      { atMs: null, noCents: 50, x: 0, yesCents: 50 },
+      { atMs: null, noCents: 38, x: 1, yesCents: 62 },
     ]);
     // Without a time axis there is nothing to place a dated annotation on.
     expect(timeSpan).toBeNull();
@@ -191,10 +162,10 @@ describe("PriceCurve", () => {
   it("windows the chart to the selected trailing range", () => {
     const now = Date.parse("2026-06-13T12:00:00.000Z");
     const plot = renderCurve([
-      { at: new Date(now - 72 * HOUR_MS).toISOString(), cents: 30 },
-      { at: new Date(now - 2 * HOUR_MS).toISOString(), cents: 40 },
-      { at: new Date(now - HOUR_MS / 2).toISOString(), cents: 60 },
-      { at: new Date(now).toISOString(), cents: 70 },
+      { at: new Date(now - 72 * HOUR_MS).toISOString(), noCents: 70, yesCents: 30 },
+      { at: new Date(now - 2 * HOUR_MS).toISOString(), noCents: 60, yesCents: 40 },
+      { at: new Date(now - HOUR_MS / 2).toISOString(), noCents: 40, yesCents: 60 },
+      { at: new Date(now).toISOString(), noCents: 30, yesCents: 70 },
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: "1H" }));
@@ -206,14 +177,17 @@ describe("PriceCurve", () => {
   });
 
   it("hides the range selector and time axis when timestamps are missing", () => {
-    renderCurve([{ cents: 50 }, { cents: 62 }]);
+    renderCurve([
+      { noCents: 50, yesCents: 50 },
+      { noCents: 38, yesCents: 62 },
+    ]);
 
     expect(screen.queryByRole("button", { name: "ALL" })).not.toBeInTheDocument();
     expect(screen.getByTestId("legend-yes-value")).toHaveTextContent("62%");
   });
 
   it("ignores hover on single-point paths", () => {
-    const plot = renderCurve([{ cents: 50 }]);
+    const plot = renderCurve([{ noCents: 50, yesCents: 50 }]);
 
     pointerMove(plot, 150);
 
@@ -222,7 +196,10 @@ describe("PriceCurve", () => {
 });
 
 describe("PriceCurve across graduation", () => {
-  const postgradPoints: PostgradPricePoint[] = [
+  // The unified read's shape: pregrad points then venue points, one list, no
+  // phase marker — the venue pair (78/26) deliberately not complementary.
+  const wholeLife: PricePoint[] = [
+    ...points,
     { at: "2026-06-13T12:30:00.000Z", noCents: 26, yesCents: 78 },
     { at: "2026-06-13T12:45:00.000Z", noCents: 20, yesCents: 82 },
   ];
@@ -230,7 +207,7 @@ describe("PriceCurve across graduation", () => {
   const graduatedAt = "2026-06-13T12:20:00.000Z";
 
   it("marks graduation and shades the venue half of the window", () => {
-    renderCurve(points, { graduatedAt, postgradPoints });
+    renderCurve(wholeLife, { graduatedAt });
 
     const marker = screen.getByTestId("graduation-marker");
     expect(within(marker).getByText("Graduated")).toBeInTheDocument();
@@ -242,14 +219,14 @@ describe("PriceCurve across graduation", () => {
 
   it("plots each venue pool's own price instead of a complement", () => {
     // The pools price independently, so the readout is 82/20 — not 82/18.
-    renderCurve(points, { graduatedAt, postgradPoints });
+    renderCurve(wholeLife, { graduatedAt });
 
     expect(screen.getByTestId("legend-yes-value")).toHaveTextContent("82%");
     expect(screen.getByTestId("legend-no-value")).toHaveTextContent("20%");
   });
 
   it("reports the complete-set price on a venue sample only", () => {
-    const plot = renderCurve(points, { graduatedAt, postgradPoints });
+    const plot = renderCurve(wholeLife, { graduatedAt });
 
     pointerMove(plot, 290);
     expect(
@@ -264,7 +241,7 @@ describe("PriceCurve across graduation", () => {
   });
 
   it("keeps the rule in view while the window still opens pre-graduation", () => {
-    renderCurve(points, { graduatedAt, postgradPoints });
+    renderCurve(wholeLife, { graduatedAt });
 
     fireEvent.click(screen.getByRole("button", { name: "1H" }));
 
@@ -272,10 +249,7 @@ describe("PriceCurve across graduation", () => {
   });
 
   it("shades the whole window without a rule once graduation predates it", () => {
-    renderCurve(points, {
-      graduatedAt: "2026-06-13T11:00:00.000Z",
-      postgradPoints,
-    });
+    renderCurve(wholeLife, { graduatedAt: "2026-06-13T11:00:00.000Z" });
 
     expect(screen.queryByTestId("graduation-marker")).not.toBeInTheDocument();
     expect(screen.getByTestId("postgrad-region")).toHaveStyle({ left: "0%" });
@@ -319,7 +293,13 @@ describe("PriceCurve across graduation", () => {
   });
 
   it("omits the marker on an untimed path, which has no axis to place it on", () => {
-    renderCurve([{ cents: 50 }, { cents: 62 }], { graduatedAt });
+    renderCurve(
+      [
+        { noCents: 50, yesCents: 50 },
+        { noCents: 38, yesCents: 62 },
+      ],
+      { graduatedAt }
+    );
 
     expect(screen.queryByTestId("graduation-marker")).not.toBeInTheDocument();
   });
