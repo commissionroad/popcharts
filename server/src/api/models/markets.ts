@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import type { Static } from "@sinclair/typebox";
+import { Kind, type Static } from "@sinclair/typebox";
 import { MARKET_SIDES } from "@popcharts/protocol";
 
 import {
@@ -442,6 +442,25 @@ export const MarketPriceHistorySchema = t.Object(
     graduatedAt: t.Optional(t.String()),
     marketId: t.String(),
     points: t.Array(t.Ref(PricePointSchema)),
+    /**
+     * Last live-tick sequence per venue stream (pool id), from the hook's
+     * per-pool ordinal — the seed the client's per-stream gap check needs
+     * before it can trust the first live tick (repo ADR 0025 P5). The
+     * receipts stream's seed is the market's own receiptCount and is not
+     * repeated here. Omitted before the venue has traded.
+     */
+    // t.Unsafe with additionalProperties, not t.Record: TypeBox encodes
+    // records as patternProperties, which OpenAPI 3.0 rejects. The Kind is
+    // pinned to "Any" because the response validator compiles by Kind and
+    // does not know "Unsafe" — so this field is spec-typed but not
+    // runtime-checked, which is fine for a server-assembled response.
+    streams: t.Optional(
+      t.Unsafe<Record<string, number>>({
+        [Kind]: "Any",
+        additionalProperties: { type: "number" },
+        type: "object",
+      }),
+    ),
   },
   { $id: "MarketPriceHistory" },
 );

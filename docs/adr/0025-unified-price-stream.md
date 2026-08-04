@@ -189,28 +189,43 @@ older rows needs no backfill.
   (`BoundedHookSwapGas.t.sol`, identical harness both sides of the change).
   The delta is the increment plus 8 bytes of event data — no new storage
   write, as the packed-slot analysis predicted. Gate passes.
-- [ ] **P2 — Indexer emits a priced tick.** Persist the sequence, resolve the
+- [x] **P2 — Indexer emits a priced tick.** Persist the sequence, resolve the
   sibling pool's last price (indexed lookup on
   `pool_price_ticks_chain_pool_time_idx`), convert both to cents with a
   memoised decimals read, and populate the change-feed `tick` payload with its
   stream id.
-- [ ] **P3 — Unified read endpoint.** One price-history endpoint spanning both
+- [x] **P3 — Unified read endpoint.** One price-history endpoint spanning both
   phases, server-side LMSR replay for the pre-graduation half, one downsample
   cap, synthesised handoff point retained.
-- [ ] **P4 — App collapses to one path.** Single fetch, single chart input,
+- [x] **P4 — App collapses to one path.** Single fetch, single chart input,
   delete `pricePathFromReceipts` and the parity test, drop `CurvePhase` from
   the chart's inputs.
-- [ ] **P5 — Client stream sequences.** `Map<stream, lastSequence>`, one append
+- [x] **P5 — Client stream sequences.** `Map<stream, lastSequence>`, one append
   rule for both phases, remove the post-graduation refetch guard added in #427.
-- [ ] **P6 — End-to-end proof on a local stack.** Graduate a market, drive
+  Review hardened the append with two extra guards: frames carry their chain
+  coordinates and one that lands behind the newest appended coordinate
+  refetches instead of plotting backwards, and the whole gap/append decision
+  runs inside the React updater so same-batch frames cannot race a stale
+  closure.
+- [x] **P6 — End-to-end proof on a local stack.** Graduate a market, drive
   swaps, and assert the chart appends without a page refetch across the
-  handoff. This also closes the gap noted below.
+  handoff. This also closes the gap noted below. **Run 2026-08-04** on a
+  slot-2 stack: 60 bot receipts, dev-force graduation, then bot venue swaps
+  on the market's own pools. Observed: pregrad ticks appended live with zero
+  RSC refetches; graduation flipped the page via the nudge path; venue ticks
+  from both pool streams (interleaved ordinals) appended live with zero RSC
+  refetches once seeded; ticks that arrived while the tab was hidden
+  correctly triggered gap-refetches instead of silent holes. The unified
+  read served the whole life continuously across the handoff
+  (49.027 -> 49.027 -> 49.14) with the per-pool `streams` seed map, and a
+  band-edge NO print (tick 0 -> 100c) rendered faithfully.
 
 ## Deferred / open
 
 - **The assembled server path has never run in CI.** Pools, ticks, and the
-  decimals read together have only ever been exercised locally, by hand. P6 is
-  the first automated coverage of it.
+  decimals read together have only ever been exercised locally, by hand. The
+  P6 proof above was a driven local-stack session, not a CI lane; folding the
+  assembled path into the lifecycle e2e lane remains open.
 - **Gap detection depends on the gas measurement in P1.** If the hook counter
   turns out to cost more than assumed and is dropped, the fallback is
   `(blockNumber, logIndex)` ordering with no gap detection — misses would then

@@ -200,6 +200,17 @@ export async function getMarketPriceHistory(
       ticks,
     });
 
+    // Last sequence per pool stream: the rows arrive in chain order, so the
+    // final occurrence per pool is its latest. This is the client's per-stream
+    // gap-check seed (ADR 0025 P5).
+    const streams: Record<string, number> = {};
+    for (const { pool, tick } of ticks) {
+      streams[pool.poolId] = Number(tick.sequence);
+    }
+    if (Object.keys(streams).length > 0) {
+      response.streams = streams;
+    }
+
     const venueHalf = venuePoints.map((point) => ({
       at: point.at,
       noCents: point.noPriceCents,

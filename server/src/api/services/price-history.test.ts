@@ -141,6 +141,8 @@ describe("getMarketPriceHistory", () => {
     );
 
     expect(history?.graduatedAt).toBe(GRADUATED_AT.toISOString());
+    // The per-stream gap-check seed: the YES pool's last tick sequence.
+    expect(history?.streams).toEqual({ [YES_POOL_ID]: 1 });
     // Opening + 1 receipt + synthesized handoff + 1 swap.
     expect(history?.points).toHaveLength(4);
     const [, lastPregrad, handoff, swap] = history!.points;
@@ -170,6 +172,8 @@ describe("getMarketPriceHistory", () => {
 
     expect(history?.graduatedAt).toBe(GRADUATED_AT.toISOString());
     expect(history?.points).toHaveLength(2);
+    // No venue trades yet: nothing to seed a stream check from.
+    expect(history?.streams).toBeUndefined();
   });
 
   it("answers null for an unknown or malformed market id", async () => {

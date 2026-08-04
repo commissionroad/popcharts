@@ -1,3 +1,4 @@
+import { RECEIPTS_STREAM } from "@popcharts/live-channels";
 import { ArrowLeft, BadgeCheck, Coins, ReceiptText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
@@ -25,10 +26,13 @@ import { MarketPositionPanel } from "./market-position-panel";
 export function MarketDetailPage({
   market,
   pricePath,
+  venueSeedStreams,
 }: {
   market: Market;
   /** Whole-life history from the unified read (repo ADR 0025), when it loaded. */
   pricePath?: PricePoint[];
+  /** Last live-tick ordinal per venue stream, from the same read. */
+  venueSeedStreams?: Record<string, number>;
 }) {
   // Fallback for fixture-backed markets and a failed history read: the
   // market's synthetic YES path, with NO as its complement — but only while
@@ -114,7 +118,10 @@ export function MarketDetailPage({
             noLabel={marketSideLabel(market, "no")}
             noPriceCents={market.noPriceCents}
             points={chartPoints}
-            seedSequence={market.receiptCount}
+            seedStreams={{
+              [RECEIPTS_STREAM]: market.receiptCount,
+              ...(venueSeedStreams ?? {}),
+            }}
             yesLabel={marketSideLabel(market, "yes")}
             yesPriceCents={market.yesPriceCents}
           >

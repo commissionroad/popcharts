@@ -3294,6 +3294,12 @@
             "items": {
               "$ref": "#/components/schemas/PricePoint"
             }
+          },
+          "streams": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
           }
         }
       },

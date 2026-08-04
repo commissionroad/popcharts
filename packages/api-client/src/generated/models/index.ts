@@ -104,6 +104,7 @@ export * from "./marketMetadataWrite";
 export * from "./marketOrderBook";
 export * from "./marketPostgrad";
 export * from "./marketPriceHistory";
+export * from "./marketPriceHistoryStreams";
 export * from "./marketResolution";
 export * from "./marketResolutionKind";
 export * from "./marketStatus";
