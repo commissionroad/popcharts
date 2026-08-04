@@ -18,7 +18,10 @@ import type {
   MarketDraftRow,
   MarketDraftStatus,
 } from "src/db/schema/market-drafts";
-import { lockWalletCredit, quoteReviewRun } from "src/draft-review/bond-meter";
+import {
+  lockWalletCredit,
+  quoteReviewRun,
+} from "src/draft-review/review-credit-meter";
 import {
   buildDraftMetadata,
   validateDraftForSubmission,

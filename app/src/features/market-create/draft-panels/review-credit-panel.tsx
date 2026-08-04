@@ -4,11 +4,13 @@ import type {
   MarketDraftBondShortfall,
   MarketDraftReviewCredit,
 } from "@popcharts/api-client/models";
+import { portfolioChannel } from "@popcharts/live-channels";
 import { PiggyBank, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useReviewCreditDeposit } from "@/integrations/contracts/hooks/use-review-credit";
+import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { formatTokenAmount } from "@/lib/format";
 
 import { ReviewRow } from "../create-market-panels/shared";
@@ -21,8 +23,14 @@ export const DEPOSIT_PRESETS_WAD = [
 ] as const;
 
 /** How long to wait for a confirmed deposit to appear in the indexed view. */
-const INDEXING_POLL_INTERVAL_MS = 1_000;
 const INDEXING_POLL_TIMEOUT_MS = 30_000;
+/**
+ * Fallback cadence only: the deposit is announced by the change feed (the
+ * indexer signals the beneficiary's portfolio channel in the same
+ * transaction as the deposit row), and the signal triggers an immediate
+ * re-check. This slow poll covers a dropped SSE connection.
+ */
+const INDEXING_FALLBACK_POLL_MS = 5_000;
 
 /**
  * Shown when the review-credit meter refuses a submission (ADR 0022,
@@ -59,11 +67,18 @@ export function ReviewCreditPanel({
   const [stalled, setStalled] = useState(false);
   const notified = useRef(false);
 
-  // One funded notification per refusal: once the deposit confirms, poll the
-  // indexed view until the balance covers the run, then hand back to the
-  // parent to resubmit. Without a poller (no wallet on the draft — the panel
-  // is not reachable that way, but belt and braces) fund immediately and let
-  // the resubmit's own 402 re-open this panel.
+  // Re-checks the indexed view on demand; installed by the effect below and
+  // fired early by the change-feed signal so a live connection funds the
+  // moment the deposit indexes instead of on the next fallback tick.
+  const checkNowRef = useRef<(() => void) | null>(null);
+
+  // One funded notification per refusal: once the deposit confirms, watch
+  // the indexed view until the balance covers the run, then hand back to the
+  // parent to resubmit. The change-feed signal is the primary wake-up; a
+  // slow poll is the fallback for a dropped connection. Without a credit
+  // reader (no wallet on the draft — the panel is not reachable that way,
+  // but belt and braces) fund immediately and let the resubmit's own 402
+  // re-open this panel.
   useEffect(() => {
     if (credit.status !== "success" || notified.current) {
       return;
@@ -76,45 +91,76 @@ export function ReviewCreditPanel({
     }
 
     let cancelled = false;
+    let checking = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const startedAt = Date.now();
-    const poll = async () => {
-      while (!cancelled) {
-        try {
-          const position = await fetchCredit();
+    const check = async () => {
+      if (cancelled || checking) {
+        return;
+      }
+      checking = true;
 
-          if (BigInt(position.availableWad) >= BigInt(shortfall.requiredWad)) {
-            if (!cancelled && !notified.current) {
-              notified.current = true;
-              onFunded();
-            }
-            return;
+      try {
+        const position = await fetchCredit();
+
+        if (
+          !cancelled &&
+          BigInt(position.availableWad) >= BigInt(shortfall.requiredWad)
+        ) {
+          if (!notified.current) {
+            notified.current = true;
+            onFunded();
           }
-        } catch {
-          // A transient read failure is the same as "not indexed yet".
-        }
-
-        if (Date.now() - startedAt > INDEXING_POLL_TIMEOUT_MS) {
-          // Setting state after an unmount is a silent no-op in React 18+,
-          // so this needs no cancelled guard of its own.
-          setStalled(true);
           return;
         }
-
-        await new Promise((resolve) => setTimeout(resolve, INDEXING_POLL_INTERVAL_MS));
+      } catch {
+        // A transient read failure is the same as "not indexed yet".
+      } finally {
+        checking = false;
       }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (Date.now() - startedAt > INDEXING_POLL_TIMEOUT_MS) {
+        // Setting state after an unmount is a silent no-op in React 18+,
+        // so this needs no cancelled guard of its own.
+        setStalled(true);
+        return;
+      }
+
+      clearTimeout(timer);
+      timer = setTimeout(() => void check(), INDEXING_FALLBACK_POLL_MS);
     };
 
-    void poll();
+    checkNowRef.current = () => void check();
+    void check();
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      checkNowRef.current = null;
     };
   }, [credit.status, fetchCredit, onFunded, shortfall.requiredWad]);
+
+  // The deposit's change-feed nudge (ADR 0021): the indexer records the
+  // deposit row and signals portfolio:{beneficiary} in the same transaction,
+  // so this fires exactly when the gate's view of the balance moves. The
+  // signal carries no data — the handler re-reads the authoritative credit
+  // endpoint. Outside the indexing phase the channel is null and this
+  // subscribes to nothing.
+  const indexingPhase = credit.status === "success" && !stalled;
+
+  useLiveChannel(
+    indexingPhase && beneficiary ? portfolioChannel(beneficiary) : null,
+    () => checkNowRef.current?.()
+  );
 
   const rate = BigInt(shortfall.requiredWad);
   const available = BigInt(shortfall.availableWad);
   const runsLeft = rate > 0n ? Number(available / rate) : 0;
-  const indexing = credit.status === "success" && !stalled;
+  const indexing = indexingPhase;
   const busy = credit.status === "pending" || indexing;
 
   return (

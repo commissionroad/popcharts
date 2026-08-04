@@ -21,23 +21,26 @@ import { uint256 } from "./uint256";
  * because Postgres cannot drop an enum value in place; nothing writes them
  * any more.
  */
-export const REVIEW_BOND_EVENT_KINDS = [
+export const REVIEW_CREDIT_EVENT_KINDS = [
   "deposited",
   "settled",
   "bond_withdrawn",
   "fees_withdrawn",
 ] as const;
 
-/** One of {@link REVIEW_BOND_EVENT_KINDS}. */
-export type ReviewBondEventKind = (typeof REVIEW_BOND_EVENT_KINDS)[number];
+/** One of {@link REVIEW_CREDIT_EVENT_KINDS}. */
+export type ReviewCreditEventKind = (typeof REVIEW_CREDIT_EVENT_KINDS)[number];
 
-/** Postgres enum for ReviewBondEventKind, derived from the same const array. */
-export const reviewBondEventKind = pgEnum("review_bond_event_kind", [
-  ...REVIEW_BOND_EVENT_KINDS,
+/** Postgres enum for ReviewCreditEventKind, derived from the same const array.
+ * The Postgres-side name keeps the legacy `bond` spelling: renaming a pg enum
+ * type (like dropping its values) buys nothing at the SQL layer and costs a
+ * hand-written migration; the TS surface is the one readers see. */
+export const reviewCreditEventKind = pgEnum("review_bond_event_kind", [
+  ...REVIEW_CREDIT_EVENT_KINDS,
 ]);
 
 /**
- * Raw ReviewBondDeposited / ReviewFeesWithdrawn logs from the vault — the
+ * Raw ReviewCreditDeposited / ReviewFeesWithdrawn logs from the vault — the
  * money paper trail for prepaid review credit (ADR 0022 money invariant,
  * docs/portfolio-data-design.md): every value transfer through the vault is
  * event-sourced here, never inferred from the off-chain meter. These rows are
@@ -50,7 +53,10 @@ export const reviewBondEventKind = pgEnum("review_bond_event_kind", [
  * sweeps, which report no cumulative on-chain). Deduped on (chain, tx, log)
  * like the other *_events tables so indexer replays stay idempotent.
  */
-export const reviewBondEvents = pgTable(
+// The physical table likewise keeps its legacy name — the change-feed source
+// key and the money-paper-trail docs key on it, and drizzle-kit's rename
+// prompt cannot run non-interactively.
+export const reviewCreditEvents = pgTable(
   "review_bond_events",
   {
     id: serial("id").primaryKey(),
@@ -62,7 +68,7 @@ export const reviewBondEvents = pgTable(
     blockTimestamp: timestamp("block_timestamp").notNull(),
     transactionHash: text("transaction_hash").notNull(),
     logIndex: integer("log_index").notNull(),
-    kind: reviewBondEventKind("kind").notNull(),
+    kind: reviewCreditEventKind("kind").notNull(),
     /** Credited beneficiary (or sweep recipient), lowercased. */
     account: text("account").notNull(),
     /** Wallet that sent a deposit, lowercased; null for sweeps and legacy rows. */

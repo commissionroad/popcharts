@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-  buildReviewBondRecord,
-  type ReviewBondDepositedLog,
-  type ReviewBondLog,
-} from "./review-bond";
+  buildReviewCreditRecord,
+  type ReviewCreditDepositedLog,
+  type ReviewCreditLog,
+} from "./review-credit";
 
 const USER = "0xAAAAAAAA00000000000000000000000000000009";
 const PAYER = "0xCCCCCCCC00000000000000000000000000000003";
@@ -20,20 +20,20 @@ const BASE_LOG = {
 const blockTimestamp = new Date("2026-07-30T12:00:00.000Z");
 
 function build(
-  kind: Parameters<typeof buildReviewBondRecord>[0]["kind"],
+  kind: Parameters<typeof buildReviewCreditRecord>[0]["kind"],
   args: object,
 ) {
-  return buildReviewBondRecord({
+  return buildReviewCreditRecord({
     blockTimestamp,
     config: { chainId: 5042002 },
     contractId: 42,
     kind,
-    log: { ...BASE_LOG, args } as ReviewBondLog,
+    log: { ...BASE_LOG, args } as ReviewCreditLog,
   });
 }
 
-describe("buildReviewBondRecord", () => {
-  it("maps ReviewBondDeposited to a deposited row keyed on the lowercased beneficiary, not the payer", () => {
+describe("buildReviewCreditRecord", () => {
+  it("maps ReviewCreditDeposited to a deposited row keyed on the lowercased beneficiary, not the payer", () => {
     const record = build("deposited", {
       amount: 5_000_000n,
       payer: PAYER,
@@ -96,7 +96,7 @@ describe("buildReviewBondRecord", () => {
 
   it("throws when required log metadata is missing", () => {
     expect(() =>
-      buildReviewBondRecord({
+      buildReviewCreditRecord({
         blockTimestamp,
         config: { chainId: 5042002 },
         contractId: 42,
@@ -105,7 +105,7 @@ describe("buildReviewBondRecord", () => {
           ...BASE_LOG,
           args: { amount: 1n, payer: PAYER, totalDeposited: 1n, user: USER },
           transactionHash: null,
-        } as unknown as ReviewBondDepositedLog,
+        } as unknown as ReviewCreditDepositedLog,
       }),
     ).toThrow("transactionHash");
   });

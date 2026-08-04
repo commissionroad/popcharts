@@ -16,9 +16,9 @@ import * as schema from "src/db/schema";
 import type { db as productionDb } from "src/db/client";
 import { createPgliteDb } from "src/test-support/pglite-db";
 import {
-  persistReviewBondRecord,
-  type ReviewBondRecord,
-} from "src/indexer/handlers/review-bond";
+  persistReviewCreditRecord,
+  type ReviewCreditRecord,
+} from "src/indexer/handlers/review-credit";
 
 const CHAIN_ID = 31337;
 const USER = "0x00000000000000000000000000000000000000ab";
@@ -45,13 +45,13 @@ beforeEach(async () => {
   await dbc.insert(schema.contracts).values({
     address: "0x00000000000000000000000000000000000000cc",
     chainId: CHAIN_ID,
-    name: "ReviewBondVault",
+    name: "ReviewCreditVault",
   });
 });
 
 function record(
-  overrides: Partial<ReviewBondRecord["event"]> = {},
-): ReviewBondRecord {
+  overrides: Partial<ReviewCreditRecord["event"]> = {},
+): ReviewCreditRecord {
   return {
     event: {
       account: USER,
@@ -69,39 +69,39 @@ function record(
   };
 }
 
-describe("persistReviewBondRecord against real SQL (PGlite)", () => {
+describe("persistReviewCreditRecord against real SQL (PGlite)", () => {
   it("dedups a replayed log on (chain, tx, log) so a sweep replay never double-counts", async () => {
-    await persistReviewBondRecord(record(), dbc);
-    await persistReviewBondRecord(record(), dbc);
+    await persistReviewCreditRecord(record(), dbc);
+    await persistReviewCreditRecord(record(), dbc);
 
     const [rows] = await dbc
       .select({ value: count() })
-      .from(schema.reviewBondEvents);
+      .from(schema.reviewCreditEvents);
     expect(rows!.value).toBe(1);
   });
 
   it("keeps all four kinds as distinct rows of one vault history", async () => {
-    await persistReviewBondRecord(record(), dbc);
-    await persistReviewBondRecord(
+    await persistReviewCreditRecord(record(), dbc);
+    await persistReviewCreditRecord(
       record({ kind: "settled", logIndex: 4, runningTotal: 1_000_000n }),
       dbc,
     );
-    await persistReviewBondRecord(
+    await persistReviewCreditRecord(
       record({ kind: "bond_withdrawn", logIndex: 5, runningTotal: 0n }),
       dbc,
     );
-    await persistReviewBondRecord(
+    await persistReviewCreditRecord(
       record({ kind: "fees_withdrawn", logIndex: 6, runningTotal: null }),
       dbc,
     );
 
     const rows = await dbc
       .select({
-        kind: schema.reviewBondEvents.kind,
-        runningTotal: schema.reviewBondEvents.runningTotal,
+        kind: schema.reviewCreditEvents.kind,
+        runningTotal: schema.reviewCreditEvents.runningTotal,
       })
-      .from(schema.reviewBondEvents)
-      .orderBy(schema.reviewBondEvents.logIndex);
+      .from(schema.reviewCreditEvents)
+      .orderBy(schema.reviewCreditEvents.logIndex);
 
     expect(rows.map((row) => row.kind)).toEqual([
       "deposited",

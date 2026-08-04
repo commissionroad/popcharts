@@ -12,7 +12,10 @@ import {
 import { renderFlakesMarkdown } from "../shared/flake-report/renderFlakesMarkdown.ts";
 
 const FIXTURE_RUNS = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "workflow-runs.json"), "utf8"),
+  readFileSync(
+    join(import.meta.dirname, "fixtures", "workflow-runs.json"),
+    "utf8",
+  ),
 ) as RawWorkflowRun[];
 
 const WINDOW = {
@@ -85,8 +88,14 @@ describe("renderFlakesMarkdown", () => {
       markdown,
       /\| App CI \| 3 \| 1 \| 33\.3% \| 1 \| 33\.3% \| yes — would alert \|/,
     );
-    assert.match(markdown, /\| Protocol CI \| 1 \| 0 \| 0\.0% \| 0 \| 0\.0% \| no \|/);
-    assert.match(markdown, /\| Server CI \| 0 \| 0 \| n\/a \| 0 \| n\/a \| no \|/);
+    assert.match(
+      markdown,
+      /\| Protocol CI \| 1 \| 0 \| 0\.0% \| 0 \| 0\.0% \| no \|/,
+    );
+    assert.match(
+      markdown,
+      /\| Server CI \| 0 \| 0 \| n\/a \| 0 \| n\/a \| no \|/,
+    );
     assert.match(
       markdown,
       /\| Nightly Lifecycle \| 0 \| 0 \| n\/a \| 0 \| n\/a \| no \|/,

@@ -3,7 +3,7 @@ import { type Abi, createPublicClient, createWalletClient, http } from "viem";
 import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { completeSetBinaryMarketAbi } from "@/integrations/contracts/postgrad-venue";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
-import { reviewBondVaultAbi } from "@/integrations/contracts/review-bond-vault";
+import { reviewCreditVaultAbi } from "@/integrations/contracts/review-credit-vault";
 
 import { TEST_WALLET_ADDRESS } from "./test-wallet";
 
@@ -27,7 +27,7 @@ export type LifecycleEnv = {
   chainId: number;
   collateralAddress: `0x${string}`;
   pregradManagerAddress: `0x${string}`;
-  reviewBondVaultAddress: `0x${string}`;
+  reviewCreditVaultAddress: `0x${string}`;
   rpcUrl: string;
 };
 
@@ -51,8 +51,8 @@ export function lifecycleEnv(): LifecycleEnv {
     pregradManagerAddress: read(
       "POPCHARTS_E2E_PREGRAD_MANAGER_ADDRESS"
     ) as `0x${string}`,
-    reviewBondVaultAddress: read(
-      "POPCHARTS_E2E_REVIEW_BOND_VAULT_ADDRESS"
+    reviewCreditVaultAddress: read(
+      "POPCHARTS_E2E_REVIEW_CREDIT_VAULT_ADDRESS"
     ) as `0x${string}`,
     rpcUrl: read("POPCHARTS_E2E_RPC_URL"),
   };
@@ -286,8 +286,8 @@ export async function depositReviewCredit(
     transport: http(env.rpcUrl),
   });
   const hash = await client.writeContract({
-    abi: reviewBondVaultAbi,
-    address: env.reviewBondVaultAddress,
+    abi: reviewCreditVaultAbi,
+    address: env.reviewCreditVaultAddress,
     account: beneficiary,
     chain: null,
     functionName: "depositFor",

@@ -26,15 +26,14 @@ export function buildLocalAppEnv(args: {
     NEXT_PUBLIC_POPCHARTS_RPC_URL: rpcHttpUrl,
     NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: deploy.pregradManagerAddress,
     NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: deploy.collateralAddress,
-    NEXT_PUBLIC_POPCHARTS_REVIEW_BOND_VAULT_ADDRESS:
-      deploy.reviewBondVaultAddress ?? "",
+    NEXT_PUBLIC_POPCHARTS_REVIEW_CREDIT_VAULT_ADDRESS:
+      deploy.reviewCreditVaultAddress ?? "",
     NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
     NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_WALLET: "true",
     NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED: "true",
     POPCHARTS_DEVCHAIN_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
-      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
-      DEFAULT_HARDHAT_PRIVATE_KEY,
+      process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
     // Two spellings on purpose. Server-side reads (SSR market fetch, the
     // indexer proxy routes) prefer the non-public var, mirroring prod where the
     // browser's API origin differs from the internal SSR origin. The live

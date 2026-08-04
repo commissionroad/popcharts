@@ -131,7 +131,10 @@ const ASSERTION = /\b(?:expect\w*|assert(?:\.\w+|\w*))\s*\(/g;
 /** Solidity convention: forge/hardhat treat `test*`/`invariant*` as cases. */
 const SOL_TITLE = /^\s*function\s+((?:test|invariant)\w*)/gm;
 
-function extractTitles(source: string, isSolidity: boolean): TestFile["titles"] {
+function extractTitles(
+  source: string,
+  isSolidity: boolean,
+): TestFile["titles"] {
   const titles: TestFile["titles"] = [];
   if (isSolidity) {
     for (const match of source.matchAll(SOL_TITLE)) {
@@ -210,7 +213,8 @@ export function readTestInventory(repoRoot: string): TestInventory {
   // gates a whole block, so it counts like an it.skip.
   const countStatus = (all: TestFile[], status: TestStatus): number =>
     all.reduce(
-      (sum, file) => sum + file.titles.filter((t) => t.status === status).length,
+      (sum, file) =>
+        sum + file.titles.filter((t) => t.status === status).length,
       0,
     );
 

@@ -1390,6 +1390,32 @@ three pre-publish review findings (concurrent overspend, unscoped credit,
 legacy-ledger reinterpretation) and the two deviations from P3a as written
 (enum values retained, poll instead of SSE).
 
+## [2026-08-04] ingest | protocol postgrad-contract-metadata — swap sequence on AfterSwapTickObserved
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: ADR 0025 P1 added a per-pool `sequence` to `AfterSwapTickObserved` and a
+fourth return to `lastSwapTickObservation`; the raw doc's event/view tables were
+stale after the contract change (caught by the Codex P1 review) and are now
+updated alongside this summary.
+
+## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 build decisions locked
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+Notes: ten open design points on P4 were decided and written into the ADR as a
+"P4 build decisions" section. The non-obvious one is the expiry rationale: a
+15-minute window is not anti-theft (binding the authorization to the creator's
+address already covers that) but a bound on how far a market's absolute
+deadlines can drift from the ones reviewed — and partial staleness does *not*
+revert, since `_validateCreateMarketParams` only rejects an already-past
+`graduationDeadline`, so a stale authorization ships a quietly shortened market.
+That choice obliges the app to re-mint on expiry rather than surface an error.
+Second thing worth carrying: the contract↔indexer coupling that would have
+forced a single fat PR dissolves if the indexer reads a market's real on-chain
+status instead of hard-coding `under_review` — correct under both contracts, so
+it lands alone. Creation-fee receipts are pulled ahead of the rest of P4 as
+their own PR; they are independent of the gate and close a standing money-
+paper-trail exception. No entity/concept page needed updating — pregrad-manager
+and creation-fee-custody already describe the gate as designed, and these
+decisions refine how, not what.
+
 ## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
 Pages: ~summaries/portfolio-data-design.md
 Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,

@@ -4,7 +4,7 @@ title: Postgrad Contract Metadata
 description: Reference for how server/indexer/UI discover the postgrad venue — generated ABI modules, the three deployment manifest shapes, manifest-first vs event-first discovery, and the event/read surface of all seven venue contracts.
 sources:
   - protocol/docs/postgrad-contract-metadata.md
-updated: 2026-07-21
+updated: 2026-08-04
 ---
 
 # Postgrad Contract Metadata
@@ -70,7 +70,9 @@ are run-scoped and gitignored:
   `OrderCreated`/`OrderFilled`/`OrderPartiallyFilled`/`OrderCancelled`/
   `OrderRequeued` and deferred batches via `DeferredExecutionStored`/
   `DeferredExecutionResolved` → track swaps via the hook's
-  `BeforeSwapTickObserved`/`AfterSwapTickObserved`.
+  `BeforeSwapTickObserved`/`AfterSwapTickObserved` (the after-event also
+  carries a per-pool `sequence` ordinal — contiguous from 1 over successful
+  swaps — added for off-chain gap detection by repo ADR 0025).
 - **Pool state**: read `slot0` (sqrtPriceX96, tick, fees) through the
   `StateView` lens.
 

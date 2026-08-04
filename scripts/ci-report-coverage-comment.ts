@@ -50,7 +50,10 @@ if (!workspace) {
   process.exit(2);
 }
 
-const summary = parseLcovSummary(readFileSync(lcovPath, "utf8"), workspace.filter);
+const summary = parseLcovSummary(
+  readFileSync(lcovPath, "utf8"),
+  workspace.filter,
+);
 
 const latest = parseLatestCoverage(readTextOrNull(values.baseline));
 const baselineEntry = latest.workspaces[workspace.key];

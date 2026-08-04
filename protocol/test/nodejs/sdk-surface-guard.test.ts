@@ -65,7 +65,7 @@ describe("protocol SDK surface guard (ADR 0017 Track G)", function () {
       "./postgrad-market-status": "./src/postgrad-market-status.ts",
       "./contract-enums": "./src/generated/contract-enums.ts",
       "./pregrad-manager": "./src/generated/pregrad-manager.ts",
-      "./review-bond-vault": "./src/generated/review-bond-vault.ts",
+      "./review-credit-vault": "./src/generated/review-credit-vault.ts",
       "./postgrad-venue": "./src/generated/postgrad-venue.ts",
       "./mock-collateral": "./src/generated/mock-collateral.ts",
       "./third-party/venue": "./src/generated/third-party/venue.ts",

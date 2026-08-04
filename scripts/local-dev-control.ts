@@ -12,7 +12,10 @@ import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  pregradDeployOverrides,
+} from "./shared/deployments/pregradDeploy.ts";
 import { readPostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import {
   POSTGRES_CONTAINER_NAME,
@@ -438,15 +441,10 @@ async function deployContracts(): Promise<void> {
   );
   const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
 
-  const serverEnv = buildLocalServerEnv(resources, {
-    collateralAddress: deploy.collateralAddress,
-    deployBlock: deploy.deployBlock,
-    postgradAdapterAddress: deploy.postgradAdapterAddress,
-    pregradManagerAddress: deploy.pregradManagerAddress,
-    ...(deploy.reviewBondVaultAddress
-      ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
-      : {}),
-  });
+  const serverEnv = buildLocalServerEnv(
+    resources,
+    pregradDeployOverrides(deploy),
+  );
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 
   writeLocalChainServerEnv({
