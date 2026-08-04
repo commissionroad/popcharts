@@ -59,3 +59,24 @@ export function parsePregradDeploy(stdout: string): PregradDeploy {
 function isEvmAddress(value: unknown): boolean {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
 }
+
+/**
+ * A parsed deploy as the server-env override object the orchestrators pass to
+ * `buildLocalServerEnv`. Defined here, next to the type, so growing
+ * `PregradDeploy` means updating this one projection instead of re-listing
+ * the fields in every orchestrator (the copy-per-site version silently
+ * dropped new fields).
+ */
+export function pregradDeployOverrides(
+  deploy: PregradDeploy,
+): Partial<Omit<PregradDeploy, "chainId">> {
+  return {
+    collateralAddress: deploy.collateralAddress,
+    deployBlock: deploy.deployBlock,
+    postgradAdapterAddress: deploy.postgradAdapterAddress,
+    pregradManagerAddress: deploy.pregradManagerAddress,
+    ...(deploy.reviewBondVaultAddress
+      ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
+      : {}),
+  };
+}

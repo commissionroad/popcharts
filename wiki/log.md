@@ -1390,6 +1390,13 @@ three pre-publish review findings (concurrent overspend, unscoped credit,
 legacy-ledger reinterpretation) and the two deviations from P3a as written
 (enum values retained, poll instead of SSE).
 
+## [2026-08-04] ingest | protocol postgrad-contract-metadata — swap sequence on AfterSwapTickObserved
+Pages: ~summaries/protocol-postgrad-contract-metadata.md
+Notes: ADR 0025 P1 added a per-pool `sequence` to `AfterSwapTickObserved` and a
+fourth return to `lastSwapTickObservation`; the raw doc's event/view tables were
+stale after the contract change (caught by the Codex P1 review) and are now
+updated alongside this summary.
+
 ## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 build decisions locked
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md
 Notes: ten open design points on P4 were decided and written into the ADR as a

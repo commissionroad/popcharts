@@ -17,6 +17,10 @@ import { type PostgradDeployment } from "./shared/deployments/readPostgradDeploy
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
+import {
+  pregradDeployServerEnv,
+  pregradDeployServerEnvLines,
+} from "./shared/env/pregradDeployServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { SMOKE_READINESS_LINE } from "./shared/localStack/smokeReadinessLine.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
@@ -277,9 +281,7 @@ async function main(): Promise<void> {
   console.log(`- Indexed tx: ${indexedMarket.createdTransactionHash}`);
 
   if (keepRunning) {
-    console.log(
-      `\n${SMOKE_READINESS_LINE}. Press Ctrl-C to stop.`,
-    );
+    console.log(`\n${SMOKE_READINESS_LINE}. Press Ctrl-C to stop.`);
     await new Promise(() => {});
   }
 
@@ -347,23 +349,13 @@ function buildServerEnv(
   return {
     DATABASE_URL: databaseUrl,
     HEALTH_CHECK_FILE: healthFile,
-    LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
-    LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    // An override key this builder does not map is dropped silently (the
-    // parameter type admits every PregradDeploy field), and a blank value
-    // turns the review-credit meter off — which is exactly the unmetered
-    // lane this line exists to prevent.
-    LOCAL_REVIEW_BOND_VAULT_ADDRESS: overrides.reviewBondVaultAddress ?? "",
+    ...pregradDeployServerEnv(overrides),
     NETWORK: "local",
     PORT: apiPort,
     // The lifecycle e2e lane drives graduation/resolution through the local
     // dev endpoints; they are local-network-only and additionally gated on
     // this flag, so the smoke API opts in explicitly.
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     RPC_HTTP_URL: rpcHttpUrl,
     RPC_WSS_URL: rpcWssUrl,
   };
@@ -384,19 +376,7 @@ function writeLocalEnv(
     "NETWORK=local",
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
-    // The lifecycle e2e orchestrator reads this file for the vault address it
-    // hands the specs; dropping the line silently de-meters the whole lane
-    // (this list is hand-built field by field — a new deploy field must be
-    // added here as well as in the server-env builders).
-    ...(deploy.reviewBondVaultAddress
-      ? [`LOCAL_REVIEW_BOND_VAULT_ADDRESS=${deploy.reviewBondVaultAddress}`]
-      : []),
+    ...pregradDeployServerEnvLines(deploy),
     ...postgradEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",

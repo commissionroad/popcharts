@@ -4,6 +4,8 @@ import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "
 import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
 import type { StackPorts } from "../localStack/ports.ts";
 
+import { pregradDeployServerEnv } from "./pregradDeployServerEnv.ts";
+
 /**
  * Environment for the local Bun API and indexer, shared by the local-dev and
  * control-plane orchestrators. RPC URLs, default API port, Postgres database,
@@ -23,11 +25,7 @@ export function buildLocalServerEnv(
       process.env.DATABASE_URL ??
       `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`,
     HEALTH_CHECK_FILE: resources.indexerHealthFilePath,
-    LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
-    LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
-    LOCAL_REVIEW_BOND_VAULT_ADDRESS: overrides.reviewBondVaultAddress ?? "",
+    ...pregradDeployServerEnv(overrides),
     NETWORK: "local",
     PORT: process.env.LOCAL_API_PORT ?? String(resources.apiPort),
     POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
@@ -35,8 +33,6 @@ export function buildLocalServerEnv(
       process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
       DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     RPC_HTTP_URL: resources.chainRpcHttpUrl,
     RPC_WSS_URL: resources.chainRpcWssUrl,
   };
