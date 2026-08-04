@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { lifecycleEnv } from "./support/lifecycle";
-import { connectTestWallet, installTestWallet } from "./support/test-wallet";
+import { depositReviewCredit, lifecycleEnv } from "./support/lifecycle";
+import {
+  connectTestWallet,
+  installTestWallet,
+  TEST_WALLET_ADDRESS,
+} from "./support/test-wallet";
 
 /**
  * ADR 0017 C4 journey 2 — rejected creation, updated for review-first
@@ -32,6 +36,7 @@ test.describe("@lifecycle rejected creation", () => {
     const runTag = Date.now().toString(36);
     const question = `Will my roommate adopt a cat this winter? (${runTag})`;
 
+    await depositReviewCredit(env, TEST_WALLET_ADDRESS, 10n ** 18n);
     await installTestWallet(page, { rpcUrl: env.rpcUrl });
     await page.goto("/create");
     await connectTestWallet(page);

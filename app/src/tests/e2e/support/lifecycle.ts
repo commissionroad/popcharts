@@ -3,6 +3,7 @@ import { type Abi, createPublicClient, createWalletClient, http } from "viem";
 import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { completeSetBinaryMarketAbi } from "@/integrations/contracts/postgrad-venue";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
+import { reviewBondVaultAbi } from "@/integrations/contracts/review-bond-vault";
 
 import { TEST_WALLET_ADDRESS } from "./test-wallet";
 
@@ -26,6 +27,7 @@ export type LifecycleEnv = {
   chainId: number;
   collateralAddress: `0x${string}`;
   pregradManagerAddress: `0x${string}`;
+  reviewBondVaultAddress: `0x${string}`;
   rpcUrl: string;
 };
 
@@ -48,6 +50,9 @@ export function lifecycleEnv(): LifecycleEnv {
     collateralAddress: read("POPCHARTS_E2E_COLLATERAL_ADDRESS") as `0x${string}`,
     pregradManagerAddress: read(
       "POPCHARTS_E2E_PREGRAD_MANAGER_ADDRESS"
+    ) as `0x${string}`,
+    reviewBondVaultAddress: read(
+      "POPCHARTS_E2E_REVIEW_BOND_VAULT_ADDRESS"
     ) as `0x${string}`,
     rpcUrl: read("POPCHARTS_E2E_RPC_URL"),
   };
@@ -262,4 +267,33 @@ export async function chainNowMs(env: LifecycleEnv): Promise<number> {
 /** The app route for a market, mirroring buildApiMarketAppId. */
 export function marketPath(env: LifecycleEnv, marketId: bigint): string {
   return `/markets/${env.chainId}:${marketId}`;
+}
+
+/**
+ * Deposits prepaid review credit for `beneficiary`, paid by the beneficiary's
+ * own unlocked hardhat account (ADR 0022 P3a). The submission gate reads the
+ * *indexed* deposit, not the chain, so callers that submit immediately
+ * afterwards are racing the indexer sweep — deposit as early as possible, and
+ * rely on the create flow's credit panel to recover if the sweep loses.
+ */
+export async function depositReviewCredit(
+  env: LifecycleEnv,
+  beneficiary: `0x${string}`,
+  amountWad: bigint
+): Promise<void> {
+  const client = createWalletClient({
+    account: beneficiary,
+    transport: http(env.rpcUrl),
+  });
+  const hash = await client.writeContract({
+    abi: reviewBondVaultAbi,
+    address: env.reviewBondVaultAddress,
+    account: beneficiary,
+    chain: null,
+    functionName: "depositFor",
+    args: [beneficiary],
+    value: amountWad,
+  });
+
+  await publicClient(env).waitForTransactionReceipt({ hash });
 }
