@@ -1073,6 +1073,7 @@ function interceptWindowTimers() {
 type ApiStub = {
   clone: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
+  credit: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
   list: ReturnType<typeof vi.fn>;
   markPublished: ReturnType<typeof vi.fn>;
@@ -1085,6 +1086,13 @@ type ApiStub = {
 function stubApi(overrides: Partial<ApiStub> = {}): ApiStub {
   const api: ApiStub = {
     clone: vi.fn(async () => marketDraftFactory({ id: 40, isTemplate: true })),
+    credit: vi.fn(async () => ({
+      availableWad: "0",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 0,
+      runsUsed: 0,
+    })),
     create: vi.fn(async (body: MarketDraftWrite) => savedDraft(21, body)),
     get: vi.fn(async () => marketDraftFactory()),
     list: vi.fn(async () => []),
