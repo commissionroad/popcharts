@@ -157,6 +157,99 @@ describe("MarketLivePrice", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  it("refetches when a tick lands behind a sibling stream's chain position", () => {
+    const yesPool = `0x${"aa".repeat(32)}`;
+    const noPool = `0x${"bb".repeat(32)}`;
+    renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+      seedStreams: { [noPool]: 1, [yesPool]: 3, receipts: 5 },
+    });
+
+    emit(
+      tickSignal({
+        blockNumber: 20n,
+        logIndex: 4,
+        noPriceCents: 44,
+        sequence: 4,
+        stream: yesPool,
+        yesPriceCents: 53,
+      })
+    );
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("3");
+
+    // The NO pool's tick is next in ITS stream, but sits earlier on the
+    // chain than the YES tick already plotted — appending would draw the
+    // curve backwards in time, so the island refetches instead.
+    emit(
+      tickSignal({
+        blockNumber: 19n,
+        logIndex: 2,
+        noPriceCents: 46,
+        sequence: 2,
+        stream: noPool,
+        yesPriceCents: 52,
+      })
+    );
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("3");
+
+    // A later block appends normally — the guard only blocks regressions.
+    emit(
+      tickSignal({
+        blockNumber: 21n,
+        logIndex: 5,
+        noPriceCents: 43,
+        sequence: 5,
+        stream: yesPool,
+        yesPriceCents: 54,
+      })
+    );
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("4");
+
+    // Same block, earlier log index: still behind, still a refetch.
+    emit(
+      tickSignal({
+        blockNumber: 21n,
+        logIndex: 0,
+        noPriceCents: 45,
+        sequence: 2,
+        stream: noPool,
+        yesPriceCents: 53,
+      })
+    );
+    expect(mocks.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops an appended-on-trust suffix that a refreshed seed proves incomplete", () => {
+    const pool = `0x${"cc".repeat(32)}`;
+    const { rerender } = renderIsland({
+      graduatedAt: "2026-07-24T00:00:00.000Z",
+    });
+
+    // Unseeded stream: sequence 5 is appended on trust.
+    emit(
+      tickSignal({
+        noPriceCents: 47,
+        sequence: 5,
+        stream: pool,
+        yesPriceCents: 52,
+      })
+    );
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("3");
+
+    // A refetch lands whose base only reaches ordinal 3: keeping sequence 5
+    // would plot around the never-seen sequence 4, so it is dropped.
+    rerender(
+      <MarketLivePrice
+        {...islandProps({
+          graduatedAt: "2026-07-24T00:00:00.000Z",
+          seedStreams: { [pool]: 3, receipts: 5 },
+        })}
+      />
+    );
+    expect(screen.getByTestId("chart-point-count")).toHaveTextContent("2");
+  });
+
   it("appends the first tick of a stream it has no seed for", () => {
     const pool = `0x${"bb".repeat(32)}`;
     renderIsland({ graduatedAt: "2026-07-24T00:00:00.000Z" });
@@ -400,8 +493,15 @@ function emit(signal: LiveSignal) {
  * lifecycle change that drives a refetch). `t` and the receipts `stream` are
  * filled in so callers vary only the fields the decision keys on. */
 function tickSignal(
-  fields: (Omit<PriceTickWire, "t" | "stream"> & { stream?: string }) | null
+  fields:
+    | (Omit<PriceTickWire, "t" | "stream"> & {
+        stream?: string;
+        blockNumber?: bigint;
+        logIndex?: number;
+      })
+    | null
 ): LiveSignal {
+  const { blockNumber = null, logIndex = null, ...tick } = fields ?? {};
   return {
     type: "change",
     ...serializeChangeSignal({
@@ -412,9 +512,16 @@ function tickSignal(
       chainId: 31337,
       marketId: "9",
       owner: null,
-      blockNumber: null,
-      logIndex: null,
-      tick: fields === null ? null : { t: TICK_TIME, stream: "receipts", ...fields },
+      blockNumber,
+      logIndex,
+      tick:
+        fields === null
+          ? null
+          : {
+              t: TICK_TIME,
+              stream: "receipts",
+              ...(tick as Omit<PriceTickWire, "t" | "stream">),
+            },
     }),
   };
 }
