@@ -35,8 +35,8 @@ describe("deploy-local-pregrad helper", async function () {
     const manager = await viem.getContractAt("PregradManager", summary.pregradManagerAddress);
     assert.equal(await manager.read.marketCount(), 0n);
 
-    // The local vault stands in the deployer for both roles so dev tooling can
-    // settle review consumption without a separate resolver key.
+    // The local vault owner is the deployer so dev tooling can sweep. There is
+    // no resolver role — review consumption is metered entirely off-chain.
     const vault = await viem.getContractAt("ReviewBondVault", summary.reviewBondVaultAddress);
     const [walletClient] = await viem.getWalletClients();
     const deployer = walletClient?.account?.address;
@@ -45,10 +45,7 @@ describe("deploy-local-pregrad helper", async function () {
       getAddress((await vault.read.owner()) as `0x${string}`),
       getAddress(deployer as `0x${string}`),
     );
-    assert.equal(
-      getAddress((await vault.read.resolver()) as `0x${string}`),
-      getAddress(deployer as `0x${string}`),
-    );
+    assert.equal(await vault.read.collectedFees(), 0n);
   });
 
   it("emits the summary fields the local dev orchestrators parse", async function () {

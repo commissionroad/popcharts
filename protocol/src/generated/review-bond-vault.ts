@@ -22,33 +22,23 @@ export const reviewBondVaultAbi = [
         name: "initialOwner",
         type: "address",
       },
-      {
-        internalType: "address",
-        name: "initialResolver",
-        type: "address",
-      },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
   },
   {
     inputs: [],
-    name: "InvalidReviewBondDeposit",
+    name: "InvalidReviewCreditBeneficiary",
     type: "error",
   },
   {
     inputs: [],
-    name: "InvalidReviewBondWithdrawal",
+    name: "InvalidReviewCreditDeposit",
     type: "error",
   },
   {
     inputs: [],
     name: "InvalidReviewFeeRecipient",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidSettlementResolver",
     type: "error",
   },
   {
@@ -86,38 +76,6 @@ export const reviewBondVaultAbi = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "available",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "requested",
-        type: "uint256",
-      },
-    ],
-    name: "ReviewBondWithdrawalExceedsAvailable",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "recipient",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
-    name: "ReviewBondWithdrawalFailed",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
         name: "recipient",
         type: "address",
@@ -129,60 +87,6 @@ export const reviewBondVaultAbi = [
       },
     ],
     name: "ReviewFeeWithdrawalFailed",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "deposited",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "consumedTotal",
-        type: "uint256",
-      },
-    ],
-    name: "SettlementExceedsDeposits",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "settledConsumed",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "consumedTotal",
-        type: "uint256",
-      },
-    ],
-    name: "SettlementRegression",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "consumedTotal",
-        type: "uint256",
-      },
-    ],
-    name: "SettlementUnchanged",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "UnauthorizedSettlementResolver",
     type: "error",
   },
   {
@@ -214,6 +118,12 @@ export const reviewBondVaultAbi = [
         type: "address",
       },
       {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
         indexed: false,
         internalType: "uint256",
         name: "amount",
@@ -227,56 +137,6 @@ export const reviewBondVaultAbi = [
       },
     ],
     name: "ReviewBondDeposited",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "remainingAvailable",
-        type: "uint256",
-      },
-    ],
-    name: "ReviewBondWithdrawn",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "consumedDelta",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "consumedTotal",
-        type: "uint256",
-      },
-    ],
-    name: "ReviewFeesSettled",
     type: "event",
   },
   {
@@ -299,38 +159,6 @@ export const reviewBondVaultAbi = [
     type: "event",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "resolver",
-        type: "address",
-      },
-    ],
-    name: "SettlementResolverUpdated",
-    type: "event",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "availableBond",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "collectedFees",
     outputs: [
@@ -344,8 +172,14 @@ export const reviewBondVaultAbi = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "depositBond",
+    inputs: [
+      {
+        internalType: "address",
+        name: "beneficiary",
+        type: "address",
+      },
+    ],
+    name: "depositFor",
     outputs: [],
     stateMutability: "payable",
     type: "function",
@@ -390,69 +224,6 @@ export const reviewBondVaultAbi = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "resolver",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "newResolver",
-        type: "address",
-      },
-    ],
-    name: "setResolver",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "consumedTotal",
-        type: "uint256",
-      },
-    ],
-    name: "settle",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "settledConsumedOf",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "address",
@@ -461,19 +232,6 @@ export const reviewBondVaultAbi = [
       },
     ],
     name: "transferOwnership",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
-    name: "withdrawBond",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
