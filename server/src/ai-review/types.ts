@@ -9,6 +9,17 @@ export const INTERNET_ACCESS_MODES = [
   "search",
 ] as const;
 
+/**
+ * The engines that can back the pre-collected-evidence path. `duckduckgo` is
+ * the built-in scrape and needs no key; `tavily` is a hosted search that
+ * returns page text with each hit, so the service performs no page fetches of
+ * its own.
+ */
+export const SEARCH_PROVIDER_NAMES = ["duckduckgo", "tavily"] as const;
+
+/** One of {@link SEARCH_PROVIDER_NAMES}. */
+export type SearchProviderName = (typeof SEARCH_PROVIDER_NAMES)[number];
+
 /** One of {@link INTERNET_ACCESS_MODES}. */
 export type InternetAccessMode = (typeof INTERNET_ACCESS_MODES)[number];
 

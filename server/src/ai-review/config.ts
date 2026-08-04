@@ -5,8 +5,16 @@ import {
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
-import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
-import type { InternetAccessMode, ReviewProviderName } from "./types";
+import {
+  INTERNET_ACCESS_MODES,
+  REVIEW_PROVIDER_NAMES,
+  SEARCH_PROVIDER_NAMES,
+} from "./types";
+import type {
+  InternetAccessMode,
+  ReviewProviderName,
+  SearchProviderName,
+} from "./types";
 
 /**
  * Version tag persisted with every review so stored verdicts can be traced to
@@ -46,12 +54,16 @@ export type AiReviewConfig = {
   maxSearchResults: number;
   ollamaBaseUrl: string;
   ollamaModel: string;
+  tavilyApiKey?: string;
+  tavilyBaseUrl: string;
+  tavilySearchDepth: string;
   openaiApiKey?: string;
   openaiBaseUrl: string;
   openaiMaxOutputTokens: number;
   openaiModel: string;
   port: number;
   provider: ReviewProviderName;
+  searchProvider: SearchProviderName;
   requestTimeoutMs: number;
   retryProviderFailures: boolean;
   userAgent: string;
@@ -136,6 +148,17 @@ export const aiReviewConfig: AiReviewConfig = {
     REVIEW_PROVIDER_NAMES,
     "codex-cli",
   ),
+  // Which engine backs the pre-collected-evidence path. Defaults to the
+  // built-in DuckDuckGo Lite scrape so no key is required to run; tavily
+  // returns page text inline, which removes this service's own page fetches.
+  searchProvider: readEnumOrFallback(
+    process.env.AI_REVIEW_SEARCH_PROVIDER,
+    SEARCH_PROVIDER_NAMES,
+    "duckduckgo",
+  ),
+  tavilyApiKey: process.env.TAVILY_API_KEY,
+  tavilyBaseUrl: process.env.TAVILY_BASE_URL ?? "https://api.tavily.com",
+  tavilySearchDepth: process.env.AI_REVIEW_TAVILY_SEARCH_DEPTH ?? "basic",
   // Sized for the default codex-cli provider, which spawns a headless coding
   // CLI (tens of seconds to a few minutes); claude-cli is the same order. The
   // faster API/heuristic paths return well under this ceiling, so a generous

@@ -4,6 +4,7 @@ import {
   safeFetchEvidence,
   searchWebEvidence,
 } from "./safe-web";
+import { searchTavilyEvidence } from "./tavily";
 import type { EvidenceItem, MarketReviewRequest } from "./types";
 
 /**
@@ -69,12 +70,16 @@ export async function collectEvidence({
   for (const query of queries) {
     try {
       evidence.push(
-        ...(await searchWebEvidence({
-          config,
-          fetchResults,
-          maxResults,
-          query,
-        })),
+        ...(config.searchProvider === "tavily"
+          ? // Tavily returns page text with each hit, so fetchSearchResults
+            // does not apply: there is nothing left to fetch.
+            await searchTavilyEvidence({ config, maxResults, query })
+          : await searchWebEvidence({
+              config,
+              fetchResults,
+              maxResults,
+              query,
+            })),
       );
     } catch (error) {
       evidence.push({
@@ -83,7 +88,10 @@ export async function collectEvidence({
         sourceTier: "unreachable",
         summary:
           error instanceof Error ? error.message : "Could not search the web.",
-        url: "https://lite.duckduckgo.com/lite/",
+        url:
+          config.searchProvider === "tavily"
+            ? "https://api.tavily.com/search"
+            : "https://lite.duckduckgo.com/lite/",
       });
     }
   }
