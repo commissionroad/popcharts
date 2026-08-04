@@ -184,3 +184,5 @@ read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010).
 - [../concepts/deployment-and-infrastructure.md](../concepts/deployment-and-infrastructure.md) — where the SSE route/CORS/RDS-Proxy pieces land (M5)
 - [root-adr-0010-indexer-maturity.md](root-adr-0010-indexer-maturity.md) — reorg/confirmation-depth dependency
 - [portfolio-data-design.md](portfolio-data-design.md) — the money-paper-trail invariant the outbox rows respect
+- [root-adr-0025-unified-price-stream.md](root-adr-0025-unified-price-stream.md) — the follow-on program: this ADR's price-tick payload shipped for pregrad trades only, so postgrad swaps still take the refetch path
+- [../concepts/price-stream.md](../concepts/price-stream.md) — the price path end to end, and the ordering guarantee that decides append vs refetch
