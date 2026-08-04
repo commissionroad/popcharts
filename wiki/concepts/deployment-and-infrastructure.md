@@ -8,7 +8,7 @@ sources:
   - docs/deployment/vercel.md
   - docs/deployment/go-live-dns.md
   - protocol/deployments/README.md
-updated: 2026-07-24
+updated: 2026-08-04
 ---
 
 # Deployment and infrastructure
@@ -20,10 +20,13 @@ as milestone M5 and excluded from all functionality verticals by rule.
 Sequencing: CI → CDK shared stage (VPC/RDS/ECR/Secrets) → ECS services →
 monitoring → DNS → protocol to [Arc Testnet](../entities/arc-testnet.md)
 last, via existing Ignition modules. The monitoring step has its first
-piece — an SNS operator-alert topic and a CloudWatch metric-filter alarm
-that pages on a resolution dispute (repo ADR 0024 phase 5); the ADR 0015
-alarm list (ALB 5xx, ECS restarts, RDS health, indexer cursor lag) remains
-open.
+piece — an SNS operator-alert topic plus one CloudWatch metric-filter alarm per
+operator page the [indexer](../entities/indexer.md) records: a resolution
+dispute ([repo ADR 0024](../summaries/root-adr-0024-resolution-dispute-program.md)
+phase 5) and an out-of-order market status projection, which parks that
+market's cursor so its lifecycle events stop arriving until a human intervenes.
+The ADR 0015 alarm list (ALB 5xx, ECS restarts, RDS health, indexer cursor lag)
+remains open.
 
 ## Frontend (Vercel)
 

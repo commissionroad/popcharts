@@ -83,10 +83,27 @@ so old rows need no backfill.
 
 ## Phases
 
-Six, none started. P1 hook sequence (**with a gas measurement gate** — if the
-delta is materially above the assumed near-zero, stop and revisit), P2 indexer
-emits a priced tick, P3 unified endpoint, P4 app collapses to one path, P5
-client stream sequences, P6 end-to-end proof on a local stack.
+Six. P1 hook sequence (**with a gas measurement gate** — if the delta is
+materially above the assumed near-zero, stop and revisit), P2 indexer emits a
+priced tick, P3 unified endpoint, P4 app collapses to one path, P5 client stream
+sequences, P6 end-to-end proof on a local stack.
+
+**P1–P3 landed 2026-08-04** (lint verified against code; the ADR ticks only P1):
+
+- **P1 — done, gate passed.** Steady-state swap through the hook went
+  **64,574 → 65,127 gas (+553, ~0.9%)** on the third swap of a warm pool
+  (`BoundedHookSwapGas.t.sol`, identical harness both sides). The delta is the
+  increment plus 8 bytes of event data — no new storage write, exactly as the
+  packed-slot analysis predicted. The gate mattered: a previous pass rejected
+  this option on an *unmeasured* gas assumption and was wrong.
+- **P2 — landed, unticked in the ADR.** `pool_price_ticks` persists the hook's
+  per-pool sequence alongside the raw tick, with cent prices derived rather than
+  stored (the deliberate reversal this ADR records).
+- **P3 — landed, unticked in the ADR.** `server/src/api/services/price-history.ts`
+  is the unified read spanning both lifecycle halves.
+
+Because the fallback below is now moot, note it is **not** taken: the gas gate
+passed, so the hook counter stays and postgrad keeps real gap detection.
 
 ## Deferred / open
 

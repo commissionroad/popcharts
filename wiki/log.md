@@ -1443,3 +1443,112 @@ same day; the ADR now records both delivered, and the `markets.status`
 the old born-under-review assumption lived in the schema. Remaining P4 work is
 the contract gate, the server publish-authorization mint, the app authorized
 call + re-mint, and the scripts dev-key wiring.
+
+## [2026-08-04] lint | dispute window gets its concept page; ADR 0024 + 0025 checklist drift; 5 missed ingests
+Pages: +concepts/dispute-window.md, ~summaries/root-adr-0025-unified-price-stream.md, ~concepts/ai-assisted-resolution.md,
+~concepts/local-dev-orchestration.md, ~concepts/deployment-and-infrastructure.md,
+~summaries/ai-resolution-service-design.md, ~summaries/root-adr-0024-resolution-dispute-program.md,
+~summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
+~summaries/root-adr-0012-ai-assisted-resolution.md, ~summaries/root-readme.md,
+~summaries/app-component-inventory.md, ~summaries/infra-readme.md,
+~summaries/server-readme.md, ~entities/indexer.md, ~entities/ai-review-service.md, ~index.md
+
+Organic ingestion since last lint (2026-07-26): **20/25 doc-changing commits
+self-ingested**. Missed: `docs/ai-resolution-service-design.md` (8187651, runner
+proposes instead of resolving), `app/docs/component-inventory.md` (7cdf860,
+postgrad price chart), `README.md` twice (4aaf3e5 dev-menu random market;
+fcd2611 `just setup-sandbox`), and `docs/adr/0025-unified-price-stream.md`
+(df40f91, the measured P1 gas result). All five ingested here. Note the gap: the
+scheduled lint had not run since 2026-07-26, so this covers nine days.
+
+The last eight of those commits landed on `main` *while this lint was running* —
+they are counted above, and the count was revised upward from 13/17 at the merge
+rather than left standing against the stale base.
+
+**The one that mattered.** The missed resolution-design ingest had left a
+falsified claim standing on two pages: that a confident verdict is withheld
+behind an off-chain operator delay window, "24h on Arc, 0 on local". That delay
+**was never built**. It was superseded on 2026-07-20 — before any code existed —
+by the on-chain dispute window, and the runner now submits
+`proposeResolution(side)` immediately. The distinction is load-bearing, not
+cosmetic: an off-chain delay binds only the runner (a direct contract call walks
+past it) and gives recourse to nobody but the operator, while the on-chain window
+binds every path to settlement and lets participants object against a bond. The
+wiki was describing a safety valve that does not exist, in a way that understated
+the one that does.
+
+**New concept page.** Thirteen pages referenced the dispute window and none
+owned it, so `concepts/dispute-window.md` now synthesizes protocol ADR 0013 and
+repo ADR 0024: the propose → bonded 24h public dispute → permissionless finalize
+state machine, the bond economics (refunded when the final outcome differs from
+the proposal, forfeited to the owner otherwise, custody kept outside redemption
+solvency), the resolver's bond-free self-dispute as the operator override, the
+deliberate contrast against protocol ADR 0010 (clearing is machine-checkable, so
+no window; resolution depends on a real-world fact, so a window is the only check
+available), and a layer-by-layer map of where it lives in the stack.
+
+**ADR 0024 checklist drift — the headline finding.** The ADR's Progress section
+shows Phases 2, 3 and 5 entirely unticked. A read of the code found nearly all of
+it landed: dispute/bond tables and change-feed wiring exist, the proposal/dispute
+logs are decoded by the *existing* `postgrad-market.ts` watcher (which is why a
+watcher-filename search misses them), `markets.status` carries
+`resolution_pending`/`disputed`, the runner calls `proposeResolution`,
+`keeper/resolution-finalize.ts` is wired into `keeper/index.ts`,
+`market-dispute-panel.tsx` is built and mounted, and `ResolutionDisputedAlarm`
+exists in the CDK stack. Only the lifecycle-harness propose→dispute scenario and
+the operator self-dispute/settle tooling have no code behind them. Recorded on
+the ADR 0024 summary page with the file-level evidence; the raw ADR is left
+alone per the never-edit-sources rule.
+
+**And the same drift on ADR 0025, hours old.** The unified-price-stream ADR
+landed today ticking only P1, but P2 (`pool_price_ticks` persists the hook's
+per-pool sequence, prices derived not stored) and P3
+(`api/services/price-history.ts`, the unified read) both landed the same day and
+are unticked. Also folded in the missed P1 result: the gas gate **passed** at
+64,574 → 65,127 (+553, ~0.9%) — worth recording because the gate existed
+precisely because an earlier pass rejected the hook counter on an *unmeasured*
+gas assumption and was wrong. Two ADRs drifting the same way in one lint is a
+pattern, not a coincidence: the checklist is updated in the design PR and then
+not re-touched by the build PRs that satisfy it.
+
+Integrity: clean after fixes — zero broken links (fixed one:
+protocol-adr-0013 pointed at `concepts/graduation-and-clearing.md`, which has
+never existed; the page is `graduation-clearing.md`), zero orphans, zero pages
+missing from index.md. Also corrected protocol-adr-0013's frontmatter, which
+described the ADR as PROPOSED while its own body said ACCEPTED.
+
+Staleness: 43 page/source pairs flagged at the start, 28 after this pass. Most of
+the remainder is **date-only drift, and the lint is generating it**: prior runs
+verify a page against a newer source, find it accurate, and change nothing —
+including the `updated:` date — so the same pair re-flags every run and real
+staleness hides in the noise. Two examples confirmed today: `infra-readme` and
+`entities/indexer` already carried the corrected parked-cursor language (the
+2026-07-30 doc edit was the *doc* catching up to the wiki), and the 2026-08-03
+entry explicitly records leaving `local-dev-orchestration` alone as "ahead of the
+wiring, not stale". **Convention proposed and applied from this entry: bump
+`updated:` whenever a page is verified against a newer source, even when nothing
+changes.** Content-free bumps are what make the staleness list mean something.
+
+Raw-source problems noted, not fixed (wiki work never edits sources):
+- `docs/adr/0012-ai-assisted-resolution.md` Consequences still lists "the operator
+  delay window" as a live safety valve, contradicting its own Decision section.
+- `docs/adr/0024-resolution-dispute-program.md:58` still says "keep
+  `contract-abi-parity.test.ts` pins honest" — carried over unresolved from the
+  2026-07-26 lint; that test was deleted in 44479d0 (2026-07-21), so the item was
+  ticked against a file that no longer existed.
+- `app/src/features/market-detail/market-dispute-panel.tsx:16` comments that
+  "market status has no pending/disputed states yet (ADR 0024 Phase 2)". Phase 2
+  has since landed.
+
+Follow-ups for next lint:
+1. Work the date-only staleness backlog under the new bump convention, oldest
+   first: `overview.md` + `entities/protocol-workspace` + `entities/app-workspace`
+   vs `docs/architecture.md` (2026-07-26); the four postgrad entity pages vs
+   `protocol/docs/postgrad-contract-metadata.md` (2026-07-21); `app-context` +
+   `product-honesty-rule` vs `app/CONTEXT.md` (2026-07-21).
+2. `entities/devchain.md` (2026-07-14) is three sources behind and was not touched
+   today — check it against the control-plane rewrite.
+3. Re-check whether ADR 0024's **and ADR 0025's** checklists have been reconciled
+   upstream. Two ADRs drifting the same way in one lint says the problem is the
+   workflow, not the documents: if neither is reconciled by the next run, raise
+   it with the user rather than re-recording it a third time.

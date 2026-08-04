@@ -9,7 +9,7 @@ sources:
   - docs/adr/0019-ai-verdict-quality-program.md
   - documents/whitepaper_v3.pdf
   - documents/whitepaper_v0_1.pdf
-updated: 2026-07-17
+updated: 2026-08-04
 ---
 
 # AI-assisted resolution
@@ -28,8 +28,10 @@ automation in the system" (an AI holding a resolver key).
 
 - A sibling of the review architecture: stateless service + DB-leased runner
   + append-only audit (`market_resolutions` + `market_resolution_jobs`),
-  submitting `resolve(side)`/`cancel()` on the
-  [postgrad market](../entities/postgrad-market.md) for graduated markets.
+  submitting **`proposeResolution(side)`**/`cancel()` on the
+  [postgrad market](../entities/postgrad-market.md) for graduated markets. The
+  runner *proposes* — it opens the dispute window; the keeper's permissionless
+  `finalizeResolution()` settles the market after the window closes.
   Status propagation is the indexer's job (a new
   `MarketResolved`/`MarketCancelled` watcher), not a runner UPDATE, because
   override and self-resolve are also actors.
@@ -43,11 +45,17 @@ automation in the system" (an AI holding a resolver key).
   metadata-payload guidance (bumped to v2). See the
   [service & runner design](../summaries/ai-resolution-service-design.md).
 - Safety valves: abstention threshold **0.85** + ≥1 surviving evidence item
-  (low confidence → manual review); **draws always park** for an operator; an
-  operator delay/override window (**24h on Arc, 0 on local**). The override is a
-  local admin action against the chain and job queue (a keyed admin panel),
-  never an API endpoint (root ADR 0009). Shares the hardened safe-web evidence
-  path with review (root ADR 0011).
+  (low confidence → manual review); **draws always park** for an operator; and
+  the **on-chain dispute window** the proposal opens (24h on deployed networks,
+  zero locally). That window replaced the design's planned off-chain
+  `RESOLUTION_DELAY_MS` before it was ever built — an off-chain delay would have
+  bound only the runner, while the on-chain window binds every path to `resolve`
+  and lets participants, not just the operator, object (anyone may `dispute()`
+  against a bond). The operator override is now the resolver's bond-free
+  self-dispute, still a local admin action against the chain and job queue (a
+  keyed admin panel), never an API endpoint (root ADR 0009). Shares the hardened
+  safe-web evidence path with review (root ADR 0011). See the
+  [dispute window](dispute-window.md).
 - `bypassAiResolution` semantics are now designed: a trusted creator's
   `bypass = true` market is not auto-discovered and resolves through an
   operator-authenticated **self-resolve** endpoint (audited as
@@ -66,7 +74,7 @@ failure-taxonomy dataset including draw/edge outcomes and
 too_early/abstain expectations, and a corroboration policy mirroring the
 review-side reject rule — **a confident YES/NO below the corroboration bar
 parks instead of resolving on-chain**, adding a third safety valve to the
-abstention threshold and operator window. The program also flips the
+abstention threshold and the dispute window. The program also flips the
 resolution local default from heuristic to Ollama so eval numbers reflect
 what ships. *Landed:* the review-side eval slice in PR #226 (runner +
 52 seeds + prompt v3); the resolution-side sibling runner and a 35-seed

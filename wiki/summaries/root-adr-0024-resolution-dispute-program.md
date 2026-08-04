@@ -1,10 +1,10 @@
 ---
 type: summary
 title: ADR 0024 — Resolution Dispute Program (docs/adr/0024-resolution-dispute-program.md)
-description: ACCEPTED cross-stack program landing protocol ADR 0013's dispute window — phased protocol/indexer/runner+keeper/API+UI/ops checklist, superseding ADR 0012's off-chain operator delay; every resolution waits one public 24h window before redemption. Phase 1 (contracts) and the public resolution-check endpoint landed 2026-07-24; Phases 2-5 otherwise open.
+description: ACCEPTED cross-stack program landing protocol ADR 0013's dispute window — phased protocol/indexer/runner+keeper/API+UI/ops checklist, superseding ADR 0012's off-chain operator delay; every resolution waits one public 24h window before redemption. Phases 1-5 are substantially built in code as of 2026-08-04, but the ADR's own checklist still shows Phases 2, 3 and 5 unticked.
 sources:
   - docs/adr/0024-resolution-dispute-program.md
-updated: 2026-07-24
+updated: 2026-08-04
 ---
 
 # ADR 0024 — Resolution Dispute Program
@@ -41,6 +41,37 @@ self-dispute/settle in local admin tooling only; extends
 with the two new non-Trading states. **5 — ops:** page on
 `ResolutionDisputed`, ADR 0012 checkbox handoff, wiki ingest.
 
+## Checklist drift — read the code, not the ticks (lint 2026-08-04)
+
+The ADR's Progress section still shows Phases 2, 3 and 5 entirely unticked, and
+only Phase 1 plus Phase 4's endpoint checked. That is **stale**: a read of the
+repo on 2026-08-04 found nearly all of it landed. Verified in code:
+
+- **Phase 2 (indexer) — landed, unticked.** `server/src/db/schema/postgrad-dispute-events.ts`
+  and `postgrad_dispute_bond_events` exist; the proposal/dispute/bond logs are
+  decoded by the existing `indexer/watchers/postgrad-market.ts` (no new watcher
+  file, which is why a filename search misses it); `markets.status` carries
+  `resolution_pending`/`disputed`; both tables are wired into
+  `change-feed/sources.ts`.
+- **Phase 3 (runner + keeper) — landed except the harness scenario, unticked.**
+  `ai-resolution-runner/chain-resolution.ts` calls `proposeResolution`;
+  `keeper/resolution-finalize.ts` is imported by `keeper/index.ts`. The
+  lifecycle-harness propose→dispute scenario (ADR 0017 C3) is the one item with
+  no code behind it.
+- **Phase 4 (API + app) — mostly landed, partly unticked.** The endpoint is
+  ticked; `app/src/features/market-detail/market-dispute-panel.tsx` is built and
+  wired into the market-detail page. Operator self-dispute/settle tooling was
+  not found.
+- **Phase 5 (ops) — alarm landed, unticked.** `infra/lib/popcharts-infra-stack.ts`
+  defines `ResolutionDisputedAlarm` on a `resolution_disputed` marker.
+
+Two documentation follow-ups fall out of this and are **not** fixed here (wiki
+work never edits raw sources): ADR 0012's Consequences section still lists "the
+operator delay window" as a live safety valve even though its own §Decision
+records the supersession, and `market-dispute-panel.tsx:16` still carries a
+comment saying "market status has no pending/disputed states yet (ADR 0024
+Phase 2)" — Phase 2 has since landed.
+
 ## Consequences
 
 Redemption opens one window after the verdict on every market (UX must make
@@ -48,6 +79,8 @@ pending legible); one new keeper duty; two new watchers; a second user-side
 value transfer (the bond) joins the paper-trail invariant from day one.
 
 ## Related pages
+
+- [Dispute window](../concepts/dispute-window.md) — the synthesized mechanism
 
 - [Protocol ADR 0013 — the mechanism](protocol-adr-0013-bonded-optimistic-resolution.md)
 - [ADR 0012 — AI-assisted resolution](root-adr-0012-ai-assisted-resolution.md) (its 24h off-chain delay is superseded)

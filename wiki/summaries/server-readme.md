@@ -4,7 +4,7 @@ title: Server README
 description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and runner (codex-cli by default), local chain smoke, indexed PregradManager events, and key endpoints
 sources:
   - server/README.md
-updated: 2026-07-29
+updated: 2026-08-04
 ---
 
 # Server README

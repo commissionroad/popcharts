@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Protocol ADR 0013 — Bonded Optimistic Resolution With A Public Dispute Window (protocol/docs/adr/0013-bonded-optimistic-resolution-with-dispute-window.md)
-description: PROPOSED — replace single-shot postgrad resolve() with propose → 24h bonded public dispute window → permissionless finalize; a dispute freezes the market for human adjudication, resolver self-dispute is the free operator-override path, and every bond movement is a paper-trail event.
+description: ACCEPTED — replace single-shot postgrad resolve() with propose → 24h bonded public dispute window → permissionless finalize; a dispute freezes the market for human adjudication, resolver self-dispute is the free operator-override path, and every bond movement is a paper-trail event.
 sources:
   - protocol/docs/adr/0013-bonded-optimistic-resolution-with-dispute-window.md
-updated: 2026-07-20
+updated: 2026-08-04
 ---
 
 # Protocol ADR 0013 — Bonded Optimistic Resolution
@@ -52,5 +52,6 @@ v1; operator settlement final in v1.
 ## Related pages
 
 - [Root ADR 0024 — the cross-stack program](root-adr-0024-resolution-dispute-program.md)
+- [Dispute window](../concepts/dispute-window.md) — the synthesized mechanism
 - [AI-assisted resolution](../concepts/ai-assisted-resolution.md)
-- [Graduation and clearing](../concepts/graduation-and-clearing.md)
+- [Graduation clearing](../concepts/graduation-clearing.md)
