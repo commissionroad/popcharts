@@ -108,6 +108,9 @@ describe("processSupervisor", () => {
 });
 
 async function readPidWhenReady(pidFile: string): Promise<number> {
-  await waitUntil(() => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() !== "", 5_000);
+  await waitUntil(
+    () => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() !== "",
+    5_000,
+  );
   return Number(readFileSync(pidFile, "utf8").trim());
 }

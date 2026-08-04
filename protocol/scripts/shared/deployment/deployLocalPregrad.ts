@@ -19,7 +19,7 @@ export type DeploySummary = {
   deployBlock: string;
   postgradAdapterAddress: Address;
   pregradManagerAddress: Address;
-  reviewBondVaultAddress: Address;
+  reviewCreditVaultAddress: Address;
 };
 
 /**
@@ -46,7 +46,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     OUTCOME_DECIMALS,
     ...localDisputeConfigArgs(),
   ]);
-  const reviewBondVault = await viem.deployContract("ReviewBondVault", [deployerAddress]);
+  const reviewCreditVault = await viem.deployContract("ReviewCreditVault", [deployerAddress]);
 
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.
@@ -58,6 +58,6 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     deployBlock: deployBlock.toString(),
     postgradAdapterAddress: postgradAdapter.address,
     pregradManagerAddress: manager.address,
-    reviewBondVaultAddress: reviewBondVault.address,
+    reviewCreditVaultAddress: reviewCreditVault.address,
   };
 }

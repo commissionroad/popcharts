@@ -194,7 +194,7 @@ async function main(): Promise<void> {
       // Activates the review-credit meter (ADR 0022 P3a): without this the
       // lifecycle lane runs unmetered and the funded-deposit journey has
       // nothing to exercise.
-      reviewBondVaultAddress: deploy.reviewBondVaultAddress,
+      reviewCreditVaultAddress: deploy.reviewCreditVaultAddress,
     }),
     ...postgradServerEnv(postgrad),
   };

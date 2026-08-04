@@ -28,7 +28,7 @@ describe("deploy-local-pregrad helper", async function () {
       undefined,
     );
     assert.notEqual(
-      await publicClient.getCode({ address: summary.reviewBondVaultAddress }),
+      await publicClient.getCode({ address: summary.reviewCreditVaultAddress }),
       undefined,
     );
 
@@ -37,7 +37,7 @@ describe("deploy-local-pregrad helper", async function () {
 
     // The local vault owner is the deployer so dev tooling can sweep. There is
     // no resolver role — review consumption is metered entirely off-chain.
-    const vault = await viem.getContractAt("ReviewBondVault", summary.reviewBondVaultAddress);
+    const vault = await viem.getContractAt("ReviewCreditVault", summary.reviewCreditVaultAddress);
     const [walletClient] = await viem.getWalletClients();
     const deployer = walletClient?.account?.address;
     assert.notEqual(deployer, undefined);
@@ -62,7 +62,7 @@ describe("deploy-local-pregrad helper", async function () {
       "deployBlock",
       "postgradAdapterAddress",
       "pregradManagerAddress",
-      "reviewBondVaultAddress",
+      "reviewCreditVaultAddress",
     ]);
     assert.deepEqual(JSON.parse(JSON.stringify(summary)), summary);
   });

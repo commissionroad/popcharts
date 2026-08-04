@@ -66,7 +66,10 @@ export function historyRow(
   };
 }
 
-export function appendHistory(existing: string | null, row: HistoryRow): string {
+export function appendHistory(
+  existing: string | null,
+  row: HistoryRow,
+): string {
   return appendJsonl(existing, row);
 }
 

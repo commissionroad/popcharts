@@ -10,7 +10,7 @@ import { findAll } from "solidity-ast/utils.js";
 import type { SourceUnit } from "solidity-ast";
 
 const PREGRAD_CONTRACT_NAME = "PregradManager";
-const REVIEW_BOND_VAULT_CONTRACT_NAME = "ReviewBondVault";
+const REVIEW_CREDIT_VAULT_CONTRACT_NAME = "ReviewCreditVault";
 const MOCK_COLLATERAL_CONTRACT_NAME = "MockCollateral";
 const NETWORK_CHAIN_IDS = {
   local: 31337,
@@ -217,9 +217,9 @@ const pregradArtifactPath = resolve(
   protocolRoot,
   "artifacts/contracts/PregradManager.sol/PregradManager.json",
 );
-const reviewBondVaultArtifactPath = resolve(
+const reviewCreditVaultArtifactPath = resolve(
   protocolRoot,
-  "artifacts/contracts/ReviewBondVault.sol/ReviewBondVault.json",
+  "artifacts/contracts/ReviewCreditVault.sol/ReviewCreditVault.json",
 );
 const mockCollateralArtifactPath = resolve(
   protocolRoot,
@@ -227,7 +227,7 @@ const mockCollateralArtifactPath = resolve(
 );
 const deploymentsPath = resolve(protocolRoot, "deployments/protocol.json");
 const pregradOutputPath = resolve(protocolRoot, "src/generated/pregrad-manager.ts");
-const reviewBondVaultOutputPath = resolve(protocolRoot, "src/generated/review-bond-vault.ts");
+const reviewCreditVaultOutputPath = resolve(protocolRoot, "src/generated/review-credit-vault.ts");
 const postgradOutputPath = resolve(protocolRoot, "src/generated/postgrad-venue.ts");
 const mockCollateralOutputPath = resolve(protocolRoot, "src/generated/mock-collateral.ts");
 const thirdPartyVenueOutputPath = resolve(protocolRoot, "src/generated/third-party/venue.ts");
@@ -240,11 +240,11 @@ async function main(): Promise<void> {
   const pregradArtifact = await readJson(pregradArtifactPath);
   assertArtifact(pregradArtifact, PREGRAD_CONTRACT_NAME, pregradArtifactPath);
 
-  const reviewBondVaultArtifact = await readJson(reviewBondVaultArtifactPath);
+  const reviewCreditVaultArtifact = await readJson(reviewCreditVaultArtifactPath);
   assertArtifact(
-    reviewBondVaultArtifact,
-    REVIEW_BOND_VAULT_CONTRACT_NAME,
-    reviewBondVaultArtifactPath,
+    reviewCreditVaultArtifact,
+    REVIEW_CREDIT_VAULT_CONTRACT_NAME,
+    reviewCreditVaultArtifactPath,
   );
 
   const mockCollateralArtifact = await readJson(mockCollateralArtifactPath);
@@ -252,9 +252,9 @@ async function main(): Promise<void> {
 
   const rawDeployments = await readJson(deploymentsPath);
   const pregradDeployments = normalizeSingletonDeployments(rawDeployments, PREGRAD_CONTRACT_NAME);
-  const reviewBondVaultDeployments = normalizeSingletonDeployments(
+  const reviewCreditVaultDeployments = normalizeSingletonDeployments(
     rawDeployments,
-    REVIEW_BOND_VAULT_CONTRACT_NAME,
+    REVIEW_CREDIT_VAULT_CONTRACT_NAME,
   );
   const postgradDeployments = normalizePostgradVenueDeployments(rawDeployments);
 
@@ -292,13 +292,13 @@ async function main(): Promise<void> {
     },
     {
       content: await formatTypeScript(
-        renderReviewBondVaultMetadata({
-          abi: reviewBondVaultArtifact.abi,
-          deployments: reviewBondVaultDeployments,
+        renderReviewCreditVaultMetadata({
+          abi: reviewCreditVaultArtifact.abi,
+          deployments: reviewCreditVaultDeployments,
         }),
-        reviewBondVaultOutputPath,
+        reviewCreditVaultOutputPath,
       ),
-      path: reviewBondVaultOutputPath,
+      path: reviewCreditVaultOutputPath,
     },
     {
       content: await formatTypeScript(
@@ -611,7 +611,7 @@ function renderProtocolDeployments(deployments: DeploymentsByNetwork): string {
   return lines.join("\n");
 }
 
-function renderReviewBondVaultMetadata({
+function renderReviewCreditVaultMetadata({
   abi,
   deployments,
 }: {
@@ -632,21 +632,21 @@ import type {
   ProtocolNetworkId,
 } from "./pregrad-manager.js";
 
-export type ReviewBondVaultDeploymentMap = Record<
+export type ReviewCreditVaultDeploymentMap = Record<
   ProtocolNetworkId,
   ProtocolContractDeployment | undefined
 >;
 
-export const reviewBondVaultAbi = ${JSON.stringify(abi, null, 2)} as const satisfies Abi;
+export const reviewCreditVaultAbi = ${JSON.stringify(abi, null, 2)} as const satisfies Abi;
 
-export const reviewBondVaultDeployments = ${renderSingletonDeploymentMap(
+export const reviewCreditVaultDeployments = ${renderSingletonDeploymentMap(
     deployments,
-  )} as const satisfies ReviewBondVaultDeploymentMap;
+  )} as const satisfies ReviewCreditVaultDeploymentMap;
 
-export const reviewBondVaultContract = {
-  name: "${REVIEW_BOND_VAULT_CONTRACT_NAME}",
-  abi: reviewBondVaultAbi,
-  deployments: reviewBondVaultDeployments,
+export const reviewCreditVaultContract = {
+  name: "${REVIEW_CREDIT_VAULT_CONTRACT_NAME}",
+  abi: reviewCreditVaultAbi,
+  deployments: reviewCreditVaultDeployments,
 } as const;
 `;
 }

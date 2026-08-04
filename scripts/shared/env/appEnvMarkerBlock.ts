@@ -38,10 +38,16 @@ export function updateAppEnvMarkerBlock(args: {
   readonly existing: string;
 }): string {
   const existing = LEGACY_ENV_MARKERS.reduce(
-    (content, [start, end]) => content.replace(markerBlockPattern(start, end), ""),
+    (content, [start, end]) =>
+      content.replace(markerBlockPattern(start, end), ""),
     args.existing,
   );
-  const block = [APP_ENV_MARKER_START, ...args.entries, APP_ENV_MARKER_END, ""].join("\n");
+  const block = [
+    APP_ENV_MARKER_START,
+    ...args.entries,
+    APP_ENV_MARKER_END,
+    "",
+  ].join("\n");
   const pattern = markerBlockPattern(APP_ENV_MARKER_START, APP_ENV_MARKER_END);
 
   return pattern.test(existing)

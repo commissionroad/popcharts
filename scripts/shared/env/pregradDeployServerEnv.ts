@@ -26,7 +26,7 @@ export function pregradDeployServerEnv(
     LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
     LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
-    LOCAL_REVIEW_BOND_VAULT_ADDRESS: overrides.reviewBondVaultAddress ?? "",
+    LOCAL_REVIEW_CREDIT_VAULT_ADDRESS: overrides.reviewCreditVaultAddress ?? "",
   };
 }
 

@@ -112,7 +112,9 @@ export function extractGeneratedMarketOptionKeyFromQuestion(
 
   if (cryptoMatch) {
     const [, symbol, direction] = cryptoMatch;
-    const asset = subjects.crypto.find((candidate) => candidate.symbol === symbol);
+    const asset = subjects.crypto.find(
+      (candidate) => candidate.symbol === symbol,
+    );
 
     return asset
       ? generatedMarketOptionKey(
@@ -166,7 +168,9 @@ export function filterUnusedGeneratedMarketOptions<
   readonly totalCount: number;
   readonly unusedCount: number;
 } {
-  const unusedOptions = options.filter((option) => !usedOptionKeys.has(option.key));
+  const unusedOptions = options.filter(
+    (option) => !usedOptionKeys.has(option.key),
+  );
   const exhausted = unusedOptions.length === 0 && options.length > 0;
 
   return {

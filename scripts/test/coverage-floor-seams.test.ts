@@ -66,9 +66,12 @@ describe("ci-check-coverage-floor", () => {
     const lcovPath = join(dir, "lcov.info");
     writeFileSync(
       lcovPath,
-      ["SF:contracts/PregradManager.sol", "LF:2248", "LH:816", "end_of_record"].join(
-        "\n",
-      ),
+      [
+        "SF:contracts/PregradManager.sol",
+        "LF:2248",
+        "LH:816",
+        "end_of_record",
+      ].join("\n"),
     );
     const result = spawnSync(
       process.execPath,
@@ -85,6 +88,9 @@ describe("ci-check-coverage-floor", () => {
       { encoding: "utf8" },
     );
     assert.equal(result.status, 1, result.stdout);
-    assert.match(result.stdout, /36\.30% \(816\/2248\) is BELOW the 36.3% floor/);
+    assert.match(
+      result.stdout,
+      /36\.30% \(816\/2248\) is BELOW the 36.3% floor/,
+    );
   });
 });

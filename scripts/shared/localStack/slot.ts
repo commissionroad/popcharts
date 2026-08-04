@@ -78,12 +78,18 @@ export async function resolveSlot(
   const firstCandidate = kind === "human" ? 0 : 1;
   for (let offset = 0; offset < MAX_SLOT_SEARCH_ATTEMPTS; offset += 1) {
     const candidate = firstCandidate + offset;
-    if (options.liveDescriptors.some((descriptor) => descriptor.slot === candidate)) {
+    if (
+      options.liveDescriptors.some(
+        (descriptor) => descriptor.slot === candidate,
+      )
+    ) {
       continue;
     }
 
     const resources = deriveStackResources(candidate);
-    if ((await firstOccupiedPort(resources, options.isPortFree)) === undefined) {
+    if (
+      (await firstOccupiedPort(resources, options.isPortFree)) === undefined
+    ) {
       return { slot: candidate, kind };
     }
   }

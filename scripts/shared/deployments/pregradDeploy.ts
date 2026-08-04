@@ -12,7 +12,7 @@ export type PregradDeploy = {
   readonly postgradAdapterAddress: string;
   readonly pregradManagerAddress: string;
   /** Absent on deploys older than the review-bond vault (ADR 0022 P3). */
-  readonly reviewBondVaultAddress?: string;
+  readonly reviewCreditVaultAddress?: string;
 };
 
 export function parsePregradDeploy(stdout: string): PregradDeploy {
@@ -50,8 +50,8 @@ export function parsePregradDeploy(stdout: string): PregradDeploy {
     deployBlock: deploy.deployBlock,
     postgradAdapterAddress: deploy.postgradAdapterAddress as string,
     pregradManagerAddress: deploy.pregradManagerAddress as string,
-    ...(isEvmAddress(deploy.reviewBondVaultAddress)
-      ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress as string }
+    ...(isEvmAddress(deploy.reviewCreditVaultAddress)
+      ? { reviewCreditVaultAddress: deploy.reviewCreditVaultAddress as string }
       : {}),
   };
 }
@@ -75,8 +75,8 @@ export function pregradDeployOverrides(
     deployBlock: deploy.deployBlock,
     postgradAdapterAddress: deploy.postgradAdapterAddress,
     pregradManagerAddress: deploy.pregradManagerAddress,
-    ...(deploy.reviewBondVaultAddress
-      ? { reviewBondVaultAddress: deploy.reviewBondVaultAddress }
+    ...(deploy.reviewCreditVaultAddress
+      ? { reviewCreditVaultAddress: deploy.reviewCreditVaultAddress }
       : {}),
   };
 }

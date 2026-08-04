@@ -3,14 +3,14 @@ import type { Log } from "viem";
 import { recordLiveChange } from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
-import type { ReviewBondEventKind } from "src/db/schema/review-bond-events";
+import type { ReviewCreditEventKind } from "src/db/schema/review-credit-events";
 import { logValueRequirer } from "src/indexer/utils/log-values";
 
 const requireValue = logValueRequirer("Review credit log");
 
-export type { ReviewBondEventKind };
+export type { ReviewCreditEventKind };
 
-export type ReviewBondDepositedLog = Log & {
+export type ReviewCreditDepositedLog = Log & {
   args: {
     user?: string;
     payer?: string;
@@ -26,14 +26,14 @@ export type ReviewFeesWithdrawnLog = Log & {
   };
 };
 
-export type ReviewBondLog = ReviewBondDepositedLog | ReviewFeesWithdrawnLog;
+export type ReviewCreditLog = ReviewCreditDepositedLog | ReviewFeesWithdrawnLog;
 
-export type ReviewBondRecord = {
-  event: typeof schema.reviewBondEvents.$inferInsert;
+export type ReviewCreditRecord = {
+  event: typeof schema.reviewCreditEvents.$inferInsert;
 };
 
 /**
- * Maps a ReviewBondDeposited / ReviewFeesWithdrawn log from the vault into a
+ * Maps a ReviewCreditDeposited / ReviewFeesWithdrawn log from the vault into a
  * raw event row — the money paper trail for prepaid review credit (ADR 0022's
  * prepaid-credit amendment, docs/portfolio-data-design.md). `account` is the
  * credited beneficiary for deposits and the sweep recipient for
@@ -42,7 +42,7 @@ export type ReviewBondRecord = {
  * figure (null for sweeps, which report no cumulative on-chain). The retired
  * `settled` / `bond_withdrawn` kinds are no longer emitted by the contract.
  */
-export function buildReviewBondRecord({
+export function buildReviewCreditRecord({
   blockTimestamp,
   config,
   contractId,
@@ -52,9 +52,9 @@ export function buildReviewBondRecord({
   blockTimestamp: Date;
   config: Pick<NetworkConfig, "chainId">;
   contractId: number;
-  kind: ReviewBondEventKind;
-  log: ReviewBondLog;
-}): ReviewBondRecord {
+  kind: ReviewCreditEventKind;
+  log: ReviewCreditLog;
+}): ReviewCreditRecord {
   const base = {
     blockNumber: requireValue(log.blockNumber, "blockNumber"),
     blockTimestamp,
@@ -79,7 +79,7 @@ export function buildReviewBondRecord({
     };
   }
 
-  const deposited = log as ReviewBondDepositedLog;
+  const deposited = log as ReviewCreditDepositedLog;
 
   return {
     event: {
@@ -107,16 +107,16 @@ export function buildReviewBondRecord({
  * notified, resubmit" into a flow instead of a page refresh. Sweeps move no
  * user-facing value and stay silent.
  */
-export async function persistReviewBondRecord(
-  record: ReviewBondRecord,
+export async function persistReviewCreditRecord(
+  record: ReviewCreditRecord,
   dbc: typeof db = db,
 ) {
   await dbc.transaction(async (tx) => {
     const inserted = await tx
-      .insert(schema.reviewBondEvents)
+      .insert(schema.reviewCreditEvents)
       .values(record.event)
       .onConflictDoNothing()
-      .returning({ id: schema.reviewBondEvents.id });
+      .returning({ id: schema.reviewCreditEvents.id });
 
     if (inserted.length === 0 || record.event.kind !== "deposited") {
       return;

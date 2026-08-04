@@ -6,7 +6,7 @@ import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 
 import type { PopChartsContractConfig } from "../config";
 import { getPopChartsContractConfig } from "../config";
-import { reviewBondVaultAbi } from "../review-bond-vault";
+import { reviewCreditVaultAbi } from "../review-credit-vault";
 import { useReviewCreditDeposit } from "./use-review-credit";
 
 vi.mock("wagmi", () => ({
@@ -35,7 +35,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
-  reviewBondVaultAddress: VAULT,
+  reviewCreditVaultAddress: VAULT,
   rpcUrl: "http://127.0.0.1:8545",
 };
 
@@ -74,7 +74,7 @@ describe("useReviewCreditDeposit", () => {
   it("is disabled without a vault address", () => {
     vi.mocked(getPopChartsContractConfig).mockReturnValue({
       ...contractConfig,
-      reviewBondVaultAddress: null,
+      reviewCreditVaultAddress: null,
     } as unknown as PopChartsContractConfig);
 
     const { result } = renderHook(() => useReviewCreditDeposit());
@@ -93,7 +93,7 @@ describe("useReviewCreditDeposit", () => {
 
     await waitFor(() => expect(result.current.status).toBe("success"));
     expect(walletWrites.writeContract).toHaveBeenCalledWith({
-      abi: reviewBondVaultAbi,
+      abi: reviewCreditVaultAbi,
       account: ACCOUNT,
       address: VAULT,
       args: [BENEFICIARY],

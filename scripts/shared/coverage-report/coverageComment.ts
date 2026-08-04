@@ -73,7 +73,8 @@ function formatDelta(entry: CommentWorkspaceEntry): string {
   if (!entry.baseline) return "no baseline yet";
   const { linesPct, commit } = entry.baseline;
   const current = entry.summary.lines.pct;
-  if (linesPct === null || current === null) return `— vs \`${commit.slice(0, 7)}\``;
+  if (linesPct === null || current === null)
+    return `— vs \`${commit.slice(0, 7)}\``;
   const delta = Math.round((current - linesPct) * 100) / 100;
   const sign = delta >= 0 ? "+" : "";
   const flag = delta < 0 ? " 🔻" : "";
