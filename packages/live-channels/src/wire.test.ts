@@ -66,6 +66,7 @@ describe("the serialize/parse round trip", () => {
       event({
         tick: {
           t: "2026-07-24T00:00:00.000Z",
+          stream: "receipts",
           sequence: 7,
           yesPriceCents: 51.2,
           noPriceCents: 48.8,
@@ -77,6 +78,7 @@ describe("the serialize/parse round trip", () => {
 
     expect(parsed?.tick).toEqual({
       t: "2026-07-24T00:00:00.000Z",
+      stream: "receipts",
       sequence: 7,
       yesPriceCents: 51.2,
       noPriceCents: 48.8,
@@ -151,6 +153,7 @@ describe("parsePriceTick", () => {
   it("accepts a fully-formed tick", () => {
     const tick = {
       t: "2026-07-24T00:00:00.000Z",
+      stream: "receipts",
       sequence: 7,
       yesPriceCents: 51.2,
       noPriceCents: 48.8,
@@ -162,6 +165,7 @@ describe("parsePriceTick", () => {
   it("rejects a tick missing or mistyping any field — it degrades to a nudge", () => {
     const base = {
       t: "2026-07-24T00:00:00.000Z",
+      stream: "receipts",
       sequence: 7,
       yesPriceCents: 51.2,
       noPriceCents: 48.8,
@@ -171,6 +175,8 @@ describe("parsePriceTick", () => {
     expect(parsePriceTick("nope")).toBeNull();
     expect(parsePriceTick({ ...base, t: 7 })).toBeNull();
     expect(parsePriceTick({ ...base, sequence: "7" })).toBeNull();
+    expect(parsePriceTick({ ...base, stream: 7 })).toBeNull();
+    expect(parsePriceTick({ ...base, stream: "" })).toBeNull();
     expect(parsePriceTick({ ...base, yesPriceCents: null })).toBeNull();
     const { noPriceCents: _dropped, ...withoutNo } = base;
     expect(parsePriceTick(withoutNo)).toBeNull();

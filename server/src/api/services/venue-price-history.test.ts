@@ -348,6 +348,7 @@ function createTickRow(overrides: Partial<PoolPriceTickRow>): PoolPriceTickRow {
     id: 1n,
     logIndex: 0,
     poolId: YES_POOL_ID,
+    sequence: 1n,
     tick: 0,
     transactionHash: `0x${"dd".repeat(32)}`,
     ...overrides,

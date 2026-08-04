@@ -273,6 +273,7 @@ async function insertTick(
     contractId: 1,
     logIndex: 0,
     poolId: YES_POOL_ID,
+    sequence: 1n,
     tick: 0,
     transactionHash: `0x${"66".repeat(32)}`,
     ...overrides,

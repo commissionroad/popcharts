@@ -1,6 +1,6 @@
 import { currentYesPriceCents } from "@popcharts/protocol/virtual-lmsr";
 import { wadToCents, wadToNumber } from "@popcharts/protocol/wad";
-import type { PriceTickWire } from "@popcharts/live-channels";
+import { RECEIPTS_STREAM, type PriceTickWire } from "@popcharts/live-channels";
 
 /**
  * Builds the price tick a pregrad trade pushes onto its change-feed frame (repo
@@ -32,6 +32,7 @@ export function buildPriceTick(args: {
 
   return {
     t: args.t.toISOString(),
+    stream: RECEIPTS_STREAM,
     sequence: Number(args.sequence),
     yesPriceCents,
     noPriceCents: 100 - yesPriceCents,
