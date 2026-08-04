@@ -14,6 +14,7 @@ const baseConfig: Pick<
   | "anthropicMaxWebSearches"
   | "anthropicModel"
   | "anthropicWebFetchMaxContentTokens"
+  | "evidenceMode"
   | "internetAccess"
   | "requestTimeoutMs"
 > = {
@@ -24,6 +25,7 @@ const baseConfig: Pick<
   anthropicMaxWebSearches: 2,
   anthropicModel: "claude-sonnet-4-6",
   anthropicWebFetchMaxContentTokens: 1_000,
+  evidenceMode: "native",
   internetAccess: "search",
   requestTimeoutMs: 100,
 };

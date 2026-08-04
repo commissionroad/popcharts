@@ -17,6 +17,21 @@ export const INTERNET_ACCESS_MODES = [
  */
 export const SEARCH_PROVIDER_NAMES = ["duckduckgo", "tavily"] as const;
 
+/**
+ * Where a browsing-capable provider's evidence comes from. `native` lets the
+ * model run its own web tools; `precollected` gathers evidence first and hands
+ * the model the same array every other provider gets.
+ *
+ * The second mode is what makes a provider comparison mean anything: with it,
+ * every backend sees identical evidence and an identical prompt, so a measured
+ * gap is attributable to the model rather than to which tools its API happened
+ * to offer.
+ */
+export const EVIDENCE_MODES = ["native", "precollected"] as const;
+
+/** One of {@link EVIDENCE_MODES}. */
+export type EvidenceMode = (typeof EVIDENCE_MODES)[number];
+
 /** One of {@link SEARCH_PROVIDER_NAMES}. */
 export type SearchProviderName = (typeof SEARCH_PROVIDER_NAMES)[number];
 

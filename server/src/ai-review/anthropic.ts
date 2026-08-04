@@ -13,6 +13,10 @@ import {
   parseVerdict,
 } from "./response-parsing";
 import { normalizeScores } from "./scoring";
+import {
+  buildSuppliedEvidenceSystemPrompt,
+  buildSuppliedEvidenceUserMessage,
+} from "./supplied-evidence";
 import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /**
@@ -35,6 +39,7 @@ export type AnthropicReview = PolicyFinding & {
  */
 export async function reviewWithAnthropic({
   config,
+  evidence: suppliedEvidence = [],
   model,
   request,
 }: {
@@ -47,9 +52,11 @@ export async function reviewWithAnthropic({
     | "anthropicMaxWebSearches"
     | "anthropicModel"
     | "anthropicWebFetchMaxContentTokens"
+    | "evidenceMode"
     | "internetAccess"
     | "requestTimeoutMs"
   >;
+  evidence?: EvidenceItem[];
   model?: string;
   request: MarketReviewRequest;
 }): Promise<AnthropicReview> {
@@ -59,15 +66,30 @@ export async function reviewWithAnthropic({
 
   const modelId = model ?? config.anthropicModel;
   const mode = request.options?.internetAccess ?? config.internetAccess;
+  // In precollected mode the model gets the evidence and no tools, so a
+  // comparison against other providers varies only the model — not which web
+  // tools each API happens to offer.
+  const precollected = config.evidenceMode === "precollected";
   const response = await callAnthropicMessages({
     config,
     model: modelId,
     request,
-    tools: buildAnthropicTools({ config, mode, request }),
+    ...(precollected
+      ? {
+          system: buildSuppliedEvidenceSystemPrompt(),
+          userContent: buildSuppliedEvidenceUserMessage({
+            evidence: suppliedEvidence,
+            request,
+          }),
+          tools: [],
+        }
+      : { tools: buildAnthropicTools({ config, mode, request }) }),
   });
   const content = response.content ?? [];
   const parsed = parseModelReview(collectText(content), "Anthropic");
-  const evidence = evidenceFromContent(content);
+  const evidence = precollected
+    ? suppliedEvidence
+    : evidenceFromContent(content);
   const sourceChecks = filterSourceChecksByEvidence(
     parseSourceChecks(parsed.sourceChecks),
     evidence,

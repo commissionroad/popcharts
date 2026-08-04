@@ -39,7 +39,13 @@ export async function reviewMarket({
 
   let evidence: ReviewResult["evidence"] = [];
 
-  if (provider.capabilities.requiresPreCollectedEvidence) {
+  // A provider that cannot browse always needs evidence gathered for it. A
+  // provider that can browse needs it too when the service is configured to
+  // gather evidence itself rather than let each model use its own tools.
+  if (
+    provider.capabilities.requiresPreCollectedEvidence ||
+    config.evidenceMode === "precollected"
+  ) {
     evidence = await collectEvidence({ config, request });
   }
 

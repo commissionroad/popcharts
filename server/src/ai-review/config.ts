@@ -6,11 +6,13 @@ import {
 } from "src/shared/config-env";
 
 import {
+  EVIDENCE_MODES,
   INTERNET_ACCESS_MODES,
   REVIEW_PROVIDER_NAMES,
   SEARCH_PROVIDER_NAMES,
 } from "./types";
 import type {
+  EvidenceMode,
   InternetAccessMode,
   ReviewProviderName,
   SearchProviderName,
@@ -48,6 +50,7 @@ export type AiReviewConfig = {
    * rejects harmful markets regardless of this flag.
    */
   fallbackApprove: boolean;
+  evidenceMode: EvidenceMode;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
   maxFetchBytes: number;
@@ -107,6 +110,13 @@ export const aiReviewConfig: AiReviewConfig = {
   fallbackApprove: readBooleanOrFallback(
     process.env.AI_REVIEW_FALLBACK_APPROVE,
     false,
+  ),
+  // Defaults to native so existing deployments keep the browsing behaviour
+  // they have; precollected is what the provider evals run under.
+  evidenceMode: readEnumOrFallback(
+    process.env.AI_REVIEW_EVIDENCE_MODE,
+    EVIDENCE_MODES,
+    "native",
   ),
   fetchSearchResults: readBooleanOrFallback(
     process.env.AI_REVIEW_FETCH_SEARCH_RESULTS,

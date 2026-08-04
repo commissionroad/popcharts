@@ -13,6 +13,10 @@ import {
   parseVerdict,
 } from "./response-parsing";
 import { normalizeScores } from "./scoring";
+import {
+  buildSuppliedEvidenceSystemPrompt,
+  buildSuppliedEvidenceUserMessage,
+} from "./supplied-evidence";
 import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /**
@@ -37,11 +41,13 @@ export type OpenAiReview = PolicyFinding & {
  */
 export async function reviewWithOpenAi({
   config,
+  evidence: suppliedEvidence = [],
   model,
   request,
 }: {
   config: Pick<
     AiReviewConfig,
+    | "evidenceMode"
     | "internetAccess"
     | "openaiApiKey"
     | "openaiBaseUrl"
@@ -49,6 +55,7 @@ export async function reviewWithOpenAi({
     | "openaiModel"
     | "requestTimeoutMs"
   >;
+  evidence?: EvidenceItem[];
   model?: string;
   request: MarketReviewRequest;
 }): Promise<OpenAiReview> {
@@ -58,16 +65,23 @@ export async function reviewWithOpenAi({
 
   const modelId = model ?? config.openaiModel;
   const mode = request.options?.internetAccess ?? config.internetAccess;
+  // In precollected mode the model is given the evidence and no tools, so the
+  // comparison against other providers varies only the model.
+  const precollected = config.evidenceMode === "precollected";
   const response = await callOpenAiResponses({
     config,
-    input: buildCliReviewPrompt(request),
+    input: precollected
+      ? `${buildSuppliedEvidenceSystemPrompt()}\n\nReview this market:\n${buildSuppliedEvidenceUserMessage({ evidence: suppliedEvidence, request })}`
+      : buildCliReviewPrompt(request),
     model: modelId,
-    webSearchEnabled: mode !== "off",
+    webSearchEnabled: !precollected && mode !== "off",
   });
 
   const output = response.output ?? [];
   const parsed = parseModelReview(collectOpenAiText(output), "OpenAI");
-  const evidence = evidenceFromOpenAiOutput(output);
+  const evidence = precollected
+    ? suppliedEvidence
+    : evidenceFromOpenAiOutput(output);
   const sourceChecks = filterSourceChecksByEvidence(
     parseSourceChecks(parsed.sourceChecks),
     evidence,
