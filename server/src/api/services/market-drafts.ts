@@ -19,8 +19,7 @@ import type {
   MarketDraftStatus,
 } from "src/db/schema/market-drafts";
 import {
-  quoteSubmissionCharge,
-  settleOutstandingCharges,
+  quoteReviewRun,
 } from "src/draft-review/bond-meter";
 import {
   buildDraftMetadata,
@@ -387,27 +386,19 @@ export type SubmitMarketDraftResult =
   | {
       availableWad: bigint;
       kind: "insufficient_bond";
-      minimumStandingBondWad: bigint;
       requiredWad: bigint;
-      standingBondWad: bigint;
+      runsUsed: number;
     }
-  | { kind: "bond_unavailable" }
   | { kind: "missing_wallet" }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
 
 export type SubmitMarketDraftDependencies = {
-  quoteCharge: typeof quoteSubmissionCharge;
-  settleCharges: (address: string) => void;
+  quoteCharge: typeof quoteReviewRun;
 };
 
 const defaultSubmitDependencies: SubmitMarketDraftDependencies = {
-  quoteCharge: quoteSubmissionCharge,
-  // Fire-and-forget: settlement is bookkeeping catch-up, not part of the
-  // submission's success; failures log and retry on the next charge.
-  settleCharges: (address) => {
-    void settleOutstandingCharges(address);
-  },
+  quoteCharge: quoteReviewRun,
 };
 
 /**
@@ -452,31 +443,18 @@ export async function submitMarketDraft(
     return { errors, kind: "invalid" };
   }
 
-  const [{ priorReviewRuns }] = (await db
-    .select({
-      priorReviewRuns: sql<number>`count(*)::int`,
-    })
-    .from(schema.marketDraftReviewJobs)
-    .where(eq(schema.marketDraftReviewJobs.draftId, draft.id))) as [
-    { priorReviewRuns: number },
-  ];
-  const quote = await dependencies.quoteCharge({ draft, priorReviewRuns });
+  const quote = await dependencies.quoteCharge({ draft });
 
   if (quote.kind === "missing_wallet") {
     return { kind: "missing_wallet" };
-  }
-
-  if (quote.kind === "unavailable") {
-    return { kind: "bond_unavailable" };
   }
 
   if (quote.kind === "insufficient") {
     return {
       availableWad: quote.availableWad,
       kind: "insufficient_bond",
-      minimumStandingBondWad: quote.minimumStandingBondWad,
       requiredWad: quote.requiredWad,
-      standingBondWad: quote.standingBondWad,
+      runsUsed: quote.runsUsed,
     };
   }
 
@@ -515,18 +493,15 @@ export async function submitMarketDraft(
 
     // The meter charge rides the same transaction as the job it pays for:
     // a conflicted submit charges nothing, a charged submit always has its
-    // job. `chargeKind === null` is a bundled run (first-submission $1
-    // covers five reviews).
-    if (
-      quote.kind === "chargeable" &&
-      quote.chargeKind !== null &&
-      draft.intendedCreatorAddress
-    ) {
+    // job. Credit is non-refundable, so this row is final — there is no
+    // settlement to reconcile it against and nothing reverses it.
+    if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
       await tx.insert(schema.draftReviewCharges).values({
         amount: quote.amountWad,
         chargedAddress: draft.intendedCreatorAddress.toLowerCase(),
         draftId: draft.id,
-        kind: quote.chargeKind,
+        kind: "review_run",
+        rate: quote.rateWad,
       });
     }
 
@@ -538,10 +513,6 @@ export async function submitMarketDraft(
       kind: "wrong_status",
       message: "This draft just changed elsewhere — reload and try again.",
     };
-  }
-
-  if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
-    dependencies.settleCharges(draft.intendedCreatorAddress);
   }
 
   const reviews = await latestReviewsFor([draft.id]);
