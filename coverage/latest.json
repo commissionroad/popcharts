@@ -46,19 +46,19 @@
       }
     },
     "server": {
-      "commit": "e8b45d18748d8d4ac5cb3e05ebc3acf03f529956",
-      "updatedAt": "2026-08-04T23:41:59.581Z",
+      "commit": "4007468102309bfc93adde5b453f6a6cf3f8e53e",
+      "updatedAt": "2026-08-04T23:55:02.961Z",
       "summary": {
-        "files": 170,
+        "files": 171,
         "lines": {
-          "hit": 13547,
-          "found": 17807,
-          "pct": 76.08
+          "hit": 13574,
+          "found": 17834,
+          "pct": 76.11
         },
         "functions": {
-          "hit": 852,
-          "found": 1040,
-          "pct": 81.92
+          "hit": 853,
+          "found": 1041,
+          "pct": 81.94
         },
         "branches": {
           "hit": 0,
