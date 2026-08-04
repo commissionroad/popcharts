@@ -25,6 +25,27 @@ new editing Draft pre-filled from it; a Template is simply a Draft flagged to
 keep and clone from.
 _Avoid_: Preset, boilerplate
 
+**Review run**:
+One pass of the AI reviewer over one Draft. It is the billable unit — editing a
+Draft and resubmitting it spends another one.
+_Avoid_: Review (ambiguous between the run and its verdict), submission, check
+
+**Review credit**:
+A creator's prepaid, non-refundable balance, spent one Review run at a time and
+bought by depositing before submitting. It cannot be withdrawn; it buys review
+and nothing else.
+_Avoid_: Review bond, bond, escrow, deposit (as a name for the balance)
+
+> "Bond" is retired. A bond is refundable, which is what the original design
+> promised and where both of its defects lived; ADR 0022's amendment removed
+> refunds, so the word now misleads. Names still carrying `bond` are legacy and
+> are renamed as they are touched.
+
+**Creation fee**:
+The one-time on-chain charge paid when a Draft is published. Separate from
+Review credit in money, moment, and contract.
+_Avoid_: Listing fee, gas
+
 **Virtual LMSR**:
 The pre-graduation pricing curve. Its `b` parameter controls smoothness but is
 not backed by a protocol bankroll.

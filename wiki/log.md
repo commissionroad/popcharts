@@ -1295,3 +1295,21 @@ those processes *and their dependencies* (`api` pulls deploy-contracts →
 chain → prepare-database), not only the named ones; and the inline
 orchestrator is not "the same stack" — it has no AI resolution service or
 runner.
+
+## [2026-08-04] ingest | root ADR 0022 — amendment: prepaid review credit supersedes the refundable bond
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md,
+~concepts/creation-fee-custody.md, ~summaries/portfolio-data-design.md, ~index.md
+Notes: P3 shipped and was then withdrawn. The ADR specified withdrawal "gated on
+settlement being current"; the shipped `withdrawBond` was not — a spec/code
+mismatch, not a documented gap. Two defects from one root (an on-chain withdrawal
+path cannot see an off-chain meter): withdrawal of already-consumed value, and a
+permanent settlement wedge because withdrawing decrements `deposited` while
+`settle` requires the lifetime total to stay under it. Fix is removal, not
+repair: non-refundable credit, `depositFor(beneficiary)`, one configurable
+per-review-run rate, balance read from the indexed DB.
+Follow-ups: (1) the $0.10 rate is BELOW COST ($0.169/run on claude-cli) — public
+submission must not open at it; (2) the deposit handler does not call
+`recordLiveChange`, so the change-feed half of the model is unwired; (3) the
+nightly lifecycle stack never deploys the vault, so the payment path has no
+end-to-end coverage; (4) ADR 0022 still reads "Status: Proposed" with every phase
+unticked despite P1/P2/P3/P7 being on main — pre-existing drift, not fixed here.

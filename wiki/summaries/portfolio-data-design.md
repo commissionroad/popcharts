@@ -51,12 +51,16 @@ append-only event tables mirrored 1:1 from chain:
   same transaction also lands in `outcome_token_transfer_events`; this table
   records the collateral leg.
 - `review_bond_events` *(added 2026-07-31 with the review-bond indexing)* — per
-  value transfer through the `ReviewBondVault`, the prepaid market-review
-  escrow of [ADR 0022](root-adr-0022-review-first-market-creation.md): user
-  deposits, resolver settlements of consumed review fees, user withdrawals of
-  unconsumed bond, and owner fee sweeps. Each row carries the event's own
-  cumulative figure (`running_total`; null for sweeps) so the off-chain bond
-  meter reconciles against chain state without replaying history.
+  value transfer through the review-credit vault of
+  [ADR 0022](root-adr-0022-review-first-market-creation.md): user deposits,
+  resolver settlements of consumed review fees, user withdrawals of unconsumed
+  bond, and owner fee sweeps. Each row carries the event's own cumulative figure
+  (`running_total`; null for sweeps) so the off-chain meter reconciles against
+  chain state without replaying history.
+  *Amended 2026-08-04:* the ADR's prepaid-credit amendment removes settlement and
+  user withdrawal, leaving **deposits and owner sweeps only**; the table becomes
+  the source the submission gate reads its balance from, rather than a
+  reconciliation record against a chain-side consumed total.
 
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is

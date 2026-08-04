@@ -4,13 +4,20 @@ title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated p
 description: Proposed inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board.
 sources:
   - docs/adr/0022-review-first-market-creation.md
-updated: 2026-07-21
+updated: 2026-08-04
 ---
 
 # Repo ADR 0022: Review-first Market Creation
 
 **Status: Proposed.** Dated 2026-07-21. Designed via a `/grill` session and
 adversarially red-teamed before proposal. Not part of the M1–M5 launch chain.
+
+> **P1, P2, P3 and P7 landed on main 2026-08-03** (PRs #412–#417, #419); the ADR
+> doc itself still reads "Proposed" with unticked phases — known drift.
+> **P3 was then withdrawn and replaced** by the 2026-08-04 amendment: the
+> refundable bond becomes a non-refundable **prepaid review credit**. See
+> "Amendment: prepaid review credit" at the bottom of this page — the bond
+> decision described below is superseded.
 
 ## Context
 
@@ -134,6 +141,52 @@ values must be removed only from the tail (server code hand-decodes `uint8`
 ordinals). SSO users must fund their embedded wallet twice — the review bond before
 submitting, the creation fee before publishing. Draft endpoints are the app's first
 surface needing real authenticated writes.
+
+## Amendment: prepaid review credit (2026-08-04)
+
+P3 shipped as designed, and the shipped design was withdrawn. The escrow section
+specified withdrawal "gated on settlement being current"; the shipped
+`withdrawBond` was not, checking only the on-chain `settledConsumed` — a lagging
+replica of the off-chain meter. Two defects followed from that one root (an
+on-chain withdrawal path cannot see an off-chain meter): a creator could withdraw
+money covering reviews already consumed (small — settlement fires at a $1
+unsettled tally — but unbounded when settlement transactions fail), and
+withdrawing decrements `deposited`, which makes `settle` revert forever once the
+lifetime consumed total exceeds it, **wedging settlement for that wallet
+permanently**.
+
+Rather than close the gap (resolver-signed withdrawals, settle-before-withdraw, a
+held-back floor), the withdrawal is removed:
+
+- Deposits are **non-refundable**. There is no user withdrawal path. This is a
+  **prepaid credit**, not a bond — the word "bond" is retired.
+- **`depositFor(address beneficiary)`**, never `msg.sender`: with no way to move a
+  balance afterwards, a creator holding both an embedded and an external wallet
+  would otherwise be one mis-selection away from an unrecoverable payment. No
+  owner-side reassignment function — a privileged "move user funds" call is a
+  worse audit surface than the mistake it fixes.
+- **One rate, one unit — the review run.** No bundling, no first-submission
+  surcharge, no $5 minimum (a refundable floor only cost an attacker time-value;
+  non-refundable money has more bite). Priced at spend time, with the rate in
+  force stamped on each charge row.
+- The rate is **provisionally $0.10/run and is configuration**. It is a testing
+  rate *below cost* — a run measures $0.169 on the claude-cli provider — so it
+  inverts the anti-spam incentive. **Public submission must not open at $0.10**;
+  either the rate rises to $0.20+ or review moves to a cheaper provider.
+- On-chain surface collapses to `depositFor` + `withdrawCollectedFees`. `settle`,
+  `withdrawBond`, `setResolver`, the resolver key, and on-chain consumption
+  tracking are deleted. The vault is deployed on local stacks only and appears in
+  no infra/CI config, so this is a **rewrite, not a migration**.
+- **Balance is read from the indexed DB, never a direct chain read** — the
+  repo-wide direction (one source, served fast, client notified by the change
+  feed). Safe by construction: charges are written synchronously while deposits
+  lag, so staleness only makes a balance look *too low*. The deposit handler must
+  call `recordLiveChange`, which it does not today.
+- Coverage gap to close with it: the nightly lifecycle stack never deploys the
+  vault, so the meter sees no address and waves every submission through — the
+  whole payment path is untested end to end.
+
+Phase plan below is superseded at P3: **P3a — prepaid review credit** replaces it.
 
 ## Related pages
 
