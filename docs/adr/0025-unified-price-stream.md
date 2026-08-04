@@ -180,11 +180,15 @@ older rows needs no backfill.
 
 ## Phases
 
-- [ ] **P1 — Hook sequence.** Add the packed `uint64` to
+- [x] **P1 — Hook sequence.** Add the packed `uint64` to
   `SwapTickObservation`, increment in `afterSwap`, extend
   `AfterSwapTickObserved`, regenerate ABIs. Measure the gas delta and record it
   here; if it is materially above the near-zero this ADR assumes, stop and
-  revisit.
+  revisit. **Measured: steady-state swap through the hook went 64,574 →
+  65,127 gas (+553, ~0.9%)** on the third swap of a warm pool
+  (`BoundedHookSwapGas.t.sol`, identical harness both sides of the change).
+  The delta is the increment plus 8 bytes of event data — no new storage
+  write, as the packed-slot analysis predicted. Gate passes.
 - [ ] **P2 — Indexer emits a priced tick.** Persist the sequence, resolve the
   sibling pool's last price (indexed lookup on
   `pool_price_ticks_chain_pool_time_idx`), convert both to cents with a
