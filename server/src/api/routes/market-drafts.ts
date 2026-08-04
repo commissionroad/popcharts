@@ -490,7 +490,6 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       return {
-        bridgeApproved: result.bridgeApproved,
         draft: result.draft,
       };
     },

@@ -2,7 +2,6 @@ import { parseEventLogs } from "viem";
 
 import { pregradManagerAbi } from "@popcharts/protocol";
 
-import { transitionReviewedMarketOnChain } from "src/ai-review-runner/chain-review";
 import {
   mintPublishAuthorization,
   type SerializedPublishAuthorization,
@@ -738,7 +737,6 @@ export async function buildDraftPublishParams({
 
 export type MarkMarketDraftPublishedResult =
   | {
-      bridgeApproved: boolean;
       draft: MarketDraftResponse;
       kind: "published";
     }
@@ -906,26 +904,9 @@ export async function markMarketDraftPublished(
     };
   }
 
-  let bridgeApproved = false;
-
-  try {
-    const transition = await transitionReviewedMarketOnChain({
-      chainId,
-      marketId,
-      targetMarketStatus: "bootstrap",
-    });
-    bridgeApproved = transition !== null;
-  } catch (error) {
-    console.warn(
-      `[drafts] bridge approval for market ${marketId.toString()} failed; the market review runner will pick it up`,
-      error,
-    );
-  }
-
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
-    bridgeApproved,
     draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "published",
   };

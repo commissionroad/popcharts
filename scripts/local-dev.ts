@@ -4,9 +4,7 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
-import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
-import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
@@ -150,9 +148,6 @@ async function main(): Promise<void> {
     console.log("\nLocal AI review stack is ready:");
     console.log(`- AI Review service: ${aiReviewBaseUrl}`);
     console.log(`- AI Review readiness: ${aiReviewBaseUrl}/ready`);
-    console.log(
-      `- Runner: polling Postgres every ${localAiReviewRunnerPollMs()}ms`,
-    );
     console.log(`- Database: ${databaseUrl}`);
     console.log("\nPress Ctrl-C to stop the AI review service and runner.");
 
@@ -447,16 +442,7 @@ async function startAiReviewStack(
     },
   );
 
-  const runner = supervisor.start(
-    "ai-review-runner",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-review-runner"],
-    {
-      env: buildAiReviewRunnerEnv(serverEnv, resources),
-    },
-  );
-
-  return [aiReview, runner];
+  return [aiReview];
 }
 
 async function run(

@@ -1,5 +1,4 @@
 import { localAiReviewBaseUrl } from "../aiReview/localAiReviewEndpoint.ts";
-import { localAiReviewRunnerPollMs } from "../aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "../chain/defaultHardhatPrivateKey.ts";
 import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
 import type { StackPorts } from "../localStack/ports.ts";
@@ -20,7 +19,6 @@ export function buildLocalServerEnv(
 ): NodeJS.ProcessEnv {
   return {
     AI_REVIEW_SERVICE_URL: localAiReviewBaseUrl(resources),
-    AI_REVIEW_RUNNER_POLL_MS: localAiReviewRunnerPollMs(),
     DATABASE_URL:
       process.env.DATABASE_URL ??
       `postgresql://postgres:postgres@localhost:5433/${resources.dbName}`,

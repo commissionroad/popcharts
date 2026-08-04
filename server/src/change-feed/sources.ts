@@ -126,8 +126,9 @@ export const CHANGE_FEED_SOURCES = {
   // market-page money detail with no per-user surface in v1.
   postgrad_dispute_events: { op: "insert", routes: ["market", "market-list"] },
   postgrad_dispute_bond_events: { op: "insert", routes: ["market"] },
-  // Off-chain review verdict / resolution decision: the market and its board badge.
-  market_ai_reviews: { op: "insert", routes: ["market", "market-list"] },
+  // Resolution decision: the market and its board badge. (The on-chain
+  // review verdict signal retired with the market-review runner, ADR 0022 P5;
+  // draft reviews poll and never had a channel here.)
   market_resolutions: { op: "insert", routes: ["market", "market-list"] },
   // Postgrad maker-order lifecycle: the market's order book and the maker's
   // open-orders/portfolio surfaces. The seam resolves pool→market from

@@ -162,10 +162,7 @@ describe("createDraftsApiClient requests", () => {
 
   it("records a confirmed publish transaction", async () => {
     const fetcher = stubFetch(
-      jsonResponse(
-        { bridgeApproved: true, draft: marketDraftFactory({ status: "published" }) },
-        200
-      )
+      jsonResponse({ draft: marketDraftFactory({ status: "published" }) }, 200)
     );
 
     const published = await client().markPublished(8, {
@@ -174,7 +171,7 @@ describe("createDraftsApiClient requests", () => {
       transactionHash: `0x${"cc".repeat(32)}`,
     });
 
-    expect(published.bridgeApproved).toBe(true);
+    expect(published.draft.status).toBe("published");
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts/8/published");
     expect(init?.method).toBe("POST");

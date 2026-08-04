@@ -5,7 +5,6 @@ import type {
   MarketResponse,
 } from "src/api/models/markets";
 import { transitionReviewedMarketOnChain } from "src/ai-review-runner/chain-review";
-import { marketStatusForReviewVerdict } from "src/ai-review-runner/jobs";
 import { DEFAULT_SCORES } from "src/ai-review/scoring";
 import type {
   ReviewResult,
@@ -17,6 +16,26 @@ import { and, db, eq, schema } from "src/db/client";
 
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import { serializeMarketRow } from "./markets";
+
+/**
+ * Verdict → projected market status for the on-chain review transition.
+ * Inlined from the retired market-review runner (ADR 0022 P5): this dev
+ * override is the last caller of the on-chain review path and is itself
+ * deleted when approveMarket/rejectMarket leave the contract.
+ */
+function marketStatusForReviewVerdict(
+  verdict: ReviewVerdict,
+): "bootstrap" | "rejected" | null {
+  if (verdict === "approve") {
+    return "bootstrap";
+  }
+
+  if (verdict === "reject") {
+    return "rejected";
+  }
+
+  return null;
+}
 
 type MarketRow = typeof schema.markets.$inferSelect;
 type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
