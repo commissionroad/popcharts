@@ -5,9 +5,12 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
+import type { MarketDraftPublishAuthorization } from "./marketDraftPublishAuthorization";
 
 export interface MarketDraftPublishParams {
+  authorization?: MarketDraftPublishAuthorization;
   bypassAiResolution: boolean;
+  collateral: string;
   graduationDeadline: string;
   graduationThreshold: string;
   liquidityParameter: string;
