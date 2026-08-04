@@ -94,9 +94,9 @@ export function ReviewCreditPanel({
         }
 
         if (Date.now() - startedAt > INDEXING_POLL_TIMEOUT_MS) {
-          if (!cancelled) {
-            setStalled(true);
-          }
+          // Setting state after an unmount is a silent no-op in React 18+,
+          // so this needs no cancelled guard of its own.
+          setStalled(true);
           return;
         }
 
@@ -175,10 +175,10 @@ export function ReviewCreditPanel({
             glow
             key={amount.toString()}
             onClick={() => {
-              if (beneficiary) {
-                setStalled(false);
-                credit.deposit(beneficiary, amount);
-              }
+              // The button is disabled without a beneficiary, so the click
+              // handler can assume one.
+              setStalled(false);
+              credit.deposit(beneficiary!, amount);
             }}
             size="lg"
           >

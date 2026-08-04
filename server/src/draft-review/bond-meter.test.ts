@@ -146,7 +146,9 @@ describe("readReviewRunRateWad", () => {
 
   it("reads the env override", () => {
     expect(
-      readReviewRunRateWad({ POPCHARTS_REVIEW_RUN_RATE_WAD: "200000000000000000" }),
+      readReviewRunRateWad({
+        POPCHARTS_REVIEW_RUN_RATE_WAD: "200000000000000000",
+      }),
     ).toBe(2n * (WAD / 10n));
   });
 

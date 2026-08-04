@@ -330,6 +330,24 @@ describe("useCreateDraftFlow autosave", () => {
 });
 
 describe("useCreateDraftFlow loading", () => {
+  it("exposes a credit fetcher bound to the draft's intended creator", async () => {
+    const credit = vi.fn(async () => ({
+      availableWad: "0",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 0,
+      runsUsed: 0,
+    }));
+    stubApi({ credit });
+    const { result } = renderFlow(12);
+
+    await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
+
+    expect(result.current.fetchCredit).not.toBeNull();
+    await result.current.fetchCredit!();
+    expect(credit).toHaveBeenCalledWith("0x90f79bf6eb2c4f870365e785982e1f101e93b906");
+  });
+
   it("loads an existing draft into the form", async () => {
     const api = stubApi({
       get: vi.fn(async () =>

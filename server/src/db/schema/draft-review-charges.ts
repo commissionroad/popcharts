@@ -63,7 +63,9 @@ export const draftReviewCharges = pgTable(
     /** Per-review-run rate in force when this row was written, same units.
      * Defaults to 0 only so the column could land on pre-amendment rows, which
      * predate the rate concept; every live insert sets it explicitly. */
-    rate: uint256("rate").notNull().default(sql`0`),
+    rate: uint256("rate")
+      .notNull()
+      .default(sql`0`),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
