@@ -8,7 +8,7 @@ sources:
   - docs/adr/0011-ai-review-service-hardening.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - server/README.md
-updated: 2026-07-17
+updated: 2026-08-04
 ---
 
 # AI review service and runner

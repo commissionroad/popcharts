@@ -80,8 +80,11 @@ by an operator action.
 ## Consequences
 
 An AI holding a resolver key is the highest-stakes automation in the system;
-the abstention threshold and operator delay window are the safety valves, both
-with conservative testnet defaults. Mirroring the review architecture doubles
+the abstention threshold and the dispute window are the safety valves, both
+with conservative testnet defaults. (The ADR's own Consequences section still
+says "operator delay window" here — that off-chain delay was superseded by the
+on-chain window in its own Decision section and never built; see
+[dispute window](../concepts/dispute-window.md).) Mirroring the review architecture doubles
 the runner/service processes the stack runs; local-dev orchestration and
 ADR 0015 must account for them.
 

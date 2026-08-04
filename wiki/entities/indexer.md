@@ -10,7 +10,7 @@ sources:
   - docs/portfolio-data-design.md
   - infra/README.md
   - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
-updated: 2026-07-29
+updated: 2026-08-04
 ---
 
 # Indexer

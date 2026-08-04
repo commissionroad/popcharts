@@ -4,7 +4,7 @@ title: Root README — quickstart, local stacks, and command menu
 description: Repo quickstart (mise/just/pnpm), the Process Compose local-dev stack and its retired entry points, local market creation, server layout, and the just command menu.
 sources:
   - README.md
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
 # Root README
@@ -17,7 +17,10 @@ the app, and bring up progressively larger local stacks.
 - **Quickstart**: install pinned CLI tools with `mise install`, then
   `just setup` and `just dev` (or the `pnpm run` equivalents). The default dev
   server is the Next.js app in `app/` (see
-  [app workspace](../entities/app-workspace.md)).
+  [app workspace](../entities/app-workspace.md)). In a restricted sandbox that
+  cannot write to user-level package stores, `mise exec -- just setup-sandbox`
+  installs into repo-local stores instead; `just setup` stays the standard human
+  path so pnpm and Bun keep their shared-store defaults (added 2026-07-30).
 - **Full local stack** (`just local-dev`): runs on the Process Compose control
   plane (`local-dev.control-plane.yaml`) as of 2026-08-03, so it needs
   `brew install f1bonacc1/tap/process-compose`. Bootstrap order is
@@ -59,6 +62,18 @@ the app, and bring up progressively larger local stacks.
   prints metadata without creating. The helper embeds canonical JSON metadata
   directly in the `MarketCreated` event so the indexer can recover and verify
   metadata without an app metadata POST.
+- **Dev-tools menu → Create form → Random market** (added 2026-07-30): on
+  `/create`, fills every field with the same generated crypto or weather market
+  `just local-create-market` would create, leaving the developer at the normal
+  Review and Create steps — nothing is created on-chain or persisted until they
+  click through. Like the rest of the gear menu it needs
+  `NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED=true`, which the local stack sets (so
+  the menu is invisible under a bare `next dev`). The generator is not
+  reimplemented: `scripts/` runs under `node --experimental-strip-types`, which
+  cannot load TypeScript from `node_modules`, so it cannot be published as a
+  package the app imports by specifier —
+  `app/src/integrations/local-market-generator/` reaches it by relative path
+  behind an eslint boundary that confines the reach to that shim.
 - **Command menu**: `just app-check` / `protocol-check` / `server-check` /
   `check` / `test` / `format`, `just devchain-e2e` (local chain deploy plus
   chain-backed Playwright smoke), `just local-smoke` (deploy local protocol,

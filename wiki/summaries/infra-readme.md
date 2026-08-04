@@ -4,7 +4,7 @@ title: Infra README
 description: AWS CDK deployment shape for API + indexer — ECS Fargate, RDS Postgres + Proxy, Secrets Manager, optional ALB, two-phase enableServices deploy, singleton indexer, and the operator alarms (resolution disputes, out-of-order status projections)
 sources:
   - infra/README.md
-updated: 2026-07-29
+updated: 2026-08-04
 ---
 
 # Infra README
