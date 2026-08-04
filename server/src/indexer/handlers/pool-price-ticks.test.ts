@@ -279,6 +279,44 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
     expect(await liveSignals()).toHaveLength(2);
   });
 
+  it("never forward-fills from a sibling tick later in chain order", async () => {
+    // Overlapping sweep/live delivery can commit a LATER sibling swap before
+    // an EARLIER event of this pool is processed. The forward-fill must be
+    // bounded to chain coordinates before the event, or an old payload gets a
+    // future price (Codex P2 review finding). Seed a future NO tick, then
+    // process a YES event from an earlier block: the payload must fall back
+    // to NO's last tick at-or-before that block — here, its opening price.
+    await dbc.insert(schema.poolPriceTicks).values(
+      tickRecord({
+        blockNumber: 999n,
+        logIndex: 0,
+        poolId: NO_POOL_ID,
+        sequence: 9n,
+        tick: 7755,
+        transactionHash: `0x${"a1".repeat(32)}`,
+      }),
+    );
+
+    await persistPoolPriceTickRecord(
+      tickRecord({
+        blockNumber: 300n,
+        logIndex: 2,
+        poolId: YES_POOL_ID,
+        sequence: 3n,
+        tick: -6900,
+        transactionHash: `0x${"a2".repeat(32)}`,
+      }),
+      dbc,
+      dependencies,
+    );
+
+    const signals = await liveSignals();
+    const payload = signals.at(-1)?.payload as { noPriceCents: number };
+    // Block 300 predates every recorded NO tick (321 and 999), so NO forward-
+    // fills from the opening price — not from the future 7755 tick.
+    expect(payload.noPriceCents).toBe(venueOpeningCents(marketLmsr, "no"));
+  });
+
   it("degrades to a payload-less nudge when the sibling pool is not indexed", async () => {
     await persistPoolPriceTickRecord(
       tickRecord({ logIndex: 11, poolId: LONELY_POOL_ID, sequence: 1n }),
@@ -287,8 +325,7 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
     );
 
     const signals = await liveSignals();
-    expect(signals).toHaveLength(3);
-    expect(signals[2]).toMatchObject({
+    expect(signals.at(-1)).toMatchObject({
       marketId: String(LONELY_MARKET_ID),
       payload: null,
     });
@@ -306,10 +343,9 @@ describe("persistPoolPriceTickRecord against real SQL (PGlite)", () => {
     );
 
     const signals = await liveSignals();
-    expect(signals).toHaveLength(4);
     // The tick row still lands (paper trail) and the market still hears a
     // nudge — only the incremental payload is lost.
-    expect(signals[3]).toMatchObject({
+    expect(signals.at(-1)).toMatchObject({
       marketId: String(MARKET_ID),
       payload: null,
     });

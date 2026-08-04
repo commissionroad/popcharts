@@ -327,10 +327,7 @@ function tickSignal(
       owner: null,
       blockNumber: null,
       logIndex: null,
-      tick:
-        fields === null
-          ? null
-          : { t: TICK_TIME, stream: "receipts", ...fields },
+      tick: fields === null ? null : { t: TICK_TIME, stream: "receipts", ...fields },
     }),
   };
 }

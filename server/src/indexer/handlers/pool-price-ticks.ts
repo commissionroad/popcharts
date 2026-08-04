@@ -4,7 +4,7 @@ import type { Log } from "viem";
 import { createReadOnlyClient } from "src/blockchain/client";
 import { recordLiveChange } from "src/change-feed/writer";
 import type { NetworkConfig } from "src/config";
-import { and, db, desc, eq, ne, schema } from "src/db/client";
+import { and, db, desc, eq, lt, ne, or, schema } from "src/db/client";
 import { logValueRequirer } from "src/indexer/utils/log-values";
 import {
   createCollateralDecimalsReader,
@@ -183,13 +183,25 @@ async function buildVenuePriceTick({
     tick: record.tick,
   });
 
+  // Bounded to chain coordinates strictly before this event, not "latest
+  // committed": the watcher explicitly allows a sweep and live delivery to
+  // overlap, so a later sibling swap can be in the table before an earlier
+  // event of this pool is processed — an unbounded lookup would stamp the
+  // earlier payload with a future price (Codex P2 review finding).
   const siblingLastTick = await tx.query.poolPriceTicks.findFirst({
     where: and(
       eq(schema.poolPriceTicks.chainId, record.chainId),
       eq(schema.poolPriceTicks.poolId, sibling.poolId),
+      or(
+        lt(schema.poolPriceTicks.blockNumber, record.blockNumber),
+        and(
+          eq(schema.poolPriceTicks.blockNumber, record.blockNumber),
+          lt(schema.poolPriceTicks.logIndex, record.logIndex),
+        ),
+      ),
     ),
     orderBy: [
-      desc(schema.poolPriceTicks.blockTimestamp),
+      desc(schema.poolPriceTicks.blockNumber),
       desc(schema.poolPriceTicks.logIndex),
     ],
   });
