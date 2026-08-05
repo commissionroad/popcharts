@@ -10,7 +10,8 @@ sources:
   - protocol/docs/CODE_GUIDELINES.md
   - docs/architecture.md
   - docs/adr/0017-test-observability-and-coverage-program.md
-updated: 2026-07-14
+  - docs/adr/0023-protocol-security-audit-program.md
+updated: 2026-08-05
 ---
 
 # protocol/ workspace
@@ -68,9 +69,21 @@ Track G moves those modules into `protocol/src/` (`src/price/`,
 `src/market/`), makes `scripts/` import from `src/` only (lint-guarded),
 and gives protocol TS its own coverage figure and floor.
 
+## Security audit surface (ADR 0023, Phase 0)
+
+The workspace is the target of the security audit program
+([ADR 0023](../summaries/root-adr-0023-protocol-security-audit-program.md)):
+~5,250 lines of Solidity across 22 files that hold and move value. Phase 0
+tooling landed — `protocol/scripts/security/slither.sh` (with two helpers that
+reshape Hardhat 3 build-info for Slither's API), `slither.config.json`, and
+`protocol/test/solidity/security/` — with a baseline of **2 High, 16 Medium**
+in scope. The 42-item catalogue itself is unstarted and
+`protocol/docs/security/audit/` holds no findings yet.
+
 ## Related pages
 
 - [PregradManager](pregrad-manager.md), [postgrad market](postgrad-market.md),
   [postgrad v4 venue](postgrad-v4-venue.md)
 - [Testing strategy](../concepts/testing-strategy.md)
 - [Mechanism whitepaper](../concepts/mechanism-whitepaper.md) — golden-test source
+- [ADR 0023 — protocol security audit program](../summaries/root-adr-0023-protocol-security-audit-program.md)
