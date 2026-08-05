@@ -1632,3 +1632,32 @@ which revision; its filename keeps the stale `v4` slug deliberately.
 Follow-up: `wiki/concepts/product-honesty-rule.md` was not re-read this pass
 and may need a line about not presenting withdrawal as free exit — ADR 0014
 measures ~86% of a book as still locked.
+
+## [2026-08-05] ingest | repo ADR 0022 amendment — draft public id + published-market review link
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~entities/ai-review-service.md, ~index.md
+Notes: Two amendments folded in, both already landed (#465, #468, #469). The
+substantive one closes a question this ADR had explicitly left open: its draft
+review data-model section said a published market keeps a review linkage "only
+if we later choose to copy the winning draft-review into a market-scoped audit
+row". P5 forced the answer by leaving `market_ai_reviews` with no writer while
+the market detail page still read from it, so every market created after P5
+rendered no review at all. Decided by **join, not copy** — copying would make a
+second source of truth for one fact. The join is safe only because publish
+already refuses a draft changed since review and verifies the on-chain
+metadataHash, so the reviewed snapshot is provably the live market's metadata;
+worth remembering that the linkage rests on that guarantee rather than on
+convention. The second amendment is the draft `public_id` (16 chars, 32-symbol
+alphabet with look-alikes removed, serial `id` retained as the primary key so
+the review/job/charge FKs stay integers).
+
+Two corrections made in passing. `index.md`'s ADR 0022 line still claimed "the
+contract gate is still open, so `createMarket` remains ungated and publish
+force-approves over it" — false since P4/P5 landed on 2026-08-04, and it
+contradicted the summary page's own status paragraph. Rewritten. And the P5
+leftover recorded as "the admin re-review service and the historical
+`market_ai_reviews`/`market_ai_review_jobs` tables" has split in two: the
+reviews table is no longer cruft (it is read-only history with a live reader),
+while `market_ai_review_jobs` is worse than recorded — the admin re-review
+service still enqueues into it and no worker has claimed that queue since P5,
+so those jobs go nowhere. Called out on the entity page rather than silently
+dropped; it is a live bug, not a cleanup item.
