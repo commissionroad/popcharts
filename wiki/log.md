@@ -1755,16 +1755,3 @@ Follow-ups for next lint:
 - Re-check whether ADR 0023's `Status: Proposed` and ADR 0025's `Status:
   Proposed` get corrected at the source; both now contradict their own
   checklists.
-
-## [2026-08-05] ingest | repo ADR 0022 — deadline-timing amendment
-Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
-Notes: New amendment section in the ADR (dated 2026-08-05): the resolution
-deadline becomes an absolute timestamp (`resolution_deadline_at`) while the
-graduation window stays a relative duration, each stored only in the
-representation the creator edits; adds P9 (open). Driven by a live smoke
-finding — a Dec-31-anchored question published with a "1 week after publish"
-resolution window, approved because the reviewer never sees resolved dates.
-Merge note: this ingest landed alongside the same-day public-id amendment
-ingest and the 2026-08-05 lint (both above), which had already refreshed the
-stale index line — this entry now only appends the deadline-timing clause to
-it and adds the P9 entry + amendment section to the summary.
