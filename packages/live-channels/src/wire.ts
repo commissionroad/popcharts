@@ -40,6 +40,15 @@ export interface PriceTickWire {
   sequence: number;
   yesPriceCents: number;
   noPriceCents: number;
+  /** The market's post-trade band-pass matched market cap in USD — the
+   * graduation bar's numerator. A TOTAL, not a delta: totals survive dropped
+   * or replayed frames without accumulation drift. Receipts-stream ticks
+   * only; venue swaps do not move pregrad matching. */
+  matchedUsd?: number;
+  /** The market's post-trade total escrowed volume in USD. Same
+   * total-not-delta contract as {@link PriceTickWire.matchedUsd};
+   * receipts-stream ticks only. */
+  volumeUsd?: number;
 }
 
 /** The wire body of a `change` frame. All bigints are strings: JSON has no
@@ -159,7 +168,9 @@ export function parsePriceTick(raw: unknown): PriceTickWire | null {
     tick.stream.length === 0 ||
     typeof tick.sequence !== "number" ||
     typeof tick.yesPriceCents !== "number" ||
-    typeof tick.noPriceCents !== "number"
+    typeof tick.noPriceCents !== "number" ||
+    !isAbsentOrNumber(tick.matchedUsd) ||
+    !isAbsentOrNumber(tick.volumeUsd)
   ) {
     return null;
   }
@@ -170,7 +181,16 @@ export function parsePriceTick(raw: unknown): PriceTickWire | null {
     sequence: tick.sequence,
     yesPriceCents: tick.yesPriceCents,
     noPriceCents: tick.noPriceCents,
+    ...(tick.matchedUsd === undefined ? {} : { matchedUsd: tick.matchedUsd }),
+    ...(tick.volumeUsd === undefined ? {} : { volumeUsd: tick.volumeUsd }),
   };
+}
+
+/** An optional wire number: absent is fine, present must be a number — a
+ * malformed value degrades the whole tick to null (frame becomes a nudge)
+ * rather than smuggling NaN into a display. */
+function isAbsentOrNumber(value: unknown): value is number | undefined {
+  return value === undefined || typeof value === "number";
 }
 
 /** The default `reset` reason, used when the frame carries no usable one. */

@@ -181,4 +181,25 @@ describe("parsePriceTick", () => {
     const { noPriceCents: _dropped, ...withoutNo } = base;
     expect(parsePriceTick(withoutNo)).toBeNull();
   });
+
+  it("carries the optional post-trade totals, absent or well-typed only", () => {
+    const base = {
+      t: "2026-07-24T00:00:00.000Z",
+      stream: "receipts",
+      sequence: 7,
+      yesPriceCents: 51.2,
+      noPriceCents: 48.8,
+    };
+
+    // Absent totals stay absent — an older emitter's tick is still a tick.
+    expect(parsePriceTick(base)).toEqual(base);
+
+    const withTotals = { ...base, matchedUsd: 812.5, volumeUsd: 1_204.75 };
+    expect(parsePriceTick(withTotals)).toEqual(withTotals);
+
+    // Present-but-malformed degrades the whole tick to a nudge rather than
+    // smuggling a non-number into a display.
+    expect(parsePriceTick({ ...base, matchedUsd: "812" })).toBeNull();
+    expect(parsePriceTick({ ...base, volumeUsd: null })).toBeNull();
+  });
 });

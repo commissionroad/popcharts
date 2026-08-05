@@ -253,6 +253,13 @@
       "when": 1785874145258,
       "tag": "0035_dapper_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1785890744076,
+      "tag": "0036_curvy_captain_america",
+      "breakpoints": true
     }
   ]
 }

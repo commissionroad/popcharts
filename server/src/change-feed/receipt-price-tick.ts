@@ -22,6 +22,8 @@ export function buildPriceTick(args: {
   openingProbabilityWad: bigint;
   yesSharesWad: bigint;
   noSharesWad: bigint;
+  matchedMarketCapWad: bigint;
+  totalEscrowedWad: bigint;
 }): PriceTickWire {
   const yesPriceCents = currentYesPriceCents({
     b: wadToNumber(args.liquidityParameterWad),
@@ -39,5 +41,10 @@ export function buildPriceTick(args: {
     sequence: Number(args.sequence),
     yesPriceCents,
     noPriceCents: 100 - yesPriceCents,
+    // Post-trade TOTALS, not deltas (see the wire contract): the graduation
+    // bar and volume/receipt metrics move live off the same frame as the
+    // price, and a dropped or replayed frame cannot drift an accumulator.
+    matchedUsd: wadToNumber(args.matchedMarketCapWad),
+    volumeUsd: wadToNumber(args.totalEscrowedWad),
   };
 }
