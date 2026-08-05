@@ -102,25 +102,6 @@ export const MarketMetadataSchema = t.Object(
   { $id: "MarketMetadata" },
 );
 
-/** Client-supplied market metadata payload; the hash must match the on-chain commitment. */
-export const MarketMetadataWriteSchema = t.Object(
-  {
-    category: t.String({ minLength: 1 }),
-    createdAt: t.String({ minLength: 1 }),
-    description: t.String(),
-    metadataHash: t.String({
-      pattern: "^0x[0-9a-fA-F]{64}$",
-    }),
-    outcomeNo: t.Optional(t.String({ maxLength: 40, minLength: 1 })),
-    outcomeYes: t.Optional(t.String({ maxLength: 40, minLength: 1 })),
-    question: t.String({ minLength: 1 }),
-    resolutionCriteria: t.String({ minLength: 1 }),
-    resolutionSources: t.Optional(t.Array(t.String())),
-    resolutionUrl: t.Optional(t.String()),
-  },
-  { $id: "MarketMetadataWrite" },
-);
-
 /** Backend that produced an AI review. */
 export const AiReviewProviderSchema = literalUnion(REVIEW_PROVIDER_NAMES, {
   $id: "AiReviewProvider",
@@ -684,7 +665,6 @@ export const DevMarketResolveIneligibleSchema = t.Object(
 export type MarketResponse = Static<typeof MarketSchema>;
 export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
-export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
   typeof MarketCreatedEventSchema
 >;
