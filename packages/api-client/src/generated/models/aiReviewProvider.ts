@@ -15,4 +15,5 @@ export const AiReviewProvider = {
   "codex-cli": "codex-cli",
   heuristic: "heuristic",
   ollama: "ollama",
+  openai: "openai",
 } as const;

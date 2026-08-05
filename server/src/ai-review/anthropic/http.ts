@@ -65,7 +65,9 @@ export async function callAnthropicMessages({
   config,
   model,
   request,
+  system,
   tools,
+  userContent,
 }: {
   config: Pick<
     AiReviewConfig,
@@ -76,7 +78,11 @@ export async function callAnthropicMessages({
   >;
   model: string;
   request: MarketReviewRequest;
+  /** Overrides the default system prompt; used by precollected-evidence mode. */
+  system?: string;
   tools: AnthropicTool[];
+  /** Overrides the default user message; used by precollected-evidence mode. */
+  userContent?: string;
 }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
@@ -84,20 +90,22 @@ export async function callAnthropicMessages({
     max_tokens: config.anthropicMaxOutputTokens,
     messages: [
       {
-        content: JSON.stringify(
-          {
-            internetAccess: request.options?.internetAccess,
-            market: request.context ?? {},
-            metadata: request.metadata,
-          },
-          null,
-          2,
-        ),
+        content:
+          userContent ??
+          JSON.stringify(
+            {
+              internetAccess: request.options?.internetAccess,
+              market: request.context ?? {},
+              metadata: request.metadata,
+            },
+            null,
+            2,
+          ),
         role: "user",
       },
     ],
     model,
-    system: buildSystemPrompt(),
+    system: system ?? buildSystemPrompt(),
     temperature: 0,
   };
 

@@ -1,4 +1,5 @@
 import type { AiReviewConfig } from "../config";
+import { validateEvidenceConfig } from "../evidence";
 import type {
   ConfigValidationResult,
   ReviewProviderCapabilities,
@@ -9,6 +10,7 @@ import { claudeCliProvider } from "./claude-cli";
 import { codexCliProvider } from "./codex-cli";
 import { heuristicProvider } from "./heuristic";
 import { ollamaProvider } from "./ollama";
+import { openaiProvider } from "./openai";
 import type { ReviewProvider } from "./types";
 
 /**
@@ -33,6 +35,7 @@ export const reviewProviders = {
   "codex-cli": codexCliProvider,
   heuristic: heuristicProvider,
   ollama: ollamaProvider,
+  openai: openaiProvider,
 } satisfies Record<ReviewProviderName, ReviewProvider>;
 
 /** Looks up a provider by name; total over ReviewProviderName, never throws. */
@@ -52,7 +55,20 @@ export function getReviewProviderStatus({
   providerName?: ReviewProviderName;
 }): ReviewProviderRuntimeStatus {
   const provider = getReviewProvider(providerName);
-  const validation = provider.validateConfig(config);
+  const providerValidation = provider.validateConfig(config);
+  // The evidence path is service-level rather than per-provider, but it is
+  // only reachable for a provider that actually consumes collected evidence —
+  // so it is checked here, against the provider being reported on.
+  const evidenceValidation = validateEvidenceConfig({
+    config,
+    usesPreCollectedEvidence:
+      provider.capabilities.requiresPreCollectedEvidence ||
+      config.evidenceMode === "precollected",
+  });
+  const validation = {
+    errors: [...providerValidation.errors, ...evidenceValidation.errors],
+    warnings: [...providerValidation.warnings, ...evidenceValidation.warnings],
+  };
 
   return {
     capabilities: provider.capabilities,
@@ -95,6 +111,10 @@ export function modelForProvider(
 
   if (providerName === "ollama") {
     return config.ollamaModel;
+  }
+
+  if (providerName === "openai") {
+    return config.openaiModel;
   }
 
   return undefined;

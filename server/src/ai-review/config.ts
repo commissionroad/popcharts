@@ -5,8 +5,18 @@ import {
   readPositiveIntegerOrFallback,
 } from "src/shared/config-env";
 
-import { INTERNET_ACCESS_MODES, REVIEW_PROVIDER_NAMES } from "./types";
-import type { InternetAccessMode, ReviewProviderName } from "./types";
+import {
+  EVIDENCE_MODES,
+  INTERNET_ACCESS_MODES,
+  REVIEW_PROVIDER_NAMES,
+  SEARCH_PROVIDER_NAMES,
+} from "./types";
+import type {
+  EvidenceMode,
+  InternetAccessMode,
+  ReviewProviderName,
+  SearchProviderName,
+} from "./types";
 
 /**
  * Version tag persisted with every review so stored verdicts can be traced to
@@ -40,14 +50,23 @@ export type AiReviewConfig = {
    * rejects harmful markets regardless of this flag.
    */
   fallbackApprove: boolean;
+  evidenceMode: EvidenceMode;
   fetchSearchResults: boolean;
   internetAccess: InternetAccessMode;
   maxFetchBytes: number;
   maxSearchResults: number;
   ollamaBaseUrl: string;
   ollamaModel: string;
+  tavilyApiKey?: string;
+  tavilyBaseUrl: string;
+  tavilySearchDepth: string;
+  openaiApiKey?: string;
+  openaiBaseUrl: string;
+  openaiMaxOutputTokens: number;
+  openaiModel: string;
   port: number;
   provider: ReviewProviderName;
+  searchProvider: SearchProviderName;
   requestTimeoutMs: number;
   retryProviderFailures: boolean;
   userAgent: string;
@@ -92,6 +111,15 @@ export const aiReviewConfig: AiReviewConfig = {
     process.env.AI_REVIEW_FALLBACK_APPROVE,
     false,
   ),
+  // See the provider default below: evidence is collected once, by us, and
+  // handed to the model with no tools. This is also what makes the audit
+  // trail ours by construction rather than parsed out of a vendor's tool
+  // records.
+  evidenceMode: readEnumOrFallback(
+    process.env.AI_REVIEW_EVIDENCE_MODE,
+    EVIDENCE_MODES,
+    "precollected",
+  ),
   fetchSearchResults: readBooleanOrFallback(
     process.env.AI_REVIEW_FETCH_SEARCH_RESULTS,
     false,
@@ -111,17 +139,49 @@ export const aiReviewConfig: AiReviewConfig = {
   ),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   ollamaModel: process.env.AI_REVIEW_OLLAMA_MODEL ?? "gpt-oss:20b",
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com",
+  openaiMaxOutputTokens: readPositiveIntegerOrFallback(
+    process.env.AI_REVIEW_OPENAI_MAX_OUTPUT_TOKENS,
+    2048,
+  ),
+  // Pinned rather than left to an alias for the same reason codexCliModel is:
+  // an alias can be repointed at a different tier server-side, changing both
+  // verdict quality and cost without a deploy here.
+  openaiModel: process.env.AI_REVIEW_OPENAI_MODEL ?? "gpt-5.6-luna",
   port: readPositiveIntegerOrFallback(process.env.AI_REVIEW_PORT, 3002),
-  // The local orchestrators set AI_REVIEW_PROVIDER explicitly and carry their
-  // own copy of this default in scripts/shared/aiReview/buildAiReviewEnv.ts;
-  // scripts/ deliberately never imports server/src, so the two cannot share a
-  // constant. Change both together or the local stack and a deployed service
-  // silently run different providers.
+  // These three defaults are one decision: deployed review runs Claude over
+  // evidence we collected ourselves. Measured over 26 cases x 3 runs, that
+  // scores identically to letting Claude browse (0.962 accuracy either way)
+  // at $0.040 per review against roughly $0.113, with one fewer failure and
+  // about 40% lower latency — because our own retrieval puts ~4k tokens in
+  // context where native search puts ~20k.
+  //
+  // Local development deliberately differs: the orchestrators set
+  // AI_REVIEW_PROVIDER=claude-cli in
+  // scripts/shared/aiReview/buildAiReviewEnv.ts so a working local stack needs
+  // no API keys, only a logged-in Claude Code. scripts/ never imports
+  // server/src, so the split is maintained in both places on purpose rather
+  // than shared.
   provider: readEnumOrFallback(
     process.env.AI_REVIEW_PROVIDER,
     REVIEW_PROVIDER_NAMES,
-    "codex-cli",
+    "anthropic",
   ),
+  // Which engine backs the pre-collected-evidence path. Tavily returns page
+  // text inline, so a review makes no outbound page fetches of its own, and
+  // it can read primary sources that refuse our crawler — bls.gov,
+  // congress.gov and oscars.org all return 403 to the built-in fetcher and
+  // full text through Tavily. Requires TAVILY_API_KEY; `duckduckgo` is the
+  // key-free fallback used by the local stack.
+  searchProvider: readEnumOrFallback(
+    process.env.AI_REVIEW_SEARCH_PROVIDER,
+    SEARCH_PROVIDER_NAMES,
+    "tavily",
+  ),
+  tavilyApiKey: process.env.TAVILY_API_KEY,
+  tavilyBaseUrl: process.env.TAVILY_BASE_URL ?? "https://api.tavily.com",
+  tavilySearchDepth: process.env.AI_REVIEW_TAVILY_SEARCH_DEPTH ?? "basic",
   // Sized for the default codex-cli provider, which spawns a headless coding
   // CLI (tens of seconds to a few minutes); claude-cli is the same order. The
   // faster API/heuristic paths return well under this ceiling, so a generous

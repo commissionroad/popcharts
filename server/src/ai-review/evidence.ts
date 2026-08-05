@@ -4,6 +4,7 @@ import {
   safeFetchEvidence,
   searchWebEvidence,
 } from "./safe-web";
+import { searchTavilyEvidence } from "./tavily";
 import type { EvidenceItem, MarketReviewRequest } from "./types";
 
 /**
@@ -14,6 +15,45 @@ import type { EvidenceItem, MarketReviewRequest } from "./types";
  * helpers, and per-URL failures become "unreachable" evidence items instead of
  * aborting the review.
  */
+/**
+ * Config errors in the evidence-collection path, for whichever provider is
+ * active.
+ *
+ * This exists because the failure it catches is silent. `collectEvidence`
+ * turns a search error into an "unreachable" evidence item rather than
+ * throwing, so a deployment configured for Tavily without a key does not
+ * crash — it produces reviews with no evidence, which caps corroboration and
+ * sourceQuality at 1 and sends everything to manual_review. That looks like a
+ * cautious model rather than a broken deployment, and nothing in the response
+ * says otherwise. Surfacing it as a readiness error is the difference between
+ * a service that refuses to start and one that quietly reviews nothing.
+ */
+export function validateEvidenceConfig({
+  config,
+  usesPreCollectedEvidence,
+}: {
+  config: Pick<
+    AiReviewConfig,
+    "internetAccess" | "searchProvider" | "tavilyApiKey"
+  >;
+  usesPreCollectedEvidence: boolean;
+}): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!usesPreCollectedEvidence || config.internetAccess === "off") {
+    return { errors, warnings };
+  }
+
+  if (config.searchProvider === "tavily" && !config.tavilyApiKey) {
+    errors.push(
+      "TAVILY_API_KEY is required when AI_REVIEW_SEARCH_PROVIDER=tavily.",
+    );
+  }
+
+  return { errors, warnings };
+}
+
 export async function collectEvidence({
   config,
   request,
@@ -69,12 +109,16 @@ export async function collectEvidence({
   for (const query of queries) {
     try {
       evidence.push(
-        ...(await searchWebEvidence({
-          config,
-          fetchResults,
-          maxResults,
-          query,
-        })),
+        ...(config.searchProvider === "tavily"
+          ? // Tavily returns page text with each hit, so fetchSearchResults
+            // does not apply: there is nothing left to fetch.
+            await searchTavilyEvidence({ config, maxResults, query })
+          : await searchWebEvidence({
+              config,
+              fetchResults,
+              maxResults,
+              query,
+            })),
       );
     } catch (error) {
       evidence.push({
@@ -83,7 +127,10 @@ export async function collectEvidence({
         sourceTier: "unreachable",
         summary:
           error instanceof Error ? error.message : "Could not search the web.",
-        url: "https://lite.duckduckgo.com/lite/",
+        url:
+          config.searchProvider === "tavily"
+            ? "https://api.tavily.com/search"
+            : "https://lite.duckduckgo.com/lite/",
       });
     }
   }

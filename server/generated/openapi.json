@@ -1696,7 +1696,8 @@
           "claude-cli",
           "codex-cli",
           "heuristic",
-          "ollama"
+          "ollama",
+          "openai"
         ]
       },
       "AiReviewScoreRationales": {
