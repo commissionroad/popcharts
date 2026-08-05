@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CreateDraftPage } from "@/features/market-create/create-draft-page";
+import { readDraftIdParam } from "@/lib/draft-url";
 
 export const metadata: Metadata = {
   title: "Create",
@@ -14,12 +15,10 @@ type PageProps = {
 
 export default async function Page({ searchParams }: PageProps) {
   const { draft } = await searchParams;
-  const parsedDraftId = draft ? Number.parseInt(draft, 10) : Number.NaN;
-  const initialDraftId = Number.isSafeInteger(parsedDraftId) ? parsedDraftId : null;
 
   return (
     <CreateDraftPage
-      initialDraftId={initialDraftId}
+      initialDraftId={readDraftIdParam(draft)}
       initialNow={new Date().toISOString()}
     />
   );

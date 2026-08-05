@@ -948,6 +948,91 @@ async function selectOwnedDraft(
   return rows[0] ?? null;
 }
 
+/**
+ * One published market's approving draft review. Deliberately not pre-keyed:
+ * the market services own the `chainId:marketId` key format for their review
+ * maps, and mirroring it here would be a second definition to drift.
+ */
+export type PublishedMarketDraftReview = {
+  chainId: number;
+  marketId: bigint;
+  review: DraftReviewRow;
+};
+
+/**
+ * Resolves published markets back to the draft review that approved them.
+ *
+ * This is the only review source for markets created after ADR 0022 P5 retired
+ * the on-chain review path: nothing writes `market_ai_reviews` any more, so
+ * without this join a published market carries no review at all.
+ *
+ * Only reviews of the draft's *submitted* snapshot count, and exactly one row
+ * comes back per market. A draft accumulates one review row per submission,
+ * and resubmitting unchanged content adds another row against the same hash,
+ * so rows are narrowed to the published snapshot and reduced to the newest —
+ * the last word on the content that actually shipped, never a stale verdict on
+ * since-edited text. Publish enforces that this snapshot is what went on
+ * chain, so the review always describes the live market's metadata.
+ */
+export async function latestReviewsForPublishedMarkets({
+  chainIds,
+  marketIds,
+}: {
+  chainIds: number[];
+  marketIds: bigint[];
+}): Promise<PublishedMarketDraftReview[]> {
+  if (chainIds.length === 0 || marketIds.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      chainId: schema.marketDrafts.publishedChainId,
+      marketId: schema.marketDrafts.publishedMarketId,
+      review: schema.marketDraftReviews,
+    })
+    .from(schema.marketDraftReviews)
+    .innerJoin(
+      schema.marketDrafts,
+      eq(schema.marketDrafts.id, schema.marketDraftReviews.draftId),
+    )
+    .where(
+      and(
+        inArray(schema.marketDrafts.publishedChainId, chainIds),
+        inArray(schema.marketDrafts.publishedMarketId, marketIds),
+        eq(
+          schema.marketDraftReviews.metadataHash,
+          schema.marketDrafts.submittedMetadataHash,
+        ),
+      ),
+    )
+    .orderBy(
+      desc(schema.marketDraftReviews.reviewedAt),
+      desc(schema.marketDraftReviews.id),
+    );
+
+  const latest = new Map<string, PublishedMarketDraftReview>();
+
+  for (const { chainId, marketId, review } of rows) {
+    // The publish columns are nullable together; the inArray filters already
+    // exclude nulls, so this only narrows the types.
+    if (chainId === null || marketId === null) {
+      continue;
+    }
+
+    // Rows arrive newest-first, so the first sighting of a market is its
+    // latest review. The key is local to this dedupe and never escapes — the
+    // caller keys the results with its own review-map format.
+    const key = `${chainId}:${marketId}`;
+
+    if (!latest.has(key)) {
+      latest.set(key, { chainId, marketId, review });
+    }
+  }
+
+  return [...latest.values()];
+}
+
 async function latestReviewsFor(
   draftIds: number[],
 ): Promise<Map<number, DraftReviewRow>> {

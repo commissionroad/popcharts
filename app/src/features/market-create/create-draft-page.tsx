@@ -11,7 +11,7 @@ import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credi
 import { CreateDraftForm } from "./create-draft-form";
 import { ApprovedPanel } from "./draft-panels/approved-panel";
 import { DraftPreviewPanel } from "./draft-panels/draft-preview-panel";
-import { FeedbackPanel } from "./draft-panels/feedback-panel";
+import { FeedbackPanel, ReviewScorePanel } from "./draft-panels/feedback-panel";
 import { PublishedPanel } from "./draft-panels/published-panel";
 import { ReviewCreditPanel } from "./draft-panels/review-credit-panel";
 import { ReviewProgressPanel } from "./draft-panels/review-progress-panel";
@@ -158,14 +158,20 @@ function renderStagePanel(
 
   if (flow.stage === "approved" && serverDraft) {
     return (
-      <ApprovedPanel
-        creationFeeLabel={creationFeeLabel}
-        draft={serverDraft}
-        graduationThreshold={flow.preview.graduationThreshold}
-        isPublishing={flow.isPublishing}
-        onPublish={() => void flow.publish()}
-        walletAction={flow.walletAction}
-      />
+      <>
+        <ApprovedPanel
+          creationFeeLabel={creationFeeLabel}
+          draft={serverDraft}
+          graduationThreshold={flow.preview.graduationThreshold}
+          isPublishing={flow.isPublishing}
+          onPublish={() => void flow.publish()}
+          walletAction={flow.walletAction}
+        />
+        {/* Approved is not the same as strong. The scores stay reachable so a
+            creator can see a weak dimension and choose to keep polishing
+            instead of publishing on the strength of a green check. */}
+        {latestReview ? <ReviewScorePanel review={latestReview} /> : null}
+      </>
     );
   }
 
@@ -186,13 +192,24 @@ function renderStagePanel(
   }
 
   return (
-    <DraftPreviewPanel
-      canPersist={flow.canPersist}
-      draft={flow.formDraft}
-      errorCount={flow.errorCount}
-      isSubmitting={flow.isSubmitting}
-      onSubmit={() => void flow.submitForReview()}
-      preview={flow.preview}
-    />
+    <>
+      <DraftPreviewPanel
+        canPersist={flow.canPersist}
+        draft={flow.formDraft}
+        errorCount={flow.errorCount}
+        isSubmitting={flow.isSubmitting}
+        onSubmit={() => void flow.submitForReview()}
+        preview={flow.preview}
+      />
+      {/* Editing after an approval lands here. The last scores are the only
+          guide to what still needs work, so they stay — flagged stale once the
+          form no longer hashes to what was reviewed. */}
+      {latestReview ? (
+        <ReviewScorePanel
+          review={latestReview}
+          stale={latestReview.metadataHash !== flow.preview.metadataHash}
+        />
+      ) : null}
+    </>
   );
 }

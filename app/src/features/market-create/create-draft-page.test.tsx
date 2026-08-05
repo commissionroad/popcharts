@@ -162,6 +162,63 @@ describe("CreateDraftPage", () => {
     expect(flow.publish).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the review scores reachable on an approved draft", () => {
+    const review = draftReviewFactory();
+
+    stubFlow({
+      latestReview: review,
+      serverDraft: marketDraftFactory({ status: "approved" }),
+      stage: "approved",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    // Approved is not the same as strong: a weak dimension has to stay visible
+    // next to the publish button, not be replaced by a green check.
+    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    expect(screen.getByText("Corroboration")).toBeInTheDocument();
+    expect(screen.getByText(review.scoreRationales.corroboration)).toBeInTheDocument();
+  });
+
+  it("omits the score panel on an approved draft that has no review", () => {
+    stubFlow({
+      latestReview: null,
+      serverDraft: marketDraftFactory({ status: "approved" }),
+      stage: "approved",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.queryByText("Review scores")).not.toBeInTheDocument();
+  });
+
+  it("keeps the last scores while editing, flagged stale once the draft changes", () => {
+    stubFlow({ latestReview: draftReviewFactory(), stage: "editing" });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Scores from last review")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Resubmit to score the current version/)
+    ).toBeInTheDocument();
+  });
+
+  it("does not flag the scores stale when the draft still hashes to the review", () => {
+    stubFlow({
+      latestReview: draftReviewFactory({
+        metadataHash: buildCreateMarketPreview(draftFixture()).metadataHash,
+      }),
+      stage: "editing",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Resubmit to score the current version/)
+    ).not.toBeInTheDocument();
+  });
+
   it("charges the devchain creation fee label when configured", () => {
     configState.marketCreationMode = "devchain";
     stubFlow({

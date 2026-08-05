@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
+import { createDraftHref } from "@/lib/draft-url";
 
 /** Status → chip color + label for draft cards. */
 export const DRAFT_STATUS_META: Record<
@@ -105,7 +106,7 @@ export function DraftCard({
 
       <Link
         className="focus-ring font-display line-clamp-2 min-h-11 text-lg leading-snug font-bold hover:text-[var(--accent)]"
-        href={`/create?draft=${draft.id}`}
+        href={createDraftHref(draft.id)}
       >
         {draft.question.trim() || "Untitled draft"}
       </Link>
@@ -124,7 +125,7 @@ export function DraftCard({
 
       <div className="mt-auto flex items-center gap-1 border-t border-[var(--border-soft)] pt-3">
         <CardAction
-          href={`/create?draft=${draft.id}`}
+          href={createDraftHref(draft.id)}
           icon={<Pencil size={14} />}
           label={draft.status === "published" ? "View draft" : "Open"}
         />

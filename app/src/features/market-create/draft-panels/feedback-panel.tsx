@@ -4,9 +4,17 @@ import type {
   DraftFeedbackItem,
   MarketDraftReview,
 } from "@popcharts/api-client/models";
-import { AlertOctagon, AlertTriangle, Lightbulb, Pencil, RotateCw } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  ChevronDown,
+  Lightbulb,
+  Pencil,
+  RotateCw,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ReviewScoreBreakdown } from "@/components/ui/review-score-breakdown";
 import { cn } from "@/lib/cn";
 
 /** Severity → color + icon, shared with the inline field callouts. */
@@ -86,58 +94,51 @@ export function FeedbackItemCard({
   );
 }
 
-/** The seven review dimensions as compact bars, tucked into a disclosure. */
-export function ReviewScoreBars({ review }: { review: MarketDraftReview }) {
-  const rows: ReadonlyArray<{
-    inverted?: boolean;
-    key: keyof MarketDraftReview["scores"];
-    label: string;
-  }> = [
-    { key: "objectivity", label: "Objectivity" },
-    { key: "publicKnowability", label: "Public knowability" },
-    { key: "sourceQuality", label: "Source quality" },
-    { key: "corroboration", label: "Corroboration" },
-    { key: "contentSafety", label: "Content safety" },
-    { inverted: true, key: "disputeRisk", label: "Dispute risk" },
-    { inverted: true, key: "promptInjectionRisk", label: "Injection risk" },
-  ];
-
+/**
+ * The reviewer's dimension scores for a draft, with the rationale for each.
+ *
+ * Shown on every stage that has a review, approved included — a creator
+ * deciding whether to keep polishing needs to see *where* the draft is weak,
+ * and an approval with a 2/5 on source quality is exactly the case that used
+ * to render as a bare green check.
+ */
+export function ReviewScorePanel({
+  review,
+  stale = false,
+}: {
+  review: MarketDraftReview;
+  /**
+   * The draft has been edited since this review ran, so the scores describe
+   * the previously submitted text rather than what is on screen. Said out
+   * loud: silently showing a stale score next to a live form is how a creator
+   * concludes their edit fixed something it did not.
+   */
+  stale?: boolean;
+}) {
   return (
-    <div className="flex flex-col gap-2">
-      {rows.map(({ inverted, key, label }) => {
-        const raw = review.scores[key];
-        const goodness = inverted ? 5 - raw : raw;
-        const color =
-          goodness >= 4
-            ? "var(--yes)"
-            : goodness >= 2
-              ? "var(--pc-amber)"
-              : "var(--no)";
-
-        return (
-          <div
-            className="grid grid-cols-[7.5rem_1fr_1.5rem] items-center gap-2"
-            key={key}
-          >
-            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
-              {label}
-            </span>
-            <div className="h-1.5 overflow-hidden rounded-[var(--radius-pill)] bg-[var(--surface-raised)]">
-              <div
-                className="h-full rounded-[var(--radius-pill)]"
-                style={{
-                  backgroundColor: color,
-                  width: `${(goodness / 5) * 100}%`,
-                }}
-              />
-            </div>
-            <span className="text-right font-mono text-[11px] text-[var(--text-secondary)]">
-              {raw}
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    // Open on arrival: scores a creator has to expand to find are scores they
+    // do not read. Still a disclosure so it can be folded away once read.
+    <details
+      className="group rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-4"
+      open
+    >
+      <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase [&::-webkit-details-marker]:hidden">
+        <ChevronDown className="transition-transform group-open:rotate-180" size={14} />
+        {stale ? "Scores from last review" : "Review scores"}
+      </summary>
+      {stale ? (
+        <p className="mt-3 text-[12px] leading-5 text-[var(--text-muted)]">
+          You&apos;ve edited the draft since this ran. Resubmit to score the current
+          version.
+        </p>
+      ) : null}
+      <div className="mt-4">
+        <ReviewScoreBreakdown
+          scoreRationales={review.scoreRationales}
+          scores={review.scores}
+        />
+      </div>
+    </details>
   );
 }
 
@@ -189,14 +190,12 @@ export function FeedbackPanel({
             <FeedbackItemCard item={item} key={`${item.title}-${item.issue}`} />
           ))}
         </div>
-        <details className="group border-t border-[var(--border-soft)] pt-3">
-          <summary className="focus-ring cursor-pointer list-none font-mono text-[10px] tracking-[0.12em] text-[var(--text-muted)] uppercase">
-            Review scores
-          </summary>
-          <div className="mt-3">
-            <ReviewScoreBars review={review} />
-          </div>
-        </details>
+        <div className="border-t border-[var(--border-soft)] pt-4">
+          <ReviewScoreBreakdown
+            scoreRationales={review.scoreRationales}
+            scores={review.scores}
+          />
+        </div>
       </div>
       <Button leftIcon={<Pencil size={16} />} onClick={onEdit} size="lg">
         Fix the draft

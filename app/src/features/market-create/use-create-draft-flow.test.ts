@@ -88,6 +88,10 @@ const walletClientStub = { kind: "wallet-client" };
 let timers: ReturnType<typeof interceptWindowTimers>;
 
 beforeEach(() => {
+  // The flow writes the draft id into the address bar, and jsdom keeps one
+  // window per file — without this a test that creates a draft leaves
+  // ?draft=21 behind for whichever test runs next.
+  window.history.replaceState(null, "", "/");
   timers = interceptWindowTimers();
   configState.config = contractConfig;
   vi.mocked(useWalletAccount).mockReturnValue(walletState());
@@ -164,17 +168,11 @@ describe("useCreateDraftFlow autosave", () => {
     expect(api.create).not.toHaveBeenCalled();
   });
 
-  it("creates the server draft on the first meaningful debounced save", async () => {
+  it("creates the server draft immediately on the first meaningful edit", async () => {
     const api = stubApi();
     const { result } = renderFlow();
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
-
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-
-    await act(async () => {
-      timers.flushAutosaves();
-    });
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
     expect(api.create).toHaveBeenCalledWith(
@@ -191,16 +189,93 @@ describe("useCreateDraftFlow autosave", () => {
     expect(timers.pendingAutosaves()).toBe(0);
   });
 
+  it("creates exactly one draft when typing continues through the create", async () => {
+    let releaseCreate: (() => void) | null = null;
+    const api = stubApi({
+      create: vi.fn(
+        (body: MarketDraftWrite) =>
+          new Promise<MarketDraft>((resolve) => {
+            releaseCreate = () => resolve(savedDraft(21, body));
+          })
+      ),
+    });
+    const { result } = renderFlow();
+
+    // The create is undebounced, so it is already on the wire while the user
+    // keeps typing. Each keystroke re-runs the autosave effect with a still
+    // null serverDraft — the shape that would POST a second draft.
+    act(() => result.current.updateDraft("question", "W"));
+    await waitFor(() => expect(api.create).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.updateDraft("question", "Wi"));
+    act(() => result.current.updateDraft("question", "Will it double?"));
+    await settle();
+
+    expect(api.create).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseCreate?.();
+    });
+
+    await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
+    expect(api.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves the keystrokes typed while the create was in flight", async () => {
+    let releaseCreate: (() => void) | null = null;
+    const api = stubApi({
+      create: vi.fn(
+        (body: MarketDraftWrite) =>
+          new Promise<MarketDraft>((resolve) => {
+            releaseCreate = () => resolve(savedDraft(21, body));
+          })
+      ),
+    });
+    const { result } = renderFlow();
+
+    act(() => result.current.updateDraft("question", "Will it"));
+    await waitFor(() => expect(api.create).toHaveBeenCalledTimes(1));
+
+    // Typed after the POST left, so the created row cannot contain it.
+    act(() => result.current.updateDraft("question", "Will it keep typing?"));
+
+    await act(async () => {
+      releaseCreate?.();
+    });
+    await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
+
+    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
+    await act(async () => {
+      timers.flushAutosaves();
+    });
+
+    await waitFor(() =>
+      expect(result.current.serverDraft?.question).toBe("Will it keep typing?")
+    );
+  });
+
+  it("names the draft in the url once it exists, and clears it on start fresh", async () => {
+    const { result } = renderFlow();
+
+    expect(window.location.search).toBe("");
+
+    act(() => result.current.updateDraft("question", "Will it autosave?"));
+
+    await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
+    expect(window.location.search).toBe("?draft=21");
+
+    act(() => result.current.startFresh());
+
+    // Otherwise a reload after "Create another" reopens the draft just left.
+    expect(window.location.search).toBe("");
+  });
+
   it("updates the existing draft when a field changes, without drifted windows", async () => {
     const api = stubApi();
     const { result } = renderFlow();
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
 
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-    await act(async () => {
-      timers.flushAutosaves();
-    });
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
     act(() => result.current.updateDraft("question", "Will it autosave twice?"));
@@ -239,10 +314,6 @@ describe("useCreateDraftFlow autosave", () => {
     const { result } = renderFlow();
 
     act(() => result.current.updateDraft("question", "First"));
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-    await act(async () => {
-      timers.flushAutosaves();
-    });
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
     // The second save hangs (slow network); a third, newer save lands first.
@@ -274,10 +345,6 @@ describe("useCreateDraftFlow autosave", () => {
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
 
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-    await act(async () => {
-      timers.flushAutosaves();
-    });
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
@@ -298,11 +365,6 @@ describe("useCreateDraftFlow autosave", () => {
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
 
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-    await act(async () => {
-      timers.flushAutosaves();
-    });
-
     await waitFor(() => expect(result.current.flowError).toBe("Draft limit reached."));
     expect(result.current.isSaving).toBe(false);
     expect(result.current.serverDraft).toBeNull();
@@ -317,11 +379,6 @@ describe("useCreateDraftFlow autosave", () => {
     const { result } = renderFlow();
 
     act(() => result.current.updateDraft("question", "Will it autosave?"));
-
-    await waitFor(() => expect(timers.pendingAutosaves()).toBe(1));
-    await act(async () => {
-      timers.flushAutosaves();
-    });
 
     await waitFor(() =>
       expect(result.current.flowError).toBe("The draft service hit a snag — try again.")
