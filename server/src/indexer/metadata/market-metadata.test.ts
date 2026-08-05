@@ -69,6 +69,17 @@ describe("resolveMarketMetadataFromEventPayload", () => {
       }),
     ).toThrow("Metadata outcomeYes is required.");
   });
+
+  it("rejects a category longer than the table's varchar bound", () => {
+    // Whatever this parser admits must insert cleanly — the persist step
+    // classifies insert failures as transient on that guarantee.
+    expect(() =>
+      resolveMarketMetadataFromEventPayload({
+        metadataHash: hashMetadata(metadata),
+        metadata: JSON.stringify({ ...metadata, category: "x".repeat(41) }),
+      }),
+    ).toThrow("Metadata category exceeds 40 characters.");
+  });
 });
 
 function hashMetadata(value: typeof metadata) {
