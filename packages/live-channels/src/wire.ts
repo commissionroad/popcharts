@@ -16,16 +16,39 @@
  * A gap in the tick `sequence` or a reconnect still falls back to a refetch.
  */
 
-/** The pushed price datum on a `change` frame from a pregrad trade (repo ADR
- * 0021). Cents are the marginal YES/NO price after the trade, computed once at
- * the seam via the shared virtual LMSR; `sequence` is the market's receipt
- * ordinal, so the client detects a gap (`!= last + 1`) and resyncs. */
+/**
+ * The stream id of the pregrad receipt book. A market has one pregrad stream
+ * and, after graduation, one stream per outcome pool (the pool id hex) — each
+ * stream numbers its own ticks contiguously, so the client keys its gap check
+ * by stream instead of branching on lifecycle phase (repo ADR 0025).
+ */
+export const RECEIPTS_STREAM = "receipts";
+
+/** The pushed price datum on a `change` frame from a trade (repo ADR 0021 for
+ * the pregrad receipt path; ADR 0025 extends it to postgrad venue swaps).
+ * Cents are the YES/NO price after the trade — LMSR-derived pregrad, pool-tick
+ * derived (with the untouched side carried forward) postgrad. `sequence` is
+ * the stream's own contiguous ordinal — the receipt sequence for
+ * {@link RECEIPTS_STREAM}, the hook's per-pool swap sequence for a pool stream
+ * — so the client detects a gap (`!= last + 1`) per stream and resyncs. */
 export interface PriceTickWire {
   /** ISO timestamp of the trade — the chart point's x value. */
   t: string;
+  /** Which contiguous ordinal space `sequence` lives in: {@link RECEIPTS_STREAM}
+   * or a venue pool id. */
+  stream: string;
   sequence: number;
   yesPriceCents: number;
   noPriceCents: number;
+  /** The market's post-trade band-pass matched market cap in USD — the
+   * graduation bar's numerator. A TOTAL, not a delta: totals survive dropped
+   * or replayed frames without accumulation drift. Receipts-stream ticks
+   * only; venue swaps do not move pregrad matching. */
+  matchedUsd?: number;
+  /** The market's post-trade total escrowed volume in USD. Same
+   * total-not-delta contract as {@link PriceTickWire.matchedUsd};
+   * receipts-stream ticks only. */
+  volumeUsd?: number;
 }
 
 /** The wire body of a `change` frame. All bigints are strings: JSON has no
@@ -141,19 +164,33 @@ export function parsePriceTick(raw: unknown): PriceTickWire | null {
 
   if (
     typeof tick.t !== "string" ||
+    typeof tick.stream !== "string" ||
+    tick.stream.length === 0 ||
     typeof tick.sequence !== "number" ||
     typeof tick.yesPriceCents !== "number" ||
-    typeof tick.noPriceCents !== "number"
+    typeof tick.noPriceCents !== "number" ||
+    !isAbsentOrNumber(tick.matchedUsd) ||
+    !isAbsentOrNumber(tick.volumeUsd)
   ) {
     return null;
   }
 
   return {
     t: tick.t,
+    stream: tick.stream,
     sequence: tick.sequence,
     yesPriceCents: tick.yesPriceCents,
     noPriceCents: tick.noPriceCents,
+    ...(tick.matchedUsd === undefined ? {} : { matchedUsd: tick.matchedUsd }),
+    ...(tick.volumeUsd === undefined ? {} : { volumeUsd: tick.volumeUsd }),
   };
+}
+
+/** An optional wire number: absent is fine, present must be a number — a
+ * malformed value degrades the whole tick to null (frame becomes a nudge)
+ * rather than smuggling NaN into a display. */
+function isAbsentOrNumber(value: unknown): value is number | undefined {
+  return value === undefined || typeof value === "number";
 }
 
 /** The default `reset` reason, used when the frame carries no usable one. */

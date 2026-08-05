@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { CreateMarketPage } from "@/features/market-create/create-market-page";
+import { CreateDraftPage } from "@/features/market-create/create-draft-page";
 
 export const metadata: Metadata = {
   title: "Create",
@@ -8,6 +8,19 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return <CreateMarketPage initialNow={new Date().toISOString()} />;
+type PageProps = {
+  searchParams: Promise<{ draft?: string }>;
+};
+
+export default async function Page({ searchParams }: PageProps) {
+  const { draft } = await searchParams;
+  const parsedDraftId = draft ? Number.parseInt(draft, 10) : Number.NaN;
+  const initialDraftId = Number.isSafeInteger(parsedDraftId) ? parsedDraftId : null;
+
+  return (
+    <CreateDraftPage
+      initialDraftId={initialDraftId}
+      initialNow={new Date().toISOString()}
+    />
+  );
 }

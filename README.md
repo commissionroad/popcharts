@@ -43,22 +43,27 @@ the full command menu.
 For manual market creation against a local chain and indexer:
 
 ```bash
+brew install f1bonacc1/tap/process-compose
 just setup
 just local-dev
 ```
 
-`local-dev` starts docker-compose Postgres, pushes the Drizzle schema, starts a
-Hardhat local chain, deploys `MockCollateral` and `PregradManager`, writes
-matching ignored env blocks for `server/` and `app/`, starts the Bun API,
-starts the indexer, starts the local AI Review service and runner, and starts
-the Next.js app. It uses wallet-signed market creation, so connect an injected
-browser wallet on the Hardhat local chain. Open `http://127.0.0.1:3000/create`,
-create a market, then refresh `http://127.0.0.1:3000/` to see it from the
-indexed markets API.
+`local-dev` runs the stack on a Process Compose control plane, which gives
+split per-process logs, restarts, and a dependency graph. It starts
+docker-compose Postgres, pushes the Drizzle schema, starts a Hardhat local
+chain, deploys `MockCollateral` and `PregradManager` plus the postgrad venue,
+writes matching ignored env blocks for `server/` and `app/`, starts the Bun API,
+starts the indexer, starts the local AI Review and AI Resolution services and
+their runners, and starts the Next.js app. The TUI shows per-process logs; log
+files are also written under ignored `.local-dev/logs/`. It uses wallet-signed
+market creation, so connect an injected browser wallet on the Hardhat local
+chain. Open `http://127.0.0.1:3000/create`, create a market, then refresh
+`http://127.0.0.1:3000/` to see it from the indexed markets API.
 
-The local review service defaults to the Ollama local-model provider on
+The local review service defaults to the codex-cli provider on
 `http://127.0.0.1:3002`, and the runner polls Postgres for `under_review`
-markets. It needs the model pulled once:
+markets. Set `LOCAL_AI_REVIEW_PROVIDER=ollama` to run a local model instead,
+which needs the model pulled once:
 
 ```sh
 ollama pull gpt-oss:20b   # the default; override with AI_REVIEW_OLLAMA_MODEL
@@ -79,39 +84,30 @@ markets are still rejected immediately by the deterministic hard-flag gate,
 before any model runs. Set `AI_REVIEW_PROVIDER=heuristic` explicitly when a
 deterministic no-model smoke is desired.
 
-Press Ctrl-C in the
-`just local-dev` terminal to stop
-the API, indexer, app, AI review processes, and local chain. Run
-`just local-dev --no-ai-review` if you need the older stack shape temporarily.
-Run `just local-reset` to remove the local Postgres container and data volumes
-before starting again from an empty database.
-
-### Local Dev Control Plane Spike
-
-For split logs, process restarts, and a dependency graph around the same local
-stack, install Process Compose and run:
-
-```bash
-brew install f1bonacc1/tap/process-compose
-just local-dev-control
-```
-
-This spike keeps the current `just local-dev` path intact while adding a
-Process Compose-backed control plane. It still uses the repo bootstrap logic:
-Postgres starts first, Drizzle constraints and schema push run once, the local
-chain becomes healthy, contracts deploy, generated env files are written, and
-then the API, indexer, review workers, and Next.js app start as independently
-inspectable processes. The TUI shows per-process logs; log files are also
-written under ignored `.local-dev/logs/`.
+Press Ctrl-C in the `just local-dev` terminal to stop the API, indexer, app, AI
+review processes, and local chain. Run `just local-reset` to remove the local
+Postgres container and data volumes before starting again from an empty
+database.
 
 Useful variants:
 
 ```bash
-just local-dev-control --no-ai-review
-just local-dev-control --ai-review-only
-just local-dev-control --keep-db
-just local-dev-control api
+just local-dev --no-ai-review
+just local-dev --ai-review-only
+just local-dev --keep-db
+just local-dev api
 ```
+
+The last form starts the named processes and whatever they depend on, for
+focused debugging — `api` also pulls in `deploy-contracts`, `chain`, and
+`prepare-database`.
+
+`just local-dev-control` is a deprecated alias for `just local-dev`. The
+pre-control-plane orchestrator is still reachable as
+`pnpm run local:dev:inline`: one process with interleaved logs and no Process
+Compose dependency, and the only path that accepts `--no-postgrad`. It starts a
+smaller stack than the control plane does — it has no AI resolution service or
+runner.
 
 After the local chain contracts deploy, create an extra local market with:
 
@@ -144,7 +140,6 @@ just setup          # install app and protocol dependencies
 just setup-sandbox  # install dependencies using repo-local package stores
 just dev            # run the app locally
 just local-dev      # run frontend, API, indexer, Postgres, chain, and AI review
-just local-dev-control # run the split-log local dev control plane
 just local-create-market # create one market against the running local chain
 just local-ai-review # run only Postgres, AI Review service, and runner
 just local-dev-ai-review # explicit alias for the full AI-review local stack
@@ -223,6 +218,14 @@ setup) plus local Pop Charts skills scoped to `app/`, `server/`, and
 upstream provenance pins, and update procedure.
 
 ## Developer Helpers
+
+The dev-tools menu (the gear in the top bar) has a **Create form** section with a
+**Random market** button. On `/create` it fills every field with the same
+generated crypto or weather market `just local-create-market` would create —
+threshold priced off a live public source, deadlines matching the generated
+question — leaving you at the normal Review and Create steps. Nothing is created
+on-chain until you click through them. Like the rest of the menu it needs
+`NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED=true`, which the local stack sets.
 
 Use `scripts/land` to merge a GitHub pull request, fast-forward the base branch locally, remove the feature worktree, and delete the feature branch.
 

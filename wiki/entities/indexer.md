@@ -10,7 +10,7 @@ sources:
   - docs/portfolio-data-design.md
   - infra/README.md
   - protocol/docs/adr/0012-use-a-singleton-postgrad-position-book.md
-updated: 2026-07-24
+updated: 2026-08-04
 ---
 
 # Indexer
@@ -94,17 +94,74 @@ which an in-indexer-only emit would miss).
 
 ## Operator alert seam (built 2026-07-24, [root ADR 0024](../summaries/root-adr-0024-resolution-dispute-program.md))
 
-A dispute is the one indexed event that is an operator page rather than a
-background write: it means a user staked a bond asserting the resolver got a
-market wrong, and the market is frozen until a human settles it. So the
-dispute handler writes a marker-prefixed record to stderr carrying chain,
-market, disputer, bond, and transaction hash, and the
-[infra](../summaries/infra-readme.md) stack keys a CloudWatch metric filter
-and alarm on it. It is raised after the row commits and only when the insert
-actually landed, so a rolled-back write cannot page and a recovery replay
-cannot page twice. The server is the master of the marker terms; the alarm
-holds an intentional duplicate (`infra/` imports no workspace source), pinned
-by an infra assertion test that builds a record with the server's formatter.
+Two indexer conditions are operator pages rather than background writes. Each
+writes a marker-prefixed record to stderr, and the
+[infra](../summaries/infra-readme.md) stack keys one CloudWatch metric filter
+and alarm per event term. The server is the master of the marker terms; the
+alarms hold an intentional duplicate (`infra/` imports no workspace source),
+pinned by an infra assertion test that builds each record with the server's
+formatter.
+
+**Resolution disputed** — a user staked a bond asserting the resolver got a
+market wrong, and the market is frozen until a human settles it. The record
+carries chain, market, disputer, bond, and transaction hash. It is raised
+*after* the row commits and only when the insert actually landed, so a
+rolled-back write cannot page and a recovery replay cannot page twice.
+
+**Market status out of order** — a status-projecting event reached a market in
+a status the transition accepts as neither predecessor nor already-past. The
+record carries chain, market, the current and target statuses, the predecessors
+that would have been accepted, and the block/log/transaction to replay. Its
+commit rule is the *opposite* of the dispute page: it is raised inside the
+transaction that is about to roll back, because there the rollback is the
+incident and no committed row will record any of it.
+
+The page matters because nothing self-clears: the fault parks that market's
+cursor, the next discovery tick re-fetches the same log, and it faults again.
+The market's lifecycle events simply stop arriving. Other markets keep
+indexing, and sibling watchers (venue orders, pool ticks, token transfers) hold
+their own cursors and never notice — see [Parked sweeps](#parked-sweeps-built-2026-07-29)
+for why the blast radius is one market rather than the whole watcher. Live
+delivery is a separate path: `onLogs` catches per log, so a fault there parks
+nothing, but it never moves a watermark, so the sweep reaches the same
+conclusion. Nothing crashes and nothing is lost, which is exactly why the stall
+would otherwise be invisible. The record
+repeats each tick, holding the alarm in ALARM rather than lapsing back to OK.
+
+## Parked sweeps (built 2026-07-29)
+
+A handler that cannot apply a log yet — as opposed to one that is broken —
+raises a `ParkSweepError`. The watcher catches it at the per-log boundary and
+parks that **contract** below the offending block: its cursor never passes an
+unapplied event and it is held back from its own later logs, while every other
+contract in the sweep carries on and checkpoints normally. It is the same
+treatment a log from an unknown address already got. Three errors carry it —
+`MarketNotIndexedError` and `VenueOrderNotIndexedError` (a prerequisite row has
+not landed yet) and `MarketStatusOutOfOrderError` — and a census test enumerates
+them, because an error that means "not yet" and forgets the base class silently
+gets the harshest handling available while its own tests still pass. Anything
+else still propagates and abandons the pass, which stays the right default for
+a failure nobody anticipated.
+
+Parking the *address* rather than the *cursor group* is load-bearing, and the
+distinction is easy to get wrong: contracts are grouped by shared watermark, so
+in steady state they all sit in one group, and a group is swept in chain order.
+Parking the group would therefore starve every market whose logs sort after the
+offending one — exactly the failure being fixed, in a smaller costume. A
+two-contract test with differing start blocks passes either way; the regression
+test deliberately gives both contracts the same start block.
+
+This replaced a much larger blast radius. The throw used to escape the per-log
+loop *and* the loop over contract groups, so one market in an unexpected status
+abandoned the whole pass and starved every group the loop had not yet reached —
+permanently, since the fault reproduces on every tick. The floor was one cursor
+group and the ceiling was every contract the watcher followed; it is now one
+market either way.
+
+Watchers that project onto `markets` also wrap their dispatch in
+`retryUntilMarketIndexed`, so a market row that simply has not landed yet is a
+wait rather than a fault. The postgrad-market watcher was the last one missing
+that wrapper.
 
 ## Related pages
 

@@ -28,7 +28,10 @@ test("stack kind detects contained agent worktree path segments", function () {
 
 test("instance ids sanitize the checkout leaf and include the slot", function () {
   assert.equal(
-    deriveInstanceId("/src/popcharts/.claude/worktrees/ADR 0020_Concurrent!", 1),
+    deriveInstanceId(
+      "/src/popcharts/.claude/worktrees/ADR 0020_Concurrent!",
+      1,
+    ),
     "adr-0020-concurrent-slot1",
   );
   assert.equal(deriveInstanceId("/src/popcharts", 0), "popcharts-slot0");

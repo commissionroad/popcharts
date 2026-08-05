@@ -25,6 +25,14 @@ export const OPERATOR_ALERT_MARKER = "POPCHARTS_OPERATOR_ALERT";
  * so a new tag is a new alarm rather than a wider one.
  */
 export const OPERATOR_ALERT_EVENTS = {
+  /**
+   * A status-projecting event reached a market whose status is neither a valid
+   * predecessor nor already at or past the target. The projection throws, and
+   * the throw abandons the sweep it was running under, wedging at least that
+   * contract's whole cursor group — up to every contract that watcher follows —
+   * until a human intervenes.
+   */
+  marketStatusOutOfOrder: "market_status_out_of_order",
   /** A bonded dispute froze a graduated market until a human settles it. */
   resolutionDisputed: "resolution_disputed",
 } as const;

@@ -43,6 +43,18 @@ export type WalletAccountValue = {
   displayAddress: string | null;
   enabled: boolean;
   errorMessage: string | null;
+  /**
+   * Headers that authenticate draft API requests as this user (ADR 0022
+   * decision 8): a Privy bearer token when Privy runs the session, the
+   * local-dev owner header otherwise. Empty when signed out. Async because
+   * Privy refreshes the token on read.
+   */
+  getDraftAuthHeaders: () => Promise<Record<string, string>>;
+  /**
+   * The identity drafts are scoped to: the Privy user DID when Privy runs
+   * the session, the lowercased wallet address on the local-dev stack.
+   */
+  ownerUserId: string | null;
   isSupportedChain: boolean;
   linkWallet: () => void;
   login: () => void;
@@ -69,11 +81,13 @@ const disabledWalletValue: WalletAccountValue = {
   displayAddress: null,
   enabled: false,
   errorMessage: null,
+  getDraftAuthHeaders: async () => ({}),
   isSupportedChain: false,
   linkWallet: noop,
   login: noop,
   loginLabel: "Sign in",
   logout: noopAsync,
+  ownerUserId: null,
   pendingAction: null,
   ready: true,
   setActiveWallet: noopAsync,

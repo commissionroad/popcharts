@@ -375,153 +375,6 @@
         }
       }
     },
-    "/dev/markets/{chainId}/{marketId}/review": {
-      "post": {
-        "operationId": "forceMarketReview",
-        "summary": "Dev-only force a market review verdict",
-        "description": "Local-only development tool gated on POPCHARTS_DEV_TOOLS_ENABLED. Records a deterministic market review without invoking the AI review service or runner, transitioning approved or rejected markets on-chain before persisting the review.",
-        "tags": [
-          "Development"
-        ],
-        "parameters": [
-          {
-            "name": "chainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "marketId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "verdict"
-                ],
-                "properties": {
-                  "reasons": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "verdict": {
-                    "type": "string",
-                    "enum": [
-                      "approve",
-                      "reject",
-                      "manual_review"
-                    ]
-                  }
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "verdict"
-                ],
-                "properties": {
-                  "reasons": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "verdict": {
-                    "type": "string",
-                    "enum": [
-                      "approve",
-                      "reject",
-                      "manual_review"
-                    ]
-                  }
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "verdict"
-                ],
-                "properties": {
-                  "reasons": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "verdict": {
-                    "type": "string",
-                    "enum": [
-                      "approve",
-                      "reject",
-                      "manual_review"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Response for status 200",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevMarketReviewResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Response for status 400",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Response for status 404",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Response for status 409",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevMarketReviewIneligible"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/dev/markets/{chainId}/{marketId}/resolve/{side}": {
       "post": {
         "operationId": "resolveDevMarket",
@@ -760,6 +613,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MarketOrderBook"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{chainId}/{marketId}/price-history": {
+      "get": {
+        "operationId": "getMarketPriceHistory",
+        "summary": "Get a market's whole-life price history",
+        "description": "Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketPriceHistory"
                 }
               }
             }
@@ -1078,6 +981,737 @@
         }
       }
     },
+    "/drafts": {
+      "get": {
+        "operationId": "listMarketDrafts",
+        "summary": "List the caller's market drafts",
+        "description": "Every live (non-deleted) draft owned by the authenticated user, most recently touched first, each with its latest review.",
+        "tags": [
+          "Drafts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMarketDraft",
+        "summary": "Create a market draft",
+        "description": "Creates a fresh editing draft (optionally a template) owned by the authenticated user.",
+        "tags": [
+          "Drafts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Response for status 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/credit": {
+      "get": {
+        "operationId": "getMarketDraftReviewCredit",
+        "summary": "Read a wallet's review credit",
+        "description": "The wallet's prepaid review credit: indexed deposits minus metered charges, the per-review rate, and run counts. metered=false means no vault is configured and submission is ungated.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftReviewCredit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Response for status 422",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/{draftId}": {
+      "get": {
+        "operationId": "getMarketDraft",
+        "summary": "Read one market draft",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMarketDraft",
+        "summary": "Update a market draft",
+        "description": "Edits draft content. Any content change on a reviewed draft returns it to editing and clears its review snapshot, so stale approvals can never publish changed text.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMarketDraft",
+        "summary": "Soft-delete a market draft",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/clone": {
+      "post": {
+        "operationId": "cloneMarketDraft",
+        "summary": "Clone a draft or market into a new draft",
+        "description": "The universal clone (ADR 0022): seeds a new editing draft verbatim from one of the caller's drafts or from any indexed market.",
+        "tags": [
+          "Drafts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftCloneRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftCloneRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftCloneRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Response for status 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/{draftId}/submit": {
+      "post": {
+        "operationId": "submitMarketDraft",
+        "summary": "Submit a draft for AI review",
+        "description": "Snapshots the draft content, locks it in review, and enqueues a review job. The review lands asynchronously; poll the draft until its status leaves in_review.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Response for status 202",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Response for status 402",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftBondShortfall"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Response for status 422",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftValidationErrors"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/{draftId}/publish-params": {
+      "post": {
+        "operationId": "buildMarketDraftPublishParams",
+        "summary": "Mint publish-time createMarket params for an approved draft",
+        "description": "Re-checks the draft is approved and unchanged, then resolves its relative deadline windows into absolute timestamps anchored at current chain time (ADR 0022 decision 4). The caller signs createMarket with these params plus its configured collateral.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "creatorAddress",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftPublishParams"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts/{draftId}/published": {
+      "post": {
+        "operationId": "markMarketDraftPublished",
+        "summary": "Record a confirmed publish transaction",
+        "description": "Links the draft to the market it became and bridge-approves the market on-chain (the review already happened on the draft).",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftPublishedWrite"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftPublishedWrite"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDraftPublishedWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDraftPublished"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Response for status 401",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Response for status 501",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/portfolio/{chainId}": {
       "get": {
         "operationId": "getPortfolio",
@@ -1224,6 +1858,7 @@
         "enum": [
           "anthropic",
           "claude-cli",
+          "codex-cli",
           "heuristic",
           "ollama"
         ]
@@ -1491,61 +2126,6 @@
             "items": {
               "type": "string"
             }
-          }
-        }
-      },
-      "DevMarketReviewIneligible": {
-        "type": "object",
-        "required": [
-          "message",
-          "market",
-          "reason",
-          "status"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "market": {
-            "$ref": "#/components/schemas/Market"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "chain_status",
-              "wrong_status"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ineligible"
-            ]
-          }
-        }
-      },
-      "DevMarketReviewResponse": {
-        "type": "object",
-        "required": [
-          "market",
-          "status",
-          "verdict"
-        ],
-        "properties": {
-          "market": {
-            "$ref": "#/components/schemas/Market"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "reviewed"
-            ]
-          },
-          "transactionHash": {
-            "type": "string"
-          },
-          "verdict": {
-            "$ref": "#/components/schemas/AiReviewVerdict"
           }
         }
       },
@@ -2490,6 +3070,37 @@
           }
         }
       },
+      "MarketPriceHistory": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "marketId",
+          "points"
+        ],
+        "properties": {
+          "chainId": {
+            "type": "number"
+          },
+          "graduatedAt": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            }
+          },
+          "streams": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          }
+        }
+      },
       "MarketStatus": {
         "type": "string",
         "enum": [
@@ -2504,6 +3115,25 @@
           "resolution_pending",
           "disputed"
         ]
+      },
+      "PricePoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "noCents",
+          "yesCents"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "noCents": {
+            "type": "number"
+          },
+          "yesCents": {
+            "type": "number"
+          }
+        }
       },
       "ReceiptPlacedEvent": {
         "type": "object",
@@ -2719,6 +3349,565 @@
           "yes",
           "no"
         ]
+      },
+      "DraftFeedbackField": {
+        "type": "string",
+        "enum": [
+          "question",
+          "description",
+          "resolutionCriteria",
+          "resolutionSources"
+        ]
+      },
+      "DraftFeedbackItem": {
+        "type": "object",
+        "required": [
+          "howToFix",
+          "issue",
+          "severity",
+          "title"
+        ],
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/DraftFeedbackField"
+          },
+          "howToFix": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/DraftFeedbackSeverity"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "DraftFeedbackSeverity": {
+        "type": "string",
+        "enum": [
+          "blocker",
+          "warning",
+          "info"
+        ]
+      },
+      "DraftReviewFeedback": {
+        "type": "object",
+        "required": [
+          "items",
+          "summary"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftFeedbackItem"
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraft": {
+        "type": "object",
+        "required": [
+          "category",
+          "createdAt",
+          "description",
+          "graduationWindowSeconds",
+          "id",
+          "intendedCreatorAddress",
+          "isTemplate",
+          "liquidityParameter",
+          "openingProbability",
+          "outcomeNo",
+          "outcomeYes",
+          "publishedAt",
+          "publishedChainId",
+          "publishedMarketId",
+          "publishedTransactionHash",
+          "question",
+          "resolutionCriteria",
+          "resolutionSources",
+          "resolutionUrl",
+          "resolutionWindowSeconds",
+          "reviewedAt",
+          "status",
+          "submittedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "graduationWindowSeconds": {
+            "type": "number"
+          },
+          "id": {
+            "type": "number"
+          },
+          "intendedCreatorAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "isTemplate": {
+            "type": "boolean"
+          },
+          "latestReview": {
+            "$ref": "#/components/schemas/MarketDraftReview"
+          },
+          "liquidityParameter": {
+            "type": "number"
+          },
+          "openingProbability": {
+            "type": "number"
+          },
+          "outcomeNo": {
+            "type": "string"
+          },
+          "outcomeYes": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedChainId": {
+            "type": "number",
+            "nullable": true
+          },
+          "publishedMarketId": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedTransactionHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "question": {
+            "type": "string"
+          },
+          "resolutionCriteria": {
+            "type": "string"
+          },
+          "resolutionSources": {
+            "type": "string"
+          },
+          "resolutionUrl": {
+            "type": "string"
+          },
+          "resolutionWindowSeconds": {
+            "type": "number"
+          },
+          "reviewedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/MarketDraftStatus"
+          },
+          "submittedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraftBondShortfall": {
+        "type": "object",
+        "required": [
+          "availableWad",
+          "message",
+          "requiredWad",
+          "runsUsed"
+        ],
+        "properties": {
+          "availableWad": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requiredWad": {
+            "type": "string"
+          },
+          "runsUsed": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "MarketDraftCloneRequest": {
+        "type": "object",
+        "properties": {
+          "asTemplate": {
+            "type": "boolean"
+          },
+          "fromDraftId": {
+            "minimum": 1,
+            "multipleOf": 1,
+            "type": "number"
+          },
+          "fromMarket": {
+            "type": "object",
+            "required": [
+              "chainId",
+              "marketId"
+            ],
+            "properties": {
+              "chainId": {
+                "minimum": 1,
+                "multipleOf": 1,
+                "type": "number"
+              },
+              "marketId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "MarketDraftReviewCredit": {
+        "type": "object",
+        "required": [
+          "availableWad",
+          "metered",
+          "rateWad",
+          "runsRemaining",
+          "runsUsed"
+        ],
+        "properties": {
+          "availableWad": {
+            "type": "string"
+          },
+          "metered": {
+            "type": "boolean"
+          },
+          "rateWad": {
+            "type": "string"
+          },
+          "runsRemaining": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "runsUsed": {
+            "anyOf": [
+              {
+                "format": "integer",
+                "default": 0,
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "MarketDraftList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MarketDraft"
+        }
+      },
+      "MarketDraftPublishAuthorization": {
+        "type": "object",
+        "required": [
+          "expiry",
+          "nonce",
+          "signature"
+        ],
+        "properties": {
+          "expiry": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraftPublished": {
+        "type": "object",
+        "required": [
+          "draft"
+        ],
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/MarketDraft"
+          }
+        }
+      },
+      "MarketDraftPublishedWrite": {
+        "type": "object",
+        "required": [
+          "chainId",
+          "marketId",
+          "transactionHash"
+        ],
+        "properties": {
+          "chainId": {
+            "minimum": 1,
+            "multipleOf": 1,
+            "type": "number"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "transactionHash": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraftPublishParams": {
+        "type": "object",
+        "required": [
+          "bypassAiResolution",
+          "collateral",
+          "graduationDeadline",
+          "graduationThreshold",
+          "liquidityParameter",
+          "metadata",
+          "metadataHash",
+          "openingProbabilityWad",
+          "resolutionTime",
+          "yesNotBefore"
+        ],
+        "properties": {
+          "authorization": {
+            "$ref": "#/components/schemas/MarketDraftPublishAuthorization"
+          },
+          "bypassAiResolution": {
+            "type": "boolean"
+          },
+          "collateral": {
+            "type": "string"
+          },
+          "graduationDeadline": {
+            "type": "string"
+          },
+          "graduationThreshold": {
+            "type": "string"
+          },
+          "liquidityParameter": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "string"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "openingProbabilityWad": {
+            "type": "string"
+          },
+          "resolutionTime": {
+            "type": "string"
+          },
+          "yesNotBefore": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraftReview": {
+        "type": "object",
+        "required": [
+          "feedback",
+          "id",
+          "metadataHash",
+          "modelId",
+          "provider",
+          "reasons",
+          "reviewedAt",
+          "scoreRationales",
+          "scores",
+          "verdict"
+        ],
+        "properties": {
+          "feedback": {
+            "$ref": "#/components/schemas/DraftReviewFeedback"
+          },
+          "id": {
+            "type": "number"
+          },
+          "metadataHash": {
+            "type": "string"
+          },
+          "modelId": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiReviewProvider"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewedAt": {
+            "type": "string"
+          },
+          "scoreRationales": {
+            "$ref": "#/components/schemas/AiReviewScoreRationales"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/AiReviewScores"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/AiReviewVerdict"
+          }
+        }
+      },
+      "MarketDraftStatus": {
+        "type": "string",
+        "enum": [
+          "editing",
+          "in_review",
+          "changes_requested",
+          "rejected",
+          "approved",
+          "published"
+        ]
+      },
+      "MarketDraftValidationErrors": {
+        "type": "object",
+        "required": [
+          "errors",
+          "message"
+        ],
+        "properties": {
+          "errors": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "type": "string"
+              },
+              "graduationWindowSeconds": {
+                "type": "string"
+              },
+              "liquidityParameter": {
+                "type": "string"
+              },
+              "openingProbability": {
+                "type": "string"
+              },
+              "outcomeNo": {
+                "type": "string"
+              },
+              "outcomeYes": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "resolutionCriteria": {
+                "type": "string"
+              },
+              "resolutionWindowSeconds": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketDraftWrite": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 10000,
+            "type": "string"
+          },
+          "graduationWindowSeconds": {
+            "minimum": 1,
+            "multipleOf": 1,
+            "type": "number"
+          },
+          "intendedCreatorAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "isTemplate": {
+            "type": "boolean"
+          },
+          "liquidityParameter": {
+            "minimum": 1,
+            "multipleOf": 1,
+            "type": "number"
+          },
+          "openingProbability": {
+            "maximum": 100,
+            "minimum": 0,
+            "multipleOf": 1,
+            "type": "number"
+          },
+          "outcomeNo": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "outcomeYes": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "resolutionCriteria": {
+            "maxLength": 10000,
+            "type": "string"
+          },
+          "resolutionSources": {
+            "maxLength": 5000,
+            "type": "string"
+          },
+          "resolutionUrl": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "resolutionWindowSeconds": {
+            "minimum": 1,
+            "multipleOf": 1,
+            "type": "number"
+          }
+        }
       },
       "Portfolio": {
         "type": "object",

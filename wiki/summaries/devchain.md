@@ -4,7 +4,7 @@ title: Devchain Workflow (docs/devchain.md)
 description: Local Hardhat devchain e2e flow, the full postgrad venue local deployment sequence, and Arc Testnet deployment/env configuration.
 sources:
   - docs/devchain.md
-updated: 2026-07-07
+updated: 2026-08-03
 ---
 
 # Devchain Workflow
@@ -53,7 +53,9 @@ system, not just pregrad. After the pregrad deploy, in order:
 Orchestrators read these manifests (not stdout) for addresses, print them in
 the ready summary, and record them in `server/.env.local-chain` and the app
 env block as documentation for the upcoming server/app integration.
-`--no-postgrad` skips the venue deployment. Individual pieces run via
+`just local-dev` always deploys the venue; only the pre-control-plane
+orchestrator (`pnpm run local:dev:inline -- --no-postgrad`) can skip it.
+Individual pieces run via
 `just local-deploy-venue`, `just local-deploy-postgrad` (needs
 `POPCHARTS_PREGRAD_MANAGER_ADDRESS`), `just local-create-complete-set-market`
 (needs `POPCHARTS_COLLATERAL_ADDRESS`).

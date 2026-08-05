@@ -129,7 +129,10 @@ describe("MarketDetailPage", () => {
     render(
       <MarketDetailPage
         market={marketFactory()}
-        pricePath={[{ cents: 10 }, { cents: 90 }]}
+        pricePath={[
+          { noCents: 90, yesCents: 10 },
+          { noCents: 10, yesCents: 90 },
+        ]}
       />
     );
 
@@ -182,6 +185,88 @@ describe("MarketDetailPage", () => {
     expect(
       screen.queryByText("Virtual LMSR - implied probability")
     ).not.toBeInTheDocument();
+  });
+
+  it("spans both mechanisms once the venue has traded", () => {
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+        })}
+        pricePath={[
+          { at: "2026-06-30T00:00:00.000Z", noCents: 60, yesCents: 40 },
+          { at: "2026-06-30T23:00:00.000Z", noCents: 56, yesCents: 44 },
+          { at: "2026-07-01T02:00:00.000Z", noCents: 54.2, yesCents: 46.1 },
+        ]}
+      />
+    );
+
+    // The curve now covers the LMSR and the venue, so naming either would be
+    // wrong. The graduation rule marks where one handed off to the other.
+    expect(screen.getByText("Price history")).toBeInTheDocument();
+    expect(screen.queryByText("Pre-graduation price history")).not.toBeInTheDocument();
+    expect(screen.getByTestId("graduation-marker")).toBeInTheDocument();
+    expect(screen.getByTestId("legend-yes-value")).toHaveTextContent("46%");
+    expect(screen.getByTestId("legend-no-value")).toHaveTextContent("54%");
+  });
+
+  it("renders the chart's empty state when a graduated market has no history", () => {
+    // A graduated market's synthetic path ends at a venue/terminal price, so
+    // there is no honest way to dress it as an LMSR curve; with the unified
+    // read failed or empty, the chart shows labels with no values instead of
+    // invented history.
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId("legend-yes-value")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("legend-no-value")).not.toBeInTheDocument();
+  });
+
+  it("still calls the chart pre-graduation history when the venue has not traded", () => {
+    // The unified path ends before the handoff — no point at or past
+    // finalizedAt — so the heading stays honest about what is on screen.
+    render(
+      <MarketDetailPage
+        market={marketFactory({
+          postgrad: {
+            adapterAddress: "0x00000000000000000000000000000000000000ab",
+            completeSets: 356_000,
+            finalizedAt: "2026-07-01T00:00:00.000Z",
+            marketAddress: "0x00000000000000000000000000000000000000cd",
+            refundedUsd: 126_300,
+            retainedUsd: 356_000,
+          },
+          status: "graduated",
+        })}
+        pricePath={[
+          { at: "2026-06-30T00:00:00.000Z", noCents: 60, yesCents: 40 },
+          { at: "2026-06-30T23:00:00.000Z", noCents: 56, yesCents: 44 },
+        ]}
+      />
+    );
+
+    expect(screen.getByText("Pre-graduation price history")).toBeInTheDocument();
   });
 
   it.each(["resolution_pending", "disputed"] as const)(

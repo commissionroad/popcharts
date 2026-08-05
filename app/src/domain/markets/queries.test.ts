@@ -9,8 +9,8 @@ import type {
 import { markets as fixtureMarkets } from "./fixtures";
 import {
   getMarketById,
-  getMarketReceipts,
   getMarkets,
+  getMarketPricePath,
   requestDevMarketGraduation,
   requestDevMarketResolution,
   requestMarketGraduation,
@@ -141,40 +141,113 @@ describe("market queries", () => {
     expect(market?.id).toBe("5042002:7");
   });
 
-  it("reads market receipts by chain-prefixed app id", async () => {
-    const receipt = {
-      blockNumber: "111",
-      blockTimestamp: "2026-06-13T12:05:00.000Z",
-      chainId: 5042002,
-      cost: "3288901914750925000",
-      logIndex: 1,
-      marketId: "7",
-      owner: "0x0000000000000000000000000000000000000003",
-      receiptId: "1",
-      sequence: "1",
-      shares: "6000000000000000000",
-      side: 0,
-      transactionHash:
-        "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    };
-    const client = createClient({ receipts: [receipt] });
+  it("serves the unified price path as-is", async () => {
+    const client = createClient({
+      priceHistory: {
+        chainId: 5042002,
+        graduatedAt: "2026-07-01T00:00:00.000Z",
+        marketId: "7",
+        points: [
+          { at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 },
+          { at: "2026-07-01T01:00:00.000Z", noCents: 46.0491, yesCents: 49.7945 },
+        ],
+      },
+    });
 
-    const receipts = await getMarketReceipts("5042002:7", {
+    const path = await getMarketPricePath("5042002:7", {
       client,
       source: "api",
     });
 
-    expect(client.getMarketReceipts).toHaveBeenCalledWith({
+    expect(client.getMarketPriceHistory).toHaveBeenCalledWith({
       chainId: 5042002,
       marketId: "7",
     });
-    expect(receipts).toEqual([receipt]);
+    // The wire shape IS the chart shape — no mapping, no rounding.
+    expect(path.points).toEqual([
+      { at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 },
+      { at: "2026-07-01T01:00:00.000Z", noCents: 46.0491, yesCents: 49.7945 },
+    ]);
+    // No live venue ticks in the read -> no venue seeds.
+    expect(path.streams).toEqual({});
   });
 
-  it("returns no receipts for fixture-backed markets", async () => {
+  it("carries the per-stream seed ordinals alongside the points", async () => {
+    const pool = `0x${"aa".repeat(32)}`;
+    const client = createClient({
+      priceHistory: {
+        chainId: 5042002,
+        graduatedAt: "2026-07-01T00:00:00.000Z",
+        marketId: "7",
+        points: [{ at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 }],
+        streams: { [pool]: 4 },
+      },
+    });
+
     await expect(
-      getMarketReceipts("eth-5000-august", { source: "fixtures" })
-    ).resolves.toEqual([]);
+      getMarketPricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual({
+      points: [{ at: "2026-07-01T00:00:00.000Z", noCents: 50, yesCents: 50 }],
+      streams: { [pool]: 4 },
+    });
+  });
+
+  it("returns an empty path when the read answers an empty history", async () => {
+    const client = createClient({
+      priceHistory: { chainId: 5042002, marketId: "7", points: [] },
+    });
+
+    await expect(
+      getMarketPricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual({ points: [], streams: {} });
+  });
+
+  it("returns an empty path when the read answers nothing", async () => {
+    const client = createClient();
+
+    await expect(
+      getMarketPricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual({ points: [], streams: {} });
+  });
+
+  it("returns an empty path for fixture-backed markets", async () => {
+    await expect(
+      getMarketPricePath("eth-5000-august", { source: "fixtures" })
+    ).resolves.toEqual({ points: [], streams: {} });
+  });
+
+  it("degrades to an empty path when the history read fails", async () => {
+    // The market read is load-bearing; this one is not. A page that threw
+    // here would lose its whole chart instead of falling back to the market's
+    // synthetic path.
+    const failure = new Error("Markets API request failed (502): bad gateway");
+    const client = createClient();
+    client.getMarketPriceHistory = vi.fn(async () => {
+      throw failure;
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      getMarketPricePath("5042002:7", { client, source: "api" })
+    ).resolves.toEqual({ points: [], streams: {} });
+    // Degraded, not silent.
+    expect(logged).toHaveBeenCalledWith(
+      "[popcharts] error",
+      failure,
+      expect.objectContaining({ operation: "getMarketPricePath" })
+    );
+
+    logged.mockRestore();
+  });
+
+  it("returns an empty path for bare ids without a chain id", async () => {
+    const client = createClient();
+
+    await expect(getMarketPricePath("7", { client, source: "api" })).resolves.toEqual({
+      points: [],
+      streams: {},
+    });
+    expect(client.getMarketPriceHistory).not.toHaveBeenCalled();
   });
 
   it("reads individual API markets by URL-encoded chain-prefixed app id", async () => {
@@ -369,15 +442,6 @@ describe("market queries", () => {
       getMarketById("eth-5000-august", { client, source: "auto" })
     ).resolves.toBe(fixtureMarkets[0]);
     expect(client.getMarket).not.toHaveBeenCalled();
-  });
-
-  it("returns no receipts for bare ids without a chain id", async () => {
-    const client = createClient();
-
-    await expect(getMarketReceipts("7", { client, source: "api" })).resolves.toEqual(
-      []
-    );
-    expect(client.getMarketReceipts).not.toHaveBeenCalled();
   });
 
   it("forwards the since parameter to the API client", async () => {
@@ -599,7 +663,7 @@ function createClient({
   graduation,
   market = null,
   markets = [],
-  receipts = [],
+  priceHistory = null,
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   devGraduation?: Awaited<ReturnType<MarketsApiClient["graduateDevMarket"]>>;
@@ -607,7 +671,7 @@ function createClient({
   graduation?: Awaited<ReturnType<MarketsApiClient["graduateMarket"]>>;
   market?: ApiMarket | null;
   markets?: ApiMarket[];
-  receipts?: Awaited<ReturnType<MarketsApiClient["getMarketReceipts"]>>;
+  priceHistory?: Awaited<ReturnType<MarketsApiClient["getMarketPriceHistory"]>>;
 } = {}): MarketsApiClient {
   return {
     closePregradMarket: vi.fn(async () => {
@@ -641,7 +705,7 @@ function createClient({
     getMarket: vi.fn(async () => market),
     getMarketEvents: vi.fn(async () => []),
     getMarketOrderBook: vi.fn(async () => null),
-    getMarketReceipts: vi.fn(async () => receipts),
+    getMarketPriceHistory: vi.fn(async () => priceHistory),
     getMarkets: vi.fn(async () => markets),
     getPortfolio: vi.fn(async () => null),
     listMarketOrders: vi.fn(async () => []),

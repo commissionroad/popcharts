@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { BlockchainClient } from "src/blockchain/client";
+import { ParkSweepError } from "src/indexer/utils/park-sweep-error";
 import {
   createDynamicAddressWatcher,
   staticContractSet,
@@ -52,6 +53,7 @@ function buildHarness({
   let chainHead = currentBlock;
   let unwatchCount = 0;
   let failHandleLogAt: number | null = null;
+  let failHandleLogWith: Error = new Error("db died");
   let backfillError: Error | null = null;
   let maxLogsSpan: bigint | null = null;
   let lookupStale = false;
@@ -60,7 +62,11 @@ function buildHarness({
 
   const client = {
     getBlockNumber: async () => chainHead,
-    getLogs: async (args: { fromBlock: bigint; toBlock: bigint }) => {
+    getLogs: async (args: {
+      address: `0x${string}`[];
+      fromBlock: bigint;
+      toBlock: bigint;
+    }) => {
       calls.push(`getLogs:${args.fromBlock}-${args.toBlock}`);
       if (backfillError) {
         const error = backfillError;
@@ -73,8 +79,15 @@ function buildHarness({
       ) {
         throw new Error("query returned more than 10000 results");
       }
+      // Honour the address filter the sweep passes. Without it every cursor
+      // group sees every contract's logs, which hides exactly the cross-group
+      // behaviour the parking tests exist to pin.
+      const addresses = new Set(
+        args.address.map((address) => address.toLowerCase()),
+      );
       return chainLogs.filter(
         (log) =>
+          addresses.has(log.address.toLowerCase()) &&
           log.blockNumber! >= args.fromBlock &&
           log.blockNumber! <= args.toBlock,
       );
@@ -100,7 +113,7 @@ function buildHarness({
     handleLog: async (_client, log) => {
       if (handled.length === failHandleLogAt) {
         failHandleLogAt = null;
-        throw new Error("db died");
+        throw failHandleLogWith;
       }
       handled.push(log);
     },
@@ -142,9 +155,14 @@ function buildHarness({
     failNextBackfill: (error: Error) => {
       backfillError = error;
     },
-    /** Throw (once) when the Nth handled log is attempted, 0-indexed. */
-    failHandleLogAt: (index: number) => {
+    /**
+     * Throw (once) when the Nth handled log is attempted, 0-indexed. Pass an
+     * error to choose what kind — a ParkSweepError parks the group, anything
+     * else abandons the pass.
+     */
+    failHandleLogAt: (index: number, error?: Error) => {
       failHandleLogAt = index;
+      failHandleLogWith = error ?? new Error("db died");
     },
     handled,
     unwatchCount: () => unwatchCount,
@@ -239,6 +257,82 @@ describe("recover", () => {
     expect(h.calls.filter((c) => c === "refreshRegistry")).toHaveLength(2);
     // The skipped money event must stay above the watermark so the next
     // sweep retries it — never silently checkpointed as persisted.
+    expect(h.cursor()).toBe(null);
+  });
+
+  it("parks only the offending address when a handler says not yet, and sweeps its groupmates past it", async () => {
+    // Identical start blocks on purpose: this is the steady state, where every
+    // contract shares one watermark and therefore one cursor group. Parking
+    // per *group* would look correct in a two-group fixture and still starve
+    // every market here — the log that faults is ordered first, so its
+    // groupmate's later log is never reached, and neither cursor moves, so
+    // the group never splits and the next tick repeats it forever.
+    const h = buildHarness({
+      contracts: [
+        { address: TOKEN, startBlock: 100n },
+        { address: OTHER_TOKEN, startBlock: 100n },
+      ],
+      logs: [transferLog(110n, 0), transferLog(112n, 0, OTHER_TOKEN)],
+    });
+    h.failHandleLogAt(0, new ParkSweepError("market status out of order"));
+
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    expect(h.cursor(TOKEN)).toBe(null);
+    expect(h.cursor(OTHER_TOKEN)).toBe(120n);
+    expect(h.handled.map((log) => log.address)).toEqual([OTHER_TOKEN]);
+  });
+
+  it("keeps a parked address parked for its own later logs", async () => {
+    // Ordering, not just liveness: applying a parked address's block-115 event
+    // while its block-110 event is unapplied is the out-of-order projection
+    // this whole mechanism exists to avoid.
+    const h = buildHarness({
+      contracts: [
+        { address: TOKEN, startBlock: 100n },
+        { address: OTHER_TOKEN, startBlock: 100n },
+      ],
+      logs: [
+        transferLog(110n, 0),
+        transferLog(112n, 0, OTHER_TOKEN),
+        transferLog(115n, 0),
+      ],
+    });
+    h.failHandleLogAt(0, new ParkSweepError("market status out of order"));
+
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    // The 115 log belongs to the parked address and must not be applied, even
+    // though the handler would now succeed.
+    expect(h.handled.map((log) => log.address)).toEqual([OTHER_TOKEN]);
+    expect(h.cursor(TOKEN)).toBe(null);
+  });
+
+  it("retries a parked log on the next sweep instead of checkpointing past it", async () => {
+    const h = buildHarness({ logs: [transferLog(110n, 0)] });
+    h.failHandleLogAt(0, new ParkSweepError("not yet"));
+
+    await h.watcher.recover(h.client, h.currentBlock);
+    expect(h.handled).toHaveLength(0);
+    expect(h.cursor()).toBe(null);
+
+    // Parking is not skipping: the cursor never passed the log, so the next
+    // sweep re-fetches it, and this time it applies.
+    await h.watcher.recover(h.client, h.currentBlock);
+
+    expect(h.handled).toHaveLength(1);
+    expect(h.cursor()).toBe(120n);
+  });
+
+  it("still abandons the pass for a failure it does not recognize", async () => {
+    // Parking is opt-in per error type. An unanticipated failure must keep
+    // the old loud behaviour rather than being quietly absorbed as "not yet".
+    const h = buildHarness({ logs: [transferLog(110n, 0)] });
+    h.failHandleLogAt(0);
+
+    await expect(h.watcher.recover(h.client, h.currentBlock)).rejects.toThrow(
+      "db died",
+    );
     expect(h.cursor()).toBe(null);
   });
 

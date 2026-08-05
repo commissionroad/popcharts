@@ -2,20 +2,15 @@ import {
   completeSetBinaryMarketAbi,
   completeSetPostgradAdapterAbi,
   marketSideToContractSide,
-  pregradManagerAbi,
   type MarketSide,
 } from "@popcharts/protocol";
 import { type Address } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 
-import { readReviewManagerPrivateKey } from "src/ai-review-runner/chain-review";
-import { createWalletClient } from "src/blockchain/client";
 import { retryOnceOnNonceCollision } from "src/blockchain/nonce-collision";
 
 import {
   LOCAL_DEV_ACCOUNT_COUNT,
   postgradAdapterAddress,
-  pregradManagerAddress,
   publicClient,
   walletFor,
 } from "./stack";
@@ -28,30 +23,6 @@ import {
  * service nonces in a narrow window; retryOnceOnNonceCollision absorbs the
  * rare collision instead of failing the nightly.
  */
-
-/**
- * Approves an under_review market as the review manager, resolving the key
- * exactly the way the review runner does (its env-override chain), so the
- * harness approves as the same identity on any stack the runner works on.
- * This is the manual-review scenario's "operator approves via admin path"
- * step.
- */
-export async function approveMarketAsReviewManager(
-  marketId: bigint,
-): Promise<void> {
-  const manager = createWalletClient(
-    privateKeyToAccount(readReviewManagerPrivateKey()),
-  );
-
-  await sendOperatorTransaction("approveMarket", () =>
-    manager.writeContract({
-      abi: pregradManagerAbi,
-      address: pregradManagerAddress,
-      functionName: "approveMarket",
-      args: [marketId],
-    }),
-  );
-}
 
 /**
  * Cancels a postgrad market (the draw outcome) with its on-chain resolver

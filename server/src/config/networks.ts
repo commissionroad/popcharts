@@ -19,6 +19,8 @@ export type NetworkId = "local" | "arcTestnet";
 export type ContractAddresses = {
   /** Shared bounded prediction hook; ZERO_ADDRESS when no venue is deployed. */
   boundedHook: `0x${string}`;
+  /** Native-fee markets' collateral token; ZERO_ADDRESS before deploy. */
+  collateral: `0x${string}`;
   /** Bounded pool order manager; ZERO_ADDRESS when no venue is deployed. */
   orderManager: `0x${string}`;
   /** v4 pool manager; ZERO_ADDRESS when no venue is deployed. */
@@ -28,6 +30,8 @@ export type ContractAddresses = {
   /** Adapter dev graduation finalizes with; ZERO_ADDRESS when unconfigured. */
   postgradAdapter: `0x${string}`;
   pregradManager: `0x${string}`;
+  /** Review-bond escrow vault (ADR 0022 P3); ZERO_ADDRESS disables the meter. */
+  reviewCreditVault: `0x${string}`;
   /** v4 state view lens; ZERO_ADDRESS when no venue is deployed. */
   stateView: `0x${string}`;
   /** Minimal v4 swap/liquidity router; ZERO_ADDRESS when no venue is deployed. */
@@ -101,6 +105,10 @@ function createLocalConfig(): NetworkConfig {
         "LOCAL_BOUNDED_HOOK_ADDRESS",
         "BOUNDED_HOOK_ADDRESS",
       ]),
+      collateral: readAddress([
+        "LOCAL_COLLATERAL_ADDRESS",
+        "COLLATERAL_ADDRESS",
+      ]),
       orderManager: readAddress([
         "LOCAL_ORDER_MANAGER_ADDRESS",
         "ORDER_MANAGER_ADDRESS",
@@ -120,6 +128,10 @@ function createLocalConfig(): NetworkConfig {
       pregradManager: readAddress([
         "LOCAL_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
+      ]),
+      reviewCreditVault: readAddress([
+        "LOCAL_REVIEW_CREDIT_VAULT_ADDRESS",
+        "REVIEW_CREDIT_VAULT_ADDRESS",
       ]),
       stateView: readAddress([
         "LOCAL_STATE_VIEW_ADDRESS",
@@ -156,6 +168,10 @@ function createArcTestnetConfig(): NetworkConfig {
         "ARC_TESTNET_BOUNDED_HOOK_ADDRESS",
         "BOUNDED_HOOK_ADDRESS",
       ]),
+      collateral: readAddress([
+        "ARC_TESTNET_COLLATERAL_ADDRESS",
+        "COLLATERAL_ADDRESS",
+      ]),
       orderManager: readAddress([
         "ARC_TESTNET_ORDER_MANAGER_ADDRESS",
         "ORDER_MANAGER_ADDRESS",
@@ -175,6 +191,10 @@ function createArcTestnetConfig(): NetworkConfig {
       pregradManager: readAddress([
         "ARC_TESTNET_PREGRAD_MANAGER_ADDRESS",
         "PREGRAD_MANAGER_ADDRESS",
+      ]),
+      reviewCreditVault: readAddress([
+        "ARC_TESTNET_REVIEW_CREDIT_VAULT_ADDRESS",
+        "REVIEW_CREDIT_VAULT_ADDRESS",
       ]),
       stateView: readAddress([
         "ARC_TESTNET_STATE_VIEW_ADDRESS",

@@ -41,7 +41,10 @@ if (!Number.isFinite(minLines) || minLines < 0 || minLines > 100) {
   process.exit(2);
 }
 
-const summary = parseLcovSummary(readFileSync(lcovPath, "utf8"), workspace.filter);
+const summary = parseLcovSummary(
+  readFileSync(lcovPath, "utf8"),
+  workspace.filter,
+);
 if (summary.lines.pct === null) {
   console.error(`no measurable lines in ${lcovPath} for ${workspace.key}`);
   process.exit(1);

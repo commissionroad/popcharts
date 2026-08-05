@@ -4,13 +4,15 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
-import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv.ts";
 import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
 import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutionEndpoint.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
-import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  pregradDeployOverrides,
+} from "./shared/deployments/pregradDeploy.ts";
 import { POSTGRES_VOLUME_NAME } from "./shared/docker/dockerComposeEnv.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
@@ -160,12 +162,7 @@ async function main(): Promise<void> {
   const postgrad = await deployPostgradVenue(run, deploy);
 
   const serverEnv = {
-    ...buildLocalServerEnv(resources, {
-      collateralAddress: deploy.collateralAddress,
-      deployBlock: deploy.deployBlock,
-      postgradAdapterAddress: deploy.postgradAdapterAddress,
-      pregradManagerAddress: deploy.pregradManagerAddress,
-    }),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
     ...postgradServerEnv(postgrad),
   };
   writeLocalChainServerEnv({
@@ -308,12 +305,6 @@ async function startAiServices(
   controllers.set("ai-review", reviewController);
   await reviewController.start();
 
-  const reviewRunner = supervisor.start(
-    "ai-review-runner",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-review-runner"],
-    { env: buildAiReviewRunnerEnv(serverEnv, resources) },
-  );
 
   const resolutionController = createSupervisedController(supervisor, {
     name: "ai-resolution",
@@ -333,14 +324,14 @@ async function startAiServices(
     { env: buildAiResolutionRunnerEnv(serverEnv, resources) },
   );
 
-  return [reviewRunner, resolutionRunner];
+  return [resolutionRunner];
 }
 
 function printUsage(): void {
   console.log(`Usage: pnpm run local:lifecycle-nightly -- [options]
 
 Boot the full local stack (chain, contracts, Postgres, API, indexer, keeper,
-heuristic AI review + resolution services and runners) and run the lifecycle
+heuristic AI review + resolution services and the resolution runner) and run the lifecycle
 nightly scenarios against it (ADR 0017 Track C / ADR 0014 checklist).
 
 Options:

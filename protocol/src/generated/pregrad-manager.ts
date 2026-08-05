@@ -121,6 +121,33 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [],
+    name: "ECDSAInvalidSignature",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "length",
+        type: "uint256",
+      },
+    ],
+    name: "ECDSAInvalidSignatureLength",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "s",
+        type: "bytes32",
+      },
+    ],
+    name: "ECDSAInvalidSignatureS",
+    type: "error",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -238,6 +265,17 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "recovered",
+        type: "address",
+      },
+    ],
+    name: "InvalidMarketCreationAuthorization",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "expected",
         type: "uint256",
@@ -321,6 +359,11 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "InvalidShortString",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "InvalidTrustedCreator",
     type: "error",
   },
@@ -343,6 +386,33 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MarketBeforeGraduationDeadline",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "expiry",
+        type: "uint64",
+      },
+    ],
+    name: "MarketCreationAuthorizationExpired",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "nonce",
+        type: "uint256",
+      },
+    ],
+    name: "MarketCreationAuthorizationNonceUsed",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "MarketCreationAuthorizerUnset",
     type: "error",
   },
   {
@@ -654,6 +724,17 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
+        internalType: "string",
+        name: "str",
+        type: "string",
+      },
+    ],
+    name: "StringTooLong",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "account",
         type: "address",
@@ -671,17 +752,6 @@ export const pregradManagerAbi = [
       },
     ],
     name: "UnauthorizedGraduationManager",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "UnauthorizedReviewManager",
     type: "error",
   },
   {
@@ -798,6 +868,12 @@ export const pregradManagerAbi = [
       },
     ],
     name: "CreationFeesWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "EIP712DomainChanged",
     type: "event",
   },
   {
@@ -1056,6 +1132,25 @@ export const pregradManagerAbi = [
     inputs: [
       {
         indexed: true,
+        internalType: "address",
+        name: "previousAuthorizer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newAuthorizer",
+        type: "address",
+      },
+    ],
+    name: "MarketCreationAuthorizerUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
         internalType: "uint256",
         name: "marketId",
         type: "uint256",
@@ -1106,44 +1201,6 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MarketRefundsAvailable",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "marketId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "reviewer",
-        type: "address",
-      },
-    ],
-    name: "MarketReviewApproved",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "marketId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "reviewer",
-        type: "address",
-      },
-    ],
-    name: "MarketReviewRejected",
     type: "event",
   },
   {
@@ -1401,19 +1458,6 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
-    name: "approveMarket",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "marketId",
-        type: "uint256",
-      },
-    ],
     name: "cancelMarket",
     outputs: [],
     stateMutability: "nonpayable",
@@ -1572,6 +1616,28 @@ export const pregradManagerAbi = [
         name: "params",
         type: "tuple",
       },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            internalType: "uint64",
+            name: "expiry",
+            type: "uint64",
+          },
+          {
+            internalType: "bytes",
+            name: "signature",
+            type: "bytes",
+          },
+        ],
+        internalType: "struct MarketTypes.MarketCreationAuthorization",
+        name: "authorization",
+        type: "tuple",
+      },
     ],
     name: "createMarket",
     outputs: [
@@ -1582,6 +1648,49 @@ export const pregradManagerAbi = [
       },
     ],
     stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "eip712Domain",
+    outputs: [
+      {
+        internalType: "bytes1",
+        name: "fields",
+        type: "bytes1",
+      },
+      {
+        internalType: "string",
+        name: "name",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "version",
+        type: "string",
+      },
+      {
+        internalType: "uint256",
+        name: "chainId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "verifyingContract",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "salt",
+        type: "bytes32",
+      },
+      {
+        internalType: "uint256[]",
+        name: "extensions",
+        type: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -1977,12 +2086,12 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "account",
-        type: "address",
+        internalType: "uint256",
+        name: "nonce",
+        type: "uint256",
       },
     ],
-    name: "isGraduationManager",
+    name: "isCreationAuthorizationNonceUsed",
     outputs: [
       {
         internalType: "bool",
@@ -2001,7 +2110,7 @@ export const pregradManagerAbi = [
         type: "address",
       },
     ],
-    name: "isReviewManager",
+    name: "isGraduationManager",
     outputs: [
       {
         internalType: "bool",
@@ -2052,6 +2161,19 @@ export const pregradManagerAbi = [
         internalType: "uint256",
         name: "",
         type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "marketCreationAuthorizer",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -2254,19 +2376,6 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "marketId",
-        type: "uint256",
-      },
-    ],
-    name: "rejectMarket",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "renounceOwnership",
     outputs: [],
@@ -2282,6 +2391,19 @@ export const pregradManagerAbi = [
       },
     ],
     name: "setClearingChallengePeriod",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "authorizer",
+        type: "address",
+      },
+    ],
+    name: "setMarketCreationAuthorizer",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

@@ -5,6 +5,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPostgradAdapter} from "./postgrad/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
@@ -15,7 +17,7 @@ import {MarketTypes} from "./types/MarketTypes.sol";
 /// @title PregradManager
 /// @author Pop Charts
 /// @notice Singleton manager for all Pop Charts pre-graduation markets.
-contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBook {
+contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, ReceiptBook {
   using SafeERC20 for IERC20;
 
   /// @notice Longest clearing challenge window the owner may configure.
@@ -110,9 +112,17 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
   /// @notice Reverts when an account is not allowed to manage graduation.
   /// @param account Unauthorized account.
   error UnauthorizedGraduationManager(address account);
-  /// @notice Reverts when an account is not allowed to review markets.
-  /// @param account Unauthorized account.
-  error UnauthorizedReviewManager(address account);
+  /// @notice Reverts when authorized creation is attempted before an authorizer is set.
+  error MarketCreationAuthorizerUnset();
+  /// @notice Reverts when a creation authorization is past its expiry.
+  /// @param expiry Timestamp the authorization stopped being valid.
+  error MarketCreationAuthorizationExpired(uint64 expiry);
+  /// @notice Reverts when a creation authorization nonce was already consumed.
+  /// @param nonce The spent nonce.
+  error MarketCreationAuthorizationNonceUsed(uint256 nonce);
+  /// @notice Reverts when a creation authorization signature does not recover the authorizer.
+  /// @param recovered Signer the signature actually recovered to.
+  error InvalidMarketCreationAuthorization(address recovered);
   /// @notice Reverts when a clearing root is zero.
   error InvalidClearingRoot();
   /// @notice Reverts when a clearing root already exists for a market.
@@ -190,20 +200,18 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
     bool bypassAiResolution
   );
 
-  /// @notice Emitted when review approves a market for receipt placement.
-  /// @param marketId Market that entered Active status.
-  /// @param reviewer Account that approved the market.
-  event MarketReviewApproved(uint256 indexed marketId, address indexed reviewer);
-
-  /// @notice Emitted when review rejects a market before receipt placement opens.
-  /// @param marketId Market that entered Rejected status.
-  /// @param reviewer Account that rejected the market.
-  event MarketReviewRejected(uint256 indexed marketId, address indexed reviewer);
-
   /// @notice Emitted when the owner grants or revokes trusted creator privileges.
   /// @param account Account whose trusted creator status changed.
   /// @param trusted True when the account may bypass public market creation guardrails.
   event TrustedCreatorUpdated(address indexed account, bool trusted);
+
+  /// @notice Emitted when the owner rotates the market-creation authorizer key.
+  /// @param previousAuthorizer Key being retired (address(0) on first arm).
+  /// @param newAuthorizer Key whose signatures verify from now on.
+  event MarketCreationAuthorizerUpdated(
+    address indexed previousAuthorizer,
+    address indexed newAuthorizer
+  );
 
   /// @notice Emitted when the owner pauses or resumes new market creation.
   /// @param paused True when new market creation is paused.
@@ -322,6 +330,16 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
   mapping(uint256 marketId => address) private _postgradAdapters;
   mapping(address account => bool trusted) private _trustedCreators;
 
+  /// @notice Key whose EIP-712 signature admits an authorized market creation.
+  /// @dev address(0) (the default) means no authorizations verify — the
+  ///      authorized path reverts until the owner arms it. Deliberately a
+  ///      separate key from the review managers: it outlives their retirement
+  ///      (repo ADR 0022 P5) and its blast radius is creation, not review.
+  address private _marketCreationAuthorizer;
+  /// @dev Unordered single-use authorization nonces, global across creators;
+  ///      the signed struct binds the creator, so global uniqueness is enough.
+  mapping(uint256 nonce => bool used) private _usedCreationAuthorizationNonces;
+
   /// @notice Returns true when new market creation is paused.
   bool public marketCreationPaused;
 
@@ -332,7 +350,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
   uint64 public clearingChallengePeriod;
 
   /// @notice Initializes the contract owner as the first review and graduation manager.
-  constructor() Ownable(msg.sender) {}
+  constructor() Ownable(msg.sender) EIP712("PregradManager", "1") {}
 
   /// @notice Restricts a function to the contract's current graduation manager set.
   modifier onlyGraduationManager() {
@@ -340,18 +358,111 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
     _;
   }
 
-  /// @notice Restricts a function to the contract's current review manager set.
-  modifier onlyReviewManager() {
-    _requireReviewManager(msg.sender);
-    _;
-  }
-
-  /// @notice Creates a new market in UnderReview status.
+  /// @notice Creates a market born Active under a server-minted authorization.
+  /// @dev The only creation path (repo ADR 0022 P5 removed the ungated one):
+  ///      review happens off-chain on the draft, the signature is the proof,
+  ///      so there is no on-chain review stop. Trusted creators skip
+  ///      verification entirely — pass a zeroed authorization — exactly as
+  ///      they already skip the creation fee.
   /// @param params Market creation parameters, excluding creator.
+  /// @param authorization Authorizer-signed permission binding these exact params.
   /// @return marketId Canonical pregrad market ID.
   function createMarket(
-    MarketTypes.CreateMarketParams calldata params
+    MarketTypes.CreateMarketParams calldata params,
+    MarketTypes.MarketCreationAuthorization calldata authorization
   ) external payable nonReentrant returns (uint256 marketId) {
+    if (!isTrustedCreator(msg.sender)) {
+      _consumeCreationAuthorization(params, authorization);
+    }
+
+    return _createMarket(params);
+  }
+
+  /// @dev EIP-712 type of the full creation params. Every economic field is
+  ///      bound — signing only the metadataHash would let an approved question
+  ///      ship with unreviewed numbers around it.
+  bytes32 private constant CREATE_MARKET_PARAMS_TYPEHASH = keccak256(
+    // solhint-disable-next-line max-line-length
+    "CreateMarketParams(address collateral,bytes32 metadataHash,string metadata,uint256 openingProbabilityWad,uint256 liquidityParameter,uint256 graduationThreshold,uint64 graduationDeadline,uint64 resolutionTime,uint64 yesNotBefore,bool bypassAiResolution)"
+  );
+
+  /// @dev EIP-712 type of the authorization envelope; the referenced struct
+  ///      type is appended per the standard's encodeType rules.
+  bytes32 private constant MARKET_CREATION_AUTHORIZATION_TYPEHASH = keccak256(
+    // solhint-disable-next-line max-line-length
+    "MarketCreationAuthorization(address creator,CreateMarketParams params,uint256 nonce,uint64 expiry)CreateMarketParams(address collateral,bytes32 metadataHash,string metadata,uint256 openingProbabilityWad,uint256 liquidityParameter,uint256 graduationThreshold,uint64 graduationDeadline,uint64 resolutionTime,uint64 yesNotBefore,bool bypassAiResolution)"
+  );
+
+  /// @notice Verifies and spends a creation authorization for msg.sender.
+  /// @dev Order matters for error quality: configuration (unset authorizer)
+  ///      before time (expiry) before replay (nonce) before cryptography, so
+  ///      the revert names the first thing the caller can actually fix.
+  /// @param params The exact params the signature must cover.
+  /// @param authorization The envelope being spent.
+  function _consumeCreationAuthorization(
+    MarketTypes.CreateMarketParams calldata params,
+    MarketTypes.MarketCreationAuthorization calldata authorization
+  ) private {
+    address authorizer = _marketCreationAuthorizer;
+    if (authorizer == address(0)) {
+      revert MarketCreationAuthorizerUnset();
+    }
+    if (block.timestamp > authorization.expiry) {
+      revert MarketCreationAuthorizationExpired(authorization.expiry);
+    }
+    if (_usedCreationAuthorizationNonces[authorization.nonce]) {
+      revert MarketCreationAuthorizationNonceUsed(authorization.nonce);
+    }
+
+    bytes32 digest = _hashTypedDataV4(
+      keccak256(
+        abi.encode(
+          MARKET_CREATION_AUTHORIZATION_TYPEHASH,
+          msg.sender,
+          _hashCreateMarketParams(params),
+          authorization.nonce,
+          authorization.expiry
+        )
+      )
+    );
+    address recovered = ECDSA.recover(digest, authorization.signature);
+    if (recovered != authorizer) {
+      revert InvalidMarketCreationAuthorization(recovered);
+    }
+
+    _usedCreationAuthorizationNonces[authorization.nonce] = true;
+  }
+
+  /// @notice EIP-712 struct hash of the full creation params.
+  /// @param params Params being hashed; `metadata` hashes as keccak of its bytes.
+  /// @return The hashStruct(CreateMarketParams) value.
+  function _hashCreateMarketParams(
+    MarketTypes.CreateMarketParams calldata params
+  ) private pure returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          CREATE_MARKET_PARAMS_TYPEHASH,
+          params.collateral,
+          params.metadataHash,
+          keccak256(bytes(params.metadata)),
+          params.openingProbabilityWad,
+          params.liquidityParameter,
+          params.graduationThreshold,
+          params.graduationDeadline,
+          params.resolutionTime,
+          params.yesNotBefore,
+          params.bypassAiResolution
+        )
+      );
+  }
+
+  /// @notice Creation core: validates, collects the fee, and records the market.
+  /// @param params Market creation parameters, excluding creator.
+  /// @return marketId Canonical pregrad market ID.
+  function _createMarket(
+    MarketTypes.CreateMarketParams calldata params
+  ) private returns (uint256 marketId) {
     _requireMarketCreationOpen();
     _validateCreateMarketParams(params);
 
@@ -374,7 +485,7 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
       yesNotBefore: params.yesNotBefore,
       bypassAiResolution: params.bypassAiResolution
     });
-    market.state.status = MarketTypes.MarketStatus.UnderReview;
+    market.state.status = MarketTypes.MarketStatus.Active;
     market.state.path = LmsrMath.openingPath(
       params.openingProbabilityWad,
       params.liquidityParameter
@@ -411,33 +522,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
     );
   }
 
-  /// @notice Approves an under-review market so it can accept pre-graduation receipts.
-  /// @param marketId Market that passed review.
-  function approveMarket(uint256 marketId) external onlyReviewManager {
-    _requireMarketExists(marketId);
-
-    MarketTypes.MarketRecord storage market = _markets[marketId];
-    _requireUnderReviewMarket(marketId, market);
-    _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
-
-    market.state.status = MarketTypes.MarketStatus.Active;
-
-    emit MarketReviewApproved(marketId, msg.sender);
-  }
-
-  /// @notice Rejects an under-review market and keeps it closed to receipt placement.
-  /// @param marketId Market that failed review.
-  function rejectMarket(uint256 marketId) external onlyReviewManager {
-    _requireMarketExists(marketId);
-
-    MarketTypes.MarketRecord storage market = _markets[marketId];
-    _requireUnderReviewMarket(marketId, market);
-
-    market.state.status = MarketTypes.MarketStatus.Rejected;
-
-    emit MarketReviewRejected(marketId, msg.sender);
-  }
-
   /// @notice Grants or revokes public creation guardrail bypass privileges.
   /// @param account Account whose trusted creator status will change.
   /// @param trusted True to grant trusted creator privileges; false to revoke them.
@@ -448,6 +532,16 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
 
     _trustedCreators[account] = trusted;
     emit TrustedCreatorUpdated(account, trusted);
+  }
+
+  /// @notice Sets the key whose signatures authorize market creation.
+  /// @dev Single-setter rotation on purpose (repo ADR 0022 P4 decisions):
+  ///      rotating invalidates every outstanding authorization, and the
+  ///      15-minute mint window bounds that blast radius to a retry.
+  /// @param authorizer New authorizer key; address(0) disarms the authorized path.
+  function setMarketCreationAuthorizer(address authorizer) external onlyOwner {
+    emit MarketCreationAuthorizerUpdated(_marketCreationAuthorizer, authorizer);
+    _marketCreationAuthorizer = authorizer;
   }
 
   /// @notice Pauses or resumes new market creation.
@@ -517,13 +611,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
     return _markets[marketId].state;
   }
 
-  /// @notice Returns whether `account` can review markets.
-  /// @param account Account to check.
-  /// @return True if the account can approve or reject markets.
-  function isReviewManager(address account) public view returns (bool) {
-    return account == owner();
-  }
-
   /// @notice Returns whether `account` can manage graduation.
   /// @param account Account to check.
   /// @return True if the account can start graduation or submit clearing roots.
@@ -536,6 +623,17 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
   /// @return True if the account can create custom markets and opt out of AI-assisted resolution.
   function isTrustedCreator(address account) public view returns (bool) {
     return _trustedCreators[account];
+  }
+
+  /// @notice Returns the key whose signatures authorize market creation.
+  function marketCreationAuthorizer() external view returns (address) {
+    return _marketCreationAuthorizer;
+  }
+
+  /// @notice Returns true when a creation authorization nonce is spent.
+  /// @param nonce Nonce to check.
+  function isCreationAuthorizationNonceUsed(uint256 nonce) external view returns (bool) {
+    return _usedCreationAuthorizationNonces[nonce];
   }
 
   /// @notice Returns the market creation fee for `creator`.
@@ -1097,22 +1195,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
     }
   }
 
-  /// @notice Requires a market to be in UnderReview status.
-  /// @param marketId Market ID being guarded.
-  /// @param market Market storage record being guarded.
-  function _requireUnderReviewMarket(
-    uint256 marketId,
-    MarketTypes.MarketRecord storage market
-  ) private view {
-    if (market.state.status != MarketTypes.MarketStatus.UnderReview) {
-      revert InvalidMarketStatus(
-        marketId,
-        market.state.status,
-        MarketTypes.MarketStatus.UnderReview
-      );
-    }
-  }
-
   /// @notice Requires a market to be in Active status.
   /// @param marketId Market ID being guarded.
   /// @param market Market storage record being guarded.
@@ -1208,14 +1290,6 @@ contract PregradManager is Ownable, ReentrancyGuard, CreationFeeVault, ReceiptBo
   function _requireGraduationManager(address account) private view {
     if (!isGraduationManager(account)) {
       revert UnauthorizedGraduationManager(account);
-    }
-  }
-
-  /// @notice Requires an account to be authorized for market review.
-  /// @param account Account to check.
-  function _requireReviewManager(address account) private view {
-    if (!isReviewManager(account)) {
-      revert UnauthorizedReviewManager(account);
     }
   }
 

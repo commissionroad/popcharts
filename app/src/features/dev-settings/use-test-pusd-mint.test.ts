@@ -38,6 +38,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
+  reviewCreditVaultAddress: null,
   rpcUrl: "http://127.0.0.1:8545",
 };
 
@@ -249,11 +250,13 @@ function walletState(overrides: Partial<WalletAccountValue> = {}): WalletAccount
     displayAddress: "0x111...111",
     enabled: true,
     errorMessage: null,
+    getDraftAuthHeaders: async () => ({}),
     isSupportedChain: true,
     linkWallet: vi.fn(),
     login: vi.fn(),
     loginLabel: "Sign in",
     logout: vi.fn(async () => undefined),
+    ownerUserId: null,
     pendingAction: null,
     ready: true,
     setActiveWallet: vi.fn(async () => undefined),

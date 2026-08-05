@@ -137,6 +137,10 @@ export async function createLifecycleMarket(
         // sides at once (must satisfy deadline < yesNotBefore <= resolution).
         yesNotBefore: resolutionTime,
       },
+      // Zeroed authorization: the nightly's creator wallet is a trusted
+      // creator on local deploys (repo ADR 0022 P5), so verification is
+      // skipped and the market is born Active.
+      { expiry: 0n, nonce: 0n, signature: "0x" },
     ],
     value: creationFee,
   });

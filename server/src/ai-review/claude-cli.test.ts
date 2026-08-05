@@ -87,7 +87,12 @@ describe("reviewWithClaudeCli", () => {
     ]);
     expect(finding.scoreRationales.objectivity).toBe("The test is binary.");
     expect(finding.modelId).toBe("sonnet");
-    expect(finding.sourceChecks).toHaveLength(1);
+    // This provider reports no evidence either, so its claimed sources get no
+    // credit for now. Unlike codex-cli that is a gap rather than a limit: the
+    // CLI can report its tool use, it just is not being read yet.
+    expect(finding.sourceChecks).toEqual([]);
+    expect(finding.scores.corroboration).toBe(1);
+    expect(finding.scores.sourceQuality).toBe(1);
     expect(captured.argv).toEqual([
       "claude",
       "-p",

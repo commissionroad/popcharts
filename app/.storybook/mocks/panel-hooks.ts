@@ -43,7 +43,14 @@ export const PanelPreviewContext = createContext<PanelPreview>({
 });
 
 export function useWalletAccount() {
-  return { address: useContext(PanelPreviewContext).address };
+  const address = useContext(PanelPreviewContext).address;
+
+  return {
+    address,
+    getDraftAuthHeaders: async () =>
+      address ? { "x-popcharts-draft-owner": address.toLowerCase() } : {},
+    ownerUserId: address?.toLowerCase() ?? null,
+  };
 }
 
 export function usePortfolio() {
@@ -64,6 +71,17 @@ export function useRefundClaim() {
     claim: () => undefined,
     error: preview?.error ?? null,
     status: preview?.status ?? "idle",
+  };
+}
+
+export function useReviewCreditDeposit() {
+  const address = useContext(PanelPreviewContext).address;
+
+  return {
+    deposit: () => undefined,
+    enabled: Boolean(address),
+    error: null,
+    status: "idle" as const,
   };
 }
 

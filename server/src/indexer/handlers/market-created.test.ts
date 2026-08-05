@@ -35,6 +35,7 @@ describe("buildMarketCreatedRecords", () => {
       config: { chainId: 5042002 },
       contractId: 42,
       log,
+      status: "under_review",
     });
 
     expect(records.event).toMatchObject({
@@ -71,6 +72,44 @@ describe("buildMarketCreatedRecords", () => {
     );
   });
 
+  it("projects whatever status the contract reports, not a fixed one", () => {
+    // The point of taking status as a parameter: the same MarketCreated log
+    // projects differently depending on the status the contract holds. Today
+    // that is under_review; after ADR 0022's P4 gate, markets are born Active
+    // and this handler must follow without being edited.
+    const log = {
+      args: {
+        marketId: 1n,
+        creator: "0xAAAAAAAA00000000000000000000000000000001",
+        metadataHash: `0x${"11".repeat(32)}`,
+        metadata: "{}",
+        collateral: "0xBBBBBBBB00000000000000000000000000000002",
+        openingProbabilityWad: 500_000_000_000_000_000n,
+        liquidityParameter: 1_000_000_000n,
+        graduationThreshold: 1_000_000n,
+        graduationDeadline: 1_780_000_000n,
+        resolutionTime: 1_781_000_000n,
+        yesNotBefore: 1_780_500_000n,
+        bypassAiResolution: false,
+      },
+      blockNumber: 123n,
+      logIndex: 4,
+      transactionHash: `0x${"22".repeat(32)}`,
+    } as unknown as MarketCreatedLog;
+
+    const build = (status: "under_review" | "bootstrap") =>
+      buildMarketCreatedRecords({
+        blockTimestamp: new Date("2026-08-04T12:00:00.000Z"),
+        config: { chainId: 5042002 },
+        contractId: 42,
+        log,
+        status,
+      }).market.status;
+
+    expect(build("under_review")).toBe("under_review");
+    expect(build("bootstrap")).toBe("bootstrap");
+  });
+
   it("throws when required log metadata is missing", () => {
     const log = {
       args: {},
@@ -86,6 +125,7 @@ describe("buildMarketCreatedRecords", () => {
         config: { chainId: 5042002 },
         contractId: 42,
         log,
+        status: "under_review",
       }),
     ).toThrow("blockNumber");
   });

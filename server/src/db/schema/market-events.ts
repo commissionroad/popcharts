@@ -1,6 +1,7 @@
 import {
   boolean,
   bigint,
+  index,
   integer,
   pgTable,
   serial,
@@ -96,6 +97,13 @@ export const receiptPlacedEvents = pgTable(
     uniqueIndex("receipt_placed_events_chain_receipt_idx").on(
       table.chainId,
       table.receiptId,
+    ),
+    // The whole-book lookups — the API's matched-cap fold per read and the
+    // receipt handler's per-trade fold (which runs while holding the market
+    // row lock) — must never table-scan.
+    index("receipt_placed_events_chain_market_idx").on(
+      table.chainId,
+      table.marketId,
     ),
   ],
 );

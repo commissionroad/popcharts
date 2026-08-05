@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   forceResolveMarketAction: vi.fn(),
   pathname: vi.fn((): string => "/"),
   refresh: vi.fn(),
+  useGeneratedMarketFill: vi.fn(),
   useTestPusdMint: vi.fn(),
 }));
 
@@ -31,6 +32,10 @@ vi.mock("@/features/market-detail/resolution-actions", () => ({
   forceResolveMarketAction: mocks.forceResolveMarketAction,
 }));
 
+vi.mock("./use-generated-market-fill", () => ({
+  useGeneratedMarketFill: mocks.useGeneratedMarketFill,
+}));
+
 vi.mock("./use-test-pusd-mint", () => ({
   useTestPusdMint: mocks.useTestPusdMint,
 }));
@@ -43,6 +48,7 @@ beforeEach(() => {
   mocks.forceResolveMarketAction.mockReset();
   mocks.refresh.mockReset();
   mocks.pathname.mockReturnValue("/");
+  mocks.useGeneratedMarketFill.mockReturnValue(generatedMarketFillState());
   mocks.useTestPusdMint.mockReturnValue(testPusdMintState());
 });
 
@@ -107,6 +113,85 @@ describe("DevMenu", () => {
     expect(screen.getByRole("button", { name: /Resolve NO/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Close for refunds/ })).toBeDisabled();
     expect(screen.getByText("Open a market to use these.")).toBeInTheDocument();
+  });
+
+  it("fills the create form from the create-form section", () => {
+    const onClick = vi.fn();
+    mocks.pathname.mockReturnValue("/create");
+    mocks.useGeneratedMarketFill.mockReturnValue(
+      generatedMarketFillState({
+        action: { disabled: false, label: "Random market", onClick },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: /Random market/ }));
+
+    expect(mocks.useGeneratedMarketFill).toHaveBeenCalledWith(true);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Open Create to use this.")).not.toBeInTheDocument();
+  });
+
+  it("disables the create-form action off the create page", () => {
+    mocks.pathname.mockReturnValue("/portfolio");
+    mocks.useGeneratedMarketFill.mockReturnValue(
+      generatedMarketFillState({
+        action: { disabled: true, label: "Random market", onClick: undefined },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(mocks.useGeneratedMarketFill).toHaveBeenCalledWith(false);
+    expect(screen.getByRole("button", { name: /Random market/ })).toBeDisabled();
+    expect(screen.getByText("Open Create to use this.")).toBeInTheDocument();
+  });
+
+  it("shows what the generated market filled", () => {
+    mocks.useGeneratedMarketFill.mockReturnValue(
+      generatedMarketFillState({
+        result: {
+          message: "Filled the form with a Weather market.",
+          status: "success",
+        },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(
+      screen.getByText("Filled the form with a Weather market.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows generation errors", () => {
+    mocks.useGeneratedMarketFill.mockReturnValue(
+      generatedMarketFillState({
+        result: { message: "No live source could be reached.", status: "error" },
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByText("No live source could be reached.")).toBeInTheDocument();
+  });
+
+  it("shows the generating pending state", () => {
+    mocks.useGeneratedMarketFill.mockReturnValue(
+      generatedMarketFillState({
+        action: { disabled: true, label: "Generating", onClick: undefined },
+        isGenerating: true,
+      })
+    );
+
+    render(<DevMenu />);
+    open();
+
+    expect(screen.getByRole("button", { name: /Generating/ })).toBeDisabled();
   });
 
   it("toggles the reveal-raw-errors override and persists it", () => {
@@ -309,6 +394,19 @@ describe("DevMenu", () => {
     expect(screen.getByRole("button", { name: /Force graduate/ })).not.toBeDisabled();
   });
 });
+
+function generatedMarketFillState(
+  overrides: Partial<
+    ReturnType<typeof import("./use-generated-market-fill").useGeneratedMarketFill>
+  > = {}
+): ReturnType<typeof import("./use-generated-market-fill").useGeneratedMarketFill> {
+  return {
+    action: { disabled: false, label: "Random market", onClick: vi.fn() },
+    isGenerating: false,
+    result: null,
+    ...overrides,
+  };
+}
 
 function testPusdMintState(
   overrides: Partial<

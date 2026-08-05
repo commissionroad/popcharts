@@ -2,6 +2,7 @@ import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { schema } from "src/db/client";
+import type { MarketStatus } from "src/db/schema/markets";
 import { logValueRequirer } from "src/indexer/utils/log-values";
 import { unixSecondsToDate } from "src/indexer/utils/unix-seconds";
 
@@ -35,11 +36,20 @@ export function buildMarketCreatedRecords({
   config,
   contractId,
   log,
+  status,
 }: {
   blockTimestamp: Date;
   config: Pick<NetworkConfig, "chainId">;
   contractId: number;
   log: MarketCreatedLog;
+  /**
+   * The market's status read from the contract, not assumed from the event.
+   * `MarketCreated` carries no status, and which status a market is born in is
+   * a property of the deployed contract — `UnderReview` today, `Active` once
+   * ADR 0022's P4 gate lands — so hard-coding it here would silently
+   * mis-project every new market the moment the contract changed.
+   */
+  status: MarketStatus;
 }): MarketCreatedRecords {
   const blockNumber = requireValue(log.blockNumber, "blockNumber");
   const transactionHash = requireValue(log.transactionHash, "transactionHash");
@@ -121,7 +131,7 @@ export function buildMarketCreatedRecords({
       openingProbabilityWad,
       resolutionTime,
       yesNotBefore,
-      status: "under_review",
+      status,
     },
   };
 }

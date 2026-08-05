@@ -27,6 +27,8 @@ export default defineConfig({
         // executable statements to cover.
         "src/domain/market-creation/types.ts",
         "src/domain/receipts/types.ts",
+        // Type-only shim for the local-dev market generator's wire shape.
+        "src/integrations/local-market-generator/types.ts",
         "src/integrations/contracts/pregrad-manager.ts",
         // Server-component page shells and layout chrome are exercised by the
         // Playwright smoke e2e, not unit tests. API route handlers under

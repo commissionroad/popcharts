@@ -72,7 +72,7 @@ export async function buildGeneratedMarket({
     );
   }
 
-  for (const option of shuffle([...filteredOptions.options])) {
+  for (const option of shuffle(filteredOptions.options)) {
     try {
       if (option.kind === "crypto") {
         return await buildCryptoMarket(option, { incoherent });
@@ -133,11 +133,15 @@ function formatOptionScope(kind: GeneratedMarketKind | "random"): string {
   return kind === "random" ? "generated" : kind;
 }
 
-function shuffle<T>(values: T[]): T[] {
-  for (let index = values.length - 1; index > 0; index -= 1) {
-    const otherIndex = Math.floor(Math.random() * (index + 1));
-    [values[index], values[otherIndex]] = [values[otherIndex], values[index]];
-  }
-
-  return values;
+/**
+ * A uniformly random ordering of `values`, leaving the input untouched. Each
+ * element is sorted by its own random key — not by a random *comparator*, the
+ * well-known broken idiom, whose inconsistency skews the result and is
+ * implementation-defined.
+ */
+function shuffle<T>(values: readonly T[]): T[] {
+  return values
+    .map((value) => ({ order: Math.random(), value }))
+    .sort((left, right) => left.order - right.order)
+    .map((entry) => entry.value);
 }

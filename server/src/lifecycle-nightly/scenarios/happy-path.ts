@@ -15,11 +15,7 @@ import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 
 import { assertEqual } from "../asserts";
-import {
-  chainNowSeconds,
-  jumpChainTimeTo,
-  resolutionRunnerTimeoutMs,
-} from "../chain-time";
+import { chainNowSeconds, resolutionRunnerTimeoutMs } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import {
   assertChainStatus,
@@ -68,10 +64,12 @@ export const happyPath: Scenario = {
     // Pre-graduation step timeouts must sum below graduationSeconds (240s)
     // so a slow stack fails at the slow step with a clear message instead of
     // silently crossing the graduation deadline and reporting a confusing
-    // refunded market: 45s indexing + 90s review + 30s receipt indexing
-    // leaves ≥75s for the keeper's pass to start graduation.
-    await step("indexer serves the market as under_review", async () => {
-      const indexed = await waitForApiStatus(market.marketId, "under_review", {
+    // refunded market: 45s indexing + 30s receipt indexing leaves ≥165s for
+    // the keeper's pass to start graduation. Markets are born Active on-chain
+    // (repo ADR 0022 P5 — review happens on drafts before creation), so the
+    // indexer serves bootstrap straight away and there is no review wait.
+    await step("indexer serves the market as bootstrap", async () => {
+      const indexed = await waitForApiStatus(market.marketId, "bootstrap", {
         timeoutMs: 45_000,
       });
       assertEqual(
@@ -79,27 +77,9 @@ export const happyPath: Scenario = {
         indexed.metadataHash.toLowerCase(),
         market.metadataHash.toLowerCase(),
       );
-    });
-
-    await step("review runner approves via heuristic provider", async () => {
-      await waitForApiStatus(market.marketId, "bootstrap", {
-        timeoutMs: 90_000,
-      });
-
-      const [review] = await db
-        .select()
-        .from(schema.marketAiReviews)
-        .where(
-          and(
-            eq(schema.marketAiReviews.chainId, config.chainId),
-            eq(schema.marketAiReviews.marketId, market.marketId),
-          ),
-        )
-        .limit(1);
-      assertEqual("review verdict", review?.verdict, "approve");
 
       await assertChainStatus(
-        "on-chain status after approval",
+        "on-chain status at creation",
         market.marketId,
         MARKET_STATUS.active,
       );
@@ -176,8 +156,14 @@ export const happyPath: Scenario = {
     });
 
     await step("resolution runner resolves YES after the gate", async () => {
-      await jumpChainTimeTo(market.resolutionTime + 1n);
-
+      // Deliberately no chain jump. The runner's eligibility is wall-clock
+      // (`coalesce(yesNotBefore, resolutionTime) <= now`), so this step waits
+      // out the gate in real time no matter what the chain clock says, and the
+      // poller below mines while it waits — by the time the runner fires, a
+      // freshly mined block already satisfies the contract's own
+      // `block.timestamp >= notBefore`. Jumping ahead of the wait would buy no
+      // wall time and would leave a PERMANENT chain-vs-wall offset that every
+      // later resolution scenario has to wait out on top of its own window.
       const resolved = await waitForApiStatus(market.marketId, "resolved", {
         // Derived, not hardcoded: the runner's eligibility clock is wall
         // time against the chain-anchored gate, so the bound is computed
@@ -278,8 +264,10 @@ export const happyPath: Scenario = {
 
     await step("chain clock sanity", async () => {
       // Guard the sequential-scenario contract: this scenario must leave the
-      // chain clock at or past the resolution gate it jumped to, and never
-      // behind it (a regression here would corrupt later scenarios' timing).
+      // chain clock past its resolution gate, and never behind it (a
+      // regression here would corrupt later scenarios' timing). The gate is
+      // reached by ordinary mining during the wall-clock wait rather than by a
+      // jump, so this also catches a poller that stopped ticking the chain.
       const now = await chainNowSeconds();
       if (now <= market.resolutionTime) {
         throw new Error(

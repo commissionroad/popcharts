@@ -16,10 +16,11 @@ library MarketTypes {
   /// @notice Lifecycle status for a market managed by the pregrad singleton.
   /// @notice One-way market lifecycle. Every status-changing function in
   ///         `PregradManager` guards on a specific *pre-terminal* status
-  ///         (approve/reject require UnderReview; startGraduation, markRefundable,
-  ///         and cancelMarket require Active; finalizeGraduation requires
-  ///         Graduating). Consequently the terminal statuses — Graduated,
-  ///         Refunded, Cancelled, Rejected — can NEVER transition again: no
+  ///         (startGraduation, markRefundable, and cancelMarket require
+  ///         Active; finalizeGraduation requires Graduating; markets are born
+  ///         Active — review happens off-chain on drafts, repo ADR 0022).
+  ///         Consequently the terminal statuses — Graduated,
+  ///         Refunded, Cancelled — can NEVER transition again: no
   ///         function accepts them as a precursor. Once a market is refunded or
   ///         cancelled it is final; only per-receipt refund claims remain, and
   ///         those flip `receipt.active`, never the market status. Any new
@@ -40,11 +41,7 @@ library MarketTypes {
     /// @notice The postgrad outcome has been resolved.
     Resolved,
     /// @notice Terminal. The market was cancelled (moderation) and full receipt escrow is refundable — status never changes again.
-    Cancelled,
-    /// @notice The market is awaiting review and does not accept receipts.
-    UnderReview,
-    /// @notice Terminal. The market failed review and remains closed to receipt placement.
-    Rejected
+    Cancelled
   }
 
   /// @notice Immutable creation-time configuration for a pregrad market.
@@ -100,6 +97,24 @@ library MarketTypes {
     uint64 yesNotBefore;
     /// @notice True when a trusted creator opts out of AI-assisted resolution.
     bool bypassAiResolution;
+  }
+
+  /// @notice Server-minted permission to create one specific market (repo ADR 0022 P4).
+  /// @dev EIP-712-signed by the manager's creation authorizer over the creator,
+  ///      the full `CreateMarketParams`, the nonce, and the expiry — so no field
+  ///      of the reviewed market can be swapped after approval, and the
+  ///      signature is inert from any other sender. Nonces are unordered and
+  ///      single-use: any unused value spends, so a creator's publishes never
+  ///      queue behind each other. Expiry is minutes, not days — the params
+  ///      carry absolute deadlines resolved at mint time, and the window bounds
+  ///      how far those dates can drift from what was reviewed.
+  struct MarketCreationAuthorization {
+    /// @notice Arbitrary single-use value; consumed on successful creation.
+    uint256 nonce;
+    /// @notice Unix timestamp after which the authorization is unusable.
+    uint64 expiry;
+    /// @notice Authorizer's EIP-712 signature over the typed authorization.
+    bytes signature;
   }
 
   /// @notice Mutable lifecycle and accounting state for a market.

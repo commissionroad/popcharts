@@ -28,6 +28,7 @@ export function PrivyWalletAccountProvider({ children }: { children: ReactNode }
   const {
     authenticated,
     connectOrCreateWallet,
+    getAccessToken,
     linkWallet,
     login,
     logout,
@@ -56,6 +57,7 @@ export function PrivyWalletAccountProvider({ children }: { children: ReactNode }
     user?.google?.email ??
     user?.google?.name ??
     null;
+  const ownerUserId = user?.id ?? null;
 
   const walletSummaries = useMemo(
     () =>
@@ -158,11 +160,19 @@ export function PrivyWalletAccountProvider({ children }: { children: ReactNode }
       displayAddress: activeAddress ? formatAddress(activeAddress) : null,
       enabled: true,
       errorMessage,
+      // The server verifies this token against the app's Privy verification
+      // key; getAccessToken refreshes it when it is expired or about to be.
+      getDraftAuthHeaders: async () => {
+        const token = await getAccessToken();
+
+        return token ? { authorization: `Bearer ${token}` } : {};
+      },
       isSupportedChain,
       linkWallet: handleLinkWallet,
       login: handleLogin,
       loginLabel: "Sign in",
       logout: handleLogout,
+      ownerUserId,
       pendingAction,
       ready,
       setActiveWallet: selectActiveWallet,
@@ -182,11 +192,13 @@ export function PrivyWalletAccountProvider({ children }: { children: ReactNode }
       authenticated,
       copyAddress,
       errorMessage,
+      getAccessToken,
       handleConnectOrCreateWallet,
       handleLinkWallet,
       handleLogin,
       handleLogout,
       isSupportedChain,
+      ownerUserId,
       pendingAction,
       ready,
       selectActiveWallet,

@@ -11,7 +11,11 @@
 // pushed without a git call ever blocking a request.
 
 import { readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -120,12 +124,21 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin;
   if (!origin) return true;
-  return origin === `http://${HOST}:${PORT}` || origin === `http://localhost:${PORT}`;
+  return (
+    origin === `http://${HOST}:${PORT}` || origin === `http://localhost:${PORT}`
+  );
 }
 
 const server = createServer(async (req, res) => {
   if (req.url === "/api/runs") {
-    sendJson(res, 200, { runnable: RUNNABLE.map(({ id, label, detail }) => ({ id, label, detail })), current: runner.state() });
+    sendJson(res, 200, {
+      runnable: RUNNABLE.map(({ id, label, detail }) => ({
+        id,
+        label,
+        detail,
+      })),
+      current: runner.state(),
+    });
     return;
   }
   if (req.url?.startsWith("/api/runs/") && req.method === "POST") {
@@ -156,7 +169,9 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify(snap));
     } catch (error) {
       res.writeHead(503, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: `ci-metrics read failed: ${String(error)}` }));
+      res.end(
+        JSON.stringify({ error: `ci-metrics read failed: ${String(error)}` }),
+      );
     }
     return;
   }

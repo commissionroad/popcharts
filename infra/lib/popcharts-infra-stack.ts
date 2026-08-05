@@ -35,7 +35,8 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
 
 /**
  * Marker terms the indexer prefixes to an operator-alert record, and which the
- * dispute metric filter matches (case-sensitively).
+ * operator metric filters match (case-sensitively). One event term per alarm,
+ * so a new page is a new alarm rather than a wider one.
  *
  * Deliberately duplicated from `server/src/shared/operator-alert-log.ts`
  * rather than imported — do not "fix" this into an import. `infra/` is
@@ -43,12 +44,13 @@ export type PopChartsInfraStackProps = cdk.StackProps & {
  * `@popcharts/protocol`, committed generated artifacts, or the network
  * (`docs/architecture.md`), and bending that boundary needs an ADR, not a
  * relative path. The duplication has a keeper instead:
- * `test/resolution-disputed-alarm.test.ts` builds a record with the server's
- * own formatter and fails if these terms no longer occur in it, and infra CI's
+ * `test/operator-alarms.test.ts` builds each record with the server's own
+ * formatter and fails if these terms no longer occur in it, and infra CI's
  * path filter includes that server module so either side's change re-runs it.
  */
 const OPERATOR_ALERT_MARKER = "POPCHARTS_OPERATOR_ALERT";
 const RESOLUTION_DISPUTED_ALERT_EVENT = "resolution_disputed";
+const MARKET_STATUS_OUT_OF_ORDER_ALERT_EVENT = "market_status_out_of_order";
 
 const DATABASE_NAME = "popcharts";
 const DATABASE_USER = "popcharts";
@@ -236,6 +238,32 @@ export class PopChartsInfraStack extends cdk.Stack {
       ),
       logGroup: indexerLogGroup,
       metricName: "ResolutionDisputed",
+      metricNamespace: `PopCharts/${props.stage}`,
+      topic: operatorAlertTopic,
+    });
+
+    // A status-projecting event reached a market in a status the projection
+    // does not accept. The indexer parks that market's cursor and keeps
+    // faulting on the same log every tick, so its lifecycle events stop
+    // arriving and never resume on their own. Nothing crashes, nothing is
+    // lost, and every other market keeps indexing — which is exactly why this
+    // needs a page to be noticed at all.
+    new LogPatternAlarm(this, "MarketStatusOutOfOrderAlarm", {
+      alarmDescription: [
+        "The indexer rejected a market status projection as out of order and",
+        "parked that market's cursor; its lifecycle events stop arriving and",
+        "will not resume until a human intervenes. Other markets are",
+        "unaffected. The matching record in the indexer log group carries the",
+        "market, the status pair that tripped the guard, and the log to",
+        "replay.",
+      ].join(" "),
+      alarmName: `${namePrefix}-market-status-out-of-order`,
+      filterPattern: logs.FilterPattern.allTerms(
+        OPERATOR_ALERT_MARKER,
+        MARKET_STATUS_OUT_OF_ORDER_ALERT_EVENT,
+      ),
+      logGroup: indexerLogGroup,
+      metricName: "MarketStatusOutOfOrder",
       metricNamespace: `PopCharts/${props.stage}`,
       topic: operatorAlertTopic,
     });

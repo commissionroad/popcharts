@@ -42,7 +42,8 @@ test("zero live stacks throws with a start hint", async () => {
   await assert.rejects(
     resolveTargetStack({ liveStacks: [] }),
     (e: unknown) =>
-      e instanceof TargetStackResolutionError && /just local-dev/.test(e.message),
+      e instanceof TargetStackResolutionError &&
+      /just local-dev/.test(e.message),
   );
 });
 
@@ -84,5 +85,8 @@ test("selectStackByToken throws on no match", () => {
 });
 
 test("describeTargetStack is a readable one-liner", () => {
-  assert.match(describeTargetStack(slot1), /slot 1 \(agent\) chain:8555 api:3011 db:popcharts_1/);
+  assert.match(
+    describeTargetStack(slot1),
+    /slot 1 \(agent\) chain:8555 api:3011 db:popcharts_1/,
+  );
 });

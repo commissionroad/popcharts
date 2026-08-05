@@ -5,6 +5,7 @@ import {
   getLastProcessedBlock,
   updateLastProcessedBlock,
 } from "src/indexer/utils/block-tracker";
+import { ParkSweepError } from "src/indexer/utils/park-sweep-error";
 
 /**
  * Shared scaffolding for every indexer watcher. The address set is either
@@ -26,9 +27,19 @@ import {
  *   a crash replays the whole block; handlers dedupe on (chain, tx, log),
  *   making replays no-ops.
  * - Only a completed sweep may jump the cursor to its block-height snapshot,
- *   guaranteeing every fetched log was persisted first. A log the sweep had
- *   to skip (unknown address) parks the sweep below that block instead, so
- *   it is retried — loudly — every tick rather than checkpointed past.
+ *   guaranteeing every fetched log was persisted first. A log the sweep could
+ *   not apply parks that log's **address** below that block instead, so it is
+ *   retried — loudly — every tick rather than checkpointed past. Two cases
+ *   park: a log from an unknown address, and a handler raising a
+ *   ParkSweepError ("not yet", as opposed to "broken"). Parking one address
+ *   leaves its groupmates free to finish the chunk and checkpoint, and holds
+ *   the parked address back from its own later logs — contracts share a
+ *   watermark, not a fate. Parking per *group* would look equivalent and is
+ *   not: in steady state every contract sits on the same watermark and so in
+ *   the same group, and the group is swept in chain order, so one unappliable
+ *   log would starve every market whose logs sort after it, forever. Any
+ *   other handler error still propagates and abandons the pass, which is the
+ *   right default for a failure nobody anticipated.
  * - The live subscription is a low-latency accelerator only. It persists
  *   rows as they arrive (double delivery is absorbed by the dedupe) but
  *   never moves the watermark, so anything it misses — the async
@@ -199,7 +210,27 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
       return false;
     }
 
-    await config.handleLog(client, log, contract);
+    try {
+      await config.handleLog(client, log, contract);
+    } catch (error) {
+      // A handler that says "not yet" gets the same treatment as an unknown
+      // address: park this group below the log so the next sweep retries it,
+      // and let the rest of the pass carry on. Letting it propagate instead
+      // would abandon every group the pass had not reached — and since the
+      // fault reproduces every tick, starve them for good.
+      if (!(error instanceof ParkSweepError)) {
+        throw error;
+      }
+
+      // Worded for both callers: the sweep parks this address below the log,
+      // and live delivery — which owns no cursor — simply drops it. "Left for
+      // the next sweep" is the one thing true of both.
+      console.warn(
+        `[${label}] ${error.name} for ${address} at block ${log.blockNumber}; left for the next sweep: ${error.message}`,
+      );
+      return false;
+    }
+
     return true;
   }
 
@@ -274,9 +305,16 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
     // tick, parking the sweep permanently), and each success doubles it back
     // toward the maximum. Only a failure at the single-block floor
     // propagates, since that can't be a range-size problem.
+    // Addresses whose cursor is stuck below a log this sweep could not apply.
+    // Scoped to the sweep rather than the chunk: once an address parks, every
+    // later log of its own must wait too, in this chunk and every chunk after
+    // it. Applying a block-200 event while its block-110 event is unapplied is
+    // precisely the out-of-order projection parking exists to prevent.
+    const parked = new Set<string>();
+
     let span = SWEEP_CHUNK_BLOCKS;
     let chunkFrom = fromBlock;
-    while (chunkFrom <= currentBlock) {
+    while (chunkFrom <= currentBlock && parked.size < group.length) {
       const chunkTo = bigintMin(chunkFrom + span - 1n, currentBlock);
       let logs;
       try {
@@ -315,19 +353,28 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
       );
 
       for (const log of ordered) {
+        const address = log.address.toLowerCase();
+        if (parked.has(address)) {
+          continue;
+        }
+
         const persisted = await processLog(client, log as DynamicWatcherLog);
-        // A skipped log parks the whole group below its block: no snapshot
-        // jump, so the next sweep re-fetches and retries it (see the module
-        // comment). Prior per-log advances stand — everything before this
-        // log was persisted.
+        // A log the sweep could not apply parks its own address below that
+        // block: no per-log advance and no snapshot jump for that address, so
+        // the next sweep re-fetches and retries it (see the module comment).
+        // Every other address in the group carries on — they share only a
+        // watermark, not a fate, and in steady state the whole watcher shares
+        // one watermark, so parking the group would starve every market
+        // behind the offending one.
         if (!persisted) {
-          return;
+          parked.add(address);
+          continue;
         }
         // Trail the log's block by one: a crash here replays the whole block
         // on the next sweep instead of skipping its remaining logs.
         if (log.blockNumber !== null) {
           await tracker.updateLastProcessedBlock(
-            log.address.toLowerCase(),
+            address,
             cursorName,
             log.blockNumber - 1n,
           );
@@ -335,8 +382,12 @@ export function createDynamicAddressWatcher<TContract extends WatchedContract>(
       }
 
       // Only a completed chunk may jump the watermarks to its end block,
-      // guaranteeing every fetched log was persisted first.
+      // guaranteeing every fetched log was persisted first — which is true of
+      // every address that did not park, and false of every one that did.
       for (const contract of group) {
+        if (parked.has(contract.address.toLowerCase())) {
+          continue;
+        }
         await tracker.updateLastProcessedBlock(
           contract.address,
           cursorName,

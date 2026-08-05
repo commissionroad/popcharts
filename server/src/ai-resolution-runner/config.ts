@@ -29,10 +29,14 @@ export type AiResolutionRunnerConfig = {
 const DEFAULT_SERVICE_URL = "http://127.0.0.1:3004";
 const DEFAULT_BACKOFF_MS = 30_000;
 const DEFAULT_BATCH_SIZE = 5;
-const DEFAULT_LEASE_MS = 60_000;
+const DEFAULT_LEASE_MS = 1_200_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_POLL_MS = 5_000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+// Must exceed the resolution service's own AI_RESOLUTION_TIMEOUT_MS (300s), or
+// the runner aborts a request the service is still working on and burns an
+// attempt. The lease in turn covers three such requests, matching the review
+// runner's ratio.
+const DEFAULT_REQUEST_TIMEOUT_MS = 360_000;
 
 /**
  * Reads the runner config from the given env record (Bun.env by default).

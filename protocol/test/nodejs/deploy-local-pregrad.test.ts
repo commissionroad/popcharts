@@ -27,9 +27,33 @@ describe("deploy-local-pregrad helper", async function () {
       await publicClient.getCode({ address: summary.postgradAdapterAddress }),
       undefined,
     );
+    assert.notEqual(
+      await publicClient.getCode({ address: summary.reviewCreditVaultAddress }),
+      undefined,
+    );
 
     const manager = await viem.getContractAt("PregradManager", summary.pregradManagerAddress);
     assert.equal(await manager.read.marketCount(), 0n);
+
+    // The local vault owner is the deployer so dev tooling can sweep. There is
+    // no resolver role — review consumption is metered entirely off-chain.
+    const vault = await viem.getContractAt("ReviewCreditVault", summary.reviewCreditVaultAddress);
+    const [walletClient] = await viem.getWalletClients();
+    const deployer = walletClient?.account?.address;
+    assert.notEqual(deployer, undefined);
+    assert.equal(
+      getAddress((await vault.read.owner()) as `0x${string}`),
+      getAddress(deployer as `0x${string}`),
+    );
+    assert.equal(await vault.read.collectedFees(), 0n);
+
+    // The creation gate arms at deploy (repo ADR 0022 P4): the deployer is
+    // the local authorizer, matching the API's local default signing key, so
+    // server-minted publish authorizations verify without any env threading.
+    assert.equal(
+      getAddress((await manager.read.marketCreationAuthorizer()) as `0x${string}`),
+      getAddress(deployer as `0x${string}`),
+    );
   });
 
   it("emits the summary fields the local dev orchestrators parse", async function () {
@@ -46,6 +70,7 @@ describe("deploy-local-pregrad helper", async function () {
       "deployBlock",
       "postgradAdapterAddress",
       "pregradManagerAddress",
+      "reviewCreditVaultAddress",
     ]);
     assert.deepEqual(JSON.parse(JSON.stringify(summary)), summary);
   });

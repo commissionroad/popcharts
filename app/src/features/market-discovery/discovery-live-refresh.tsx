@@ -28,11 +28,12 @@ export const DISCOVERY_COALESCE_WINDOW_MS = 1_000;
  * retention window) both want exactly a fresh read.
  *
  * Scope, deliberately: bets do NOT reach this channel — `receipt_placed_events`
- * routes to the per-market and owner channels only. So card prices, graduation
- * bars, and volume still settle on reload; only lifecycle transitions are live
- * here. Closing that needs either routing bets to this channel (every bet then
- * wakes every board viewer for a full list refetch) or paginating the board and
- * subscribing per visible card — deferred until the board is bounded.
+ * routes to the per-market and owner channels only, where each board card's
+ * own `MarketCardLive` subscription picks its trades up and folds the tick
+ * payload into the displayed prices in place (the board is bounded by the
+ * API's list limit, which bounds the card subscriptions with it). So this
+ * component stays lifecycle-only by construction; card graduation bars and
+ * volume still settle on reload, until the trade size rides the tick payload.
  */
 export function DiscoveryLiveRefresh() {
   const router = useRouter();

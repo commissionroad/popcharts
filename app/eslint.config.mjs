@@ -28,6 +28,18 @@ const protocolImportPattern = {
     "Import @popcharts/protocol only through the src/integrations/contracts/ shims (pure price-policy/tick-math in src/domain/postgrad-trading/ excepted).",
 };
 
+/**
+ * Root scripts/ guard: that tree is the local-dev CLI's, runs under a different
+ * TypeScript loader, and is not part of the app's dependency graph. The single
+ * deliberate reach into it is src/integrations/local-market-generator/, which
+ * shares the CLI's market generator with the create form's dev autofill.
+ */
+const localScriptsImportPattern = {
+  group: ["**/scripts/*", "**/scripts/**"],
+  message:
+    "Import the root scripts/ tree only from src/integrations/local-market-generator/, which shims it for local dev tools.",
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -41,13 +53,19 @@ const eslintConfig = defineConfig([
       "simple-import-sort/imports": "warn",
       "@typescript-eslint/no-restricted-imports": [
         "error",
-        { patterns: [apiClientImportPattern, protocolImportPattern] },
+        {
+          patterns: [
+            apiClientImportPattern,
+            localScriptsImportPattern,
+            protocolImportPattern,
+          ],
+        },
       ],
     },
   },
   {
     // The indexer adapter (and domain market mapping) may value-import the
-    // generated client; the protocol restriction still applies.
+    // generated client; the other restrictions still apply.
     files: [
       "src/integrations/indexer/**/*.{ts,tsx}",
       "src/domain/markets/**/*.{ts,tsx}",
@@ -55,13 +73,13 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
-        { patterns: [protocolImportPattern] },
+        { patterns: [localScriptsImportPattern, protocolImportPattern] },
       ],
     },
   },
   {
     // Contract shims (and blessed pure math in postgrad trading) may import
-    // the protocol package; the generated-client restriction still applies.
+    // the protocol package; the other restrictions still apply.
     files: [
       "src/integrations/contracts/**/*.{ts,tsx}",
       "src/domain/postgrad-trading/**/*.{ts,tsx}",
@@ -69,7 +87,18 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
-        { patterns: [apiClientImportPattern] },
+        { patterns: [apiClientImportPattern, localScriptsImportPattern] },
+      ],
+    },
+  },
+  {
+    // The local-dev market generator shim may reach the root scripts/ tree;
+    // the package restrictions still apply.
+    files: ["src/integrations/local-market-generator/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        { patterns: [apiClientImportPattern, protocolImportPattern] },
       ],
     },
   },

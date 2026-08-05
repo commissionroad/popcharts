@@ -40,9 +40,15 @@ function run(overrides: Partial<NightlyRun> = {}): NightlyRun {
 describe("nightlyMetrics", () => {
   it("is green only when every suite is green", () => {
     assert.equal(deriveConclusion(GREEN), "success");
-    assert.equal(deriveConclusion({ ...GREEN, terminal: "cancelled" }), "failed");
+    assert.equal(
+      deriveConclusion({ ...GREEN, terminal: "cancelled" }),
+      "failed",
+    );
     assert.equal(deriveConclusion({ ...GREEN, smoke: "failure" }), "failed");
-    assert.equal(deriveConclusion({ ...GREEN, scenarios: "skipped" }), "failed");
+    assert.equal(
+      deriveConclusion({ ...GREEN, scenarios: "skipped" }),
+      "failed",
+    );
   });
 
   it("upserts history by run id, keeping it sorted by time", () => {
@@ -129,7 +135,9 @@ describe("renderTrends composition", () => {
     functions: { hit: 1, found: 2, pct: 50 },
     branches: { hit: 0, found: 0, pct: null },
   };
-  const coverage = [historyRow("app", "c".repeat(40), "2026-07-24T00:00:00Z", summary)];
+  const coverage = [
+    historyRow("app", "c".repeat(40), "2026-07-24T00:00:00Z", summary),
+  ];
 
   it("puts the nightly section above coverage", () => {
     const md = renderTrends(coverage, [run()]);

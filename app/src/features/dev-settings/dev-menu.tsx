@@ -6,6 +6,7 @@ import {
   GraduationCap,
   LoaderCircle,
   Settings,
+  Shuffle,
   XCircle,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ import { forceResolveMarketAction } from "@/features/market-detail/resolution-ac
 import { cn } from "@/lib/cn";
 
 import { readRevealRawErrors, setRevealRawErrorsSetting } from "./dev-settings";
+import { useGeneratedMarketFill } from "./use-generated-market-fill";
 import { useTestPusdMint } from "./use-test-pusd-mint";
 
 /**
@@ -59,6 +61,7 @@ export function DevMenu() {
   const [result, setResult] = useState<ClosePregradMarketActionResult | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const testPusdMint = useTestPusdMint();
+  const generatedMarketFill = useGeneratedMarketFill(pathname === "/create");
 
   useEffect(() => {
     if (!isOpen) {
@@ -186,6 +189,49 @@ export function DevMenu() {
                 {testPusdMint.result.message}
               </p>
             ) : null}
+          </div>
+
+          <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
+            <p className="px-2 pb-2 font-mono text-[11px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
+              Create form
+            </p>
+
+            <Button
+              className="w-full"
+              disabled={generatedMarketFill.action.disabled}
+              leftIcon={
+                generatedMarketFill.isGenerating ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" size={17} />
+                ) : (
+                  <Shuffle aria-hidden="true" size={17} />
+                )
+              }
+              onClick={generatedMarketFill.action.onClick}
+              size="sm"
+              variant="secondary"
+            >
+              {generatedMarketFill.action.label}
+            </Button>
+
+            {generatedMarketFill.result ? (
+              <p
+                className="mt-2 text-center font-mono text-[11px] leading-5"
+                style={{
+                  color:
+                    generatedMarketFill.result.status === "success"
+                      ? "var(--pc-cyan)"
+                      : "var(--accent)",
+                }}
+              >
+                {generatedMarketFill.result.message}
+              </p>
+            ) : null}
+
+            {pathname === "/create" ? null : (
+              <p className="mt-2 px-2 text-[11px] leading-4 text-[var(--text-muted)]">
+                Open Create to use this.
+              </p>
+            )}
           </div>
 
           <div className="mt-3 border-t border-[var(--border-soft)] pt-3">

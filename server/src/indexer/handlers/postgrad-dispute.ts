@@ -209,6 +209,7 @@ export async function persistPostgradDisputeRecord(
     await applyMarketStatusTransition(tx, {
       chainId: record.event.chainId,
       marketId: record.event.marketId,
+      sourceEvent: record.event,
       transition,
       updatedAt: record.event.blockTimestamp,
     });

@@ -8,7 +8,7 @@ sources:
   - docs/architecture.md
   - server/README.md
   - docs/adr/0020-concurrent-local-dev-stacks.md
-updated: 2026-07-23
+updated: 2026-08-04
 ---
 
 # Local dev orchestration
@@ -23,12 +23,16 @@ convention: **orchestrators read deployment manifests
 - `just dev` — app-only default.
 - `just local-dev` — full stack via Process Compose (control plane
   `local-dev.control-plane.yaml`): [devchain](../entities/devchain.md) +
-  contracts + Postgres + indexer + API + app. Runs from the primary checkout.
+  contracts + Postgres + indexer + API + app, plus the AI review service and
+  runner and the AI resolution service and runner. Runs from the primary
+  checkout. `just local-dev-control` is a deprecated alias for it since
+  2026-08-03; `pnpm run local:dev:inline` is the pre-control-plane orchestrator
+  and starts a strictly smaller stack (no AI resolution pair).
 - `just local-smoke` — create→index→API verification
   (`GET /markets?chainId=31337`).
 - `just devchain-e2e` — chain-backed Playwright `@chain` smoke.
 - `just local-ai-review` / `just server-ai-review-smoke` — AI review loop on
-  port 3002/3012 (Ollama by default locally, heuristic fallback).
+  port 3002/3012 (codex-cli by default locally, heuristic fallback).
 - Postgrad venue local deploy + `just local-market-health` /
   `just local-market-smoke` — the four venue flows.
 - `just local-create-market` — emits canonical JSON metadata in the
@@ -42,7 +46,14 @@ agent stacks, see the slot model below), `app/.env.development.local`
 (gitignored; deterministic local key for the dev-only creation route),
 `NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN`, `NETWORK=local`,
 `POPCHARTS_MARKET_DATA_SOURCE=auto|api|fixtures`. Dev-only server endpoints
-need `POPCHARTS_DEV_TOOLS_ENABLED=true` + `NETWORK=local`.
+need `POPCHARTS_DEV_TOOLS_ENABLED=true` + `NETWORK=local`; the app's dev-tools
+gear menu is gated separately on the client-side
+`NEXT_PUBLIC_POPCHARTS_DEV_TOOLS_ENABLED=true`, which the local stack sets — so
+the menu is invisible under a bare `next dev`.
+
+In a restricted sandbox that cannot write to user-level package stores,
+`mise exec -- just setup-sandbox` installs into repo-local stores; `just setup`
+stays the standard human path so pnpm and Bun keep their shared-store defaults.
 
 ## Concurrent stacks (slot model, ADR 0020)
 

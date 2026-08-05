@@ -1,15 +1,12 @@
+import { RECEIPTS_STREAM } from "@popcharts/live-channels";
 import { ArrowLeft, BadgeCheck, Coins, ReceiptText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
-import { GraduationBar } from "@/components/ui/graduation-bar";
+import { SmallMetric } from "@/components/ui/small-metric";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { isAwaitingResolution } from "@/domain/markets/status";
-import {
-  type Market,
-  marketSideLabel,
-  type PricePathPoint,
-} from "@/domain/markets/types";
+import { type Market, marketSideLabel, type PricePoint } from "@/domain/markets/types";
 import { OrderBookCard } from "@/features/order-book/order-book-card";
 import { OpenOrdersPanel } from "@/features/postgrad-ticket/open-orders-panel";
 import { PostgradTradePanel } from "@/features/postgrad-ticket/postgrad-ticket";
@@ -24,16 +21,34 @@ import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
 import { MarketDisputePanel } from "./market-dispute-panel";
 import { MarketLivePrice } from "./market-live-price";
+import { MarketLiveStats } from "./market-live-stats";
 import { MarketPositionPanel } from "./market-position-panel";
 
 export function MarketDetailPage({
   market,
   pricePath,
+  venueSeedStreams,
 }: {
   market: Market;
-  pricePath?: PricePathPoint[];
+  /** Whole-life history from the unified read (repo ADR 0025), when it loaded. */
+  pricePath?: PricePoint[];
+  /** Last live-tick ordinal per venue stream, from the same read. */
+  venueSeedStreams?: Record<string, number>;
 }) {
-  const chartPoints = pricePath ?? market.pricePath.map((cents) => ({ cents }));
+  // Fallback for fixture-backed markets and a failed history read: the
+  // market's synthetic YES path, with NO as its complement — but only while
+  // the market is pregrad-shaped. A graduated or resolved market's synthetic
+  // path ends at a venue or terminal price, so dressing it up as an LMSR
+  // curve would invent history and misstate NO (Codex P4 review finding);
+  // those markets render the chart's honest empty state instead.
+  const chartPoints =
+    pricePath ??
+    (market.postgrad
+      ? []
+      : market.pricePath.map((cents) => ({
+          noCents: 100 - cents,
+          yesCents: cents,
+        })));
   // Once a market graduates the receipt book is history: the page leads with
   // the graduation outcome and drops the pre-graduation progress/trading UI.
   // This holds for the whole dispute window too — a market in
@@ -98,16 +113,16 @@ export function MarketDetailPage({
               to match still resets the appended ticks instead of reusing them. */}
           <MarketLivePrice
             key={market.id}
-            chartHeading={
-              settled
-                ? "Pre-graduation price history"
-                : "Virtual LMSR - implied probability"
-            }
+            chartHeading={chartHeading({ market, points: chartPoints, settled })}
+            {...(market.postgrad ? { graduatedAt: market.postgrad.finalizedAt } : {})}
             marketAppId={market.id}
             noLabel={marketSideLabel(market, "no")}
             noPriceCents={market.noPriceCents}
             points={chartPoints}
-            seedSequence={market.receiptCount}
+            seedStreams={{
+              [RECEIPTS_STREAM]: market.receiptCount,
+              ...(venueSeedStreams ?? {}),
+            }}
             yesLabel={marketSideLabel(market, "yes")}
             yesPriceCents={market.yesPriceCents}
           >
@@ -119,21 +134,12 @@ export function MarketDetailPage({
 
           {settled ? null : (
             <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
-              <GraduationBar
-                matchedUsd={market.matchedUsd}
-                targetUsd={market.graduationTargetUsd}
-              />
-              <div className="mt-5 grid gap-3 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-3">
-                <SmallMetric
-                  label="Volume"
-                  value={formatUsdCompact(market.volumeUsd)}
-                />
-                <SmallMetric
-                  label="Receipts"
-                  value={market.receiptCount.toLocaleString()}
-                />
+              {/* Graduation bar + volume + receipts move live off the trade
+                  ticks' post-trade totals; b is static curve config, passed
+                  through as the island's server-rendered child. */}
+              <MarketLiveStats market={market}>
                 <SmallMetric label="b" value={formatB(market.b)} />
-              </div>
+              </MarketLiveStats>
               {market.status === "graduating" ? (
                 <Link
                   className="mt-5 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--surface-raised)] px-4 py-3 font-mono text-xs tracking-[0.06em] text-[var(--status-graduating)] uppercase"
@@ -199,6 +205,42 @@ export function MarketDetailPage({
       </div>
     </div>
   );
+}
+
+/**
+ * What the chart is actually showing, which depends on how much of the
+ * market's life it covers. A graduated market whose venue has traded spans
+ * both mechanisms, so naming either one would be wrong; before graduation the
+ * curve is purely the virtual LMSR. A settled market with no venue prices —
+ * graduated but not yet traded, or never indexed — really is showing only its
+ * pre-graduation history, and still says so.
+ */
+function chartHeading({
+  market,
+  points,
+  settled,
+}: {
+  market: Market;
+  points: PricePoint[];
+  settled: boolean;
+}) {
+  if (!settled) {
+    return "Virtual LMSR - implied probability";
+  }
+
+  // The unified path carries no phase marker, so "does the curve extend past
+  // the handoff" is answered from the graduation annotation: any point at or
+  // after finalizedAt means the venue half is on screen.
+  const graduatedAtMs = market.postgrad
+    ? Date.parse(market.postgrad.finalizedAt)
+    : Number.NaN;
+  const spansVenue =
+    Number.isFinite(graduatedAtMs) &&
+    points.some(
+      (point) => point.at !== undefined && Date.parse(point.at) >= graduatedAtMs
+    );
+
+  return spansVenue ? "Price history" : "Pre-graduation price history";
 }
 
 /**
@@ -307,17 +349,6 @@ function ContractAddressRow({ label, value }: { label: string; value: string }) 
       <span className="font-mono text-[11px] break-all text-[var(--text-primary)]">
         {value}
       </span>
-    </div>
-  );
-}
-
-function SmallMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-mono text-[10px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
-        {label}
-      </div>
-      <div className="font-display tabular mt-1 text-xl font-black">{value}</div>
     </div>
   );
 }

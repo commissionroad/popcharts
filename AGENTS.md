@@ -34,6 +34,16 @@
   names, branch names, or deployment artifacts. Use descriptive mechanism names
   instead. Third-party names are allowed only when needed for source attribution,
   citations, or historical research context.
+- **Relate tables with real foreign keys.** A column that names a row in
+  another table gets a `foreignKey(...)`, not a bare column plus a convention.
+  Composite keys are fine and already used — see `market_ai_reviews` for the
+  `(chainId, marketId)` shape, `.onDelete("restrict").onUpdate("cascade")`.
+  When an indexer handler can legitimately run before the row it references
+  exists (independent watchers consuming the same transaction), solve it in the
+  handler — check for the parent row and throw `MarketNotIndexedError` so the
+  sweep parks and retries — rather than dropping the constraint to accommodate
+  the race. A raw constraint violation is not parkable and abandons the whole
+  sweep pass, so the explicit check is what makes the foreign key safe.
 - Money paper trail: every value transfer (fills, refunds, claims, redemptions)
   MUST leave an immutable, receipt-linked DB record sourced from an on-chain
   event — never inferred, never dropped. See the invariant in

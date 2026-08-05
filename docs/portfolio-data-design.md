@@ -117,6 +117,18 @@ clearing, refunds, cancellation, resolution redemption, and postgrad trades.
 
 Today it is realized by append-only event tables mirrored 1:1 from chain:
 
+- `market_creation_fee_events` — per creation fee actually paid, from the
+  `MarketCreationFeePaid` event the `PregradManager`'s creation-fee base emits
+  inside `createMarket`. The fee moves atomically with market creation, so this
+  row is the only evidence a creator paid it; the amount is taken from the log
+  rather than the fee constant, so changing the fee never rewrites what past
+  creators are recorded as having paid. Trusted creators owe nothing and the
+  contract emits no log for them, so an absent row means "no fee was due",
+  never "a payment was missed". Related to `markets` by a real foreign key on
+  `(chain_id, market_id)`. The fee log and `MarketCreated` share a transaction
+  but are consumed by independent watchers, so the fee log can arrive first on
+  the live path; the handler waits for the market row and parks the sweep until
+  it lands, rather than loosening the relation to accommodate the race.
 - `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
   `retainedCost`, and the **partial refund** (`refund`). This is the record that
   a graduated receipt was filled and how much, if any, was returned.
@@ -129,6 +141,40 @@ Today it is realized by append-only event tables mirrored 1:1 from chain:
   **collateral paid out**, from the market's `Redeemed`/`CancelledRedeemed`
   events. The token-burn leg of the same transaction also appears in
   `outcome_token_transfer_events`; this table records the collateral leg.
+- `postgrad_dispute_bond_events` — per movement of a resolution dispute bond on
+  a postgrad market (repo ADR 0024): collateral **posted** into bond custody by
+  the disputer, **refunded** when the dispute is upheld, or **forfeited** to the
+  protocol owner when it is not, from the market's
+  `DisputeBondPosted`/`DisputeBondRefunded`/`DisputeBondForfeited` events. The
+  dispute's status transitions live separately in `postgrad_dispute_events`;
+  this table records only collateral that actually moved.
+- `complete_set_events` — per complete-set mint or merge on a postgrad market:
+  the collateral the market **pulled in** (mint) or **paid out** (merge), with
+  the YES+NO sets created or destroyed, from the market's
+  `CompleteSetsMinted`/`CompleteSetsMerged` events. The matching token mints
+  and burns surface independently in `outcome_token_transfer_events`, so — as
+  with redemption — this table records the collateral leg.
+- `review_bond_events` — per value transfer through the `ReviewBondVault`, the
+  prepaid market-review escrow (repo ADR 0022): user **deposits**, resolver
+  **settlements** moving consumed review fees into the collected pool, user
+  **withdrawals** of unconsumed bond, and owner **fee sweeps**, from the
+  vault's `ReviewBondDeposited`/`ReviewFeesSettled`/`ReviewBondWithdrawn`/
+  `ReviewFeesWithdrawn` events. Each row also carries the event's own
+  cumulative figure (`running_total`; null for sweeps), so the off-chain bond
+  meter reconciles against on-chain state without replaying history.
+
+Not every on-chain value movement gets its own table, and one omission is
+deliberate rather than a gap. `RetainedCollateralFunded` — retained graduation
+collateral moving from the manager through the postgrad adapter into the newly
+created market — has no table: no user is on either end, there is no receipt to
+link a row to, and the same amount is already recorded as a total in
+`graduation_finalized_events.retained_cost_total` and receipt-by-receipt in
+`graduated_receipt_claimed_events.retained_cost`. The nightly paper-trail check
+consumes it directly from chain as a solvency bound instead (see the comment in
+`server/src/lifecycle-nightly/paper-trail.ts`), which is the right shape for an
+assertion that must not trust the projection it is auditing. The rule this
+follows: protocol-internal movement of collateral already recorded at the user
+boundary does not earn a row; a new user-facing value transfer always does.
 
 Because refunds are pull-based, a per-receipt record appears when money actually
 moves (the claim), not when it becomes owed. The owed amount is always

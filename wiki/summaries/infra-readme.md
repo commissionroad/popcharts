@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Infra README
-description: AWS CDK deployment shape for API + indexer — ECS Fargate, RDS Postgres + Proxy, Secrets Manager, optional ALB, two-phase enableServices deploy, singleton indexer, and the first alarm (resolution disputes)
+description: AWS CDK deployment shape for API + indexer — ECS Fargate, RDS Postgres + Proxy, Secrets Manager, optional ALB, two-phase enableServices deploy, singleton indexer, and the operator alarms (resolution disputes, out-of-order status projections)
 sources:
   - infra/README.md
-updated: 2026-07-24
+updated: 2026-08-04
 ---
 
 # Infra README
@@ -60,16 +60,25 @@ RDS-generated secret injected as `DATABASE_USER`/`DATABASE_PASSWORD`.
 
 ## Alarms
 
-The stack's first alarm (repo ADR 0024 phase 5): an SNS operator-alert topic
-plus a metric filter on the indexer log group that pages on the first
-resolution-dispute record the [indexer](../entities/indexer.md) writes — a
-dispute freezes a market until a human settles it. The topic subscriber is
-context (`-c operatorAlertEmail=…`), optional, so the stack synthesizes with
-no subscriber configured. The marker terms the filter matches are
-**deliberately duplicated** from the server rather than imported — `infra/`
-imports no workspace source ([monorepo architecture](../concepts/monorepo-architecture.md))
-— and a CDK assertion test is the keeper, building a record with the server's
-own formatter and failing if the synthesized filter no longer matches it.
+One SNS operator-alert topic, and one metric filter + alarm on the indexer log
+group per operator page the [indexer](../entities/indexer.md) writes. Each
+alarm fires on the first matching record and treats missing data as "no
+incident", so a quiet period neither pages nor sits in INSUFFICIENT_DATA. Two
+pages exist:
+
+- **Resolution disputed** (repo ADR 0024 phase 5) — a dispute freezes a market
+  until a human settles it.
+- **Market status out of order** — a status projection rejected an event, so
+  the indexer parked that market's cursor: its lifecycle events stop arriving
+  and never resume on their own. Other markets keep indexing.
+
+The topic subscriber is context (`-c operatorAlertEmail=…`), optional, so the
+stack synthesizes with no subscriber configured. The marker terms the filters
+match are **deliberately duplicated** from the server rather than imported —
+`infra/` imports no workspace source ([monorepo architecture](../concepts/monorepo-architecture.md))
+— and a CDK assertion test is the keeper, building each record with the
+server's own formatter and failing if the synthesized filter no longer matches
+it, matches an ordinary log line, or matches the *other* page's record.
 
 ## Verification and next steps
 

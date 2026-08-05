@@ -1,340 +1,1137 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Testing Observability — Pop Charts</title>
-  <style>
-    :root {
-      --bg: #f4f6f9; --surface: #fff; --surface-2: #fbfcfe;
-      --border: #e3e7ef; --border-strong: #d3d9e4;
-      --text: #1b2432; --muted: #5b6678; --faint: #8a93a4;
-      --accent: #4c5ad6; --accent-soft: rgba(76,90,214,.10);
-      --pass: #1f9d63; --pass-soft: rgba(31,157,99,.12);
-      --warn: #b5790f; --warn-soft: rgba(181,121,15,.13);
-      --fail: #d8353f; --fail-soft: rgba(216,53,63,.11);
-      --neutral: #798499; --neutral-soft: rgba(121,132,153,.14);
-      --shadow: 0 1px 2px rgba(20,30,50,.04), 0 8px 24px rgba(20,30,50,.05);
-    }
-    @media (prefers-color-scheme: dark) {
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Testing Observability — Pop Charts</title>
+    <style>
       :root {
-        --bg: #0e1117; --surface: #151b24; --surface-2: #1a212c;
-        --border: #262f3d; --border-strong: #313c4d;
-        --text: #e7ebf3; --muted: #8792a4; --faint: #677386;
-        --accent: #7e8cf8; --accent-soft: rgba(126,140,248,.14);
-        --pass: #3bb984; --pass-soft: rgba(59,185,132,.15);
-        --warn: #e0a835; --warn-soft: rgba(224,168,53,.15);
-        --fail: #f26571; --fail-soft: rgba(242,101,113,.15);
-        --neutral: #7a8598; --neutral-soft: rgba(122,133,152,.18);
-        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.28);
+        --bg: #f4f6f9;
+        --surface: #fff;
+        --surface-2: #fbfcfe;
+        --border: #e3e7ef;
+        --border-strong: #d3d9e4;
+        --text: #1b2432;
+        --muted: #5b6678;
+        --faint: #8a93a4;
+        --accent: #4c5ad6;
+        --accent-soft: rgba(76, 90, 214, 0.1);
+        --pass: #1f9d63;
+        --pass-soft: rgba(31, 157, 99, 0.12);
+        --warn: #b5790f;
+        --warn-soft: rgba(181, 121, 15, 0.13);
+        --fail: #d8353f;
+        --fail-soft: rgba(216, 53, 63, 0.11);
+        --neutral: #798499;
+        --neutral-soft: rgba(121, 132, 153, 0.14);
+        --shadow:
+          0 1px 2px rgba(20, 30, 50, 0.04), 0 8px 24px rgba(20, 30, 50, 0.05);
       }
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      line-height: 1.5; -webkit-font-smoothing: antialiased;
-    }
-    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(20px,4vw,40px) clamp(16px,4vw,36px) 64px; }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e1117;
+          --surface: #151b24;
+          --surface-2: #1a212c;
+          --border: #262f3d;
+          --border-strong: #313c4d;
+          --text: #e7ebf3;
+          --muted: #8792a4;
+          --faint: #677386;
+          --accent: #7e8cf8;
+          --accent-soft: rgba(126, 140, 248, 0.14);
+          --pass: #3bb984;
+          --pass-soft: rgba(59, 185, 132, 0.15);
+          --warn: #e0a835;
+          --warn-soft: rgba(224, 168, 53, 0.15);
+          --fail: #f26571;
+          --fail-soft: rgba(242, 101, 113, 0.15);
+          --neutral: #7a8598;
+          --neutral-soft: rgba(122, 133, 152, 0.18);
+          --shadow:
+            0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.28);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: clamp(20px, 4vw, 40px) clamp(16px, 4vw, 36px) 64px;
+      }
 
-    .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
-    .masthead h1 { font-size: clamp(19px,3vw,25px); font-weight: 640; letter-spacing: -.02em; margin: 0; }
-    .masthead .sub { color: var(--muted); font-size: 14px; }
-    .freshness { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-    .freshness .beacon { width: 8px; height: 8px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 0 4px var(--pass-soft); }
-    .freshness.stale .beacon { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
-    .freshness.offline .beacon { background: var(--fail); box-shadow: 0 0 0 4px var(--fail-soft); }
+      .masthead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px 14px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--border);
+      }
+      .masthead h1 {
+        font-size: clamp(19px, 3vw, 25px);
+        font-weight: 640;
+        letter-spacing: -0.02em;
+        margin: 0;
+      }
+      .masthead .sub {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .freshness {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .freshness .beacon {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--pass);
+        box-shadow: 0 0 0 4px var(--pass-soft);
+      }
+      .freshness.stale .beacon {
+        background: var(--warn);
+        box-shadow: 0 0 0 4px var(--warn-soft);
+      }
+      .freshness.offline .beacon {
+        background: var(--fail);
+        box-shadow: 0 0 0 4px var(--fail-soft);
+      }
 
-    h2.section { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 30px 0 12px; }
+      h2.section {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+        margin: 30px 0 12px;
+      }
 
-    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
-    .empty { padding: 28px; color: var(--muted); font-size: 14px; text-align: center; }
-    .empty b { color: var(--text); font-weight: 600; }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .empty {
+        padding: 28px;
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+      }
+      .empty b {
+        color: var(--text);
+        font-weight: 600;
+      }
 
-    /* Nightly hero + timeline */
-    .nightly { display: grid; grid-template-columns: 1.1fr 1fr; }
-    @media (max-width: 720px) { .nightly { grid-template-columns: 1fr; } }
-    .nightly .lede { padding: 24px 26px; border-right: 1px solid var(--border); }
-    @media (max-width: 720px) { .nightly .lede { border-right: none; border-bottom: 1px solid var(--border); } }
-    .nightly .status { display: inline-flex; align-items: center; gap: 9px; font-size: 20px; font-weight: 640; letter-spacing: -.01em; }
-    .nightly .status .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-    .nightly .meta { color: var(--muted); font-size: 13.5px; margin-top: 8px; }
-    .nightly .meta a { color: var(--accent); text-decoration: none; }
-    .nightly .meta a:hover { text-decoration: underline; }
-    .suites { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-    .suite { font-size: 12px; padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); }
-    .suite .m { font-weight: 700; }
-    .timeline { padding: 22px 24px; background: var(--surface-2); }
-    .timeline .cap { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin-bottom: 12px; }
-    .runs { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-start; }
-    .run { flex: 0 1 54px; min-width: 30px; display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; }
-    .run .bar { width: 100%; height: 40px; border-radius: 6px; border: 1px solid transparent; }
-    .run .d { font-size: 10px; color: var(--faint); }
-    .run.success .bar { background: var(--pass-soft); border-color: color-mix(in srgb, var(--pass) 40%, transparent); }
-    .run.failed .bar { background: var(--fail-soft); border-color: color-mix(in srgb, var(--fail) 45%, transparent); }
+      /* Nightly hero + timeline */
+      .nightly {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+      }
+      @media (max-width: 720px) {
+        .nightly {
+          grid-template-columns: 1fr;
+        }
+      }
+      .nightly .lede {
+        padding: 24px 26px;
+        border-right: 1px solid var(--border);
+      }
+      @media (max-width: 720px) {
+        .nightly .lede {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+      .nightly .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 20px;
+        font-weight: 640;
+        letter-spacing: -0.01em;
+      }
+      .nightly .status .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        flex: none;
+      }
+      .nightly .meta {
+        color: var(--muted);
+        font-size: 13.5px;
+        margin-top: 8px;
+      }
+      .nightly .meta a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .nightly .meta a:hover {
+        text-decoration: underline;
+      }
+      .suites {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .suite {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .suite .m {
+        font-weight: 700;
+      }
+      .timeline {
+        padding: 22px 24px;
+        background: var(--surface-2);
+      }
+      .timeline .cap {
+        font-size: 11.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      .runs {
+        display: flex;
+        gap: 6px;
+        align-items: flex-end;
+        justify-content: flex-start;
+      }
+      .run {
+        flex: 0 1 54px;
+        min-width: 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+        text-decoration: none;
+      }
+      .run .bar {
+        width: 100%;
+        height: 40px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+      }
+      .run .d {
+        font-size: 10px;
+        color: var(--faint);
+      }
+      .run.success .bar {
+        background: var(--pass-soft);
+        border-color: color-mix(in srgb, var(--pass) 40%, transparent);
+      }
+      .run.failed .bar {
+        background: var(--fail-soft);
+        border-color: color-mix(in srgb, var(--fail) 45%, transparent);
+      }
 
-    /* Coverage rows */
-    .cov-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "id spark" "meter meter" "sub sub"; gap: 7px 14px; padding: 16px 22px; align-items: center; }
-    .cov-row + .cov-row { border-top: 1px solid var(--border); }
-    .cov-id { grid-area: id; } .cov-id .ws { font-size: 14.5px; font-weight: 580; } .cov-id .rule { font-size: 11.5px; color: var(--faint); margin-left: 8px; }
-    .cov-spark { grid-area: spark; display: flex; align-items: center; gap: 12px; }
-    .cov-pct { font-size: 18px; font-weight: 600; }
-    .cov-meter { grid-area: meter; height: 6px; border-radius: 4px; background: var(--border); position: relative; overflow: hidden; }
-    .cov-meter i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
-    .cov-meter .floor { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .5; }
-    .cov-sub { grid-area: sub; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
-    .chip.ok { color: var(--pass); background: var(--pass-soft); border-color: transparent; font-weight: 600; }
-    .chip.bad { color: var(--fail); background: var(--fail-soft); border-color: transparent; font-weight: 600; }
-    svg.spark { display: block; }
-    .note { padding: 13px 22px; font-size: 12px; color: var(--muted); background: var(--surface-2); border-top: 1px solid var(--border); }
-    .note b { color: var(--text); font-weight: 600; }
-    /* Overview strip */
-    .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 18px; }
-    @media (max-width: 1000px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
-    @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
-    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; box-shadow: var(--shadow); }
-    .kpi .label { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
-    .kpi .value { font-size: 23px; font-weight: 620; letter-spacing: -.02em; margin-top: 5px; }
-    .kpi .foot { font-size: 11.5px; color: var(--muted); }
+      /* Coverage rows */
+      .cov-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "id spark" "meter meter" "sub sub";
+        gap: 7px 14px;
+        padding: 16px 22px;
+        align-items: center;
+      }
+      .cov-row + .cov-row {
+        border-top: 1px solid var(--border);
+      }
+      .cov-id {
+        grid-area: id;
+      }
+      .cov-id .ws {
+        font-size: 14.5px;
+        font-weight: 580;
+      }
+      .cov-id .rule {
+        font-size: 11.5px;
+        color: var(--faint);
+        margin-left: 8px;
+      }
+      .cov-spark {
+        grid-area: spark;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .cov-pct {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .cov-meter {
+        grid-area: meter;
+        height: 6px;
+        border-radius: 4px;
+        background: var(--border);
+        position: relative;
+        overflow: hidden;
+      }
+      .cov-meter i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 4px;
+        background: var(--accent);
+      }
+      .cov-meter .floor {
+        position: absolute;
+        top: -3px;
+        bottom: -3px;
+        width: 2px;
+        background: var(--text);
+        opacity: 0.5;
+      }
+      .cov-sub {
+        grid-area: sub;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+      .chip.ok {
+        color: var(--pass);
+        background: var(--pass-soft);
+        border-color: transparent;
+        font-weight: 600;
+      }
+      .chip.bad {
+        color: var(--fail);
+        background: var(--fail-soft);
+        border-color: transparent;
+        font-weight: 600;
+      }
+      svg.spark {
+        display: block;
+      }
+      .note {
+        padding: 13px 22px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--surface-2);
+        border-top: 1px solid var(--border);
+      }
+      .note b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      /* Overview strip */
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-top: 18px;
+      }
+      @media (max-width: 1000px) {
+        .kpis {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (max-width: 860px) {
+        .kpis {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .kpi {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 13px 15px;
+        box-shadow: var(--shadow);
+      }
+      .kpi .label {
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+      }
+      .kpi .value {
+        font-size: 23px;
+        font-weight: 620;
+        letter-spacing: -0.02em;
+        margin-top: 5px;
+      }
+      .kpi .foot {
+        font-size: 11.5px;
+        color: var(--muted);
+      }
 
-    /* Test explorer */
-    .toolbar { display: flex; gap: 10px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-    .toolbar input { flex: 1; min-width: 220px; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-family: inherit; }
-    .toolbar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-    .toolbar .hits { font-size: 12.5px; color: var(--muted); }
-    .hygiene { display: inline-flex; gap: 8px; font-size: 11.5px; }
-    .hygiene .h { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .hygiene .h.zero { color: var(--faint); }
-    .hygiene .h.bad { color: var(--fail); font-weight: 600; }
-    .hygiene .h b { color: var(--text); font-weight: 600; }
-    .tree li .tstat { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; padding: 0 5px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
-    .tree li.st-skip { text-decoration: line-through; color: var(--faint); }
-    .tree li.st-skip .tstat, .tree li.st-todo .tstat { background: var(--neutral-soft); color: var(--muted); }
-    .tree li.st-conditional .tstat { background: var(--warn-soft); color: var(--warn); }
-    .tree li.st-only { color: var(--fail); }
-    .tree li.st-only .tstat { background: var(--fail-soft); color: var(--fail); }
-    .metric-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
-    .metric-toggle button { font: inherit; font-size: 12px; padding: 5px 11px; background: var(--surface-2); color: var(--muted); border: none; cursor: pointer; }
-    .metric-toggle button + button { border-left: 1px solid var(--border-strong); }
-    .metric-toggle button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-    .tree { padding: 10px 12px 16px; max-height: 620px; overflow: auto; }
-    .tree details { margin: 1px 0; }
-    .tree summary { cursor: pointer; padding: 3px 6px; border-radius: 6px; font-size: 13.5px; list-style: none; display: grid; grid-template-columns: 12px 1fr auto auto auto; align-items: center; gap: 0 10px; }
-    .tree summary::-webkit-details-marker { display: none; }
-    .tree summary::before { content: "▸"; color: var(--faint); font-size: 10px; transition: transform .12s; }
-    .tree details[open] > summary::before { transform: rotate(90deg); }
-    .tree summary:hover { background: var(--surface-2); }
-    .tree .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tree .dir { font-weight: 560; }
-    .tree .sep { color: var(--faint); margin: 0 1px; font-weight: 400; }
-    .tree .file { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
-    .tree .count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; text-align: right; min-width: 34px; }
-    .tree .kids { margin-left: 15px; border-left: 1px solid var(--border); padding-left: 8px; }
-    .tree .srcfile { display: grid; grid-template-columns: 12px 1fr auto auto auto; align-items: center; gap: 0 10px; padding: 3px 6px; font-size: 12.5px; color: var(--muted); }
-    .tree ul { margin: 2px 0 6px 30px; padding: 0; list-style: none; }
-    .tree li { font-size: 12.5px; color: var(--muted); padding: 2px 0; line-height: 1.45; }
-    .tree li.suite { color: var(--text); font-weight: 560; margin-top: 5px; }
-    .tree li.case::before { content: "· "; color: var(--faint); }
-    .tier { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); text-align: center; min-width: 56px; }
-    .tree .tier:empty, .tree .cov:empty { background: transparent; border-color: transparent; }
-    .cov { font-size: 11px; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 5px; text-align: right; min-width: 34px; }
-    .cov.high { color: var(--pass); background: var(--pass-soft); }
-    .cov.mid { color: var(--warn); background: var(--warn-soft); }
-    .cov.low { color: var(--fail); background: var(--fail-soft); }
-    .runbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: center; }
-    .runbtn { font: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
-    .runbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-    .runbtn:disabled { opacity: .45; cursor: not-allowed; }
-    .runbtn.cancel { border-color: color-mix(in srgb, var(--fail) 45%, transparent); color: var(--fail); }
-    .runstate { font-size: 12.5px; color: var(--muted); margin-left: auto; display: inline-flex; align-items: center; gap: 7px; }
-    .spin { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
-    @keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
-    @media (prefers-reduced-motion: reduce) { .spin { animation: none; opacity: .8 } }
-    .runlog { margin: 0; padding: 12px 20px; max-height: 260px; overflow: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.5; color: var(--muted); white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border-top: 1px solid var(--border); }
-    .localcov { border-top: 1px solid var(--border); padding: 14px 20px; background: var(--surface-2); font-size: 12.5px; }
-    .localcov .head { color: var(--muted); margin-bottom: 10px; }
-    .localcov .row { display: grid; grid-template-columns: 12px 130px 1fr; align-items: baseline; gap: 0 12px; padding: 3px 0; }
-    .localcov .dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; }
-    .localcov .dot.ok { background: var(--pass); }
-    .localcov .dot.warn { background: var(--warn); }
-    .localcov .ws { font-family: ui-monospace, Menlo, monospace; font-weight: 560; color: var(--text); }
-    .localcov .detail { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .localcov .detail .flag { color: var(--warn); }
-    .localcov .detail .missing { color: var(--warn); }
-    mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); border-radius: 3px; }
+      /* Test explorer */
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .toolbar input {
+        flex: 1;
+        min-width: 220px;
+        padding: 8px 11px;
+        border-radius: 9px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-2);
+        color: var(--text);
+        font-size: 13.5px;
+        font-family: inherit;
+      }
+      .toolbar input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .toolbar .hits {
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .hygiene {
+        display: inline-flex;
+        gap: 8px;
+        font-size: 11.5px;
+      }
+      .hygiene .h {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .hygiene .h.zero {
+        color: var(--faint);
+      }
+      .hygiene .h.bad {
+        color: var(--fail);
+        font-weight: 600;
+      }
+      .hygiene .h b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .tree li .tstat {
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0 5px;
+        border-radius: 4px;
+        margin-left: 6px;
+        vertical-align: 1px;
+      }
+      .tree li.st-skip {
+        text-decoration: line-through;
+        color: var(--faint);
+      }
+      .tree li.st-skip .tstat,
+      .tree li.st-todo .tstat {
+        background: var(--neutral-soft);
+        color: var(--muted);
+      }
+      .tree li.st-conditional .tstat {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .tree li.st-only {
+        color: var(--fail);
+      }
+      .tree li.st-only .tstat {
+        background: var(--fail-soft);
+        color: var(--fail);
+      }
+      .metric-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .metric-toggle button {
+        font: inherit;
+        font-size: 12px;
+        padding: 5px 11px;
+        background: var(--surface-2);
+        color: var(--muted);
+        border: none;
+        cursor: pointer;
+      }
+      .metric-toggle button + button {
+        border-left: 1px solid var(--border-strong);
+      }
+      .metric-toggle button.on {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .tree {
+        padding: 10px 12px 16px;
+        max-height: 620px;
+        overflow: auto;
+      }
+      .tree details {
+        margin: 1px 0;
+      }
+      .tree summary {
+        cursor: pointer;
+        padding: 3px 6px;
+        border-radius: 6px;
+        font-size: 13.5px;
+        list-style: none;
+        display: grid;
+        grid-template-columns: 12px 1fr auto auto auto;
+        align-items: center;
+        gap: 0 10px;
+      }
+      .tree summary::-webkit-details-marker {
+        display: none;
+      }
+      .tree summary::before {
+        content: "▸";
+        color: var(--faint);
+        font-size: 10px;
+        transition: transform 0.12s;
+      }
+      .tree details[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .tree summary:hover {
+        background: var(--surface-2);
+      }
+      .tree .name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tree .dir {
+        font-weight: 560;
+      }
+      .tree .sep {
+        color: var(--faint);
+        margin: 0 1px;
+        font-weight: 400;
+      }
+      .tree .file {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12.5px;
+      }
+      .tree .count {
+        font-size: 11px;
+        color: var(--faint);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        min-width: 34px;
+      }
+      .tree .kids {
+        margin-left: 15px;
+        border-left: 1px solid var(--border);
+        padding-left: 8px;
+      }
+      .tree .srcfile {
+        display: grid;
+        grid-template-columns: 12px 1fr auto auto auto;
+        align-items: center;
+        gap: 0 10px;
+        padding: 3px 6px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .tree ul {
+        margin: 2px 0 6px 30px;
+        padding: 0;
+        list-style: none;
+      }
+      .tree li {
+        font-size: 12.5px;
+        color: var(--muted);
+        padding: 2px 0;
+        line-height: 1.45;
+      }
+      .tree li.suite {
+        color: var(--text);
+        font-weight: 560;
+        margin-top: 5px;
+      }
+      .tree li.case::before {
+        content: "· ";
+        color: var(--faint);
+      }
+      .tier {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 5px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        text-align: center;
+        min-width: 56px;
+      }
+      .tree .tier:empty,
+      .tree .cov:empty {
+        background: transparent;
+        border-color: transparent;
+      }
+      .cov {
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        padding: 1px 6px;
+        border-radius: 5px;
+        text-align: right;
+        min-width: 34px;
+      }
+      .cov.high {
+        color: var(--pass);
+        background: var(--pass-soft);
+      }
+      .cov.mid {
+        color: var(--warn);
+        background: var(--warn-soft);
+      }
+      .cov.low {
+        color: var(--fail);
+        background: var(--fail-soft);
+      }
+      .runbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+      }
+      .runbtn {
+        font: inherit;
+        font-size: 12.5px;
+        padding: 6px 11px;
+        border-radius: 8px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-2);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .runbtn:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .runbtn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .runbtn.cancel {
+        border-color: color-mix(in srgb, var(--fail) 45%, transparent);
+        color: var(--fail);
+      }
+      .runstate {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .spin {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin {
+          animation: none;
+          opacity: 0.8;
+        }
+      }
+      .runlog {
+        margin: 0;
+        padding: 12px 20px;
+        max-height: 260px;
+        overflow: auto;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: var(--muted);
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: var(--surface-2);
+        border-top: 1px solid var(--border);
+      }
+      .localcov {
+        border-top: 1px solid var(--border);
+        padding: 14px 20px;
+        background: var(--surface-2);
+        font-size: 12.5px;
+      }
+      .localcov .head {
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .localcov .row {
+        display: grid;
+        grid-template-columns: 12px 130px 1fr;
+        align-items: baseline;
+        gap: 0 12px;
+        padding: 3px 0;
+      }
+      .localcov .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        align-self: center;
+      }
+      .localcov .dot.ok {
+        background: var(--pass);
+      }
+      .localcov .dot.warn {
+        background: var(--warn);
+      }
+      .localcov .ws {
+        font-family: ui-monospace, Menlo, monospace;
+        font-weight: 560;
+        color: var(--text);
+      }
+      .localcov .detail {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .localcov .detail .flag {
+        color: var(--warn);
+      }
+      .localcov .detail .missing {
+        color: var(--warn);
+      }
+      mark {
+        background: color-mix(in srgb, var(--accent) 35%, transparent);
+        color: var(--text);
+        border-radius: 3px;
+      }
 
-    .thin { border-top: 1px solid var(--border); background: var(--surface-2); padding: 12px 20px; }
-    .thin .head { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
-    .thin .row { display: grid; grid-template-columns: 58px 1fr; gap: 0 12px; padding: 2px 0; font-size: 12px; }
-    .thin .ratio { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
-    .thin .path { font-family: ui-monospace, Menlo, monospace; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .thin .path b { color: var(--text); font-weight: 560; }
-    .gaps { padding: 6px 0; }
-    .gap-row { display: grid; grid-template-columns: 64px 52px 1fr; align-items: baseline; gap: 0 14px; padding: 7px 20px; }
-    .gap-row + .gap-row { border-top: 1px solid var(--border); }
-    .gap-row .n { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; font-size: 13.5px; }
-    .gap-row .pct { font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
-    .gap-row .pct.low { color: var(--fail); } .gap-row .pct.mid { color: var(--warn); } .gap-row .pct.high { color: var(--pass); }
-    .gap-row .path { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .gap-row .path b { color: var(--text); font-weight: 560; }
-    .gaps .head { display: grid; grid-template-columns: 64px 52px 1fr; gap: 0 14px; padding: 9px 20px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); font-weight: 600; border-bottom: 1px solid var(--border); }
-    .gaps .head span:nth-child(1), .gaps .head span:nth-child(2) { text-align: right; }
-    .flaketable { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .flaketable th, .flaketable td { padding: 10px 16px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .flaketable th:first-child, .flaketable td:first-child { text-align: left; }
-    .flaketable thead th { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); font-weight: 600; border-bottom: 1px solid var(--border); }
-    .flaketable tbody td { border-top: 1px solid var(--border); color: var(--text); }
-    .flaketable tbody td:first-child { font-weight: 560; }
-    .flaketable tbody tr:first-child td { border-top: none; }
-    .flaketable .muted { color: var(--faint); }
-    footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
-    .noscript { margin: 20px 0 0; padding: 16px 18px; border-radius: 12px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); color: var(--text); font-size: 14px; line-height: 1.55; }
-    .noscript b { display: block; margin-bottom: 6px; }
-    .noscript code { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <header class="masthead">
-      <h1>Testing Observability</h1>
-      <span class="sub">Pop Charts &middot; live from <span class="mono">ci-metrics</span></span>
-      <span class="freshness" id="freshness"><span class="beacon"></span><span id="freshness-text">loading…</span></span>
-    </header>
+      .thin {
+        border-top: 1px solid var(--border);
+        background: var(--surface-2);
+        padding: 12px 20px;
+      }
+      .thin .head {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .thin .row {
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        gap: 0 12px;
+        padding: 2px 0;
+        font-size: 12px;
+      }
+      .thin .ratio {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        color: var(--muted);
+      }
+      .thin .path {
+        font-family: ui-monospace, Menlo, monospace;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .thin .path b {
+        color: var(--text);
+        font-weight: 560;
+      }
+      .gaps {
+        padding: 6px 0;
+      }
+      .gap-row {
+        display: grid;
+        grid-template-columns: 64px 52px 1fr;
+        align-items: baseline;
+        gap: 0 14px;
+        padding: 7px 20px;
+      }
+      .gap-row + .gap-row {
+        border-top: 1px solid var(--border);
+      }
+      .gap-row .n {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        text-align: right;
+        font-size: 13.5px;
+      }
+      .gap-row .pct {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        font-size: 12px;
+      }
+      .gap-row .pct.low {
+        color: var(--fail);
+      }
+      .gap-row .pct.mid {
+        color: var(--warn);
+      }
+      .gap-row .pct.high {
+        color: var(--pass);
+      }
+      .gap-row .path {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .gap-row .path b {
+        color: var(--text);
+        font-weight: 560;
+      }
+      .gaps .head {
+        display: grid;
+        grid-template-columns: 64px 52px 1fr;
+        gap: 0 14px;
+        padding: 9px 20px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+        border-bottom: 1px solid var(--border);
+      }
+      .gaps .head span:nth-child(1),
+      .gaps .head span:nth-child(2) {
+        text-align: right;
+      }
+      .flaketable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .flaketable th,
+      .flaketable td {
+        padding: 10px 16px;
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .flaketable th:first-child,
+      .flaketable td:first-child {
+        text-align: left;
+      }
+      .flaketable thead th {
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+        border-bottom: 1px solid var(--border);
+      }
+      .flaketable tbody td {
+        border-top: 1px solid var(--border);
+        color: var(--text);
+      }
+      .flaketable tbody td:first-child {
+        font-weight: 560;
+      }
+      .flaketable tbody tr:first-child td {
+        border-top: none;
+      }
+      .flaketable .muted {
+        color: var(--faint);
+      }
+      footer {
+        margin-top: 28px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .noscript {
+        margin: 20px 0 0;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: var(--warn-soft);
+        border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .noscript b {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .noscript code {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12.5px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="masthead">
+        <h1>Testing Observability</h1>
+        <span class="sub"
+          >Pop Charts &middot; live from
+          <span class="mono">ci-metrics</span></span
+        >
+        <span class="freshness" id="freshness"
+          ><span class="beacon"></span
+          ><span id="freshness-text">loading…</span></span
+        >
+      </header>
 
-    <noscript>
-      <div class="noscript">
-        <b>JavaScript is blocked for this page, so no data can load.</b>
-        Every panel below renders in the browser from <code>/api/observability</code>, so with scripts blocked they stay on “Loading…” forever — the server is probably fine.
-        In Chrome, open <code>chrome://settings/content/javascript</code>: if the default is “Don’t allow sites to use JavaScript”, add this origin to the allowed list (or use the tune icon left of the URL → Site settings → JavaScript → Allow), then reload.
+      <noscript>
+        <div class="noscript">
+          <b>JavaScript is blocked for this page, so no data can load.</b>
+          Every panel below renders in the browser from
+          <code>/api/observability</code>, so with scripts blocked they stay on
+          “Loading…” forever — the server is probably fine. In Chrome, open
+          <code>chrome://settings/content/javascript</code>: if the default is
+          “Don’t allow sites to use JavaScript”, add this origin to the allowed
+          list (or use the tune icon left of the URL → Site settings →
+          JavaScript → Allow), then reload.
+        </div>
+      </noscript>
+
+      <section class="kpis" id="overview"></section>
+
+      <h2 class="section">Nightly lifecycle</h2>
+      <div class="panel" id="nightly"><div class="empty">Loading…</div></div>
+
+      <h2 class="section">Coverage</h2>
+      <div class="panel">
+        <div id="coverage"><div class="empty">Loading…</div></div>
+        <div class="localcov" id="localcov"></div>
+        <div class="note" id="coverage-note" hidden>
+          <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure.
+          Merge floors are enforced per workspace on their own runner — app
+          &amp; protocol on this same lcov ruler, but
+          <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge
+          is not a floor breach.
+        </div>
       </div>
-    </noscript>
 
-    <section class="kpis" id="overview"></section>
-
-    <h2 class="section">Nightly lifecycle</h2>
-    <div class="panel" id="nightly"><div class="empty">Loading…</div></div>
-
-    <h2 class="section">Coverage</h2>
-    <div class="panel">
-      <div id="coverage"><div class="empty">Loading…</div></div>
-      <div class="localcov" id="localcov"></div>
-      <div class="note" id="coverage-note" hidden>
-        <b>Two rulers, by design.</b> Percentages are the lcov “badge” figure. Merge floors are enforced per workspace on their own runner — app &amp; protocol on this same lcov ruler, but <b>server on its unit-tier ruler</b> (76.7% funcs), so its ~68% badge is not a floor breach.
+      <h2 class="section">Coverage gaps</h2>
+      <div class="panel">
+        <div class="gaps" id="gaps"><div class="empty">Loading…</div></div>
+        <div class="note">
+          The files with the most untested lines, from local coverage runs —
+          where new tests would move the needle most. Run coverage above to
+          refresh. Only workspaces with a local run appear.
+        </div>
       </div>
-    </div>
 
-    <h2 class="section">Coverage gaps</h2>
-    <div class="panel">
-      <div class="gaps" id="gaps"><div class="empty">Loading…</div></div>
-      <div class="note">The files with the most untested lines, from local coverage runs — where new tests would move the needle most. Run coverage above to refresh. Only workspaces with a local run appear.</div>
-    </div>
-
-    <h2 class="section">Run</h2>
-    <div class="panel">
-      <div class="runbar" id="runbar"></div>
-      <pre class="runlog" id="runlog" hidden></pre>
-      <div class="note">Runs a fixed set of this repo's own commands — the page sends only an id, never a command or argument. One at a time; coverage runs refresh the folder rates above when they finish.</div>
-    </div>
-
-    <h2 class="section">Tests</h2>
-    <div class="panel">
-      <div class="toolbar">
-        <input id="test-search" type="search" placeholder="Filter test titles and paths…" autocomplete="off" spellcheck="false" />
-        <span class="hits" id="test-hits"></span>
-        <span class="metric-toggle" role="group" aria-label="Coverage metric">
-          <button type="button" data-metric="lines" class="on">Lines</button>
-          <button type="button" data-metric="branches">Branches</button>
-        </span>
-        <span class="hygiene" id="hygiene"></span>
+      <h2 class="section">Run</h2>
+      <div class="panel">
+        <div class="runbar" id="runbar"></div>
+        <pre class="runlog" id="runlog" hidden></pre>
+        <div class="note">
+          Runs a fixed set of this repo's own commands — the page sends only an
+          id, never a command or argument. One at a time; coverage runs refresh
+          the folder rates above when they finish.
+        </div>
       </div>
-      <div class="tree" id="tests"><div class="empty">Loading…</div></div>
-      <div class="note">Read from the working tree, not <span class="mono">ci-metrics</span> — this is what the code asserts right now. Titles are read from source, so dynamically-built names (templates, <span class="mono">it.each</span> rows) are not listed.</div>
-      <div class="thin" id="thin"></div>
+
+      <h2 class="section">Tests</h2>
+      <div class="panel">
+        <div class="toolbar">
+          <input
+            id="test-search"
+            type="search"
+            placeholder="Filter test titles and paths…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span class="hits" id="test-hits"></span>
+          <span class="metric-toggle" role="group" aria-label="Coverage metric">
+            <button type="button" data-metric="lines" class="on">Lines</button>
+            <button type="button" data-metric="branches">Branches</button>
+          </span>
+          <span class="hygiene" id="hygiene"></span>
+        </div>
+        <div class="tree" id="tests"><div class="empty">Loading…</div></div>
+        <div class="note">
+          Read from the working tree, not <span class="mono">ci-metrics</span> —
+          this is what the code asserts right now. Titles are read from source,
+          so dynamically-built names (templates,
+          <span class="mono">it.each</span> rows) are not listed.
+        </div>
+        <div class="thin" id="thin"></div>
+      </div>
+
+      <h2 class="section">Flakes</h2>
+      <div class="panel">
+        <div style="overflow-x: auto">
+          <table class="flaketable">
+            <thead>
+              <tr>
+                <th>Workflow</th>
+                <th>Runs</th>
+                <th>Failures</th>
+                <th>Fail rate</th>
+                <th>Reruns that passed</th>
+                <th>Flake rate</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="flakes"></tbody>
+          </table>
+        </div>
+        <div class="note" id="flakes-note"></div>
+      </div>
+
+      <footer id="footer"></footer>
     </div>
 
-    <h2 class="section">Flakes</h2>
-    <div class="panel">
-      <div style="overflow-x:auto"><table class="flaketable"><thead><tr>
-        <th>Workflow</th><th>Runs</th><th>Failures</th><th>Fail rate</th><th>Reruns that passed</th><th>Flake rate</th><th>Status</th>
-      </tr></thead><tbody id="flakes"></tbody></table></div>
-      <div class="note" id="flakes-note"></div>
-    </div>
+    <script>
+      // Which workspaces and suites exist comes from the server (sourced from
+      // COVERAGE_WORKSPACES / NIGHTLY_SUITES), so this page can't drift from CI.
+      // Only presentation lives here: the floor each workspace is judged against
+      // and how to describe its ruler. Floors mirror the values protocol-ci.yml
+      // passes as `--min-lines`; there is no importable source for them (CI reads
+      // them from YAML) and this is their only other consumer, so they are
+      // annotated here rather than extracted for a single caller.
+      // `mode` decides what the status chip may claim: "floor" compares against
+      // `floor`, "never-regress" against the workspace's own best, "other-ruler"
+      // makes no claim (its floor is enforced on a different denominator).
+      const COVERAGE_DISPLAY = {
+        app: {
+          floor: null,
+          ruler: "vitest · never-regress",
+          mode: "never-regress",
+        },
+        server: {
+          floor: null,
+          ruler: "floor on unit ruler",
+          mode: "other-ruler",
+        },
+        "protocol-solidity": {
+          floor: 96.67,
+          ruler: "lcov · floor 96.67%",
+          mode: "floor",
+        },
+        "protocol-ts": {
+          floor: 36.3,
+          ruler: "lcov · floor 36.3%",
+          mode: "floor",
+        },
+      };
+      const MARK = { success: "✓", failure: "✗", cancelled: "⊘", skipped: "–" };
+      const POLL_MS = 30_000;
 
-    <footer id="footer"></footer>
-  </div>
+      const $ = (id) => document.getElementById(id);
 
-  <script>
-    // Which workspaces and suites exist comes from the server (sourced from
-    // COVERAGE_WORKSPACES / NIGHTLY_SUITES), so this page can't drift from CI.
-    // Only presentation lives here: the floor each workspace is judged against
-    // and how to describe its ruler. Floors mirror the values protocol-ci.yml
-    // passes as `--min-lines`; there is no importable source for them (CI reads
-    // them from YAML) and this is their only other consumer, so they are
-    // annotated here rather than extracted for a single caller.
-    // `mode` decides what the status chip may claim: "floor" compares against
-    // `floor`, "never-regress" against the workspace's own best, "other-ruler"
-    // makes no claim (its floor is enforced on a different denominator).
-    const COVERAGE_DISPLAY = {
-      app: { floor: null, ruler: "vitest · never-regress", mode: "never-regress" },
-      server: { floor: null, ruler: "floor on unit ruler", mode: "other-ruler" },
-      "protocol-solidity": { floor: 96.67, ruler: "lcov · floor 96.67%", mode: "floor" },
-      "protocol-ts": { floor: 36.3, ruler: "lcov · floor 36.3%", mode: "floor" },
-    };
-    const MARK = { success: "✓", failure: "✗", cancelled: "⊘", skipped: "–" };
-    const POLL_MS = 30_000;
+      function relTime(iso) {
+        if (!iso) return "unknown";
+        const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+        if (secs < 60) return `${secs}s ago`;
+        if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
+        if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
+        return `${Math.round(secs / 86400)}d ago`;
+      }
 
-    const $ = (id) => document.getElementById(id);
-
-    function relTime(iso) {
-      if (!iso) return "unknown";
-      const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-      if (secs < 60) return `${secs}s ago`;
-      if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
-      if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
-      return `${Math.round(secs / 86400)}d ago`;
-    }
-
-    function spark(series, color) {
-      const w = 130, h = 34, pad = 3;
-      if (!series.length) return "";
-      const min = Math.min(...series), max = Math.max(...series), range = (max - min) || 1, n = series.length;
-      const X = (i) => pad + (n === 1 ? 0 : (i / (n - 1)) * (w - 2 * pad));
-      const Y = (v) => (max === min ? h / 2 : pad + (1 - (v - min) / range) * (h - 2 * pad));
-      const pts = series.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-      const area = `${X(0).toFixed(1)},${(h - pad).toFixed(1)} ${pts} ${X(n - 1).toFixed(1)},${(h - pad).toFixed(1)}`;
-      return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+      function spark(series, color) {
+        const w = 130,
+          h = 34,
+          pad = 3;
+        if (!series.length) return "";
+        const min = Math.min(...series),
+          max = Math.max(...series),
+          range = max - min || 1,
+          n = series.length;
+        const X = (i) => pad + (n === 1 ? 0 : (i / (n - 1)) * (w - 2 * pad));
+        const Y = (v) =>
+          max === min ? h / 2 : pad + (1 - (v - min) / range) * (h - 2 * pad);
+        const pts = series
+          .map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`)
+          .join(" ");
+        const area = `${X(0).toFixed(1)},${(h - pad).toFixed(1)} ${pts} ${X(n - 1).toFixed(1)},${(h - pad).toFixed(1)}`;
+        return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
         <polygon points="${area}" fill="${color}" opacity="0.10" />
         <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
         <circle cx="${X(n - 1).toFixed(1)}" cy="${Y(series[n - 1]).toFixed(1)}" r="2.6" fill="${color}" /></svg>`;
-    }
-
-    function renderFreshness(snap) {
-      const el = $("freshness");
-      el.className = "freshness" + (!snap.online ? " offline" : "");
-      const src = snap.source.commit ? `ci-metrics @ ${snap.source.commit} · ${relTime(snap.source.committedAt)}` : "no ci-metrics data";
-      $("freshness-text").textContent = (snap.online ? "" : "offline · ") + src;
-    }
-
-    function renderNightly(snap) {
-      const { latest, history } = snap.nightly;
-      const el = $("nightly");
-      if (!latest) {
-        el.innerHTML = `<div class="empty"><b>No nightly run recorded yet.</b><br />The first scheduled run (~09:00 UTC) will populate this once C6's <span class="mono">record</span> job lands its data on <span class="mono">ci-metrics</span>.</div>`;
-        return;
       }
-      const ok = latest.conclusion === "success";
-      const color = ok ? "var(--pass)" : "var(--fail)";
-      const suites = snap.config.suites.map((s) => {
-        const r = latest.suites[s.key] ?? "skipped";
-        return `<span class="suite"><span class="m" style="color:${r === "success" ? "var(--pass)" : r === "failure" ? "var(--fail)" : "var(--neutral)"}">${MARK[r] ?? r}</span> ${s.label}</span>`;
-      }).join("");
-      // Oldest→newest so the newest bar sits on the right, like a timeline.
-      const recent = history.slice(-14);
-      const runs = recent.map((r) => `<a class="run ${r.conclusion}" href="${r.runUrl}" target="_blank" rel="noopener" title="${r.ts.slice(0,10)} · ${r.conclusion}"><span class="bar"></span><span class="d mono">${r.ts.slice(5, 10)}</span></a>`).join("");
-      el.innerHTML = `<div class="nightly">
+
+      function renderFreshness(snap) {
+        const el = $("freshness");
+        el.className = "freshness" + (!snap.online ? " offline" : "");
+        const src = snap.source.commit
+          ? `ci-metrics @ ${snap.source.commit} · ${relTime(snap.source.committedAt)}`
+          : "no ci-metrics data";
+        $("freshness-text").textContent =
+          (snap.online ? "" : "offline · ") + src;
+      }
+
+      function renderNightly(snap) {
+        const { latest, history } = snap.nightly;
+        const el = $("nightly");
+        if (!latest) {
+          el.innerHTML = `<div class="empty"><b>No nightly run recorded yet.</b><br />The first scheduled run (~09:00 UTC) will populate this once C6's <span class="mono">record</span> job lands its data on <span class="mono">ci-metrics</span>.</div>`;
+          return;
+        }
+        const ok = latest.conclusion === "success";
+        const color = ok ? "var(--pass)" : "var(--fail)";
+        const suites = snap.config.suites
+          .map((s) => {
+            const r = latest.suites[s.key] ?? "skipped";
+            return `<span class="suite"><span class="m" style="color:${r === "success" ? "var(--pass)" : r === "failure" ? "var(--fail)" : "var(--neutral)"}">${MARK[r] ?? r}</span> ${s.label}</span>`;
+          })
+          .join("");
+        // Oldest→newest so the newest bar sits on the right, like a timeline.
+        const recent = history.slice(-14);
+        const runs = recent
+          .map(
+            (r) =>
+              `<a class="run ${r.conclusion}" href="${r.runUrl}" target="_blank" rel="noopener" title="${r.ts.slice(0, 10)} · ${r.conclusion}"><span class="bar"></span><span class="d mono">${r.ts.slice(5, 10)}</span></a>`,
+          )
+          .join("");
+        el.innerHTML = `<div class="nightly">
         <div class="lede">
           <div class="status"><span class="dot" style="background:${color}"></span>${ok ? "Passing" : "Failing"}</div>
           <div class="meta"><a href="${latest.runUrl}" target="_blank" rel="noopener">Run</a> at <span class="mono">${latest.commit.slice(0, 7)}</span> · ${relTime(latest.ts)}</div>
@@ -342,289 +1139,450 @@
         </div>
         <div class="timeline"><div class="cap">${recent.length === 1 ? "Last run" : `Last ${recent.length} runs`}</div><div class="runs">${runs}</div></div>
       </div>`;
-    }
+      }
 
-    // The status chip must reflect the real number, never assert green blindly.
-    //  - floored workspaces (protocol): compare pct to the floor (✓ / ✗).
-    //  - app (never-regress): compare to its own best-so-far; a drop is a ✗.
-    //  - server: its floor is on the unit-tier ruler, a different denominator
-    //    than this badge %, so make NO pass/fail claim — a neutral chip.
-    // (Floor values are annotated below; single source is protocol-ci.yml — see
-    //  the config-driven follow-up. Never show a green floor without checking.)
-    function coverageChip(ws, pct, series) {
-      if (ws.floor != null) {
-        const ok = pct != null && pct >= ws.floor;
-        return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} floor ${ws.floor}%</span>`;
+      // The status chip must reflect the real number, never assert green blindly.
+      //  - floored workspaces (protocol): compare pct to the floor (✓ / ✗).
+      //  - app (never-regress): compare to its own best-so-far; a drop is a ✗.
+      //  - server: its floor is on the unit-tier ruler, a different denominator
+      //    than this badge %, so make NO pass/fail claim — a neutral chip.
+      // (Floor values are annotated below; single source is protocol-ci.yml — see
+      //  the config-driven follow-up. Never show a green floor without checking.)
+      function coverageChip(ws, pct, series) {
+        if (ws.floor != null) {
+          const ok = pct != null && pct >= ws.floor;
+          return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} floor ${ws.floor}%</span>`;
+        }
+        if (ws.mode === "never-regress") {
+          const best = series.length ? Math.max(...series) : (pct ?? 0);
+          const ok = pct != null && pct >= best;
+          return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "↓"} never-regress</span>`;
+        }
+        if (ws.mode === "other-ruler") {
+          return `<span class="chip">floor on unit ruler</span>`;
+        }
+        // A workspace CI reports that this page doesn't annotate: say so plainly
+        // rather than implying a floor it isn't checking.
+        return `<span class="chip">no floor tracked here</span>`;
       }
-      if (ws.mode === "never-regress") {
-        const best = series.length ? Math.max(...series) : (pct ?? 0);
-        const ok = pct != null && pct >= best;
-        return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "↓"} never-regress</span>`;
-      }
-      if (ws.mode === "other-ruler") {
-        return `<span class="chip">floor on unit ruler</span>`;
-      }
-      // A workspace CI reports that this page doesn't annotate: say so plainly
-      // rather than implying a floor it isn't checking.
-      return `<span class="chip">no floor tracked here</span>`;
-    }
 
-    function renderCoverage(snap) {
-      const { latest, history } = snap.coverage;
-      const el = $("coverage");
-      if (!latest || !latest.workspaces) {
-        el.innerHTML = `<div class="empty">No coverage data on <span class="mono">ci-metrics</span> yet.</div>`;
-        return;
-      }
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
-      el.innerHTML = snap.config.workspaces.map((configured) => {
-        // Identity/order from the server's authoritative list; floor + ruler are
-        // this page's presentation, defaulting to "no floor claim" for a
-        // workspace added to CI that the dashboard doesn't annotate yet.
-        const ws = { ...configured, ...(COVERAGE_DISPLAY[configured.key] ?? { floor: null, ruler: "" }) };
-        const w = latest.workspaces[ws.key];
-        // Skip a workspace whose row is absent or wrong-shape rather than throw
-        // and blank the whole panel — one bad row must not sink the refresh.
-        if (!w || !w.summary || !w.summary.lines) return "";
-        const pct = w.summary.lines.pct;
-        const series = history.filter((r) => r.workspace === ws.key).map((r) => r.linesPct).filter((v) => v != null);
-        const lo = ws.floor ? Math.min(ws.floor, ...(series.length ? series : [pct])) - 4 : Math.max(0, Math.min(...(series.length ? series : [pct])) - 6);
-        const span = (100 - lo) || 1;
-        const fill = Math.max(0, Math.min(100, ((pct - lo) / span) * 100));
-        const floorPct = ws.floor ? Math.max(0, Math.min(100, ((ws.floor - lo) / span) * 100)) : null;
-        const chip = coverageChip(ws, pct, series);
-        const brPct = w.summary.branches && w.summary.branches.pct != null ? w.summary.branches.pct.toFixed(2) + "% br · " : "";
-        const fnPct = w.summary.functions && w.summary.functions.pct != null ? w.summary.functions.pct.toFixed(2) + "% fn · " : "";
-        const extra = `${fnPct}${brPct}${w.summary.lines.hit}/${w.summary.lines.found} lines`;
-        return `<div class="cov-row">
+      function renderCoverage(snap) {
+        const { latest, history } = snap.coverage;
+        const el = $("coverage");
+        if (!latest || !latest.workspaces) {
+          el.innerHTML = `<div class="empty">No coverage data on <span class="mono">ci-metrics</span> yet.</div>`;
+          return;
+        }
+        const accent = getComputedStyle(document.documentElement)
+          .getPropertyValue("--accent")
+          .trim();
+        el.innerHTML = snap.config.workspaces
+          .map((configured) => {
+            // Identity/order from the server's authoritative list; floor + ruler are
+            // this page's presentation, defaulting to "no floor claim" for a
+            // workspace added to CI that the dashboard doesn't annotate yet.
+            const ws = {
+              ...configured,
+              ...(COVERAGE_DISPLAY[configured.key] ?? {
+                floor: null,
+                ruler: "",
+              }),
+            };
+            const w = latest.workspaces[ws.key];
+            // Skip a workspace whose row is absent or wrong-shape rather than throw
+            // and blank the whole panel — one bad row must not sink the refresh.
+            if (!w || !w.summary || !w.summary.lines) return "";
+            const pct = w.summary.lines.pct;
+            const series = history
+              .filter((r) => r.workspace === ws.key)
+              .map((r) => r.linesPct)
+              .filter((v) => v != null);
+            const lo = ws.floor
+              ? Math.min(ws.floor, ...(series.length ? series : [pct])) - 4
+              : Math.max(0, Math.min(...(series.length ? series : [pct])) - 6);
+            const span = 100 - lo || 1;
+            const fill = Math.max(0, Math.min(100, ((pct - lo) / span) * 100));
+            const floorPct = ws.floor
+              ? Math.max(0, Math.min(100, ((ws.floor - lo) / span) * 100))
+              : null;
+            const chip = coverageChip(ws, pct, series);
+            const brPct =
+              w.summary.branches && w.summary.branches.pct != null
+                ? w.summary.branches.pct.toFixed(2) + "% br · "
+                : "";
+            const fnPct =
+              w.summary.functions && w.summary.functions.pct != null
+                ? w.summary.functions.pct.toFixed(2) + "% fn · "
+                : "";
+            const extra = `${fnPct}${brPct}${w.summary.lines.hit}/${w.summary.lines.found} lines`;
+            return `<div class="cov-row">
           <div class="cov-id"><span class="ws mono">${ws.key}</span><span class="rule">${ws.ruler}</span></div>
           <div class="cov-spark">${spark(series, accent)}<span class="cov-pct mono">${pct == null ? "—" : pct.toFixed(2) + "%"}</span></div>
           <div class="cov-meter"><i style="width:${fill}%"></i>${floorPct != null ? `<span class="floor" style="left:${floorPct}%"></span>` : ""}</div>
           <div class="cov-sub"><div class="chips">${chip}<span class="chip">${extra}</span></div></div>
         </div>`;
-      }).join("");
-      $("coverage-note").hidden = false;
-    }
-
-
-    const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-    function renderOverview(snap) {
-      const t = snap.tests;
-      const by = Object.fromEntries(t.totals.map((x) => [x.tier, x]));
-      const tiles = [
-        { label: "Test cases", value: t.totalCases, foot: `${t.totalFiles} files` },
-        { label: "Unit", value: by.unit?.cases ?? 0, foot: `${by.unit?.files ?? 0} files` },
-        { label: "Integration", value: by.integration?.cases ?? 0, foot: `${by.integration?.files ?? 0} files` },
-        { label: "E2E", value: by.e2e?.cases ?? 0, foot: `${by.e2e?.files ?? 0} files` },
-        { label: "Solidity", value: by.solidity?.cases ?? 0, foot: `${by.solidity?.files ?? 0} files` },
-        { label: "Assertions", value: t.totalAssertions, foot: `${(t.totalAssertions / (t.totalCases || 1)).toFixed(1)} per test` },
-      ];
-      $("overview").innerHTML = tiles.map((k) => `<div class="kpi"><div class="label">${k.label}</div><div class="value mono">${k.value}</div><div class="foot">${k.foot}</div></div>`).join("");
-    }
-
-    // Group files into a directory tree, carrying case counts up each level.
-    function emptyNode() { return { dirs: new Map(), files: [], sources: [], cases: 0, lines: { hit: 0, found: 0 }, branches: { hit: 0, found: 0 } }; }
-
-    // One tree over the union of test files and covered source files, so a
-    // folder with source but no tests still appears — that gap is the point.
-    function buildTree(files, covFiles) {
-      const root = emptyNode();
-      const descend = (path) => {
-        const parts = path.split("/");
-        const name = parts.pop();
-        let node = root;
-        const chain = [root];
-        for (const part of parts) {
-          if (!node.dirs.has(part)) node.dirs.set(part, emptyNode());
-          node = node.dirs.get(part);
-          chain.push(node);
-        }
-        return { node, name, chain };
-      };
-      for (const f of files) {
-        const { node, name, chain } = descend(f.path);
-        for (const n of chain) n.cases += f.cases;
-        node.files.push({ ...f, name });
+          })
+          .join("");
+        $("coverage-note").hidden = false;
       }
-      for (const c of covFiles) {
-        const { node, name, chain } = descend(c.path);
-        for (const n of chain) {
-          n.lines.hit += c.lines.hit; n.lines.found += c.lines.found;
-          n.branches.hit += c.branches.hit; n.branches.found += c.branches.found;
-        }
-        node.sources.push({ ...c, name });
+
+      const esc = (v) =>
+        String(v).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+
+      function renderOverview(snap) {
+        const t = snap.tests;
+        const by = Object.fromEntries(t.totals.map((x) => [x.tier, x]));
+        const tiles = [
+          {
+            label: "Test cases",
+            value: t.totalCases,
+            foot: `${t.totalFiles} files`,
+          },
+          {
+            label: "Unit",
+            value: by.unit?.cases ?? 0,
+            foot: `${by.unit?.files ?? 0} files`,
+          },
+          {
+            label: "Integration",
+            value: by.integration?.cases ?? 0,
+            foot: `${by.integration?.files ?? 0} files`,
+          },
+          {
+            label: "E2E",
+            value: by.e2e?.cases ?? 0,
+            foot: `${by.e2e?.files ?? 0} files`,
+          },
+          {
+            label: "Solidity",
+            value: by.solidity?.cases ?? 0,
+            foot: `${by.solidity?.files ?? 0} files`,
+          },
+          {
+            label: "Assertions",
+            value: t.totalAssertions,
+            foot: `${(t.totalAssertions / (t.totalCases || 1)).toFixed(1)} per test`,
+          },
+        ];
+        $("overview").innerHTML = tiles
+          .map(
+            (k) =>
+              `<div class="kpi"><div class="label">${k.label}</div><div class="value mono">${k.value}</div><div class="foot">${k.foot}</div></div>`,
+          )
+          .join("");
       }
-      return root;
-    }
 
-    function highlight(text, query) {
-      const safe = esc(text);
-      if (!query) return safe;
-      const at = safe.toLowerCase().indexOf(query.toLowerCase());
-      if (at < 0) return safe;
-      return safe.slice(0, at) + "<mark>" + safe.slice(at, at + query.length) + "</mark>" + safe.slice(at + query.length);
-    }
-
-    function renderNode(node, query, depth) {
-      // Folders that actually hold tests sort first, so a workspace that keeps
-      // its tests in one directory (protocol/test) surfaces them above the
-      // coverage-only source folders (protocol/contracts, protocol/src) instead
-      // of burying them. Within each group, plain alphabetical.
-      const dirs = [...node.dirs.entries()].sort((a, b) => {
-        const ta = a[1].cases > 0, tb = b[1].cases > 0;
-        if (ta !== tb) return ta ? -1 : 1;
-        return a[0] < b[0] ? -1 : 1;
-      });
-      // Auto-expand while filtering (the matches are the point) and at the top
-      // level; deeper levels start collapsed so 2k cases stay scannable.
-      const open = query || depth < 1 ? " open" : "";
-      const covBadge = (m) => {
-        const c = m[covMetric];
-        if (!c || !c.found) return `<span class="cov"></span>`;
-        const pct = (c.hit / c.found) * 100;
-        return `<span class="cov ${covClass(pct)}" title="${c.hit}/${c.found} ${covMetric} (local run)">${pct.toFixed(0)}%</span>`;
-      };
-      const dirHtml = dirs.map(([name, child]) => {
-        // Collapse single-child directory chains into one row (foo/bar/baz),
-        // so deeply-nested tests — protocol/test/solidity/… — aren't a click
-        // each. Stop collapsing once a level holds files or more than one dir.
-        let label = esc(name), collapsed = child;
-        while (collapsed.files.length === 0 && (collapsed.sources ?? []).length === 0 && collapsed.dirs.size === 1) {
-          const [childName, only] = [...collapsed.dirs.entries()][0];
-          label += `<span class="sep">/</span>${esc(childName)}`;
-          collapsed = only;
-        }
-        return `<details${open}><summary><span class="name dir">${label}</span>${covBadge(collapsed)}<span class="tier"></span><span class="count">${collapsed.cases}</span></summary><div class="kids">${renderNode(collapsed, query, depth + 1)}</div></details>`;
-      }).join("");
-      const sourceHtml = (node.sources ?? []).map((c) =>
-        `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c)}<span class="tier">src</span><span class="count"></span></div>`).join("");
-      const fileHtml = node.files.map((f) => {
-        const titles = f.titles.map((t) =>
-          `<li class="${t.kind}${t.status ? ` st-${t.status}` : ""}">${highlight(t.title, query)}${t.status ? ` <span class="tstat">${t.status}</span>` : ""}</li>`).join("");
-        const cov = `<span class="cov"></span>`;
-        return `<details${open}><summary><span class="name file">${highlight(f.name, query)}</span>${cov}<span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
-      }).join("");
-      return dirHtml + fileHtml + sourceHtml;
-    }
-
-    // Re-rendering the tree resets every <details> the reader opened, so only
-    // rebuild when the inventory or the query actually changed.
-    let lastTreeKey = null;
-    function renderTests(snap) {
-      const query = $("test-search").value.trim();
-      const all = snap.tests.files;
-      const matched = !query ? all : all.map((f) => {
-        const pathHit = f.path.toLowerCase().includes(query.toLowerCase());
-        const titles = pathHit ? f.titles : f.titles.filter((t) => t.title.toLowerCase().includes(query.toLowerCase()));
-        return titles.length || pathHit ? { ...f, titles, cases: titles.filter((t) => t.kind === "case").length } : null;
-      }).filter(Boolean);
-
-      const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${snap.localCoverage.files.length}:${covMetric}:${query}`;
-      if (key === lastTreeKey) return;
-      lastTreeKey = key;
-
-      const cases = matched.reduce((n, f) => n + f.cases, 0);
-      $("test-hits").textContent = query ? `${cases} cases in ${matched.length} files` : `${snap.tests.totalCases} cases in ${snap.tests.totalFiles} files`;
-      const covMatched = !query ? snap.localCoverage.files : snap.localCoverage.files.filter((c) => c.path.toLowerCase().includes(query.toLowerCase()));
-      $("tests").innerHTML = (matched.length || covMatched.length) ? renderNode(buildTree(matched, covMatched), query, 0) : `<div class="empty">No test matches <b>${esc(query)}</b>.</div>`;
-    }
-
-
-    // Folder coverage comes from LOCAL lcov runs, which can be old and scoped
-    // differently from CI's figure — so it is always labelled, never blended
-    // into the ci-metrics numbers above.
-    let covMetric = "lines";
-    function covClass(pct) { return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low"; }
-
-    // Local-run coverage vs the CI figure, one aligned row per workspace. Lives
-    // in the Coverage panel because it is the same data at a different age; the
-    // dot flags a local run that disagrees with CI (so the folder rates in the
-    // Tests tree are read as "local, and possibly stale", not as the CI number).
-    function renderLocalCov(snap) {
-      const el = $("localcov");
-      const ciByWs = Object.fromEntries(Object.entries(snap.coverage.latest?.workspaces ?? {}).map(([k, v]) => [k, v.summary.lines]));
-      const rows = snap.localCoverage.sources.map((src) => {
-        if (!src.present) {
-          return `<div class="row"><span class="dot warn"></span><span class="ws">${esc(src.workspace)}</span><span class="detail"><span class="missing">no local run</span> — run coverage to populate the folder rates</span></div>`;
-        }
-        const mine = snap.localCoverage.files.filter((f) => localWorkspaceOf(f.path) === src.workspace);
-        const hit = mine.reduce((n, f) => n + f.lines.hit, 0);
-        const found = mine.reduce((n, f) => n + f.lines.found, 0);
-        const localPct = found ? (hit / found) * 100 : null;
-        const ci = ciByWs[src.workspace];
-        const drift = ci && localPct != null && (Math.abs(localPct - (ci.pct ?? 0)) > 1 || Math.abs(found - ci.found) / Math.max(ci.found, 1) > 0.1);
-        const ciPart = ci ? ` · CI ${ci.pct ?? "—"}%` : "";
-        const flag = drift ? ` <span class="flag">— differs from CI</span>` : "";
-        return `<div class="row"><span class="dot ${drift ? "warn" : "ok"}"></span><span class="ws">${esc(src.workspace)}</span><span class="detail">local ${localPct == null ? "—" : localPct.toFixed(1) + "%"} · ${found} lines · ${relTime(src.generatedAt)}${ciPart}${flag}</span></div>`;
-      });
-      el.innerHTML = `<div class="head"><b>Folder coverage in the Tests tree is from local runs</b>, not ci-metrics:</div>` + rows.join("");
-    }
-
-    function localWorkspaceOf(path) {
-      if (path.startsWith("app/")) return "app";
-      if (path.startsWith("server/")) return "server";
-      if (path.startsWith("protocol/")) return path.endsWith(".sol") ? "protocol-solidity" : "protocol-ts";
-      return "";
-    }
-
-    function renderThin(snap) {
-      const el = $("thin");
-      const files = snap.tests.files
-        .filter((f) => f.cases > 0)
-        .map((f) => ({ path: f.path, ratio: f.assertions / f.cases, a: f.assertions, c: f.cases }))
-        .sort((a, b) => a.ratio - b.ratio)
-        .slice(0, 8);
-      const rows = files.map((f) => {
-        const slash = f.path.lastIndexOf("/");
-        return `<div class="row"><span class="ratio">${f.ratio.toFixed(1)}×</span><span class="path">${esc(f.path.slice(0, slash + 1))}<b>${esc(f.path.slice(slash + 1))}</b> · ${f.a} assert / ${f.c} case${f.c === 1 ? "" : "s"}</span></div>`;
-      }).join("");
-      el.innerHTML = `<div class="head">Fewest assertions per test — worth a look for "is this actually checking behavior?", not necessarily wrong (an e2e walk legitimately asserts little).</div>` + rows;
-    }
-
-    const GAPS_SHOWN = 15;
-    function renderGaps(snap) {
-      const el = $("gaps");
-      const gaps = snap.localCoverage.files
-        .filter((f) => f.lines.found > 0 && f.lines.hit < f.lines.found)
-        .map((f) => ({ path: f.path, uncovered: f.lines.found - f.lines.hit, pct: (f.lines.hit / f.lines.found) * 100 }))
-        .sort((a, b) => b.uncovered - a.uncovered);
-      if (!gaps.length) {
-        el.innerHTML = `<div class="empty">No local coverage yet — run a coverage command above, then the biggest gaps show here.</div>`;
-        return;
+      // Group files into a directory tree, carrying case counts up each level.
+      function emptyNode() {
+        return {
+          dirs: new Map(),
+          files: [],
+          sources: [],
+          cases: 0,
+          lines: { hit: 0, found: 0 },
+          branches: { hit: 0, found: 0 },
+        };
       }
-      const rows = gaps.slice(0, GAPS_SHOWN).map((g) => {
-        const slash = g.path.lastIndexOf("/");
-        const dir = slash >= 0 ? g.path.slice(0, slash + 1) : "";
-        const file = slash >= 0 ? g.path.slice(slash + 1) : g.path;
-        return `<div class="gap-row"><span class="n">${g.uncovered}</span><span class="pct ${covClass(g.pct)}">${g.pct.toFixed(0)}%</span><span class="path">${esc(dir)}<b>${esc(file)}</b></span></div>`;
-      }).join("");
-      el.innerHTML = `<div class="head"><span>Uncovered</span><span>Lines</span><span>File</span></div>` + rows +
-        (gaps.length > GAPS_SHOWN ? `<div class="note" style="border-top:1px solid var(--border)">+ ${gaps.length - GAPS_SHOWN} more files with gaps</div>` : "");
-    }
 
-    function renderHygiene(snap) {
-      const t = snap.tests;
-      const chip = (label, n, badWhenNonZero) =>
-        `<span class="h ${n === 0 ? "zero" : badWhenNonZero ? "bad" : ""}"><b>${n}</b> ${label}</span>`;
-      // Focused (.only / f-prefix) is the hazard — it silently disables siblings.
-      $("hygiene").innerHTML =
-        chip("skipped", t.skipped, false) +
-        chip("focused", t.focused, true) +
-        (t.todo ? chip("todo", t.todo, false) : "") +
-        (t.conditional ? chip("conditional", t.conditional, false) : "");
-    }
-
-    function renderFlakes(snap) {
-      const { rows, window: win } = snap.flakes;
-      const body = $("flakes");
-      if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="7">No flake report on <span class="mono">ci-metrics</span> yet.</td></tr>`;
-        $("flakes-note").textContent = "The flake job runs weekly (Mondays).";
-        return;
+      // One tree over the union of test files and covered source files, so a
+      // folder with source but no tests still appears — that gap is the point.
+      function buildTree(files, covFiles) {
+        const root = emptyNode();
+        const descend = (path) => {
+          const parts = path.split("/");
+          const name = parts.pop();
+          let node = root;
+          const chain = [root];
+          for (const part of parts) {
+            if (!node.dirs.has(part)) node.dirs.set(part, emptyNode());
+            node = node.dirs.get(part);
+            chain.push(node);
+          }
+          return { node, name, chain };
+        };
+        for (const f of files) {
+          const { node, name, chain } = descend(f.path);
+          for (const n of chain) n.cases += f.cases;
+          node.files.push({ ...f, name });
+        }
+        for (const c of covFiles) {
+          const { node, name, chain } = descend(c.path);
+          for (const n of chain) {
+            n.lines.hit += c.lines.hit;
+            n.lines.found += c.lines.found;
+            n.branches.hit += c.branches.hit;
+            n.branches.found += c.branches.found;
+          }
+          node.sources.push({ ...c, name });
+        }
+        return root;
       }
-      const dim = (n) => n === 0 ? `<span class="muted">0</span>` : String(n);
-      body.innerHTML = rows.map((r) => `<tr>
+
+      function highlight(text, query) {
+        const safe = esc(text);
+        if (!query) return safe;
+        const at = safe.toLowerCase().indexOf(query.toLowerCase());
+        if (at < 0) return safe;
+        return (
+          safe.slice(0, at) +
+          "<mark>" +
+          safe.slice(at, at + query.length) +
+          "</mark>" +
+          safe.slice(at + query.length)
+        );
+      }
+
+      function renderNode(node, query, depth) {
+        // Folders that actually hold tests sort first, so a workspace that keeps
+        // its tests in one directory (protocol/test) surfaces them above the
+        // coverage-only source folders (protocol/contracts, protocol/src) instead
+        // of burying them. Within each group, plain alphabetical.
+        const dirs = [...node.dirs.entries()].sort((a, b) => {
+          const ta = a[1].cases > 0,
+            tb = b[1].cases > 0;
+          if (ta !== tb) return ta ? -1 : 1;
+          return a[0] < b[0] ? -1 : 1;
+        });
+        // Auto-expand while filtering (the matches are the point) and at the top
+        // level; deeper levels start collapsed so 2k cases stay scannable.
+        const open = query || depth < 1 ? " open" : "";
+        const covBadge = (m) => {
+          const c = m[covMetric];
+          if (!c || !c.found) return `<span class="cov"></span>`;
+          const pct = (c.hit / c.found) * 100;
+          return `<span class="cov ${covClass(pct)}" title="${c.hit}/${c.found} ${covMetric} (local run)">${pct.toFixed(0)}%</span>`;
+        };
+        const dirHtml = dirs
+          .map(([name, child]) => {
+            // Collapse single-child directory chains into one row (foo/bar/baz),
+            // so deeply-nested tests — protocol/test/solidity/… — aren't a click
+            // each. Stop collapsing once a level holds files or more than one dir.
+            let label = esc(name),
+              collapsed = child;
+            while (
+              collapsed.files.length === 0 &&
+              (collapsed.sources ?? []).length === 0 &&
+              collapsed.dirs.size === 1
+            ) {
+              const [childName, only] = [...collapsed.dirs.entries()][0];
+              label += `<span class="sep">/</span>${esc(childName)}`;
+              collapsed = only;
+            }
+            return `<details${open}><summary><span class="name dir">${label}</span>${covBadge(collapsed)}<span class="tier"></span><span class="count">${collapsed.cases}</span></summary><div class="kids">${renderNode(collapsed, query, depth + 1)}</div></details>`;
+          })
+          .join("");
+        const sourceHtml = (node.sources ?? [])
+          .map(
+            (c) =>
+              `<div class="srcfile"><span></span><span class="name file">${highlight(c.name, query)}</span>${covBadge(c)}<span class="tier">src</span><span class="count"></span></div>`,
+          )
+          .join("");
+        const fileHtml = node.files
+          .map((f) => {
+            const titles = f.titles
+              .map(
+                (t) =>
+                  `<li class="${t.kind}${t.status ? ` st-${t.status}` : ""}">${highlight(t.title, query)}${t.status ? ` <span class="tstat">${t.status}</span>` : ""}</li>`,
+              )
+              .join("");
+            const cov = `<span class="cov"></span>`;
+            return `<details${open}><summary><span class="name file">${highlight(f.name, query)}</span>${cov}<span class="tier">${f.tier}</span><span class="count">${f.cases}</span></summary><ul>${titles}</ul></details>`;
+          })
+          .join("");
+        return dirHtml + fileHtml + sourceHtml;
+      }
+
+      // Re-rendering the tree resets every <details> the reader opened, so only
+      // rebuild when the inventory or the query actually changed.
+      let lastTreeKey = null;
+      function renderTests(snap) {
+        const query = $("test-search").value.trim();
+        const all = snap.tests.files;
+        const matched = !query
+          ? all
+          : all
+              .map((f) => {
+                const pathHit = f.path
+                  .toLowerCase()
+                  .includes(query.toLowerCase());
+                const titles = pathHit
+                  ? f.titles
+                  : f.titles.filter((t) =>
+                      t.title.toLowerCase().includes(query.toLowerCase()),
+                    );
+                return titles.length || pathHit
+                  ? {
+                      ...f,
+                      titles,
+                      cases: titles.filter((t) => t.kind === "case").length,
+                    }
+                  : null;
+              })
+              .filter(Boolean);
+
+        const key = `${snap.tests.totalCases}:${snap.tests.totalFiles}:${snap.localCoverage.files.length}:${covMetric}:${query}`;
+        if (key === lastTreeKey) return;
+        lastTreeKey = key;
+
+        const cases = matched.reduce((n, f) => n + f.cases, 0);
+        $("test-hits").textContent = query
+          ? `${cases} cases in ${matched.length} files`
+          : `${snap.tests.totalCases} cases in ${snap.tests.totalFiles} files`;
+        const covMatched = !query
+          ? snap.localCoverage.files
+          : snap.localCoverage.files.filter((c) =>
+              c.path.toLowerCase().includes(query.toLowerCase()),
+            );
+        $("tests").innerHTML =
+          matched.length || covMatched.length
+            ? renderNode(buildTree(matched, covMatched), query, 0)
+            : `<div class="empty">No test matches <b>${esc(query)}</b>.</div>`;
+      }
+
+      // Folder coverage comes from LOCAL lcov runs, which can be old and scoped
+      // differently from CI's figure — so it is always labelled, never blended
+      // into the ci-metrics numbers above.
+      let covMetric = "lines";
+      function covClass(pct) {
+        return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low";
+      }
+
+      // Local-run coverage vs the CI figure, one aligned row per workspace. Lives
+      // in the Coverage panel because it is the same data at a different age; the
+      // dot flags a local run that disagrees with CI (so the folder rates in the
+      // Tests tree are read as "local, and possibly stale", not as the CI number).
+      function renderLocalCov(snap) {
+        const el = $("localcov");
+        const ciByWs = Object.fromEntries(
+          Object.entries(snap.coverage.latest?.workspaces ?? {}).map(
+            ([k, v]) => [k, v.summary.lines],
+          ),
+        );
+        const rows = snap.localCoverage.sources.map((src) => {
+          if (!src.present) {
+            return `<div class="row"><span class="dot warn"></span><span class="ws">${esc(src.workspace)}</span><span class="detail"><span class="missing">no local run</span> — run coverage to populate the folder rates</span></div>`;
+          }
+          const mine = snap.localCoverage.files.filter(
+            (f) => localWorkspaceOf(f.path) === src.workspace,
+          );
+          const hit = mine.reduce((n, f) => n + f.lines.hit, 0);
+          const found = mine.reduce((n, f) => n + f.lines.found, 0);
+          const localPct = found ? (hit / found) * 100 : null;
+          const ci = ciByWs[src.workspace];
+          const drift =
+            ci &&
+            localPct != null &&
+            (Math.abs(localPct - (ci.pct ?? 0)) > 1 ||
+              Math.abs(found - ci.found) / Math.max(ci.found, 1) > 0.1);
+          const ciPart = ci ? ` · CI ${ci.pct ?? "—"}%` : "";
+          const flag = drift
+            ? ` <span class="flag">— differs from CI</span>`
+            : "";
+          return `<div class="row"><span class="dot ${drift ? "warn" : "ok"}"></span><span class="ws">${esc(src.workspace)}</span><span class="detail">local ${localPct == null ? "—" : localPct.toFixed(1) + "%"} · ${found} lines · ${relTime(src.generatedAt)}${ciPart}${flag}</span></div>`;
+        });
+        el.innerHTML =
+          `<div class="head"><b>Folder coverage in the Tests tree is from local runs</b>, not ci-metrics:</div>` +
+          rows.join("");
+      }
+
+      function localWorkspaceOf(path) {
+        if (path.startsWith("app/")) return "app";
+        if (path.startsWith("server/")) return "server";
+        if (path.startsWith("protocol/"))
+          return path.endsWith(".sol") ? "protocol-solidity" : "protocol-ts";
+        return "";
+      }
+
+      function renderThin(snap) {
+        const el = $("thin");
+        const files = snap.tests.files
+          .filter((f) => f.cases > 0)
+          .map((f) => ({
+            path: f.path,
+            ratio: f.assertions / f.cases,
+            a: f.assertions,
+            c: f.cases,
+          }))
+          .sort((a, b) => a.ratio - b.ratio)
+          .slice(0, 8);
+        const rows = files
+          .map((f) => {
+            const slash = f.path.lastIndexOf("/");
+            return `<div class="row"><span class="ratio">${f.ratio.toFixed(1)}×</span><span class="path">${esc(f.path.slice(0, slash + 1))}<b>${esc(f.path.slice(slash + 1))}</b> · ${f.a} assert / ${f.c} case${f.c === 1 ? "" : "s"}</span></div>`;
+          })
+          .join("");
+        el.innerHTML =
+          `<div class="head">Fewest assertions per test — worth a look for "is this actually checking behavior?", not necessarily wrong (an e2e walk legitimately asserts little).</div>` +
+          rows;
+      }
+
+      const GAPS_SHOWN = 15;
+      function renderGaps(snap) {
+        const el = $("gaps");
+        const gaps = snap.localCoverage.files
+          .filter((f) => f.lines.found > 0 && f.lines.hit < f.lines.found)
+          .map((f) => ({
+            path: f.path,
+            uncovered: f.lines.found - f.lines.hit,
+            pct: (f.lines.hit / f.lines.found) * 100,
+          }))
+          .sort((a, b) => b.uncovered - a.uncovered);
+        if (!gaps.length) {
+          el.innerHTML = `<div class="empty">No local coverage yet — run a coverage command above, then the biggest gaps show here.</div>`;
+          return;
+        }
+        const rows = gaps
+          .slice(0, GAPS_SHOWN)
+          .map((g) => {
+            const slash = g.path.lastIndexOf("/");
+            const dir = slash >= 0 ? g.path.slice(0, slash + 1) : "";
+            const file = slash >= 0 ? g.path.slice(slash + 1) : g.path;
+            return `<div class="gap-row"><span class="n">${g.uncovered}</span><span class="pct ${covClass(g.pct)}">${g.pct.toFixed(0)}%</span><span class="path">${esc(dir)}<b>${esc(file)}</b></span></div>`;
+          })
+          .join("");
+        el.innerHTML =
+          `<div class="head"><span>Uncovered</span><span>Lines</span><span>File</span></div>` +
+          rows +
+          (gaps.length > GAPS_SHOWN
+            ? `<div class="note" style="border-top:1px solid var(--border)">+ ${gaps.length - GAPS_SHOWN} more files with gaps</div>`
+            : "");
+      }
+
+      function renderHygiene(snap) {
+        const t = snap.tests;
+        const chip = (label, n, badWhenNonZero) =>
+          `<span class="h ${n === 0 ? "zero" : badWhenNonZero ? "bad" : ""}"><b>${n}</b> ${label}</span>`;
+        // Focused (.only / f-prefix) is the hazard — it silently disables siblings.
+        $("hygiene").innerHTML =
+          chip("skipped", t.skipped, false) +
+          chip("focused", t.focused, true) +
+          (t.todo ? chip("todo", t.todo, false) : "") +
+          (t.conditional ? chip("conditional", t.conditional, false) : "");
+      }
+
+      function renderFlakes(snap) {
+        const { rows, window: win } = snap.flakes;
+        const body = $("flakes");
+        if (!rows.length) {
+          body.innerHTML = `<tr><td colspan="7">No flake report on <span class="mono">ci-metrics</span> yet.</td></tr>`;
+          $("flakes-note").textContent = "The flake job runs weekly (Mondays).";
+          return;
+        }
+        const dim = (n) =>
+          n === 0 ? `<span class="muted">0</span>` : String(n);
+        body.innerHTML = rows
+          .map(
+            (r) => `<tr>
         <td>${esc(r.workflow)}</td>
         <td>${r.runs}</td>
         <td>${dim(r.failures)}</td>
@@ -632,110 +1590,139 @@
         <td>${dim(r.rerunPasses)}</td>
         <td>${r.flakePct == null ? "—" : r.flakePct.toFixed(1) + "%"}</td>
         <td><span class="pill ${r.overThreshold ? "warn" : "ok"}">${r.overThreshold ? "over 5%" : "under 5%"}</span></td>
-      </tr>`).join("");
-      $("flakes-note").innerHTML = win
-        ? `Window <span class="mono">${esc(win.from.slice(0, 10))} → ${esc(win.to.slice(0, 10))}</span>, generated ${relTime(win.generatedAt)}. A flake is a rerun that passed at the same commit. Report-only: the 5% threshold is computed, never alerted.`
-        : "Report-only: the threshold is computed, never alerted.";
-    }
-
-
-    let runnable = [];
-    async function refreshRuns() {
-      try {
-        const res = await fetch("/api/runs", { cache: "no-store" });
-        const data = await res.json();
-        runnable = data.runnable;
-        renderRuns(data.current);
-        return data.current;
-      } catch { return null; }
-    }
-
-    function renderRuns(current) {
-      const busy = current?.running;
-      $("runbar").innerHTML =
-        runnable.map((r) => `<button class="runbtn" data-run="${esc(r.id)}" ${busy ? "disabled" : ""} title="${esc(r.detail)}">${esc(r.label)}</button>`).join("") +
-        (busy ? `<button class="runbtn cancel" data-cancel="1">Cancel</button>` : "") +
-        `<span class="runstate">${busy
-          ? `<span class="spin"></span>running ${esc(current.label)} · ${relTime(current.startedAt)}`
-          : current?.id ? `${esc(current.label)} ${current.exitCode === 0 ? "passed" : `exited ${current.exitCode}`} · ${relTime(current.finishedAt)}` : "idle"}</span>`;
-      const log = $("runlog");
-      if (current?.lines?.length) {
-        log.hidden = false;
-        const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
-        log.textContent = (current.truncated ? "… earlier output trimmed …\n" : "") + current.lines.join("\n");
-        if (atBottom) log.scrollTop = log.scrollHeight;
+      </tr>`,
+          )
+          .join("");
+        $("flakes-note").innerHTML = win
+          ? `Window <span class="mono">${esc(win.from.slice(0, 10))} → ${esc(win.to.slice(0, 10))}</span>, generated ${relTime(win.generatedAt)}. A flake is a rerun that passed at the same commit. Report-only: the 5% threshold is computed, never alerted.`
+          : "Report-only: the threshold is computed, never alerted.";
       }
-    }
 
-    document.addEventListener("click", async (event) => {
-      const run = event.target.closest("[data-run]");
-      const cancel = event.target.closest("[data-cancel]");
-      if (!run && !cancel) return;
-      const url = cancel ? "/api/runs/cancel" : `/api/runs/${run.dataset.run}`;
-      const res = await fetch(url, { method: "POST" });
-      renderRuns((await res.json()).current);
-      pollRun();
-    });
-
-    // While a run is active, poll it faster than the 30s data refresh so output
-    // appears promptly; stop as soon as it finishes.
-    let runPoll = null;
-    function pollRun() {
-      if (runPoll) return;
-      runPoll = setInterval(async () => {
-        const current = await refreshRuns();
-        if (!current?.running) {
-          clearInterval(runPoll);
-          runPoll = null;
-          refresh(); // a finished run may have rewritten coverage on disk
+      let runnable = [];
+      async function refreshRuns() {
+        try {
+          const res = await fetch("/api/runs", { cache: "no-store" });
+          const data = await res.json();
+          runnable = data.runnable;
+          renderRuns(data.current);
+          return data.current;
+        } catch {
+          return null;
         }
-      }, 1500);
-    }
-
-    async function refresh() {
-      // Abort a stalled request so the page shows a clear state and the next
-      // poll can retry, instead of sitting on "Loading…" forever.
-      const ctl = new AbortController();
-      const abort = setTimeout(() => ctl.abort(), 15_000);
-      try {
-        const res = await fetch("/api/observability", { cache: "no-store", signal: ctl.signal });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const snap = await res.json();
-        latestSnapshot = snap;
-        renderFreshness(snap);
-        renderOverview(snap);
-        renderNightly(snap);
-        renderCoverage(snap);
-        renderLocalCov(snap);
-        renderTests(snap);
-        renderThin(snap);
-        renderGaps(snap);
-        renderHygiene(snap);
-        renderFlakes(snap);
-        $("footer").textContent = `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
-      } catch (err) {
-        $("freshness-text").textContent = "server not responding — retrying…";
-        $("freshness").className = "freshness offline";
-      } finally {
-        clearTimeout(abort);
       }
-    }
 
-    let latestSnapshot = null;
-    $("test-search").addEventListener("input", () => {
-      if (latestSnapshot) renderTests(latestSnapshot);
-    });
-    document.querySelector(".metric-toggle").addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-metric]");
-      if (!btn) return;
-      covMetric = btn.dataset.metric;
-      document.querySelectorAll(".metric-toggle button").forEach((b) => b.classList.toggle("on", b === btn));
-      if (latestSnapshot) renderTests(latestSnapshot);
-    });
+      function renderRuns(current) {
+        const busy = current?.running;
+        $("runbar").innerHTML =
+          runnable
+            .map(
+              (r) =>
+                `<button class="runbtn" data-run="${esc(r.id)}" ${busy ? "disabled" : ""} title="${esc(r.detail)}">${esc(r.label)}</button>`,
+            )
+            .join("") +
+          (busy
+            ? `<button class="runbtn cancel" data-cancel="1">Cancel</button>`
+            : "") +
+          `<span class="runstate">${
+            busy
+              ? `<span class="spin"></span>running ${esc(current.label)} · ${relTime(current.startedAt)}`
+              : current?.id
+                ? `${esc(current.label)} ${current.exitCode === 0 ? "passed" : `exited ${current.exitCode}`} · ${relTime(current.finishedAt)}`
+                : "idle"
+          }</span>`;
+        const log = $("runlog");
+        if (current?.lines?.length) {
+          log.hidden = false;
+          const atBottom =
+            log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+          log.textContent =
+            (current.truncated ? "… earlier output trimmed …\n" : "") +
+            current.lines.join("\n");
+          if (atBottom) log.scrollTop = log.scrollHeight;
+        }
+      }
 
-    refresh();
-    refreshRuns().then((current) => { if (current?.running) pollRun(); });
-    setInterval(refresh, POLL_MS);
-  </script>
-</body>
+      document.addEventListener("click", async (event) => {
+        const run = event.target.closest("[data-run]");
+        const cancel = event.target.closest("[data-cancel]");
+        if (!run && !cancel) return;
+        const url = cancel
+          ? "/api/runs/cancel"
+          : `/api/runs/${run.dataset.run}`;
+        const res = await fetch(url, { method: "POST" });
+        renderRuns((await res.json()).current);
+        pollRun();
+      });
+
+      // While a run is active, poll it faster than the 30s data refresh so output
+      // appears promptly; stop as soon as it finishes.
+      let runPoll = null;
+      function pollRun() {
+        if (runPoll) return;
+        runPoll = setInterval(async () => {
+          const current = await refreshRuns();
+          if (!current?.running) {
+            clearInterval(runPoll);
+            runPoll = null;
+            refresh(); // a finished run may have rewritten coverage on disk
+          }
+        }, 1500);
+      }
+
+      async function refresh() {
+        // Abort a stalled request so the page shows a clear state and the next
+        // poll can retry, instead of sitting on "Loading…" forever.
+        const ctl = new AbortController();
+        const abort = setTimeout(() => ctl.abort(), 15_000);
+        try {
+          const res = await fetch("/api/observability", {
+            cache: "no-store",
+            signal: ctl.signal,
+          });
+          if (!res.ok) throw new Error(`status ${res.status}`);
+          const snap = await res.json();
+          latestSnapshot = snap;
+          renderFreshness(snap);
+          renderOverview(snap);
+          renderNightly(snap);
+          renderCoverage(snap);
+          renderLocalCov(snap);
+          renderTests(snap);
+          renderThin(snap);
+          renderGaps(snap);
+          renderHygiene(snap);
+          renderFlakes(snap);
+          $("footer").textContent =
+            `Read at ${new Date(snap.readAt).toLocaleTimeString()} · auto-refreshes every ${POLL_MS / 1000}s · local view, reads origin/ci-metrics`;
+        } catch (err) {
+          $("freshness-text").textContent = "server not responding — retrying…";
+          $("freshness").className = "freshness offline";
+        } finally {
+          clearTimeout(abort);
+        }
+      }
+
+      let latestSnapshot = null;
+      $("test-search").addEventListener("input", () => {
+        if (latestSnapshot) renderTests(latestSnapshot);
+      });
+      document
+        .querySelector(".metric-toggle")
+        .addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-metric]");
+          if (!btn) return;
+          covMetric = btn.dataset.metric;
+          document
+            .querySelectorAll(".metric-toggle button")
+            .forEach((b) => b.classList.toggle("on", b === btn));
+          if (latestSnapshot) renderTests(latestSnapshot);
+        });
+
+      refresh();
+      refreshRuns().then((current) => {
+        if (current?.running) pollRun();
+      });
+      setInterval(refresh, POLL_MS);
+    </script>
+  </body>
 </html>

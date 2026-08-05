@@ -19,13 +19,15 @@ export type DeploySummary = {
   deployBlock: string;
   postgradAdapterAddress: Address;
   pregradManagerAddress: Address;
+  reviewCreditVaultAddress: Address;
 };
 
 /**
  * Deploys the smallest useful protocol surface for local development:
  * collateral for market config, the singleton manager whose MarketCreated
- * event the indexer watches, and a postgrad adapter so dev tooling can
- * finalize graduations end to end.
+ * event the indexer watches, a postgrad adapter so dev tooling can finalize
+ * graduations end to end, and the review-bond vault (ADR 0022) with the
+ * deployer standing in as both owner and settlement resolver.
  */
 export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<DeploySummary> {
   const publicClient = await viem.getPublicClient();
@@ -44,6 +46,20 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     OUTCOME_DECIMALS,
     ...localDisputeConfigArgs(),
   ]);
+  const reviewCreditVault = await viem.deployContract("ReviewCreditVault", [deployerAddress]);
+
+  // Arm the creation gate (repo ADR 0022 P4): the deployer account doubles as
+  // the local market-creation authorizer, matching the server's local default
+  // signing key (hardhat account #0), so publish authorizations minted by the
+  // API verify against this deployment out of the box. Production deploys set
+  // a dedicated authorizer key instead.
+  await manager.write.setMarketCreationAuthorizer([deployerAddress]);
+
+  // The deployer is also a trusted creator: protocol-workspace tooling (boot
+  // seeding, smoke lanes, tests) creates markets with a zeroed authorization
+  // now that the ungated path is gone (repo ADR 0022 P5). The product path
+  // never uses this — the app publishes with a real server-minted signature.
+  await manager.write.setTrustedCreator([deployerAddress, true]);
 
   // The indexer starts at this block for non-local networks. We still emit it
   // for local smoke so env generation mirrors real deployment metadata.
@@ -55,5 +71,6 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
     deployBlock: deployBlock.toString(),
     postgradAdapterAddress: postgradAdapter.address,
     pregradManagerAddress: manager.address,
+    reviewCreditVaultAddress: reviewCreditVault.address,
   };
 }
