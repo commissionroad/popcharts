@@ -22,6 +22,79 @@ const DRAFT_OWNER_HEADER = "x-popcharts-draft-owner";
 const REVIEW_POLL_INTERVAL_MS = 1_000;
 const REVIEW_TIMEOUT_MS = 120_000;
 
+/**
+ * The review-credit meter's refusal (HTTP 402), as the submit endpoint
+ * reports it. Mirrors the API's MarketDraftBondShortfall.
+ */
+export type ReviewCreditShortfall = {
+  availableWad: string;
+  message: string;
+  requiredWad: string;
+  runsUsed: number;
+};
+
+/** A wallet's credit position, from GET /drafts/credit. */
+export type ReviewCreditPosition = {
+  availableWad: string;
+  metered: boolean;
+  rateWad: string;
+  runsRemaining: number;
+  runsUsed: number;
+};
+
+/**
+ * A non-2xx from the draft API, carrying the status and — for the meter's 402
+ * — the parsed shortfall. Callers that only print the error see exactly the
+ * text they saw before this existed.
+ */
+export class DraftApiError extends Error {
+  readonly status: number;
+  readonly shortfall: ReviewCreditShortfall | undefined;
+
+  constructor(
+    message: string,
+    { body, status }: { body: string; status: number },
+  ) {
+    super(message);
+    this.name = "DraftApiError";
+    this.status = status;
+    this.shortfall = parseShortfall(body);
+  }
+}
+
+/** Reads the 402 body, tolerating any shape that is not the meter's. */
+function parseShortfall(body: string): ReviewCreditShortfall | undefined {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return undefined;
+  }
+
+  const candidate = parsed as Record<string, unknown>;
+
+  if (
+    typeof candidate.availableWad !== "string" ||
+    typeof candidate.requiredWad !== "string" ||
+    typeof candidate.message !== "string" ||
+    typeof candidate.runsUsed !== "number"
+  ) {
+    return undefined;
+  }
+
+  return {
+    availableWad: candidate.availableWad,
+    message: candidate.message,
+    requiredWad: candidate.requiredWad,
+    runsUsed: candidate.runsUsed,
+  };
+}
+
 type DraftRecord = {
   id: string;
   status: string;
@@ -65,7 +138,9 @@ export function draftWriteFrom(
     ...(metadata.resolutionSources?.length
       ? { resolutionSources: metadata.resolutionSources.join("\n") }
       : {}),
-    ...(metadata.resolutionUrl ? { resolutionUrl: metadata.resolutionUrl } : {}),
+    ...(metadata.resolutionUrl
+      ? { resolutionUrl: metadata.resolutionUrl }
+      : {}),
     resolutionWindowSeconds: generatedMarket.resolutionSeconds,
   };
 }
@@ -90,8 +165,12 @@ export function createDraftApi({
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(
+      // Message text is unchanged from when this threw a bare Error — the
+      // status and parsed shortfall ride alongside it so a caller can act on
+      // a refusal instead of only printing it.
+      throw new DraftApiError(
         `Draft API ${init?.method ?? "GET"} ${path} failed (${response.status}): ${body.slice(0, 300)}`,
+        { body, status: response.status },
       );
     }
 
@@ -104,6 +183,12 @@ export function createDraftApi({
         body: JSON.stringify(body),
         method: "POST",
       }),
+
+    /** The wallet's indexed credit — the same view the submit gate decides on. */
+    credit: (address: string) =>
+      request<ReviewCreditPosition>(
+        `/drafts/credit?address=${encodeURIComponent(address.toLowerCase())}`,
+      ),
 
     markPublished: (
       draftId: string,
@@ -157,7 +242,9 @@ export function createDraftApi({
           );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, REVIEW_POLL_INTERVAL_MS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, REVIEW_POLL_INTERVAL_MS),
+        );
       }
     },
   };

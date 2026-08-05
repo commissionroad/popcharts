@@ -9,7 +9,14 @@ import { validateLocalPregradDeployment } from "./shared/chain/validateLocalPreg
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { DEFAULT_HARDHAT_ACCOUNT_ADDRESS } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import {
+  depositCommandEnv,
+  INDEXING_TIMEOUT_MS,
+  topUpAmountWad,
+  waitForIndexedCredit,
+} from "./shared/localMarket/autoTopUpCredit.ts";
+import {
   createDraftApi,
+  DraftApiError,
   draftWriteFrom,
   parsePublishTransactionHash,
 } from "./shared/localMarket/draftFlow.ts";
@@ -163,9 +170,18 @@ async function main(): Promise<void> {
   const creatorAddress = DEFAULT_HARDHAT_ACCOUNT_ADDRESS;
   const drafts = createDraftApi({ apiBaseUrl, owner: creatorAddress });
 
-  const draft = await drafts.create(draftWriteFrom(generatedMarket, creatorAddress));
+  const draft = await drafts.create(
+    draftWriteFrom(generatedMarket, creatorAddress),
+  );
   console.log(`[${logLabel}] draft ${draft.id} created via ${apiBaseUrl}`);
-  await drafts.submit(draft.id);
+  await submitWithAutoTopUp({
+    chainEnv,
+    commandEnv,
+    creatorAddress,
+    draftId: draft.id,
+    drafts,
+    vaultAddress: commandEnv.LOCAL_REVIEW_CREDIT_VAULT_ADDRESS,
+  });
   console.log(`[${logLabel}] submitted for review`);
 
   const reviewed = await drafts.waitForReview(draft.id);
@@ -238,6 +254,84 @@ async function main(): Promise<void> {
     console.warn(
       `[${logLabel}] metadata sync failed: ${getErrorMessage(error)}`,
     );
+  }
+}
+
+/**
+ * Submits the draft, and if the review-credit meter refuses it (402), tops the
+ * creator up and submits again — the CLI equivalent of the app's deposit
+ * panel, which recovers from the same refusal without the creator retyping
+ * anything. Any other failure propagates untouched.
+ */
+async function submitWithAutoTopUp({
+  chainEnv,
+  commandEnv,
+  creatorAddress,
+  draftId,
+  drafts,
+  vaultAddress,
+}: {
+  readonly chainEnv: NodeJS.ProcessEnv;
+  readonly commandEnv: NodeJS.ProcessEnv;
+  readonly creatorAddress: string;
+  readonly draftId: string;
+  readonly drafts: ReturnType<typeof createDraftApi>;
+  readonly vaultAddress: string | undefined;
+}): Promise<void> {
+  try {
+    await drafts.submit(draftId);
+    return;
+  } catch (error) {
+    if (
+      !(error instanceof DraftApiError) ||
+      error.status !== 402 ||
+      !error.shortfall
+    ) {
+      throw error;
+    }
+
+    if (!vaultAddress) {
+      throw new Error(
+        `${error.message}\nNo LOCAL_REVIEW_CREDIT_VAULT_ADDRESS in the loaded env, so this run cannot top up. Redeploy contracts (just local-dev) and retry.`,
+      );
+    }
+
+    const { shortfall } = error;
+    const amountWad = topUpAmountWad(shortfall);
+    console.log(
+      `[${logLabel}] out of review credit (${shortfall.runsUsed} run(s) used) — depositing ${amountWad} wei for ${creatorAddress}`,
+    );
+
+    await run(
+      "pnpm",
+      ["--dir", "protocol", "run", "local:deposit-review-credit"],
+      {
+        env: depositCommandEnv({
+          amountWad,
+          beneficiary: creatorAddress,
+          chainEnv,
+          commandEnv,
+          vaultAddress,
+        }),
+      },
+    );
+
+    // The gate reads the server's indexed rows, not the chain, so a confirmed
+    // deposit is not yet spendable — retrying now would hit the same 402.
+    const indexed = await waitForIndexedCredit({
+      readCredit: () => drafts.credit(creatorAddress),
+      requiredWad: shortfall.requiredWad,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+
+    if (!indexed) {
+      throw new Error(
+        `The deposit confirmed on-chain but has not reached the indexed view after ${INDEXING_TIMEOUT_MS}ms. It is not lost — rerun 'just local-create-market' in a moment.`,
+      );
+    }
+
+    console.log(`[${logLabel}] credit topped up; resubmitting`);
+    await drafts.submit(draftId);
   }
 }
 
