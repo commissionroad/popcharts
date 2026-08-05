@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated publish, fee-on-accept)
-description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. Drafts, draft review, the review bond and templates are built; the contract gate is not.
+description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. P1–P5 and P7 built 2026-08-03..04, including the contract gate and the retirement of the on-chain review path; P6 (metadata from the event) and P8 (server-side discovery filters) remain open.
 sources:
   - docs/adr/0022-review-first-market-creation.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # Repo ADR 0022: Review-first Market Creation

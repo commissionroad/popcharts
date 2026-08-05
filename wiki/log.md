@@ -1632,3 +1632,81 @@ which revision; its filename keeps the stale `v4` slug deliberately.
 Follow-up: `wiki/concepts/product-honesty-rule.md` was not re-read this pass
 and may need a line about not presenting withdrawal as free exit — ADR 0014
 measures ~86% of a book as still locked.
+
+## [2026-08-05] lint | ADR 0023 missing entirely; 0022/0025 index+description contradictions; whitepaper ladder now in-repo
+Pages: +summaries/root-adr-0023-protocol-security-audit-program.md,
+~summaries/root-adr-0025-unified-price-stream.md,
+~summaries/root-adr-0022-review-first-market-creation.md,
+~summaries/whitepaper-history.md, ~concepts/product-honesty-rule.md,
+~entities/protocol-workspace.md, ~index.md
+Notes: Organic ingestion since last lint: 13/19 doc-touching commits
+self-ingested. Of the 6 misses, 2 needed no wiki change (2e86d249 prettier-only
+reformat, 5805a3fb a screenshot add) and 3 were covered by a sibling commit in
+the same stack (df40f91f ADR 0025 P1 → 60028479; ef0d7d7b whitepaper import →
+9bf147a8). The one real content gap was `app/docs/component-inventory.md`
+(7ffe1cd9, 28191ca6) leaving `entities/designkit.md` stale — carried below.
+
+**The headline finding is older than this window.** `docs/adr/0023-protocol-
+security-audit-program.md` landed 2026-07-21 with **no wiki page at all**, and
+neither of its two commits touched `wiki/`. It then survived the 2026-07-26 and
+2026-08-04 lints — both of which were supposed to catch "raw sources that are
+brand new (no summary page)". It is the only one of 34 ADRs without a summary.
+Now ingested, and verified against the repo rather than taken from the ADR's
+own prose: the Slither wrapper, `slither.config.json`, the security test path,
+the skill, and `/audit-next` all exist; `protocol/docs/security/audit/` holds
+only README + TEMPLATE, so **0 of 42 catalogue items are done** and Phase 0 is
+3/4. Lesson for future passes: the per-ADR coverage check (does
+`summaries/<area>-adr-<n>-*` exist for every ADR file?) is cheap and was not
+being run — run it every pass.
+
+Two contradictions where a page's own frontmatter fought its body, both
+mirrored into index.md:
+- **ADR 0025** — description said "Six phases, none started" and the page
+  opened "PROPOSED", while the body already documented P1–P3 landing and the
+  ADR now ticks **all six**. Corrected to complete. The raw ADR's `Status:`
+  header still reads `Proposed` despite every box being ticked — flagged on the
+  page, not edited (raw sources are read-only here).
+- **ADR 0022** — description said "the contract gate is not [built]" after P4
+  (the gate) and P5 (retiring the on-chain review path) both landed 2026-08-04.
+  Corrected; P6 and P8 remain the open phases.
+
+Closed the follow-up the 2026-08-04 entry left open: `concepts/product-honesty-
+rule.md` now has a "Withdrawal is not free exit" section. Protocol ADR 0014
+states it outright — ~15% of escrow withdrawable, **~86% of the book stays
+locked**, "the product must not present it as one" — plus the two facts copy has
+to respect (opposed bands locked for both receipts until clearing; a 5%
+`φ_out` fee on the withdrawn band's recorded cost, refunding path cost not mark
+value). The honesty rule now has two symmetrical clauses: never imply a
+guaranteed fill, never imply a guaranteed exit.
+
+`summaries/whitepaper-history.md` still sourced only the two PDFs after the
+markdown ladder was imported 2026-08-04. Re-sourced to `whitepaper/v0.1–v0.3.md`
++ README. This also resolves the file-naming quirk the page had been flagging:
+v0.2 and v0.3 are distinct in-repo revisions (911 and 629 lines), so internal
+revision numbers, not PDF filenames, are the reliable identifier. Noted that the
+"PredictFun" → "Pop Charts" rename lands at v0.6.
+
+Integrity clean: 0 broken internal links, 0 pages missing from index.md, 0
+orphans, 0 wiki-referenced source paths pointing at absent files.
+
+Schema observation (not fixed): CLAUDE.md says a page's `description` is "used
+verbatim in index.md", but in practice nearly every index row is an abbreviated
+or expanded rewrite. The convention is de facto "index rows are their own prose"
+— worth either amending the schema or accepting the divergence deliberately,
+because the verbatim rule as written makes the drift check unusable (it fires on
+~60 pages).
+
+Follow-ups for next lint:
+- `entities/designkit.md` (updated 2026-07-07) vs `app/docs/component-inventory.md`
+  (changed 2026-08-04 in three commits) — the real un-ingested content gap.
+- Older staleness backlog, none of it touched this pass: `docs/architecture.md`
+  moved 2026-07-26 and is a source for `overview.md`, `concepts/market-lifecycle.md`,
+  `entities/app-workspace.md`, `entities/protocol-workspace.md`; `app/CONTEXT.md`
+  moved 2026-08-04 and is a source for `summaries/app-context.md` and
+  `entities/app-workspace.md`; `protocol/docs/postgrad-contract-metadata.md`
+  moved 2026-08-04 and feeds four entity pages. 26 stale (page, source) pairs
+  total — this pass fixed 6 of them and deliberately left the rest rather than
+  bulk-rewriting on date evidence alone.
+- Re-check whether ADR 0023's `Status: Proposed` and ADR 0025's `Status:
+  Proposed` get corrected at the source; both now contradict their own
+  checklists.

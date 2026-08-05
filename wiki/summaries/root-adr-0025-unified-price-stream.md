@@ -1,15 +1,18 @@
 ---
 type: summary
 title: ADR 0025 — One Price Stream Across Graduation (docs/adr/0025-unified-price-stream.md)
-description: PROPOSED program collapsing the two price paths into one — a per-pool sequence emitted by the bounded hook (near-free before deploy, a venue migration after), server-side derivation for both halves, one read endpoint and one point shape, and a chart blind to the phase. Six phases, none started.
+description: Program collapsing the two price paths into one — a per-pool sequence emitted by the bounded hook (measured at +553 gas, ~0.9%), server-side derivation for both halves, one read endpoint and one point shape, and a chart blind to the phase. All six phases delivered 2026-08-04; the ADR's own Status line still reads Proposed.
 sources:
   - docs/adr/0025-unified-price-stream.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # ADR 0025 — One Price Stream Across Graduation
 
-PROPOSED. Follows on from [ADR 0021](root-adr-0021-live-market-updates.md),
+**Complete — all six phases ticked 2026-08-04**, though the ADR's `Status:`
+header still reads `Proposed` (a raw-source inconsistency; not edited here per
+the wiki's read-never-write rule for sources). Follows on from
+[ADR 0021](root-adr-0021-live-market-updates.md),
 whose live spine shipped for pre-graduation trades only; the post-graduation
 half was wired later (PRs #401/#408/#427) against different assumptions. See
 [price stream](../concepts/price-stream.md) for the mechanism itself.
@@ -88,7 +91,7 @@ materially above the assumed near-zero, stop and revisit), P2 indexer emits a
 priced tick, P3 unified endpoint, P4 app collapses to one path, P5 client stream
 sequences, P6 end-to-end proof on a local stack.
 
-**P1–P3 landed 2026-08-04** (lint verified against code; the ADR ticks only P1):
+**All six landed 2026-08-04** and the ADR now ticks P1–P6:
 
 - **P1 — done, gate passed.** Steady-state swap through the hook went
   **64,574 → 65,127 gas (+553, ~0.9%)** on the third swap of a warm pool
@@ -96,11 +99,18 @@ sequences, P6 end-to-end proof on a local stack.
   increment plus 8 bytes of event data — no new storage write, exactly as the
   packed-slot analysis predicted. The gate mattered: a previous pass rejected
   this option on an *unmeasured* gas assumption and was wrong.
-- **P2 — landed, unticked in the ADR.** `pool_price_ticks` persists the hook's
-  per-pool sequence alongside the raw tick, with cent prices derived rather than
-  stored (the deliberate reversal this ADR records).
-- **P3 — landed, unticked in the ADR.** `server/src/api/services/price-history.ts`
-  is the unified read spanning both lifecycle halves.
+- **P2 — done.** `pool_price_ticks` persists the hook's per-pool sequence
+  alongside the raw tick, with cent prices derived rather than stored (the
+  deliberate reversal this ADR records).
+- **P3 — done.** `server/src/api/services/price-history.ts` is the unified read
+  spanning both lifecycle halves.
+- **P4 — done.** The chart takes one phase-blind point list; the app makes a
+  single fetch through the unified read.
+- **P5 — done.** The client gap check is per stream, seeded from the unified
+  read's per-pool `streams` ordinals, hardened by a chain-coordinate ordering
+  guard and an append-on-trust rule for unseeded streams.
+- **P6 — done.** The live-stack proof ran 2026-08-04: a graduated market driven
+  across both halves on a local stack.
 
 Because the fallback below is now moot, note it is **not** taken: the gas gate
 passed, so the hook counter stays and postgrad keeps real gap detection.
