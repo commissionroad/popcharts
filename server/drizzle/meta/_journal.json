@@ -281,6 +281,13 @@
       "when": 1785957160846,
       "tag": "0039_old_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1785965812195,
+      "tag": "0040_natural_tusk",
+      "breakpoints": true
     }
   ]
 }

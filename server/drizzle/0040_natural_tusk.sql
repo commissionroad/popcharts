@@ -1,0 +1,2 @@
+CREATE INDEX "markets_status_created_idx" ON "markets" USING btree ("status","created_block_timestamp");--> statement-breakpoint
+CREATE INDEX "markets_created_block_timestamp_idx" ON "markets" USING btree ("created_block_timestamp");
