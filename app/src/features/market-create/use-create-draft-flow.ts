@@ -75,7 +75,7 @@ export function useCreateDraftFlow({
   initialDraftId = null,
   initialNow,
 }: {
-  initialDraftId?: number | null;
+  initialDraftId?: string | null;
   initialNow: string;
 }) {
   const wallet = useWalletAccount();
@@ -114,7 +114,7 @@ export function useCreateDraftFlow({
   const [bondShortfall, setBondShortfall] = useState<MarketDraftBondShortfall | null>(
     null
   );
-  const [loadedDraftId, setLoadedDraftId] = useState<number | null>(null);
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
   const skipNextAutosave = useRef(false);
   // Monotonic save generation: every save (and submit, which supersedes any
   // save) bumps it, and a response is applied only while its generation is

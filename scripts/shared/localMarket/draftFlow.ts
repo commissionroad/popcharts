@@ -23,7 +23,7 @@ const REVIEW_POLL_INTERVAL_MS = 1_000;
 const REVIEW_TIMEOUT_MS = 120_000;
 
 type DraftRecord = {
-  id: number;
+  id: string;
   status: string;
 };
 
@@ -106,7 +106,7 @@ export function createDraftApi({
       }),
 
     markPublished: (
-      draftId: number,
+      draftId: string,
       body: { chainId: number; marketId: string; transactionHash: string },
     ) =>
       request<unknown>(`/drafts/${draftId}/published`, {
@@ -114,13 +114,13 @@ export function createDraftApi({
         method: "POST",
       }),
 
-    publishParams: (draftId: number, creatorAddress: string) =>
+    publishParams: (draftId: string, creatorAddress: string) =>
       request<PublishParamsResponse>(
         `/drafts/${draftId}/publish-params?creatorAddress=${creatorAddress}`,
         { method: "POST" },
       ),
 
-    submit: (draftId: number) =>
+    submit: (draftId: string) =>
       request<unknown>(`/drafts/${draftId}/submit`, { method: "POST" }),
 
     /**
@@ -128,7 +128,7 @@ export function createDraftApi({
      * the in-process heuristic runner, so this settles in seconds; the
      * timeout exists for stacks whose API is up but whose runner is wedged.
      */
-    waitForReview: async (draftId: number): Promise<DraftReviewOutcome> => {
+    waitForReview: async (draftId: string): Promise<DraftReviewOutcome> => {
       const deadline = Date.now() + REVIEW_TIMEOUT_MS;
 
       for (;;) {

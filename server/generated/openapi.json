@@ -3453,7 +3453,7 @@
             "type": "number"
           },
           "id": {
-            "type": "number"
+            "type": "string"
           },
           "intendedCreatorAddress": {
             "type": "string",
@@ -3563,9 +3563,7 @@
             "type": "boolean"
           },
           "fromDraftId": {
-            "minimum": 1,
-            "multipleOf": 1,
-            "type": "number"
+            "type": "string"
           },
           "fromMarket": {
             "type": "object",

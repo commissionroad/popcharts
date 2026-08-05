@@ -195,7 +195,7 @@ describe("useCreateDraftFlow autosave", () => {
       create: vi.fn(
         (body: MarketDraftWrite) =>
           new Promise<MarketDraft>((resolve) => {
-            releaseCreate = () => resolve(savedDraft(21, body));
+            releaseCreate = () => resolve(savedDraft("21", body));
           })
       ),
     });
@@ -227,7 +227,7 @@ describe("useCreateDraftFlow autosave", () => {
       create: vi.fn(
         (body: MarketDraftWrite) =>
           new Promise<MarketDraft>((resolve) => {
-            releaseCreate = () => resolve(savedDraft(21, body));
+            releaseCreate = () => resolve(savedDraft("21", body));
           })
       ),
     });
@@ -290,7 +290,7 @@ describe("useCreateDraftFlow autosave", () => {
     );
     expect(api.update).toHaveBeenCalledTimes(1);
     const [draftId, write] = api.update.mock.calls[0] as [number, MarketDraftWrite];
-    expect(draftId).toBe(21);
+    expect(draftId).toBe("21");
     expect(write.question).toBe("Will it autosave twice?");
     expect(write).not.toHaveProperty("graduationWindowSeconds");
     expect(write).not.toHaveProperty("resolutionWindowSeconds");
@@ -302,12 +302,12 @@ describe("useCreateDraftFlow autosave", () => {
 
     vi.mocked(api.update)
       .mockImplementationOnce(
-        (draftId: number, body: MarketDraftWrite) =>
+        (draftId: string, body: MarketDraftWrite) =>
           new Promise<MarketDraft>((resolve) => {
             releaseStale = () => resolve(savedDraft(draftId, body));
           })
       )
-      .mockImplementationOnce(async (draftId: number, body: MarketDraftWrite) =>
+      .mockImplementationOnce(async (draftId: string, body: MarketDraftWrite) =>
         savedDraft(draftId, body)
       );
 
@@ -396,7 +396,7 @@ describe("useCreateDraftFlow loading", () => {
       runsUsed: 0,
     }));
     stubApi({ credit });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
 
@@ -408,16 +408,16 @@ describe("useCreateDraftFlow loading", () => {
   it("loads an existing draft into the form", async () => {
     const api = stubApi({
       get: vi.fn(async () =>
-        marketDraftFactory({ id: 12, question: "Loaded question?" })
+        marketDraftFactory({ id: "12", question: "Loaded question?" })
       ),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     expect(result.current.isLoadingDraft).toBe(true);
 
     await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
-    expect(api.get).toHaveBeenCalledWith(12);
-    expect(result.current.serverDraft?.id).toBe(12);
+    expect(api.get).toHaveBeenCalledWith("12");
+    expect(result.current.serverDraft?.id).toBe("12");
     expect(result.current.formDraft.question).toBe("Loaded question?");
     expect(result.current.formDraft.graduationPreset).toBe("6h");
     expect(result.current.savedAt).toBe("2026-07-30T12:00:00.000Z");
@@ -429,7 +429,7 @@ describe("useCreateDraftFlow loading", () => {
 
   it("starts fresh when the draft cannot be found", async () => {
     stubApi({ get: vi.fn(async () => null) });
-    const { result } = renderFlow(99);
+    const { result } = renderFlow("99");
 
     await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
     expect(result.current.flowError).toBe(
@@ -444,7 +444,7 @@ describe("useCreateDraftFlow loading", () => {
         throw new DraftsApiError("Sign in to manage drafts.", 401);
       }),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
     expect(result.current.flowError).toBe("Sign in to manage drafts.");
@@ -460,12 +460,12 @@ describe("useCreateDraftFlow loading", () => {
           })
       ),
     });
-    const { result, unmount } = renderFlow(12);
+    const { result, unmount } = renderFlow("12");
 
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(12));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("12"));
 
     unmount();
-    releaseGet(marketDraftFactory({ id: 12 }));
+    releaseGet(marketDraftFactory({ id: "12" }));
 
     await flushMacrotask();
 
@@ -482,9 +482,9 @@ describe("useCreateDraftFlow loading", () => {
           })
       ),
     });
-    const { result, unmount } = renderFlow(12);
+    const { result, unmount } = renderFlow("12");
 
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(12));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("12"));
 
     unmount();
     rejectGet(new DraftsApiError("Sign in to manage drafts.", 401));
@@ -530,7 +530,7 @@ describe("useCreateDraftFlow review submission", () => {
         question: "Will the flow submit?",
       })
     );
-    expect(api.submit).toHaveBeenCalledWith(21);
+    expect(api.submit).toHaveBeenCalledWith("21");
     expect(result.current.stage).toBe("in_review");
     expect(result.current.formLocked).toBe(true);
     expect(result.current.isSubmitting).toBe(false);
@@ -549,9 +549,9 @@ describe("useCreateDraftFlow review submission", () => {
 
   it("updates the existing server draft before submitting", async () => {
     const api = stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12 })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.isLoadingDraft).toBe(false));
 
@@ -561,12 +561,12 @@ describe("useCreateDraftFlow review submission", () => {
 
     expect(api.create).not.toHaveBeenCalled();
     expect(api.update).toHaveBeenCalledWith(
-      12,
+      "12",
       expect.objectContaining({
         question: "Will bitcoin close above $100k on 2027-01-01?",
       })
     );
-    expect(api.submit).toHaveBeenCalledWith(12);
+    expect(api.submit).toHaveBeenCalledWith("12");
   });
 
   it("surfaces submission failures", async () => {
@@ -614,7 +614,7 @@ describe("useCreateDraftFlow review submission", () => {
     });
     expect(result.current.stage).toBe("in_review");
 
-    api.get.mockResolvedValueOnce(marketDraftFactory({ id: 21, status: "approved" }));
+    api.get.mockResolvedValueOnce(marketDraftFactory({ id: "21", status: "approved" }));
     await act(async () => {
       timers.tickPoll();
     });
@@ -704,9 +704,9 @@ describe("useCreateDraftFlow bond shortfall", () => {
 describe("useCreateDraftFlow publish", () => {
   it("publishes an approved draft with the server-minted params", async () => {
     const api = stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "approved" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "approved" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("approved"));
 
@@ -714,13 +714,13 @@ describe("useCreateDraftFlow publish", () => {
       await result.current.publish();
     });
 
-    expect(api.publishParams).toHaveBeenCalledWith(12, ADDRESS);
+    expect(api.publishParams).toHaveBeenCalledWith("12", ADDRESS);
 
     // Drive the remint callback the flow hands to the publish service: it
     // must re-request wallet-bound params for the same draft.
     const publishCall = vi.mocked(publishDraftMarket).mock.calls.at(-1)![0];
     await publishCall.remint?.();
-    expect(api.publishParams).toHaveBeenLastCalledWith(12, ADDRESS);
+    expect(api.publishParams).toHaveBeenLastCalledWith("12", ADDRESS);
     expect(api.publishParams).toHaveBeenCalledTimes(2);
 
     expect(publishDraftMarket).toHaveBeenCalledWith({
@@ -738,7 +738,7 @@ describe("useCreateDraftFlow publish", () => {
       metadataHash: publishParamsFixture().metadataHash,
       metadataPayload: publishParamsFixture().metadata,
     });
-    expect(api.markPublished).toHaveBeenCalledWith(12, {
+    expect(api.markPublished).toHaveBeenCalledWith("12", {
       chainId: 31337,
       marketId: "9",
       transactionHash: PUBLISH_HASH,
@@ -752,9 +752,9 @@ describe("useCreateDraftFlow publish", () => {
     const run = vi.fn();
     vi.mocked(getWalletCreateAction).mockReturnValue(connectWalletAction(run));
     const api = stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "approved" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "approved" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("approved"));
 
@@ -771,9 +771,9 @@ describe("useCreateDraftFlow publish", () => {
     vi.mocked(getWalletCreateAction).mockReturnValue(undefined as never);
     vi.mocked(usePublicClient).mockReturnValue(undefined as never);
     const api = stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "approved" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "approved" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("approved"));
 
@@ -799,12 +799,12 @@ describe("useCreateDraftFlow publish", () => {
 
   it("surfaces publish failures", async () => {
     stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "approved" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "approved" })),
       publishParams: vi.fn(async () => {
         throw new DraftsApiError("Draft is no longer approved.", 409);
       }),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("approved"));
 
@@ -833,7 +833,7 @@ describe("useCreateDraftFlow stages and feedback", () => {
     stubApi({
       get: vi.fn(async () =>
         marketDraftFactory({
-          id: 12,
+          id: "12",
           latestReview: draftReviewFactory({
             feedback: { items, summary: "Fix these." },
           }),
@@ -841,7 +841,7 @@ describe("useCreateDraftFlow stages and feedback", () => {
         })
       ),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("feedback"));
     expect(result.current.latestReview?.feedback.items).toHaveLength(4);
@@ -860,9 +860,9 @@ describe("useCreateDraftFlow stages and feedback", () => {
 
   it("treats a rejected draft as feedback", async () => {
     stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "rejected" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "rejected" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("feedback"));
   });
@@ -871,13 +871,13 @@ describe("useCreateDraftFlow stages and feedback", () => {
     stubApi({
       get: vi.fn(async () =>
         marketDraftFactory({
-          id: 12,
+          id: "12",
           latestReview: draftReviewFactory({ verdict: "manual_review" }),
           status: "editing",
         })
       ),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
     expect(result.current.stage).toBe("feedback");
@@ -887,13 +887,13 @@ describe("useCreateDraftFlow stages and feedback", () => {
     stubApi({
       get: vi.fn(async () =>
         marketDraftFactory({
-          id: 12,
+          id: "12",
           latestReview: draftReviewFactory({ verdict: "approve" }),
           status: "editing",
         })
       ),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
     expect(result.current.stage).toBe("editing");
@@ -902,9 +902,9 @@ describe("useCreateDraftFlow stages and feedback", () => {
 
   it("recognizes an already published draft", async () => {
     stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12, status: "published" })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12", status: "published" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.stage).toBe("published"));
     expect(result.current.formLocked).toBe(true);
@@ -940,9 +940,9 @@ describe("useCreateDraftFlow form actions", () => {
 
   it("starts fresh from a loaded draft", async () => {
     stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12 })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
@@ -964,9 +964,9 @@ describe("useCreateDraftFlow form actions", () => {
 
   it("saves the current draft as a template", async () => {
     const api = stubApi({
-      get: vi.fn(async () => marketDraftFactory({ id: 12 })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
@@ -974,7 +974,7 @@ describe("useCreateDraftFlow form actions", () => {
       await result.current.saveAsTemplate();
     });
 
-    expect(api.clone).toHaveBeenCalledWith({ asTemplate: true, fromDraftId: 12 });
+    expect(api.clone).toHaveBeenCalledWith({ asTemplate: true, fromDraftId: "12" });
     expect(result.current.templateSaved).toBe(true);
   });
 
@@ -983,9 +983,9 @@ describe("useCreateDraftFlow form actions", () => {
       clone: vi.fn(async () => {
         throw new DraftsApiError("Templates are unavailable.", 503);
       }),
-      get: vi.fn(async () => marketDraftFactory({ id: 12 })),
+      get: vi.fn(async () => marketDraftFactory({ id: "12" })),
     });
-    const { result } = renderFlow(12);
+    const { result } = renderFlow("12");
 
     await waitFor(() => expect(result.current.serverDraft).not.toBeNull());
 
@@ -1044,7 +1044,7 @@ function generatedLocalMarket(): GeneratedLocalMarket {
   };
 }
 
-function renderFlow(initialDraftId: number | null = null) {
+function renderFlow(initialDraftId: string | null = null) {
   return renderHook(() =>
     useCreateDraftFlow({ initialDraftId, initialNow: INITIAL_NOW })
   );
@@ -1151,7 +1151,7 @@ type ApiStub = {
 
 function stubApi(overrides: Partial<ApiStub> = {}): ApiStub {
   const api: ApiStub = {
-    clone: vi.fn(async () => marketDraftFactory({ id: 40, isTemplate: true })),
+    clone: vi.fn(async () => marketDraftFactory({ id: "40", isTemplate: true })),
     credit: vi.fn(async () => ({
       availableWad: "0",
       metered: true,
@@ -1159,19 +1159,19 @@ function stubApi(overrides: Partial<ApiStub> = {}): ApiStub {
       runsRemaining: 0,
       runsUsed: 0,
     })),
-    create: vi.fn(async (body: MarketDraftWrite) => savedDraft(21, body)),
+    create: vi.fn(async (body: MarketDraftWrite) => savedDraft("21", body)),
     get: vi.fn(async () => marketDraftFactory()),
     list: vi.fn(async () => []),
     markPublished: vi.fn(async () => ({
       bridgeApproved: true,
-      draft: marketDraftFactory({ id: 12, status: "published" }),
+      draft: marketDraftFactory({ id: "12", status: "published" }),
     })),
     publishParams: vi.fn(async () => publishParamsFixture()),
     remove: vi.fn(),
-    submit: vi.fn(async (draftId: number) =>
+    submit: vi.fn(async (draftId: string) =>
       marketDraftFactory({ id: draftId, status: "in_review" })
     ),
-    update: vi.fn(async (draftId: number, body: MarketDraftWrite) =>
+    update: vi.fn(async (draftId: string, body: MarketDraftWrite) =>
       savedDraft(draftId, body)
     ),
     ...overrides,
@@ -1184,7 +1184,7 @@ function stubApi(overrides: Partial<ApiStub> = {}): ApiStub {
 
 // Echoes the written content back like the real service, so a saved draft
 // matches the form and the autosave loop settles.
-function savedDraft(id: number, body: MarketDraftWrite): MarketDraft {
+function savedDraft(id: string, body: MarketDraftWrite): MarketDraft {
   const { intendedCreatorAddress, ...content } = body;
 
   return {

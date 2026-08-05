@@ -69,7 +69,7 @@ export function marketDraftFactory(overrides: Partial<MarketDraft> = {}): Market
     createdAt: "2026-07-30T10:00:00.000Z",
     description: "Settles on the CoinGecko daily close.",
     graduationWindowSeconds: 6 * 60 * 60,
-    id: 12,
+    id: "12",
     intendedCreatorAddress: "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
     isTemplate: false,
     liquidityParameter: 5000,

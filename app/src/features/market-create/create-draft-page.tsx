@@ -24,7 +24,7 @@ export function CreateDraftPage({
   initialDraftId = null,
   initialNow,
 }: {
-  initialDraftId?: number | null;
+  initialDraftId?: string | null;
   initialNow: string;
 }) {
   const flow = useCreateDraftFlow({ initialDraftId, initialNow });

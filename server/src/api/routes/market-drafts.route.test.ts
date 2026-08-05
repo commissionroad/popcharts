@@ -87,7 +87,7 @@ async function createDraft(content: Record<string, unknown> = {}) {
 
   expect(response.status).toBe(201);
 
-  return (await response.json()) as { id: number; status: string };
+  return (await response.json()) as { id: string; status: string };
 }
 
 const REVIEWABLE_CONTENT = {
@@ -126,7 +126,7 @@ describe("draft CRUD arc", () => {
     expect(draft.status).toBe("editing");
 
     const listResponse = await request("/drafts");
-    const list = (await listResponse.json()) as Array<{ id: number }>;
+    const list = (await listResponse.json()) as Array<{ id: string }>;
 
     expect(list.map((d) => d.id)).toEqual([draft.id]);
 
@@ -192,7 +192,9 @@ describe("submit and review arc", () => {
 
     expect(outcomes).toEqual([
       {
-        draftId: draft.id,
+        // The runner reports the serial id its job rows key on, not the
+        // public id the API speaks; the response here only carries the latter.
+        draftId: expect.any(Number),
         jobId: expect.any(Number),
         outcome: "succeeded",
         verdict: "approve",

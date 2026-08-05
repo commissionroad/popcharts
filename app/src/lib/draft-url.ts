@@ -6,24 +6,40 @@
  */
 const DRAFT_ID_PARAM = "draft";
 
+/**
+ * Widest a draft id may be before the app stops treating it as one. The exact
+ * format — length, alphabet — is the server's to define and enforce; this is
+ * only a sanity bound so a pasted essay never becomes a request path.
+ */
+const MAX_DRAFT_ID_LENGTH = 64;
+
 /** Link to the create flow for an existing draft (studio "Open", templates). */
-export function createDraftHref(draftId: number): string {
-  return `/create?${DRAFT_ID_PARAM}=${draftId}`;
+export function createDraftHref(draftId: string): string {
+  return `/create?${DRAFT_ID_PARAM}=${encodeURIComponent(draftId)}`;
 }
 
 /**
- * Parses the route's raw `?draft=` value into a draft id, or null when it is
- * absent or not a usable integer — a junk param opens a fresh draft rather
- * than erroring.
+ * Narrows the route's raw `?draft=` value to a usable draft id, or null when
+ * it is absent or obviously not one.
+ *
+ * Deliberately not a format check: the id's alphabet and length belong to the
+ * server (`src/drafts/public-id.ts`), and restating them here would be a
+ * second definition to drift out of step. Anything that survives this is
+ * handed to the API, which is the authority — an id that does not exist comes
+ * back not-found and the flow starts fresh.
  */
-export function readDraftIdParam(value: string | undefined): number | null {
+export function readDraftIdParam(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const trimmed = value.trim();
 
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  if (trimmed.length === 0 || trimmed.length > MAX_DRAFT_ID_LENGTH) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 /**
@@ -41,20 +57,19 @@ export function readDraftIdParam(value: string | undefined): number | null {
  * already is, not a place they navigated to, and Back should leave the flow
  * rather than land on an empty form that creates a second draft.
  */
-export function syncDraftIdInUrl(draftId: number | null): void {
+export function syncDraftIdInUrl(draftId: string | null): void {
   const url = new URL(window.location.href);
   const current = url.searchParams.get(DRAFT_ID_PARAM);
-  const next = draftId === null ? null : String(draftId);
 
   // Idempotent: opening a draft from the studio already put it in the URL.
-  if (current === next) {
+  if (current === draftId) {
     return;
   }
 
-  if (next === null) {
+  if (draftId === null) {
     url.searchParams.delete(DRAFT_ID_PARAM);
   } else {
-    url.searchParams.set(DRAFT_ID_PARAM, next);
+    url.searchParams.set(DRAFT_ID_PARAM, draftId);
   }
 
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);

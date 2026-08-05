@@ -180,7 +180,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await getMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -214,7 +214,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await updateMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
         patch: body,
       });
@@ -258,7 +258,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await deleteMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -339,7 +339,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await submitMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -410,7 +410,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
 
       const result = await buildDraftPublishParams({
         creatorAddress: query.creatorAddress as `0x${string}` | undefined,
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -470,7 +470,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
 
       const result = await markMarketDraftPublished({
         chainId: body.chainId,
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         marketId,
         owner: ownerResolution.owner,
         transactionHash: body.transactionHash,
@@ -529,7 +529,7 @@ function ownerFailure(
 }
 
 function cloneSource(body: {
-  fromDraftId?: number;
+  fromDraftId?: string;
   fromMarket?: { chainId: number; marketId: string };
 }): CloneMarketDraftSource | null {
   if (body.fromDraftId !== undefined) {

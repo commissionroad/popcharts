@@ -133,10 +133,10 @@ export const SaveStates: Story = {
         savedAt={null}
       />
       <SaveIndicator canPersist draftId={null} isSaving={false} savedAt={null} />
-      <SaveIndicator canPersist draftId={12} isSaving savedAt={null} />
+      <SaveIndicator canPersist draftId="12" isSaving savedAt={null} />
       <SaveIndicator
         canPersist
-        draftId={12}
+        draftId="12"
         isSaving={false}
         savedAt="2026-07-30T12:00:00.000Z"
       />

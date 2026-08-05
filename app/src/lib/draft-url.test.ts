@@ -2,20 +2,44 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDraftHref, readDraftIdParam, syncDraftIdInUrl } from "./draft-url";
 
+const DRAFT_ID = "k3f9x2mq7rt4wbnz";
+
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
 describe("createDraftHref", () => {
   it("links to the create flow for a draft", () => {
-    expect(createDraftHref(21)).toBe("/create?draft=21");
+    expect(createDraftHref(DRAFT_ID)).toBe(`/create?draft=${DRAFT_ID}`);
+  });
+
+  it("escapes an id that would otherwise alter the query", () => {
+    expect(createDraftHref("a&b=c")).toBe("/create?draft=a%26b%3Dc");
+  });
+});
+
+describe("readDraftIdParam", () => {
+  it("reads a draft id", () => {
+    expect(readDraftIdParam(DRAFT_ID)).toBe(DRAFT_ID);
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(readDraftIdParam(`  ${DRAFT_ID}  `)).toBe(DRAFT_ID);
+  });
+
+  it("passes through an id it does not recognise", () => {
+    // The alphabet and length belong to the server; restating them here would
+    // be a second definition to drift. An unknown id comes back not-found.
+    expect(readDraftIdParam("whatever-the-server-says")).toBe(
+      "whatever-the-server-says"
+    );
   });
 
   it.each([
     ["undefined", undefined],
     ["empty", ""],
-    ["non-numeric", "banana"],
-    ["beyond safe integers", "9007199254740993000"],
+    ["only whitespace", "   "],
+    ["absurdly long", "x".repeat(65)],
   ])("returns null for a %s param", (_label, value) => {
     expect(readDraftIdParam(value)).toBeNull();
   });
@@ -23,14 +47,14 @@ describe("createDraftHref", () => {
 
 describe("syncDraftIdInUrl", () => {
   it("names the draft without navigating", () => {
-    syncDraftIdInUrl(21);
+    syncDraftIdInUrl(DRAFT_ID);
 
-    expect(window.location.search).toBe("?draft=21");
+    expect(window.location.search).toBe(`?draft=${DRAFT_ID}`);
     expect(window.location.pathname).toBe("/");
   });
 
   it("clears the draft when there is none", () => {
-    syncDraftIdInUrl(21);
+    syncDraftIdInUrl(DRAFT_ID);
     syncDraftIdInUrl(null);
 
     expect(window.location.search).toBe("");
@@ -39,9 +63,9 @@ describe("syncDraftIdInUrl", () => {
   it("leaves other query params alone", () => {
     window.history.replaceState(null, "", "/create?from=studio");
 
-    syncDraftIdInUrl(21);
+    syncDraftIdInUrl(DRAFT_ID);
 
-    expect(window.location.search).toBe("?from=studio&draft=21");
+    expect(window.location.search).toBe(`?from=studio&draft=${DRAFT_ID}`);
 
     syncDraftIdInUrl(null);
 
@@ -51,19 +75,19 @@ describe("syncDraftIdInUrl", () => {
   it("keeps the path and hash", () => {
     window.history.replaceState(null, "", "/create#form");
 
-    syncDraftIdInUrl(21);
+    syncDraftIdInUrl(DRAFT_ID);
 
     expect(window.location.pathname).toBe("/create");
     expect(window.location.hash).toBe("#form");
   });
 
   it("does not touch history when the id is already there", () => {
-    window.history.replaceState(null, "", "/create?draft=21");
+    window.history.replaceState(null, "", `/create?draft=${DRAFT_ID}`);
     const replaceState = vi.spyOn(window.history, "replaceState");
 
     // Opening a draft from the studio already put it in the URL; the first
     // autosave must not stack a redundant entry on top of it.
-    syncDraftIdInUrl(21);
+    syncDraftIdInUrl(DRAFT_ID);
 
     expect(replaceState).not.toHaveBeenCalled();
 

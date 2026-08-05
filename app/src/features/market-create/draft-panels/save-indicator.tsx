@@ -14,7 +14,7 @@ export function SaveIndicator({
   savedAt,
 }: {
   canPersist: boolean;
-  draftId: number | null;
+  draftId: string | null;
   isSaving: boolean;
   savedAt: string | null;
 }) {
