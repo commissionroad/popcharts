@@ -78,17 +78,53 @@ Measured fragmentation across 398 random books was **at most 2 segments** per
 receipt, so the bound is small in practice. It is not bounded in theory, and
 the contract must cap it (see deferred work).
 
-### 3. Two fees, outside escrow
+### 3. The pre-graduation fee is a success fee, and it is a second escrow
 
-- **Entry fee `φ_in` = 1%** on a receipt's cost at purchase.
-- **Withdrawal fee `φ_out` = 5%** on the recorded cost of a withdrawn band.
+- **Entry fee `φ_in` = 1%**, charged on a receipt's cost at purchase but
+  **earned only on the part that matches**.
+- **Withdrawal fee `φ_out` = 5%** on the recorded cost of a withdrawn band,
+  earned immediately and never refunded.
 
-Neither touches escrow. A buyer of a receipt costing `c` transfers
-`c(1 + φ_in)`; `c` becomes escrow and `c·φ_in` joins a separately-held fee pot
-`Φ`. The accounting identity becomes `E = R + L + Φ`, with `E − Φ = R + L`
-unchanged over escrow alone. **A fee taken out of `L`, or netted against
-refunds, is forbidden** — `L = F` has no slack, and an implicit fee breaks
-exact collateralization.
+A buyer of a receipt costing `c` transfers `c(1 + φ_in)`. The `c` becomes
+escrow; the `c·φ_in` is held separately but is **not yet protocol money**. At
+clearing the protocol keeps `φ_in · retained_cost` and returns the rest, so
+every refunded dollar comes back with the fee prepaid on it — refunds are
+`101%` of unmatched cost. Because `L = F` (the Theorem), the sum across
+receipts is exact:
+
+```
+protocol earns exactly  φ_in · F
+```
+
+Example A: Alice prepays 0.2877 and earns out 0.1171; Bea 0.0741 → 0.0371;
+Noah 0.2877 → 0.2877. Collected 0.6495, kept 0.4419 = 1% of `F` = 44.19,
+returned 0.2076 = 1% of the 20.76 refunded. A withdrawal is the same rule: an
+unopposed band never matched, so its prepaid fee returns with it and the
+withdrawer pays exactly `φ_out` of the withdrawn cost — 13.35 out returns
+12.6825, penalty 0.6675.
+
+**Collecting up front is forced, not merely convenient.** The fee cannot be
+billed at clearing: a fully-filled receipt has no refund to deduct from, and
+taking it from `L` would break `L = F`. **A fee taken out of `L`, or netted
+against refunds, is forbidden** — `L = F` has no slack, and an implicit fee
+breaks exact collateralization.
+
+The consequence worth keeping deliberately: **the entry fee is a success fee.**
+The protocol earns only on markets that graduate. On a market that fails to
+graduate, or one an owner cancels
+([ADR 0011](0011-admin-market-cancellation.md)), the entry fee refunds in full
+alongside escrow. Withdrawal penalties do not — they are earned on the act, not
+on the outcome, and stay with the protocol in every case.
+
+This makes the entry fee **a second escrow with its own settlement rule**, not
+a fee pot. Two consequences for the implementation:
+
+- It cannot use the `CreationFeeVault` shape, which is collect-segregate-owner-
+  withdraws. The owner must not be able to withdraw money that may have to go
+  back to traders.
+- **Store the paid fee on the receipt; do not derive it.** If `φ_in` is
+  owner-configurable, deriving `φ_in · cost` at refund time pays the _current_
+  rate on an _old_ receipt.
 
 `φ_out` is set at 5%, not 10%. It buys neither solvency (Lemma 3 covers that)
 nor protection from pump-and-withdraw (the lock rule forecloses it, since the
@@ -133,6 +169,82 @@ bounds ranges and can cap the loss, but bounding alone does not remove it.
 Treat seeding as a service to traders during the market's life, funded by the
 fees those traders paid — never as a treasury asset.
 
+**Fees alone cannot seed a usable pool, and no rate fixes that.** Pool depth
+per side is `Φ/2`, so as a fraction of matched cap it is exactly `φ_in / 2` —
+5% depth would need a 10% entry fee, 10% depth a 20% one. At `φ_in` = 1% the
+pool holds 0.5% of market cap: on Example A, 0.221 tokens against 44.2
+outstanding, so a holder selling 1% of their position swamps it and the price
+goes 35% → 3.9%.
+
+Seeding is therefore **topped up with protocol capital to 10% of the
+graduation threshold**, with the fee pot counting toward that cap rather than
+adding to it. On Example A that is 4.0 against a 0.442 fee pot — the subsidy
+does 9× what the fees do, depth reaches 5.0% of cap, and the same 1% sale moves
+the price 35% → 24.3% instead of to 3.9%.
+
+Two honest notes on that. First, sizing off the _threshold_ means depth is
+anti-proportional to success: a market graduating at 5× threshold gets 2% of
+cap, at 10× only 1%. Sizing off `F` — known at the moment of seeding — would
+hold depth constant, and is left open below. Second, this is protocol capital
+at risk in a position that resolution destroys, which is what makes the
+pre-resolution unwind load-bearing rather than tidy.
+
+### 5. Post-graduation trading fees
+
+The v4 stack already separates three layers, and they compose rather than
+compete: the native protocol fee is taken first, the LP fee applies to the
+remainder, and a hook fee may be added on top. Measured from the vendored
+v4-core, `MAX_PROTOCOL_FEE = 1000` — the native protocol fee is capped at
+**0.1%**; `MAX_LP_FEE` is 100%; hook fees are uncapped.
+
+**Decision: the LP fee goes entirely to LPs, and the protocol takes the native
+0.1% and nothing more.** No hook fee, and no fee on `mintCompleteSets`.
+
+- **LPs keep the whole LP fee.** They are the only reason the venue has depth
+  after the protocol's seed is unwound; taking a cut of their fee to fund the
+  protocol makes the venue permanently subsidy-dependent.
+- **No hook fee** keeps `BoundedPredictionHook` free of fee-taking. Both swap
+  callbacks already return fee-shaped values (`BeforeSwapDelta`, `int128
+hookDelta`) and both currently return zero — this decision keeps them zero.
+- **No mint fee.** It is avoidable anyway (buy from the pool instead), and it
+  widens the band the keeper arbitrage uses to hold `YES + NO ≈ 1`. With 1% on
+  swap, mint, and merge the two pools may disagree by **±2%** — a persistent
+  gap between "YES says 35%" and "NO says 63%" that every user can see. Fees on
+  swaps alone give ±1%; exempting the keeper collapses it to zero. If a mint
+  fee is ever added, **the keeper must be exempted in the same change.**
+
+The graduation handoff path (`fundRetainedCollateral`, `mintRetainedSide`) is
+**never** feeable — it is the clearing output, and taking collateral out of it
+breaks `L = F`. It is already a separate function from `mintCompleteSets`, so
+the exemption is structural rather than a guard.
+
+### 6. Creator revenue
+
+The creator earns from both surfaces, weighted toward the one that tracks
+question quality rather than churn:
+
+- **10% of the pre-graduation success fee**, paid at graduation. This rewards
+  a question that attracted genuine two-sided demand — the thing that makes `F`
+  large — rather than volume. On Example A: 0.044 to the creator, 0.398 to the
+  protocol.
+- **A share of the native 0.1% protocol fee**, ongoing.
+
+The second needs an implementation note, because v4 will not do it for us:
+`ProtocolFees.sol` accrues into `mapping(Currency => uint256)` — **per
+currency, not per pool** — so every market sharing a collateral token pools its
+protocol fees into one bucket with no on-chain attribution to a market or a
+creator. Per-market attribution therefore comes from **off-chain accounting**:
+the indexer already ingests per-pool swap observations, so each market's volume
+share is computable and payable out of collected protocol fees.
+
+That is a trusted computation. It is reproducible from chain data and each
+payout still leaves an on-chain record, which satisfies the money paper-trail
+rule, but the derivation is not itself trustless. The trustless alternative is a
+hook fee, which is attributable because the hook sees the `PoolKey` — rejected
+above for the LP-competition and complexity reasons, and revisitable if creator
+payouts ever grow enough to be worth arguing over. At current sizing they are
+not: on Example A the creator's combined take is roughly 0.15% of matched cap.
+
 ## Consequences
 
 - Pre-graduation capital efficiency improves at the edges only. Measured across
@@ -170,15 +282,25 @@ fees those traders paid — never as a treasury asset.
       chain, refund the free bands' path cost net of `φ_out`, decrement
       `totalEscrowed` and `state.path`, and emit a receipt-mutation event the
       indexer can replay.
-- [ ] **P4 — Fees.** Entry fee at `placeReceipt`, withdrawal fee at P3, both
-      into a fee pot outside `totalEscrowed`. Assert `E = R + L + Φ` in the
-      clearing invariant suite alongside the existing triple-equality.
-- [ ] **P5 — Graduation seeding.** At handoff, mint `Φ/2` sets and seed both
-      pools per the split above, through the existing postgrad adapter.
+- [ ] **P4 — Fees.** Entry fee at `placeReceipt`, stored on the receipt rather
+      than derived; withdrawal fee at P3; both held outside `totalEscrowed` and
+      refundable per §3. Assert in the clearing invariant suite that fees earned
+      equal `φ_in · F` and that a non-graduating market returns the entry fee in
+      full, alongside the existing triple-equality.
+- [ ] **P5 — Graduation seeding.** At handoff, top the fee pot up to 10% of the
+      graduation threshold from protocol capital, mint half the total as
+      complete sets, and seed both pools per the `p*` split — through the
+      existing postgrad adapter, never through the retained-side path.
 - [ ] **P6 — Pre-resolution unwind.** Operator (or keeper) withdraws protocol
       liquidity before resolution and returns the proceeds. **P5 must not ship
       without P6** — seeding without an unwind path donates the pot to
-      arbitrageurs.
+      arbitrageurs, and the unwind is also what makes any third-party
+      subsidy investable.
+- [ ] **P7 — Post-graduation fee split.** Set the native v4 protocol fee to
+      0.1% on both pools, leave the LP fee whole, and pay the creator their
+      share of both the success fee (on-chain, at graduation) and the protocol
+      fee (off-chain attribution from indexed per-pool volume). No hook change:
+      the swap callbacks keep returning zero deltas.
 
 ## Deferred work
 
@@ -190,6 +312,20 @@ fees those traders paid — never as a treasury asset.
 - **Transferability.** Blocked on refund ownership for fragmented receipts.
 - **Seeding range selection.** Whether to seed full-range or inside
   `PoolTickBounds`, and how tight, is unmodelled here.
+- **Seeding sized off `F` rather than the threshold.** Sizing off the threshold
+  makes depth anti-proportional to success (5× threshold → 2% of cap, 10× → 1%).
+  `F` is known when the seed is placed, so this is a change of one input.
+- **Third-party pre-graduation subsidy.** Letting outside capital top the pool
+  up to the cap, in exchange for a share of fees. Modelled but not decided: at
+  80% of a 1% fee it break-evens only above ~6× the graduation target in volume
+  _if held to resolution_, and is profitable at any volume if unwound before it.
+  Whichever way it lands, subsidizers should earn as LPs rather than from the
+  protocol's 0.1%, since the LP fee is both larger and already attributable.
+- **Trustless creator attribution.** Only a hook fee gives per-market
+  attribution on-chain. Revisit if creator payouts grow past the point where
+  off-chain computation is worth arguing about.
+- **Keeper exemption.** Not needed while no mint/merge fee exists. Required in
+  the same change as any mint fee, or the `YES + NO` band opens to ±2%.
 - **`φ_in` / `φ_out` calibration.** Both are judgement calls. Instrument
   withdrawal rates and display-retraction events before moving them.
 - **Interaction with `cancelMarket`** ([ADR 0011](0011-admin-market-cancellation.md)):

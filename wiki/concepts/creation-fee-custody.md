@@ -29,7 +29,13 @@ the owner. It only binds once public creation unpauses.
   and a withdrawal fee held outside escrow as `E = R + L + Φ`, whose proceeds
   seed the post-graduation pools
   ([protocol ADR 0014](../summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md)).
-  The constraint is unchanged and now binds two fee surfaces rather than one:
+  Note the shapes differ: the creation fee is **earned on collection** and the
+  vault is built for that (collect, segregate, owner withdraws), whereas the
+  pre-graduation entry fee is **earned only at clearing, on matched cost** and
+  refunds in full when a market fails — so it is a second escrow and cannot
+  reuse the vault. A third surface sits post-graduation, where the protocol
+  takes only v4's native 0.1% and LPs keep the whole LP fee.
+  The constraint is unchanged and now binds three fee surfaces rather than one:
   a fee must appear explicitly in the identity (`E = R + L + fees`) and never
   implicitly, and receipt escrow has exactly two destinations — refund or
   locked collateral — never bond/insurance/working capital. Creation fees are

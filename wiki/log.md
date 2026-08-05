@@ -1755,3 +1755,31 @@ Follow-ups for next lint:
 - Re-check whether ADR 0023's `Status: Proposed` and ADR 0025's `Status:
   Proposed` get corrected at the source; both now contradict their own
   checklists.
+
+## [2026-08-05] ingest | ADR 0014 fee model — success fee, protocol-topped seeding, LP-fee-untouched post-grad split
+Pages: ~summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md,
+~summaries/whitepaper-v6.md, ~concepts/creation-fee-custody.md, ~index.md
+Notes: The fee design changed shape under questioning rather than just gaining
+numbers. Making the entry fee refundable when a market fails to graduate stops
+it being a fee at all: it becomes a **second escrow**, earned only at clearing
+on matched cost, which rules out the `CreationFeeVault` pattern (the owner must
+not be able to withdraw money that may go back to traders) and forces the paid
+amount to be stored on the receipt rather than derived from a mutable `φ_in`.
+Because `L = F`, the protocol's take is exactly `φ_in · F` and every refunded
+unit returns carrying its prepaid fee — verified against Example A to the
+published decimals.
+
+Two findings killed the original seeding story. Depth per side is `φ_in/2` of
+matched cap, so **no sane fee rate funds a usable pool** (5% depth needs a 10%
+fee); seeding is now topped up from protocol capital to 10% of the graduation
+threshold, where the subsidy does 9× what the fees do. And `ProtocolFees.sol`
+accrues per *currency*, not per pool — read from vendored v4-core — so there is
+**no on-chain attribution** of v4's native protocol fee to a market or creator;
+the creator's ongoing share must be computed off-chain from indexed swap
+volume. `MAX_PROTOCOL_FEE = 1000` caps that native fee at 0.1%.
+
+Deliberately not taken: a fee on `mintCompleteSets`. It is avoidable (buy from
+the pool instead) and it widens the keeper's `YES + NO ≈ 1` band to ±2%, which
+is visible to every user as the two pools disagreeing. Recorded in the ADR that
+any future mint fee ships with a keeper exemption in the same change.
+
