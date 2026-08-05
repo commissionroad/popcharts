@@ -137,7 +137,13 @@ export async function getMarkets({
     .innerJoin(schema.contracts, marketContractJoinCondition())
     .leftJoin(schema.marketMetadata, marketMetadataJoinCondition())
     .where(and(...conditions))
-    .orderBy(desc(schema.markets.createdBlockTimestamp))
+    // marketId breaks created-in-the-same-block ties, newest first — without
+    // it the order of tied rows is whatever the chosen index scan yields,
+    // which #487's new indexes proved by silently changing it.
+    .orderBy(
+      desc(schema.markets.createdBlockTimestamp),
+      desc(schema.markets.marketId),
+    )
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
   const liveMarkets = liveRows.map(({ market }) => market);
