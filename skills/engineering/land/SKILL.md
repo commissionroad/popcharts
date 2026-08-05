@@ -40,5 +40,10 @@ scripts/land [PR_NUMBER | PR_URL | BRANCH]   # default: merge commit
 - The script pulls the base branch (`--ff-only`) in its worktree as part of
   landing — the primary checkout hosts the running local dev stack, which
   picks changes up from there; no extra pull step is needed.
+- Stacked PRs are handled: before deleting the head branch, the script
+  retargets every open PR based on it onto this PR's base. Land the parent
+  first and the child follows. Do not delete a head branch by hand while a PR
+  is stacked on it — GitHub closes that PR and then refuses to reopen it, so
+  the work has to be re-submitted as a new PR.
 - After landing, confirm the script's final "Done: PR #N landed" line and
   report the merge commit to the user.

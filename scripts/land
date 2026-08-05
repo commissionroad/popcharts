@@ -47,6 +47,21 @@ remote_branch_exists() {
   git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1
 }
 
+# GitHub closes any open PR whose base branch is deleted, and then refuses to
+# reopen it ("Cannot change the base branch of a closed pull request") — the
+# work has to be re-submitted as a new PR. So a stacked PR must be moved onto
+# this PR's own base *before* the head branch goes away, never after.
+retarget_stacked_prs() {
+  local head="$1" base="$2" stacked number
+  stacked="$(gh pr list --state open --base "$head" --json number --jq '.[].number')"
+  [[ -n "$stacked" ]] || return 0
+
+  for number in $stacked; do
+    say "Retargeting stacked PR #$number onto $base before deleting $head"
+    gh pr edit "$number" --base "$base" >/dev/null
+  done
+}
+
 require git
 require gh
 require jq
@@ -131,6 +146,7 @@ say "Merged $url at ${merge_oid:0:7}"
 if [[ "$is_cross_repo" == "true" ]]; then
   say "Skipping remote branch deletion for cross-repository PR head: $head_branch"
 elif remote_branch_exists "$head_branch"; then
+  retarget_stacked_prs "$head_branch" "$base_branch"
   say "Deleting remote branch origin/$head_branch"
   git push origin --delete "$head_branch"
 else
