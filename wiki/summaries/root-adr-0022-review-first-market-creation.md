@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated publish, fee-on-accept)
-description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. P1–P5 and P7 built 2026-08-03..04, including the contract gate and the retirement of the on-chain review path; P6 (metadata from the event) and P8 (server-side discovery filters) remain open.
+description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. P1–P5 and P7 built 2026-08-03..04, including the contract gate and the retirement of the on-chain review path; P6 and P8 remain open. Amended twice 2026-08-05 — draft public ids + join-not-copy review linkage (landed), and deadline timing: the resolution deadline becomes an absolute date while the graduation window stays a relative duration (P9, open).
 sources:
   - docs/adr/0022-review-first-market-creation.md
 updated: 2026-08-05
@@ -23,6 +23,9 @@ published-market review linkage the ADR left optional is now decided (join, not 
 — see the amendment at the bottom. That retires the `market_ai_reviews` half of the
 P5 leftover; the admin re-review service is still open, and it enqueues
 `market_ai_review_jobs` that no worker claims. P6 and P8 are open.
+**Amended again 2026-08-05 (deadline timing):** the resolution deadline becomes an
+**absolute timestamp** while the graduation window stays a **relative duration** —
+see the amendment section below; adds P9 (open).
 
 > **P3 was withdrawn 2026-08-04** and replaced by the amendment: the refundable
 > bond becomes a non-refundable **prepaid review credit**. See "Amendment: prepaid
@@ -50,7 +53,8 @@ during review and never touches the chain until approved. On approval the creato
 Rejected/in-progress drafts are free, editable, and private.
 
 - **Off-chain `market_drafts` entity**, distinct from a Market. Content mirrors
-  the `createMarket` params (deadlines stored as **relative durations**);
+  the `createMarket` params (per the 2026-08-05 amendment: graduation window a
+  **relative duration**, resolution deadline an **absolute timestamp**);
   bookkeeping adds owner (Privy user), `status`, `is_template`, `visibility`,
   `deleted` soft-delete, `published_market_id` back-link, latest-rejection
   pointer. Drafts **linger forever**; soft-delete to hide.
@@ -69,10 +73,10 @@ Rejected/in-progress drafts are free, editable, and private.
   embedded wallets); coarse rate limiting stays as a cheap first layer.
 - **Creator publishes** (not a platform relay). The **publish authorization is
   minted at publish time, not cached from approval**: the server re-checks the
-  draft is still approved + unchanged, resolves the relative durations into
-  absolute deadlines then, and mints a short-lived single-use authorization —
-  which is why a long-lingering approved draft stays publishable (no stale
-  absolute deadline).
+  draft is still approved + unchanged, resolves the graduation window into an
+  absolute deadline then (the resolution date passes through, validated), and
+  mints a short-lived single-use authorization — which is why a long-lingering
+  approved draft stays publishable (no stale absolute graduation deadline).
 - **Gated `createMarket`** via an EIP-712 authorizer signature (owner-set key)
   over the **full final params** (not just `metadataHash`, which commits only the
   question text), with an **on-chain single-use nonce** + expiry. No valid
@@ -85,7 +89,7 @@ Rejected/in-progress drafts are free, editable, and private.
   from `under_review` to `bootstrap`. This is a deliberate move from
   **permissionless creation + post-hoc review** to **permissioned creation gated
   by review**.
-- **Metadata needs no contract change** — the full text is *already* emitted
+- **Metadata needs no contract change** — the full text is _already_ emitted
   on-chain in `MarketCreated` and hash-committed; only a server cleanup (populate
   the display `market_metadata` from the event, drop the flaky off-chain POST).
 - **Draft auth = Privy JWT** (verified server-side; EOA + SSO both work).
@@ -105,11 +109,11 @@ The existing AI-review tables cannot be reused as-is: `market_ai_reviews` /
 `market_metadata`, none of which exist until publish. Review-first needs
 **draft-keyed review/job tables** and a **reworked runner** that enqueues from
 `market_drafts` and applies verdicts as draft-state transitions (no on-chain
-`approveMarket`/`rejectMarket`). Reused is the *pattern* — content-addressed
+`approveMarket`/`rejectMarket`). Reused is the _pattern_ — content-addressed
 metadata (keyed to the draft's snapshot `metadataHash`; edit → new hash → fresh
 review), the leased-job queue, and the stateless review service — not the tables.
 
-Whether a *published* market keeps a review linkage was left optional here ("only if
+Whether a _published_ market keeps a review linkage was left optional here ("only if
 we later choose to copy the winning draft-review into a market-scoped audit row").
 Decided 2026-08-05: **resolve by join, do not copy** — see the amendment below.
 
@@ -140,6 +144,7 @@ Public draft submission opens at P3 (the bond); until then P2 review runs intern
 6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
 7. **P7 — built.** Templates + clone (the `/studio` surface).
 8. **P8 — open.** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
+9. **P9 — open (2026-08-05 amendment).** Deadline timing: `resolution_deadline_at` schema swap + publish validation + review payload semantics (server), then client regen, then the app's duration-native graduation control and date-preset resolution picker; e2e updates.
 
 ## What shipped differently from the design
 
@@ -147,7 +152,7 @@ Three notes the ADR now records, all from the 2026-08-03 build:
 
 - **A third review outcome.** The designed state machine was
   `in_review → approved | rejected`; the build added **`changes_requested`**, which a
-  `manual_review` verdict maps to. It separates *quality* feedback from *policy*
+  `manual_review` verdict maps to. It separates _quality_ feedback from _policy_
   rejection; both are editable and resubmittable, so the creator loop is unchanged.
 - **Publish bridges over the ungated contract until P4.** The server calls
   `createMarket` (market still born `UnderReview`) and immediately force-approves with
@@ -204,7 +209,7 @@ held-back floor), the withdrawal is removed:
   non-refundable money has more bite). Priced at spend time, with the rate in
   force stamped on each charge row.
 - The rate is **provisionally $0.10/run and is configuration**. It is a testing
-  rate *below cost* — a run measures $0.169 on the claude-cli provider — so it
+  rate _below cost_ — a run measures $0.169 on the claude-cli provider — so it
   inverts the anti-spam incentive. **Public submission must not open at $0.10**;
   either the rate rises to $0.20+ or review moves to a cheaper provider.
 - On-chain surface collapses to `depositFor` + `withdrawCollectedFees`. `settle`,
@@ -214,7 +219,7 @@ held-back floor), the withdrawal is removed:
 - **Balance is read from the indexed DB, never a direct chain read** — the
   repo-wide direction (one source, served fast, client notified by the change
   feed). Safe by construction: charges are written synchronously while deposits
-  lag, so staleness only makes a balance look *too low*. The deposit handler must
+  lag, so staleness only makes a balance look _too low_. The deposit handler must
   call `recordLiveChange`, which it does not today.
 - Coverage gap to close with it: the nightly lifecycle stack never deploys the
   vault, so the meter sees no address and waves every submission through — the
@@ -264,7 +269,6 @@ the gate, and until it lands the creation fee is the only value transfer in the 
 no receipt-linked record — a standing exception to the invariant in
 [portfolio-data-design](portfolio-data-design.md).
 
-
 ## Amendment: draft public id and the published-market review link (2026-08-05)
 
 Two additions, both landed.
@@ -288,6 +292,35 @@ publish bookkeeping on `market_drafts`, narrowed to the draft's submitted snapsh
 join is exact, not approximate: publish refuses unless the draft is unchanged since
 review and verifies the on-chain `metadataHash`, so the reviewed snapshot is provably the
 live market's metadata. Legacy rows still win where they exist. Landed as #465.
+
+## Amendment: deadline timing (2026-08-05)
+
+The first live pass through the finished flow published a date-anchored question
+("…close above $150,000 **on December 31, 2026**?") that becomes eligible for
+resolution on **August 11** — its stored resolution window was "one week after publish", the
+reviewer only ever saw window seconds (never a resolved date to hold against the
+question text), and the form's datetime picker silently meant "a duration from a
+publish that hasn't happened". The same absolute-UI-over-relative-storage mismatch
+was the root of a drift-autosave defect that voided fresh approvals with no user
+input.
+
+The amendment splits the deadlines **by what they are**, one native representation
+each (never both — a stored derived twin is the DB-shaped version of the drift bug):
+
+- **Graduation window: stays a relative duration** ("1h after launch" — a mechanic
+  parameter). An absolute here would go stale on essentially every approval linger,
+  turning the normal publish path into a paid re-review loop.
+- **Resolution deadline: becomes an absolute timestamp** (`resolution_deadline_at`),
+  passed through to `resolutionTime` unchanged. Horizons are long, staleness is
+  rare, and a passed date is a _correct_ publish refusal (the event is over).
+
+The reviewer now sees the resolved semantics of both fields (making
+question-vs-date mismatches flaggable); publish validates
+`now + window < yesNotBefore ≤ resolutionTime` and returns editable feedback for a
+passed date or a window that no longer fits. Rejected alternatives: **all-absolute**
+(kills the bootstrap sprint) and **full dual-mode** per-deadline toggles
+(complexity a date preset already serves). Existing draft rows are wipeable
+testnet data, so the migration is crude-friendly. Build is **P9, open**.
 
 ## Related pages
 
