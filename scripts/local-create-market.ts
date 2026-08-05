@@ -21,7 +21,6 @@ import {
   draftWriteFrom,
   parsePublishTransactionHash,
 } from "./shared/localMarket/draftFlow.ts";
-import { getErrorMessage } from "./shared/errors/getErrorMessage.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
@@ -32,7 +31,6 @@ import {
   printLocalCreateMarketUsage,
   type LocalCreateMarketOptions,
 } from "./shared/localMarket/parseLocalCreateMarketArgs.ts";
-import { persistMarketMetadata } from "./shared/localMarket/persistMarketMetadata.ts";
 import { BASE_CHAIN_ID } from "./shared/localStack/ports.ts";
 import { promptForStack } from "./shared/localStack/promptForStack.ts";
 import { resolveProtocolChainEnv } from "./shared/localStack/protocolChainEnv.ts";
@@ -254,20 +252,6 @@ async function main(): Promise<void> {
   console.log(
     `[${logLabel}] market ${market.marketId} published from draft ${draft.id}`,
   );
-
-  try {
-    await persistMarketMetadata({
-      apiBaseUrl,
-      chainId: market.chainId,
-      metadata: generatedMarket.metadata,
-      metadataHash: market.metadataHash,
-    });
-    console.log(`[${logLabel}] metadata saved to ${apiBaseUrl}`);
-  } catch (error) {
-    console.warn(
-      `[${logLabel}] metadata sync failed: ${getErrorMessage(error)}`,
-    );
-  }
 }
 
 /**
