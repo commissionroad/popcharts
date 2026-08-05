@@ -36,6 +36,7 @@ import {
   DraftsApiError,
 } from "@/integrations/indexer/drafts-api";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { syncDraftIdInUrl } from "@/lib/draft-url";
 import { presentError } from "@/lib/error-handling";
 
 import type { CreateMarketWallet } from "./draft-publish-service";
@@ -124,6 +125,10 @@ export function useCreateDraftFlow({
   // guard there would surface a conflict banner for what is really just one
   // client typing quickly.
   const inflightSave = useRef<Promise<unknown> | null>(null);
+  // True from issuing the undebounced create until it settles. There is no
+  // draft id to key on yet, so this ref is the only thing stopping a second
+  // keystroke from creating a second draft.
+  const isCreatingDraft = useRef(false);
 
   // Loading is derived, never set synchronously: the draft is "loading" until
   // the fetch keyed by (initialDraftId, client) lands and records its id.
@@ -203,13 +208,23 @@ export function useCreateDraftFlow({
       return;
     }
 
+    // The create is not debounced, so it fires while the user is still typing
+    // and every further keystroke re-runs this effect before it resolves.
+    // Without this guard the second keystroke would POST a second draft and
+    // orphan the first as an untitled row.
+    if (!serverDraft && isCreatingDraft.current) {
+      return;
+    }
+
     const write = stableWrite(formDraftToWrite(formDraft, new Date()), serverDraft);
 
     if (serverDraft && !writeChangesServerDraft(write, serverDraft)) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
+    const isCreate = !serverDraft;
+
+    const runSave = () => {
       const seq = ++saveSeq.current;
 
       setIsSaving(true);
@@ -230,9 +245,12 @@ export function useCreateDraftFlow({
             return;
           }
 
-          skipNextAutosave.current = true;
           setServerDraft(saved);
           setSavedAt(saved.updatedAt);
+          // The first save is where a draft id starts existing, so it is also
+          // the earliest the URL can name one. Creating the row on arrival
+          // instead would leave an untitled draft behind for every visit.
+          syncDraftIdInUrl(saved.id);
         })
         .catch((error: unknown) => {
           if (seq === saveSeq.current) {
@@ -240,11 +258,29 @@ export function useCreateDraftFlow({
           }
         })
         .finally(() => {
+          if (isCreate) {
+            isCreatingDraft.current = false;
+          }
+
           if (seq === saveSeq.current) {
             setIsSaving(false);
           }
         });
-    }, AUTOSAVE_DEBOUNCE_MS);
+    };
+
+    // The create is not debounced at all: it mints the id that names the draft
+    // in the address bar, and the wait before it is the entire window where a
+    // reload loses the work. Nothing would be gained by letting a later
+    // keystroke cancel it either — the draft has to exist exactly once, and
+    // the edits typed meanwhile ride the next (debounced) update.
+    if (isCreate) {
+      isCreatingDraft.current = true;
+      runSave();
+
+      return;
+    }
+
+    const timer = window.setTimeout(runSave, AUTOSAVE_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);
@@ -450,6 +486,9 @@ export function useCreateDraftFlow({
 
   function startFresh() {
     skipNextAutosave.current = true;
+    // Without this a reload after "Create another" silently reopens the draft
+    // that was just published, instead of the blank one on screen.
+    syncDraftIdInUrl(null);
     setBondShortfall(null);
     setServerDraft(null);
     setPublishedMarket(null);
