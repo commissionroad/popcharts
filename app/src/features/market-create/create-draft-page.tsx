@@ -1,8 +1,11 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useEffect } from "react";
 
+import { ReviewCreditCard } from "@/components/ui/review-credit-card";
 import { marketCreationMode } from "@/integrations/contracts/config";
+import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credit-position";
 
 import { CreateDraftForm } from "./create-draft-form";
 import { ApprovedPanel } from "./draft-panels/approved-panel";
@@ -30,6 +33,17 @@ export function CreateDraftPage({
   const flow = useCreateDraftFlow({ initialDraftId, initialNow });
   const creationFeeLabel =
     marketCreationMode === "devchain" ? "1 native USDC" : "Waived in preview";
+  const { credit: reviewCredit, refresh: refreshCredit } = useReviewCreditPosition();
+  const latestReviewId = flow.latestReview?.id ?? null;
+
+  // A completed review is the one thing that spends credit, and charges are
+  // metered off-chain so they signal no live channel. Re-read when a new
+  // review lands, otherwise the card would keep showing the pre-submit count.
+  useEffect(() => {
+    if (latestReviewId !== null) {
+      refreshCredit();
+    }
+  }, [latestReviewId, refreshCredit]);
 
   return (
     <div>
@@ -70,6 +84,11 @@ export function CreateDraftPage({
         <CreateDraftForm flow={flow} />
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+          {/* Above the stage panel so the meter is readable *before* a
+              submission spends from it. The refusal panel below carries its
+              own balance readout, so the card stands down while it is up
+              rather than stating the same figures twice. */}
+          {flow.bondShortfall ? null : <ReviewCreditCard credit={reviewCredit} />}
           {renderStagePanel(flow, creationFeeLabel)}
         </aside>
       </div>

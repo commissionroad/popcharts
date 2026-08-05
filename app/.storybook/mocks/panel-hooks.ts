@@ -1,4 +1,7 @@
-import type { Portfolio } from "@popcharts/api-client/models";
+import type {
+  MarketDraftReviewCredit,
+  Portfolio,
+} from "@popcharts/api-client/models";
 import { createContext, useContext } from "react";
 
 /** The refund-claim button state a story wants the panel to render. */
@@ -34,6 +37,8 @@ export type PanelPreview = {
   portfolio: Portfolio | null;
   redemption?: RedemptionPreview;
   refundClaim?: RefundClaimPreview;
+  /** Omitted means "not read yet" — the credit card renders nothing. */
+  reviewCredit?: MarketDraftReviewCredit | null;
 };
 
 export const PanelPreviewContext = createContext<PanelPreview>({
@@ -71,6 +76,15 @@ export function useRefundClaim() {
     claim: () => undefined,
     error: preview?.error ?? null,
     status: preview?.status ?? "idle",
+  };
+}
+
+export function useReviewCreditPosition() {
+  const preview = useContext(PanelPreviewContext);
+
+  return {
+    credit: preview.reviewCredit ?? null,
+    refresh: () => undefined,
   };
 }
 
