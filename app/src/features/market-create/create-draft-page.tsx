@@ -1,8 +1,11 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useEffect } from "react";
 
+import { ReviewCreditCard } from "@/components/ui/review-credit-card";
 import { marketCreationMode } from "@/integrations/contracts/config";
+import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credit-position";
 
 import { CreateDraftForm } from "./create-draft-form";
 import { ApprovedPanel } from "./draft-panels/approved-panel";
@@ -30,6 +33,20 @@ export function CreateDraftPage({
   const flow = useCreateDraftFlow({ initialDraftId, initialNow });
   const creationFeeLabel =
     marketCreationMode === "devchain" ? "1 native USDC" : "Waived in preview";
+  const { credit: reviewCredit, refresh: refreshCredit } = useReviewCreditPosition();
+  const inReview = flow.stage === "in_review";
+
+  // The run is charged in the same transaction that queues the review job
+  // (server market-drafts service), so the draft *entering* review is when
+  // the balance moved — not when the verdict lands. Waiting for the verdict
+  // would leave the card showing the pre-charge count for the whole review,
+  // and forever if the job stalled. Charges are metered off-chain and signal
+  // no live channel, so this re-read is the only thing that catches them.
+  useEffect(() => {
+    if (inReview) {
+      refreshCredit();
+    }
+  }, [inReview, refreshCredit]);
 
   return (
     <div>
@@ -70,6 +87,11 @@ export function CreateDraftPage({
         <CreateDraftForm flow={flow} />
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+          {/* Above the stage panel so the meter is readable *before* a
+              submission spends from it. The refusal panel below carries its
+              own balance readout, so the card stands down while it is up
+              rather than stating the same figures twice. */}
+          {flow.bondShortfall ? null : <ReviewCreditCard credit={reviewCredit} />}
           {renderStagePanel(flow, creationFeeLabel)}
         </aside>
       </div>

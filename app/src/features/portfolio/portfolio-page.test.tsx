@@ -15,8 +15,13 @@ import { PortfolioPage } from "./portfolio-page";
 const usePortfolio = vi.hoisted(() => vi.fn());
 const useWalletAccount = vi.hoisted(() => vi.fn());
 const useRedemption = vi.hoisted(() => vi.fn());
+const useReviewCreditPosition = vi.hoisted(() => vi.fn());
 
 vi.mock("./use-portfolio", () => ({ usePortfolio }));
+
+vi.mock("@/integrations/indexer/use-review-credit-position", () => ({
+  useReviewCreditPosition,
+}));
 
 vi.mock("@/integrations/wallet/wallet-provider", () => ({
   useWalletAccount,
@@ -37,6 +42,17 @@ beforeEach(() => {
     error: null,
     loading: false,
     portfolio: portfolioFixture(),
+    refresh: vi.fn(),
+  });
+  useReviewCreditPosition.mockReset();
+  useReviewCreditPosition.mockReturnValue({
+    credit: {
+      availableWad: "10700000000000000000",
+      metered: true,
+      rateWad: "100000000000000000",
+      runsRemaining: 107,
+      runsUsed: 6,
+    },
     refresh: vi.fn(),
   });
   useRedemption.mockReset();
@@ -124,6 +140,21 @@ describe("PortfolioPage summary cards", () => {
     // The label appears on the metric card and as the section heading.
     expect(screen.getAllByText("Backed positions").length).toBeGreaterThan(0);
     expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("shows the wallet's review credit alongside the position metrics", () => {
+    render(<PortfolioPage />);
+
+    expect(screen.getByText("Review credit")).toBeInTheDocument();
+    expect(screen.getByText("107 reviews left")).toBeInTheDocument();
+  });
+
+  it("omits the credit card entirely when the position is unread", () => {
+    useReviewCreditPosition.mockReturnValue({ credit: null, refresh: vi.fn() });
+
+    render(<PortfolioPage />);
+
+    expect(screen.queryByText("Review credit")).not.toBeInTheDocument();
   });
 });
 

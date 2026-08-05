@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  MarketDraftReviewCredit,
   PortfolioOpenOrder,
   PortfolioPosition,
   PortfolioReceipt,
@@ -10,10 +11,12 @@ import { Layers, ReceiptText, WalletCards } from "lucide-react";
 import Link from "next/link";
 
 import { MetricCard } from "@/components/ui/metric-card";
+import { ReviewCreditCard } from "@/components/ui/review-credit-card";
 import { wadPriceToCents } from "@/domain/postgrad-trading/limit-order";
 import { wadToNumber } from "@/domain/tokens/wad";
 import { usePortfolio } from "@/features/portfolio/use-portfolio";
 import { configuredPopChartsChainId } from "@/integrations/contracts/config";
+import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credit-position";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { apiMarketAppId } from "@/lib/app-id";
 import {
@@ -42,6 +45,7 @@ export function PortfolioPage() {
     chainId: configuredPopChartsChainId,
     owner: wallet.address,
   });
+  const { credit: reviewCredit } = useReviewCreditPosition();
 
   return (
     <div>
@@ -64,6 +68,7 @@ export function PortfolioPage() {
           loading={loading}
           onClaimed={refresh}
           portfolio={portfolio}
+          reviewCredit={reviewCredit}
         />
       ) : (
         <NoticeCard
@@ -80,11 +85,13 @@ function ConnectedPortfolio({
   loading,
   onClaimed,
   portfolio,
+  reviewCredit,
 }: {
   error: string | null;
   loading: boolean;
   onClaimed: () => void;
   portfolio: ReturnType<typeof usePortfolio>["portfolio"];
+  reviewCredit: MarketDraftReviewCredit | null;
 }) {
   if (error) {
     return <NoticeCard body={error} title="Portfolio unavailable" />;
@@ -122,6 +129,10 @@ function ConnectedPortfolio({
           tone="var(--yes)"
           value={portfolio.summary.positionCount.toLocaleString("en-US")}
         />
+        {/* A creator concern rather than a trading one, so it sits after the
+            three position metrics and disappears entirely for wallets on an
+            ungated stack — the grid simply has three children again. */}
+        <ReviewCreditCard credit={reviewCredit} />
       </div>
 
       <div className="flex flex-col gap-5">
