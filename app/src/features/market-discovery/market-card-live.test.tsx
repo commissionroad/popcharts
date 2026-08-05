@@ -25,25 +25,25 @@ function emit(signal: LiveSignal) {
 }
 
 function tickSignal(fields: {
-  chainId?: number;
-  marketId?: string;
+  blockNumber?: string;
+  logIndex?: number;
   noPriceCents: number;
   sequence: number;
   stream?: string;
   yesPriceCents: number;
 }): LiveSignal {
-  const { chainId = 31337, marketId = "9", stream = "receipts", ...tick } = fields;
+  const { blockNumber = null, logIndex = null, stream = "receipts", ...tick } = fields;
   return {
     type: "change",
     id: "1",
-    channels: ["markets"],
+    channels: ["market:31337:9"],
     source: "receipt_placed_events",
     op: "insert",
-    chainId,
-    marketId,
+    chainId: 31337,
+    marketId: "9",
     owner: null,
-    blockNumber: null,
-    logIndex: null,
+    blockNumber,
+    logIndex,
     tick: { t: "2026-08-04T00:00:00.000Z", stream, ...tick },
   } as LiveSignal;
 }
@@ -63,12 +63,18 @@ beforeEach(() => {
 });
 
 describe("MarketCardLive", () => {
-  it("subscribes to the market-list channel and shows SSR prices initially", () => {
+  it("subscribes to its own market channel and shows SSR prices initially", () => {
     render(<MarketCardLive market={boardMarket()} />);
 
-    expect(mocks.useLiveChannel.mock.calls.at(-1)?.[0]).toBe("markets");
+    expect(mocks.useLiveChannel.mock.calls.at(-1)?.[0]).toBe("market:31337:9");
     expect(screen.getByText("40c")).toBeInTheDocument();
     expect(screen.getByText("60c")).toBeInTheDocument();
+  });
+
+  it("subscribes to nothing for a fixture-backed market id", () => {
+    render(<MarketCardLive market={boardMarket({ id: "eth-5000-august" })} />);
+
+    expect(mocks.useLiveChannel.mock.calls.at(-1)?.[0]).toBeNull();
   });
 
   it("moves the card's prices with its market's next tick", () => {
@@ -80,19 +86,62 @@ describe("MarketCardLive", () => {
     expect(screen.getByText("48c")).toBeInTheDocument();
   });
 
-  it("ignores another market's tick", () => {
+  it("drops a frame that sits behind the newest accepted chain coordinate", () => {
+    const yesPool = `0x${"aa".repeat(32)}`;
+    const noPool = `0x${"bb".repeat(32)}`;
     render(<MarketCardLive market={boardMarket()} />);
 
     emit(
       tickSignal({
-        marketId: "8",
-        noPriceCents: 10,
-        sequence: 6,
-        yesPriceCents: 90,
+        blockNumber: "20",
+        logIndex: 4,
+        noPriceCents: 45,
+        sequence: 3,
+        stream: yesPool,
+        yesPriceCents: 54,
       })
     );
+    expect(screen.getByText("54c")).toBeInTheDocument();
 
-    expect(screen.getByText("40c")).toBeInTheDocument();
+    // The NO pool's frame is next on ITS stream but chain-earlier than the
+    // shown price — applying it would move the chip backwards, so it drops.
+    emit(
+      tickSignal({
+        blockNumber: "19",
+        logIndex: 1,
+        noPriceCents: 60,
+        sequence: 2,
+        stream: noPool,
+        yesPriceCents: 40,
+      })
+    );
+    expect(screen.getByText("54c")).toBeInTheDocument();
+
+    // Same block, earlier log index: still behind, still dropped.
+    emit(
+      tickSignal({
+        blockNumber: "20",
+        logIndex: 1,
+        noPriceCents: 61,
+        sequence: 3,
+        stream: noPool,
+        yesPriceCents: 39,
+      })
+    );
+    expect(screen.getByText("54c")).toBeInTheDocument();
+
+    // A chain-later frame applies normally.
+    emit(
+      tickSignal({
+        blockNumber: "21",
+        logIndex: 0,
+        noPriceCents: 47,
+        sequence: 4,
+        stream: noPool,
+        yesPriceCents: 52,
+      })
+    );
+    expect(screen.getByText("52c")).toBeInTheDocument();
   });
 
   it("never regresses on a replayed or stale ordinal", () => {

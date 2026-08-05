@@ -88,15 +88,8 @@ export function channelsForRow(
 export const CHANGE_FEED_SOURCES = {
   // Market creation shows up on the board and opens its own page.
   market_created_events: { op: "insert", routes: ["market", "market-list"] },
-  // A bet moves this market's price/chart/graduation bar and the bettor's
-  // book — and, since the tick payload carries the resulting prices, the
-  // discovery board's card for this market. The board updates card prices
-  // straight from the payload (no per-bet list refetch), which is what makes
-  // the market-list route affordable.
-  receipt_placed_events: {
-    op: "insert",
-    routes: ["market", "market-list", "owner"],
-  },
+  // A bet moves this market's price/chart/graduation bar and the bettor's book.
+  receipt_placed_events: { op: "insert", routes: ["market", "owner"] },
   // Graduation lifecycle: the market's page and the board's status/filters.
   graduation_started_events: {
     op: "insert",
@@ -141,11 +134,9 @@ export const CHANGE_FEED_SOURCES = {
   // open-orders/portfolio surfaces. The seam resolves pool→market from
   // `venue_pools` (best-effort), so an unmapped pool still signals the owner.
   venue_order_events: { op: "insert", routes: ["market", "owner"] },
-  // A taker swap's post-swap tick: the order book's pool prices and the
-  // discovery board's card price (consumed from the tick payload, same as
-  // receipts). The seam skips recording entirely when the pool maps to no
-  // market.
-  pool_price_ticks: { op: "insert", routes: ["market", "market-list"] },
+  // A taker swap's post-swap tick: the order book's pool prices. Market-only,
+  // and the seam skips recording entirely when the pool maps to no market.
+  pool_price_ticks: { op: "insert", routes: ["market"] },
   // Outcome-token balance changes: the seam records one row per non-zero
   // holder (`from` and `to`), each routing to that holder's portfolio.
   outcome_token_transfer_events: { op: "insert", routes: ["owner"] },

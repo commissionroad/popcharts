@@ -25,15 +25,7 @@ function lastSubscription() {
   if (!call) {
     throw new Error("useLiveChannel was never called");
   }
-  return {
-    channel: call[0] as string | null,
-    handler: call[1] as (signal: unknown) => void,
-  };
-}
-
-/** A payload-less lifecycle nudge — the signal kind that refetches the board. */
-function nudge() {
-  return { type: "change", tick: null };
+  return { channel: call[0] as string | null, handler: call[1] as () => void };
 }
 
 beforeEach(() => {
@@ -56,30 +48,10 @@ describe("DiscoveryLiveRefresh", () => {
     expect(lastSubscription().channel).toBe("markets");
   });
 
-  it("ignores tick-bearing trade frames — those are the cards' to consume", () => {
-    render(<DiscoveryLiveRefresh />);
-
-    lastSubscription().handler({
-      type: "change",
-      tick: {
-        t: "2026-08-04T00:00:00.000Z",
-        stream: "receipts",
-        sequence: 3,
-        yesPriceCents: 52,
-        noPriceCents: 48,
-      },
-    });
-
-    // No refetch now, and none scheduled for later either.
-    expect(mocks.refresh).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(DISCOVERY_COALESCE_WINDOW_MS * 2);
-    expect(mocks.refresh).not.toHaveBeenCalled();
-  });
-
   it("refetches immediately on an isolated signal", () => {
     render(<DiscoveryLiveRefresh />);
 
-    lastSubscription().handler(nudge());
+    lastSubscription().handler();
 
     // Leading edge: a lone lifecycle transition must not wait out the window.
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
@@ -89,14 +61,14 @@ describe("DiscoveryLiveRefresh", () => {
     render(<DiscoveryLiveRefresh />);
     const { handler } = lastSubscription();
 
-    handler(nudge());
+    handler();
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
 
     // Three more inside the window — e.g. a keeper sweep graduating several
     // markets — must cost exactly one more full board read, not three.
-    handler(nudge());
-    handler(nudge());
-    handler(nudge());
+    handler();
+    handler();
+    handler();
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(DISCOVERY_COALESCE_WINDOW_MS);
@@ -107,10 +79,10 @@ describe("DiscoveryLiveRefresh", () => {
     render(<DiscoveryLiveRefresh />);
     const { handler } = lastSubscription();
 
-    handler(nudge());
+    handler();
     vi.advanceTimersByTime(DISCOVERY_COALESCE_WINDOW_MS);
 
-    handler(nudge());
+    handler();
 
     expect(mocks.refresh).toHaveBeenCalledTimes(2);
   });
@@ -119,8 +91,8 @@ describe("DiscoveryLiveRefresh", () => {
     const view = render(<DiscoveryLiveRefresh />);
     const { handler } = lastSubscription();
 
-    handler(nudge());
-    handler(nudge()); // schedules the trailing refetch
+    handler();
+    handler(); // schedules the trailing refetch
     view.unmount();
 
     vi.advanceTimersByTime(DISCOVERY_COALESCE_WINDOW_MS * 2);

@@ -4,7 +4,6 @@ import { MARKET_LIST_CHANNEL } from "@popcharts/live-channels";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 
-import type { LiveSignal } from "@/integrations/live-updates/live-connection";
 import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 
 /**
@@ -28,13 +27,13 @@ export const DISCOVERY_COALESCE_WINDOW_MS = 1_000;
  * `change` nudge and a `reset` (the resume cursor aged past the server's
  * retention window) both want exactly a fresh read.
  *
- * Scope, deliberately: trades DO reach this channel (their frames carry the
- * resulting prices), but they are not this component's job — `MarketCardLive`
- * folds the tick payload into its card in place, so a tick-bearing frame is
- * skipped here rather than turned into the refetch-per-bet the original
- * design rejected. Card graduation bars and volume still settle on lifecycle
- * transitions or reload; making those live needs the trade size on the tick
- * payload (ADR 0025 deferred item).
+ * Scope, deliberately: bets do NOT reach this channel — `receipt_placed_events`
+ * routes to the per-market and owner channels only, where each board card's
+ * own `MarketCardLive` subscription picks its trades up and folds the tick
+ * payload into the displayed prices in place (the board is bounded by the
+ * API's list limit, which bounds the card subscriptions with it). So this
+ * component stays lifecycle-only by construction; card graduation bars and
+ * volume still settle on reload, until the trade size rides the tick payload.
  */
 export function DiscoveryLiveRefresh() {
   const router = useRouter();
@@ -50,36 +49,26 @@ export function DiscoveryLiveRefresh() {
     };
   }, []);
 
-  const refresh = useCallback(
-    (signal: LiveSignal) => {
-      // A tick-bearing trade frame is `MarketCardLive`'s to consume in place;
-      // refetching the whole board per bet is exactly what routing trades
-      // here must not cost.
-      if (signal.type === "change" && signal.tick !== null) {
-        return;
-      }
+  const refresh = useCallback(() => {
+    // Already scheduled: this signal is absorbed by the pending refetch, which
+    // is what keeps a burst to one extra read.
+    if (trailingRef.current) {
+      return;
+    }
 
-      // Already scheduled: this signal is absorbed by the pending refetch,
-      // which is what keeps a burst to one extra read.
-      if (trailingRef.current) {
-        return;
-      }
+    const sinceLast = Date.now() - lastRefreshAtRef.current;
+    if (sinceLast >= DISCOVERY_COALESCE_WINDOW_MS) {
+      lastRefreshAtRef.current = Date.now();
+      router.refresh();
+      return;
+    }
 
-      const sinceLast = Date.now() - lastRefreshAtRef.current;
-      if (sinceLast >= DISCOVERY_COALESCE_WINDOW_MS) {
-        lastRefreshAtRef.current = Date.now();
-        router.refresh();
-        return;
-      }
-
-      trailingRef.current = setTimeout(() => {
-        trailingRef.current = null;
-        lastRefreshAtRef.current = Date.now();
-        router.refresh();
-      }, DISCOVERY_COALESCE_WINDOW_MS - sinceLast);
-    },
-    [router]
-  );
+    trailingRef.current = setTimeout(() => {
+      trailingRef.current = null;
+      lastRefreshAtRef.current = Date.now();
+      router.refresh();
+    }, DISCOVERY_COALESCE_WINDOW_MS - sinceLast);
+  }, [router]);
 
   useLiveChannel(MARKET_LIST_CHANNEL, refresh);
 
