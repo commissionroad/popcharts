@@ -74,9 +74,11 @@ describe("AiReviewCard", () => {
     expect(screen.getByText("Source quality")).toBeInTheDocument();
     expect(screen.getByText("Corroboration")).toBeInTheDocument();
     expect(screen.getByText("Content safety")).toBeInTheDocument();
-    expect(screen.getByText("Dispute risk")).toBeInTheDocument();
-    expect(screen.getByText("Prompt injection risk")).toBeInTheDocument();
-    // contentSafety 7 clamps to 5; promptInjectionRisk -2 clamps to 0.
+    expect(screen.getByText("Dispute resistance")).toBeInTheDocument();
+    expect(screen.getByText("Prompt injection security")).toBeInTheDocument();
+    // contentSafety 7 clamps to 5. The two risk dimensions are shown as the
+    // safety they imply, so disputeRisk 5 reads as 0/5 resistance and
+    // promptInjectionRisk -2 clamps to 0 and reads as 5/5 security.
     expect(screen.getAllByText("5/5")).toHaveLength(3);
     expect(screen.getAllByText("0/5")).toHaveLength(1);
     expect(screen.getByText("1/5")).toBeInTheDocument();

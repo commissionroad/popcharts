@@ -25,8 +25,8 @@ describe("ReviewScoreBreakdown", () => {
       "Source quality",
       "Corroboration",
       "Content safety",
-      "Dispute risk",
-      "Prompt injection risk",
+      "Dispute resistance",
+      "Prompt injection security",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -39,12 +39,20 @@ describe("ReviewScoreBreakdown", () => {
   it("clamps scores outside the 0-5 range", () => {
     render(
       breakdown({
-        scores: scoresFixture({ contentSafety: 9, promptInjectionRisk: -3 }),
+        scores: scoresFixture({ contentSafety: 9, promptInjectionRisk: 8 }),
       })
     );
 
     expect(meter("Content safety").filled).toBe(5);
-    expect(meter("Prompt injection risk").filled).toBe(0);
+    // Clamped before the flip: a raw 8 is a maxed-out risk, so it lands at no
+    // security at all rather than inverting to a negative bar count.
+    expect(meter("Prompt injection security").filled).toBe(0);
+  });
+
+  it("clamps a negative risk score to full marks", () => {
+    render(breakdown({ scores: scoresFixture({ promptInjectionRisk: -3 }) }));
+
+    expect(meter("Prompt injection security").filled).toBe(5);
   });
 
   it("rounds fractional scores to whole segments", () => {
@@ -73,24 +81,28 @@ describe("ReviewScoreBreakdown", () => {
     expect(meter("Source quality").tone).toBe("var(--no)");
   });
 
-  it("inverts the tone scale for risk dimensions", () => {
+  it("shows a risk dimension as the safety it implies", () => {
     render(
       breakdown({
         scores: scoresFixture({ disputeRisk: 1, promptInjectionRisk: 5 }),
       })
     );
 
-    // A low dispute risk is good news, a maxed injection risk is bad — the
-    // meters fill by raw score but must not colour the two the same way.
-    expect(meter("Dispute risk")).toEqual({
-      filled: 1,
-      readout: "1/5",
+    // The reviewer scores these as risks where 0 is good. On screen they read
+    // as the safety they imply, so five filled bars is the best outcome for
+    // every dimension and no row fills toward "bad".
+    expect(meter("Dispute resistance")).toEqual({
+      filled: 4,
+      readout: "4/5",
       tone: "var(--yes)",
     });
-    expect(meter("Prompt injection risk")).toEqual({
-      filled: 5,
-      readout: "5/5",
-      tone: "var(--no)",
+    // A zero has no filled segment to carry a tone, so it reads as an empty
+    // meter and its "0/5" — the same way a zero on any other dimension always
+    // has. Making that uniform is the point; the rationale underneath is what
+    // explains it.
+    expect(meter("Prompt injection security")).toEqual({
+      filled: 0,
+      readout: "0/5",
     });
   });
 

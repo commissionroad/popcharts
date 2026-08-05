@@ -2,24 +2,39 @@ import type { AiReviewScoreRationales, AiReviewScores } from "@/domain/markets/t
 import { cn } from "@/lib/cn";
 
 /**
- * Display order and polarity for the seven reviewer dimensions, defined once
- * for every surface that renders them. Scores run 0-5; for `risk` dimensions a
- * high score is bad, so the tone scale is inverted. A dimension added
- * server-side surfaces here as a type error on {@link AiReviewScores} rather
- * than silently going unrendered on one screen and not the other.
+ * Display order for the seven reviewer dimensions, defined once for every
+ * surface that renders them. A dimension added server-side surfaces here as a
+ * type error on {@link AiReviewScores} rather than silently going unrendered on
+ * one screen and not the other.
+ *
+ * The reviewer scores two of them as *risks*, where 0 is the good end. Those
+ * are inverted for display and renamed to what the score is measuring when you
+ * read it as good news, so that on screen every dimension means the same thing:
+ * five filled bars is the best a market can do. A meter that fills toward "bad"
+ * for two rows out of seven is a misreading waiting to happen — an unflagged
+ * market showed an empty bar next to "Prompt injection risk 0/5", which reads as
+ * a failing grade for a perfect score.
+ *
+ * Only the display flips. `AiReviewScores` keeps the reviewer's own risk
+ * semantics, because that is what the model and the heuristic actually emit.
  */
 export const REVIEW_SCORE_DIMENSIONS: ReadonlyArray<{
+  /** Show `5 - score`: the reviewer scores this as a risk, 0 being good. */
+  invertsRisk: boolean;
   key: keyof AiReviewScores;
   label: string;
-  risk: boolean;
 }> = [
-  { key: "objectivity", label: "Objectivity", risk: false },
-  { key: "publicKnowability", label: "Public knowability", risk: false },
-  { key: "sourceQuality", label: "Source quality", risk: false },
-  { key: "corroboration", label: "Corroboration", risk: false },
-  { key: "contentSafety", label: "Content safety", risk: false },
-  { key: "disputeRisk", label: "Dispute risk", risk: true },
-  { key: "promptInjectionRisk", label: "Prompt injection risk", risk: true },
+  { invertsRisk: false, key: "objectivity", label: "Objectivity" },
+  { invertsRisk: false, key: "publicKnowability", label: "Public knowability" },
+  { invertsRisk: false, key: "sourceQuality", label: "Source quality" },
+  { invertsRisk: false, key: "corroboration", label: "Corroboration" },
+  { invertsRisk: false, key: "contentSafety", label: "Content safety" },
+  { invertsRisk: true, key: "disputeRisk", label: "Dispute resistance" },
+  {
+    invertsRisk: true,
+    key: "promptInjectionRisk",
+    label: "Prompt injection security",
+  },
 ];
 
 /**
@@ -49,27 +64,35 @@ export function ReviewScoreBreakdown({
           key={dimension.key}
           label={dimension.label}
           rationale={scoreRationales[dimension.key]}
-          risk={dimension.risk}
-          score={scores[dimension.key]}
+          score={displayScore(scores[dimension.key], dimension.invertsRisk)}
         />
       ))}
     </div>
   );
 }
 
+/**
+ * Turns a reviewer score into the one this component draws: clamped to 0-5, and
+ * flipped for risk dimensions so higher is better everywhere. Clamping before
+ * flipping is what makes an out-of-range risk score land at the right end — a
+ * raw 7 is a maxed-out risk, so it has to display as 0, not -2.
+ */
+function displayScore(score: number, invertsRisk: boolean): number {
+  const clamped = Math.min(Math.max(Math.round(score), 0), 5);
+
+  return invertsRisk ? 5 - clamped : clamped;
+}
+
 function ScoreRow({
   label,
   rationale,
-  risk,
   score,
 }: {
   label: string;
   rationale: string;
-  risk: boolean;
   score: number;
 }) {
-  const filled = Math.min(Math.max(Math.round(score), 0), 5);
-  const tone = scoreTone(filled, risk);
+  const tone = scoreTone(score);
 
   return (
     <div>
@@ -78,7 +101,7 @@ function ScoreRow({
           {label}
         </span>
         <span className="font-mono text-[11px] text-[var(--text-secondary)]">
-          {filled}/5
+          {score}/5
         </span>
       </div>
       <div className="mt-1.5 flex gap-1">
@@ -86,7 +109,7 @@ function ScoreRow({
           <span
             className="h-1.5 flex-1 rounded-[var(--radius-pill)]"
             key={index}
-            style={{ backgroundColor: index < filled ? tone : "var(--border)" }}
+            style={{ backgroundColor: index < score ? tone : "var(--border)" }}
           />
         ))}
       </div>
@@ -98,11 +121,10 @@ function ScoreRow({
 }
 
 /**
- * Maps a 0-5 dimension score to its tone, flipping the scale for risk
- * dimensions so "good" is always the same color regardless of polarity.
+ * Maps a 0-5 displayed score to its tone. No polarity argument: every score
+ * reaching here already runs the same direction, which is the point of
+ * inverting the risk dimensions up front.
  */
-function scoreTone(score: number, risk: boolean) {
-  const goodness = risk ? 5 - score : score;
-
-  return goodness >= 4 ? "var(--yes)" : goodness >= 2 ? "var(--pc-amber)" : "var(--no)";
+function scoreTone(score: number) {
+  return score >= 4 ? "var(--yes)" : score >= 2 ? "var(--pc-amber)" : "var(--no)";
 }
