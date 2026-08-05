@@ -5,9 +5,10 @@ Status: Accepted — P1, P2, P3/P3a, P7 built 2026-07-30..08-03; **P4 built
 **P5 built 2026-08-04** (#451 + the removal PR): the on-chain review
 machinery, the ungated `createMarket`, and the app's legacy create surface
 are gone — `just local-create-market` now drives the API's draft flow as
-hardhat account #0. P6 and P8 are open. **Amended 2026-08-05** (deadline
-timing: resolution becomes an absolute date, graduation stays a relative
-window — adds P9, open).
+hardhat account #0. P6 and P8 are open. **Amended twice 2026-08-05**:
+draft public ids + the join-not-copy published-market review link (landed,
+#465/#468/#469), and deadline timing (resolution becomes an absolute date,
+graduation stays a relative window — adds P9, open).
 
 ## Context
 
