@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
@@ -32,6 +33,9 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   uint256 public constant MAX_PUBLIC_LIQUIDITY_PARAMETER = 10_000 * 1e18;
   /// @notice Native USDC fee paid by public creators when a market is created.
   uint256 public constant MARKET_CREATION_FEE = 1e18;
+
+  /// @notice Hard cap on the owner-configurable entry fee rate (10%), scaled by 1e18.
+  uint256 public constant MAX_ENTRY_FEE_RATE_WAD = 1e17;
   /// @notice Maximum bytes allowed for the canonical metadata payload emitted at creation.
   uint256 public constant MAX_METADATA_BYTES = 8192;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
@@ -81,10 +85,20 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   error MarketCreationPaused();
   /// @notice Reverts when owner configuration targets the zero account.
   error InvalidTrustedCreator();
-  /// @notice Reverts when the current receipt quote is above the buyer's maximum accepted cost.
-  /// @param cost Current quoted receipt cost.
-  /// @param maxCost Maximum cost accepted by the buyer.
+  /// @notice Reverts when the quoted cost plus entry fee exceeds the buyer's maximum total debit.
+  /// @param cost Current quoted receipt cost plus the entry fee due on it.
+  /// @param maxCost Maximum total debit accepted by the buyer.
   error CostExceedsLimit(uint256 cost, uint256 maxCost);
+  /// @notice Reverts when the owner sets an entry fee rate above the hard cap.
+  /// @param rateWad Requested rate, scaled by 1e18.
+  /// @param maximumRateWad Hard cap on the rate, scaled by 1e18.
+  error EntryFeeRateExceedsMaximum(uint256 rateWad, uint256 maximumRateWad);
+  /// @notice Reverts when earned entry fee withdrawal targets the zero account.
+  error InvalidEntryFeeRecipient();
+  /// @notice Reverts when earned entry fee withdrawal exceeds the earned balance.
+  /// @param available Earned entry fees available for the market.
+  /// @param requested Amount requested by the owner.
+  error EntryFeeWithdrawalExceedsEarned(uint256 available, uint256 requested);
   /// @notice Reverts when an ERC20 transfer delivers less or more collateral than expected.
   /// @param expected Exact collateral amount that should have reached escrow.
   /// @param received Actual collateral amount observed by balance delta.
@@ -324,6 +338,51 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     uint256 refund
   );
 
+  /// @notice Emitted when the owner changes the entry fee rate.
+  /// @param previousRateWad Rate before the change, scaled by 1e18.
+  /// @param newRateWad Rate after the change, scaled by 1e18.
+  event EntryFeeRateUpdated(uint256 previousRateWad, uint256 newRateWad);
+
+  /// @notice Emitted when an entry fee is collected alongside a receipt's cost.
+  /// @param receiptId Receipt the fee was collected for.
+  /// @param marketId Market that owns the receipt.
+  /// @param payer Account that paid the fee.
+  /// @param amount Fee amount collected, held refundable until clearing.
+  event EntryFeeCollected(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed payer,
+    uint256 amount
+  );
+
+  /// @notice Emitted when a receipt's held entry fee is returned to its owner.
+  /// @param receiptId Receipt whose fee was returned.
+  /// @param marketId Market that owns the receipt.
+  /// @param recipient Account receiving the fee.
+  /// @param amount Fee amount returned.
+  event EntryFeeRefunded(
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address indexed recipient,
+    uint256 amount
+  );
+
+  /// @notice Emitted when clearing earns the protocol a receipt's matched-share fee.
+  /// @param receiptId Receipt whose matched cost earned the fee.
+  /// @param marketId Market that owns the receipt.
+  /// @param amount Fee amount earned.
+  event EntryFeeEarned(uint256 indexed receiptId, uint256 indexed marketId, uint256 amount);
+
+  /// @notice Emitted when the owner withdraws a market's earned entry fees.
+  /// @param marketId Market whose earned fees were withdrawn.
+  /// @param recipient Account receiving the fees.
+  /// @param amount Fee amount withdrawn.
+  event EarnedEntryFeesWithdrawn(
+    uint256 indexed marketId,
+    address indexed recipient,
+    uint256 amount
+  );
+
   uint256 private _nextMarketId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
@@ -348,6 +407,21 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   /// computes and submits clearing roots. Set a nonzero period only once third
   /// parties can propose roots and an active dispute mechanism can check them.
   uint64 public clearingChallengePeriod;
+
+  /// @notice Entry fee rate charged on a receipt's cost at placement, scaled by 1e18.
+  /// @dev Zero (the default) charges nothing, so deploys are behaviour-preserving
+  ///      until the owner arms the fee. The fee is a second escrow, not revenue:
+  ///      it is earned only on a receipt's matched cost at clearing and refunds in
+  ///      full when a market never graduates (protocol ADR 0014 §3).
+  uint256 public entryFeeRateWad;
+
+  /// @notice Refundable entry fees held for a market's active receipts.
+  mapping(uint256 marketId => uint256) public marketEntryFeeEscrow;
+
+  /// @notice Entry fees earned from a market's matched cost at clearing.
+  /// @dev The per-market fee pot destined for post-graduation pool seeding
+  ///      (ADR 0014 P5); owner-withdrawable until that path exists.
+  mapping(uint256 marketId => uint256) public marketEntryFeesEarned;
 
   /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) EIP712("PregradManager", "1") {}
@@ -574,6 +648,59 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     _withdrawCreationFees(recipient, amount);
   }
 
+  /// @notice Sets the entry fee rate charged on future receipt placements.
+  /// @dev Receipts store the fee they actually paid, so a rate change never
+  ///      alters what an existing receipt refunds or earns.
+  /// @param newRateWad Fee rate scaled by 1e18; zero disables the fee.
+  function setEntryFeeRate(uint256 newRateWad) external onlyOwner {
+    if (newRateWad > MAX_ENTRY_FEE_RATE_WAD) {
+      revert EntryFeeRateExceedsMaximum(newRateWad, MAX_ENTRY_FEE_RATE_WAD);
+    }
+
+    uint256 previousRateWad = entryFeeRateWad;
+    entryFeeRateWad = newRateWad;
+
+    emit EntryFeeRateUpdated(previousRateWad, newRateWad);
+  }
+
+  /// @notice Returns the entry fee due on a receipt cost at the current rate.
+  /// @dev Full-precision mulDiv: a naive `cost * rate` product can overflow for
+  ///      costs that are otherwise valid LMSR quotes, and an overflow here (or
+  ///      in the claim-time split) would strand the receipt unclaimably.
+  /// @param cost Receipt cost the fee is charged on.
+  /// @return Fee amount, rounded down.
+  function entryFeeFor(uint256 cost) public view returns (uint256) {
+    return Math.mulDiv(cost, entryFeeRateWad, 1e18);
+  }
+
+  /// @notice Withdraws a market's earned entry fees without touching held fees or escrow.
+  /// @dev Earned fees are the per-market pot destined for post-graduation pool
+  ///      seeding (ADR 0014 P5); this is the interim disposition path.
+  /// @param marketId Market whose earned fees to withdraw.
+  /// @param recipient Account receiving the fees.
+  /// @param amount Fee amount to withdraw; zero withdraws the full earned balance.
+  function withdrawEarnedEntryFees(
+    uint256 marketId,
+    address recipient,
+    uint256 amount
+  ) external onlyOwner nonReentrant {
+    _requireMarketExists(marketId);
+    if (recipient == address(0)) {
+      revert InvalidEntryFeeRecipient();
+    }
+
+    uint256 available = marketEntryFeesEarned[marketId];
+    uint256 withdrawal = amount == 0 ? available : amount;
+    if (withdrawal > available) {
+      revert EntryFeeWithdrawalExceedsEarned(available, withdrawal);
+    }
+
+    marketEntryFeesEarned[marketId] = available - withdrawal;
+    IERC20(_markets[marketId].config.collateral).safeTransfer(recipient, withdrawal);
+
+    emit EarnedEntryFeesWithdrawn(marketId, recipient, withdrawal);
+  }
+
   /// @notice Returns the next market ID that will be assigned.
   /// @return Next market ID.
   function nextMarketId() external view returns (uint256) {
@@ -720,15 +847,27 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     _requireBeforeGraduationDeadline(params.marketId, market.config.graduationDeadline);
 
     MarketTypes.ReceiptQuote memory quote = _quoteReceipt(market, params.side, params.shares);
-    if (quote.cost > params.maxCost) {
-      revert CostExceedsLimit(quote.cost, params.maxCost);
+    // `maxCost` bounds the buyer's total debit — cost plus entry fee — so an
+    // owner rate change between transaction construction and execution can
+    // only make the placement revert, never charge more than the buyer signed
+    // up for. At a zero rate this is exactly the historical cost-only check.
+    uint256 entryFee = entryFeeFor(quote.cost);
+    if (quote.cost + entryFee > params.maxCost) {
+      revert CostExceedsLimit(quote.cost + entryFee, params.maxCost);
     }
 
     receiptId = _allocateReceiptId();
 
-    uint64 sequence = _storeReceipt(receiptId, market, params, quote);
+    uint64 sequence = _storeReceipt(receiptId, market, params, quote, entryFee);
 
-    _transferEscrow(IERC20(market.config.collateral), msg.sender, quote.cost);
+    // One transfer covers cost and fee; only the cost enters `totalEscrowed`,
+    // so the graduation snapshot and clearing invariants never see the fee.
+    _transferEscrow(IERC20(market.config.collateral), msg.sender, quote.cost + entryFee);
+
+    if (entryFee != 0) {
+      marketEntryFeeEscrow[params.marketId] += entryFee;
+      emit EntryFeeCollected(receiptId, params.marketId, msg.sender, entryFee);
+    }
 
     emit ReceiptPlaced(
       receiptId,
@@ -887,6 +1026,27 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     receipt.active = false;
     market.state.totalEscrowed -= claim.refund;
 
+    // The fee splits along the same line clearing drew on the cost: the share
+    // prepaid on refunded cost returns with it, the share on retained cost is
+    // earned. Floor division sends rounding dust to earned, never to refund,
+    // and `retainedCost + refund == cost` (checked above) bounds the refund by
+    // the fee paid. `entryFeeRefund` reaches zero exactly when the receipt
+    // filled completely (protocol ADR 0014 §3).
+    uint256 entryFeeRefund = 0;
+    uint256 entryFeePaid = receipt.entryFeePaid;
+    if (entryFeePaid != 0) {
+      entryFeeRefund = Math.mulDiv(entryFeePaid, claim.refund, receipt.cost);
+      uint256 entryFeeEarned = entryFeePaid - entryFeeRefund;
+      marketEntryFeeEscrow[claim.marketId] -= entryFeePaid;
+      if (entryFeeEarned != 0) {
+        marketEntryFeesEarned[claim.marketId] += entryFeeEarned;
+        emit EntryFeeEarned(claim.receiptId, claim.marketId, entryFeeEarned);
+      }
+      if (entryFeeRefund != 0) {
+        emit EntryFeeRefunded(claim.receiptId, claim.marketId, claim.owner, entryFeeRefund);
+      }
+    }
+
     address postgradAdapter = _postgradAdapters[claim.marketId];
     if (claim.retainedShares != 0) {
       IPostgradAdapter(postgradAdapter).distributeOutcome(
@@ -896,8 +1056,8 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
         claim.retainedShares
       );
     }
-    if (claim.refund != 0) {
-      IERC20(market.config.collateral).safeTransfer(claim.owner, claim.refund);
+    if (claim.refund + entryFeeRefund != 0) {
+      IERC20(market.config.collateral).safeTransfer(claim.owner, claim.refund + entryFeeRefund);
     }
 
     emit GraduatedReceiptClaimed(
@@ -945,6 +1105,9 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   }
 
   /// @notice Refunds a receipt from a market that missed graduation or was cancelled.
+  /// @dev The entry fee returns in full alongside the cost: it is a success fee,
+  ///      earned only at clearing on matched cost, and this market never cleared
+  ///      (protocol ADR 0014 §3).
   /// @param receiptId Receipt whose full escrowed cost should be returned.
   function claimRefundedReceipt(uint256 receiptId) external nonReentrant {
     _requireReceiptExists(receiptId);
@@ -957,7 +1120,13 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     receipt.active = false;
     market.state.totalEscrowed -= receipt.cost;
 
-    IERC20(market.config.collateral).safeTransfer(receipt.owner, receipt.cost);
+    uint256 entryFee = receipt.entryFeePaid;
+    if (entryFee != 0) {
+      marketEntryFeeEscrow[receipt.marketId] -= entryFee;
+      emit EntryFeeRefunded(receiptId, receipt.marketId, receipt.owner, entryFee);
+    }
+
+    IERC20(market.config.collateral).safeTransfer(receipt.owner, receipt.cost + entryFee);
 
     emit RefundedReceiptClaimed(receiptId, receipt.marketId, receipt.owner, receipt.cost);
   }
@@ -972,7 +1141,8 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     uint256 receiptId,
     MarketTypes.MarketRecord storage market,
     MarketTypes.PlaceReceiptParams calldata params,
-    MarketTypes.ReceiptQuote memory quote
+    MarketTypes.ReceiptQuote memory quote,
+    uint256 entryFee
   ) private returns (uint64 sequence) {
     sequence = _nextReceiptSequence(market.state.receiptCount);
     market.state.receiptCount = sequence;
@@ -984,7 +1154,7 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       market.state.noShares += params.shares;
     }
 
-    _insertReceipt(receiptId, msg.sender, params, quote, sequence);
+    _insertReceipt(receiptId, msg.sender, params, quote, entryFee, sequence);
   }
 
   /// @notice Validates immutable market creation inputs.
