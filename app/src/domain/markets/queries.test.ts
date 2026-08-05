@@ -423,25 +423,36 @@ describe("market queries", () => {
     expect(client.getMarket).not.toHaveBeenCalled();
   });
 
-  it("falls back to fixtures when an auto-source lookup misses", async () => {
+  it("treats an auto-source lookup miss as a missing market, never a fixture", async () => {
     const client = createClient({ market: null });
 
     await expect(
       getMarketById("eth-5000-august", { chainId: 5042002, client, source: "auto" })
-    ).resolves.toBe(fixtureMarkets[0]);
+    ).resolves.toBeUndefined();
     expect(client.getMarket).toHaveBeenCalledWith({
       chainId: 5042002,
       marketId: "eth-5000-august",
     });
   });
 
-  it("falls back to fixtures for bare ids without a chain id in auto mode", async () => {
+  it("answers undefined for bare ids without a chain id in auto mode", async () => {
     const client = createClient({ market: apiMarket });
 
     await expect(
       getMarketById("eth-5000-august", { client, source: "auto" })
-    ).resolves.toBe(fixtureMarkets[0]);
+    ).resolves.toBeUndefined();
     expect(client.getMarket).not.toHaveBeenCalled();
+  });
+
+  it("serves an empty board when auto mode has no API to ask", async () => {
+    vi.stubEnv("POPCHARTS_INDEXER_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_POPCHARTS_INDEXER_API_URL", "");
+
+    await expect(getMarkets({ source: "auto" })).resolves.toEqual([]);
+    await expect(
+      getMarketById("eth-5000-august", { source: "auto" })
+    ).resolves.toBeUndefined();
+    expect(usesFixtureMarkets({ source: "auto" })).toBe(false);
   });
 
   it("forwards the since parameter to the API client", async () => {
@@ -642,13 +653,15 @@ describe("market queries", () => {
     );
   });
 
-  it("defaults to fixtures in auto mode without an indexer URL", async () => {
-    await expect(getMarkets()).resolves.toBe(fixtureMarkets);
-    await expect(getMarkets({ chainId: 5042002 })).resolves.toBe(fixtureMarkets);
+  it("defaults to an empty board in auto mode without an indexer URL", async () => {
+    await expect(getMarkets()).resolves.toEqual([]);
+    await expect(getMarkets({ chainId: 5042002 })).resolves.toEqual([]);
   });
 
   it("reports fixture-backed reads so the UI can label sample data", () => {
-    expect(usesFixtureMarkets()).toBe(true);
+    // Only the explicit fixtures source is fixture-backed; auto without an
+    // API URL is an empty board, not sample data.
+    expect(usesFixtureMarkets()).toBe(false);
     expect(usesFixtureMarkets({ source: "fixtures", chainId: 5042002 })).toBe(true);
     expect(
       usesFixtureMarkets({ apiBaseUrl: "http://localhost:3999", source: "api" })
