@@ -85,7 +85,9 @@ export const MarketDraftSchema = t.Object(
     createdAt: t.String(),
     description: t.String(),
     graduationWindowSeconds: t.Number(),
-    id: t.Number(),
+    // The draft's public id, not its database row id — a 16-character
+    // alphanumeric string minted at creation (src/drafts/public-id.ts).
+    id: t.String(),
     intendedCreatorAddress: t.Union([t.String(), t.Null()]),
     isTemplate: t.Boolean(),
     // Optional-omit rather than nullable: orval drops the null arm on $ref
@@ -149,7 +151,7 @@ export const MarketDraftWriteSchema = t.Object(
 export const MarketDraftCloneRequestSchema = t.Object(
   {
     asTemplate: t.Optional(t.Boolean()),
-    fromDraftId: t.Optional(t.Number({ minimum: 1, multipleOf: 1 })),
+    fromDraftId: t.Optional(t.String()),
     fromMarket: t.Optional(
       t.Object({
         chainId: t.Number({ minimum: 1, multipleOf: 1 }),

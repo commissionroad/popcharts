@@ -20,6 +20,7 @@ import {
   computeMatchedMarketCap,
   pregradManagerAbi,
 } from "@popcharts/protocol";
+import { latestReviewsForPublishedMarkets } from "./market-drafts";
 import { readPostgradMarketVenue } from "./postgrad-venue";
 
 const MARKET_LIST_LIMIT = 200;
@@ -30,6 +31,34 @@ export type MarketRow = typeof schema.markets.$inferSelect;
 export type MarketAiReviewRow = typeof schema.marketAiReviews.$inferSelect;
 export type MarketAiReviewJobRow =
   typeof schema.marketAiReviewJobs.$inferSelect;
+/**
+ * The review a published market exposes, independent of which table stores it.
+ *
+ * Two tables hold reviews of the same shape. `market_ai_reviews` holds the
+ * on-chain-era rows, judged after creation; nothing writes it since ADR 0022
+ * P5 retired that path. `market_draft_reviews` holds the rows written today,
+ * judged on the draft *before* publish. Publish refuses unless the draft is
+ * byte-identical to its reviewed snapshot and the on-chain metadata hash
+ * matches, so a draft review describes exactly the market that came out of it
+ * — which is what lets one serializer, and one card, cover both.
+ */
+export type PublishedMarketReviewRow = Pick<
+  MarketAiReviewRow,
+  | "createdAt"
+  | "evidence"
+  | "hardFlags"
+  | "id"
+  | "metadataHash"
+  | "modelId"
+  | "promptVersion"
+  | "provider"
+  | "reasons"
+  | "reviewedAt"
+  | "scoreRationales"
+  | "scores"
+  | "sourceChecks"
+  | "verdict"
+>;
 /** Drizzle select shape of a market_metadata row. */
 export type MarketMetadataRow = typeof schema.marketMetadata.$inferSelect;
 type MarketQueryRow = {
@@ -78,7 +107,7 @@ export async function getMarkets({
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
   const liveMarkets = liveRows.map(({ market }) => market);
-  const reviews = await getLatestAiReviews(liveMarkets);
+  const reviews = await getLatestMarketReviews(liveMarkets);
   const reviewJobs = await getLatestAiReviewJobs(liveMarkets);
   const postgrads = await getLatestPostgradInfos(liveMarkets);
   const resolutions = await getResolutions(liveMarkets);
@@ -137,7 +166,7 @@ export async function getMarketById(
     return null;
   }
 
-  const reviews = await getLatestAiReviews([row.market]);
+  const reviews = await getLatestMarketReviews([row.market]);
   const reviewJobs = await getLatestAiReviewJobs([row.market]);
   const postgrads = await getLatestPostgradInfos([row.market]);
   let postgrad =
@@ -385,7 +414,7 @@ export function serializeMarketRow(
   market: MarketRow,
   metadata: MarketMetadataRow | null,
   matchedMarketCap: bigint,
-  aiReview: MarketAiReviewRow | null = null,
+  aiReview: PublishedMarketReviewRow | null = null,
   postgrad: MarketPostgradResponse | null = null,
   aiReviewJob: MarketAiReviewJobRow | null = null,
   resolution: MarketResolutionResponse | null = null,
@@ -434,7 +463,7 @@ export function serializeMarketRow(
  * strings and omitting a missing model id.
  */
 export function serializeMarketAiReviewRow(
-  review: MarketAiReviewRow,
+  review: PublishedMarketReviewRow,
 ): MarketAiReviewResponse {
   return {
     createdAt: review.createdAt.toISOString(),
@@ -461,7 +490,7 @@ function serializeAiReviewProgress({
 }: {
   job: MarketAiReviewJobRow | null;
   market: MarketRow;
-  review: MarketAiReviewRow | null;
+  review: PublishedMarketReviewRow | null;
 }): MarketResponse["aiReviewProgress"] {
   if (review) {
     return { phase: "complete", status: "complete" };
@@ -549,8 +578,18 @@ function currentPregradManagerAddress() {
   return config.contracts.pregradManager.toLowerCase();
 }
 
-async function getLatestAiReviews(markets: MarketRow[]) {
-  const reviews = new Map<string, MarketAiReviewRow>();
+/**
+ * Loads the latest review for each market from whichever table holds it,
+ * keyed by chain and market id.
+ *
+ * Legacy `market_ai_reviews` rows win where they exist: for a market created
+ * before ADR 0022 P5, that row *is* the review that gated it. Everything
+ * created since is reviewed as a draft, so the draft-review fallback is the
+ * only source that returns anything for new markets — without it the market
+ * detail page renders no review at all.
+ */
+async function getLatestMarketReviews(markets: MarketRow[]) {
+  const reviews = new Map<string, PublishedMarketReviewRow>();
   if (markets.length === 0) {
     return reviews;
   }
@@ -573,6 +612,19 @@ async function getLatestAiReviews(markets: MarketRow[]) {
 
   for (const { review } of rows) {
     const key = marketReviewKey(review.chainId, review.marketId);
+    if (!reviews.has(key)) {
+      reviews.set(key, review);
+    }
+  }
+
+  const draftReviews = await latestReviewsForPublishedMarkets({
+    chainIds,
+    marketIds,
+  });
+
+  for (const { chainId, marketId, review } of draftReviews) {
+    const key = marketReviewKey(chainId, marketId);
+
     if (!reviews.has(key)) {
       reviews.set(key, review);
     }

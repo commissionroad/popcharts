@@ -20,7 +20,7 @@ describe("createDraftsApiClient requests", () => {
     const drafts = await client().list();
 
     expect(drafts).toHaveLength(1);
-    expect(drafts[0]?.id).toBe(12);
+    expect(drafts[0]?.id).toBe(marketDraftFactory().id);
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts");
     expect(init?.method).toBeUndefined();
@@ -32,11 +32,11 @@ describe("createDraftsApiClient requests", () => {
   });
 
   it("creates a draft with a JSON body and content type", async () => {
-    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: 3 }), 201));
+    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: "3" }), 201));
 
     const draft = await client().create({ question: "Will it save?" });
 
-    expect(draft.id).toBe(3);
+    expect(draft.id).toBe("3");
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts");
     expect(init?.method).toBe("POST");
@@ -65,30 +65,30 @@ describe("createDraftsApiClient requests", () => {
   });
 
   it("reads one draft by id", async () => {
-    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: 8 }), 200));
+    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: "8" }), 200));
 
-    const draft = await client().get(8);
+    const draft = await client().get("8");
 
-    expect(draft?.id).toBe(8);
+    expect(draft?.id).toBe("8");
     expect(lastCall(fetcher)[0]).toBe("/api/drafts/8");
   });
 
   it("returns null when the draft does not exist", async () => {
     stubFetch(jsonResponse("Draft not found.", 404));
 
-    await expect(client().get(404)).resolves.toBeNull();
+    await expect(client().get("404")).resolves.toBeNull();
   });
 
   it("rethrows non-404 failures from get", async () => {
     stubFetch(jsonResponse("Sign in to manage drafts.", 401));
 
-    await expect(client().get(8)).rejects.toThrow("Sign in to manage drafts.");
+    await expect(client().get("8")).rejects.toThrow("Sign in to manage drafts.");
   });
 
   it("updates a draft with PATCH", async () => {
-    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: 8 }), 200));
+    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: "8" }), 200));
 
-    await client().update(8, { question: "Edited?" });
+    await client().update("8", { question: "Edited?" });
 
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts/8");
@@ -99,7 +99,7 @@ describe("createDraftsApiClient requests", () => {
   it("removes a draft with DELETE and resolves to nothing", async () => {
     const fetcher = stubFetch(jsonResponse("Draft deleted.", 200));
 
-    await expect(client().remove(8)).resolves.toBeUndefined();
+    await expect(client().remove("8")).resolves.toBeUndefined();
 
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts/8");
@@ -107,26 +107,26 @@ describe("createDraftsApiClient requests", () => {
   });
 
   it("clones from a draft or market", async () => {
-    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: 9 }), 201));
+    const fetcher = stubFetch(jsonResponse(marketDraftFactory({ id: "9" }), 201));
 
-    const draft = await client().clone({ asTemplate: true, fromDraftId: 8 });
+    const draft = await client().clone({ asTemplate: true, fromDraftId: "8" });
 
-    expect(draft.id).toBe(9);
+    expect(draft.id).toBe("9");
     const [url, init] = lastCall(fetcher);
     expect(url).toBe("/api/drafts/clone");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({
       asTemplate: true,
-      fromDraftId: 8,
+      fromDraftId: "8",
     });
   });
 
   it("submits a draft for review", async () => {
     const fetcher = stubFetch(
-      jsonResponse(marketDraftFactory({ id: 8, status: "in_review" }), 202)
+      jsonResponse(marketDraftFactory({ id: "8", status: "in_review" }), 202)
     );
 
-    const draft = await client().submit(8);
+    const draft = await client().submit("8");
 
     expect(draft.status).toBe("in_review");
     const [url, init] = lastCall(fetcher);
@@ -139,7 +139,7 @@ describe("createDraftsApiClient requests", () => {
       jsonResponse({ metadataHash: `0x${"ab".repeat(32)}` }, 200)
     );
 
-    const params = await client().publishParams(8);
+    const params = await client().publishParams("8");
 
     expect(params.metadataHash).toBe(`0x${"ab".repeat(32)}`);
     const [url, init] = lastCall(fetcher);
@@ -152,7 +152,7 @@ describe("createDraftsApiClient requests", () => {
       jsonResponse({ metadataHash: `0x${"ab".repeat(32)}` }, 200)
     );
 
-    await client().publishParams(8, "0x1111111111111111111111111111111111111111");
+    await client().publishParams("8", "0x1111111111111111111111111111111111111111");
 
     const [url] = lastCall(fetcher);
     expect(url).toBe(
@@ -165,7 +165,7 @@ describe("createDraftsApiClient requests", () => {
       jsonResponse({ draft: marketDraftFactory({ status: "published" }) }, 200)
     );
 
-    const published = await client().markPublished(8, {
+    const published = await client().markPublished("8", {
       chainId: 31337,
       marketId: "9",
       transactionHash: `0x${"cc".repeat(32)}`,
@@ -203,7 +203,7 @@ describe("createDraftsApiClient failures", () => {
       )
     );
 
-    const error = await captureError(client().submit(8));
+    const error = await captureError(client().submit("8"));
 
     expect(error).toBeInstanceOf(DraftsApiError);
     expect(error.name).toBe("DraftsApiError");
@@ -221,7 +221,7 @@ describe("createDraftsApiClient failures", () => {
     };
     stubFetch(jsonResponse(shortfall, 402));
 
-    const error = await captureError(client().submit(8));
+    const error = await captureError(client().submit("8"));
 
     expect(error).toBeInstanceOf(DraftsApiError);
     expect(error.message).toBe("You're out of review credit.");
@@ -233,7 +233,7 @@ describe("createDraftsApiClient failures", () => {
   it("does not invent a shortfall for a plain 402 message", async () => {
     stubFetch(jsonResponse("Payment required.", 402));
 
-    const error = await captureError(client().submit(8));
+    const error = await captureError(client().submit("8"));
 
     expect(error.message).toBe("Payment required.");
     expect(error.status).toBe(402);
@@ -243,7 +243,7 @@ describe("createDraftsApiClient failures", () => {
   it("uses a JSON string body as the message", async () => {
     stubFetch(jsonResponse("Draft is not approved.", 409));
 
-    const error = await captureError(client().submit(8));
+    const error = await captureError(client().submit("8"));
 
     expect(error.message).toBe("Draft is not approved.");
     expect(error.status).toBe(409);
@@ -288,7 +288,7 @@ describe("createDraftsApiClient failures", () => {
   it("ignores validation shapes whose message is not a string", async () => {
     stubFetch(jsonResponse({ errors: {}, message: 42 }, 422));
 
-    const error = await captureError(client().submit(8));
+    const error = await captureError(client().submit("8"));
 
     expect(error.message).toBe("Draft request failed (422).");
   });
