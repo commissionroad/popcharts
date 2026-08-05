@@ -259,22 +259,81 @@ export function isPrivateIpv4(value: string) {
 /**
  * True for IPv6 addresses an evidence fetch must never reach: loopback,
  * unspecified, unique-local (fc00::/7), link-local (fe80::/10), and
- * IPv4-mapped forms of the private IPv4 ranges.
+ * IPv4-mapped forms of any private IPv4 range.
+ *
+ * This works on the address's first two bytes rather than on its text, because
+ * the same address has many spellings and a prefix match only catches some of
+ * them. `fe80::/10` spans fe80 through febf, so a `"fe80:"` prefix test misses
+ * fe90:: and feb0::; and `new URL()` canonicalizes `[::ffff:127.0.0.1]` to
+ * `[::ffff:7f00:1]`, which no dotted-form test can see. Both were live
+ * bypasses of the SSRF gate.
  */
 export function isPrivateIpv6(value: string) {
-  const normalized = value.toLowerCase();
+  const words = parseIpv6Words(value);
+  if (!words) {
+    return false;
+  }
 
+  if (words.every((word) => word === 0)) {
+    return true; // ::
+  }
+
+  if (words.slice(0, 7).every((word) => word === 0) && words[7] === 1) {
+    return true; // ::1
+  }
+
+  // IPv4-mapped (::ffff:a.b.c.d): defer to the IPv4 ranges, whatever spelling
+  // the address arrived in.
+  if (
+    words.slice(0, 5).every((word) => word === 0) &&
+    words[5] === 0xffff &&
+    isPrivateIpv4(
+      [words[6] >> 8, words[6] & 0xff, words[7] >> 8, words[7] & 0xff].join(
+        ".",
+      ),
+    )
+  ) {
+    return true;
+  }
+
+  const first = words[0];
   return (
-    normalized === "::1" ||
-    normalized === "::" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:") ||
-    normalized.startsWith("::ffff:10.") ||
-    normalized.startsWith("::ffff:127.") ||
-    normalized.startsWith("::ffff:172.") ||
-    normalized.startsWith("::ffff:192.168.")
+    (first & 0xfe00) === 0xfc00 || // fc00::/7 unique-local
+    (first & 0xffc0) === 0xfe80 // fe80::/10 link-local
   );
+}
+
+/** The eight 16-bit words of an IPv6 address, or null if it is not one. */
+function parseIpv6Words(value: string) {
+  if (isIP(value) !== 6) {
+    return null;
+  }
+
+  const normalized = value.toLowerCase();
+  // A trailing dotted quad (::ffff:127.0.0.1) is two words in disguise.
+  const dotted = normalized.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  const head = dotted
+    ? `${normalized.slice(0, dotted.index)}${toHexWord(dotted[1], dotted[2])}:${toHexWord(dotted[3], dotted[4])}`
+    : normalized;
+
+  const [left, right = ""] = head.split("::");
+  const leftWords = left ? left.split(":") : [];
+  const rightWords = right ? right.split(":") : [];
+  const words = head.includes("::")
+    ? [
+        ...leftWords,
+        ...Array<string>(8 - leftWords.length - rightWords.length).fill("0"),
+        ...rightWords,
+      ]
+    : leftWords;
+
+  return words.length === 8
+    ? words.map((word) => Number.parseInt(word || "0", 16))
+    : null;
+}
+
+function toHexWord(high: string, low: string) {
+  return ((Number(high) << 8) | Number(low)).toString(16);
 }
 
 async function assertPublicHostname(hostname: string) {
