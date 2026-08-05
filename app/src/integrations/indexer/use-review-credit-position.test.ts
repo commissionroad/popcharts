@@ -105,7 +105,9 @@ describe("useReviewCreditPosition", () => {
     stubFetch(POSITION);
     renderHook(() => useReviewCreditPosition());
 
-    await waitFor(() => expect(lastSubscription().channel).toBe(`portfolio:${ADDRESS}`));
+    await waitFor(() =>
+      expect(lastSubscription().channel).toBe(`portfolio:${ADDRESS}`)
+    );
   });
 
   it("re-reads when the portfolio channel signals a deposit", async () => {

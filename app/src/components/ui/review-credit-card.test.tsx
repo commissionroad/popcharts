@@ -55,9 +55,7 @@ describe("ReviewCreditCard", () => {
   });
 
   it("warns at the low-water mark", () => {
-    render(
-      <ReviewCreditCard credit={credit({ runsRemaining: LOW_CREDIT_RUNS })} />
-    );
+    render(<ReviewCreditCard credit={credit({ runsRemaining: LOW_CREDIT_RUNS })} />);
 
     expect(screen.getByText(`${LOW_CREDIT_RUNS} reviews left`)).toHaveStyle({
       color: "var(--pc-amber)",

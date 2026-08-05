@@ -42,7 +42,8 @@ export function useReviewCreditPosition(): {
   const refresh = useCallback(() => setReadTick((value) => value + 1), []);
 
   const client = useMemo(
-    () => (address ? createDraftsApiClient({ getAuthHeaders: getDraftAuthHeaders }) : null),
+    () =>
+      address ? createDraftsApiClient({ getAuthHeaders: getDraftAuthHeaders }) : null,
     [address, getDraftAuthHeaders]
   );
 

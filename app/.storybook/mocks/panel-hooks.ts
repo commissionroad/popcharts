@@ -1,7 +1,4 @@
-import type {
-  MarketDraftReviewCredit,
-  Portfolio,
-} from "@popcharts/api-client/models";
+import type { MarketDraftReviewCredit, Portfolio } from "@popcharts/api-client/models";
 import { createContext, useContext } from "react";
 
 /** The refund-claim button state a story wants the panel to render. */
