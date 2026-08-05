@@ -82,9 +82,19 @@ describe("ReviewCreditCard", () => {
     const onTopUp = vi.fn();
     render(<ReviewCreditCard credit={credit()} onTopUp={onTopUp} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Top up credit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
 
     expect(onTopUp).toHaveBeenCalledOnce();
+  });
+
+  it("names the top-up glyph on hover as well as for screen readers", () => {
+    // The icon carries no text, so the tooltip is the only thing that
+    // explains it to a sighted user who is not sure what a plus means here.
+    render(<ReviewCreditCard credit={credit()} onTopUp={() => undefined} />);
+
+    expect(
+      screen.getByRole("button", { name: "Top up review credit" })
+    ).toHaveAttribute("title", "Top up review credit");
   });
 
   it("omits the action when no handler is given", () => {

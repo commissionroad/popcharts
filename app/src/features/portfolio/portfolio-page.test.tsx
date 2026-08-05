@@ -23,6 +23,14 @@ vi.mock("@/integrations/indexer/use-review-credit-position", () => ({
   useReviewCreditPosition,
 }));
 
+// The top-up dialog mounts with the page (closed), and its deposit hook
+// reaches wagmi — stub it so the page test stays off the wallet stack.
+const useReviewCreditDeposit = vi.hoisted(() => vi.fn());
+
+vi.mock("@/integrations/contracts/hooks/use-review-credit", () => ({
+  useReviewCreditDeposit,
+}));
+
 vi.mock("@/integrations/wallet/wallet-provider", () => ({
   useWalletAccount,
 }));
@@ -46,6 +54,7 @@ beforeEach(() => {
   });
   useReviewCreditPosition.mockReset();
   useReviewCreditPosition.mockReturnValue({
+    address: OWNER,
     credit: {
       availableWad: "10700000000000000000",
       metered: true,
@@ -54,6 +63,13 @@ beforeEach(() => {
       runsUsed: 6,
     },
     refresh: vi.fn(),
+  });
+  useReviewCreditDeposit.mockReset();
+  useReviewCreditDeposit.mockReturnValue({
+    deposit: vi.fn(),
+    enabled: true,
+    error: null,
+    status: "idle",
   });
   useRedemption.mockReset();
   useRedemption.mockReturnValue({
@@ -150,11 +166,34 @@ describe("PortfolioPage summary cards", () => {
   });
 
   it("omits the credit card entirely when the position is unread", () => {
-    useReviewCreditPosition.mockReturnValue({ credit: null, refresh: vi.fn() });
+    useReviewCreditPosition.mockReturnValue({
+      address: OWNER,
+      credit: null,
+      refresh: vi.fn(),
+    });
 
     render(<PortfolioPage />);
 
     expect(screen.queryByText("Review credit")).not.toBeInTheDocument();
+  });
+
+  it("opens the top-up dialog from the card's icon", () => {
+    render(<PortfolioPage />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText(OWNER)).toBeInTheDocument();
+  });
+
+  it("closes the top-up dialog again", () => {
+    render(<PortfolioPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Close top-up dialog" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 
