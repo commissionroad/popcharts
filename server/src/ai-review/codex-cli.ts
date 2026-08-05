@@ -52,6 +52,11 @@ export async function reviewWithCodexCli({
   // `codex exec` writes progress to stderr and the final agent message to
   // stdout, so stdout is the model's reply itself — there is no envelope to
   // unwrap, unlike the Claude Code provider.
+  //
+  // No `evidence` is passed, and that is the point: `codex exec --json` never
+  // reports the URLs its hosted web search returned, so there is nothing here
+  // that could tell a real source from an invented one. See the provider doc
+  // in providers/codex-cli.ts. The default drops every claimed sourceCheck.
   return parseCliReviewFinding({
     modelId,
     raw: stdout,
