@@ -1,7 +1,6 @@
 import type {
   AiReviewEvidence,
   AiReviewEvidenceKind,
-  AiReviewProgress,
   AiReviewProvider,
   AiReviewScoreRationales,
   AiReviewScores as ApiAiReviewScores,
@@ -22,7 +21,6 @@ import type {
 export type {
   AiReviewEvidence,
   AiReviewEvidenceKind,
-  AiReviewProgress,
   AiReviewProvider,
   AiReviewScoreRationales,
   AiReviewSourceCheck,
@@ -146,7 +144,6 @@ export type MarketPostgradHandoff = {
 
 export type Market = {
   aiReview?: MarketAiReview;
-  aiReviewProgress?: AiReviewProgress;
   b: number;
   category: MarketCategory;
   chainId?: number;

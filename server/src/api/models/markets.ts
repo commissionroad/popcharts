@@ -8,7 +8,6 @@ import {
   REVIEW_VERDICTS,
   SOURCE_TIERS,
 } from "src/ai-review/types";
-import { JOB_STATUSES, JOB_TRIGGERS } from "src/db/schema/job-queue";
 import { MARKET_STATUSES } from "src/db/schema/markets";
 import { POSTGRAD_RESOLUTION_KINDS } from "src/db/schema/postgrad-resolution-events";
 import { VENUE_ORDER_STATUSES } from "src/db/schema/venue-orders";
@@ -82,16 +81,6 @@ export const DEV_MARKET_RESOLVE_INELIGIBLE_REASONS = [
 /** One of {@link DEV_MARKET_RESOLVE_INELIGIBLE_REASONS}. */
 export type DevMarketResolveIneligibleReason =
   (typeof DEV_MARKET_RESOLVE_INELIGIBLE_REASONS)[number];
-
-/** Why a manual AI review request was refused. */
-export const MANUAL_AI_REVIEW_INELIGIBLE_REASONS = [
-  "missing_metadata",
-  "wrong_status",
-] as const;
-
-/** One of {@link MANUAL_AI_REVIEW_INELIGIBLE_REASONS}. */
-export type ManualAiReviewIneligibleReason =
-  (typeof MANUAL_AI_REVIEW_INELIGIBLE_REASONS)[number];
 
 /** Off-chain market metadata as returned by the read API. */
 export const MarketMetadataSchema = t.Object(
@@ -219,62 +208,6 @@ export const MarketAiReviewSchema = t.Object(
     verdict: t.Ref(AiReviewVerdictSchema),
   },
   { $id: "MarketAiReview" },
-);
-
-/** Sanitized review progress exposed on public market reads. */
-export const AiReviewProgressSchema = t.Object(
-  {
-    phase: t.Union([
-      t.Literal("awaiting_queue"),
-      t.Literal("queued"),
-      t.Literal("running"),
-      t.Literal("retrying"),
-      t.Literal("complete"),
-      t.Literal("attention_required"),
-    ]),
-    status: t.Union([
-      t.Literal("pending"),
-      t.Literal("complete"),
-      t.Literal("attention_required"),
-    ]),
-  },
-  { $id: "AiReviewProgress" },
-);
-
-/** Queue state of an AI-review job. */
-export const AiReviewJobStatusSchema = literalUnion(JOB_STATUSES, {
-  $id: "AiReviewJobStatus",
-});
-
-/** What caused an AI-review job to be enqueued. */
-export const AiReviewJobTriggerSchema = literalUnion(JOB_TRIGGERS, {
-  $id: "AiReviewJobTrigger",
-});
-
-/** An AI-review job as tracked by the runner queue. */
-export const MarketAiReviewJobSchema = t.Object(
-  {
-    attemptCount: t.Number(),
-    chainId: t.Number(),
-    completedAt: t.Optional(t.String()),
-    createdAt: t.String(),
-    id: t.Number(),
-    lastError: t.Optional(t.String()),
-    leaseUntil: t.Optional(t.String()),
-    lockedBy: t.Optional(t.String()),
-    marketId: t.String(),
-    maxAttempts: t.Number(),
-    metadataHash: t.String(),
-    priority: t.Number(),
-    requestedModel: t.Optional(t.String()),
-    requestedProvider: t.Optional(t.Ref(AiReviewProviderSchema)),
-    reviewId: t.Optional(t.Number()),
-    runAfter: t.String(),
-    status: t.Ref(AiReviewJobStatusSchema),
-    trigger: t.Ref(AiReviewJobTriggerSchema),
-    updatedAt: t.String(),
-  },
-  { $id: "MarketAiReviewJob" },
 );
 
 /** One outcome-token pool on the bounded v4 venue. */
@@ -519,7 +452,6 @@ export const MarketResolutionSchema = t.Object(
 export const MarketSchema = t.Object(
   {
     aiReview: t.Optional(t.Ref(MarketAiReviewSchema)),
-    aiReviewProgress: t.Optional(t.Ref(AiReviewProgressSchema)),
     bypassAiResolution: t.Boolean(),
     chainId: t.Number(),
     collateral: t.String(),
@@ -742,66 +674,6 @@ export const DevMarketResolveIneligibleSchema = t.Object(
   { $id: "DevMarketResolveIneligible" },
 );
 
-/** Operator request to enqueue a manual AI review. */
-export const ManualAiReviewRequestSchema = t.Object(
-  {
-    force: t.Optional(t.Boolean()),
-    model: t.Optional(t.String({ minLength: 1 })),
-    provider: t.Optional(t.Ref(AiReviewProviderSchema)),
-    reason: t.Optional(t.String()),
-  },
-  { $id: "ManualAiReviewRequest" },
-);
-
-/** Manual AI review accepted and queued. */
-export const ManualAiReviewEnqueuedSchema = t.Object(
-  {
-    job: t.Ref(MarketAiReviewJobSchema),
-    status: t.Literal("enqueued"),
-  },
-  { $id: "ManualAiReviewEnqueued" },
-);
-
-/** A matching AI-review job is already active; no new job was queued. */
-export const ManualAiReviewExistingJobSchema = t.Object(
-  {
-    job: t.Ref(MarketAiReviewJobSchema),
-    message: t.String(),
-    status: t.Literal("already_queued"),
-  },
-  { $id: "ManualAiReviewExistingJob" },
-);
-
-/** The metadata hash was already reviewed; the stored review is returned. */
-export const ManualAiReviewAlreadyReviewedSchema = t.Object(
-  {
-    aiReview: t.Ref(MarketAiReviewSchema),
-    message: t.String(),
-    status: t.Literal("already_reviewed"),
-  },
-  { $id: "ManualAiReviewAlreadyReviewed" },
-);
-
-/** Manual AI review refused for this market. */
-export const ManualAiReviewIneligibleSchema = t.Object(
-  {
-    marketStatus: t.Optional(t.Ref(MarketStatusSchema)),
-    message: t.String(),
-    reason: literalUnion(MANUAL_AI_REVIEW_INELIGIBLE_REASONS),
-    status: t.Literal("ineligible"),
-  },
-  { $id: "ManualAiReviewIneligible" },
-);
-
-/** 409 body for manual AI review requests: already reviewed or ineligible. */
-export const ManualAiReviewConflictSchema = t.Union(
-  [
-    t.Ref(ManualAiReviewAlreadyReviewedSchema),
-    t.Ref(ManualAiReviewIneligibleSchema),
-  ],
-  { $id: "ManualAiReviewConflict" },
-);
-
 /**
  * Response and request body types, each the `Static` projection of the
  * like-named schema above. Services and route handlers type their return
@@ -811,7 +683,6 @@ export const ManualAiReviewConflictSchema = t.Union(
 
 export type MarketResponse = Static<typeof MarketSchema>;
 export type MarketAiReviewResponse = Static<typeof MarketAiReviewSchema>;
-export type MarketAiReviewJobResponse = Static<typeof MarketAiReviewJobSchema>;
 export type MarketMetadataResponse = Static<typeof MarketMetadataSchema>;
 export type MarketMetadataWrite = Static<typeof MarketMetadataWriteSchema>;
 export type MarketCreatedEventResponse = Static<
@@ -857,17 +728,4 @@ export type DevMarketGraduateResponse = Static<
 >;
 export type DevMarketGraduateIneligibleResponse = Static<
   typeof DevMarketGraduateIneligibleSchema
->;
-export type ManualAiReviewRequest = Static<typeof ManualAiReviewRequestSchema>;
-export type ManualAiReviewEnqueuedResponse = Static<
-  typeof ManualAiReviewEnqueuedSchema
->;
-export type ManualAiReviewExistingJobResponse = Static<
-  typeof ManualAiReviewExistingJobSchema
->;
-export type ManualAiReviewAlreadyReviewedResponse = Static<
-  typeof ManualAiReviewAlreadyReviewedSchema
->;
-export type ManualAiReviewIneligibleResponse = Static<
-  typeof ManualAiReviewIneligibleSchema
 >;

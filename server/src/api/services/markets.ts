@@ -27,23 +27,18 @@ const MARKET_LIST_LIMIT = 200;
 
 /** Drizzle select shape of a markets row, shared by the market services. */
 export type MarketRow = typeof schema.markets.$inferSelect;
-/** Drizzle select shape of a market_ai_reviews row. */
-export type MarketAiReviewRow = typeof schema.marketAiReviews.$inferSelect;
-export type MarketAiReviewJobRow =
-  typeof schema.marketAiReviewJobs.$inferSelect;
 /**
  * The review a published market exposes, independent of which table stores it.
  *
- * Two tables hold reviews of the same shape. `market_ai_reviews` holds the
- * on-chain-era rows, judged after creation; nothing writes it since ADR 0022
- * P5 retired that path. `market_draft_reviews` holds the rows written today,
- * judged on the draft *before* publish. Publish refuses unless the draft is
+ * Reviews are draft reviews: judged on the draft *before* publish and linked
+ * to the market through `published_market_id` (the on-chain-era
+ * `market_ai_reviews` table retired with ADR 0022 P5). Publish refuses unless the draft is
  * byte-identical to its reviewed snapshot and the on-chain metadata hash
  * matches, so a draft review describes exactly the market that came out of it
  * — which is what lets one serializer, and one card, cover both.
  */
 export type PublishedMarketReviewRow = Pick<
-  MarketAiReviewRow,
+  typeof schema.marketDraftReviews.$inferSelect,
   | "createdAt"
   | "evidence"
   | "hardFlags"
@@ -108,7 +103,6 @@ export async function getMarkets({
   const liveRows = await filterLiveLocalMarketRows(rows);
   const liveMarkets = liveRows.map(({ market }) => market);
   const reviews = await getLatestMarketReviews(liveMarkets);
-  const reviewJobs = await getLatestAiReviewJobs(liveMarkets);
   const postgrads = await getLatestPostgradInfos(liveMarkets);
   const resolutions = await getResolutions(liveMarkets);
   const matchedCaps = await loadMatchedMarketCaps(liveMarkets);
@@ -120,7 +114,6 @@ export async function getMarkets({
       matchedCaps.get(marketReviewKey(market.chainId, market.marketId)) ?? 0n,
       reviews.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
       postgrads.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
-      reviewJobs.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
       resolutions.get(marketReviewKey(market.chainId, market.marketId)) ?? null,
     ),
   );
@@ -167,7 +160,6 @@ export async function getMarketById(
   }
 
   const reviews = await getLatestMarketReviews([row.market]);
-  const reviewJobs = await getLatestAiReviewJobs([row.market]);
   const postgrads = await getLatestPostgradInfos([row.market]);
   let postgrad =
     postgrads.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
@@ -198,8 +190,6 @@ export async function getMarketById(
     reviews.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
     postgrad,
-    reviewJobs.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
-      null,
     resolutions.get(marketReviewKey(row.market.chainId, row.market.marketId)) ??
       null,
   );
@@ -416,18 +406,10 @@ export function serializeMarketRow(
   matchedMarketCap: bigint,
   aiReview: PublishedMarketReviewRow | null = null,
   postgrad: MarketPostgradResponse | null = null,
-  aiReviewJob: MarketAiReviewJobRow | null = null,
   resolution: MarketResolutionResponse | null = null,
 ): MarketResponse {
-  const aiReviewProgress = serializeAiReviewProgress({
-    job: aiReviewJob,
-    market,
-    review: aiReview,
-  });
-
   return {
     ...(aiReview ? { aiReview: serializeMarketAiReviewRow(aiReview) } : {}),
-    ...(aiReviewProgress ? { aiReviewProgress } : {}),
     ...(postgrad ? { postgrad } : {}),
     bypassAiResolution: market.bypassAiResolution,
     chainId: market.chainId,
@@ -481,45 +463,6 @@ export function serializeMarketAiReviewRow(
     sourceChecks: review.sourceChecks,
     verdict: review.verdict,
   };
-}
-
-function serializeAiReviewProgress({
-  job,
-  market,
-  review,
-}: {
-  job: MarketAiReviewJobRow | null;
-  market: MarketRow;
-  review: PublishedMarketReviewRow | null;
-}): MarketResponse["aiReviewProgress"] {
-  if (review) {
-    return { phase: "complete", status: "complete" };
-  }
-
-  if (job?.status === "terminal_failed") {
-    return {
-      phase: "attention_required",
-      status: "attention_required",
-    };
-  }
-
-  if (market.status !== "under_review") {
-    return undefined;
-  }
-
-  if (job?.status === "running") {
-    return { phase: "running", status: "pending" };
-  }
-
-  if (job?.status === "retryable_failed") {
-    return { phase: "retrying", status: "pending" };
-  }
-
-  if (job?.status === "queued") {
-    return { phase: "queued", status: "pending" };
-  }
-
-  return { phase: "awaiting_queue", status: "pending" };
 }
 
 function serializeMarketMetadataRow(
@@ -596,27 +539,6 @@ async function getLatestMarketReviews(markets: MarketRow[]) {
 
   const chainIds = unique(markets.map((market) => market.chainId));
   const marketIds = unique(markets.map((market) => market.marketId));
-  const rows = await db
-    .select({ review: schema.marketAiReviews })
-    .from(schema.marketAiReviews)
-    .where(
-      and(
-        inArray(schema.marketAiReviews.chainId, chainIds),
-        inArray(schema.marketAiReviews.marketId, marketIds),
-      ),
-    )
-    .orderBy(
-      desc(schema.marketAiReviews.reviewedAt),
-      desc(schema.marketAiReviews.id),
-    );
-
-  for (const { review } of rows) {
-    const key = marketReviewKey(review.chainId, review.marketId);
-    if (!reviews.has(key)) {
-      reviews.set(key, review);
-    }
-  }
-
   const draftReviews = await latestReviewsForPublishedMarkets({
     chainIds,
     marketIds,
@@ -631,38 +553,6 @@ async function getLatestMarketReviews(markets: MarketRow[]) {
   }
 
   return reviews;
-}
-
-async function getLatestAiReviewJobs(markets: MarketRow[]) {
-  const jobs = new Map<string, MarketAiReviewJobRow>();
-  if (markets.length === 0) {
-    return jobs;
-  }
-
-  const chainIds = unique(markets.map((market) => market.chainId));
-  const marketIds = unique(markets.map((market) => market.marketId));
-  const rows = await db
-    .select({ job: schema.marketAiReviewJobs })
-    .from(schema.marketAiReviewJobs)
-    .where(
-      and(
-        inArray(schema.marketAiReviewJobs.chainId, chainIds),
-        inArray(schema.marketAiReviewJobs.marketId, marketIds),
-      ),
-    )
-    .orderBy(
-      desc(schema.marketAiReviewJobs.createdAt),
-      desc(schema.marketAiReviewJobs.id),
-    );
-
-  for (const { job } of rows) {
-    const key = marketReviewKey(job.chainId, job.marketId);
-    if (!jobs.has(key)) {
-      jobs.set(key, job);
-    }
-  }
-
-  return jobs;
 }
 
 /**

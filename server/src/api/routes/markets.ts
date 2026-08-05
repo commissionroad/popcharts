@@ -4,10 +4,7 @@ import { config } from "src/config";
 
 import {
   AiReviewEvidenceSchema,
-  AiReviewJobStatusSchema,
-  AiReviewJobTriggerSchema,
   AiReviewProviderSchema,
-  AiReviewProgressSchema,
   AiReviewScoreRationalesSchema,
   AiReviewScoresSchema,
   AiReviewSourceCheckSchema,
@@ -25,13 +22,6 @@ import {
   ResolutionCheckRefusedSchema,
   GraduationResponseSchema,
   GraduationSummarySchema,
-  ManualAiReviewAlreadyReviewedSchema,
-  ManualAiReviewConflictSchema,
-  ManualAiReviewEnqueuedSchema,
-  ManualAiReviewExistingJobSchema,
-  ManualAiReviewIneligibleSchema,
-  ManualAiReviewRequestSchema,
-  MarketAiReviewJobSchema,
   MarketAiReviewSchema,
   MarketCreatedEventListSchema,
   MarketCreatedEventSchema,
@@ -57,7 +47,6 @@ import {
   PricePointSchema,
   VenuePoolSideSchema,
 } from "src/api/models/markets";
-import { requestManualMarketReview } from "src/api/services/admin-review";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
 import {
   graduateDevMarket,
@@ -92,10 +81,7 @@ import { literalUnion } from "src/shared/typebox-literals";
 const marketRoutesBase = new Elysia({ prefix: "" })
   .model({
     AiReviewEvidence: AiReviewEvidenceSchema,
-    AiReviewJobStatus: AiReviewJobStatusSchema,
-    AiReviewJobTrigger: AiReviewJobTriggerSchema,
     AiReviewProvider: AiReviewProviderSchema,
-    AiReviewProgress: AiReviewProgressSchema,
     AiReviewScoreRationales: AiReviewScoreRationalesSchema,
     AiReviewScores: AiReviewScoresSchema,
     AiReviewSourceCheck: AiReviewSourceCheckSchema,
@@ -113,19 +99,12 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     ResolutionCheckRefused: ResolutionCheckRefusedSchema,
     GraduationResponse: GraduationResponseSchema,
     GraduationSummary: GraduationSummarySchema,
-    ManualAiReviewAlreadyReviewed: ManualAiReviewAlreadyReviewedSchema,
-    ManualAiReviewConflict: ManualAiReviewConflictSchema,
-    ManualAiReviewEnqueued: ManualAiReviewEnqueuedSchema,
-    ManualAiReviewExistingJob: ManualAiReviewExistingJobSchema,
-    ManualAiReviewIneligible: ManualAiReviewIneligibleSchema,
-    ManualAiReviewRequest: ManualAiReviewRequestSchema,
     Market: MarketSchema,
     MarketAiReview: MarketAiReviewSchema,
     MarketPostgrad: MarketPostgradSchema,
     MarketResolution: MarketResolutionSchema,
     MarketVenue: MarketVenueSchema,
     MarketVenuePool: MarketVenuePoolSchema,
-    MarketAiReviewJob: MarketAiReviewJobSchema,
     MarketCreatedEvent: MarketCreatedEventSchema,
     MarketCreatedEventList: MarketCreatedEventListSchema,
     MarketList: MarketListSchema,
@@ -222,82 +201,6 @@ const marketRoutesBase = new Elysia({ prefix: "" })
 const marketRoutesWithDevTools =
   config.name === "local"
     ? marketRoutesBase
-        .post(
-          "/admin/markets/:chainId/:marketId/review",
-          async ({ body, params, set }) => {
-            const result = await requestManualMarketReview({
-              body: body ?? undefined,
-              chainId: Number.parseInt(params.chainId, 10),
-              marketId: params.marketId,
-            });
-
-            if (result.kind === "enqueued") {
-              set.status = 201;
-              return {
-                job: result.job,
-                status: "enqueued" as const,
-              };
-            }
-
-            if (result.kind === "existing_active_job") {
-              return {
-                job: result.job,
-                message: result.message,
-                status: "already_queued" as const,
-              };
-            }
-
-            if (result.kind === "already_reviewed") {
-              set.status = 409;
-              return {
-                aiReview: result.aiReview,
-                message: result.message,
-                status: "already_reviewed" as const,
-              };
-            }
-
-            if (result.kind === "ineligible") {
-              set.status = 409;
-              return {
-                ...(result.marketStatus
-                  ? { marketStatus: result.marketStatus }
-                  : {}),
-                message: result.message,
-                reason: result.reason,
-                status: "ineligible" as const,
-              };
-            }
-
-            if (result.kind === "admin_disabled") {
-              set.status = 404;
-              return "Not found";
-            }
-
-            set.status = result.kind === "invalid_market_id" ? 400 : 404;
-            return result.message;
-          },
-          {
-            body: t.Optional(ManualAiReviewRequestSchema),
-            params: t.Object({
-              chainId: t.String(),
-              marketId: t.String(),
-            }),
-            response: {
-              200: "ManualAiReviewExistingJob",
-              201: "ManualAiReviewEnqueued",
-              400: t.String(),
-              404: t.String(),
-              409: "ManualAiReviewConflict",
-            },
-            detail: {
-              operationId: "requestManualAiReview",
-              summary: "Admin-only enqueue market AI review",
-              description:
-                "Local-network development tool: not registered on deployed networks at all (operator actions run locally against the chain, not via the API — repo ADR 0009). On local it additionally requires POPCHARTS_ADMIN_REVIEW_ENABLED=true. Enqueues manual AI review work for the runner; it does not call the AI Review service directly.",
-              tags: ["Administration"],
-            },
-          },
-        )
         .post(
           "/dev/markets/:chainId/:marketId/close",
           async ({ params, set }) => {

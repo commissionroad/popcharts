@@ -503,7 +503,6 @@ function serializeResolveMarketRow(
     calculateMatchedMarketCap(row.market),
     null,
     null,
-    null,
     resolution,
   );
 }

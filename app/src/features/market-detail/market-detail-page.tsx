@@ -14,8 +14,6 @@ import { ReceiptTicket } from "@/features/receipt-ticket/receipt-ticket";
 import { formatB, formatDateTime, formatUsdCompact } from "@/lib/format";
 
 import { AiReviewCard } from "./ai-review-card";
-import { AiReviewProgressCard } from "./ai-review-progress-card";
-import { AiReviewRefresh } from "./ai-review-refresh";
 import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
@@ -73,11 +71,6 @@ export function MarketDetailPage({
     market.graduationTargetUsd > 0 &&
     market.matchedUsd >= market.graduationTargetUsd &&
     isApiBackedMarket(market);
-  const reviewProgress =
-    market.aiReviewProgress ??
-    (!market.aiReview && market.status === "under_review"
-      ? { phase: "awaiting_queue" as const, status: "pending" as const }
-      : undefined);
 
   return (
     <div>
@@ -158,12 +151,6 @@ export function MarketDetailPage({
           <MarketAboutCard market={market} />
 
           {market.aiReview ? <AiReviewCard review={market.aiReview} /> : null}
-          {!market.aiReview && reviewProgress ? (
-            <AiReviewProgressCard progress={reviewProgress} />
-          ) : null}
-          {!market.aiReview && reviewProgress?.status === "pending" ? (
-            <AiReviewRefresh />
-          ) : null}
         </section>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">

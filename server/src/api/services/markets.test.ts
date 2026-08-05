@@ -6,8 +6,7 @@ import {
   serializeMarketRow,
   serializeReceiptPlacedEventRow,
   serializeResolutionRow,
-  type MarketAiReviewRow,
-  type MarketAiReviewJobRow,
+  type PublishedMarketReviewRow,
   type MarketRow,
   type PostgradResolutionRow,
   type ReceiptPlacedEventRow,
@@ -37,14 +36,13 @@ const market = {
   receiptCount: 0n,
   resolutionTime: new Date("2026-08-01T00:00:00.000Z"),
   yesNotBefore: null,
-  status: "under_review",
+  status: "bootstrap",
   totalEscrowed: 0n,
   updatedAt: new Date("2026-06-23T12:01:00.000Z"),
   yesShares: 0n,
 } satisfies MarketRow;
 
 const review = {
-  chainId: 5042002,
   createdAt: new Date("2026-06-23T12:03:00.000Z"),
   evidence: [
     {
@@ -58,7 +56,6 @@ const review = {
   ],
   hardFlags: [],
   id: 11,
-  marketId: 42n,
   metadataHash:
     "0x1111111111111111111111111111111111111111111111111111111111111111",
   modelId: "claude-sonnet-4-6",
@@ -94,29 +91,7 @@ const review = {
     },
   ],
   verdict: "approve",
-} satisfies MarketAiReviewRow;
-
-const reviewJob = {
-  attemptCount: 1,
-  chainId: 5042002,
-  completedAt: null,
-  createdAt: new Date("2026-06-23T12:02:00.000Z"),
-  id: 12,
-  lastError: null,
-  leaseUntil: new Date("2026-06-23T12:12:00.000Z"),
-  lockedBy: "review-runner-1",
-  marketId: 42n,
-  maxAttempts: 5,
-  metadataHash: review.metadataHash,
-  priority: 0,
-  requestedModel: null,
-  requestedProvider: null,
-  reviewId: null,
-  runAfter: new Date("2026-06-23T12:02:00.000Z"),
-  status: "running",
-  trigger: "automatic",
-  updatedAt: new Date("2026-06-23T12:02:00.000Z"),
-} satisfies MarketAiReviewJobRow;
+} satisfies PublishedMarketReviewRow;
 
 describe("parseSinceTimestamp", () => {
   it("accepts ISO timestamps", () => {
@@ -172,38 +147,14 @@ describe("market serializers", () => {
 
     expect(serialized.aiReview?.id).toBe(11);
     expect(serialized.aiReview?.verdict).toBe("approve");
-    expect(serialized.aiReviewProgress).toEqual({
-      phase: "complete",
-      status: "complete",
-    });
     expect(serialized.marketId).toBe("42");
-    expect(serialized.status).toBe("under_review");
+    expect(serialized.status).toBe("bootstrap");
   });
 
   it("omits AI review when no review has been persisted", () => {
     const serialized = serializeMarketRow(market, null, 0n);
 
     expect(serialized.aiReview).toBeUndefined();
-    expect(serialized.aiReviewProgress).toEqual({
-      phase: "awaiting_queue",
-      status: "pending",
-    });
-  });
-
-  it("exposes active and terminal jobs as sanitized review progress", () => {
-    expect(
-      serializeMarketRow(market, null, 0n, null, null, reviewJob)
-        .aiReviewProgress,
-    ).toEqual({ phase: "running", status: "pending" });
-    expect(
-      serializeMarketRow(market, null, 0n, null, null, {
-        ...reviewJob,
-        status: "terminal_failed",
-      }).aiReviewProgress,
-    ).toEqual({
-      phase: "attention_required",
-      status: "attention_required",
-    });
   });
 
   it("serializes a resolved terminal event with its winning side", () => {
@@ -233,7 +184,6 @@ describe("market serializers", () => {
       { ...market, status: "resolved" },
       null,
       0n,
-      null,
       null,
       null,
       resolution,

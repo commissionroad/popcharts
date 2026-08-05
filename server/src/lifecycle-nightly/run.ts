@@ -3,7 +3,6 @@ import "./env";
 import { closeDb } from "src/db/client";
 
 import { runScenarios, type Scenario } from "./report";
-import { aiOutage } from "./scenarios/ai-outage";
 import { disputeSettlement } from "./scenarios/dispute-settlement";
 import { disputeWindowFinalize } from "./scenarios/dispute-window-finalize";
 import { drawCancel } from "./scenarios/draw-cancel";
@@ -47,7 +46,6 @@ const SCENARIOS: readonly Scenario[] = [
   partialClearing,
   failedGraduation,
   indexerRestart,
-  aiOutage,
 ];
 
 const only = process.env.POPCHARTS_LIFECYCLE_SCENARIO;
