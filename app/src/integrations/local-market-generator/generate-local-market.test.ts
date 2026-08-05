@@ -85,6 +85,9 @@ describe("generateLocalMarket", () => {
 function generatedMarket() {
   return {
     graduationSeconds: 60 * 60,
+    // A coherent generated market; the incoherent variant exists only for
+    // --rejectable review drills (scripts/shared/localMarket/generatedMarket).
+    incoherent: false,
     kind: "crypto" as const,
     metadata: {
       category: "Crypto",
