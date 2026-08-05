@@ -2,6 +2,7 @@ import {
   index,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   serial,
   text,
@@ -15,9 +16,39 @@ import type {
   ReviewScores,
   SourceCheck,
 } from "src/ai-review/types";
-import { aiReviewProvider, aiReviewVerdict } from "./market-ai-reviews";
-import { aiReviewJobStatus, aiReviewJobTrigger } from "./market-ai-review-jobs";
+import { REVIEW_PROVIDER_NAMES, REVIEW_VERDICTS } from "src/ai-review/types";
+import { JOB_STATUSES, JOB_TRIGGERS } from "./job-queue";
 import { marketDrafts } from "./market-drafts";
+
+// The four review pg enums moved here from the retired market_ai_reviews /
+// market_ai_review_jobs schema files (ADR 0022 P5 follow-up): the DRAFT
+// review tables were always their surviving consumer, and the Postgres enum
+// types themselves are unchanged — same names, same members — so relocating
+// the definitions is invisible to the database.
+
+/**
+ * Postgres enum for ReviewProviderName, derived from the same const array so
+ * adding a provider surfaces here as a drizzle schema diff (migration needed)
+ * instead of an enum-insert error at runtime.
+ */
+export const aiReviewProvider = pgEnum("ai_review_provider", [
+  ...REVIEW_PROVIDER_NAMES,
+]);
+
+/** Postgres enum for ReviewVerdict, derived from the same const array. */
+export const aiReviewVerdict = pgEnum("ai_review_verdict", [
+  ...REVIEW_VERDICTS,
+]);
+
+/** Postgres enum for a review job's queue state, derived from the shared array. */
+export const aiReviewJobStatus = pgEnum("ai_review_job_status", [
+  ...JOB_STATUSES,
+]);
+
+/** Postgres enum for a review job's trigger, derived from the shared array. */
+export const aiReviewJobTrigger = pgEnum("ai_review_job_trigger", [
+  ...JOB_TRIGGERS,
+]);
 
 /**
  * How severe a single feedback item is for the creator: a `blocker` must be

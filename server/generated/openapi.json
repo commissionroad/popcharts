@@ -1699,34 +1699,6 @@
           "ollama"
         ]
       },
-      "AiReviewProgress": {
-        "type": "object",
-        "required": [
-          "phase",
-          "status"
-        ],
-        "properties": {
-          "phase": {
-            "type": "string",
-            "enum": [
-              "awaiting_queue",
-              "queued",
-              "running",
-              "retrying",
-              "complete",
-              "attention_required"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "complete",
-              "attention_required"
-            ]
-          }
-        }
-      },
       "AiReviewScoreRationales": {
         "type": "object",
         "required": [
@@ -2203,9 +2175,6 @@
         "properties": {
           "aiReview": {
             "$ref": "#/components/schemas/MarketAiReview"
-          },
-          "aiReviewProgress": {
-            "$ref": "#/components/schemas/AiReviewProgress"
           },
           "bypassAiResolution": {
             "type": "boolean"

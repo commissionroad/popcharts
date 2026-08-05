@@ -5,7 +5,6 @@ import { config } from "src/config";
 import {
   AiReviewEvidenceSchema,
   AiReviewProviderSchema,
-  AiReviewProgressSchema,
   AiReviewScoreRationalesSchema,
   AiReviewScoresSchema,
   AiReviewSourceCheckSchema,
@@ -83,7 +82,6 @@ const marketRoutesBase = new Elysia({ prefix: "" })
   .model({
     AiReviewEvidence: AiReviewEvidenceSchema,
     AiReviewProvider: AiReviewProviderSchema,
-    AiReviewProgress: AiReviewProgressSchema,
     AiReviewScoreRationales: AiReviewScoreRationalesSchema,
     AiReviewScores: AiReviewScoresSchema,
     AiReviewSourceCheck: AiReviewSourceCheckSchema,

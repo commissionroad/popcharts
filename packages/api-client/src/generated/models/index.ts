@@ -8,9 +8,6 @@
 
 export * from "./aiReviewEvidence";
 export * from "./aiReviewEvidenceKind";
-export * from "./aiReviewProgress";
-export * from "./aiReviewProgressPhase";
-export * from "./aiReviewProgressStatus";
 export * from "./aiReviewProvider";
 export * from "./aiReviewScoreRationales";
 export * from "./aiReviewScores";

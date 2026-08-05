@@ -8,7 +8,6 @@ import {
   REVIEW_VERDICTS,
   SOURCE_TIERS,
 } from "src/ai-review/types";
-import { JOB_STATUSES, JOB_TRIGGERS } from "src/db/schema/job-queue";
 import { MARKET_STATUSES } from "src/db/schema/markets";
 import { POSTGRAD_RESOLUTION_KINDS } from "src/db/schema/postgrad-resolution-events";
 import { VENUE_ORDER_STATUSES } from "src/db/schema/venue-orders";
@@ -210,36 +209,6 @@ export const MarketAiReviewSchema = t.Object(
   },
   { $id: "MarketAiReview" },
 );
-
-/** Sanitized review progress exposed on public market reads. */
-export const AiReviewProgressSchema = t.Object(
-  {
-    phase: t.Union([
-      t.Literal("awaiting_queue"),
-      t.Literal("queued"),
-      t.Literal("running"),
-      t.Literal("retrying"),
-      t.Literal("complete"),
-      t.Literal("attention_required"),
-    ]),
-    status: t.Union([
-      t.Literal("pending"),
-      t.Literal("complete"),
-      t.Literal("attention_required"),
-    ]),
-  },
-  { $id: "AiReviewProgress" },
-);
-
-/** Queue state of an AI-review job. */
-export const AiReviewJobStatusSchema = literalUnion(JOB_STATUSES, {
-  $id: "AiReviewJobStatus",
-});
-
-/** What caused an AI-review job to be enqueued. */
-export const AiReviewJobTriggerSchema = literalUnion(JOB_TRIGGERS, {
-  $id: "AiReviewJobTrigger",
-});
 
 /** One outcome-token pool on the bounded v4 venue. */
 export const MarketVenuePoolSchema = t.Object(
@@ -483,7 +452,6 @@ export const MarketResolutionSchema = t.Object(
 export const MarketSchema = t.Object(
   {
     aiReview: t.Optional(t.Ref(MarketAiReviewSchema)),
-    aiReviewProgress: t.Optional(t.Ref(AiReviewProgressSchema)),
     bypassAiResolution: t.Boolean(),
     chainId: t.Number(),
     collateral: t.String(),
