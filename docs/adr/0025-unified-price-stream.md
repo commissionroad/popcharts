@@ -222,10 +222,12 @@ older rows needs no backfill.
 
 ## Deferred / open
 
-- **The assembled server path has never run in CI.** Pools, ticks, and the
-  decimals read together have only ever been exercised locally, by hand. The
-  P6 proof above was a driven local-stack session, not a CI lane; folding the
-  assembled path into the lifecycle e2e lane remains open.
+- **The assembled server path in CI: covered.** The lifecycle lane's golden
+  journey now asserts it end to end — after the in-browser venue trade, the
+  unified read must show a venue point past `graduatedAt`, a hook-stamped
+  `streams` ordinal, and price continuity at the handoff. (Originally
+  deferred here as "has never run in CI"; closed by the follow-up that added
+  the assertions.)
 - **Gap detection depends on the gas measurement in P1.** If the hook counter
   turns out to cost more than assumed and is dropped, the fallback is
   `(blockNumber, logIndex)` ordering with no gap detection — misses would then
