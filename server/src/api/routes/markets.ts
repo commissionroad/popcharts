@@ -60,6 +60,7 @@ import {
   getMarketCreatedEvents,
   getMarketReceiptPlacedEvents,
   getMarkets,
+  parseMarketStatusFilter,
   upsertMarketMetadata,
 } from "src/api/services/markets";
 import {
@@ -127,9 +128,17 @@ const marketRoutesBase = new Elysia({ prefix: "" })
   .get(
     "/markets",
     async ({ query, set }) => {
+      const statuses = parseMarketStatusFilter(query.status);
+
+      if (!statuses) {
+        set.status = 400;
+        return "Invalid status filter";
+      }
+
       const markets = await getMarkets({
         chainId: query.chainId ? Number.parseInt(query.chainId, 10) : undefined,
         since: query.since,
+        statuses,
       });
 
       if (!markets) {
@@ -143,6 +152,7 @@ const marketRoutesBase = new Elysia({ prefix: "" })
       query: t.Object({
         chainId: t.Optional(t.String()),
         since: t.Optional(t.String()),
+        status: t.Optional(t.String()),
       }),
       response: {
         200: "MarketList",
@@ -152,7 +162,7 @@ const marketRoutesBase = new Elysia({ prefix: "" })
         operationId: "listMarkets",
         summary: "List indexed markets",
         description:
-          "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
+          "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time. Pass `status` as a comma-separated list of MarketStatus values to narrow the list to those lifecycle states.",
         tags: ["Markets"],
       },
     },

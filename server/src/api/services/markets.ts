@@ -15,7 +15,11 @@ import {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
-import { mayHaveGraduated } from "src/db/schema/markets";
+import {
+  MARKET_STATUSES,
+  mayHaveGraduated,
+  type MarketStatus,
+} from "src/db/schema/markets";
 import {
   computeMatchedMarketCap,
   pregradManagerAbi,
@@ -64,18 +68,52 @@ type MarketQueryRow = {
 let localPublicClient: BlockchainClient | null = null;
 
 /**
+ * Parses the `status` query filter: a comma-separated list of MarketStatus
+ * values. Returns the empty list for an absent or blank value (no filter),
+ * and null when any segment names no status — the route answers 400 rather
+ * than silently ignoring the filter, the same contract `since` has.
+ */
+export function parseMarketStatusFilter(
+  value: string | undefined,
+): MarketStatus[] | null {
+  if (!value) {
+    return [];
+  }
+
+  const segments = value
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (
+    segments.length === 0 ||
+    segments.some((segment) => !MARKET_STATUS_SET.has(segment))
+  ) {
+    return null;
+  }
+
+  return segments as MarketStatus[];
+}
+
+const MARKET_STATUS_SET: ReadonlySet<string> = new Set(MARKET_STATUSES);
+
+/**
  * Lists markets for the currently configured PregradManager, newest first,
  * each decorated with metadata, matched market cap, and its latest AI review.
  * Returns null when the since filter is unparseable so the route can answer
  * 400 instead of silently ignoring the filter. On the local network, markets
  * that no longer exist on-chain (e.g. after a chain restart) are filtered out.
+ * A non-empty `statuses` list narrows the scan in SQL (repo ADR 0022 P8) —
+ * the board never over-fetches and filters client-side.
  */
 export async function getMarkets({
   chainId,
   since,
+  statuses,
 }: {
   chainId?: number;
   since?: string;
+  statuses?: MarketStatus[];
 }): Promise<MarketResponse[] | null> {
   const sinceDate = parseSinceTimestamp(since);
   if (since && !sinceDate) {
@@ -87,6 +125,7 @@ export async function getMarkets({
     eq(schema.contracts.chainId, config.chainId),
     chainId === undefined ? undefined : eq(schema.markets.chainId, chainId),
     sinceDate ? gt(schema.markets.createdBlockTimestamp, sinceDate) : undefined,
+    statuses?.length ? inArray(schema.markets.status, statuses) : undefined,
   ].filter(isDefined);
 
   const rows = await db

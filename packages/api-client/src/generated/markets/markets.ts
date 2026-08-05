@@ -20,7 +20,7 @@ import type {
 } from ".././models";
 
 /**
- * Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.
+ * Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time. Pass `status` as a comma-separated list of MarketStatus values to narrow the list to those lifecycle states.
  * @summary List indexed markets
  */
 export type listMarketsResponse200 = {

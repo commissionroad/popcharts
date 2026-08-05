@@ -52,7 +52,7 @@
       "get": {
         "operationId": "listMarkets",
         "summary": "List indexed markets",
-        "description": "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
+        "description": "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time. Pass `status` as a comma-separated list of MarketStatus values to narrow the list to those lifecycle states.",
         "tags": [
           "Markets"
         ],
@@ -67,6 +67,14 @@
           },
           {
             "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
             "in": "query",
             "required": false,
             "schema": {
