@@ -449,8 +449,8 @@ stands unchanged.
 **What went wrong.** First full pass through the finished flow (2026-08-04, local stack,
 ollama reviewer): a date-anchored question — _"Will Bitcoin (BTC/USD) close above $150,000
 on December 31, 2026?"_ — was drafted, approved, and published with the stored resolution
-window of "one week after publish". The market will resolve on August 11, four and a half
-months before the event its own question names. Nothing in the pipeline could catch it: the
+window of "one week after publish". The market becomes eligible for resolution on
+August 11, four and a half months before the event its own question names. Nothing in the pipeline could catch it: the
 creator edits a datetime picker that silently means "a duration from a publish that hasn't
 happened yet", and the reviewer sees only window seconds — never a resolved date to hold
 against the question text — so it approved the mismatch three times. The same
@@ -489,15 +489,20 @@ date its deadline contradicts becomes a flaggable inconsistency instead of invis
 plumbing. The live miss above survived review precisely because "resolves 2026-08-11" never
 appeared next to "on December 31, 2026?".
 
-**Publish-time validation.** Publish still resolves and re-checks at mint time:
-`now + graduationWindowSeconds < yesNotBefore ≤ resolutionTime`, with `resolutionTime` now
-a validated pass-through. Two refusals become possible, both correct, both returned as
-editable draft feedback rather than surfacing as a revert: the resolution date has passed,
-or publish delay pushed the resolved graduation deadline past the fixed resolution date so
-the window no longer fits. The studio should surface an approved draft whose date has
-passed ("pick a new date") rather than leaving the discovery to the publish click.
-`yesNotBefore` stays derived. The P4 authorization is untouched — it already binds absolute
-deadlines at mint; only the provenance of `resolutionTime` changes.
+**Publish-time validation — a required P9 change to the shipped publish path.** The
+mint-time re-check stays, but its shape changes: today's code computes **both** deadlines
+from relative windows and pins `yesNotBefore = resolutionTime`
+(`server/src/api/services/market-drafts.ts`, `buildDraftPublishParams`), with no
+deadline-validation outcome to return. Under the amendment, publish resolves only the
+graduation window, passes the stored resolution date through, and validates
+`now + graduationWindowSeconds < yesNotBefore ≤ resolutionTime`. Two refusals become
+possible, both correct, both returned as editable draft feedback rather than surfacing as
+a revert: the resolution date has passed, or publish delay pushed the resolved graduation
+deadline past the fixed resolution date so the window no longer fits. The studio should
+surface an approved draft whose date has passed ("pick a new date") rather than leaving
+the discovery to the publish click. `yesNotBefore` stays derived. The P4 authorization
+mechanism is untouched — it already binds absolute deadlines at mint; only the provenance
+of `resolutionTime` changes.
 
 **Rejected alternatives.**
 
@@ -696,6 +701,12 @@ cannot be taken back; and with a single-setter rotation (below), rotating invali
 outstanding authorization, so the window is the rotation blast radius. The window is cheap
 because the server can mint freely — **the app must re-mint on expiry rather than surfacing
 an error.** That is a requirement of choosing a short window, not an optional nicety.
+
+_(Amended 2026-08-05: under the deadline-timing amendment only `graduationDeadline` is
+resolved from a duration at mint — `resolutionTime` is the fixed, reviewed timestamp — so
+the drift this expiry bounds narrows to the graduation deadline, and the 90-day→60-day
+example no longer applies as written. The revocation-window and rotation-blast-radius
+reasons stand unchanged, and the short expiry with app-side re-mint remains correct.)_
 
 **Key handling.**
 

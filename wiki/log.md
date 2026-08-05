@@ -334,7 +334,6 @@ Pages: ~summaries/root-readme.md, ~summaries/server-readme.md, ~summaries/ai-rev
 Notes: Provider latency no longer becomes a completed local heuristic approval. The durable runner keeps transient failures pending with bounded five/six/ten-minute model/request/lease limits; public reads expose pending/complete/attention states, the detail page refreshes active work, and completed reviews persist a rationale for every score.
 
 ## [2026-07-14] ingest | repo ADR 0017 — grill-session amendments (same-day)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md, ~entities/protocol-workspace.md, ~index.md
 Notes: Grill session on Track A produced four new scoping rules
 (informational-only reporting — never a required check; workspace-own
@@ -349,7 +348,6 @@ barrel. Track A ships with protocol = Solidity figure only; the TS figure
 is a Track G exit criterion.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track A completed (flake report + retry surfacing)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: Final two Track A boxes ticked: weekly FLAKES.md job (schedule +
 workflow_dispatch on test-observability.yml; report-only, >5% threshold
@@ -358,15 +356,14 @@ comment (app CI now uploads app-e2e-report; comment payload gained an
 optional e2e field, version unchanged). First real-data run: App CI 7.5%
 failure rate over 7 days but zero rerun-passes — no one reruns failures at
 the same SHA yet, so the flake column starts empty. Also corrected this
-summary's stale "scripts/ci/" location claim to the actual scripts/ci-\*.ts +
+summary's stale "scripts/ci/" location claim to the actual scripts/ci-*.ts +
 scripts/shared/ layout.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track B grill decisions, Track C scope broadened
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: Second grill session (Track B). Two-substrate decision: PGlite for
 unit (spike-gated), real Postgres service container for integration+ —
-per-PR inside Check server for DB-only tests (\*.int.test.ts convention),
+per-PR inside Check server for DB-only tests (*.int.test.ts convention),
 nightly for anything needing a chain or second service. Paper-trail
 invariant chosen as the first integration cargo over route breadth. Track C
 renamed "nightly full-fidelity tier" and broadened from scheduling existing
@@ -374,7 +371,6 @@ smokes to growing new full-stack scenarios. Floor measured on unit tier
 only.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track F completed (invariant-test timeout)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: The band-pass invariant test (2000 random books) got a 30s explicit
 timeout against bun's 5s default — it ran ~8s under coverage
@@ -383,9 +379,8 @@ flake. Done as its own micro-PR ahead of Track B item 1 because the floor
 work needs clean local coverage runs to measure baselines.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track B item 1 landed (server coverage floor)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
-Notes: bunfig gained ../protocol/\*\* in coveragePathIgnorePatterns (bun's own
+Notes: bunfig gained ../protocol/** in coveragePathIgnorePatterns (bun's own
 totals now workspace-own: functions 70.09 / lines 74.88 — note bun's line
 metric differs from the lcov-derived badge figure, two rulers by design) and
 coverageThreshold { function = 0.70, line = 0.74 }. Bun gotcha recorded in
@@ -394,7 +389,6 @@ threshold both exit 1 with zero diagnostic output. Enforcement verified in
 both directions locally.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track B item 2 landed (PGlite spike: go)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: receipt-placed.pglite.test.ts proves the unit substrate: PGlite +
 drizzle-orm/pglite + drizzle-kit/api pushSchema under bun test, no Docker.
@@ -405,10 +399,9 @@ first ratchet bump of the program. Executor typing still needs the cast
 noted in-file; first-class injection is Track B item 4.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track B item 3 landed (paper-trail integration suite)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: Check server gained a postgres:16-alpine service container and a
-per-PR integration step; \*.int.test.ts convention is describe.skipIf on
+per-PR integration step; *.int.test.ts convention is describe.skipIf on
 POPCHARTS_INT_DB_URL with throwaway databases (int-db.ts; drizzle-kit
 generateMigration DDL because pushSchema is incompatible with the
 postgres-js driver). paper-trail.int.test.ts covers all 7 persist
@@ -418,7 +411,6 @@ row but not the referenced receipt row (task chip filed). Unit suite and
 coverage floor untouched by all this — int tests skip without the env.
 
 ## [2026-07-14] ingest | repo ADR 0017 — Track B complete (items 4+5: injectable db, route tests, boundary doc)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: src/db/client.ts `db` is now a lazy Proxy (function-binding get,
 setDbForTesting override; no connection until first query, so route tests
@@ -430,7 +422,6 @@ function 0.7672 / line 0.7666. Whole Track B checklist closed same-day as
 the grill that designed it.
 
 ## [2026-07-14] ingest | go-live: landing + app deployed, domains attached (PR #221)
-
 Pages: +summaries/deployment-go-live-dns.md, ~summaries/deployment-vercel.md,
 ~concepts/deployment-and-infrastructure.md, ~index.md
 Notes: docs/deployment/vercel.md now points at commissionroad/popcharts and
@@ -443,7 +434,6 @@ and protocol remain M5. The no-env app deploy labels fixture markets with a
 sample-data banner (product honesty rule).
 
 ## [2026-07-14] ingest | repo ADR 0018 — terminal-market surface and redemption UX
-
 Pages: +summaries/root-adr-0018-terminal-market-surface-and-redemption-ux.md,
 ~concepts/market-lifecycle.md, ~entities/app-workspace.md,
 ~entities/postgrad-market.md, ~summaries/root-adr-0013-app-feature-completion.md,
@@ -461,7 +451,6 @@ gap the lifecycle page now flags: cancel_draw verdicts become user-visible
 while the operator cancel task only targets the synthetic manifest market.
 
 ## [2026-07-14] ingest | repo ADR 0019 — AI verdict quality program
-
 Pages: +summaries/root-adr-0019-ai-verdict-quality-program.md,
 ~concepts/ai-assisted-resolution.md, ~entities/ai-review-service.md,
 ~concepts/testing-strategy.md, ~summaries/root-adr-0011-ai-review-service-hardening.md,
@@ -479,16 +468,13 @@ manual_review ×3). Also flips the resolution local default heuristic →
 Ollama — added as a third safety valve note on the resolution concept page.
 
 ## [2026-07-14] ingest | portfolio-data-design — postgrad_redemption_events added to paper-trail tables
-
 Pages: ~summaries/portfolio-data-design.md
 Notes: The claim-winnings build (resolution redemption UI) added the
 postgrad_redemption_events table indexing Redeemed/CancelledRedeemed from
 graduated CompleteSetBinaryMarkets — the first concrete realization of the
 invariant's "resolution redemption" clause. Doc bullet and summary updated;
 index line unchanged (already mentions the invariant).
-
 ## [2026-07-15] ingest | repo ADR 0017 — Track D complete (v4 lib suites, invariant harness, Solidity floor)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: OrderValidation/PartialFillMath/V4DeltaSettlement get dedicated
 harness-backed suites (house pattern: external-wrapper harnesses; recording
@@ -500,10 +486,9 @@ pinned 96.67 via the new lcov floor-check CLI (reuses the coverage-report
 lcov parser + workspace filters; hardhat has no native threshold).
 
 ## [2026-07-15] ingest | repo ADR 0017 — Track E gate landed (infra CI)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: infra-ci.yml (Check infra) typechecks and cdk-synths the CDK app on
-infra/\*\* changes — synth verified credential-less locally. Fourth required
+infra/** changes — synth verified credential-less locally. Fourth required
 status check on main. CDK assertion tests stay open as E's second box.
 
 ## [2026-07-15] lint | server→protocol edge contradiction reconciled; go-live/CI reality drift; 0016 E7 re-tick + ADR-index 0017–0019
@@ -531,7 +516,7 @@ was reconciled by adjacent 0017 PRs).
 
 The metric's blind spot this window was **partial ingests**, not zero ingests:
 **#198** (`health-docs-reconcile`) touched `concepts/monorepo-architecture.md`
-for the E7/D3 bookkeeping but the _same PR's_ `docs/architecture.md` reconcile —
+for the E7/D3 bookkeeping but the *same PR's* `docs/architecture.md` reconcile —
 the real server→protocol dependency edge, the resolution/keeper subsystems, the
 app import-rule refinements — never propagated to `summaries/architecture.md`,
 the rest of `monorepo-architecture.md`, or `entities/server-workspace.md`. A
@@ -546,8 +531,8 @@ Findings and fixes:
   Since the 2026-07-14 architecture reconcile that is **false**: the server now
   depends on `@popcharts/protocol` via a `file:../protocol` dependency (venue
   ABIs, price/tick helpers, clearing math, manifest types — used by the keeper,
-  venue services, and the venue-pool registry), and only the _pregrad indexer
-  watchers_ keep inline `parseAbi` fragments. Reconciled the acyclic-contract
+  venue services, and the venue-pool registry), and only the *pregrad indexer
+  watchers* keep inline `parseAbi` fragments. Reconciled the acyclic-contract
   wording, the server→chain / new server→protocol edges, and the tooling note
   across `summaries/architecture.md`, `concepts/monorepo-architecture.md`, and
   `entities/server-workspace.md`. Also folded in the two new workspaces
@@ -555,7 +540,7 @@ Findings and fixes:
   import-rule exceptions (pure price-policy/tick-math in
   `domain/postgrad-trading`; type-only generated-model imports in features).
   **This was date-clean drift** — both concept/entity pages carried `updated:
-2026-07-14`, so a staleness scan reported them healthy; only reading the
+  2026-07-14`, so a staleness scan reported them healthy; only reading the
   source diff caught it.
 - **`overview.md` "nothing is deployed" → false.** The frontend went live on
   Vercel 2026-07-14 (`popcharts-landing` on popcharts.xyz, app on
@@ -599,7 +584,6 @@ The README's 0016 "Track C open" row is a live raw-source lag; if 0016 is ever
 re-touched, that row should be corrected at the source.
 
 ## [2026-07-15] ingest | root doc — AI verdict failure taxonomy
-
 Pages: +summaries/ai-verdict-failure-taxonomy.md, ~index.md
 Notes: first ADR 0019 artifact (same PR #226 as the eval dataset/runner and
 the v3 policy adoption). Records the WHAT/WHERE/WHEN resolvability contract,
@@ -612,7 +596,6 @@ already carry ADR 0019 sections from its ingest; no further page edits
 needed.
 
 ## [2026-07-15] ingest | root doc — portfolio data design (redemption read surface)
-
 Pages: ~summaries/portfolio-data-design.md
 Notes: doc gained a `PortfolioRedemption` model in its Proposed API section —
 the portfolio payload now includes past resolution-redemption payouts from
@@ -622,18 +605,16 @@ bullet extended; no other page edits needed (paper-trail section already
 covered the table itself from PR #219's ingest).
 
 ## [2026-07-16] lint | ADR 0019 first-slice status reconcile
-
 Pages: ~summaries/root-adr-0019-ai-verdict-quality-program.md,
 ~concepts/testing-strategy.md, ~concepts/ai-assisted-resolution.md,
 ~entities/ai-review-service.md, ~index.md
 Notes:
-
 - **Organic ingestion since last lint: 1/1 doc changes self-ingested**
   (docs/ai-verdict-failure-taxonomy.md, created and wiki-ingested inside the
   same PR #226). Quiet window otherwise — PRs #229/#231 touched no raw
   sources.
 - **"All open" → "first slice landed" for ADR 0019.** PR #226 (merged
-  2026-07-15) filed the ADR _and_ landed its first slice: the review-side
+  2026-07-15) filed the ADR *and* landed its first slice: the review-side
   eval runner (`server/src/ai-review/evals/run-review-evals.ts`), 52
   hand-labeled seeds in per-class dataset modules, the taxonomy doc, and
   review prompt v3 (`market-ai-review-v3`) adopted with before/after eval
@@ -667,13 +648,11 @@ doc+code landing whose wiki pages lagged one edit behind). (2) PR #234
 changes, verify ingestion.
 
 ## [2026-07-17] lint | ADR 0019 core-harness drift + portfolio-doc partial ingest
-
 Pages: ~summaries/root-adr-0019-ai-verdict-quality-program.md,
 ~concepts/testing-strategy.md, ~entities/ai-review-service.md,
 ~concepts/ai-assisted-resolution.md, ~entities/app-workspace.md,
 ~entities/indexer.md, ~index.md
 Notes:
-
 - **Organic ingestion since last lint: 1/1 doc changes self-ingested.** The
   only raw-source doc change in the window (PR #235 baseline → origin/main)
   was `docs/portfolio-data-design.md` (PR #234, merged 2026-07-16): its
@@ -681,7 +660,7 @@ Notes:
   commit. Self-ingested. The five ADR-0019 PRs that also landed 2026-07-16
   (#236/#237/#238/#232/#233) were **code-only — they touched no raw
   sources** — so they don't count in the doc-ingestion metric, but they did
-  drive status drift (below): the wiki summarizes design _intent_ (docs),
+  drive status drift (below): the wiki summarizes design *intent* (docs),
   and no doc changed, yet the pages' landed-vs-open status notes went wrong.
 - **ADR 0019 status drift (main finding, the last two lints' follow-up #1).**
   Three of the five items the 0019 pages still listed as "still open" landed
@@ -698,7 +677,7 @@ Notes:
   heuristic→Ollama flip as open. Verified against commit contents, not
   titles: `resolver.ts` in #236 only exported `SERVICE_ERROR_HARD_FLAG` (no
   default flip — kept as open); the resolution dataset is 35 seeds (9 YES /
-  9 NO / 5 too_early / 3 draw / 6 abstain / 3 injection), _not_ the review
+  9 NO / 5 too_early / 3 draw / 6 abstain / 3 injection), *not* the review
   side's 52.
 - **Partial-ingest (last lint's follow-up on the same failure mode).**
   `docs/portfolio-data-design.md`'s 703003b change ingested its summary but
@@ -707,7 +686,7 @@ Notes:
   stub — being replaced," though PR #154 dropped the stub 2026-07-09 and the
   2026-07-15 change added the "Claimed payouts" redemption table; rewrote to
   DB-backed-and-live + the payout surface. `indexer.md` was date-stale-only:
-  the change is an API _read_ surface (`PortfolioRedemption`), not
+  the change is an API *read* surface (`PortfolioRedemption`), not
   ingestion, which the indexer page describes — bumped `updated:` (verified
   current), no content change.
 - **Raw-source lag (widening).** `docs/adr/0019`'s own checklist is still
@@ -721,7 +700,7 @@ Notes:
 
 Follow-ups for next lint: (1) code-only PRs are now the dominant drift
 source — when scanning, don't stop at raw-source doc diffs; for active
-programs (0019 especially) check whether landed _code_ has moved the
+programs (0019 especially) check whether landed *code* has moved the
 "open/landed" status notes even when no doc changed. (2) The open ADR-0019
 items to watch land next: reject-corroboration policy, resolution
 local-default flip, `AI_REVIEW_PROMPT_VERSION` eval-gate, template/LLM
@@ -729,7 +708,6 @@ dataset expansion. (3) README 0016 "Track C open" row + ADR 0019 all-`[ ]`
 checklist remain raw-source lags to reconcile if either doc is next touched.
 
 ## [2026-07-15] ingest | repo ADRs 0017+0014 — Track C grill decisions (two nightly suites)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~index.md
 Notes: Track C settled: nightly-lifecycle (service/chain layer for ALL
 lifecycle paths, heuristics + time-jumps, paper-trail assertions; ADR 0014
@@ -742,7 +720,6 @@ issues; Discord revisit noted; server-ai-review-smoke re-homed per-PR
 drift apart.
 
 ## [2026-07-17] ingest | repo ADR 0020 — concurrent local dev stacks
-
 Pages: +summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
 Notes: New slot-addressed instance model (slot 0 human, 1..n agents in
 .claude/worktrees/, then auto-offset); home-dir registry
@@ -755,12 +732,10 @@ core landed 2026-07-17 (PR #242); Phases 2–4 open. Concept page gained a
 env-seams section still describes the single-stack .env.local-chain path).
 
 ## [2026-07-17] ingest | repo ADR 0021 — live market updates (SSE over a change-feed outbox)
-
 Pages: +summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
 Notes: Proposed standalone program (not in the M1–M5 chain). Decision = signal-to-refetch over SSE fed by a durable change_feed outbox (trigger-written atomically with each indexed event); DB/REST stays single source of truth; indexer stays pure (DB-level, writer-agnostic emit seam); NOTIFY demoted to an optional poll-first doorbell (verified: NOTIFY serializes commits via a cluster-global AccessExclusiveLock + RDS Proxy can't LISTEN); no message broker. Leans on two open items elsewhere — finer-grained read endpoints (this ADR) and confirmation-depth/reorg emit timing (ADR 0010). Deployment pieces (SSE/ALB/CORS/RDS-Proxy) scoped to ADR 0015. Watch for drift once the 7 slices start landing; entity notes are marked "planned, not yet built."
 
 ## [2026-07-17] ingest | repo ADR 0020 — phases 2–4 landed
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
 Notes: All build phases of ADR 0020 landed 2026-07-17 (PRs #242, #247, #248):
 control-plane slot wiring (resolveAndRegisterStack), identity-scoped chain
@@ -769,9 +744,7 @@ local-create-market (resolveTargetStack + "which stack?" prompt). Remaining
 open: applying the target resolver to sibling scripts (local-bot-trade,
 local-deploy-venue, postgrad helpers) — tracked as ADR follow-up. Env-seams
 note in the concept page updated to per-slot env files.
-
 ## [2026-07-15] ingest | repo ADR 0017 — C2 premise correction (ai-review smoke needs a chain)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: The Track C grill note that server-ai-review-smoke "needs only
 Postgres -> per-PR" was falsified during C1 pre-flight: chain-review.ts
@@ -785,7 +758,6 @@ in-process service fail confusingly; the job error lands in
 market_ai_review_jobs.last_error, which the smoke doesn't print.
 
 ## [2026-07-20] ingest | repo ADR 0017 — C1 landed; first nightly catch
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox state only)
 Notes: nightly-lifecycle live (PRs #251 + spec fix). Its FIRST dispatched
 run caught a real rotted spec: the @chain Playwright test asserted
@@ -796,7 +768,6 @@ verified live (auto-filed #253). Spec now asserts the mode eyebrow
 artifacts uploaded on red.
 
 ## [2026-07-20] ingest | repo ADR 0017 — C2 landed (real-market ai-review smoke)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md (checkbox only)
 Notes: the ai-review smoke no longer fabricates DB rows. New root
 orchestrator scripts/local-ai-review-smoke.ts creates a fresh on-chain
@@ -808,7 +779,6 @@ self-heal. Wired into the nightly chain-smoke sequence (create -> index ->
 trade -> resolve -> review).
 
 ## [2026-07-17] ingest | repo ADR 0020 — Phase 5 (sibling scripts) landed
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~concepts/local-dev-orchestration.md, ~index.md
 Notes: The deferred sibling-targeting-scripts follow-up landed (#260): a single
 scripts/with-target-stack.ts launcher resolves the target stack and exports the
@@ -818,7 +788,6 @@ shared module. Same-worktree scope; cross-slot deploy from one checkout still
 wants the deferred per-slot chainId (hardhat ignition state keyed by chainEnv).
 
 ## [2026-07-20] ingest | protocol ADR 0012 — singleton postgrad position book (proposed)
-
 Pages: +summaries/protocol-adr-0012-singleton-postgrad-position-book.md,
 ~concepts/complete-sets.md, ~entities/postgrad-market.md,
 ~entities/postgrad-adapter.md, ~entities/indexer.md, ~index.md
@@ -830,7 +799,6 @@ flagged in complete-sets.md) and root ADR 0010's indexer-maturity items,
 which shrink in scope if dynamic postgrad addresses become bounded.
 
 ## [2026-07-20] ingest | protocol ADR 0012 — Codex design-review hardening (same PR)
-
 Pages: ~summaries/protocol-adr-0012-singleton-postgrad-position-book.md
 Notes: Independent design review surfaced 9 findings, all folded into the
 ADR pre-review: terminal retained-claim liabilities (stranding hazard),
@@ -841,7 +809,6 @@ registration discovery event, and outcome decimals promoted to a BLOCKING
 pre-acceptance question (v4 dust vs. exact-or-revert redemption).
 
 ## [2026-07-20] ingest | repo ADR 0017 — Track G move + guard executed
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md
 Notes: Three of four Track G boxes ticked. The SDK closure turned out to be
 29 files, not just price/market: readCompleteSetMarketManifest transitively
@@ -853,7 +820,6 @@ figure + floor (needs a TS lcov lane in protocol CI; hardhat coverage is
 contracts-only).
 
 ## [2026-07-20] ingest | root ADR 0014 — lifecycle harness + happy path landed (ADR 0017 C3 slice 1)
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~concepts/testing-strategy.md, ~index.md
 Notes: ADR 0014's two harness boxes and the happy-path box are ticked. The
 delivery is `pnpm local:lifecycle-nightly` (boot-once orchestrator: chain,
@@ -866,10 +832,9 @@ mechanics, not the interactive bot script. Unhappy-path scenarios and infra
 drills remain open (next C3 slices).
 
 ## [2026-07-21] ingest | repo ADR 0017 — Track G complete (protocol TS coverage figure)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~concepts/testing-strategy.md
 Notes: Final G checkbox ticked. Fourth coverage figure Protocol (TS): c8
---all over `hardhat test nodejs`, scoped src/\*\* minus generated/, shipped
+--all over `hardhat test nodejs`, scoped src/** minus generated/, shipped
 as lcov-ts.info inside the existing protocol-coverage artifact; registry
 gained lcovFile + workspacesForWorkflow (one workflow, many figures);
 observability workflow loops pairs with comment-body chaining (no upsert
@@ -879,7 +844,6 @@ progress (C1 done, C3 slice 1 landed 2026-07-20; C2/C4/C5/C6 open), E
 lacks CDK assertion tests.
 
 ## [2026-07-21] ingest | protocol postgrad contract metadata — generated third-party venue ABIs
-
 Pages: ~summaries/protocol-postgrad-contract-metadata.md
 Notes: export-contract-metadata.ts now also emits src/generated/third-party/venue.ts
 (compiled poolManagerAbi/stateViewAbi/v4QuoterAbi from the vendored v4 packages,
@@ -889,7 +853,6 @@ fragments remain only for contracts outside the Hardhat build (the canonical
 transfer-approval singleton).
 
 ## [2026-07-21] ingest | root ADR 0014 — four unhappy-path scenarios landed (ADR 0017 C3 slice 2)
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md
 Notes: Rejection, manual review, failed graduation, and draw/cancel are
 ticked; partial clearing and the infra drills remain the last open C3
@@ -902,7 +865,6 @@ the keeper sweep's markRefundable; the resolution runner parks draws
 resolver key, after which both legs redeem at half value.
 
 ## [2026-07-21] ingest | repo ADR 0020 — slot-scoped indexer health marker
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
 Notes: the ADR's resource table gained an indexer-health-marker row
 (`.env.local-dev.indexer-health` / `….<s>`). The marker was the last
@@ -914,7 +876,6 @@ StackPorts.indexerHealthFilePath; the smoke dropped its separate
 `.env.local-chain.indexer-health` name.
 
 ## [2026-07-21] ingest | root ADR 0014 + 0017 — C3 complete (partial clearing + infra drills)
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md, ~summaries/root-adr-0017-test-observability-and-coverage-program.md, ~index.md
 Notes: The final two ADR 0014 unhappy paths land, completing ADR 0017 C3
 (all eight service/chain lifecycle paths). Partial clearing: band-pass
@@ -930,7 +891,6 @@ flag. AI-outage recovery keys off market status / the review audit row,
 never the job's transient terminal_failed. UI journeys (C4) remain.
 
 ## [2026-07-22] ingest | repo ADR 0014 — golden UI journey (ADR 0017 C4) landed
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
 ~concepts/testing-strategy.md, ~index.md
 Notes: First of the five `@lifecycle` Playwright UI journeys landed
@@ -945,7 +905,6 @@ a stale line in testing-strategy.md that still called C3's unhappy paths the
 partial-clearing, and cancelled/draw UI journeys remain (C4).
 
 ## [2026-07-21] ingest | repo ADR 0022 — review-first market creation
-
 Pages: +summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
 ~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md,
 ~entities/ai-review-service.md
@@ -962,7 +921,6 @@ pregrad-manager/creation-fee-vault entity-page edits (cross-linked from the
 summary; entity bodies still describe current on-chain-first behavior).
 
 ## [2026-07-21] ingest | repo ADR 0022 — anti-spam revised to a prepaid review bond
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md,
 ~concepts/creation-fee-custody.md
 Notes: The rate-limiting-only anti-spam stance (an "accepted risk") was superseded
@@ -976,7 +934,6 @@ Still Proposed; entity pages (pregrad-manager, creation-fee-vault) unchanged, an
 dedicated ReviewBondVault entity page yet (single source until built).
 
 ## [2026-07-22] ingest | repo ADR 0014 — rejected + failed-graduation UI journeys (C4)
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
 ~concepts/testing-strategy.md, ~index.md
 Notes: Journeys 2 and 3 of C4 landed (three of five now). Rejected creation
@@ -990,7 +947,6 @@ sub-threshold; the dev `/close` opens refunds via `markRefundable` and the
 holder claims the full cost back. Partial clearing and cancelled/draw remain.
 
 ## [2026-07-22] ingest | repo ADR 0014 + 0017 — C4 complete (all five UI journeys)
-
 Pages: ~summaries/root-adr-0014-full-lifecycle-e2e-testing.md,
 ~summaries/root-adr-0017-test-observability-and-coverage-program.md,
 ~concepts/testing-strategy.md, ~index.md
@@ -1004,7 +960,6 @@ ADR 0018 draw test — C4 finalizes it as journey 5. Track C now has only C5
 (`nightly-ai-verdicts`) and C6 (`TRENDS.md`) open.
 
 ## [2026-07-23] ingest | correction — C4 review is forced, not run by the AI runner
-
 Pages: ~log.md (the three 2026-07-22 C4 entries above)
 Notes: The three C4 entries above were written mid-build, while the UI lane
 booted the real heuristic review service + runner (`local:smoke
@@ -1022,7 +977,6 @@ lane. The entries above now carry inline pointers here; the ADR 0014/0017
 summaries and the testing-strategy concept were already corrected at land time.
 
 ## [2026-07-23] ingest | ADR 0021 revised — live-updates spine + client transport built (two design reversals)
-
 Pages: ~summaries/root-adr-0021-live-market-updates.md, ~entities/indexer.md, ~entities/server-workspace.md, ~index.md
 Notes: Two things the shipped code decided differently from the original draft.
 (1) **Emit point.** Shipped as explicit TypeScript `recordLiveChange(tx, …)` seams at
@@ -1039,7 +993,7 @@ market data in React Query, so a hook that invalidated query keys would have had
 nothing to invalidate — each surface already owns its own re-read (`load()`, or
 `router.refresh()` for server components). The signal stays a nudge, which is what
 makes a duplicate or replayed signal harmless. The `channel → query-key` map is
-therefore _not_ part of the design; only the server-side `source_table → channel`
+therefore *not* part of the design; only the server-side `source_table → channel`
 map exists.
 Server spine (slice 1) landed 2026-07-22 as a 7-PR stack under server/src/change-feed/
 (#281 table+registry, #283 write primitive+retention, #287 relay+hub, #289 SSE stream,
@@ -1057,10 +1011,10 @@ Same pass also corrected six accuracy drifts an independent review caught by rea
 shipped code against the doc: the documented `change_feed` DDL (created_at is `timestamp`
 not `timestamptz`; `row_id`/`chain_id`/`market_id` are nullable `text`/`integer`/`text`,
 not non-null `bigint`/`integer`/`numeric`; `op` was missing from the summary); "replays
-exactly the gap" (resume is gap-free only _above_ the client's cursor — an `id <= sinceId`
+exactly the gap" (resume is gap-free only *above* the client's cursor — an `id <= sinceId`
 is dropped, and a cursor past the retention window gets `reset{cursor-too-old}`, which the
 client does not yet act on); "dedup/ordering by id" (dedup yes, ordering no — no reordering
-buffer); "catches every viewer-facing change" (only the _registered_ set — five sources are
+buffer); "catches every viewer-facing change" (only the *registered* set — five sources are
 deferred to later slices); "a coverage test proves every source is reached by a real seam"
 (it is a `sourceTable:` literal scan, not a call-graph proof); a "Proposed, not yet built"
 line left on the built relay in server-workspace.md; and `market:{id}` for the channel
@@ -1069,7 +1023,6 @@ slice 1, started by the API). One stale `React Query key` comment in
 server/src/db/schema/change-feed.ts was corrected too — same false claim, in code.
 
 ## [2026-07-23] ingest | repo ADR 0020 — contained agent worktrees
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md,
 ~concepts/local-dev-orchestration.md, ~index.md
 Notes: `.worktrees/` is the canonical ignored directory under the primary
@@ -1077,7 +1030,6 @@ checkout. Legacy `.claude/worktrees/` paths remain recognized during migration,
 so existing agent stacks keep their nonzero slot behavior.
 
 ## [2026-07-23] ingest | root ADR 0017 — Track C item C6 (nightly outcomes in TRENDS.md)
-
 Pages: ~summaries/root-adr-0017-test-observability-and-coverage-program.md,
 ~concepts/testing-strategy.md
 Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
@@ -1086,7 +1038,6 @@ Notes: C6 landed — the `record` job writes nightly per-suite outcomes to
 view from both datastores; idempotent by run id so the push-race retry can't
 duplicate a row. HTML stays an on-demand render of the committed JSON (no
 standing deploy). Track C now C1–C4 + C6 done; C5 (`nightly-ai-verdicts`) open.
-
 ## [2026-07-20] ingest | dispute-window ADRs (protocol 0013 + root 0024)
 
 Pages: +summaries/protocol-adr-0013-bonded-optimistic-resolution.md,
@@ -1109,9 +1060,7 @@ taken by review-first creation and the security audit while the PR was
 open). Both dispute ADRs flipped to Accepted with the user's Phase 0
 decisions: flat ~100-unit bond via prepareMarket, forfeits to owner, no
 bounty in v1, operator settlement final in v1.
-
 ## [2026-07-23] ingest | root ADR 0021 — slice 4 (convert the three polls to push)
-
 Pages: ~summaries/root-adr-0021-live-market-updates.md, ~index.md
 Notes: the order book, open-orders panel, and portfolio now subscribe to live
 channels and refetch on signal; new registered sources venue_order_events
@@ -1124,7 +1073,6 @@ deliberately unregistered — they only change alongside a signalling
 venue_order_events append.
 
 ## [2026-07-24] ingest | backend drain-loop pattern (new architecture doc)
-
 Pages: +concepts/backend-drain-loop-pattern.md, ~index.md
 Notes: New raw doc docs/backend-runtime-architecture.md documents the four
 backend runtimes (indexer, API, AI review, AI resolution) as one shared shape —
@@ -1147,7 +1095,6 @@ Signature quorums and bounties explicitly rejected for v1; position-
 weighted triage and a cheap pre-screen recorded as deferred escalations.
 
 ## [2026-07-24] ingest | ADR 0024 — resolution dispute program (Phase 1 landed)
-
 Pages: ~summaries/root-adr-0024-resolution-dispute-program.md, ~index.md
 Notes: Phase 1 (protocol contracts, PRs #328/#321) and Phase 4's public
 resolution-check endpoint (PR #342) landed 2026-07-24; summary status moved
@@ -1163,7 +1110,6 @@ Open follow-up: ADR 0023 (protocol security audit program) has no summary
 page and no index entry at all.
 
 ## [2026-07-26] ingest | ADR 0020 — Phase 4 correction (create-market slot leak)
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md, ~index.md
 Notes: Phase 4 was recorded as "stack-aware create-market" complete, but the
 resolution only covered the script's own pre-flight check and API calls — the
@@ -1181,7 +1127,6 @@ stack lands the market in that stack's UI only") is exactly the check that
 would have caught this; deliberately left open.
 
 ## [2026-07-26] ingest | ADR 0020 — same-sweep findings from an independent review
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
 Notes: A Codex review of the create-market fix surfaced two more instances of
 the same split-brain class, both folded into the ADR and summary: (1)
@@ -1194,7 +1139,6 @@ mirrored between create-market and the with-target-stack launcher, per the
 AGENTS.md no-mirrored-coordination-constants rule.
 
 ## [2026-07-26] lint | ADR 0020 — full-file review of the create-market fix
-
 Pages: ~summaries/root-adr-0020-concurrent-local-dev-stacks.md
 Notes: A whole-file review (skills/engineering/full-file-review) of the touched
 files falsified the "single definition" claim written above: a THIRD writer of
@@ -1219,7 +1163,6 @@ scripts/run-local-chain-e2e.ts pins POPCHARTS_RPC_URL but not
 POPCHARTS_LOCAL_RPC_URL, the same bug class this PR fixed.
 
 ## [2026-07-26] ingest | docs/architecture.md — indexer watchers no longer hand-write ABI fragments
-
 Pages: ~summaries/architecture.md, ~concepts/monorepo-architecture.md,
 ~entities/server-workspace.md
 Notes: `docs/architecture.md` claimed "pregrad indexer watchers still declare
@@ -1239,7 +1182,6 @@ was checked off against a file that no longer existed. Left alone here to avoid
 conflicting with the in-flight dispute PR stack.
 
 ## [2026-07-24] ingest | ADR 0024 phase 5 — operator alarm on resolution disputes
-
 Pages: ~summaries/infra-readme.md, ~summaries/root-adr-0012-ai-assisted-resolution.md,
 ~concepts/deployment-and-infrastructure.md, ~entities/indexer.md, ~index.md
 Notes: ADR 0012's delay-window design item is now checked and points at
@@ -1254,7 +1196,6 @@ keeper is a test that builds a record with the server's own formatter. ADR
 lists were built.
 
 ## [2026-07-29] ingest | AI review default provider flipped to codex-cli
-
 Pages: ~summaries/server-readme.md, ~summaries/root-readme.md,
 ~entities/ai-review-service.md, ~concepts/local-dev-orchestration.md, ~index.md
 Notes: `server/README.md` + root `README.md` changed the AI **review** default
@@ -1266,7 +1207,6 @@ concepts/ai-assisted-resolution) legitimately still say Ollama: that is the
 separate `ai-resolution` service and its default is unchanged.
 
 ## [2026-07-29] ingest | operator alarm on out-of-order market status projections
-
 Pages: ~summaries/infra-readme.md, ~entities/indexer.md, ~index.md
 Notes: Follow-up from a full-file review of the ADR 0024 indexer chain, not an
 ADR item of its own. The market-projection guard's out-of-order throw is much
@@ -1280,14 +1220,13 @@ and keep indexing the same markets. Nothing crashes and nothing is lost, so the
 stall was silent — hence a second operator page,
 built on ADR 0024 phase 5's pattern rather than a new one. Its commit rule is
 deliberately the inverse of the dispute page's (raised inside the transaction
-that is about to roll back, because there the rollback _is_ the incident), and
+that is about to roll back, because there the rollback *is* the incident), and
 that contrast is now written down on both sides. The infra assertion test
 generalized from one alarm to a table over both, and gained two pins the
 single-alarm version could not express: the filter set on the indexer log
 group is exhaustive, and neither page's filter matches the other's record.
 
 ## [2026-07-29] ingest | AI resolution gains a codex-cli provider (default unchanged)
-
 Pages: ~concepts/ai-assisted-resolution.md, ~summaries/server-readme.md
 Notes: `ai-resolution` gained a `codex-cli` provider mirroring its `claude-cli` one.
 Its default deliberately stays `ollama`: `resolver.ts` requires an evidence
@@ -1300,7 +1239,6 @@ told operators to override it after it cost a full eval run. ADR 0019's planned
 orchestrators still pass `heuristic` explicitly, which is unchanged.
 
 ## [2026-07-29] ingest | parked sweeps replace the abandon-the-pass fault
-
 Pages: ~entities/indexer.md, ~summaries/infra-readme.md
 Notes: Directly corrects the blast radius recorded in the entry above, which
 described the code as it then was. A handler fault used to escape the per-log
@@ -1317,7 +1255,7 @@ nominal marker is only as good as its adoption, so a census test now enumerates
 the parkable errors rather than trusting each to remember. Blast radius is now one market rather than a range topping
 out at the whole watcher, so the ADR 0024 alarm's description was narrowed to
 match. Worth recording because a review caught it: the first cut parked the
-cursor _group_, which is wrong in the exact case that matters — in steady state
+cursor *group*, which is wrong in the exact case that matters — in steady state
 every contract shares one watermark and so one group, swept in chain order, so
 parking the group still starves every market sorting after the bad log. Parking
 the individual address is what actually confines it, and a two-contract test
@@ -1328,7 +1266,6 @@ watcher not wrapping its dispatch in `retryUntilMarketIndexed`, so a benign
 everywhere else.
 
 ## [2026-07-31] ingest | docs/portfolio-data-design.md — review_bond_events joins the money-paper-trail catalogue
-
 Pages: ~summaries/portfolio-data-design.md
 Notes: the doc's invariant catalogue gained `review_bond_events` (ReviewBondVault
 deposits/settlements/withdrawals/fee sweeps, ADR 0022) alongside the four
@@ -1338,7 +1275,6 @@ invariant"). Pre-existing drift left alone: the catalogue still omits
 postgrad-market watcher cites against this doc.
 
 ## [2026-08-03] ingest | README.md + docs/devchain.md — `just local-dev` becomes the Process Compose control plane
-
 Pages: ~summaries/root-readme.md, ~summaries/devchain.md
 Notes: the control-plane "spike" stopped being a spike — `just local-dev` now
 runs `scripts/local-dev-control.ts`, and `just local-dev-control` is a
@@ -1352,17 +1288,15 @@ concepts/local-dev-orchestration.md already described `just local-dev` as the
 control plane, so it needed no edit; it was ahead of the wiring, not stale.
 
 ## [2026-08-03] ingest | README.md — control-plane variant semantics corrected
-
 Pages: ~summaries/root-readme.md
 Notes: a review of the same change caught two false claims the first pass
 carried over from the old spike section. Passing bare process names starts
-those processes _and their dependencies_ (`api` pulls deploy-contracts →
+those processes *and their dependencies* (`api` pulls deploy-contracts →
 chain → prepare-database), not only the named ones; and the inline
 orchestrator is not "the same stack" — it has no AI resolution service or
 runner.
 
 ## [2026-08-03] ingest | docs/portfolio-data-design.md — dispute-bond and complete-set events join the money-paper-trail catalogue
-
 Pages: ~summaries/portfolio-data-design.md
 Notes: closes the drift the 2026-07-31 entry recorded and left alone. Both
 tables already existed and already cited this doc as their rationale — the
@@ -1388,12 +1322,11 @@ and documented — in a code comment in `server/src/lifecycle-nightly/paper-trai
 where the nightly check consumes the event straight from chain as a solvency
 bound rather than from the DB, deliberately not trusting the projection it
 audits. The doc and that comment now agree. Also corrected in this pass: the
-first draft of the complete-set bullet claimed mint/merge is _how_ collateral
+first draft of the complete-set bullet claimed mint/merge is *how* collateral
 enters and leaves outside resolution, but `fundRetainedCollateral` is a second
 such path — the overbroad sentence was dropped.
 
 ## [2026-08-03] ingest | docs/adr/0022-review-first-market-creation.md — status reconciled with what shipped
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~concepts/market-lifecycle.md, ~concepts/creation-fee-custody.md, ~entities/ai-review-service.md, ~index.md
 Notes: the ADR had drifted hard — still "Proposed" with all 8 phases unticked while
 P1/P2/P3/P7 plus P4's app half were on main (PRs #412–#417, #419). Source doc updated
@@ -1414,7 +1347,6 @@ confirming P8 untouched; no EIP-712 or nonce in `PregradManager.sol`, confirming
 contract half open.
 
 ## [2026-08-04] ingest | root ADR 0022 — amendment: prepaid review credit supersedes the refundable bond
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md,
 ~concepts/creation-fee-custody.md, ~summaries/portfolio-data-design.md, ~index.md
 Notes: P3 shipped and was then withdrawn. The ADR specified withdrawal "gated on
@@ -1434,7 +1366,6 @@ Accepted status and phase ticks; its "two documented bond caveats" note is now
 half-resolved — the withdraw caveat is what withdrew the design.
 
 ## [2026-08-04] ingest | root ADR 0025 — one price stream across graduation
-
 Pages: +summaries/root-adr-0025-unified-price-stream.md, +concepts/price-stream.md,
 ~index.md, ~summaries/root-adr-0021-live-market-updates.md
 Notes: new concept page created because the price path now has two sources
@@ -1452,7 +1383,6 @@ trusting it; the earlier version of this analysis rejected the hook counter on
 an unmeasured gas assumption and was wrong.
 
 ## [2026-08-04] ingest | root ADR 0022 — P3a delivered (prepaid review credit built)
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
 Notes: same-day follow-up to the amendment ingest — the replacement design is now
 code (#431 + the lifecycle-lane PR) and P3a is ticked in the ADR. Recorded the
@@ -1461,7 +1391,6 @@ legacy-ledger reinterpretation) and the two deviations from P3a as written
 (enum values retained, poll instead of SSE).
 
 ## [2026-08-04] ingest | protocol postgrad-contract-metadata — swap sequence on AfterSwapTickObserved
-
 Pages: ~summaries/protocol-postgrad-contract-metadata.md
 Notes: ADR 0025 P1 added a per-pool `sequence` to `AfterSwapTickObserved` and a
 fourth return to `lastSwapTickObservation`; the raw doc's event/view tables were
@@ -1469,13 +1398,12 @@ stale after the contract change (caught by the Codex P1 review) and are now
 updated alongside this summary.
 
 ## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 build decisions locked
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md
 Notes: ten open design points on P4 were decided and written into the ADR as a
 "P4 build decisions" section. The non-obvious one is the expiry rationale: a
 15-minute window is not anti-theft (binding the authorization to the creator's
 address already covers that) but a bound on how far a market's absolute
-deadlines can drift from the ones reviewed — and partial staleness does _not_
+deadlines can drift from the ones reviewed — and partial staleness does *not*
 revert, since `_validateCreateMarketParams` only rejects an already-past
 `graduationDeadline`, so a stale authorization ships a quietly shortened market.
 That choice obliges the app to re-mint on expiry rather than surface an error.
@@ -1489,7 +1417,6 @@ and creation-fee-custody already describe the gate as designed, and these
 decisions refine how, not what.
 
 ## [2026-08-04] ingest | docs/portfolio-data-design.md — the creation fee finally has a receipt
-
 Pages: ~summaries/portfolio-data-design.md
 Notes: `market_creation_fee_events` joins the money-paper-trail catalogue,
 closing the gap the ADR 0022 red-team found in 2026-07 — `MarketCreationFeePaid`
@@ -1508,7 +1435,6 @@ the relation. Standing rule confirmed by the repo owner 2026-08-04: tables
 are always related by real foreign keys.
 
 ## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 fee + indexer halves recorded delivered
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md
 Notes: the P4 entry's "Remaining" list was stale on two counts after #430
 (creation-fee receipts) and #439 (indexer reads on-chain status) landed the
@@ -1519,7 +1445,6 @@ the contract gate, the server publish-authorization mint, the app authorized
 call + re-mint, and the scripts dev-key wiring.
 
 ## [2026-08-04] lint | dispute window gets its concept page; ADR 0024 + 0025 checklist drift; 5 missed ingests
-
 Pages: +concepts/dispute-window.md, ~summaries/root-adr-0025-unified-price-stream.md, ~concepts/ai-assisted-resolution.md,
 ~concepts/local-dev-orchestration.md, ~concepts/deployment-and-infrastructure.md,
 ~summaries/ai-resolution-service-design.md, ~summaries/root-adr-0024-resolution-dispute-program.md,
@@ -1536,7 +1461,7 @@ fcd2611 `just setup-sandbox`), and `docs/adr/0025-unified-price-stream.md`
 (df40f91, the measured P1 gas result). All five ingested here. Note the gap: the
 scheduled lint had not run since 2026-07-26, so this covers nine days.
 
-The last eight of those commits landed on `main` _while this lint was running_ —
+The last eight of those commits landed on `main` *while this lint was running* —
 they are counted above, and the count was revised upward from 13/17 at the merge
 rather than left standing against the stale base.
 
@@ -1565,7 +1490,7 @@ available), and a layer-by-layer map of where it lives in the stack.
 **ADR 0024 checklist drift — the headline finding.** The ADR's Progress section
 shows Phases 2, 3 and 5 entirely unticked. A read of the code found nearly all of
 it landed: dispute/bond tables and change-feed wiring exist, the proposal/dispute
-logs are decoded by the _existing_ `postgrad-market.ts` watcher (which is why a
+logs are decoded by the *existing* `postgrad-market.ts` watcher (which is why a
 watcher-filename search misses them), `markets.status` carries
 `resolution_pending`/`disputed`, the runner calls `proposeResolution`,
 `keeper/resolution-finalize.ts` is wired into `keeper/index.ts`,
@@ -1581,7 +1506,7 @@ per-pool sequence, prices derived not stored) and P3
 (`api/services/price-history.ts`, the unified read) both landed the same day and
 are unticked. Also folded in the missed P1 result: the gas gate **passed** at
 64,574 → 65,127 (+553, ~0.9%) — worth recording because the gate existed
-precisely because an earlier pass rejected the hook counter on an _unmeasured_
+precisely because an earlier pass rejected the hook counter on an *unmeasured*
 gas assumption and was wrong. Two ADRs drifting the same way in one lint is a
 pattern, not a coincidence: the checklist is updated in the design PR and then
 not re-touched by the build PRs that satisfy it.
@@ -1598,14 +1523,13 @@ verify a page against a newer source, find it accurate, and change nothing —
 including the `updated:` date — so the same pair re-flags every run and real
 staleness hides in the noise. Two examples confirmed today: `infra-readme` and
 `entities/indexer` already carried the corrected parked-cursor language (the
-2026-07-30 doc edit was the _doc_ catching up to the wiki), and the 2026-08-03
+2026-07-30 doc edit was the *doc* catching up to the wiki), and the 2026-08-03
 entry explicitly records leaving `local-dev-orchestration` alone as "ahead of the
 wiring, not stale". **Convention proposed and applied from this entry: bump
 `updated:` whenever a page is verified against a newer source, even when nothing
 changes.** Content-free bumps are what make the staleness list mean something.
 
 Raw-source problems noted, not fixed (wiki work never edits sources):
-
 - `docs/adr/0012-ai-assisted-resolution.md` Consequences still lists "the operator
   delay window" as a live safety valve, contradicting its own Decision section.
 - `docs/adr/0024-resolution-dispute-program.md:58` still says "keep
@@ -1617,7 +1541,6 @@ Raw-source problems noted, not fixed (wiki work never edits sources):
   has since landed.
 
 Follow-ups for next lint:
-
 1. Work the date-only staleness backlog under the new bump convention, oldest
    first: `overview.md` + `entities/protocol-workspace` + `entities/app-workspace`
    vs `docs/architecture.md` (2026-07-26); the four postgrad entity pages vs
@@ -1631,7 +1554,6 @@ Follow-ups for next lint:
    it with the user rather than re-recording it a third time.
 
 ## [2026-08-04] ingest | price-stream concept — ADR 0025 P1–P4 shipped state
-
 Pages: ~concepts/price-stream.md
 Notes: the page described the pre-ADR-0025 split (app /receipts replay, 240-cap
 venue endpoint, payload-less postgrad frames) as current after P1–P4 landed;
@@ -1639,7 +1561,6 @@ caught by the Codex P4 review. Now records the unified route and marks the
 client's per-stream gap check as the remaining P5 gap.
 
 ## [2026-08-04] ingest | price-stream — P5/P6 landed, ADR 0025 complete
-
 Pages: ~concepts/price-stream.md
 Notes: the client gap check is now per stream (seeded from the unified read's
 per-pool `streams` ordinals), hardened by a chain-coordinate ordering guard and
@@ -1648,7 +1569,6 @@ an append-on-trust rule for unseeded streams; the P6 live-stack proof ran
 refetches until P5" row corrected.
 
 ## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P4 delivered in full
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md
 Notes: P4 ticked the same day it finished, closing the loop the morning's
 reconciliation opened. Seven PRs: #430 fee receipts, #439/#441 indexer
@@ -1662,7 +1582,6 @@ the market was born Active. P5 is now unblocked and its scope GREW: the interim
 bare createMarket overload and the no-op publish bridge join the removal list.
 
 ## [2026-08-04] ingest | docs/adr/0022-review-first-market-creation.md — P5 delivered
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md
 Notes: the retirement itself. Contract: bare createMarket, approveMarket/
 rejectMarket + events, UnderReview/Rejected removed from the enum TAIL
@@ -1679,7 +1598,6 @@ send. DB keeps under_review/rejected as dead labels. Follow-up left: admin
 re-review service + market_ai_reviews tables (DB-only).
 
 ## [2026-08-04] ingest | ADR 0025 deferred items closed — CI lane + live surfaces
-
 Pages: ~summaries/root-adr-0025-unified-price-stream.md
 Notes: three of the ADR's four deferred items are closed by the follow-up PRs
 (board live prices #456, live stats via tick totals #457, and the lifecycle
@@ -1687,7 +1605,6 @@ lane's golden-journey assertions over the assembled server path). The ADR's
 deferred section is updated in the same PR as the lane assertions.
 
 ## [2026-08-04] ingest | whitepaper v0.6 + protocol ADR 0014 — pre-graduation withdrawals, fees, seeding
-
 Pages: +summaries/whitepaper-v6.md,
 +summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md,
 ~summaries/whitepaper-v4.md, ~summaries/whitepaper-history.md,
@@ -1717,7 +1634,6 @@ and may need a line about not presenting withdrawal as free exit — ADR 0014
 measures ~86% of a book as still locked.
 
 ## [2026-08-05] ingest | repo ADR 0022 — deadline-timing amendment
-
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
 Notes: New amendment section in the ADR (dated 2026-08-05): the resolution
 deadline becomes an absolute timestamp (`resolution_deadline_at`) while the
