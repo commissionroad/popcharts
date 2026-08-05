@@ -85,6 +85,7 @@ describe("generateLocalMarket", () => {
 function generatedMarket() {
   return {
     graduationSeconds: 60 * 60,
+    incoherent: false,
     kind: "crypto" as const,
     metadata: {
       category: "Crypto",

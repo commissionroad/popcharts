@@ -52,6 +52,10 @@ jobs:
             # protocol/scripts/shared (price policy, tick math) via package
             # exports; changes there alter the shipped app bundle.
             - protocol/scripts/shared/**
+            # The dev-tools local market generator imports scripts/shared
+            # directly by relative path, so a type change there breaks the app
+            # build without touching anything under app/.
+            - scripts/shared/**
             - server/generated/openapi.json
             - pnpm-lock.yaml
             - pnpm-workspace.yaml
