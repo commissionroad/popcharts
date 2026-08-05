@@ -128,6 +128,7 @@ export async function buildWeatherMarket(
 
   return {
     graduationSeconds: localMarketGraduationSeconds,
+    incoherent,
     kind: "weather",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,

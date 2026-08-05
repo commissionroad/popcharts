@@ -22,6 +22,12 @@ export type { MarketMetadata };
  */
 export type GeneratedMarket = {
   readonly graduationSeconds: number;
+  /**
+   * Authored so the resolution criteria contradict the question. Carried on the
+   * result because only the caller knows what review then did with it — and an
+   * incoherent market that gets approved is a finding, not a normal run.
+   */
+  readonly incoherent: boolean;
   readonly kind: GeneratedMarketKind;
   readonly metadata: MarketMetadata;
   readonly resolutionSeconds: number;

@@ -87,6 +87,7 @@ export async function buildCryptoMarket(
 
   return {
     graduationSeconds: localMarketGraduationSeconds,
+    incoherent,
     kind: "crypto",
     metadata,
     resolutionSeconds: localMarketResolutionSeconds,
