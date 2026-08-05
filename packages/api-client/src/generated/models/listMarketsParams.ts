@@ -9,4 +9,5 @@
 export type ListMarketsParams = {
   chainId?: string;
   since?: string;
+  status?: string;
 };
