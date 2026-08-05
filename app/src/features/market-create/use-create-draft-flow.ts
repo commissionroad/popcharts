@@ -41,11 +41,7 @@ import { presentError } from "@/lib/error-handling";
 
 import type { CreateMarketWallet } from "./draft-publish-service";
 import { applyGeneratedMarketToDraft } from "./dev-autofill";
-import {
-  persistPublishedMetadata,
-  publishDraftMarket,
-  type PublishedDraftMarket,
-} from "./draft-publish-service";
+import { publishDraftMarket, type PublishedDraftMarket } from "./draft-publish-service";
 import {
   countErrors,
   focusFirstReviewError,
@@ -450,12 +446,6 @@ export function useCreateDraftFlow({
         // is re-minted transparently — minting is free (ADR 0022 P4).
         remint: () => client.publishParams(draftId, creatorAddress),
         wallet: walletContext,
-      });
-
-      await persistPublishedMetadata({
-        chainId: published.chainId,
-        metadataHash: params.metadataHash,
-        metadataPayload: params.metadata,
       });
 
       const recorded = await client.markPublished(draftId, {

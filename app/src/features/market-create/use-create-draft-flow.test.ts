@@ -27,7 +27,7 @@ import {
   marketDraftFactory,
 } from "@/test/factories/drafts";
 
-import { persistPublishedMetadata, publishDraftMarket } from "./draft-publish-service";
+import { publishDraftMarket } from "./draft-publish-service";
 import { focusFirstReviewError } from "./review-errors";
 import { useCreateDraftFlow } from "./use-create-draft-flow";
 import type { WalletCreateAction } from "./wallet-create-action";
@@ -55,7 +55,6 @@ vi.mock("@/integrations/indexer/drafts-api", async (importOriginal) => ({
 }));
 
 vi.mock("./draft-publish-service", () => ({
-  persistPublishedMetadata: vi.fn(),
   publishDraftMarket: vi.fn(),
 }));
 
@@ -104,7 +103,6 @@ beforeEach(() => {
     marketId: "9",
     transactionHash: PUBLISH_HASH,
   });
-  vi.mocked(persistPublishedMetadata).mockResolvedValue(undefined);
   stubApi();
 });
 
@@ -732,11 +730,6 @@ describe("useCreateDraftFlow publish", () => {
         publicClient: publicClientStub,
         walletClient: walletClientStub,
       },
-    });
-    expect(persistPublishedMetadata).toHaveBeenCalledWith({
-      chainId: 31337,
-      metadataHash: publishParamsFixture().metadataHash,
-      metadataPayload: publishParamsFixture().metadata,
     });
     expect(api.markPublished).toHaveBeenCalledWith("12", {
       chainId: 31337,
