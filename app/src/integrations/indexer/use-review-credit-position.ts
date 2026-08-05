@@ -23,8 +23,14 @@ import { createDraftsApiClient } from "./drafts-api";
  *
  * `credit` stays null until the first successful read and on any failure: an
  * unread position must not render as an empty one.
+ *
+ * `address` is the account the position describes, returned rather than left
+ * for callers to re-derive: a top-up must credit the same account the surface
+ * is reporting on, and deriving the beneficiary separately is how those two
+ * drift apart.
  */
 export function useReviewCreditPosition(): {
+  address: `0x${string}` | null;
   credit: MarketDraftReviewCredit | null;
   refresh: () => void;
 } {
@@ -81,6 +87,7 @@ export function useReviewCreditPosition(): {
   }, [address, client, readTick]);
 
   return {
+    address: address as `0x${string}` | null,
     credit: read.address === address ? read.credit : null,
     refresh,
   };

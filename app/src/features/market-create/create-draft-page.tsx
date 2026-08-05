@@ -1,9 +1,10 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { ReviewCreditCard } from "@/components/ui/review-credit-card";
+import { ReviewCreditTopUpDialog } from "@/features/review-credit/review-credit-top-up-dialog";
 import { marketCreationMode } from "@/integrations/contracts/config";
 import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credit-position";
 
@@ -33,7 +34,12 @@ export function CreateDraftPage({
   const flow = useCreateDraftFlow({ initialDraftId, initialNow });
   const creationFeeLabel =
     marketCreationMode === "devchain" ? "1 native USDC" : "Waived in preview";
-  const { credit: reviewCredit, refresh: refreshCredit } = useReviewCreditPosition();
+  const {
+    address: creditAddress,
+    credit: reviewCredit,
+    refresh: refreshCredit,
+  } = useReviewCreditPosition();
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const inReview = flow.stage === "in_review";
 
   // The run is charged in the same transaction that queues the review job
@@ -91,10 +97,21 @@ export function CreateDraftPage({
               submission spends from it. The refusal panel below carries its
               own balance readout, so the card stands down while it is up
               rather than stating the same figures twice. */}
-          {flow.bondShortfall ? null : <ReviewCreditCard credit={reviewCredit} />}
+          {flow.bondShortfall ? null : (
+            <ReviewCreditCard
+              credit={reviewCredit}
+              onTopUp={() => setTopUpOpen(true)}
+            />
+          )}
           {renderStagePanel(flow, creationFeeLabel)}
         </aside>
       </div>
+
+      <ReviewCreditTopUpDialog
+        beneficiary={creditAddress}
+        onClose={() => setTopUpOpen(false)}
+        open={topUpOpen}
+      />
     </div>
   );
 }

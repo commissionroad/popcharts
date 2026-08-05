@@ -43,6 +43,9 @@ vi.mock("@/integrations/indexer/use-review-credit-position", () => ({
   useReviewCreditPosition: creditPositionMock,
 }));
 
+/** The account the card reports on, and so the account a top-up credits. */
+const BENEFICIARY = "0x1111111111111111111111111111111111111111" as const;
+
 const FUNDED_CREDIT = {
   availableWad: "10700000000000000000",
   metered: true,
@@ -60,6 +63,7 @@ beforeEach(() => {
   reviewCreditMock.mockReturnValue(reviewCreditState());
   creditPositionMock.mockReset();
   creditPositionMock.mockReturnValue({
+    address: BENEFICIARY,
     credit: FUNDED_CREDIT,
     refresh: () => undefined,
   });
@@ -276,9 +280,39 @@ describe("CreateDraftPage", () => {
     expect(screen.getByText("Review credit needed")).toBeInTheDocument();
   });
 
+  it("opens the top-up dialog from the card's icon, crediting the read account", () => {
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // The beneficiary must be the account the card is reporting on, not the
+    // draft's creator — those can differ, and crediting the wrong one is
+    // unrecoverable.
+    expect(screen.getByText(BENEFICIARY)).toBeInTheDocument();
+  });
+
+  it("closes the top-up dialog again", () => {
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Close top-up dialog" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("re-reads the credit when the draft enters review, where it is charged", () => {
     const refresh = vi.fn();
-    creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
     stubFlow({ stage: "in_review" });
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);
@@ -290,7 +324,11 @@ describe("CreateDraftPage", () => {
     // The charge rides the submit transaction, so a landed review is not a
     // second balance change and must not trigger a second read.
     const refresh = vi.fn();
-    creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
     stubFlow({ latestReview: draftReviewFactory(), stage: "feedback" });
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);
@@ -300,7 +338,11 @@ describe("CreateDraftPage", () => {
 
   it("leaves the credit unread while the draft is still being edited", () => {
     const refresh = vi.fn();
-    creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
     stubFlow();
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);

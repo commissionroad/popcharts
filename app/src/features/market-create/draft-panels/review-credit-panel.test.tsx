@@ -2,9 +2,10 @@ import type { MarketDraftBondShortfall } from "@popcharts/api-client/models";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEPOSIT_PRESETS_WAD } from "@/features/review-credit/review-credit-top-up-dialog";
 import type { ReviewCreditDepositState } from "@/integrations/contracts/hooks/use-review-credit";
 
-import { DEPOSIT_PRESETS_WAD, ReviewCreditPanel } from "./review-credit-panel";
+import { ReviewCreditPanel } from "./review-credit-panel";
 
 const depositMock = vi.hoisted(() => vi.fn());
 

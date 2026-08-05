@@ -9,18 +9,12 @@ import { PiggyBank, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { DEPOSIT_PRESETS_WAD } from "@/features/review-credit/review-credit-top-up-dialog";
 import { useReviewCreditDeposit } from "@/integrations/contracts/hooks/use-review-credit";
 import { useLiveChannel } from "@/integrations/live-updates/use-live-channel";
 import { formatTokenAmount } from "@/lib/format";
 
 import { ReviewRow } from "../create-market-panels/shared";
-
-/** The deposit presets, in native units ($1 = 1e18). */
-export const DEPOSIT_PRESETS_WAD = [
-  10n ** 18n,
-  5n * 10n ** 18n,
-  10n * 10n ** 18n,
-] as const;
 
 /** How long to wait for a confirmed deposit to appear in the indexed view. */
 const INDEXING_POLL_TIMEOUT_MS = 30_000;

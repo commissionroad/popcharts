@@ -1,7 +1,6 @@
 import type { MarketDraftReviewCredit } from "@popcharts/api-client/models";
-import { PiggyBank } from "lucide-react";
+import { CirclePlus, PiggyBank } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { formatTokenAmount } from "@/lib/format";
 
 /**
@@ -55,35 +54,46 @@ export function ReviewCreditCard({
 
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-card)] p-4">
-      <div className="flex items-center gap-3.5">
-        <div style={{ color: tone }}>
-          <PiggyBank aria-hidden="true" size={20} />
-        </div>
-        <div className="min-w-0">
-          <div className="font-mono text-[10px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
-            Review credit
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <div style={{ color: tone }}>
+            <PiggyBank aria-hidden="true" size={20} />
           </div>
-          <div
-            className="font-display tabular mt-1 text-[22px] font-black"
-            style={{ color: tone }}
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
+              Review credit
+            </div>
+            <div
+              className="font-display tabular mt-1 text-[22px] font-black"
+              style={{ color: tone }}
+            >
+              {runsLeft === 0
+                ? "Out of credit"
+                : `${runsLeft.toLocaleString("en-US")} ${runsLeft === 1 ? "review" : "reviews"} left`}
+            </div>
+          </div>
+        </div>
+
+        {onTopUp ? (
+          // Matches the app-nav icon-button idiom: quiet until pointed at,
+          // then it takes the accent. `title` carries the same words as the
+          // aria-label so the hover explains the glyph.
+          <button
+            aria-label="Top up review credit"
+            className="focus-ring inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:border-[var(--pc-cyan)] hover:text-[var(--pc-cyan)]"
+            onClick={onTopUp}
+            title="Top up review credit"
+            type="button"
           >
-            {runsLeft === 0
-              ? "Out of credit"
-              : `${runsLeft.toLocaleString("en-US")} ${runsLeft === 1 ? "review" : "reviews"} left`}
-          </div>
-        </div>
+            <CirclePlus aria-hidden="true" size={16} />
+          </button>
+        ) : null}
       </div>
 
       <p className="text-[12.5px] leading-5 text-[var(--text-muted)]">
         {formatTokenAmount(BigInt(credit.availableWad))} pUSD left ·{" "}
         {formatTokenAmount(BigInt(credit.rateWad))} pUSD per review
       </p>
-
-      {onTopUp ? (
-        <Button onClick={onTopUp} size="sm" variant="secondary">
-          Top up credit
-        </Button>
-      ) : null}
     </div>
   );
 }
