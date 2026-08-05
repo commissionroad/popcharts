@@ -1,4 +1,5 @@
 import type { AiReviewConfig } from "../config";
+import { validateEvidenceConfig } from "../evidence";
 import type {
   ConfigValidationResult,
   ReviewProviderCapabilities,
@@ -54,7 +55,20 @@ export function getReviewProviderStatus({
   providerName?: ReviewProviderName;
 }): ReviewProviderRuntimeStatus {
   const provider = getReviewProvider(providerName);
-  const validation = provider.validateConfig(config);
+  const providerValidation = provider.validateConfig(config);
+  // The evidence path is service-level rather than per-provider, but it is
+  // only reachable for a provider that actually consumes collected evidence —
+  // so it is checked here, against the provider being reported on.
+  const evidenceValidation = validateEvidenceConfig({
+    config,
+    usesPreCollectedEvidence:
+      provider.capabilities.requiresPreCollectedEvidence ||
+      config.evidenceMode === "precollected",
+  });
+  const validation = {
+    errors: [...providerValidation.errors, ...evidenceValidation.errors],
+    warnings: [...providerValidation.warnings, ...evidenceValidation.warnings],
+  };
 
   return {
     capabilities: provider.capabilities,

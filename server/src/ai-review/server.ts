@@ -363,8 +363,14 @@ export function buildAiReviewRuntimeStatus(
       version: "0.1.0",
     },
     internetAccess: config.internetAccess,
+    search: {
+      provider: config.searchProvider,
+      tavilyApiKeyPresent: Boolean(config.tavilyApiKey),
+    },
     model: activeProvider.model,
+    evidenceMode: config.evidenceMode,
     nativeWebSearchEnabled:
+      config.evidenceMode === "native" &&
       activeProvider.name === "anthropic" &&
       config.internetAccess === "search" &&
       config.anthropicMaxWebSearches > 0,
