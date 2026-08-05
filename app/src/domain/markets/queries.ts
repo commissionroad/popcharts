@@ -10,7 +10,7 @@ import { logError } from "@/lib/error-logger";
 
 import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
-import type { PricePoint } from "./types";
+import type { MarketStatus, PricePoint } from "./types";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
 export type DevMarketResolutionSide = "yes" | "no";
@@ -22,6 +22,8 @@ export type MarketQueryOptions = {
   fetcher?: MarketsApiFetch;
   since?: string;
   source?: MarketDataSource;
+  /** Statuses the list read filters to, in SQL server-side (getMarkets only). */
+  statuses?: readonly MarketStatus[];
 };
 
 /**
@@ -129,6 +131,10 @@ export async function getMarkets(options: MarketQueryOptions = {}) {
 
   if (options.since) {
     params.since = options.since;
+  }
+
+  if (options.statuses?.length) {
+    params.status = options.statuses.join(",");
   }
 
   const apiMarkets = await config.client.getMarkets(params);

@@ -471,6 +471,30 @@ describe("market queries", () => {
     });
   });
 
+  it("forwards the status filter as a comma-separated list", async () => {
+    const client = createClient({ markets: [apiMarket] });
+
+    await getMarkets({
+      chainId: 5042002,
+      client,
+      source: "api",
+      statuses: ["resolution_pending", "disputed"],
+    });
+
+    expect(client.getMarkets).toHaveBeenCalledWith({
+      chainId: "5042002",
+      status: "resolution_pending,disputed",
+    });
+  });
+
+  it("omits the status parameter for an unfiltered view", async () => {
+    const client = createClient({ markets: [apiMarket] });
+
+    await getMarkets({ chainId: 5042002, client, source: "api", statuses: [] });
+
+    expect(client.getMarkets).toHaveBeenCalledWith({ chainId: "5042002" });
+  });
+
   it("rejects graduation requests for fixture-backed markets", async () => {
     await expect(
       requestMarketGraduation("eth-5000-august", { source: "fixtures" })
