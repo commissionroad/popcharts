@@ -1755,3 +1755,16 @@ Follow-ups for next lint:
 - Re-check whether ADR 0023's `Status: Proposed` and ADR 0025's `Status:
   Proposed` get corrected at the source; both now contradict their own
   checklists.
+
+## [2026-08-05] ingest | repo ADR 0022 — P6 and P8 delivered, program complete
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
+Notes: Same-PR ingest of the P6/P8 delivery ticks. P6 (#484–#486, #492): the
+MarketCreated event is the only market_metadata writer — hash-verified,
+ungated from first-insert so replays heal, parse failures skip while DB
+failures park (parser enforces every table bound); off-chain POST + proxy +
+scripts caller removed. P8 (#487–#491): GET /markets status filter in SQL on
+a new (status, created_block_timestamp) index with a marketId tiebreaker
+(#490 fixed the tie order the index change exposed); board chips are URL
+state; silent fixtures fallback removed. Also corrected the stale "admin
+re-review still open" claim (closed by #478) and noted the Resolving
+anti-join sketch was obsoleted by ADR 0024's real dispute statuses.

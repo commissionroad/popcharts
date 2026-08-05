@@ -5,7 +5,9 @@ Status: Accepted — P1, P2, P3/P3a, P7 built 2026-07-30..08-03; **P4 built
 **P5 built 2026-08-04** (#451 + the removal PR): the on-chain review
 machinery, the ungated `createMarket`, and the app's legacy create surface
 are gone — `just local-create-market` now drives the API's draft flow as
-hardhat account #0. P6 and P8 are open.
+hardhat account #0. **P6 and P8 built 2026-08-05** (#484–#486, #492; #487–#491):
+the `MarketCreated` event is the only metadata writer, and the board's status
+views filter in SQL. All phases delivered.
 
 ## Context
 
@@ -614,18 +616,32 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
       Deliberately left for a follow-up: the admin re-review service and the
       `market_ai_reviews` / `market_ai_review_jobs` tables (DB-only, no contract
       dependency, historical rows).
-- [ ] **P6 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
-      `MarketCreated` event the indexer already reads; drop the best-effort off-chain
-      metadata POST.
+- [x] **P6 — Metadata from the event + display cleanup.** Delivered 2026-08-05
+      (#484 app caller, #485 scripts caller, #486 durability, #492 endpoint).
+      `market_metadata` is populated only from the `MarketCreated` event —
+      hash-verified against the on-chain commitment, ungated from first-insert
+      so watermark replays heal missed rows, parse failures logged and skipped
+      while database failures park the sweep (the parser enforces every table
+      bound, so no payload can become a poison log). The best-effort off-chain
+      metadata POST, its app proxy route, and the scripts caller are gone.
 - [x] **P7 — Templates + clone.** Delivered 2026-08-03 (#413 server, #415 app) as the
       `/studio` surface. Universal clone (own drafts / own markets / any market by
       id) → new `editing` draft, verbatim copy; `is_template` shelf; schema ready for future
       sharing.
-- [ ] **P8 — Discovery filters, server-side.** Not started — `GET /markets` still takes only
-      `chainId` and `since`, with no status filter. Real-markets-only board; status filters
-      (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
-      Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
-      into SQL.
+- [x] **P8 — Discovery filters, server-side.** Delivered 2026-08-05 (#487
+      indexes, #488 SQL filter, #489 real-markets-only, #490 deterministic
+      order, #491 board chips). `GET /markets` takes `status` — a
+      comma-separated MarketStatus list, 400 on unknown values — filtered via
+      `inArray` on the new `(status, created_block_timestamp)` index and
+      ordered with a `marketId` tiebreaker for same-block creations. The
+      board's chips (All / Pre-grad / Graduating / Graduated / Resolving /
+      Resolved / Refunded / Cancelled) are `?status=` URL state driving the
+      server filter; categories stay client-side. Real-markets-only: the
+      silent fixtures fallback is gone — auto mode without an API renders an
+      empty board, never sample data. The "Resolving (derived, with the
+      Graduated anti-join)" sketch above predates repo ADR 0024, which made
+      the dispute-window states real statuses — Resolving is now the plain
+      `resolution_pending`/`disputed` set, no derivation.
 
 ## P4 build decisions (2026-08-04)
 
