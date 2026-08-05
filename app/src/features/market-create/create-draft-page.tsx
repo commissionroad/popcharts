@@ -1,16 +1,13 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useEffect } from "react";
 
-import { ReviewCreditCard } from "@/components/ui/review-credit-card";
 import { marketCreationMode } from "@/integrations/contracts/config";
-import { useReviewCreditPosition } from "@/integrations/indexer/use-review-credit-position";
 
 import { CreateDraftForm } from "./create-draft-form";
 import { ApprovedPanel } from "./draft-panels/approved-panel";
 import { DraftPreviewPanel } from "./draft-panels/draft-preview-panel";
-import { FeedbackPanel } from "./draft-panels/feedback-panel";
+import { FeedbackPanel, ReviewScorePanel } from "./draft-panels/feedback-panel";
 import { PublishedPanel } from "./draft-panels/published-panel";
 import { ReviewCreditPanel } from "./draft-panels/review-credit-panel";
 import { ReviewProgressPanel } from "./draft-panels/review-progress-panel";
@@ -33,20 +30,6 @@ export function CreateDraftPage({
   const flow = useCreateDraftFlow({ initialDraftId, initialNow });
   const creationFeeLabel =
     marketCreationMode === "devchain" ? "1 native USDC" : "Waived in preview";
-  const { credit: reviewCredit, refresh: refreshCredit } = useReviewCreditPosition();
-  const inReview = flow.stage === "in_review";
-
-  // The run is charged in the same transaction that queues the review job
-  // (server market-drafts service), so the draft *entering* review is when
-  // the balance moved — not when the verdict lands. Waiting for the verdict
-  // would leave the card showing the pre-charge count for the whole review,
-  // and forever if the job stalled. Charges are metered off-chain and signal
-  // no live channel, so this re-read is the only thing that catches them.
-  useEffect(() => {
-    if (inReview) {
-      refreshCredit();
-    }
-  }, [inReview, refreshCredit]);
 
   return (
     <div>
@@ -87,11 +70,6 @@ export function CreateDraftPage({
         <CreateDraftForm flow={flow} />
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
-          {/* Above the stage panel so the meter is readable *before* a
-              submission spends from it. The refusal panel below carries its
-              own balance readout, so the card stands down while it is up
-              rather than stating the same figures twice. */}
-          {flow.bondShortfall ? null : <ReviewCreditCard credit={reviewCredit} />}
           {renderStagePanel(flow, creationFeeLabel)}
         </aside>
       </div>
@@ -140,14 +118,20 @@ function renderStagePanel(
 
   if (flow.stage === "approved" && serverDraft) {
     return (
-      <ApprovedPanel
-        creationFeeLabel={creationFeeLabel}
-        draft={serverDraft}
-        graduationThreshold={flow.preview.graduationThreshold}
-        isPublishing={flow.isPublishing}
-        onPublish={() => void flow.publish()}
-        walletAction={flow.walletAction}
-      />
+      <>
+        <ApprovedPanel
+          creationFeeLabel={creationFeeLabel}
+          draft={serverDraft}
+          graduationThreshold={flow.preview.graduationThreshold}
+          isPublishing={flow.isPublishing}
+          onPublish={() => void flow.publish()}
+          walletAction={flow.walletAction}
+        />
+        {/* Approved is not the same as strong. The scores stay reachable so a
+            creator can see a weak dimension and choose to keep polishing
+            instead of publishing on the strength of a green check. */}
+        {latestReview ? <ReviewScorePanel review={latestReview} /> : null}
+      </>
     );
   }
 
@@ -168,13 +152,24 @@ function renderStagePanel(
   }
 
   return (
-    <DraftPreviewPanel
-      canPersist={flow.canPersist}
-      draft={flow.formDraft}
-      errorCount={flow.errorCount}
-      isSubmitting={flow.isSubmitting}
-      onSubmit={() => void flow.submitForReview()}
-      preview={flow.preview}
-    />
+    <>
+      <DraftPreviewPanel
+        canPersist={flow.canPersist}
+        draft={flow.formDraft}
+        errorCount={flow.errorCount}
+        isSubmitting={flow.isSubmitting}
+        onSubmit={() => void flow.submitForReview()}
+        preview={flow.preview}
+      />
+      {/* Editing after an approval lands here. The last scores are the only
+          guide to what still needs work, so they stay — flagged stale once the
+          form no longer hashes to what was reviewed. */}
+      {latestReview ? (
+        <ReviewScorePanel
+          review={latestReview}
+          stale={latestReview.metadataHash !== flow.preview.metadataHash}
+        />
+      ) : null}
+    </>
   );
 }
