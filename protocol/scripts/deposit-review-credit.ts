@@ -37,6 +37,15 @@ const receipt = await publicClient.waitForTransactionReceipt({
   hash: transactionHash,
 });
 
+// A reverted deposit still mines, and viem does not throw for it. Without this
+// the read-back below would report the beneficiary's *pre-existing* lifetime
+// total and the caller would treat a failed deposit as a successful one.
+if (receipt.status !== "success") {
+  throw new Error(
+    `The deposit transaction ${transactionHash} reverted; no credit was added for ${beneficiary}.`,
+  );
+}
+
 // Lifetime deposits, read back rather than assumed: the caller waits for this
 // figure to appear in the server's indexed view before retrying, and a deposit
 // that did not land must not be reported as one that did.

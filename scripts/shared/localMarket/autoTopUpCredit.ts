@@ -90,21 +90,56 @@ export async function waitForIndexedCredit({
   const required = BigInt(requiredWad);
   const deadline = now() + timeoutMs;
 
-  for (;;) {
-    try {
-      const position = await readCredit();
-
-      if (BigInt(position.availableWad) >= required) {
+  const poll = async () => {
+    for (;;) {
+      if (await hasIndexedCredit({ readCredit, requiredWad })) {
         return true;
       }
-    } catch {
-      // A transient read failure is the same as "not indexed yet".
-    }
 
-    if (now() >= deadline) {
-      return false;
-    }
+      if (now() >= deadline) {
+        return false;
+      }
 
-    await sleep(INDEXING_POLL_INTERVAL_MS);
+      await sleep(INDEXING_POLL_INTERVAL_MS);
+    }
+  };
+
+  // The loop's own deadline check only runs *between* reads, so a request that
+  // hangs would wait forever — a local API that stops answering must not wedge
+  // the command. Racing bounds the whole wait rather than each gap in it, and
+  // the timer is cleared either way so a resolved wait does not hold the
+  // process open until it fires.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<boolean>((resolveExpiry) => {
+    timer = setTimeout(() => resolveExpiry(false), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([poll(), expiry]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * One read: does the indexed balance already cover a run? Separate from the
+ * poll because the caller checks this *before* depositing — a previous run's
+ * deposit may be landing right now, and credit bought twice cannot be
+ * refunded. A failed read answers false, which only costs a deposit.
+ */
+export async function hasIndexedCredit({
+  readCredit,
+  requiredWad,
+}: {
+  readonly readCredit: () => Promise<ReviewCreditPosition>;
+  readonly requiredWad: string;
+}): Promise<boolean> {
+  try {
+    const position = await readCredit();
+
+    return BigInt(position.availableWad) >= BigInt(requiredWad);
+  } catch {
+    // A transient read failure is the same as "not indexed yet".
+    return false;
   }
 }

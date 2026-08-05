@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   AUTO_TOP_UP_WAD,
   depositCommandEnv,
+  hasIndexedCredit,
   topUpAmountWad,
   waitForIndexedCredit,
 } from "../shared/localMarket/autoTopUpCredit.ts";
@@ -239,10 +240,65 @@ describe("waitForIndexedCredit", () => {
       },
       requiredWad: RATE_WAD,
       sleep: noSleep,
-      timeoutMs: 0,
+      timeoutMs: 60_000,
     });
 
     assert.equal(covered, true);
     assert.equal(calls, 1);
+  });
+
+  it("gives up on a read that never settles rather than wedging the command", async () => {
+    // The loop's deadline only runs between reads, so a hung API would
+    // otherwise hold the command open forever with no output.
+    const covered = await waitForIndexedCredit({
+      readCredit: () => new Promise(() => {}),
+      requiredWad: RATE_WAD,
+      sleep: noSleep,
+      timeoutMs: 20,
+    });
+
+    assert.equal(covered, false);
+  });
+});
+
+describe("hasIndexedCredit", () => {
+  it("reports credit that already covers the run", async () => {
+    const covered = await hasIndexedCredit({
+      readCredit: async () => position(AUTO_TOP_UP_WAD),
+      requiredWad: RATE_WAD,
+    });
+
+    assert.equal(covered, true);
+  });
+
+  it("reports an empty position as not covered", async () => {
+    const covered = await hasIndexedCredit({
+      readCredit: async () => position(0n),
+      requiredWad: RATE_WAD,
+    });
+
+    assert.equal(covered, false);
+  });
+
+  it("answers false on a read failure, which only costs a deposit", async () => {
+    const covered = await hasIndexedCredit({
+      readCredit: async () => {
+        throw new Error("connection reset");
+      },
+      requiredWad: RATE_WAD,
+    });
+
+    assert.equal(covered, false);
+  });
+
+  it("treats an exactly-sufficient balance as covered", async () => {
+    // The gate refuses on availableWad < rateWad, so equality must pass here
+    // too or the CLI would buy credit the server would have accepted.
+    const covered = await hasIndexedCredit({
+      readCredit: async () => position(BigInt(RATE_WAD)),
+      requiredWad: RATE_WAD,
+    });
+
+    assert.equal(covered, true);
   });
 });

@@ -10,6 +10,7 @@ import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
 import { DEFAULT_HARDHAT_ACCOUNT_ADDRESS } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import {
   depositCommandEnv,
+  hasIndexedCredit,
   INDEXING_TIMEOUT_MS,
   topUpAmountWad,
   waitForIndexedCredit,
@@ -297,41 +298,77 @@ async function submitWithAutoTopUp({
     }
 
     const { shortfall } = error;
-    const amountWad = topUpAmountWad(shortfall);
-    console.log(
-      `[${logLabel}] out of review credit (${shortfall.runsUsed} run(s) used) — depositing ${amountWad} wei for ${creatorAddress}`,
-    );
+    const sleep = (ms: number) =>
+      new Promise<void>((resolveSleep) => setTimeout(resolveSleep, ms));
 
-    await run(
-      "pnpm",
-      ["--dir", "protocol", "run", "local:deposit-review-credit"],
-      {
-        env: depositCommandEnv({
-          amountWad,
-          beneficiary: creatorAddress,
-          chainEnv,
-          commandEnv,
-          vaultAddress,
-        }),
-      },
-    );
-
-    // The gate reads the server's indexed rows, not the chain, so a confirmed
-    // deposit is not yet spendable — retrying now would hit the same 402.
-    const indexed = await waitForIndexedCredit({
+    // An earlier run's deposit may be indexing right now — its own wait timed
+    // out and told the operator to rerun. Depositing again would buy credit
+    // that is already paid for, and credit is non-refundable.
+    const alreadyCovered = await hasIndexedCredit({
       readCredit: () => drafts.credit(creatorAddress),
       requiredWad: shortfall.requiredWad,
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     });
 
-    if (!indexed) {
-      throw new Error(
-        `The deposit confirmed on-chain but has not reached the indexed view after ${INDEXING_TIMEOUT_MS}ms. It is not lost — rerun 'just local-create-market' in a moment.`,
+    if (alreadyCovered) {
+      console.log(
+        `[${logLabel}] credit already covers this run — resubmitting without depositing`,
       );
+    } else {
+      const amountWad = topUpAmountWad(shortfall);
+      console.log(
+        `[${logLabel}] out of review credit (${shortfall.runsUsed} run(s) used) — depositing ${amountWad} wei for ${creatorAddress}`,
+      );
+
+      await run(
+        "pnpm",
+        ["--dir", "protocol", "run", "local:deposit-review-credit"],
+        {
+          env: depositCommandEnv({
+            amountWad,
+            beneficiary: creatorAddress,
+            chainEnv,
+            commandEnv,
+            vaultAddress,
+          }),
+        },
+      );
+
+      // The gate reads the server's indexed rows, not the chain, so a
+      // confirmed deposit is not yet spendable — retrying now would hit the
+      // same 402.
+      const indexed = await waitForIndexedCredit({
+        readCredit: () => drafts.credit(creatorAddress),
+        requiredWad: shortfall.requiredWad,
+        sleep,
+      });
+
+      if (!indexed) {
+        throw new Error(
+          `The deposit confirmed on-chain but has not reached the indexed view after ${INDEXING_TIMEOUT_MS}ms. It is not lost — rerun 'just local-create-market' in a moment, and this run's credit will be spent rather than bought again.`,
+        );
+      }
+
+      console.log(`[${logLabel}] credit topped up; resubmitting`);
     }
 
-    console.log(`[${logLabel}] credit topped up; resubmitting`);
-    await drafts.submit(draftId);
+    try {
+      await drafts.submit(draftId);
+    } catch (retryError) {
+      if (
+        retryError instanceof DraftApiError &&
+        retryError.status === 402 &&
+        retryError.shortfall
+      ) {
+        // Topping up cleared the shortfall this run measured, so a second
+        // refusal means the price moved underneath it (the rate is server
+        // configuration). Say that rather than repeating a raw 402.
+        throw new Error(
+          `Still refused after topping up: the meter now wants ${retryError.shortfall.requiredWad} wei per review. The rate changed mid-run — rerun 'just local-create-market'.`,
+        );
+      }
+
+      throw retryError;
+    }
   }
 }
 
