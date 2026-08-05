@@ -1,9 +1,17 @@
+import {
+  DEFAULT_BOARD_STATUS_FILTER,
+  type BoardStatusFilter,
+} from "@/domain/markets/board-filters";
 import { getMarkets, usesFixtureMarkets } from "@/domain/markets/queries";
 import { DiscoveryBoard } from "@/features/market-discovery/discovery-board";
 import { DiscoveryLiveRefresh } from "@/features/market-discovery/discovery-live-refresh";
 
-export async function DiscoveryPage() {
-  const markets = await getMarkets();
+export async function DiscoveryPage({
+  statusFilter = DEFAULT_BOARD_STATUS_FILTER,
+}: {
+  statusFilter?: BoardStatusFilter;
+} = {}) {
+  const markets = await getMarkets({ statuses: statusFilter.statuses });
   const sampleData = usesFixtureMarkets();
 
   return (
@@ -30,7 +38,7 @@ export async function DiscoveryPage() {
           Sample data — these markets are illustrative, not live trading.
         </p>
       ) : null}
-      <DiscoveryBoard markets={markets} />
+      <DiscoveryBoard activeStatusKey={statusFilter.key} markets={markets} />
     </div>
   );
 }

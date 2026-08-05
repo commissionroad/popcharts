@@ -2,7 +2,6 @@ import type {
   MarketAiReviewResponse,
   MarketCreatedEventResponse,
   MarketMetadataResponse,
-  MarketMetadataWrite,
   MarketPostgradResponse,
   MarketResolutionResponse,
   MarketResponse,
@@ -15,7 +14,11 @@ import {
 import { config } from "src/config";
 import { db } from "src/db/client";
 import { and, asc, desc, eq, gt, inArray, schema } from "src/db/client";
-import { mayHaveGraduated } from "src/db/schema/markets";
+import {
+  MARKET_STATUSES,
+  mayHaveGraduated,
+  type MarketStatus,
+} from "src/db/schema/markets";
 import {
   computeMatchedMarketCap,
   pregradManagerAbi,
@@ -64,18 +67,52 @@ type MarketQueryRow = {
 let localPublicClient: BlockchainClient | null = null;
 
 /**
+ * Parses the `status` query filter: a comma-separated list of MarketStatus
+ * values. Returns the empty list for an absent or blank value (no filter),
+ * and null when any segment names no status — the route answers 400 rather
+ * than silently ignoring the filter, the same contract `since` has.
+ */
+export function parseMarketStatusFilter(
+  value: string | undefined,
+): MarketStatus[] | null {
+  if (!value) {
+    return [];
+  }
+
+  const segments = value
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (
+    segments.length === 0 ||
+    segments.some((segment) => !MARKET_STATUS_SET.has(segment))
+  ) {
+    return null;
+  }
+
+  return segments as MarketStatus[];
+}
+
+const MARKET_STATUS_SET: ReadonlySet<string> = new Set(MARKET_STATUSES);
+
+/**
  * Lists markets for the currently configured PregradManager, newest first,
  * each decorated with metadata, matched market cap, and its latest AI review.
  * Returns null when the since filter is unparseable so the route can answer
  * 400 instead of silently ignoring the filter. On the local network, markets
  * that no longer exist on-chain (e.g. after a chain restart) are filtered out.
+ * A non-empty `statuses` list narrows the scan in SQL (repo ADR 0022 P8) —
+ * the board never over-fetches and filters client-side.
  */
 export async function getMarkets({
   chainId,
   since,
+  statuses,
 }: {
   chainId?: number;
   since?: string;
+  statuses?: MarketStatus[];
 }): Promise<MarketResponse[] | null> {
   const sinceDate = parseSinceTimestamp(since);
   if (since && !sinceDate) {
@@ -87,6 +124,7 @@ export async function getMarkets({
     eq(schema.contracts.chainId, config.chainId),
     chainId === undefined ? undefined : eq(schema.markets.chainId, chainId),
     sinceDate ? gt(schema.markets.createdBlockTimestamp, sinceDate) : undefined,
+    statuses?.length ? inArray(schema.markets.status, statuses) : undefined,
   ].filter(isDefined);
 
   const rows = await db
@@ -98,7 +136,13 @@ export async function getMarkets({
     .innerJoin(schema.contracts, marketContractJoinCondition())
     .leftJoin(schema.marketMetadata, marketMetadataJoinCondition())
     .where(and(...conditions))
-    .orderBy(desc(schema.markets.createdBlockTimestamp))
+    // marketId breaks created-in-the-same-block ties, newest first — without
+    // it the order of tied rows is whatever the chosen index scan yields,
+    // which #487's new indexes proved by silently changing it.
+    .orderBy(
+      desc(schema.markets.createdBlockTimestamp),
+      desc(schema.markets.marketId),
+    )
     .limit(MARKET_LIST_LIMIT);
   const liveRows = await filterLiveLocalMarketRows(rows);
   const liveMarkets = liveRows.map(({ market }) => market);
@@ -227,49 +271,6 @@ export async function selectLiveMarketRow({
   }
 
   return row.market;
-}
-
-/**
- * Idempotently stores off-chain market metadata keyed by (chainId,
- * metadataHash), replacing any previous row for the same hash so re-submitted
- * metadata always converges to the latest write. Returns null for an invalid
- * chain id.
- */
-export async function upsertMarketMetadata(
-  chainId: number,
-  metadata: MarketMetadataWrite,
-): Promise<MarketMetadataResponse | null> {
-  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-    return null;
-  }
-
-  const values = {
-    category: metadata.category,
-    chainId,
-    description: metadata.description,
-    metadataCreatedAt: metadata.createdAt,
-    metadataHash: metadata.metadataHash,
-    outcomeNo: metadata.outcomeNo ?? null,
-    outcomeYes: metadata.outcomeYes ?? null,
-    question: metadata.question,
-    resolutionCriteria: metadata.resolutionCriteria,
-    resolutionSources: metadata.resolutionSources ?? [],
-    resolutionUrl: metadata.resolutionUrl ?? null,
-    updatedAt: new Date(),
-  };
-  const rows = await db
-    .insert(schema.marketMetadata)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [
-        schema.marketMetadata.chainId,
-        schema.marketMetadata.metadataHash,
-      ],
-      set: values,
-    })
-    .returning();
-
-  return rows[0] ? serializeMarketMetadataRow(rows[0]) : null;
 }
 
 /**

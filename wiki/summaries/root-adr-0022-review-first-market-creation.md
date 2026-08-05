@@ -1,7 +1,7 @@
 ---
 type: summary
 title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated publish, fee-on-accept)
-description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. P1–P5 and P7 built 2026-08-03..04, including the contract gate and the retirement of the on-chain review path; P6 (metadata from the event) and P8 (server-side discovery filters) remain open.
+description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. All phases built — P1–P5/P7 2026-08-03..04 (contract gate, on-chain review path retired), P6+P8 2026-08-05 (event-only metadata, server-side SQL status filters, fixtures fallback gone).
 sources:
   - docs/adr/0022-review-first-market-creation.md
 updated: 2026-08-05
@@ -9,7 +9,7 @@ updated: 2026-08-05
 
 # Repo ADR 0022: Review-first Market Creation
 
-**Status: Accepted, partially built.** Dated 2026-07-21. Designed via a `/grill`
+**Status: Accepted, fully built.** Dated 2026-07-21. Designed via a `/grill`
 session and adversarially red-teamed before proposal. Not part of the M1–M5 launch
 chain. P1 (drafts + Privy auth), P2 (draft review), P3/P3a (review credit) and P7
 (templates/clone) landed 2026-08-03..04; **P4 landed in full 2026-08-04** (authorized
@@ -20,9 +20,13 @@ removal), no review-manager role, no market-review watcher, no publish bridge, a
 legacy app create surface. `just local-create-market` drives the API draft flow as
 hardhat account #0. **Amended 2026-08-05**: drafts gained a public id, and the
 published-market review linkage the ADR left optional is now decided (join, not copy)
-— see the amendment at the bottom. That retires the `market_ai_reviews` half of the
-P5 leftover; the admin re-review service is still open, and it enqueues
-`market_ai_review_jobs` that no worker claims. P6 and P8 are open.
+— see the amendment at the bottom. The P5 leftovers closed the same day (#478): the
+admin re-review service and the on-chain-era `market_ai_reviews` /
+`market_ai_review_jobs` tables are removed. **P6 and P8 landed 2026-08-05**: the
+`MarketCreated` event is the only `market_metadata` writer (hash-verified, durable,
+self-healing; the off-chain POST is gone), and the board's status views are
+`?status=` URL state filtered in SQL on new indexes — with the silent fixtures
+fallback removed, so an API-less board is empty, never sample data.
 
 > **P3 was withdrawn 2026-08-04** and replaced by the amendment: the refundable
 > bond becomes a non-refundable **prepaid review credit**. See "Amendment: prepaid
@@ -137,9 +141,9 @@ Public draft submission opens at P3 (the bond); until then P2 review runs intern
 3. **P3 — built, then withdrawn; see P3a below.** `ReviewBondVault` escrow (native-USDC deposit/settle/withdraw) + off-chain fee meter ($5 min, $1/submit incl. 5 reviews, $0.20 after) gating submission + bond-event indexing. Replaced 2026-08-04 by **P3a — prepaid review credit** (built): non-refundable `depositFor`, one per-run rate, no settlement or withdrawal.
 4. **P4 — built (2026-08-04).** Gated `createMarket` (full-params EIP-712, unordered single-use nonce, 15-min expiry, trusted bypass, born `Active`, #442); typed data exported from the protocol package with an on-chain vector test (#445); server mints the creator-bound authorization with the publish params (#447); local deploy arms the deployer as authorizer (#448); the app spends it and re-mints on expiry (#449). Plus the earlier halves: "Publish & pay" (#415), `MarketCreationFeePaid` indexing (#430), chain-read status projection with the `under_review` default dropped (#439/#441). First end-to-end authorized publish ran in #449's CI smoke lane.
 5. **P5 — built (2026-08-04, #451 + the removal PR).** On-chain review machinery, the ungated `createMarket`, and the legacy app create surface all removed; `under_review`/`rejected` live on only as dead Postgres enum labels. The just command creates through the API draft flow.
-6. **P6 — open.** Populate `market_metadata` from the event; drop the off-chain POST.
+6. **P6 — built (2026-08-05, #484–#486 + #492).** The `MarketCreated` event is the only `market_metadata` writer: hash-verified against the on-chain commitment, run on every delivery so watermark replays heal missed rows, parse failures skipped while database failures park the sweep (the parser enforces every table bound, so no payload is a poison log). The off-chain POST, its app proxy route, and the scripts caller are removed.
 7. **P7 — built.** Templates + clone (the `/studio` surface).
-8. **P8 — open.** Server-side discovery filters (+ `markets.status`/timestamp indexes; Graduated anti-joins Resolving).
+8. **P8 — built (2026-08-05, #487–#491).** `GET /markets` takes a comma-separated `status` list filtered via `inArray` on a new `(status, created_block_timestamp)` index, ordered with a `marketId` tiebreaker; the board's chips (All/Pre-grad/Graduating/Graduated/Resolving/Resolved/Refunded/Cancelled) are URL state driving it; the fixtures fallback is gone. The design's "Resolving derived via Graduated anti-join" predates ADR 0024 — Resolving shipped as the plain `resolution_pending`/`disputed` status set.
 
 ## What shipped differently from the design
 

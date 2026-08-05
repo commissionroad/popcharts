@@ -72,7 +72,6 @@ export * from "./marketDraftValidationErrorsErrors";
 export * from "./marketDraftWrite";
 export * from "./marketList";
 export * from "./marketMetadata";
-export * from "./marketMetadataWrite";
 export * from "./marketOrderBook";
 export * from "./marketPostgrad";
 export * from "./marketPriceHistory";

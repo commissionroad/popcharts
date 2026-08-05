@@ -320,15 +320,16 @@ describe("market routes", () => {
     );
 
     expect(response.status).toBe(200);
-    // Newest first: the primary market, then the three older terminal
-    // fixtures in insertion order. The postgrad venue block only appears on
-    // detail reads, so the list rows carry the event-sourced postgrad data.
+    // Newest first: the primary market, then the terminal fixtures — which
+    // share one block timestamp, so the marketId tiebreaker orders them
+    // newest-id first. The postgrad venue block only appears on detail
+    // reads, so the list rows carry the event-sourced postgrad data.
     expect(await response.json()).toEqual([
       expectedMarket(),
-      expectedDrawMarket(),
-      expectedResolvedMarket(),
-      expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
       expectedInDisputeWindowMarket(),
+      expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
+      expectedResolvedMarket(),
+      expectedDrawMarket(),
     ]);
   });
 
@@ -433,5 +434,58 @@ describe("market routes", () => {
 
     expect(response.status).toBe(400);
     expect(await response.text()).toBe("Invalid since timestamp");
+  });
+
+  it("narrows the list to one status in SQL", async () => {
+    const response = await app.handle(
+      new Request("http://localhost/markets?status=resolved"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([expectedResolvedMarket()]);
+  });
+
+  it("accepts a comma-separated status list and keeps newest-first order", async () => {
+    const response = await app.handle(
+      new Request(
+        "http://localhost/markets?status=resolved,resolution_pending",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      expectedInDisputeWindowMarket(),
+      expectedResolvedMarket(),
+    ]);
+  });
+
+  it("matches every market carrying a status shared by several rows", async () => {
+    const response = await app.handle(
+      new Request("http://localhost/markets?status=cancelled"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
+      expectedDrawMarket(),
+    ]);
+  });
+
+  it("treats a blank status filter as no filter", async () => {
+    const response = await app.handle(
+      new Request("http://localhost/markets?status="),
+    );
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as unknown[]).length).toBe(5);
+  });
+
+  it("returns 400 for a status filter naming no known status", async () => {
+    const response = await app.handle(
+      new Request("http://localhost/markets?status=resolved,not-a-status"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("Invalid status filter");
   });
 });

@@ -11,8 +11,6 @@ import type {
   Market,
   MarketCreatedEventList,
   MarketList,
-  MarketMetadata,
-  MarketMetadataWrite,
   MarketOrderBook,
   MarketPriceHistory,
   ReceiptPlacedEventList,
@@ -20,7 +18,7 @@ import type {
 } from ".././models";
 
 /**
- * Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.
+ * Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time. Pass `status` as a comma-separated list of MarketStatus values to narrow the list to those lifecycle states.
  * @summary List indexed markets
  */
 export type listMarketsResponse200 = {
@@ -69,57 +67,6 @@ export const listMarkets = async (
 
   const data: listMarketsResponse["data"] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listMarketsResponse;
-};
-
-/**
- * Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.
- * @summary Save off-chain market metadata
- */
-export type saveMarketMetadataResponse200 = {
-  data: MarketMetadata;
-  status: 200;
-};
-
-export type saveMarketMetadataResponse400 = {
-  data: string;
-  status: 400;
-};
-
-export type saveMarketMetadataResponseSuccess = saveMarketMetadataResponse200 & {
-  headers: Headers;
-};
-export type saveMarketMetadataResponseError = saveMarketMetadataResponse400 & {
-  headers: Headers;
-};
-
-export type saveMarketMetadataResponse =
-  | saveMarketMetadataResponseSuccess
-  | saveMarketMetadataResponseError;
-
-export const getSaveMarketMetadataUrl = (chainId: string) => {
-  return `/markets/${chainId}/metadata`;
-};
-
-export const saveMarketMetadata = async (
-  chainId: string,
-  marketMetadataWrite: MarketMetadataWrite,
-  options?: RequestInit
-): Promise<saveMarketMetadataResponse> => {
-  const res = await fetch(getSaveMarketMetadataUrl(chainId), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(marketMetadataWrite),
-  });
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-
-  const data: saveMarketMetadataResponse["data"] = body ? JSON.parse(body) : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as saveMarketMetadataResponse;
 };
 
 /**

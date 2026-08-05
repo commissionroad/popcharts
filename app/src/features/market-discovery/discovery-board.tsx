@@ -1,9 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { MarketCardLive } from "@/features/market-discovery/market-card-live";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  BOARD_STATUS_FILTERS,
+  DEFAULT_BOARD_STATUS_FILTER,
+} from "@/domain/markets/board-filters";
 import {
   type Market,
   MARKET_CATEGORIES,
@@ -11,26 +16,33 @@ import {
 } from "@/domain/markets/types";
 import { cn } from "@/lib/cn";
 
-const filters = [
-  { label: "Trending", value: "trending" },
-  { label: "New", value: "new" },
-  { label: "Graduating", value: "graduating" },
-  { label: "Ending soon", value: "ending" },
-];
+const statusChips = BOARD_STATUS_FILTERS.map(({ key, label }) => ({
+  label,
+  value: key,
+}));
 
-export function DiscoveryBoard({ markets }: { markets: Market[] }) {
-  const [filter, setFilter] = useState("trending");
+/**
+ * The discovery board. Status views are URL state (`?status=<key>`) so the
+ * server filters them in SQL (repo ADR 0022 P8) — a chip click replaces the
+ * URL and the server component re-reads the list; the live-refresh channel's
+ * `router.refresh()` keeps whatever view is active. Categories stay a client
+ * filter over the fetched page.
+ */
+export function DiscoveryBoard({
+  activeStatusKey = DEFAULT_BOARD_STATUS_FILTER.key,
+  markets,
+}: {
+  activeStatusKey?: string;
+  markets: Market[];
+}) {
+  const router = useRouter();
   const [category, setCategory] = useState<MarketCategory | "All">("All");
 
   const visibleMarkets = useMemo(() => {
-    return markets.filter((market) => {
-      const categoryMatches = category === "All" || market.category === category;
-      const filterMatches =
-        filter === "graduating" ? market.status === "graduating" : true;
-
-      return categoryMatches && filterMatches;
-    });
-  }, [category, filter, markets]);
+    return markets.filter(
+      (market) => category === "All" || market.category === category
+    );
+  }, [category, markets]);
 
   return (
     <div>
@@ -55,17 +67,31 @@ export function DiscoveryBoard({ markets }: { markets: Market[] }) {
           )}
         </div>
         <SegmentedControl
-          onChange={setFilter}
-          options={filters}
+          onChange={(key) =>
+            router.replace(
+              key === DEFAULT_BOARD_STATUS_FILTER.key ? "/" : `/?status=${key}`,
+              { scroll: false }
+            )
+          }
+          options={statusChips}
           size="sm"
-          value={filter}
+          value={activeStatusKey}
         />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleMarkets.map((market) => (
-          <MarketCardLive key={market.id} market={market} />
-        ))}
-      </div>
+      {visibleMarkets.length === 0 ? (
+        <p
+          role="status"
+          className="rounded-md border border-[var(--border)] px-4 py-8 text-center font-mono text-[11px] tracking-[0.1em] text-[var(--text-secondary)] uppercase"
+        >
+          No markets match this view yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleMarkets.map((market) => (
+            <MarketCardLive key={market.id} market={market} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

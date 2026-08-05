@@ -27,7 +27,6 @@ import {
   MarketCreatedEventSchema,
   MarketListSchema,
   MarketMetadataSchema,
-  MarketMetadataWriteSchema,
   MarketOrderBookSchema,
   MarketPostgradSchema,
   MarketPriceHistorySchema,
@@ -60,7 +59,7 @@ import {
   getMarketCreatedEvents,
   getMarketReceiptPlacedEvents,
   getMarkets,
-  upsertMarketMetadata,
+  parseMarketStatusFilter,
 } from "src/api/services/markets";
 import {
   getMarketOrderBook,
@@ -109,7 +108,6 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     MarketCreatedEventList: MarketCreatedEventListSchema,
     MarketList: MarketListSchema,
     MarketMetadata: MarketMetadataSchema,
-    MarketMetadataWrite: MarketMetadataWriteSchema,
     MarketOrderBook: MarketOrderBookSchema,
     MarketPriceHistory: MarketPriceHistorySchema,
     MarketStatus: MarketStatusSchema,
@@ -127,9 +125,17 @@ const marketRoutesBase = new Elysia({ prefix: "" })
   .get(
     "/markets",
     async ({ query, set }) => {
+      const statuses = parseMarketStatusFilter(query.status);
+
+      if (!statuses) {
+        set.status = 400;
+        return "Invalid status filter";
+      }
+
       const markets = await getMarkets({
         chainId: query.chainId ? Number.parseInt(query.chainId, 10) : undefined,
         since: query.since,
+        statuses,
       });
 
       if (!markets) {
@@ -143,6 +149,7 @@ const marketRoutesBase = new Elysia({ prefix: "" })
       query: t.Object({
         chainId: t.Optional(t.String()),
         since: t.Optional(t.String()),
+        status: t.Optional(t.String()),
       }),
       response: {
         200: "MarketList",
@@ -152,40 +159,7 @@ const marketRoutesBase = new Elysia({ prefix: "" })
         operationId: "listMarkets",
         summary: "List indexed markets",
         description:
-          "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time.",
-        tags: ["Markets"],
-      },
-    },
-  )
-  .post(
-    "/markets/:chainId/metadata",
-    async ({ body, params, set }) => {
-      const metadata = await upsertMarketMetadata(
-        Number.parseInt(params.chainId, 10),
-        body,
-      );
-
-      if (!metadata) {
-        set.status = 400;
-        return "Invalid chain id";
-      }
-
-      return metadata;
-    },
-    {
-      body: "MarketMetadataWrite",
-      params: t.Object({
-        chainId: t.String(),
-      }),
-      response: {
-        200: "MarketMetadata",
-        400: t.String(),
-      },
-      detail: {
-        operationId: "saveMarketMetadata",
-        summary: "Save off-chain market metadata",
-        description:
-          "Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.",
+          "Returns up to 200 markets sorted by latest creation time. Pass an ISO `since` timestamp to fetch markets created after the previous cursor time. Pass `status` as a comma-separated list of MarketStatus values to narrow the list to those lifecycle states.",
         tags: ["Markets"],
       },
     },

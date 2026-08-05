@@ -1,6 +1,7 @@
 import {
   boolean,
   bigint,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -206,6 +207,17 @@ export const markets = pgTable(
     unique("markets_created_tx_log_idx").on(
       table.createdTransactionHash,
       table.createdLogIndex,
+    ),
+    // The discovery list's two access paths (repo ADR 0022 P8): status-filtered
+    // and unfiltered, both ordered by creation time. The composite serves the
+    // filtered scan already ordered per status; status alone is too low-
+    // cardinality to be worth indexing without the timestamp behind it.
+    index("markets_status_created_idx").on(
+      table.status,
+      table.createdBlockTimestamp,
+    ),
+    index("markets_created_block_timestamp_idx").on(
+      table.createdBlockTimestamp,
     ),
   ],
 );
