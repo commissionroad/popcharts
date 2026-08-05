@@ -32,7 +32,6 @@ function open(overrides: Parameters<typeof ReviewCreditTopUpDialog>[0] | object 
     <ReviewCreditTopUpDialog
       beneficiary={BENEFICIARY}
       onClose={() => undefined}
-      open
       {...overrides}
     />
   );
@@ -43,16 +42,41 @@ beforeEach(() => {
 });
 
 describe("ReviewCreditTopUpDialog", () => {
-  it("renders nothing while closed", () => {
-    const { container } = render(
+  it("keeps crediting the account it opened with when the wallet switches", () => {
+    // Credit is non-refundable and immovable, so the account on screen must
+    // be the account paid — for the whole life of the dialog, including
+    // mid-deposit. A live prop would move the beneficiary under the creator.
+    const state = depositState();
+    vi.mocked(useReviewCreditDeposit).mockReturnValue(state);
+    const { rerender } = open();
+
+    rerender(
       <ReviewCreditTopUpDialog
-        beneficiary={BENEFICIARY}
+        beneficiary="0x2222222222222222222222222222222222222222"
         onClose={() => undefined}
-        open={false}
       />
     );
+    fireEvent.click(screen.getByRole("button", { name: "Deposit 1.00" }));
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(BENEFICIARY)).toBeInTheDocument();
+    expect(state.deposit).toHaveBeenCalledWith(BENEFICIARY, DEPOSIT_PRESETS_WAD[0]);
+  });
+
+  it("refuses to close while the deposit is in flight", () => {
+    // Closing would leave the write running with nowhere to report success
+    // or failure.
+    vi.mocked(useReviewCreditDeposit).mockReturnValue(
+      depositState({ status: "pending" })
+    );
+    const onClose = vi.fn();
+    open({ onClose });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close top-up dialog" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("presentation"));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Close top-up dialog" })).toBeDisabled();
   });
 
   it("is a labelled modal dialog", () => {
@@ -239,20 +263,8 @@ describe("ReviewCreditTopUpDialog", () => {
     document.body.append(opener);
     opener.focus();
 
-    const { rerender } = render(
-      <ReviewCreditTopUpDialog
-        beneficiary={BENEFICIARY}
-        onClose={() => undefined}
-        open
-      />
-    );
-    rerender(
-      <ReviewCreditTopUpDialog
-        beneficiary={BENEFICIARY}
-        onClose={() => undefined}
-        open={false}
-      />
-    );
+    const { unmount } = open();
+    unmount();
 
     expect(opener).toHaveFocus();
     opener.remove();

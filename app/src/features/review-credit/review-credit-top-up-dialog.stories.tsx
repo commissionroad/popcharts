@@ -31,24 +31,16 @@ type Story = StoryObj<typeof meta>;
 
 const BENEFICIARY = "0x1111111111111111111111111111111111111111";
 
-/** The dialog as it opens: three presets, the non-refundable warning. */
+/**
+ * The dialog as it opens: three presets, the non-refundable warning, and the
+ * account a deposit credits. There is no closed story — the parent mounts
+ * this only while it is open, so every opening starts from a clean deposit
+ * state rather than the last one's result.
+ */
 export const Open: Story = {
   args: {
     beneficiary: BENEFICIARY,
     onClose: () => undefined,
-    open: true,
-  },
-};
-
-/**
- * Closed renders nothing — the story is here so the closed branch is
- * inspectable rather than only asserted in a test.
- */
-export const Closed: Story = {
-  args: {
-    beneficiary: BENEFICIARY,
-    onClose: () => undefined,
-    open: false,
   },
 };
 
@@ -60,6 +52,5 @@ export const WithoutBeneficiary: Story = {
   args: {
     beneficiary: null,
     onClose: () => undefined,
-    open: true,
   },
 };

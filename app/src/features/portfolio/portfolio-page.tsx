@@ -81,11 +81,12 @@ export function PortfolioPage() {
         />
       )}
 
-      <ReviewCreditTopUpDialog
-        beneficiary={creditAddress}
-        onClose={() => setTopUpOpen(false)}
-        open={topUpOpen}
-      />
+      {topUpOpen ? (
+        <ReviewCreditTopUpDialog
+          beneficiary={creditAddress}
+          onClose={() => setTopUpOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

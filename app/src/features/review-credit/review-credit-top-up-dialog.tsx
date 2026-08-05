@@ -1,7 +1,7 @@
 "use client";
 
 import { PiggyBank, X } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useReviewCreditDeposit } from "@/integrations/contracts/hooks/use-review-credit";
@@ -41,23 +41,41 @@ const FOCUSABLE =
 export function ReviewCreditTopUpDialog({
   beneficiary,
   onClose,
-  open,
 }: {
-  /** Account the credit belongs to — never defaulted to the payer. */
+  /**
+   * Account the credit belongs to — never defaulted to the payer. Captured
+   * once on mount and never re-read: see {@link creditedAccount}.
+   */
   beneficiary: `0x${string}` | null;
   onClose: () => void;
-  open: boolean;
 }) {
   const credit = useReviewCreditDeposit();
   const panelRef = useRef<HTMLDivElement>(null);
   // Restoring focus to whatever opened the dialog is the half of focus
   // management that keyboard users actually notice.
   const openerRef = useRef<HTMLElement | null>(null);
+  // Snapshot, deliberately: a wallet switch while this is open would
+  // otherwise move the beneficiary under the creator, so the address on
+  // screen and the address credited could disagree — including mid-deposit,
+  // where the in-flight transaction still credits the original. Credit is
+  // non-refundable and nothing can move it afterwards, so the account this
+  // dialog names must be the account it pays, for the whole of its life.
+  // Paying from a different wallet is fine and supported by the vault.
+  const [creditedAccount] = useState(beneficiary);
+
+  // Blocked while the write is in flight: closing would leave the deposit
+  // running with nowhere to report success or failure.
+  const busy = credit.status === "pending";
+  const close = useCallback(() => {
+    if (!busy) {
+      onClose();
+    }
+  }, [busy, onClose]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key === "Escape") {
-        onClose();
+        close();
         return;
       }
 
@@ -82,25 +100,18 @@ export function ReviewCreditTopUpDialog({
         first.focus();
       }
     },
-    [onClose]
+    [close]
   );
 
+  // Mount-scoped: the parent renders this only while it is open, so every
+  // opening is a fresh component — which is also what keeps a previous
+  // deposit's terminal status from greeting the next one.
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-
     openerRef.current = document.activeElement as HTMLElement | null;
     panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 
     return () => openerRef.current?.focus();
-  }, [open]);
-
-  if (!open) {
-    return null;
-  }
-
-  const busy = credit.status === "pending";
+  }, []);
 
   return (
     <div
@@ -108,7 +119,7 @@ export function ReviewCreditTopUpDialog({
       onClick={(event) => {
         // Backdrop only: a click that started inside the panel must not close.
         if (event.target === event.currentTarget) {
-          onClose();
+          close();
         }
       }}
       onKeyDown={handleKeyDown}
@@ -133,8 +144,9 @@ export function ReviewCreditTopUpDialog({
           </div>
           <button
             aria-label="Close top-up dialog"
-            className="focus-ring text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            onClick={onClose}
+            className="focus-ring text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-45"
+            disabled={busy}
+            onClick={close}
             type="button"
           >
             <X size={16} />
@@ -144,9 +156,9 @@ export function ReviewCreditTopUpDialog({
         <p className="text-[12.5px] leading-5 text-[var(--text-muted)]">
           Credit is prepaid and non-refundable — each review of a question spends from
           it. Deposits credit{" "}
-          {beneficiary ? (
+          {creditedAccount ? (
             <span className="font-mono break-all text-[var(--text-secondary)]">
-              {beneficiary}
+              {creditedAccount}
             </span>
           ) : (
             "the connected wallet"
@@ -158,12 +170,12 @@ export function ReviewCreditTopUpDialog({
           {DEPOSIT_PRESETS_WAD.map((amount) => (
             <Button
               className="flex-1"
-              disabled={!credit.enabled || !beneficiary || busy}
+              disabled={!credit.enabled || !creditedAccount || busy}
               glow
               key={amount.toString()}
-              // The button is disabled without a beneficiary, so the handler
-              // can assume one.
-              onClick={() => credit.deposit(beneficiary!, amount)}
+              // The button is disabled without an account, so the handler can
+              // assume one.
+              onClick={() => credit.deposit(creditedAccount!, amount)}
               size="lg"
             >
               {`Deposit ${formatTokenAmount(amount)}`}
