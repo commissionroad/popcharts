@@ -71,7 +71,7 @@ const watcher = createDynamicAddressWatcher({
     // replays are routine (each live creation is re-swept once), and an
     // unconditional upsert would stamp markets.updatedAt — which graduation
     // reads — on every replay of an old creation.
-    const freshInsert = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       const inserted = await tx
         .insert(schema.marketCreatedEvents)
         .values(records.event)
@@ -79,7 +79,7 @@ const watcher = createDynamicAddressWatcher({
         .returning({ id: schema.marketCreatedEvents.id });
 
       if (!inserted[0]) {
-        return false;
+        return;
       }
 
       await tx
@@ -116,13 +116,20 @@ const watcher = createDynamicAddressWatcher({
         blockNumber: records.event.blockNumber,
         logIndex: records.event.logIndex,
       });
-
-      return true;
     });
 
-    if (freshInsert) {
-      await persistEventMetadata(records);
-    }
+    // Outside the freshInsert gate on purpose: the upsert is content-addressed
+    // and idempotent, so the routine watermark replay of each creation
+    // re-asserts its metadata — healing a row an earlier pass failed to write.
+    // Since the event is the only metadata writer (ADR 0022 P6), the persist
+    // classifies its own failures: unparseable payloads are logged and skipped,
+    // database failures park this address for the next sweep.
+    await persistMarketMetadataFromEventPayload({
+      chainId: records.market.chainId,
+      marketId: records.market.marketId,
+      metadataHash: records.market.metadataHash,
+      metadata: records.event.metadata,
+    });
   },
   label: "MarketCreated",
   subject: "pregrad manager",
@@ -133,29 +140,3 @@ const watcher = createDynamicAddressWatcher({
 export const recoverMarketCreatedEvents = watcher.recover;
 /** Discovery loop + live subscription; returns a stop function. */
 export const watchMarketCreatedEvents = watcher.watch;
-
-async function persistEventMetadata(
-  records: ReturnType<typeof buildMarketCreatedRecords>,
-) {
-  const metadata = records.event.metadata;
-
-  try {
-    if (!metadata) {
-      throw new Error("MarketCreated records are missing metadata.");
-    }
-
-    await persistMarketMetadataFromEventPayload({
-      chainId: records.market.chainId,
-      metadataHash: records.market.metadataHash,
-      metadata,
-    });
-  } catch (error) {
-    console.warn(
-      `[MarketCreated] metadata unavailable marketId=${records.market.marketId.toString()}: ${getErrorMessage(error)}`,
-    );
-  }
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
