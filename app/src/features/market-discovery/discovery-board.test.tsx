@@ -15,10 +15,13 @@ describe("DiscoveryBoard", () => {
     expect(screen.getByText("Sports upset?")).toBeInTheDocument();
   });
 
-  it("renders an empty grid when there are no markets", () => {
+  it("shows the empty state when there are no markets", () => {
     render(<DiscoveryBoard markets={[]} />);
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "No markets match this view yet."
+    );
     // The filter chrome still renders.
     expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
   });

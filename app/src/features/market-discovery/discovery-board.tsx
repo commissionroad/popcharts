@@ -61,11 +61,20 @@ export function DiscoveryBoard({ markets }: { markets: Market[] }) {
           value={filter}
         />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleMarkets.map((market) => (
-          <MarketCardLive key={market.id} market={market} />
-        ))}
-      </div>
+      {visibleMarkets.length === 0 ? (
+        <p
+          role="status"
+          className="rounded-md border border-[var(--border)] px-4 py-8 text-center font-mono text-[11px] tracking-[0.1em] text-[var(--text-secondary)] uppercase"
+        >
+          No markets match this view yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleMarkets.map((market) => (
+            <MarketCardLive key={market.id} market={market} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -28,9 +28,14 @@ export type MarketQueryOptions = {
  * True when market reads would come from the bundled fixtures rather than a
  * live indexer. The public UI must label fixture-backed markets as sample
  * data — they look like real markets but carry no live volume.
+ *
+ * Only the explicit `fixtures` source reads fixtures (repo ADR 0022 P8):
+ * an `auto` stack without an API URL, or an `auto` lookup the API cannot
+ * answer, shows nothing rather than silently dressing sample data up as a
+ * live board.
  */
 export function usesFixtureMarkets(options: MarketQueryOptions = {}) {
-  return !resolveMarketQueryConfig(options).useApi;
+  return resolveMarketQueryConfig(options).source === "fixtures";
 }
 
 export async function getMarketById(id: string, options: MarketQueryOptions = {}) {
@@ -45,16 +50,13 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
       if (apiMarket) {
         return apiMarketToMarket(apiMarket);
       }
-
-      if (config.source === "api") {
-        return undefined;
-      }
-    } else if (config.source === "api") {
-      return undefined;
     }
   }
 
-  return fixtureMarkets.find((market) => market.id === id);
+  // Real markets only: an API miss is a missing market, never a fixture.
+  return config.source === "fixtures"
+    ? fixtureMarkets.find((market) => market.id === id)
+    : undefined;
 }
 
 /**
@@ -114,7 +116,9 @@ export async function getMarkets(options: MarketQueryOptions = {}) {
   const config = resolveMarketQueryConfig(options);
 
   if (!config.useApi) {
-    return fixtureMarkets;
+    // Real markets only: without an API the board is empty unless fixtures
+    // were explicitly requested — never a silent sample-data stand-in.
+    return config.source === "fixtures" ? fixtureMarkets : [];
   }
 
   const params: ListMarketsParams = {};
