@@ -107,11 +107,15 @@ passed, so the hook counter stays and postgrad keeps real gap detection.
 
 ## Deferred / open
 
-- The assembled server path (pools + ticks + decimals read) has **never run in
-  CI** — only by hand, locally. P6 is its first automated coverage.
+- ~~The assembled server path has never run in CI~~ — closed 2026-08-04: the
+  lifecycle lane's golden journey asserts the unified read end to end after
+  its venue trade (venue point past `graduatedAt`, hook-stamped `streams`
+  ordinal, handoff continuity).
 - If P1's gas measurement kills the hook counter, the fallback is
   `(blockNumber, logIndex)` ordering with no gap detection — misses heal on the
   next page load. Acceptable, but a different decision to be recorded as one.
 - `/receipts` stays for other consumers; the chart just stops using it.
-- Discovery-board prices still refetch rather than append; out of scope, same
-  payload would serve them.
+- ~~Discovery-board prices still refetch rather than append~~ — closed
+  2026-08-04 (PR #456): cards consume their market channel's tick payloads in
+  place; the graduation bar/volume/receipts on the market page followed in
+  PR #457 via post-trade totals on the tick.

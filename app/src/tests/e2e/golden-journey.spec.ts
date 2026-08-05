@@ -6,6 +6,7 @@ import {
   marketPath,
   resolveMarket,
   waitForMarketStatus,
+  waitForPriceHistory,
 } from "./support/lifecycle";
 import {
   buyPostgradTokensViaUi,
@@ -52,6 +53,36 @@ test.describe("@lifecycle golden journey", () => {
 
     // Post-graduation trade: buy more YES on the venue with a market order.
     await buyPostgradTokensViaUi(page, env, marketId, { collateral: "20" });
+
+    // The unified price stream, asserted across the whole assembled server
+    // path for the first time in CI (ADR 0025's deferred item): the swap
+    // above must surface as a venue point past the graduation timestamp,
+    // stamped by the hook's per-pool ordinal in the `streams` seed map, on a
+    // line that is continuous through the handoff.
+    const history = await waitForPriceHistory(env, marketId, (candidate) => {
+      if (!candidate.graduatedAt) {
+        return false;
+      }
+      const graduatedAt = candidate.graduatedAt;
+      return candidate.points.some(
+        (point) => point.at !== undefined && point.at > graduatedAt
+      );
+    });
+    const streams = history.streams ?? {};
+    // The traded pool's chain-assigned ordinal made it through hook → indexer
+    // → read; at least one pool has seen at least one swap.
+    expect(Object.values(streams).some((sequence) => sequence >= 1)).toBe(true);
+    // Continuity at the handoff: the synthesized graduation point carries the
+    // pregrad book's closing price, so the two phases meet at one value
+    // rather than jumping.
+    const graduatedAt = history.graduatedAt ?? "";
+    const handoffIndex = history.points.findIndex(
+      (point) => point.at !== undefined && point.at >= graduatedAt
+    );
+    expect(handoffIndex).toBeGreaterThan(0);
+    const before = history.points[handoffIndex - 1];
+    const handoff = history.points[handoffIndex];
+    expect(handoff!.yesCents).toBeCloseTo(before!.yesCents, 6);
 
     // Resolve YES through the dev endpoint (jumps chain time past the gate).
     await resolveMarket(env, marketId, "yes");

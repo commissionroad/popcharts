@@ -1596,3 +1596,10 @@ local-create-market now walks draft → review → authorized publish as hardhat
 account #0 via the API, with a new protocol helper owning the one on-chain
 send. DB keeps under_review/rejected as dead labels. Follow-up left: admin
 re-review service + market_ai_reviews tables (DB-only).
+
+## [2026-08-04] ingest | ADR 0025 deferred items closed — CI lane + live surfaces
+Pages: ~summaries/root-adr-0025-unified-price-stream.md
+Notes: three of the ADR's four deferred items are closed by the follow-up PRs
+(board live prices #456, live stats via tick totals #457, and the lifecycle
+lane's golden-journey assertions over the assembled server path). The ADR's
+deferred section is updated in the same PR as the lane assertions.
