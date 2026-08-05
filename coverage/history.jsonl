@@ -324,3 +324,4 @@
 {"ts":"2026-08-05T01:44:28.994Z","workspace":"server","commit":"d7e2ec9fab48134b8d85f0ea2206f64cb10bb201","linesPct":76.21,"linesHit":13646,"linesFound":17905,"functionsPct":82.06,"branchesPct":null}
 {"ts":"2026-08-05T01:45:59.580Z","workspace":"protocol-solidity","commit":"d7e2ec9fab48134b8d85f0ea2206f64cb10bb201","linesPct":97.1,"linesHit":1605,"linesFound":1653,"functionsPct":null,"branchesPct":null}
 {"ts":"2026-08-05T01:45:59.668Z","workspace":"protocol-ts","commit":"d7e2ec9fab48134b8d85f0ea2206f64cb10bb201","linesPct":50.55,"linesHit":1465,"linesFound":2898,"functionsPct":63.89,"branchesPct":88.68}
+{"ts":"2026-08-05T01:46:41.582Z","workspace":"app","commit":"d7e2ec9fab48134b8d85f0ea2206f64cb10bb201","linesPct":100,"linesHit":3800,"linesFound":3800,"functionsPct":99.63,"branchesPct":99.74}
