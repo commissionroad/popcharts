@@ -10,7 +10,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Market lifecycle](concepts/market-lifecycle.md) — the status ladder in its three vocabularies and who drives each transition
 - [Graduation clearing](concepts/graduation-clearing.md) — band-pass clearing math, the E = R + L identity, and the optimistic onchain protocol
 - [Complete sets](concepts/complete-sets.md) — mint/merge/redeem economics, the solvency invariant, and the ERC20-vs-CTF tokenization decision
-- [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v4 as source of truth, and which repo vocabulary traces to superseded drafts
+- [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v0.6 as source of truth, now in-repo markdown, and which repo vocabulary traces to superseded drafts
 - [Creation-fee custody](concepts/creation-fee-custody.md) — the fee policy, the vault/policy split, and the whitepaper's explicit-fee constraint
 - [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the post-graduation outcome pipeline (design accepted, build underway), per-outcome temporal gates, and provenance caveats
 - [Resolution dispute window](concepts/dispute-window.md) — propose → 24h bonded public dispute → permissionless finalize; the bond economics, and the resolver self-dispute that replaced ADR 0012's off-chain delay
@@ -41,8 +41,9 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 
 ## Summaries — mechanism papers
 
-- [Whitepaper v4](summaries/whitepaper-v4.md) — full mechanism spec: virtual LMSR, band-pass clearing, E = R + L, fill bounds, golden examples
-- [Whitepaper history](summaries/whitepaper-history.md) — evolution v0.1 → v3 → v4 and what each draft kept or dropped
+- [Whitepaper v0.6](summaries/whitepaper-v6.md) — **current source of truth**: lock-the-overlap withdrawals + Lemma 3 (F is invariant), fees as E = R + L + Φ, fee-funded pool seeding
+- [Whitepaper v4](summaries/whitepaper-v4.md) — superseded as truth, still the fullest mechanism digest: virtual LMSR, band-pass clearing, E = R + L, fill bounds, golden examples
+- [Whitepaper history](summaries/whitepaper-history.md) — evolution v0.1 → v3 → v4 → v0.5 → v0.6 and what each draft kept or dropped
 
 ## Summaries — protocol ADRs (protocol/docs/adr/)
 
@@ -50,8 +51,8 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Context/glossary](summaries/protocol-context.md) — the protocol vocabulary: receipts, path bands, matched liquidity, status ladder
 - [Protocol README](summaries/protocol-readme.md) — workspace orientation, commands, PregradManager as entry point
 - [ADR 0001](summaries/protocol-adr-0001-hardhat-3-viem-pnpm.md) — Hardhat 3 + viem + pnpm stack
-- [ADR 0002](summaries/protocol-adr-0002-whitepaper-v4-mechanism-source.md) — whitepaper v4 as mechanism source of truth
-- [ADR 0003](summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md) — v1 receipts locked and non-transferable
+- [ADR 0002](summaries/protocol-adr-0002-whitepaper-v4-mechanism-source.md) — the newest in-repo whitepaper revision as mechanism source of truth (amended 2026-08-04: v4 PDF → whitepaper/v0.6.md)
+- [ADR 0003](summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md) — v1 receipts non-transferable; the no-withdrawal half partially superseded by ADR 0014
 - [ADR 0004](summaries/protocol-adr-0004-solidity-0-8-28.md) — Solidity pinned to 0.8.28
 - [ADR 0005](summaries/protocol-adr-0005-singleton-pregrad-manager.md) — singleton PregradManager over factory-per-market
 - [ADR 0006](summaries/protocol-adr-0006-optimistic-offchain-graduation-clearing.md) — optimistic offchain clearing with Merkle root + challenge window
@@ -62,6 +63,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0011](summaries/protocol-adr-0011-admin-market-cancellation.md) — owner-only `cancelMarket` moderation kill switch: halts an Active market, opens full escrow refunds via the existing claim path, distinct `Cancelled` status (doc still says Proposed; the code has landed)
 - [ADR 0012](summaries/protocol-adr-0012-singleton-postgrad-position-book.md) — PROPOSED mainnet path: singleton ERC1155 `PostgradPositionBook` for all markets + per-market ERC20 wrapper clones as v4 pool currencies; scale-mandate driven, resolves ADR 0008's bounded deviation
 - [ADR 0013](summaries/protocol-adr-0013-bonded-optimistic-resolution.md) — ACCEPTED (decisions locked 2026-07-23): postgrad resolution becomes propose → 24h bonded public dispute → permissionless finalize; a dispute freezes the market for human adjudication, resolver self-dispute is free (operator override), bond movements are paper-trail events; flat bond, forfeits to owner, no bounty, operator finality in v1; market-scoped state transfers onto the ADR 0012 book
+- [ADR 0014](summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md) — Proposed: pre-graduation withdrawal of unopposed bands (F provably invariant, so no graduation veto), segment-list receipts, 1% entry + 5% withdrawal fees outside escrow, and fee-funded v4 pool seeding that must be unwound before resolution
 
 ## Summaries — protocol design docs (protocol/docs/)
 

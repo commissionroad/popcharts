@@ -14,8 +14,10 @@ keeps it synthesized, cross-linked, and current.
    - `protocol/docs/` + `protocol/docs/adr/` + `protocol/CONSTITUTION.md` + `protocol/CONTEXT.md`
    - `app/docs/` + `app/docs/adr/` + `app/CONTEXT.md`
    - `server/README.md`, `infra/README.md`, `designkit/readme.md`
-   - `documents/*.pdf` — mechanism whitepapers (v4 is the mechanism source of
-     truth per protocol ADR 0002)
+   - `whitepaper/*.md` — mechanism whitepaper revisions; the newest (v0.6) is
+     the mechanism source of truth per protocol ADR 0002
+   - `documents/*.pdf` — published whitepaper artifacts, rendered from the
+     markdown above; context, not authority
 2. **The wiki** — everything in this directory. LLM-generated and LLM-owned.
 3. **The schema** — this file. Update it when better conventions emerge, and
    note schema changes in `log.md`.

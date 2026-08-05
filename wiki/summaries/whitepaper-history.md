@@ -1,17 +1,19 @@
 ---
 type: summary
-title: Whitepaper history — v0.1 and v3 (superseded drafts)
-description: Evolution of the mechanism papers — v0.1's price-bucket batch auction, v3's pivot to path-overlap clearing with a full lifecycle state machine and resolution pipeline, and what v4 kept or dropped
+title: Whitepaper history — v0.1 through v0.6
+description: Evolution of the mechanism papers — v0.1's price-bucket batch auction, v3's pivot to path-overlap clearing, v4's full spec, v0.5's solvency proof, and v0.6's withdrawals and fees
 sources:
   - documents/whitepaper_v0_1.pdf
   - documents/whitepaper_v3.pdf
-updated: 2026-07-07
+updated: 2026-08-04
 ---
 
 # Whitepaper history — v0.1 and v3
 
 Two superseded drafts of the mechanism paper precede
-[whitepaper v4](whitepaper-v4.md). Per protocol ADR 0002 they are **context
+[whitepaper v4](whitepaper-v4.md), and two revisions follow it — see the tail
+of this page for v0.5 and [v0.6](whitepaper-v6.md), the current source of
+truth. Per protocol ADR 0002 they are **context
 only**: useful for lifecycle vocabulary and oracle/resolution modularity, but
 v4 supersedes their clearing mechanics. Note a file-naming quirk: the file
 `whitepaper_v3.pdf` is internally labeled **"WORKING DRAFT, rev. 0.2"**
@@ -134,3 +136,28 @@ superseded drafts (and on protocol ADRs), not on the current whitepaper.
 - [Market lifecycle](../concepts/market-lifecycle.md)
 - [Graduation clearing](../concepts/graduation-clearing.md)
 - [AI-assisted resolution](../concepts/ai-assisted-resolution.md)
+
+## v0.5 — the solvency proof (June 2026, unpublished)
+
+A ~25% shorter rewrite of v0.4 whose substantive change is §6: the informal
+conservation argument becomes **Lemma 1** (local funding identity, from
+`P_yes + P_no = 1` on every band), **Lemma 2** (balanced complete sets), and an
+exact-collateralization **Theorem** (`L = F`, zero deficit and zero surplus),
+plus a tightness argument showing overlap is necessary *and* sufficient for a
+segment to be retainable. Never rendered to a PDF and never referenced by an
+ADR; it lived only in a `predictfun` worktree until the 2026-08 import.
+
+## v0.6 — withdrawals, fees, seeding (August 2026, current)
+
+v0.5 plus three things, and the rename from PredictFun to Pop Charts:
+lock-the-overlap withdrawals with **Lemma 3** (`F` is invariant under
+withdrawal of unopposed bands), fees as an explicit `E = R + L + Φ` term, and
+fee-funded seeding of the post-graduation pools. Full digest:
+[whitepaper v0.6](whitepaper-v6.md). This is the first revision to live in the
+repo as markdown ([`whitepaper/`](../../whitepaper/README.md)) rather than only
+as a PDF.
+
+Naming quirk, restated: file version numbers and internal revision labels only
+line up from v4 onward. `whitepaper_v3.pdf` is internally rev 0.2;
+`whitepaper_v4.pdf` is rev 0.4 and its markdown source is `v0.4.md`; v0.5 and
+v0.6 exist only as markdown.
