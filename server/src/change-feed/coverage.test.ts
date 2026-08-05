@@ -15,13 +15,10 @@ import { describe, expect, it } from "bun:test";
 
 import { CHANGE_FEED_SOURCE_TABLES } from "src/change-feed/sources";
 
-// Every process that persists a viewer-facing row: the indexer and the two
-// job runners. A new writer of a registered source must be added here too.
-const SEAM_DIRS = [
-  "src/indexer",
-  "src/ai-review-runner",
-  "src/ai-resolution-runner",
-];
+// Every process that persists a viewer-facing row: the indexer and the
+// resolution runner. A new writer of a registered source must be added here
+// too. Draft review is deliberately absent — it polls and registers no source.
+const SEAM_DIRS = ["src/indexer", "src/ai-resolution-runner"];
 const SOURCE_TABLE_LITERAL = /sourceTable:\s*"([a-z_]+)"/g;
 
 function tsSourceFiles(dir: string): string[] {
