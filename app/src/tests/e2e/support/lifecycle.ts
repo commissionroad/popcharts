@@ -278,17 +278,26 @@ export async function waitForPriceHistory(
   let last = "never fetched";
 
   while (Date.now() < deadline) {
-    const response = await fetch(
-      `${env.apiBaseUrl}/markets/${env.chainId}/${marketId}/price-history`
-    );
-    if (response.ok) {
-      const history = (await response.json()) as ApiPriceHistory;
-      last = `${history.points.length} points, streams ${JSON.stringify(
-        history.streams ?? null
-      )}`;
-      if (until(history)) {
-        return history;
+    // Per-request cap so one stalled fetch cannot outlive `timeoutMs` and
+    // silently hand control to Playwright's much larger spec timeout.
+    try {
+      const response = await fetch(
+        `${env.apiBaseUrl}/markets/${env.chainId}/${marketId}/price-history`,
+        { signal: AbortSignal.timeout(10_000) }
+      );
+      if (response.ok) {
+        const history = (await response.json()) as ApiPriceHistory;
+        last = `${history.points.length} points, streams ${JSON.stringify(
+          history.streams ?? null
+        )}`;
+        if (until(history)) {
+          return history;
+        }
+      } else {
+        last = `HTTP ${response.status}`;
       }
+    } catch (error) {
+      last = `fetch failed: ${error instanceof Error ? error.message : error}`;
     }
     await new Promise((resolveSleep) => setTimeout(resolveSleep, 1_000));
   }
