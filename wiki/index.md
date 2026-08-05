@@ -11,7 +11,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Graduation clearing](concepts/graduation-clearing.md) — band-pass clearing math, the E = R + L identity, and the optimistic onchain protocol
 - [Complete sets](concepts/complete-sets.md) — mint/merge/redeem economics, the solvency invariant, and the ERC20-vs-CTF tokenization decision
 - [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v0.6 as source of truth, now in-repo markdown, and which repo vocabulary traces to superseded drafts
-- [Creation-fee custody](concepts/creation-fee-custody.md) — the fee policy, the vault/policy split, and the whitepaper's explicit-fee constraint
+- [Creation-fee custody](concepts/creation-fee-custody.md) — the three fee surfaces, why each is earned at a different moment, the vault/policy split, and the whitepaper's explicit-fee constraint
 - [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the post-graduation outcome pipeline (design accepted, build underway), per-outcome temporal gates, and provenance caveats
 - [Resolution dispute window](concepts/dispute-window.md) — propose → 24h bonded public dispute → permissionless finalize; the bond economics, and the resolver self-dispute that replaced ADR 0012's off-chain delay
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate

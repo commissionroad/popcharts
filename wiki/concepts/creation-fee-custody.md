@@ -3,6 +3,7 @@ type: concept
 title: Creation-fee custody
 description: Market-creation fees (1e18 native, waived for trusted creators) held by the CreationFeeVault base — custody split from policy, and kept outside the receipt-escrow identity.
 sources:
+  - docs/fee-model.md
   - protocol/docs/adr/0009-complete-set-testnet-policy.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
@@ -10,6 +11,11 @@ updated: 2026-07-15
 ---
 
 # Creation-fee custody
+
+> The flat implementer reference for **all** fees — rates, when each is earned,
+> how the post-graduation fee is actually collected, and the invariants that
+> must not be broken — is [`docs/fee-model.md`](../../docs/fee-model.md).
+> This page covers the creation-fee surface and how the three relate.
 
 Pop Charts charges a market-creation fee: `MARKET_CREATION_FEE = 1e18` native
 units, public creators only, waived for trusted creators, withdrawal gated to

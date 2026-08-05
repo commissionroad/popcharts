@@ -1783,3 +1783,26 @@ the pool instead) and it widens the keeper's `YES + NO ≈ 1` band to ±2%, whic
 is visible to every user as the two pools disagreeing. Recorded in the ADR that
 any future mint fee ships with a keeper exemption in the same change.
 
+## [2026-08-05] ingest | docs/fee-model.md — flat fee reference + the P3 enumeration blocker
+Pages: ~concepts/creation-fee-custody.md, ~index.md
+No separate summary page: a per-source summary would near-duplicate the ADR 0014
+summary, so the fee concept page carries the pointer instead.
+Notes: Added `docs/fee-model.md` as the flat implementer reference for all four
+fees — the ADR is the decision record, this is what someone reads before
+writing code. It carries the post-graduation collection mechanics worked out
+after the ADR was first written: controller via `setProtocolFeeController`,
+`setProtocolFee(poolKey, 4_097_000)` for a symmetric 0.1% (the uint24 packs two
+12-bit directional fees), `collectProtocolFees` in its own transaction because
+it reverts on a synced currency, and the fact that `collectProtocolFees` emits
+no event so the controller must.
+
+Two findings recorded that change work already planned. **The fee is taken from
+the swap's input currency**, so sells accrue YES/NO rather than collateral and
+half the post-grad fee revenue is in tokens that go to zero on the losing side;
+policy is to pair and `mergeCompleteSets` before resolution. And **ADR 0014's
+P3 is not buildable as written**: `ReceiptBook` keys receipts globally by ID
+with no per-market enumeration, so a withdrawal cannot iterate the opposite side
+to compute its opposed set. Two routes recorded (per-side coverage unions, or
+off-chain-compute-and-verify following ADR 0006's pattern) with the note that
+this must be resolved *before* P1, since the storage design follows from it.
+

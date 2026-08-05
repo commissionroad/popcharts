@@ -278,10 +278,32 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       Example A (Alice: 44.18 locked, 53.90 free, 13.35 of 28.77 recoverable;
       Noah and Bea fully locked). Property test: withdrawing every free band of
       every receipt leaves `F` bit-identical.
-- [ ] **P3 — On-chain `withdrawReceiptBands`.** Compute the opposed set on
-      chain, refund the free bands' path cost net of `φ_out`, decrement
-      `totalEscrowed` and `state.path`, and emit a receipt-mutation event the
-      indexer can replay.
+- [ ] **P3 — On-chain `withdrawReceiptBands`.** Refund the free bands' path
+      cost net of `φ_out`, decrement `totalEscrowed` and `state.path`, and emit
+      a receipt-mutation event the indexer can replay.
+
+      **The opposed set cannot simply be computed on chain, and this phase is
+      blocked on choosing how.** `ReceiptBook` stores receipts in
+      `mapping(uint256 receiptId => Receipt)` keyed globally;
+      `market.state.receiptCount` is a counter, not an index. There is **no
+      per-market receipt enumeration on chain at all**, so a withdrawal cannot
+      iterate the opposite side to find out which of its bands are opposed.
+      Two routes, and the choice determines what P1 must store:
+
+      1. **Maintain a per-market coverage union per side.** Placing a receipt
+         merges its interval into its own side's union; a receipt's opposed set
+         is then `I_ℓ ∩ opposite_union`, no iteration required. Sound, because
+         a band only ever leaves a union when no opposite-side receipt covers
+         it, which is exactly a band no one's opposed set depends on. Cost is
+         the number of disjoint intervals in each union — small in practice,
+         unbounded in the worst case.
+      2. **Compute off chain and verify on chain**, the shape this repo already
+         uses for clearing ([ADR 0006](0006-use-optimistic-offchain-graduation-clearing.md)).
+         Consistent with the house pattern and bounded in gas, at the cost of a
+         proof/attestation step in the withdrawal path.
+
+      Resolve this **before** P1 — the storage design follows from it.
+
 - [ ] **P4 — Fees.** Entry fee at `placeReceipt`, stored on the receipt rather
       than derived; withdrawal fee at P3; both held outside `totalEscrowed` and
       refundable per §3. Assert in the clearing invariant suite that fees earned
@@ -296,11 +318,18 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       without P6** — seeding without an unwind path donates the pot to
       arbitrageurs, and the unwind is also what makes any third-party
       subsidy investable.
-- [ ] **P7 — Post-graduation fee split.** Set the native v4 protocol fee to
-      0.1% on both pools, leave the LP fee whole, and pay the creator their
-      share of both the success fee (on-chain, at graduation) and the protocol
-      fee (off-chain attribution from indexed per-pool volume). No hook change:
-      the swap callbacks keep returning zero deltas.
+- [ ] **P7 — Post-graduation fee split.** Mechanics in
+      [docs/fee-model.md](../../../docs/fee-model.md). A controller contract
+      (not an operator EOA — `collectProtocolFees` emits no event, and the
+      paper-trail rule needs one) set via `setProtocolFeeController`;
+      `setProtocolFee(poolKey, 4_097_000)` per pool for a symmetric 0.1%;
+      periodic `collectProtocolFees` in its own transaction, never inside an
+      unlock/settle cycle. LP fee untouched, no hook change. Creator paid their
+      success-fee share on chain at graduation and their trading share from
+      off-chain volume attribution. **Includes the outcome-token policy**: fees
+      accrue in whichever currency the trader pays, so sells accrue YES/NO that
+      go to zero on the losing side — pair and `mergeCompleteSets` before
+      resolution.
 
 ## Deferred work
 
