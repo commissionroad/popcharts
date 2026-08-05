@@ -8,7 +8,12 @@ import { marketFactory } from "@/test/factories/markets";
 import { MarketLiveStats } from "./market-live-stats";
 
 const mocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
   useLiveChannel: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
 }));
 
 vi.mock("@/integrations/live-updates/use-live-channel", () => ({
@@ -71,6 +76,7 @@ function statsMarket(overrides: Partial<Market> = {}): Market {
 }
 
 beforeEach(() => {
+  mocks.refresh.mockReset();
   mocks.useLiveChannel.mockReset();
 });
 
@@ -110,12 +116,31 @@ describe("MarketLiveStats", () => {
     expect(screen.getByText("$1.3K")).toBeInTheDocument();
   });
 
-  it("ignores ticks without totals and non-receipt streams", () => {
+  it("refetches on a totals-less receipts tick — an older emitter mid-deploy", () => {
     render(<MarketLiveStats market={statsMarket()} />);
 
-    // An older emitter's tick: prices only, no totals.
+    // The frame advances the ordinal but cannot carry the stats forward, so
+    // the shown values are knowably behind: refetch rather than freeze.
     emit(tickSignal({ sequence: 6 }));
-    // A venue tick never moves pregrad stats, whatever it carries.
+
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("$1K")).toBeInTheDocument();
+  });
+
+  it("refetches on a gap instead of trusting a non-consecutive total", () => {
+    render(<MarketLiveStats market={statsMarket()} />);
+
+    // Sequence 8 after seed 5: two frames never arrived — their totals may
+    // supersede this one (out-of-order indexer emits), so resync.
+    emit(tickSignal({ matchedUsd: 999, sequence: 8, volumeUsd: 9_999 }));
+
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("$1K")).toBeInTheDocument();
+  });
+
+  it("ignores venue-stream ticks whatever they carry", () => {
+    render(<MarketLiveStats market={statsMarket()} />);
+
     emit(
       tickSignal({
         matchedUsd: 9_999,
@@ -127,6 +152,7 @@ describe("MarketLiveStats", () => {
 
     expect(screen.getByText("$1K")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("ignores tick-less nudges and resets", () => {
@@ -171,6 +197,21 @@ describe("MarketLiveStats", () => {
     expect(screen.getByText("$1.5K")).toBeInTheDocument();
     emit(tickSignal({ matchedUsd: 1, sequence: 7, volumeUsd: 1 }));
     expect(screen.getByText("$1.5K")).toBeInTheDocument();
+  });
+
+  it("never carries live state to another market with an equal SSR triplet", () => {
+    const { rerender } = render(<MarketLiveStats market={statsMarket()} />);
+
+    emit(tickSignal({ matchedUsd: 812.5, sequence: 6, volumeUsd: 1_250 }));
+    expect(screen.getByText("$1.3K")).toBeInTheDocument();
+
+    // Client navigation to a different market whose SSR stats happen to
+    // equal the first market's ORIGINAL stats: identity is in the reset key,
+    // so the applied tick cannot survive the hop.
+    rerender(<MarketLiveStats market={statsMarket({ id: "31337:10" })} />);
+
+    expect(screen.getByText("$1K")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("renders the static children inside the metrics grid", () => {
