@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { MarketCard } from "@/components/ui/market-card";
+import { MarketCardLive } from "@/features/market-discovery/market-card-live";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   type Market,
@@ -63,7 +63,7 @@ export function DiscoveryBoard({ markets }: { markets: Market[] }) {
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleMarkets.map((market) => (
-          <MarketCard key={market.id} market={market} />
+          <MarketCardLive key={market.id} market={market} />
         ))}
       </div>
     </div>

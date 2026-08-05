@@ -65,6 +65,19 @@ describe("change feed registry", () => {
     expect(channelsForRow(row({ owner: null }), ["owner"])).toEqual([]);
   });
 
+  it("routes both trade sources to the discovery board channel", () => {
+    // The board updates card prices from the tick payload, so both tick
+    // sources must fan out to the market list — dropping either route
+    // silently freezes board prices for that lifecycle half.
+    for (const sourceTable of [
+      "receipt_placed_events",
+      "pool_price_ticks",
+    ] as const) {
+      const event = changeFeedRowToEvent(row({ sourceTable }));
+      expect(event!.channels, sourceTable).toContain(MARKET_LIST_CHANNEL);
+    }
+  });
+
   it("maps a known row to an event and drops unknown/unroutable rows", () => {
     const event = changeFeedRowToEvent(row());
     expect(event).not.toBeNull();
