@@ -4,7 +4,7 @@ title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated p
 description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. Drafts, draft review, the review bond and templates are built; the contract gate is not.
 sources:
   - docs/adr/0022-review-first-market-creation.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # Repo ADR 0022: Review-first Market Creation
@@ -18,8 +18,11 @@ on-chain review machinery is gone: no ungated `createMarket`, no
 `approveMarket`/`rejectMarket`, no `UnderReview`/`Rejected` enum members (tail-only
 removal), no review-manager role, no market-review watcher, no publish bridge, and no
 legacy app create surface. `just local-create-market` drives the API draft flow as
-hardhat account #0. Leftover for a small follow-up: the admin re-review service and
-the historical `market_ai_reviews`/`market_ai_review_jobs` tables. P6 and P8 are open.
+hardhat account #0. **Amended 2026-08-05**: drafts gained a public id, and the
+published-market review linkage the ADR left optional is now decided (join, not copy)
+— see the amendment at the bottom. That retires the `market_ai_reviews` half of the
+P5 leftover; the admin re-review service is still open, and it enqueues
+`market_ai_review_jobs` that no worker claims. P6 and P8 are open.
 
 > **P3 was withdrawn 2026-08-04** and replaced by the amendment: the refundable
 > bond becomes a non-refundable **prepaid review credit**. See "Amendment: prepaid
@@ -105,6 +108,10 @@ The existing AI-review tables cannot be reused as-is: `market_ai_reviews` /
 `approveMarket`/`rejectMarket`). Reused is the *pattern* — content-addressed
 metadata (keyed to the draft's snapshot `metadataHash`; edit → new hash → fresh
 review), the leased-job queue, and the stateless review service — not the tables.
+
+Whether a *published* market keeps a review linkage was left optional here ("only if
+we later choose to copy the winning draft-review into a market-scoped audit row").
+Decided 2026-08-05: **resolve by join, do not copy** — see the amendment below.
 
 ## Red-team corrections folded in
 
@@ -256,6 +263,31 @@ The creation-fee receipt work is **pulled ahead of the rest of P4**: it does not
 the gate, and until it lands the creation fee is the only value transfer in the system with
 no receipt-linked record — a standing exception to the invariant in
 [portfolio-data-design](portfolio-data-design.md).
+
+
+## Amendment: draft public id and the published-market review link (2026-08-05)
+
+Two additions, both landed.
+
+**Draft public id.** `market_drafts.public_id` becomes the draft's identity outside the
+database — `/drafts/:id` and the create-flow URL. 16 characters over a 32-symbol
+lowercase alphanumeric alphabet with look-alikes removed (`0`, `1`, `l`, `o`); exactly
+32 symbols so byte-modulo sampling stays uniform. The serial `id` stays the primary key,
+so the review/job/charge foreign keys stay integers and nothing rewrites in lockstep —
+the integer simply stops leaving the database. Minted server-side at create; client-side
+minting was rejected because it only buys an id before the first save and would put the
+format in two workspaces. Uniqueness is the unique index, not the entropy. Ownership is
+enforced independently of the id, so this buys durable non-enumerable links, not access
+control. Landed as #468 → #469.
+
+**Published markets resolve their review by join.** P5 left `market_ai_reviews` with no
+writer while the market detail page still read from it, so markets created after P5
+showed no review. Rather than copy draft reviews into a market-scoped row — a second
+source of truth for one fact — a published market now resolves its review through the
+publish bookkeeping on `market_drafts`, narrowed to the draft's submitted snapshot. The
+join is exact, not approximate: publish refuses unless the draft is unchanged since
+review and verifies the on-chain `metadataHash`, so the reviewed snapshot is provably the
+live market's metadata. Legacy rows still win where they exist. Landed as #465.
 
 ## Related pages
 
