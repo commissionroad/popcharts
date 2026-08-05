@@ -41,10 +41,7 @@ import { presentError } from "@/lib/error-handling";
 
 import type { CreateMarketWallet } from "./draft-publish-service";
 import { applyGeneratedMarketToDraft } from "./dev-autofill";
-import {
-  publishDraftMarket,
-  type PublishedDraftMarket,
-} from "./draft-publish-service";
+import { publishDraftMarket, type PublishedDraftMarket } from "./draft-publish-service";
 import {
   countErrors,
   focusFirstReviewError,
