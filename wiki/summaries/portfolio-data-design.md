@@ -4,7 +4,7 @@ title: Portfolio data design
 description: DB-backed Portfolio spec — Transfer-event balance indexing, one aggregate owner endpoint, receipt→settlement join, current-value-not-PnL v1; also carries the repo-wide money-paper-trail invariant.
 sources:
   - docs/portfolio-data-design.md
-updated: 2026-07-15
+updated: 2026-08-04
 ---
 
 # Portfolio data design (docs/portfolio-data-design.md)
@@ -36,6 +36,18 @@ It binds every money-touching feature: graduation clearing, refunds,
 cancellation, resolution redemption, and postgrad trades. Today it is realized by
 append-only event tables mirrored 1:1 from chain:
 
+- `market_creation_fee_events` *(added 2026-08-04 with the creation-fee
+  indexing)* — per creation fee actually paid, from `MarketCreationFeePaid`,
+  which the `PregradManager`'s creation-fee base emits inside `createMarket`.
+  This closes the gap the ADR 0022 red-team found: the fee was emitted on-chain
+  but indexed nowhere, making it the **only value transfer in the system with
+  no receipt-linked record**. Amount comes from the log rather than the fee
+  constant, so a fee change never rewrites history; trusted creators owe
+  nothing and emit no log, so an absent row means "no fee was due".
+  Foreign-keyed to `markets` on `(chain_id, market_id)` — the fee log can
+  outrun the independent `MarketCreated` watcher on the live path, and the
+  handler parks the sweep until the market row lands rather than dropping the
+  relation.
 - `graduated_receipt_claimed_events` — per receipt: `retainedShares`,
   `retainedCost`, and the **partial** refund. The record that a graduated receipt
   was filled, and by how much.
@@ -50,6 +62,39 @@ append-only event tables mirrored 1:1 from chain:
   market's `Redeemed`/`CancelledRedeemed` events. The token-burn leg of the
   same transaction also lands in `outcome_token_transfer_events`; this table
   records the collateral leg.
+- `postgrad_dispute_bond_events` — per movement of a resolution dispute bond
+  ([ADR 0024](root-adr-0024-resolution-dispute-program.md)): collateral posted
+  into bond custody by the disputer, refunded when the dispute is upheld, or
+  forfeited to the protocol owner when it is not. The dispute's status
+  transitions live separately in `postgrad_dispute_events`; this table records
+  only collateral that actually moved.
+- `complete_set_events` — per complete-set mint or merge: the collateral a
+  postgrad market pulled in (mint) or paid out (merge), with the YES+NO sets
+  created or destroyed. The matching token mints/burns land in
+  `outcome_token_transfer_events`, so — as with redemption — this table records
+  the collateral leg.
+- `review_bond_events` *(added 2026-07-31 with the review-bond indexing)* — per
+  value transfer through the review-credit vault of
+  [ADR 0022](root-adr-0022-review-first-market-creation.md): user deposits,
+  resolver settlements of consumed review fees, user withdrawals of unconsumed
+  bond, and owner fee sweeps. Each row carries the event's own cumulative figure
+  (`running_total`; null for sweeps) so the off-chain meter reconciles against
+  chain state without replaying history.
+  *Amended 2026-08-04:* the ADR's prepaid-credit amendment removes settlement and
+  user withdrawal, leaving **deposits and owner sweeps only**; the table becomes
+  the source the submission gate reads its balance from, rather than a
+  reconciliation record against a chain-side consumed total.
+
+**One omission is deliberate**, and the doc now says so rather than leaving it
+to be re-flagged: `RetainedCollateralFunded` (retained graduation collateral
+moving manager → postgrad adapter → new market) has no table, because no user is
+on either end, there is no receipt to link a row to, and the amount is already
+held as a total in `graduation_finalized_events.retained_cost_total` and
+per-receipt in `graduated_receipt_claimed_events.retained_cost`. The nightly
+paper-trail check reads it from chain as a solvency bound instead — deliberately
+not trusting the projection it audits. Stated as a rule: protocol-internal
+movement of already-recorded collateral earns no row; a new user-facing value
+transfer always does.
 
 The subtle part: because refunds are **pull-based**, a per-receipt record appears
 when money actually *moves* (the claim), not when it becomes *owed*. That is

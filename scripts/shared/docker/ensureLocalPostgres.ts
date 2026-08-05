@@ -77,6 +77,14 @@ type PostgresOptions = {
   readonly logLabel: string;
 };
 
+// Probes over TCP, never the container's Unix socket. On a first boot the
+// image's entrypoint runs a TEMPORARY server so it can apply initdb, and that
+// server listens on the socket alone (`listen_addresses=''`). A socket probe
+// reports "accepting connections" against it, the entrypoint then stops it to
+// start the real server, and whatever we ran in between dies in the gap with
+// "the database system is shutting down" or a missing socket. TCP is the only
+// probe the bootstrap server cannot satisfy, so it is the only one that means
+// the server callers actually connect to is up.
 async function waitForPostgresServer(options: PostgresOptions): Promise<void> {
   await waitFor(
     "Postgres server readiness",
@@ -91,6 +99,8 @@ async function waitForPostgresServer(options: PostgresOptions): Promise<void> {
           "postgres",
           "-d",
           "postgres",
+          "-h",
+          "127.0.0.1",
         ],
         { cwd: options.cwd },
       ),

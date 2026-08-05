@@ -1,10 +1,10 @@
 ---
 type: summary
 title: AI Resolution Service & Runner Design (docs/ai-resolution-service-design.md)
-description: The design ADR 0012 required before build — a stateless resolution service + DB-leased runner that decides yes/no/draw/too_early from public evidence and submits resolve/cancel, built as a sibling of AI review, with per-outcome temporal gates and an on-chain floor guard.
+description: The design ADR 0012 required before build — a stateless resolution service + DB-leased runner that decides yes/no/draw/too_early from public evidence and submits proposeResolution/cancel, built as a sibling of AI review, with per-outcome temporal gates and an on-chain floor guard.
 sources:
   - docs/ai-resolution-service-design.md
-updated: 2026-07-13
+updated: 2026-08-04
 ---
 
 # AI Resolution Service & Runner Design
@@ -20,12 +20,16 @@ made in `server/src/ai-review*`, it is cloned rather than reinvented (see
 
 ## On-chain surface it targets
 
-`CompleteSetBinaryMarket`: `resolve(Side)` and `cancel()` are both
-`onlyResolver` and require `Status.Trading`; the resolver is a **single
-immutable address** set on `CompleteSetPostgradAdapter` and passed to every
-child market — one key resolves all postgrad markets from that adapter, exactly
-analogous to the review-manager key (so custody is a solved shape). `cancel()`
-is the draw path (YES and NO each redeem half).
+`CompleteSetBinaryMarket`: the runner's entry point is **`proposeResolution(Side)`**,
+not `resolve(Side)` — it opens the on-chain dispute window rather than settling
+the market, and the permissionless `finalizeResolution()` (called by the keeper)
+is what settles it once the window closes (repo ADR 0024 Phase 3, protocol
+ADR 0013). `proposeResolution` and `cancel()` are both `onlyResolver` and require
+`Status.Trading`; the resolver is a **single immutable address** set on
+`CompleteSetPostgradAdapter` and passed to every child market — one key resolves
+all postgrad markets from that adapter, exactly analogous to the review-manager
+key (so custody is a solved shape). `cancel()` is the draw path (YES and NO each
+redeem half).
 
 ## Temporal validity guardrails (the load-bearing addition)
 
@@ -54,8 +58,8 @@ an indefinitely-postponed event escalates to `manual_review`; (4) an **on-chain
 per-outcome guard** — `resolve(side)` reverts `TooEarlyToResolve` before the
 side's gate; this is the backstop that holds even if the resolver key is
 compromised, and it closes ADR 0008's open on-chain-gating item; (5) the
-operator delay/override window. `cancel()` is deliberately **not** time-gated
-(postponement escape hatch).
+**on-chain dispute window** the proposal opens. `cancel()` is deliberately
+**not** time-gated (postponement escape hatch).
 
 ## Verdict contract and safety gate
 
@@ -91,8 +95,15 @@ verdict/audit; the chain event is the source of truth for status.
 ## Decisions resolved 2026-07-09
 
 1. Abstention threshold **0.85** + ≥1 surviving evidence item.
-2. Operator delay window **24h on Arc Testnet, 0 on local** (implemented via the
-   queue's `run_after`: persist the audit, re-queue the *submission* step).
+2. ~~Operator delay window, 24h on Arc Testnet / 0 on local, implemented via the
+   queue's `run_after`.~~ **Never built.** Superseded 2026-07-20, before any code
+   existed, by the **on-chain dispute window** (repo ADR 0024, protocol ADR 0013):
+   the runner submits `proposeResolution(side)` immediately and the contract's own
+   window — 24h on deployed networks, zero locally — is the delay. An off-chain
+   delay would only have bound the runner; the on-chain window binds every path to
+   `resolve`, and it gives participants, not just the operator, recourse (anyone
+   may `dispute()` against a bond; the resolver may self-dispute bond-free, which
+   is the operator-override path).
 3. **Draws always manual** — never auto-cancel.
 4. **Trusted-creator self-resolve is in the first build**, behind a cloned
    env-flag auth seam (`POPCHARTS_ADMIN_RESOLUTION_ENABLED`, injectable
@@ -102,8 +113,8 @@ verdict/audit; the chain event is the source of truth for status.
 `bypassAiResolution` (only a trusted creator can set it, at creation) gains its
 resolution-time meaning here: `true` → not auto-discovered, resolved through the
 operator-authenticated self-resolve endpoint (audited as `provider = 'manual'`);
-`false` → must go through the AI service + delay window. Either way the resolver
-key stays on the operator side.
+`false` → must go through the AI service and, once proposed, the on-chain dispute
+window. Either way the resolver key stays on the operator side.
 
 ## Implementation slices (map to the ADR 0012 checklist)
 

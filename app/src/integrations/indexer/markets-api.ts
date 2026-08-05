@@ -6,10 +6,10 @@ import {
 import { getGraduateMarketUrl } from "@popcharts/api-client/graduation";
 import {
   getGetMarketOrderBookUrl,
+  getGetMarketPriceHistoryUrl,
   getGetMarketUrl,
   getListMarketEventsUrl,
   getListMarketOrdersUrl,
-  getListMarketReceiptsUrl,
   getListMarketsUrl,
 } from "@popcharts/api-client/markets";
 import type {
@@ -23,6 +23,7 @@ import type {
   MarketCreatedEvent,
   MarketMetadata,
   MarketOrderBook,
+  MarketPriceHistory,
   Portfolio,
   ReceiptPlacedEvent,
   VenueOrder,
@@ -32,6 +33,7 @@ import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
 export type ApiMarketOrderBook = MarketOrderBook;
+export type ApiMarketPriceHistory = MarketPriceHistory;
 export type ApiPortfolio = Portfolio;
 export type ApiMarketCreatedEvent = MarketCreatedEvent;
 export type ApiReceiptPlacedEvent = ReceiptPlacedEvent;
@@ -65,7 +67,9 @@ export type MarketsApiClient = {
   getMarket: (lookup: MarketApiLookup) => Promise<ApiMarket | null>;
   getMarketEvents: (lookup: MarketApiLookup) => Promise<ApiMarketCreatedEvent[]>;
   getMarketOrderBook: (lookup: MarketApiLookup) => Promise<ApiMarketOrderBook | null>;
-  getMarketReceipts: (lookup: MarketApiLookup) => Promise<ApiReceiptPlacedEvent[]>;
+  getMarketPriceHistory: (
+    lookup: MarketApiLookup
+  ) => Promise<ApiMarketPriceHistory | null>;
   getMarkets: (params?: ListMarketsParams) => Promise<ApiMarket[]>;
   getPortfolio: (args: {
     chainId: number | string;
@@ -218,19 +222,17 @@ export function createMarketsApiClient({
         )
       );
     },
-    async getMarketReceipts({ chainId, marketId }) {
-      const response = await requestJson<ApiReceiptPlacedEvent[]>(
+    getMarketPriceHistory({ chainId, marketId }) {
+      return requestJson<ApiMarketPriceHistory>(
         fetcher,
         buildUrl(
           normalizedBaseUrl,
-          getListMarketReceiptsUrl(
+          getGetMarketPriceHistoryUrl(
             encodeURIComponent(String(chainId)),
             encodeURIComponent(marketId)
           )
         )
       );
-
-      return response ?? [];
     },
     async getMarkets(params = {}) {
       const response = await requestJson<ApiMarket[]>(

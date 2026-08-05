@@ -10,15 +10,17 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Market lifecycle](concepts/market-lifecycle.md) — the status ladder in its three vocabularies and who drives each transition
 - [Graduation clearing](concepts/graduation-clearing.md) — band-pass clearing math, the E = R + L identity, and the optimistic onchain protocol
 - [Complete sets](concepts/complete-sets.md) — mint/merge/redeem economics, the solvency invariant, and the ERC20-vs-CTF tokenization decision
-- [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v4 as source of truth, and which repo vocabulary traces to superseded drafts
+- [Mechanism whitepaper](concepts/mechanism-whitepaper.md) — v0.6 as source of truth, now in-repo markdown, and which repo vocabulary traces to superseded drafts
 - [Creation-fee custody](concepts/creation-fee-custody.md) — the fee policy, the vault/policy split, and the whitepaper's explicit-fee constraint
 - [AI-assisted resolution](concepts/ai-assisted-resolution.md) — the post-graduation outcome pipeline (design accepted, build underway), per-outcome temporal gates, and provenance caveats
+- [Resolution dispute window](concepts/dispute-window.md) — propose → 24h bonded public dispute → permissionless finalize; the bond economics, and the resolver self-dispute that replaced ADR 0012's off-chain delay
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
 - [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel frontend live (2026-07-14); AWS CDK backend + Arc protocol still M5
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
 - [Backend drain-loop pattern](concepts/backend-drain-loop-pattern.md) — the one shape every backend process shares (a long-lived loop draining a durable seam, crash-recovered from the DB) and why the two AI subsystems add an isolated stateless service on top
 - [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks, now becoming slot-addressed concurrent instances (ADR 0020)
 - [Product honesty rule](concepts/product-honesty-rule.md) — the tested never-imply-a-guaranteed-fill copy contract
+- [Price stream](concepts/price-stream.md) — how a trade becomes a chart point in both lifecycle halves, and why only one half can append incrementally
 
 ## Entities
 
@@ -39,8 +41,9 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 
 ## Summaries — mechanism papers
 
-- [Whitepaper v4](summaries/whitepaper-v4.md) — full mechanism spec: virtual LMSR, band-pass clearing, E = R + L, fill bounds, golden examples
-- [Whitepaper history](summaries/whitepaper-history.md) — evolution v0.1 → v3 → v4 and what each draft kept or dropped
+- [Whitepaper v0.6](summaries/whitepaper-v6.md) — **current source of truth**: lock-the-overlap withdrawals + Lemma 3 (F is invariant), fees as E = R + L + Φ, fee-funded pool seeding
+- [Whitepaper v4](summaries/whitepaper-v4.md) — superseded as truth, still the fullest mechanism digest: virtual LMSR, band-pass clearing, E = R + L, fill bounds, golden examples
+- [Whitepaper history](summaries/whitepaper-history.md) — evolution v0.1 → v3 → v4 → v0.5 → v0.6 and what each draft kept or dropped
 
 ## Summaries — protocol ADRs (protocol/docs/adr/)
 
@@ -48,8 +51,8 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Context/glossary](summaries/protocol-context.md) — the protocol vocabulary: receipts, path bands, matched liquidity, status ladder
 - [Protocol README](summaries/protocol-readme.md) — workspace orientation, commands, PregradManager as entry point
 - [ADR 0001](summaries/protocol-adr-0001-hardhat-3-viem-pnpm.md) — Hardhat 3 + viem + pnpm stack
-- [ADR 0002](summaries/protocol-adr-0002-whitepaper-v4-mechanism-source.md) — whitepaper v4 as mechanism source of truth
-- [ADR 0003](summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md) — v1 receipts locked and non-transferable
+- [ADR 0002](summaries/protocol-adr-0002-whitepaper-v4-mechanism-source.md) — the newest in-repo whitepaper revision as mechanism source of truth (amended 2026-08-04: v4 PDF → whitepaper/v0.6.md)
+- [ADR 0003](summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md) — v1 receipts non-transferable; the no-withdrawal half partially superseded by ADR 0014
 - [ADR 0004](summaries/protocol-adr-0004-solidity-0-8-28.md) — Solidity pinned to 0.8.28
 - [ADR 0005](summaries/protocol-adr-0005-singleton-pregrad-manager.md) — singleton PregradManager over factory-per-market
 - [ADR 0006](summaries/protocol-adr-0006-optimistic-offchain-graduation-clearing.md) — optimistic offchain clearing with Merkle root + challenge window
@@ -60,6 +63,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0011](summaries/protocol-adr-0011-admin-market-cancellation.md) — owner-only `cancelMarket` moderation kill switch: halts an Active market, opens full escrow refunds via the existing claim path, distinct `Cancelled` status (doc still says Proposed; the code has landed)
 - [ADR 0012](summaries/protocol-adr-0012-singleton-postgrad-position-book.md) — PROPOSED mainnet path: singleton ERC1155 `PostgradPositionBook` for all markets + per-market ERC20 wrapper clones as v4 pool currencies; scale-mandate driven, resolves ADR 0008's bounded deviation
 - [ADR 0013](summaries/protocol-adr-0013-bonded-optimistic-resolution.md) — ACCEPTED (decisions locked 2026-07-23): postgrad resolution becomes propose → 24h bonded public dispute → permissionless finalize; a dispute freezes the market for human adjudication, resolver self-dispute is free (operator override), bond movements are paper-trail events; flat bond, forfeits to owner, no bounty, operator finality in v1; market-scoped state transfers onto the ADR 0012 book
+- [ADR 0014](summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md) — Proposed: pre-graduation withdrawal of unopposed bands (F provably invariant, so no graduation veto), segment-list receipts, 1% entry + 5% withdrawal fees outside escrow, and fee-funded v4 pool seeding that must be unwound before resolution
 
 ## Summaries — protocol design docs (protocol/docs/)
 
@@ -89,8 +93,9 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [ADR 0019](summaries/root-adr-0019-ai-verdict-quality-program.md) — measured verdict-quality program for AI review + resolution: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, CI consistency lane, prompt-version eval policy (extends 0011/0012; core harness landed — review + resolution runners, datasets, pre-stages, CI regression lane; corroboration policy open)
 - [ADR 0020](summaries/root-adr-0020-concurrent-local-dev-stacks.md) — concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents in contained `.worktrees/`) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market (all build phases landed 2026-07-17, PRs #242/#247/#248/#260 — incl. the with-target-stack launcher routing the cross-workspace sibling scripts; Phase 4 corrected 2026-07-26 — create-market did not propagate the slot's RPC URL to the protocol child, so non-zero slots created markets on slot 0's chain)
 - [ADR 0021](summaries/root-adr-0021-live-market-updates.md) — Accepted (server spine + client transport built 2026-07-22..23, polls converted to push 2026-07-23): make the app feel live via server-signalled, client-refetched updates over SSE fed by a durable `change_feed` outbox (written atomically with each indexed event via explicit `recordLiveChange` seams, not a DB trigger); DB/REST stays the single source of truth, indexer stays pure, no message broker; NOTIFY demoted to an optional poll-first doorbell; the client hook hands each signal to a **caller-supplied callback** (no React Query coupling) (slices 1–2 and 4 built, slices 3 and 5–7 open)
-- [ADR 0022](summaries/root-adr-0022-review-first-market-creation.md) — Proposed: invert market creation to review-first — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated `createMarket` (full-params authorizer signature, on-chain single-use nonce, trusted-creator bypass) so markets are born Active and the creation fee is paid at publish not submit; retires the on-chain review path, adds templates/clone, Privy-auth drafts, and a real-markets-only board; anti-spam = a prepaid refundable **review bond** ($5 min, $1/submit incl. 5 reviews, $0.20 after) in a separate native-USDC `ReviewBondVault` escrow, off-chain-metered; red-teamed (8 phases open)
+- [ADR 0022](summaries/root-adr-0022-review-first-market-creation.md) — Accepted, largely built: market creation inverted to review-first — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated `createMarket` (full-params authorizer signature, on-chain single-use nonce, trusted-creator bypass) so markets are born Active and the creation fee is paid at publish not submit. **P1–P5 + P7 landed 2026-08-03..04**: the on-chain review path is gone (no ungated `createMarket`, no `approveMarket`/`rejectMarket`, no `UnderReview`/`Rejected` enum members, no review-manager role, no legacy app create surface). Anti-spam is a **prepaid review credit** in a separate native-USDC vault, off-chain-metered — P3's refundable bond was withdrawn 2026-08-04 and replaced by non-refundable credit at one configurable per-review rate (`depositFor`, no withdrawal, no settlement). Review verdicts carry a third `changes_requested` outcome for quality feedback distinct from policy rejection. **Amended 2026-08-05**: drafts carry a 16-character public id as their identity outside the database, and a published market resolves its review by **joining back to the approving draft** rather than copying it into a market-scoped row. P6 and P8 open; the admin re-review service still enqueues jobs no worker claims
 - [ADR 0024](summaries/root-adr-0024-resolution-dispute-program.md) — Accepted: the cross-stack program landing protocol ADR 0013's dispute window — propose → bonded 24h public dispute → permissionless finalize — superseding ADR 0012's off-chain operator delay; Phase 1 contracts (PRs #328/#321) and Phase 4's permissionless resolution-check endpoint (PR #342) landed 2026-07-24, with indexer, runner+keeper, dispute UI, and the ops page still open
+- [ADR 0025](summaries/root-adr-0025-unified-price-stream.md) — Proposed: collapse the pre- and post-graduation price paths into one stream — a per-pool sequence emitted by the bounded hook (near-free before deploy, a venue migration after, since the hook address is part of every pool id), server-side derivation for both halves, one endpoint and one point shape, and a chart blind to the phase; six phases, none started, P1 gated on a gas measurement
 
 ## Summaries — root docs
 

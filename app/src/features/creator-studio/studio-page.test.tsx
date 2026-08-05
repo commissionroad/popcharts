@@ -109,7 +109,7 @@ describe("StudioPage", () => {
   });
 
   it("distinguishes an empty shelf from having no drafts", () => {
-    stubStudio({ drafts: [draftFixture(1)], shelf: "approved" });
+    stubStudio({ drafts: [draftFixture("1")], shelf: "approved" });
 
     render(<StudioPage />);
 
@@ -118,10 +118,10 @@ describe("StudioPage", () => {
   });
 
   it("renders the draft grid and routes card actions through the studio", () => {
-    const draftOne = draftFixture(1);
-    const draftTwo = draftFixture(2);
+    const draftOne = draftFixture("1");
+    const draftTwo = draftFixture("2");
     const studio = stubStudio({
-      busyDraftId: 2,
+      busyDraftId: "2",
       drafts: [draftOne, draftTwo],
       visibleDrafts: [draftOne, draftTwo],
     });
@@ -135,9 +135,9 @@ describe("StudioPage", () => {
     fireEvent.click(within(cardOne).getByRole("button", { name: "Template" }));
     fireEvent.click(within(cardOne).getByRole("button", { name: "Delete" }));
 
-    expect(studio.cloneDraft).toHaveBeenCalledWith(1);
+    expect(studio.cloneDraft).toHaveBeenCalledWith("1");
     expect(studio.toggleTemplate).toHaveBeenCalledWith(draftOne);
-    expect(studio.removeDraft).toHaveBeenCalledWith(1);
+    expect(studio.removeDraft).toHaveBeenCalledWith("1");
     expect(within(cardTwo).getByRole("button", { name: "Clone" })).toBeDisabled();
   });
 
@@ -187,7 +187,7 @@ describe("StudioPage", () => {
 
 type StudioState = ReturnType<typeof useStudio>;
 
-function draftFixture(id: number) {
+function draftFixture(id: string) {
   return marketDraftFactory({
     id,
     question: `Draft question ${id}?`,

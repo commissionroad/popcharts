@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import type { Static } from "@sinclair/typebox";
+import { Kind, type Static } from "@sinclair/typebox";
 import { MARKET_SIDES } from "@popcharts/protocol";
 
 import {
@@ -57,20 +57,6 @@ export const DEV_MARKET_CLOSE_INELIGIBLE_REASONS = [
 /** One of {@link DEV_MARKET_CLOSE_INELIGIBLE_REASONS}. */
 export type DevMarketCloseIneligibleReason =
   (typeof DEV_MARKET_CLOSE_INELIGIBLE_REASONS)[number];
-
-/**
- * Why a dev-only forced review was refused. Deliberately its own set rather
- * than a reuse of the close reasons it currently matches: the two endpoints
- * refuse for unrelated conditions and are free to diverge.
- */
-export const DEV_MARKET_REVIEW_INELIGIBLE_REASONS = [
-  "chain_status",
-  "wrong_status",
-] as const;
-
-/** One of {@link DEV_MARKET_REVIEW_INELIGIBLE_REASONS}. */
-export type DevMarketReviewIneligibleReason =
-  (typeof DEV_MARKET_REVIEW_INELIGIBLE_REASONS)[number];
 
 /** Why a dev-only end-to-end graduation was refused. */
 export const DEV_MARKET_GRADUATE_INELIGIBLE_REASONS = [
@@ -401,6 +387,71 @@ export const MarketOrderBookSchema = t.Object(
 );
 
 /**
+ * One sample on a graduated market's venue price history. Both outcomes are
+ * quoted at every sample even though a swap only ever moves one pool: the
+ * untouched side carries its last observed price forward, so a chart can plot
+ * the pair without re-deriving the fill itself.
+ *
+ * Prices are cents (0-100) rather than WAD, because an outcome token redeeming
+ * for one collateral on a win makes them the same scale as the pre-graduation
+ * implied probabilities the same chart draws. Fractional, for the same reason
+ * that half of the chart is: a bounded pool can take several swaps inside one
+ * cent, and rounding here would plot them as a flat line. Round at display.
+ */
+/**
+ * One sample on a market's whole-life price history (repo ADR 0025). Cents
+ * are fractional (round at display). Pre-graduation the pair is complementary
+ * by construction — one LMSR state prices both sides; post-graduation the two
+ * pools price independently, and the pair only approaches a complete set as
+ * arbitrage closes the gap. The shape is identical across the seam, so a
+ * consumer cannot tell which mechanism produced a point.
+ */
+export const PricePointSchema = t.Object(
+  {
+    at: t.String(),
+    noCents: t.Number(),
+    yesCents: t.Number(),
+  },
+  { $id: "PricePoint" },
+);
+
+/**
+ * A market's price history across its whole trading life: the virtual LMSR
+ * path over the receipt book, then — once graduated — the bounded venue's own
+ * prices, joined by the synthesized handoff point. `graduatedAt` is present
+ * as soon as the handoff is indexed and is a pure chart annotation; the
+ * points themselves carry no phase marker.
+ */
+export const MarketPriceHistorySchema = t.Object(
+  {
+    chainId: t.Number(),
+    graduatedAt: t.Optional(t.String()),
+    marketId: t.String(),
+    points: t.Array(t.Ref(PricePointSchema)),
+    /**
+     * Last live-tick sequence per venue stream (pool id), from the hook's
+     * per-pool ordinal — the seed the client's per-stream gap check needs
+     * before it can trust the first live tick (repo ADR 0025 P5). The
+     * receipts stream's seed is the market's own receiptCount and is not
+     * repeated here. Omitted before the venue has traded.
+     */
+    // t.Unsafe with additionalProperties, not t.Record: TypeBox encodes
+    // records as patternProperties, which OpenAPI 3.0 rejects. The Kind is
+    // pinned to "Any" because the response validator compiles by Kind and
+    // does not know "Unsafe" — so this field is spec-typed but not
+    // runtime-checked, which is fine for a server-assembled response.
+    streams: t.Optional(
+      t.Unsafe<Record<string, number>>({
+        [Kind]: "Any",
+        additionalProperties: { type: "number" },
+        type: "object",
+      }),
+    ),
+  },
+  { $id: "MarketPriceHistory" },
+);
+
+/**
  * One indexed bounded-venue maker order. `priceWad` follows the ladder's
  * price convention; `sizeWad` / `remainingSizeWad` are the outcome-token
  * quantities (WAD) of the order's total and remaining liquidity over its
@@ -646,28 +697,6 @@ export const DevMarketCloseIneligibleSchema = t.Object(
   { $id: "DevMarketCloseIneligible" },
 );
 
-/** Result of a dev-only forced market review. */
-export const DevMarketReviewResponseSchema = t.Object(
-  {
-    market: t.Ref(MarketSchema),
-    status: t.Literal("reviewed"),
-    transactionHash: t.Optional(t.String()),
-    verdict: t.Ref(AiReviewVerdictSchema),
-  },
-  { $id: "DevMarketReviewResponse" },
-);
-
-/** Dev-only forced-review refusal, with the reason. */
-export const DevMarketReviewIneligibleSchema = t.Object(
-  {
-    message: t.String(),
-    market: t.Ref(MarketSchema),
-    reason: literalUnion(DEV_MARKET_REVIEW_INELIGIBLE_REASONS),
-    status: t.Literal("ineligible"),
-  },
-  { $id: "DevMarketReviewIneligible" },
-);
-
 /** Result of a dev-only end-to-end market graduation. */
 export const DevMarketGraduateResponseSchema = t.Object(
   {
@@ -802,12 +831,6 @@ export type DevMarketCloseResponse = Static<
 export type DevMarketCloseIneligibleResponse = Static<
   typeof DevMarketCloseIneligibleSchema
 >;
-export type DevMarketReviewResponse = Static<
-  typeof DevMarketReviewResponseSchema
->;
-export type DevMarketReviewIneligibleResponse = Static<
-  typeof DevMarketReviewIneligibleSchema
->;
 export type VenuePoolSideResponse = Static<typeof VenuePoolSideSchema>;
 export type VenueOrderStatusResponse = Static<typeof VenueOrderStatusSchema>;
 export type VenueOrderDirectionResponse = Static<
@@ -820,6 +843,10 @@ export type VenueOrderBookPoolResponse = Static<
   typeof VenueOrderBookPoolSchema
 >;
 export type MarketOrderBookResponse = Static<typeof MarketOrderBookSchema>;
+export type PricePointResponse = Static<typeof PricePointSchema>;
+export type MarketPriceHistoryResponse = Static<
+  typeof MarketPriceHistorySchema
+>;
 export type VenueOrderResponse = Static<typeof VenueOrderSchema>;
 export type MarketVenuePoolResponse = Static<typeof MarketVenuePoolSchema>;
 export type MarketVenueResponse = Static<typeof MarketVenueSchema>;

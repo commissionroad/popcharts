@@ -14,7 +14,9 @@ describe("buildPriceTick", () => {
     t: new Date("2026-07-24T00:00:00.000Z"),
     sequence: 1n,
     liquidityParameterWad: wad(5_000),
+    matchedMarketCapWad: 0n,
     openingProbabilityWad: wad(0.5),
+    totalEscrowedWad: 0n,
     yesSharesWad: 0n,
     noSharesWad: 0n,
   };
@@ -51,7 +53,13 @@ describe("buildPriceTick", () => {
       noSharesWad: wad(120),
     };
 
-    const tick = buildPriceTick({ t: new Date(), sequence: 3n, ...state });
+    const tick = buildPriceTick({
+      t: new Date(),
+      sequence: 3n,
+      matchedMarketCapWad: 0n,
+      totalEscrowedWad: 0n,
+      ...state,
+    });
 
     // The app derives its price by wad-decoding the same columns and calling
     // the same function; reproduce that decode here and require exact equality.
@@ -65,5 +73,16 @@ describe("buildPriceTick", () => {
     });
 
     expect(tick.yesPriceCents).toBe(expected);
+  });
+
+  it("carries the post-trade totals as WAD-decoded USD numbers", () => {
+    const tick = buildPriceTick({
+      ...openMarket,
+      matchedMarketCapWad: wad(812.5),
+      totalEscrowedWad: wad(1_204.75),
+    });
+
+    expect(tick.matchedUsd).toBeCloseTo(812.5, 6);
+    expect(tick.volumeUsd).toBeCloseTo(1_204.75, 6);
   });
 });

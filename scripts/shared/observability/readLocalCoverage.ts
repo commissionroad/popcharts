@@ -49,7 +49,11 @@ export interface LocalCoverage {
  */
 const LOCAL_LCOV: { workspace: string; lcovPath: string; rootDir: string }[] = [
   { workspace: "app", lcovPath: "app/coverage/lcov.info", rootDir: "app" },
-  { workspace: "server", lcovPath: "server/coverage/lcov.info", rootDir: "server" },
+  {
+    workspace: "server",
+    lcovPath: "server/coverage/lcov.info",
+    rootDir: "server",
+  },
   {
     workspace: "protocol-solidity",
     lcovPath: "protocol/coverage/lcov.info",
@@ -85,12 +89,18 @@ function parseRecords(
       continue;
     }
     if (!current) continue;
-    if (line.startsWith("LF:")) current.lines.found = Number(line.slice(3)) || 0;
-    else if (line.startsWith("LH:")) current.lines.hit = Number(line.slice(3)) || 0;
-    else if (line.startsWith("FNF:")) current.functions.found = Number(line.slice(4)) || 0;
-    else if (line.startsWith("FNH:")) current.functions.hit = Number(line.slice(4)) || 0;
-    else if (line.startsWith("BRF:")) current.branches.found = Number(line.slice(4)) || 0;
-    else if (line.startsWith("BRH:")) current.branches.hit = Number(line.slice(4)) || 0;
+    if (line.startsWith("LF:"))
+      current.lines.found = Number(line.slice(3)) || 0;
+    else if (line.startsWith("LH:"))
+      current.lines.hit = Number(line.slice(3)) || 0;
+    else if (line.startsWith("FNF:"))
+      current.functions.found = Number(line.slice(4)) || 0;
+    else if (line.startsWith("FNH:"))
+      current.functions.hit = Number(line.slice(4)) || 0;
+    else if (line.startsWith("BRF:"))
+      current.branches.found = Number(line.slice(4)) || 0;
+    else if (line.startsWith("BRH:"))
+      current.branches.hit = Number(line.slice(4)) || 0;
     else if (line === "end_of_record") {
       files.push(current);
       current = null;

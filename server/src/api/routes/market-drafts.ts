@@ -1,8 +1,12 @@
 import { Elysia, t } from "elysia";
 
 import { resolveDraftOwner } from "src/api/draft-auth";
+import { config, ZERO_ADDRESS } from "src/config";
+import { reviewCreditSummary } from "src/draft-review/review-credit-meter";
 import {
   DraftFeedbackFieldSchema,
+  MarketDraftBondShortfallSchema,
+  MarketDraftReviewCreditSchema,
   DraftFeedbackItemSchema,
   DraftFeedbackSeveritySchema,
   DraftReviewFeedbackSchema,
@@ -10,6 +14,7 @@ import {
   MarketDraftListSchema,
   MarketDraftPublishedSchema,
   MarketDraftPublishedWriteSchema,
+  MarketDraftPublishAuthorizationSchema,
   MarketDraftPublishParamsSchema,
   MarketDraftReviewSchema,
   MarketDraftSchema,
@@ -44,8 +49,11 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
     DraftFeedbackSeverity: DraftFeedbackSeveritySchema,
     DraftReviewFeedback: DraftReviewFeedbackSchema,
     MarketDraft: MarketDraftSchema,
+    MarketDraftBondShortfall: MarketDraftBondShortfallSchema,
     MarketDraftCloneRequest: MarketDraftCloneRequestSchema,
+    MarketDraftReviewCredit: MarketDraftReviewCreditSchema,
     MarketDraftList: MarketDraftListSchema,
+    MarketDraftPublishAuthorization: MarketDraftPublishAuthorizationSchema,
     MarketDraftPublished: MarketDraftPublishedSchema,
     MarketDraftPublishedWrite: MarketDraftPublishedWriteSchema,
     MarketDraftPublishParams: MarketDraftPublishParamsSchema,
@@ -77,6 +85,59 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         summary: "List the caller's market drafts",
         description:
           "Every live (non-deleted) draft owned by the authenticated user, most recently touched first, each with its latest review.",
+        tags: ["Drafts"],
+      },
+    },
+  )
+  .get(
+    "/drafts/credit",
+    async ({ ownerResolution, query, set }) => {
+      if (ownerResolution.kind !== "resolved") {
+        return ownerFailure(ownerResolution, set);
+      }
+
+      // Same wallet-identity convention as the portfolio surface: an explicit
+      // lowercased address (the draft's intended creator), validated here.
+      const address = query.address.toLowerCase();
+
+      if (!/^0x[0-9a-f]{40}$/.test(address)) {
+        set.status = 422;
+        return "address must be a 0x-prefixed 20-byte hex address.";
+      }
+
+      if (config.contracts.reviewCreditVault === ZERO_ADDRESS) {
+        return {
+          availableWad: "0",
+          metered: false,
+          rateWad: "0",
+          runsRemaining: 0,
+          runsUsed: 0,
+        };
+      }
+
+      const summary = await reviewCreditSummary(address);
+
+      return {
+        availableWad: summary.availableWad.toString(),
+        metered: true,
+        rateWad: summary.rateWad.toString(),
+        runsRemaining: summary.runsRemaining,
+        runsUsed: summary.runsUsed,
+      };
+    },
+    {
+      query: t.Object({ address: t.String() }),
+      response: {
+        200: "MarketDraftReviewCredit",
+        401: t.String(),
+        422: t.String(),
+        501: t.String(),
+      },
+      detail: {
+        operationId: "getMarketDraftReviewCredit",
+        summary: "Read a wallet's review credit",
+        description:
+          "The wallet's prepaid review credit: indexed deposits minus metered charges, the per-review rate, and run counts. metered=false means no vault is configured and submission is ungated.",
         tags: ["Drafts"],
       },
     },
@@ -119,7 +180,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await getMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -153,7 +214,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await updateMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
         patch: body,
       });
@@ -197,7 +258,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await deleteMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -278,7 +339,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       const result = await submitMarketDraft({
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -300,6 +361,22 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         };
       }
 
+      if (result.kind === "missing_wallet") {
+        set.status = 409;
+        return "Connect the wallet that will publish this market before submitting.";
+      }
+
+      if (result.kind === "insufficient_bond") {
+        set.status = 402;
+        return {
+          availableWad: result.availableWad.toString(),
+          message:
+            "You're out of review credit. Deposit to keep submitting — credit is spent per review and isn't refundable.",
+          requiredWad: result.requiredWad.toString(),
+          runsUsed: result.runsUsed,
+        };
+      }
+
       set.status = 202;
 
       return result.draft;
@@ -309,6 +386,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       response: {
         202: "MarketDraft",
         401: t.String(),
+        402: "MarketDraftBondShortfall",
         404: t.String(),
         409: t.String(),
         422: "MarketDraftValidationErrors",
@@ -325,13 +403,14 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
   )
   .post(
     "/drafts/:draftId/publish-params",
-    async ({ ownerResolution, params, set }) => {
+    async ({ ownerResolution, params, query, set }) => {
       if (ownerResolution.kind !== "resolved") {
         return ownerFailure(ownerResolution, set);
       }
 
       const result = await buildDraftPublishParams({
-        draftId: Number.parseInt(params.draftId, 10),
+        creatorAddress: query.creatorAddress as `0x${string}` | undefined,
+        draftId: params.draftId,
         owner: ownerResolution.owner,
       });
 
@@ -345,10 +424,18 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
         return result.message;
       }
 
-      return result.params;
+      return { ...result.params, authorization: result.authorization };
     },
     {
       params: t.Object({ draftId: t.String() }),
+      // Wallet identity as a query param, the house pattern (orders?owner=).
+      // Optional: without it the response carries no authorization, since
+      // there is no wallet to bind one to.
+      query: t.Object({
+        creatorAddress: t.Optional(
+          t.String({ pattern: "^0x[0-9a-fA-F]{40}$" }),
+        ),
+      }),
       response: {
         200: "MarketDraftPublishParams",
         401: t.String(),
@@ -383,7 +470,7 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
 
       const result = await markMarketDraftPublished({
         chainId: body.chainId,
-        draftId: Number.parseInt(params.draftId, 10),
+        draftId: params.draftId,
         marketId,
         owner: ownerResolution.owner,
         transactionHash: body.transactionHash,
@@ -403,7 +490,6 @@ export const marketDraftRoutes = new Elysia({ prefix: "" })
       }
 
       return {
-        bridgeApproved: result.bridgeApproved,
         draft: result.draft,
       };
     },
@@ -443,7 +529,7 @@ function ownerFailure(
 }
 
 function cloneSource(body: {
-  fromDraftId?: number;
+  fromDraftId?: string;
   fromMarket?: { chainId: number; marketId: string };
 }): CloneMarketDraftSource | null {
   if (body.fromDraftId !== undefined) {

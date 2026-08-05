@@ -8,6 +8,5 @@
 import type { MarketDraft } from "./marketDraft";
 
 export interface MarketDraftPublished {
-  bridgeApproved: boolean;
   draft: MarketDraft;
 }

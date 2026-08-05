@@ -1,0 +1,1 @@
+ALTER TABLE "markets" ALTER COLUMN "status" DROP DEFAULT;

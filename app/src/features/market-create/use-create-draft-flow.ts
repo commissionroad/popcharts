@@ -1,6 +1,10 @@
 "use client";
 
-import type { DraftFeedbackItem, MarketDraft } from "@popcharts/api-client/models";
+import type {
+  DraftFeedbackItem,
+  MarketDraft,
+  MarketDraftBondShortfall,
+} from "@popcharts/api-client/models";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
 
@@ -29,11 +33,13 @@ import { getPopChartsContractConfig } from "@/integrations/contracts/config";
 import {
   createDraftsApiClient,
   type DraftsApiClient,
+  DraftsApiError,
 } from "@/integrations/indexer/drafts-api";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
+import { syncDraftIdInUrl } from "@/lib/draft-url";
 import { presentError } from "@/lib/error-handling";
 
-import type { CreateMarketWallet } from "./create-market-service";
+import type { CreateMarketWallet } from "./draft-publish-service";
 import { applyGeneratedMarketToDraft } from "./dev-autofill";
 import {
   persistPublishedMetadata,
@@ -69,7 +75,7 @@ export function useCreateDraftFlow({
   initialDraftId = null,
   initialNow,
 }: {
-  initialDraftId?: number | null;
+  initialDraftId?: string | null;
   initialNow: string;
 }) {
   const wallet = useWalletAccount();
@@ -105,12 +111,24 @@ export function useCreateDraftFlow({
     null
   );
   const [templateSaved, setTemplateSaved] = useState(false);
-  const [loadedDraftId, setLoadedDraftId] = useState<number | null>(null);
+  const [bondShortfall, setBondShortfall] = useState<MarketDraftBondShortfall | null>(
+    null
+  );
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
   const skipNextAutosave = useRef(false);
   // Monotonic save generation: every save (and submit, which supersedes any
   // save) bumps it, and a response is applied only while its generation is
   // still current — a slow older PATCH can never overwrite a newer one.
   const saveSeq = useRef(0);
+  // The autosave request currently on the wire, if any. Submit awaits it
+  // before flushing so the two writes never race server-side — the version
+  // guard there would surface a conflict banner for what is really just one
+  // client typing quickly.
+  const inflightSave = useRef<Promise<unknown> | null>(null);
+  // True from issuing the undebounced create until it settles. There is no
+  // draft id to key on yet, so this ref is the only thing stopping a second
+  // keystroke from creating a second draft.
+  const isCreatingDraft = useRef(false);
 
   // Loading is derived, never set synchronously: the draft is "loading" until
   // the fetch keyed by (initialDraftId, client) lands and records its id.
@@ -190,13 +208,23 @@ export function useCreateDraftFlow({
       return;
     }
 
+    // The create is not debounced, so it fires while the user is still typing
+    // and every further keystroke re-runs this effect before it resolves.
+    // Without this guard the second keystroke would POST a second draft and
+    // orphan the first as an untitled row.
+    if (!serverDraft && isCreatingDraft.current) {
+      return;
+    }
+
     const write = stableWrite(formDraftToWrite(formDraft, new Date()), serverDraft);
 
     if (serverDraft && !writeChangesServerDraft(write, serverDraft)) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
+    const isCreate = !serverDraft;
+
+    const runSave = () => {
       const seq = ++saveSeq.current;
 
       setIsSaving(true);
@@ -209,15 +237,20 @@ export function useCreateDraftFlow({
             intendedCreatorAddress: creatorAddress,
           });
 
+      inflightSave.current = save.catch(() => undefined);
+
       save
         .then((saved) => {
           if (seq !== saveSeq.current) {
             return;
           }
 
-          skipNextAutosave.current = true;
           setServerDraft(saved);
           setSavedAt(saved.updatedAt);
+          // The first save is where a draft id starts existing, so it is also
+          // the earliest the URL can name one. Creating the row on arrival
+          // instead would leave an untitled draft behind for every visit.
+          syncDraftIdInUrl(saved.id);
         })
         .catch((error: unknown) => {
           if (seq === saveSeq.current) {
@@ -225,11 +258,29 @@ export function useCreateDraftFlow({
           }
         })
         .finally(() => {
+          if (isCreate) {
+            isCreatingDraft.current = false;
+          }
+
           if (seq === saveSeq.current) {
             setIsSaving(false);
           }
         });
-    }, AUTOSAVE_DEBOUNCE_MS);
+    };
+
+    // The create is not debounced at all: it mints the id that names the draft
+    // in the address bar, and the wait before it is the entire window where a
+    // reload loses the work. Nothing would be gained by letting a later
+    // keystroke cancel it either — the draft has to exist exactly once, and
+    // the edits typed meanwhile ride the next (debounced) update.
+    if (isCreate) {
+      isCreatingDraft.current = true;
+      runSave();
+
+      return;
+    }
+
+    const timer = window.setTimeout(runSave, AUTOSAVE_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);
@@ -332,8 +383,11 @@ export function useCreateDraftFlow({
     setIsSubmitting(true);
     setFlowError(null);
     // Submit supersedes any in-flight autosave: its response is dropped so a
-    // slow PATCH can never overwrite what this flush is about to persist.
+    // slow PATCH can never overwrite what this flush is about to persist —
+    // and the request itself is awaited so the flush never races it into the
+    // server's version guard.
     saveSeq.current += 1;
+    await inflightSave.current;
 
     try {
       // Flush any unsaved edits so the review sees exactly what's on screen.
@@ -346,8 +400,15 @@ export function useCreateDraftFlow({
       const submitted = await client.submit(saved.id);
       setServerDraft(submitted);
       setSavedAt(submitted.updatedAt);
+      setBondShortfall(null);
     } catch (error) {
-      setFlowError(describeError(error, "submit-draft"));
+      // A meter refusal is a prompt to fund the bond, not an error banner:
+      // the shortfall panel takes over the aside with a one-click deposit.
+      if (error instanceof DraftsApiError && error.bondShortfall) {
+        setBondShortfall(error.bondShortfall);
+      } else {
+        setFlowError(describeError(error, "submit-draft"));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -375,15 +436,19 @@ export function useCreateDraftFlow({
     setFlowError(null);
 
     try {
-      const params = await client.publishParams(draftId);
+      const creatorAddress = wallet.address as `0x${string}`;
+      const params = await client.publishParams(draftId, creatorAddress);
       const walletContext: CreateMarketWallet = {
-        accountAddress: wallet.address as `0x${string}`,
+        accountAddress: creatorAddress,
         activeChainId: wallet.activeChainId,
         publicClient,
         walletClient,
       };
       const published = await publishDraftMarket({
         params,
+        // An authorization left on a wallet prompt past its 15-minute window
+        // is re-minted transparently — minting is free (ADR 0022 P4).
+        remint: () => client.publishParams(draftId, creatorAddress),
         wallet: walletContext,
       });
 
@@ -415,8 +480,16 @@ export function useCreateDraftFlow({
     document.getElementById("question")?.focus();
   }
 
+  function clearBondShortfall() {
+    setBondShortfall(null);
+  }
+
   function startFresh() {
     skipNextAutosave.current = true;
+    // Without this a reload after "Create another" silently reopens the draft
+    // that was just published, instead of the blank one on screen.
+    syncDraftIdInUrl(null);
+    setBondShortfall(null);
     setServerDraft(null);
     setPublishedMarket(null);
     setFormDraft(createInitialMarketDraft());
@@ -446,7 +519,14 @@ export function useCreateDraftFlow({
     advanced,
     applyGraduationPreset,
     applyResolutionPreset,
+    bondShortfall,
+    clearBondShortfall,
     canPersist: Boolean(client),
+    /** Reads the intended creator's credit position; null until both exist. */
+    fetchCredit:
+      client && serverDraft?.intendedCreatorAddress
+        ? () => client.credit(serverDraft.intendedCreatorAddress!)
+        : null,
     errorCount,
     fieldFeedback,
     flowError,

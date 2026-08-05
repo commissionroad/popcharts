@@ -1,32 +1,18 @@
 import { describe, expect, it } from "bun:test";
 
-import type { AiReviewConfig } from "./config";
 import { reviewMarket } from "./reviewer";
+import { buildReviewConfig } from "./test-support/review-config";
 
-const baseConfig: AiReviewConfig = {
-  anthropicBaseUrl: "https://api.anthropic.test",
-  anthropicMaxOutputTokens: 512,
-  anthropicMaxWebFetches: 1,
-  anthropicMaxWebSearches: 1,
-  anthropicModel: "claude-sonnet-4-6",
-  anthropicWebFetchMaxContentTokens: 1_000,
-  claudeCliCommand: "claude",
-  claudeCliModel: "sonnet",
-  codexCliCommand: "codex",
-  codexCliModel: "gpt-5.6-luna",
-  fallbackApprove: false,
-  fetchSearchResults: false,
+// Every provider here must be unreachable so the fallback paths are what the
+// assertions see: a dead Ollama port, a model that does not exist, and a
+// timeout short enough that the failure is instant.
+const baseConfig = buildReviewConfig({
   internetAccess: "off",
-  maxFetchBytes: 10_000,
-  maxSearchResults: 3,
   ollamaBaseUrl: "http://127.0.0.1:9",
   ollamaModel: "missing-model",
-  port: 3002,
   provider: "heuristic",
   requestTimeoutMs: 10,
-  retryProviderFailures: false,
-  userAgent: "popcharts-test",
-};
+});
 
 describe("reviewMarket", () => {
   it("can run as a heuristic-only local smoke", async () => {

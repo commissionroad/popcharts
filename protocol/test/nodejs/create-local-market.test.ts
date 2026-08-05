@@ -56,6 +56,10 @@ describe("create-local-market helper", async function () {
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
     const manager = await viem.deployContract("PregradManager");
+    // Mirror deployLocalPregrad: the deployer is a trusted creator, so the
+    // helper's zeroed authorization is accepted (repo ADR 0022 P5).
+    const [deployer] = await viem.getWalletClients();
+    await manager.write.setTrustedCreator([getAddress(deployer.account.address), true]);
 
     return { collateral, manager };
   }
@@ -100,13 +104,16 @@ describe("create-local-market helper", async function () {
     assert.equal(config.bypassAiResolution, false);
   });
 
-  it("pays the public market creation fee the contract quotes", async function () {
+  it("creates fee-free as the trusted local creator", async function () {
+    // The local deploy trusts the deployer (repo ADR 0022 P5), so tooling
+    // creation pays no fee — the helper still sends exactly what the contract
+    // quotes, which is zero.
     const { collateral, manager } = await networkHelpers.loadFixture(deployProtocol);
     const [creator] = await viem.getWalletClients();
     const publicClient = await viem.getPublicClient();
 
     const fee = (await manager.read.marketCreationFee([creator.account.address])) as bigint;
-    assert.equal(fee, WAD);
+    assert.equal(fee, 0n);
 
     await createLocalMarket({
       collateralAddress: collateral.address,
@@ -116,7 +123,7 @@ describe("create-local-market helper", async function () {
       viem,
     });
 
-    assert.equal(await publicClient.getBalance({ address: manager.address }), fee);
+    assert.equal(await publicClient.getBalance({ address: manager.address }), 0n);
   });
 
   it("anchors deadlines to wall clock when the chain is idle", async function () {

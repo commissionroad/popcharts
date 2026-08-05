@@ -13,7 +13,7 @@ export interface MarketDraft {
   createdAt: string;
   description: string;
   graduationWindowSeconds: number;
-  id: number;
+  id: string;
   /** @nullable */
   intendedCreatorAddress: string | null;
   isTemplate: boolean;

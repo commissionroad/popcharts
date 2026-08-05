@@ -85,7 +85,9 @@ export const MarketDraftSchema = t.Object(
     createdAt: t.String(),
     description: t.String(),
     graduationWindowSeconds: t.Number(),
-    id: t.Number(),
+    // The draft's public id, not its database row id — a 16-character
+    // alphanumeric string minted at creation (src/drafts/public-id.ts).
+    id: t.String(),
     intendedCreatorAddress: t.Union([t.String(), t.Null()]),
     isTemplate: t.Boolean(),
     // Optional-omit rather than nullable: orval drops the null arm on $ref
@@ -149,7 +151,7 @@ export const MarketDraftWriteSchema = t.Object(
 export const MarketDraftCloneRequestSchema = t.Object(
   {
     asTemplate: t.Optional(t.Boolean()),
-    fromDraftId: t.Optional(t.Number({ minimum: 1, multipleOf: 1 })),
+    fromDraftId: t.Optional(t.String()),
     fromMarket: t.Optional(
       t.Object({
         chainId: t.Number({ minimum: 1, multipleOf: 1 }),
@@ -179,10 +181,62 @@ export const MarketDraftValidationErrorsSchema = t.Object(
   { $id: "MarketDraftValidationErrors" },
 );
 
+/**
+ * Why a submission was refused by the review-credit meter (ADR 0022,
+ * prepaid-credit amendment), with the figures the deposit panel renders.
+ * Amounts are native-unit strings ($1 = 1e18); `requiredWad` is the
+ * per-review-run rate in force.
+ */
+export const MarketDraftBondShortfallSchema = t.Object(
+  {
+    availableWad: t.String(),
+    message: t.String(),
+    requiredWad: t.String(),
+    runsUsed: t.Integer(),
+  },
+  { $id: "MarketDraftBondShortfall" },
+);
+
+/**
+ * A wallet's review-credit position: what it has left, what a run costs, and
+ * how many runs that is. `metered: false` means no vault is configured (a
+ * local stack booted before the vault deploy) and submission is ungated; the
+ * numeric fields are zeros the app should not render.
+ */
+export const MarketDraftReviewCreditSchema = t.Object(
+  {
+    availableWad: t.String(),
+    metered: t.Boolean(),
+    rateWad: t.String(),
+    runsRemaining: t.Integer(),
+    runsUsed: t.Integer(),
+  },
+  { $id: "MarketDraftReviewCredit" },
+);
+
+/**
+ * The authorizer's signature over one exact publish (ADR 0022 P4): spend it
+ * as createMarket's second argument. Minutes-lived; re-request on expiry.
+ */
+export const MarketDraftPublishAuthorizationSchema = t.Object(
+  {
+    expiry: t.String(),
+    nonce: t.String(),
+    signature: t.String(),
+  },
+  { $id: "MarketDraftPublishAuthorization" },
+);
+
 /** Wire-serialized createMarket params, minted at publish time. */
 export const MarketDraftPublishParamsSchema = t.Object(
   {
+    /**
+     * Present when this deployment holds the authorizer key and the caller
+     * named the publishing wallet; absent on an unarmed stack.
+     */
+    authorization: t.Optional(t.Ref(MarketDraftPublishAuthorizationSchema)),
     bypassAiResolution: t.Boolean(),
+    collateral: t.String(),
     graduationDeadline: t.String(),
     graduationThreshold: t.String(),
     liquidityParameter: t.String(),
@@ -208,7 +262,6 @@ export const MarketDraftPublishedWriteSchema = t.Object(
 /** Result of recording a publish: the linked draft plus bridge outcome. */
 export const MarketDraftPublishedSchema = t.Object(
   {
-    bridgeApproved: t.Boolean(),
     draft: t.Ref(MarketDraftSchema),
   },
   { $id: "MarketDraftPublished" },

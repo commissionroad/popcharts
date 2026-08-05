@@ -52,7 +52,9 @@ export function selectStackByToken(
     return matches[0]!;
   }
   const detail =
-    matches.length === 0 ? "matched no running stack" : "matched several stacks";
+    matches.length === 0
+      ? "matched no running stack"
+      : "matched several stacks";
   throw new TargetStackResolutionError(
     `--stack/POPCHARTS_STACK "${token}" ${detail}.`,
     liveStacks,
@@ -94,7 +96,9 @@ export async function resolveTargetStack(options: {
   if (options.chooseStack !== undefined) {
     return options.chooseStack(liveStacks);
   }
-  const list = liveStacks.map((s) => `  - ${describeTargetStack(s)}`).join("\n");
+  const list = liveStacks
+    .map((s) => `  - ${describeTargetStack(s)}`)
+    .join("\n");
   throw new TargetStackResolutionError(
     `Multiple local dev stacks are running; choose one with --stack <slot|id> ` +
       `or POPCHARTS_STACK:\n${list}`,

@@ -1,0 +1,1 @@
+CREATE INDEX "receipt_placed_events_chain_market_idx" ON "receipt_placed_events" USING btree ("chain_id","market_id");

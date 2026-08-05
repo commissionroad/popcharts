@@ -21,6 +21,7 @@ export {
 } from "./channels";
 
 export {
+  RECEIPTS_STREAM,
   RESET_REASON_CURSOR_TOO_OLD,
   parseChangeSignal,
   parsePriceTick,

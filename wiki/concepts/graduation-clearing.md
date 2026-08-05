@@ -1,21 +1,43 @@
 ---
 type: concept
 title: Graduation clearing (band-pass)
-description: The core mechanism — deterministic band-pass clearing over the frozen receipt book, committed optimistically as a Merkle root, preserving E = R + L exactly.
+description: The core mechanism — deterministic band-pass clearing over the frozen receipt book, committed optimistically as a Merkle root, preserving E = R + L exactly; withdrawals of unopposed bands provably leave the matched cap untouched.
 sources:
+  - whitepaper/v0.6.md
   - documents/whitepaper_v4.pdf
+  - protocol/docs/adr/0014-pre-graduation-withdrawals-and-fees.md
   - protocol/docs/adr/0006-use-optimistic-offchain-graduation-clearing.md
   - protocol/CONSTITUTION.md
   - protocol/CONTEXT.md
   - docs/adr/0008-protocol-functionality-completion.md
-updated: 2026-07-14
+updated: 2026-08-04
 ---
 
 # Graduation clearing
 
-Pop Charts' central invention (whitepaper v4 §6): when a market graduates,
-only price bands crossed by **both** YES and NO demand convert to real
-outcome tokens; everything else refunds at exact recorded cost.
+Pop Charts' central invention (whitepaper v4 §6, proved in v0.6 §6): when a
+market graduates, only price bands crossed by **both** YES and NO demand
+convert to real outcome tokens; everything else refunds at exact recorded cost.
+
+**The sweep reads only the receipt intervals** — `rLow`, `rHigh`, `side`,
+`cost`, `shares`, `sequence` — never the live curve state `market.state.path`.
+That is what makes pre-freeze withdrawal safe at all: a withdrawal deletes a
+row (or shortens one) from the book the sweep will later replay, and every
+remaining row clears identically. Determinism comes from freezing the book at
+clearing, not from the book having been append-only before it.
+
+**Withdrawal invariance (v0.6 Lemma 3).** A band no opposite-side receipt
+covers has `m_k = min(Y_k, 0) = 0` before a withdrawal and `min(Y_k − 1, 0) = 0`
+after, so `F` and `L` are unchanged and no other receipt's outcome moves.
+Graduation is therefore immune to withdrawal — nobody holds a veto, and the
+freeze-versus-withdraw race has no payoff. The rule cannot be loosened to
+"whatever clearing would refund": on a crowded band that either redistributes
+other holders' fills or lowers `F`. See
+[protocol ADR 0014](../summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md).
+
+Receipts are consequently **finite unions of intervals**, not single intervals,
+once withdrawal exists — the proof is indifferent (it only uses the band
+partition), the implementation is not.
 
 ## The algorithm (deterministic endpoint sweep)
 

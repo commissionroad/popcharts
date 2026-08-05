@@ -8,11 +8,13 @@ import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv
 import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
 import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutionEndpoint.ts";
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
-import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
-import { parsePregradDeploy } from "./shared/deployments/pregradDeploy.ts";
+import {
+  parsePregradDeploy,
+  pregradDeployOverrides,
+} from "./shared/deployments/pregradDeploy.ts";
 import { readPostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import {
   POSTGRES_CONTAINER_NAME,
@@ -88,7 +90,6 @@ const internalCommands = new Set([
   "resolution-runner",
   "resolution-service",
   "review-ready",
-  "review-runner",
   "review-service",
   "rpc-ready",
 ]);
@@ -155,6 +156,11 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
   if (keepDb) {
     env.POPCHARTS_LOCAL_DEV_KEEP_DB = "true";
   }
+  if (aiReviewOnly) {
+    // prepare-database runs as its own process-compose child, so the flag has
+    // to travel through the environment to reach it.
+    env.POPCHARTS_LOCAL_DEV_AI_REVIEW_ONLY = "true";
+  }
 
   mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
@@ -164,7 +170,7 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
     passthrough.length > 0
       ? passthrough
       : aiReviewOnly
-        ? ["database-log", "review-service", "review-runner"]
+        ? ["database-log", "review-service"]
         : noAiReview
           ? ["database-log", "app"]
           : [];
@@ -207,8 +213,6 @@ async function runInternal(name: string): Promise<void> {
     await deployContracts();
   } else if (name === "review-service") {
     await runReviewService();
-  } else if (name === "review-runner") {
-    await runReviewRunner();
   } else if (name === "resolution-service") {
     await runResolutionService();
   } else if (name === "resolution-runner") {
@@ -243,7 +247,7 @@ async function runInternal(name: string): Promise<void> {
 }
 
 function printUsage(): void {
-  console.log(`Usage: pnpm run local:dev:control -- [options] [process...]
+  console.log(`Usage: pnpm run local:dev -- [options] [process...]
 
 Start the Pop Charts local dev stack through the local control-plane config.
 
@@ -254,8 +258,8 @@ Options:
   -h, --help        Show this help.
 
 Selected processes can be passed through for focused debugging, for example:
-  pnpm run local:dev:control -- app
-  pnpm run local:dev:control -- review-service review-runner
+  pnpm run local:dev -- app
+  pnpm run local:dev -- review-service
 
 Prerequisite for model-backed review:
   The default codex-cli provider requires a Codex CLI install on the host. Set
@@ -292,11 +296,17 @@ async function prepareDatabase(): Promise<void> {
     logLabel: LOG_LABEL,
   });
 
-  const reuseExistingChainRpc = await canReuseChainPort();
+  // An --ai-review-only run starts no chain and no deploy-contracts, so a dead
+  // RPC port means "no chain here to attach to", not "a fresh chain is coming".
+  // Treating it as fresh would delete the generated env the review stack waits
+  // on and drop the very rows the run exists to review.
+  const aiReviewOnlyRun =
+    process.env.POPCHARTS_LOCAL_DEV_AI_REVIEW_ONLY === "true";
+  const reuseExistingChainRpc = aiReviewOnlyRun || (await canReuseChainPort());
   if (!reuseExistingChainRpc) {
     // A fresh chain invalidates previously deployed addresses; drop the stale
-    // generated env so review-runner waits for the new deployment instead of
-    // signing transitions against contracts that no longer exist.
+    // generated env so dependents wait for the new deployment instead of
+    // reading contracts that no longer exist.
     rmSync(localChainEnvFile, { force: true });
   }
   if (
@@ -427,12 +437,10 @@ async function deployContracts(): Promise<void> {
   );
   const postgrad = readPostgradDeployment(DEMO_MARKET_SYMBOL);
 
-  const serverEnv = buildLocalServerEnv(resources, {
-    collateralAddress: deploy.collateralAddress,
-    deployBlock: deploy.deployBlock,
-    postgradAdapterAddress: deploy.postgradAdapterAddress,
-    pregradManagerAddress: deploy.pregradManagerAddress,
-  });
+  const serverEnv = buildLocalServerEnv(
+    resources,
+    pregradDeployOverrides(deploy),
+  );
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 
   writeLocalChainServerEnv({
@@ -459,23 +467,6 @@ async function deployContracts(): Promise<void> {
 async function runReviewService(): Promise<void> {
   await inherit("bun", ["run", "--cwd", "server", "start:ai-review"], {
     env: buildAiReviewEnv(buildLocalServerEnv(resources), resources),
-  });
-}
-
-async function runReviewRunner(): Promise<void> {
-  // The runner submits approve/reject transitions to the PregradManager, so
-  // unlike the review service it cannot run on the blank pre-deploy addresses
-  // from buildLocalServerEnv. Wait for deploy-contracts to write the generated
-  // env (or reuse one from an attached chain) instead of a yaml dependency,
-  // which would drag chain + deploy-contracts into --ai-review-only.
-  await waitFor(
-    "generated server env from deploy-contracts",
-    () => existsSync(localChainEnvFile),
-    { logLabel: LOG_LABEL, timeoutMs: 600_000 },
-  );
-
-  await inherit("bun", ["run", "--cwd", "server", "start:ai-review-runner"], {
-    env: buildAiReviewRunnerEnv(readGeneratedServerEnv(), resources),
   });
 }
 
@@ -540,7 +531,7 @@ async function ensureToolInstalled(): Promise<void> {
   }
 
   throw new Error(
-    "process-compose is required for this spike. Install it with " +
+    "process-compose is required by 'just local-dev'. Install it with " +
       "'brew install f1bonacc1/tap/process-compose' or see " +
       "https://f1bonacc1.github.io/process-compose/installation/.",
   );
@@ -592,7 +583,7 @@ function ensureDependenciesInstalled(): void {
   }
 
   throw new Error(
-    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev-control'.`,
+    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
   );
 }
 

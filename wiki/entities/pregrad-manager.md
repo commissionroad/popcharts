@@ -10,7 +10,7 @@ sources:
   - protocol/README.md
   - docs/adr/0016-monorepo-architecture-cleanup-program.md
   - documents/whitepaper_v4.pdf
-updated: 2026-07-14
+updated: 2026-08-04
 ---
 
 # PregradManager
@@ -33,8 +33,14 @@ and is fully replaced.
   config (collateral, creator, metadata hash, opening probability, `b`,
   graduation threshold/deadlines) is immutable after creation.
 - Collateral escrow with the accounting identity `escrow = retained cost + refund`;
-  receipts are locked, non-withdrawable, non-transferable in v1
+  receipts are non-transferable in v1
   ([protocol ADR 0003](../summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md)).
+  They are no longer unconditionally non-withdrawable: under
+  [protocol ADR 0014](../summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md)
+  (Proposed) a holder may withdraw bands no opposite-side receipt has ever
+  covered, which splits `rLow`/`rHigh` into a segment list and adds an
+  entry/withdrawal fee pot held outside `totalEscrowed`. None of that has
+  landed — the contract today is still append-only.
 - Optimistic clearing: `startGraduation` locks the book → offchain service
   computes band-pass clearing → `submitClearingRoot` (Merkle root + totals) →
   challenge window (owner-configurable, default 0 per

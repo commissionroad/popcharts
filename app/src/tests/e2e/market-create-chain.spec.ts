@@ -1,37 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { test } from "@playwright/test";
 
-import { dateTimeLocalAfter } from "./support/datetime";
-
-test("@chain user can create a market on the configured devchain", async ({ page }) => {
+/**
+ * Retired by review-first creation (ADR 0022): market creation now runs
+ * draft → AI review → publish, which needs the draft API — and the `@chain`
+ * lane boots only the devchain and the app, with no API or database. The full
+ * creation journey (feedback loop, approval, publish-and-pay, live market) is
+ * covered by `draft-review-first.spec.ts` in the `@lifecycle` lane, which
+ * boots the whole stack.
+ */
+test("@chain user can create a market on the configured devchain", async () => {
   test.skip(
-    process.env.POPCHARTS_E2E_CHAIN !== "true",
-    "Set POPCHARTS_E2E_CHAIN=true to run devchain-backed tests."
+    true,
+    "Creation moved behind the draft API (ADR 0022) — covered by draft-review-first.spec.ts in the @lifecycle lane."
   );
-
-  await page.goto("/create");
-  await expect(page.getByRole("heading", { name: "Bake a market" })).toBeVisible();
-
-  await page.getByLabel("Market question").fill("Will the chain smoke market exist?");
-  await page
-    .getByLabel("Resolution criteria")
-    .fill("Resolves YES if the local devchain transaction creates this market.");
-  await page.getByLabel("Graduation deadline").fill(dateTimeLocalAfter(90 * 60_000));
-  await page
-    .getByLabel("Resolution deadline")
-    .fill(dateTimeLocalAfter(2 * 24 * 60 * 60_000));
-  await page.getByRole("button", { name: "Review market" }).click();
-
-  await expect(page.getByText("Metadata hash")).toBeVisible();
-  await page.getByRole("button", { name: "Create market" }).click();
-
-  // A real devchain transaction confirms behind this first assertion, so it
-  // gets explicit headroom over the 5s default. The mode eyebrow proves the
-  // market went on-chain (mock mode renders "Mock created" instead).
-  await expect(page.getByText(/Wallet-signed|Devchain relay/)).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect(page.getByText("Market under review")).toBeVisible();
-  await expect(page.getByText("Market ID")).toBeVisible();
-  await expect(page.getByText("Transaction", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^0x[0-9a-fA-F]{64}$/).first()).toBeVisible();
 });

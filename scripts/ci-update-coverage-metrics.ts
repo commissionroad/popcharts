@@ -56,7 +56,10 @@ if (!workspace) {
 
 const timestamp = values.timestamp ?? new Date().toISOString();
 
-const summary = parseLcovSummary(readFileSync(lcovPath, "utf8"), workspace.filter);
+const summary = parseLcovSummary(
+  readFileSync(lcovPath, "utf8"),
+  workspace.filter,
+);
 
 mkdirSync(join(dir, "coverage"), { recursive: true });
 mkdirSync(join(dir, "badges"), { recursive: true });

@@ -29,10 +29,15 @@ contract BoundedPredictionHook {
   /// @param observed Whether the hook has observed at least one swap for the pool.
   /// @param beforeTick Pool tick observed before the most recent swap.
   /// @param afterTick Pool tick observed after the most recent swap.
+  /// @param sequence Count of swaps observed for the pool; the last assigned per-pool ordinal.
+  /// @dev All four fields pack into one 32-byte slot (1 + 3 + 3 + 8 = 15 bytes), and the
+  ///      slot is already written by every swap, so carrying the sequence costs an
+  ///      increment rather than an extra storage write (repo ADR 0025).
   struct SwapTickObservation {
     bool observed;
     int24 beforeTick;
     int24 afterTick;
+    uint64 sequence;
   }
 
   /// @notice Reverts when the pool manager address is zero.
@@ -50,7 +55,11 @@ contract BoundedPredictionHook {
   /// @notice Emitted with the pool tick observed after a swap.
   /// @param poolId Pool being swapped.
   /// @param tick Pool tick after the swap.
-  event AfterSwapTickObserved(PoolId indexed poolId, int24 tick);
+  /// @param sequence Per-pool swap ordinal, starting at 1 and contiguous in chain order.
+  /// @dev The sequence lets an off-chain consumer detect a missed swap the same way the
+  ///      pregrad receipt sequence does: it is assigned by consensus, outside any delivery
+  ///      pipeline, so a gap in received ordinals proves a gap in delivery (repo ADR 0025).
+  event AfterSwapTickObserved(PoolId indexed poolId, int24 tick, uint64 sequence);
 
   /// @notice Pool manager allowed to invoke hook callbacks.
   IPoolManager public immutable poolManager;
@@ -117,11 +126,17 @@ contract BoundedPredictionHook {
   /// @return observed Whether the hook has observed at least one swap for the pool.
   /// @return beforeTick Pool tick observed before the most recent swap.
   /// @return afterTick Pool tick observed after the most recent swap.
+  /// @return sequence Per-pool ordinal of the most recent completed swap (0 before any).
   function lastSwapTickObservation(
     PoolId poolId
-  ) external view returns (bool observed, int24 beforeTick, int24 afterTick) {
+  ) external view returns (bool observed, int24 beforeTick, int24 afterTick, uint64 sequence) {
     SwapTickObservation memory observation = _lastSwapTickObservation[poolId];
-    return (observation.observed, observation.beforeTick, observation.afterTick);
+    return (
+      observation.observed,
+      observation.beforeTick,
+      observation.afterTick,
+      observation.sequence
+    );
   }
 
   /// @notice Records and validates the current pool tick before a swap.
@@ -166,10 +181,16 @@ contract BoundedPredictionHook {
     (uint160 sqrtPriceX96, int24 tick) = _currentSlot(poolId);
 
     SwapTickObservation storage observation = _lastSwapTickObservation[poolId];
+    // The slot is already being written for the tick fields, so the ordinal rides along
+    // in the same SSTORE. A swap that later reverts (out-of-bounds tick below) rolls the
+    // increment back with everything else, so sequences stay contiguous over *successful*
+    // swaps — the property off-chain gap detection relies on (repo ADR 0025).
+    uint64 sequence = observation.sequence + 1;
     observation.observed = true;
     observation.afterTick = tick;
+    observation.sequence = sequence;
 
-    emit AfterSwapTickObserved(poolId, tick);
+    emit AfterSwapTickObserved(poolId, tick, sequence);
     poolTickBounds.validatePoolTick(poolId, tick);
     if (address(poolOrderManager) != address(0)) {
       poolOrderManager.movePoolTick(key, observation.beforeTick, tick, sqrtPriceX96);

@@ -1,6 +1,11 @@
 # Review-first market creation: off-chain drafts, gated on-chain publish, and creator surfaces
 
-Status: Proposed
+Status: Accepted — P1, P2, P3/P3a, P7 built 2026-07-30..08-03; **P4 built
+2026-08-04** (authorized creation live end to end, markets born Active);
+**P5 built 2026-08-04** (#451 + the removal PR): the on-chain review
+machinery, the ungated `createMarket`, and the app's legacy create surface
+are gone — `just local-create-market` now drives the API's draft flow as
+hardhat account #0. P6 and P8 are open.
 
 ## Context
 
@@ -40,7 +45,8 @@ Concretely:
    liquidity parameter, graduation threshold; graduation deadline and resolution time are
    stored as **relative durations**, see decision 4). Its *bookkeeping* columns add: id,
    `owner_user_id` (the Privy user / DID), `intended_creator_address` (lowercased wallet the
-   creator expects to publish from), `status`, `is_template`, `visibility`, `deleted`
+   creator expects to publish from), `public_id` (the draft's identity outside the
+   database — see the 2026-08-05 amendment), `status`, `is_template`, `visibility`, `deleted`
    (soft-delete), timestamps (created / updated / submitted / reviewed / published),
    `published_market_id` (the back-link, set once live), and a pointer to the latest
    rejection's reasons. Note the **publish authorization is not stored on the draft** — it is
@@ -50,16 +56,29 @@ Concretely:
 2. **Draft lifecycle:**
 
    ```
-   editing ──submit──▶ in_review ──reject──▶ rejected ──edit──▶ editing
+   editing ──submit──▶ in_review ──reject──────────────▶ rejected ──edit──▶ editing
       ▲ (templates                │
-        live here)                └──approve──▶ approved ──publish&pay──▶ published
+        live here)                ├──changes_requested ─▶ changes_requested ──edit──▶ editing
+                                  │
+                                  └──approve──▶ approved ──publish&pay──▶ published
                                                                              │
                                                               (on-chain Market born Active;
                                                                draft retained, linked, cloneable)
    deleted = soft-delete flag, valid from any state
    ```
 
+   `rejected` is the *policy* outcome and `changes_requested` the *quality* one (a
+   `manual_review` verdict lands here); both are editable and resubmittable, so the
+   creator's loop is the same either way. `changes_requested` was added during the
+   build — see P2 in the phased plan.
+
 3. **Two separate charges: the creation fee (at publish) and the review bond (at submit).**
+   > **Superseded in part — see "Amendment: prepaid review credit" below.** The refundable
+   > standing bond, the $5 floor, the $1/5-reviews + $0.20 price schedule, and on-chain
+   > settlement are all replaced by a non-refundable prepaid credit at a single per-review
+   > rate. The split between creation fee and review charge, the off-chain metering, and the
+   > native-USDC denomination described here are unchanged.
+
    The existing **creation fee** stays fee-on-accept — paid by the creator when they publish
    (`createMarket`); rejected/iterated drafts never pay it. Separately, a **prepaid, refundable
    review bond** funds the AI-review pipeline and is the Sybil defence (rate limiting alone is
@@ -197,6 +216,10 @@ publish; the ADR does not require that.
 
 ## Review-bond escrow contract
 
+> **Superseded — see "Amendment: prepaid review credit" below.** The reasoning for a
+> standalone, submitter-keyed contract survives; the surface described here (settlement,
+> withdrawal, resolver) does not.
+
 The review bond is a **separate, standalone deployed contract** — not folded into
 `PregradManager`. The existing creation fee lives as an abstract base (`CreationFeeVault`)
 mixed into `PregradManager` and is keyed to `marketId`, because it is collected *inside*
@@ -310,14 +333,14 @@ withdrawal, and the $0.20 granularity lives in the meter, not on-chain.
   (`UnderReview`=7, `Rejected`=8) and never renumbered, because server code hand-decodes raw
   `uint8` status ordinals (`pregrad-refund.ts`, `dev-market-graduate.ts`) that ABI
   regeneration would not catch.
-- **A new money contract + flow: the review-bond escrow.** A standalone contract holding
-  user funds, with an owner-set resolver that settles off-chain-metered consumption on-chain.
-  Its deposit/settlement/withdrawal events must be indexed (money-invariant), and the
-  off-chain meter is now a correctness-critical accounting surface (over-metering strands a
-  user's refund; under-metering leaks review cost).
-- **SSO users must fund their embedded wallet twice over** — the review bond (≥$5) before
-  submitting, and the creation fee + gas before publishing — a funding-UX problem to solve
-  separately (onramp/faucet), out of scope here.
+- **A new money contract + flow: the review-credit vault.** A standalone contract holding
+  user funds. Its events must be indexed (money-invariant), and the off-chain meter is a
+  correctness-critical accounting surface: under-metering leaks review cost. *(Amended: the
+  resolver, on-chain settlement, and the over-metering-strands-a-refund risk are gone with
+  refunds; see the amendment.)*
+- **SSO users must fund their embedded wallet twice over** — review credit before submitting,
+  and the creation fee + gas before publishing — a funding-UX problem to solve separately
+  (onramp/faucet), out of scope here.
 - **Draft content is private and mutable**, so draft endpoints are the app's first surface
   needing real authenticated writes; get the Privy JWT verification right or drafts leak.
 
@@ -331,12 +354,144 @@ Two on-chain value flows must each leave an event-sourced DB record:
   watcher keyed by `(chainId, marketId, transactionHash, logIndex)`, covered by the paper-trail
   test. Moving collection from submit to publish makes no transfer inferred or droppable; it
   *gains* the record it previously lacked.
-- **Review bond.** New flow: `ReviewBondDeposited` / `ReviewFeesSettled` / `ReviewBondWithdrawn`
+- **Review bond.** *Amended — the flow is now deposit and owner sweep only; the settlement and
+  user-withdrawal events below no longer exist.* New flow: `ReviewBondDeposited` /
+  `ReviewFeesSettled` / `ReviewBondWithdrawn`
   / `ReviewFeesWithdrawn` are each indexed into their own events table keyed by
   `(chainId, user, transactionHash, logIndex)`. The **actual value transfers are the on-chain
   deposit/settlement/withdrawal**; the per-review $0.20 metering is DB accounting that nets out
   at settlement, so no value moves without an on-chain event. The off-chain meter reconciles to
   the on-chain `settledConsumed` at every settlement.
+
+## Amendment: prepaid review credit (2026-08-04)
+
+P3 shipped as specified above and the shipped design has been withdrawn. What follows
+replaces the refundable-bond model wholesale; the rest of this ADR stands.
+
+**What went wrong.** The escrow section above specifies withdrawal "gated on settlement being
+current". The shipped `withdrawBond` is not: it checks the on-chain `settledConsumed`, which
+is a lagging replica of the off-chain meter, so a creator could withdraw money covering
+reviews they had already consumed. The leak is small (settlement fires at a $1 unsettled
+tally, so under a dollar per wallet in normal operation) but unbounded when settlement
+transactions fail. Worse, withdrawing decrements `deposited`, and `settle` reverts when the
+lifetime consumed total exceeds `deposited` — so a withdrawal can wedge settlement for that
+wallet permanently, leaving the server retrying and warning forever.
+
+Both defects have one root: **the withdrawal path is on-chain and therefore cannot see the
+off-chain meter.** Rather than build the machinery to close that gap — resolver-signed
+withdrawal authorizations, settle-before-withdraw, or a held-back floor — we remove the
+withdrawal.
+
+**The replacement.** Review capacity is bought, not bonded:
+
+- A creator **deposits native USDC and it is not refundable**. There is no withdrawal path
+  for users; the deposit buys review runs and nothing else. This is a **prepaid credit**, not
+  a bond — the word "bond" is retired (see `CONTEXT.md`).
+- Deposits carry an explicit beneficiary: **`depositFor(address beneficiary)`**, never
+  `msg.sender`. A creator with both an embedded wallet and an external wallet would otherwise
+  be one mis-selected wallet away from an unrecoverable payment, since nothing can move a
+  balance afterwards. The app always passes the draft's intended creator address. There is
+  deliberately **no owner-side reassignment function** — a privileged "move user funds" call
+  is a worse audit surface than the mistake it cleans up after.
+- **One rate, one unit: a review run.** Each review run debits the current rate; there is no
+  bundling, no first-submission surcharge, and no minimum standing balance. The $5 floor is
+  redundant now that money is non-refundable — a refundable floor only ever cost an attacker
+  the time-value of the deposit.
+- **The rate is provisionally $0.10 per review run and is configuration, not a constant.**
+  This is a *testing* rate and it is below cost: a review run measures at $0.169 on the
+  claude-cli provider, so every run at $0.10 loses money and iterating loses more, which
+  inverts the anti-spam incentive. Either the rate rises to $0.20+ or review moves to a
+  cheaper provider before public submission opens. **Do not open public draft submission at
+  $0.10.**
+- Balance is priced **at spend time**, not minted as credits at deposit: the DB stores the
+  deposited amount as the event reported it and debits the rate in force per run, stamping
+  that rate onto each charge row. A rate change therefore reprices unspent balance —
+  acceptable while testing, a fairness question to revisit before launch.
+
+**On-chain surface** — `depositFor(address beneficiary) payable` emitting a deposit event, and
+`withdrawCollectedFees(recipient)` `onlyOwner`. `settle`, `withdrawBond`, `setResolver`, the
+resolver key, and the on-chain consumed-total tracking are all deleted. Since the vault is
+deployed on local stacks only and appears in no infrastructure or CI configuration, this is a
+rewrite rather than a migration.
+
+**Balance reads come from the indexed database, never from a direct chain read.** The gate
+computes `indexedDeposits(beneficiary) − sum(charges)`. This is the repo-wide direction —
+one data source, served fast from the indexer, with the client notified by the change feed —
+and it is safe here by construction: charges are written synchronously while deposits lag, so
+indexer staleness can only make a balance look *too low*, never too high. The gate fails
+closed without needing error handling to do it. The deposit handler must call
+`recordLiveChange` so a creator who tops up is told immediately; without that the model is
+fast but does not feel fast.
+
+**Consequences of the amendment.** The off-chain meter stops being a two-way reconciliation
+surface and becomes a one-way ledger: deposits in from events, charges out from reviews, no
+netting and no settlement. The "over-metering strands a user's refund" risk in the
+Consequences section disappears with refunds. The money invariant narrows to two events —
+deposit and owner sweep — both still indexed and receipt-linked. The **operator can sweep
+funds covering reviews not yet delivered**, which is inherent to prepayment and accepted at
+this price point; it would need revisiting if balances grew large.
+
+## Amendment: draft public id and the published-market review link (2026-08-05)
+
+Two additions, both landed: drafts gained a public identifier distinct from their row id,
+and the question this ADR left open about a published market's review linkage is now
+answered.
+
+### Draft public id
+
+Decision 1 lists `id` among the draft's bookkeeping columns without saying what a *draft
+id* is to anyone outside the database. In practice the serial primary key became the draft's
+public name — `/drafts/:id`, and (once the create flow started writing it) the address bar.
+Two problems with that. A serial id is enumerable, which is a property to give up
+deliberately rather than by default. And a draft URL is the only thing standing between a
+closed tab and lost work, so it wants to be an identifier the product owns rather than an
+artifact of insertion order.
+
+`market_drafts.public_id` is now that identifier: 16 characters over a 32-symbol lowercase
+alphanumeric alphabet with every look-alike pair broken (`0`, `1`, `l`, `o` removed, so the
+surviving `i` cannot be misread as a `1` no id contains). Exactly 32 symbols is load-bearing
+— 256 is a whole multiple of it, which is what keeps byte-modulo sampling uniform. 80 bits
+puts collision odds at a million drafts near one in a trillion; the *guarantee* is the unique
+index, not the entropy.
+
+The serial `id` stays the primary key. The review, review-job, and charge foreign keys
+therefore stay narrow integers and nothing rewrites in lockstep — the integer simply stops
+leaving the database. It is minted **server-side at create**. Client-side minting was
+considered and rejected: it only buys an id *before* the first save, which is durability the
+draft row does not yet have anyway, and it would put the id format in two workspaces.
+
+Ownership is enforced independently of the id, so a guessed id yields nothing — this change
+buys durable, non-enumerable links, not access control.
+
+Landed as #468 (column, migration, minting) → #469 (the API and app switch).
+
+### Published markets resolve their review by join, not by copy
+
+The draft review data model section above ends: *"The published market keeps its existing
+review linkage only if we later choose to copy the winning draft-review into a market-scoped
+audit row at publish; the ADR does not require that."*
+
+P5 forced the question. Retiring the on-chain review path left `market_ai_reviews` with no
+writer, and the market detail page reads its review from that table — so every market created
+after P5 rendered no review at all. The table was flagged as deferred cleanup, but nothing
+re-pointed the read.
+
+**Decided: resolve by join, do not copy.** A published market finds its review through the
+publish bookkeeping on `market_drafts` (`published_chain_id`, `published_market_id`),
+narrowed to the draft's submitted snapshot. Copying would have created a second source of
+truth for one fact, and the copy would drift the moment a draft review was corrected.
+
+The join is exact rather than approximate, which is what makes it safe: publish refuses
+unless the draft is unchanged since review and verifies the on-chain `metadataHash` matches,
+so the reviewed snapshot is provably the same metadata as the live market. Legacy
+`market_ai_reviews` rows still win where they exist — for a pre-P5 market, that row *is* the
+review that gated it.
+
+This closes the open question in favour of the linkage the ADR declined to require, and
+retires the follow-up to clean up `market_ai_reviews`: the table is now read-only history
+with a live reader, not cruft.
+
+Landed as #465.
 
 ## Phased build plan
 
@@ -344,44 +499,208 @@ Ordered so each phase is independently shippable and the keystone (drafts + off-
 review) lands before the contract changes. **Public draft submission does not open until the
 review bond (P3) is live** — until then P2's review runs internally/allow-listed.
 
-- [ ] **P1 — Draft entity + Privy-authenticated CRUD.** `market_drafts` table (content with
+- [x] **P1 — Draft entity + Privy-authenticated CRUD.** Delivered 2026-08-03 as #412
+      (schema) → #413 (server) → #414 (client regen) → #415 (app) → #416 (e2e).
+      `market_drafts` table (content with
       relative-duration deadlines + bookkeeping columns, `is_template`, `visibility`,
       `deleted`, `owner_user_id`, `intended_creator_address`, `published_market_id`), server
       routes for create/read/update/soft-delete scoped to the **verified Privy user**, and the
       creator "my drafts" surface. Edit/iterate loop, no chain interaction yet.
-- [ ] **P2 — Off-chain AI review on drafts.** New **draft-keyed** review + job tables and a
+      Privy JWTs are verified for real (ES256 via `jose`, fail-closed).
+- [x] **P2 — Off-chain AI review on drafts.** Delivered 2026-08-03 in the same stack.
+      New **draft-keyed** review + job tables and a
       reworked runner that enqueues from `market_drafts`; snapshot `metadataHash` on submit;
-      `in_review → approved | rejected`; user-appropriate rejection reasons; edit → re-review.
-      Keystone; runs internally/allow-listed until P3 gates public submission.
-- [ ] **P3 — Review-bond escrow + off-chain meter.** Standalone `ReviewBondVault` contract
+      user-appropriate rejection reasons; edit → re-review.
+      **Divergence from the decision above:** the terminal states are
+      `in_review → approved | rejected | changes_requested`, not the two this ADR
+      first specified. A `manual_review` verdict maps to `changes_requested`, which
+      separates *quality* ("fix this and resubmit") from *policy* (`rejected`); both
+      are editable and resubmittable, so the creator-facing loop is unchanged.
+- [x] **P3 — Review-bond escrow + off-chain meter.** Contract delivered as #417
+      (independent of the draft stack), meter + indexing as #419. Standalone
+      `ReviewBondVault` contract
       (native-USDC `msg.value`: `depositBond` / `settle`(onlyResolver) / `withdrawBond` /
       `withdrawCollectedFees`; regenerate ABIs); the off-chain fee meter ($5 min bond, $1/submit
       incl. 5 reviews, $0.20/review after) gating submission on bonded balance; the resolver
       settlement path; and indexing of the four bond events + `portfolio-data-design.md`
-      entries. **Opens public draft submission.**
-- [ ] **P4 — Gated `createMarket` + publish + creation-fee indexing.** Contract: EIP-712
-      authorizer signature over the **full params** with an **on-chain single-use nonce** +
-      expiry, trusted-creator bypass, market **born `Active`**; regenerate ABIs. Indexer:
-      project new markets as **`bootstrap`** (change `market-created.ts` + column default).
-      Server: mint the publish authorization **at publish time** (re-check approved + unchanged;
-      resolve durations → absolute deadlines); add the `MarketCreationFeePaid` watcher +
-      fee-events table + `portfolio-data-design.md` entry. App: "Publish & pay" step,
-      `publishing` transient state, `published_market_id` back-link.
-- [ ] **P5 — Retire on-chain review machinery.** Remove `UnderReview` / `approveMarket` /
-      `rejectMarket` (tail-only enum removal, no renumber), the review-manager key, and the
-      indexer market-review watcher; migrate existing `under_review` / `rejected` rows to a
-      chosen surviving status (enum type rewrite or dead-label); audit the hand-written
-      ordinal decoders.
+      entries. **Opens public draft submission.** Submission over an exhausted balance
+      answers 402 and the app offers one-click deposit-and-resubmit.
+
+      **Withdrawn 2026-08-04 — superseded by P3a** (see "Amendment: prepaid review
+      credit"). Two v1 caveats were recorded here; the first is why the design was
+      withdrawn rather than patched:
+
+      - **`withdrawBond` is gated on the *settled* total, not the metered one.**
+        `available = _deposited - _settledConsumed`, and `_settledConsumed` only moves
+        when the resolver settles. Between settlements a creator can withdraw funds
+        covering reviews they have already consumed. Recorded here as "bounded by the
+        unsettled tally, roughly a dollar, priced in rather than fixed" — but that
+        understated it on two counts. The bound only holds while settlement
+        *succeeds*; failing settlements let the tally grow unchecked. And the same
+        withdrawal decrements `deposited`, which makes `settle` revert permanently
+        once the lifetime consumed total exceeds it, **wedging settlement for that
+        wallet forever**. Both are removed with the withdrawal itself in P3a.
+      - **The `lifecycle:e2e` lane runs unmetered.** `scripts/local-lifecycle-nightly.ts`
+        never deploys the vault and its env has no `reviewBondVaultAddress`, so those
+        journeys exercise draft → review → publish with the bond gate absent
+        entirely; the 402-and-deposit path has no coverage there. Threading it
+        through must add the field in **both** `scripts/local-dev.ts` and
+        `scripts/local-dev-control.ts` — they rebuild deploy overrides
+        field-by-field, so a field added to only one is silently dropped. Still open;
+        carried into P3a.
+- [x] **P3a — Prepaid review credit.** Delivered 2026-08-04 (#431 + the lifecycle-lane PR).
+      Vault rewritten to `depositFor(beneficiary)` + `withdrawCollectedFees` (settle /
+      withdrawBond / setResolver / on-chain consumption tracking deleted; ABIs regenerated).
+      Meter is a one-way ledger at a single configurable per-run rate
+      (`POPCHARTS_REVIEW_RUN_RATE_WAD`), reading balance from the indexed deposits scoped to
+      the configured chain + vault; $5 floor, bundling, and `settledAt` dropped. The deposit
+      handler signals the change feed on the beneficiary's portfolio channel. The lifecycle
+      lane now boots with the vault configured and covers the funded journey end to end
+      (refused → panel deposit → indexed → auto-resubmitted → approved). Deviations from the
+      plan as written: the `review_bond_event_kind` enum keeps its retired values (Postgres
+      cannot drop enum values in place; nothing writes them, and the meter counts only what
+      the prepaid model wrote), and the app-side "notified" is a credit-endpoint poll — the
+      SSE portfolio-channel subscription upgrade belongs to the live-updates slices
+      (ADR 0021). An independent pre-publish review caught and fixed a concurrent-overspend
+      race (wallet-scoped advisory lock), unscoped-credit leakage across deployments, and
+      the migrations' silent reinterpretation of refundable-bond history. **Does not reopen
+      public draft submission** — that waits on a rate at or above cost (see the amendment).
+- [x] **P4 — Gated `createMarket` + publish + creation-fee indexing.** Delivered in full
+      2026-08-04; see the delivery notes below and "P4 build decisions". *App half delivered*
+      2026-08-03 (#415): the "Publish & pay" step, the `publishing` transient state, and the
+      `published_market_id` back-link all ship. *Fee indexing delivered* 2026-08-04 (#430):
+      the `MarketCreationFeePaid` watcher, `market_creation_fee_events` (composite FK to
+      `markets`, park-and-retry on the write-ordering race), and the
+      `portfolio-data-design.md` entry. *Indexer half delivered* 2026-08-04 (#439 + the
+      default drop): `market-created.ts` projects the status read from `getMarketState`
+      through the generated `MARKET_STATUS` table instead of assuming `under_review`, and
+      the `markets.status` column default is gone — so the indexer is already correct under
+      the born-`Active` contract before that contract exists.
+      *Contract gate delivered* (#442): an authorized `createMarket` overload verifies an
+      EIP-712 authorizer signature over the full params with an unordered on-chain
+      single-use nonce + 15-minute expiry, trusted-creator bypass, market **born
+      `Active`**. The typed data is exported from `@popcharts/protocol` (#445) with an
+      on-chain vector test, minted by the server alongside the publish params (#447,
+      creator-bound via `?creatorAddress=`), armed at local deploy with the deployer as
+      authorizer (#448 — no env threading needed; the server's local key convention
+      already matches), and spent by the app (#449), which re-mints transparently on an
+      expiry revert. The first end-to-end authorized publish ran in #449's own CI smoke
+      lane: server-minted signature, contract-verified, market born `Active`, indexer
+      projecting `bootstrap`.
+
+      **The interim bare `createMarket(params)` path still exists** — ungated, born
+      `UnderReview` — and the publish bridge's force-approve is now a no-op (it sees
+      `Active` and returns `already_transitioned`). Both are dead weight for P5 to
+      remove; nothing legitimate uses either after #449.
+- [x] **P5 — Retire on-chain review machinery.** Delivered 2026-08-04 in two slices.
+      #451: the market-review runner process, the publish bridge (and its
+      `bridgeApproved` API field), the runner-dependent nightly scenario, and the
+      orphaned change-feed source. The removal PR: the bare `createMarket(params)`
+      overload (authorized creation is now the only door; local tooling passes a zeroed
+      authorization as a trusted creator, which the local deploy now marks the deployer
+      as), `approveMarket` / `rejectMarket` + their events, the **tail-only** removal of
+      `UnderReview` / `Rejected` from the Solidity enum (surviving ordinals unchanged —
+      the pin test in contract-enums makes any other removal shape an explicit reviewed
+      edit), the review-manager role and key plumbing, the indexer market-review watcher,
+      `chain-review.ts` (and with it the last hand-written status ordinal), the dev
+      forced-review override and its endpoint, the nightly manual-review scenario, and the
+      app's **entire legacy create surface** (old form, panels, service, and the devchain
+      seed route — `/create` renders the draft flow, which was already the only routed
+      path). `just local-create-market` now creates through the API: draft → heuristic
+      review → creator-bound publish authorization → authorized `createMarket` as hardhat
+      account #0, with `--rejectable` surfacing the draft feedback instead of publishing.
+      Existing `under_review` / `rejected` DB rows: **dead-label** — the Postgres enum
+      keeps both labels, nothing writes them, and local data was wipeable by decision.
+      Deliberately left for a follow-up: the admin re-review service and the
+      `market_ai_reviews` / `market_ai_review_jobs` tables (DB-only, no contract
+      dependency, historical rows).
 - [ ] **P6 — Metadata from the event + display cleanup.** Populate `market_metadata` from the
       `MarketCreated` event the indexer already reads; drop the best-effort off-chain
       metadata POST.
-- [ ] **P7 — Templates + clone.** Universal clone (own drafts / own markets / any market by
+- [x] **P7 — Templates + clone.** Delivered 2026-08-03 (#413 server, #415 app) as the
+      `/studio` surface. Universal clone (own drafts / own markets / any market by
       id) → new `editing` draft, verbatim copy; `is_template` shelf; schema ready for future
       sharing.
-- [ ] **P8 — Discovery filters, server-side.** Real-markets-only board; status filters
+- [ ] **P8 — Discovery filters, server-side.** Not started — `GET /markets` still takes only
+      `chainId` and `since`, with no status filter. Real-markets-only board; status filters
       (Pre-grad / Graduating / Graduated / Resolving(derived, with the Graduated anti-join) /
       Resolved / Refunded / Cancelled); `markets.status` (+ timestamp) indexes; move filtering
       into SQL.
+
+## P4 build decisions (2026-08-04)
+
+Locked before the build. The phase entry above says *what* P4 does; this says how, on the
+points where the design admitted more than one answer.
+
+**The authorization.**
+
+- **A new authorizer key, separate from the review-manager key.** Reusing the review-manager
+  key would make P5's "remove the review-manager key" a rename rather than a removal, and
+  would grow that key's blast radius at the moment we are trying to retire it.
+- **Bound to the creator's address.** Only the approved creator's wallet can spend the
+  authorization, so a leaked signature is inert without their wallet key. The cost is that
+  publishing from a different wallet than the draft was approved under stops working; if
+  that is ever wanted it is a separate feature, not a hole left open in advance.
+- **Unordered single-use nonce.** Each authorization carries an arbitrary unused nonce that
+  the contract marks spent. A per-creator counter is marginally cheaper but serialises
+  publishing: a creator with two approved drafts, or one whose first transaction fails,
+  would be blocked behind it. Several drafts in flight is the normal case the studio exists
+  to support.
+- **Expiry: 15 minutes.**
+
+**Why the expiry is minutes rather than days.** Not to stop a thief — creator binding
+already does that. The authorization carries **absolute** deadlines resolved from the
+draft's relative durations at mint time, so its lifetime is exactly how far the market's
+dates can drift from the ones the creator chose and the reviewer saw. A 90-day market
+published against a month-old authorization is a 60-day market, and it does not revert:
+`_validateCreateMarketParams` only rejects a `graduationDeadline` already in the past, so
+full staleness is caught while partial staleness ships as a quietly wrong market. Two
+smaller reasons point the same way: an outstanding authorization is a standing right to mint
+that market and there is no revocation list, so the window is also how long an approval
+cannot be taken back; and with a single-setter rotation (below), rotating invalidates every
+outstanding authorization, so the window is the rotation blast radius. The window is cheap
+because the server can mint freely — **the app must re-mint on expiry rather than surfacing
+an error.** That is a requirement of choosing a short window, not an optional nicety.
+
+**Key handling.**
+
+- **Rotation is a single owner setter.** Accepting an outgoing and incoming key
+  simultaneously would avoid mid-rotation failures, but roughly doubles the key-handling
+  code to protect a 15-minute window of publishes that can simply be retried.
+- **Locally the authorizer key follows the review-manager key's existing pattern** — derived
+  from the local stack's dev accounts and threaded through the env writers. Per ADR 0020,
+  that means **both** `scripts/local-dev.ts` and `scripts/local-dev-control.ts`, which
+  rebuild deploy overrides field-by-field and silently drop a field added to only one.
+
+**Cutover.**
+
+- **The on-chain review runner is switched off the day P4 lands.** After P4 nothing can
+  create an `under_review` market — the signature is required, and trusted creators are born
+  `Active` too — so the runner has nothing left to sweep. (An earlier draft of this decision
+  worried about stranding directly-created markets; that concern was wrong, because the gate
+  removes the ability to create them.)
+- **Existing `under_review` / `rejected` rows are testnet data and may be wiped.** P5's
+  migration does not need to preserve them, which removes the enum-rewrite pressure from
+  that phase.
+
+**Shape of the work.** Small PRs split by workspace, which the contract↔indexer coupling
+otherwise fights: `market-created.ts` hard-codes `status: "under_review"`, so whichever of
+protocol/server lands first, `main` spends the gap recording new markets with the wrong
+status. Resolved by making the indexer **read the market's real on-chain status instead of
+assuming it**, which is correct under both the old contract and the new one and so can land
+alone, ahead of either. That deletes the coupling rather than sequencing around it once; it
+costs one extra chain read per market creation, on the rare path rather than the hot one.
+The resulting order, every step independently safe:
+
+1. **server** — `MarketCreationFeePaid` watcher + fee-events table + `portfolio-data-design.md`
+   entry. Independent of the gate; pulled ahead of the rest of P4 because until it lands the
+   creation fee is the one value transfer in the system with no receipt-linked record.
+2. **server** — the indexer reads the market's actual on-chain status.
+3. **protocol** — signature verification, nonce, expiry, authorizer setter, born `Active`;
+   regenerate ABIs.
+4. **server** — mint the publish authorization.
+5. **scripts** — the dev authorizer key through both orchestrators and the e2e env writer.
+6. **app** — re-mint transparently on expiry.
 
 ## Deferred / out of scope
 
@@ -394,9 +713,11 @@ review bond (P3) is live** — until then P2's review runs internally/allow-list
 - **The `1e18`-native real-dollar peg** (protocol ADR 0009 Q1) — this ADR fixes the bond in
   the *same* native-USDC unit as the existing creation fee (so $1 = `1e18`), but whether that
   native unit is exactly $1 on Arc is the inherited open item, unchanged.
-- **Resolver settlement cadence for the bond** (batched on-chain `settle` vs a resolver-signed
-  consumed-total at withdraw) — an implementation choice for P3, not decided here; both keep
-  the money invariant.
+- ~~**Resolver settlement cadence for the bond**~~ — moot. The amendment removes settlement
+  entirely; there is no resolver and no consumed total on chain.
+- **The per-review rate at public launch**, and whether it is set by cost recovery on the
+  current review provider or by moving review to a cheaper one. The $0.10 testing rate is
+  below cost and must not open public submission.
 - **Keyset pagination** for the discovery board (pre-existing 200-row cap) — not made worse
   by this ADR; the portfolio surface already covers claim-finding.
 - **Reject-corroboration policy** (ADR 0019) still governs when an LLM-only reject is

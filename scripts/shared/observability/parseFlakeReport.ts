@@ -64,7 +64,11 @@ export function parseFlakeReport(text: string | null): FlakeReport {
 
   return {
     window: windowMatch
-      ? { from: windowMatch[1]!, to: windowMatch[2]!, generatedAt: windowMatch[3]! }
+      ? {
+          from: windowMatch[1]!,
+          to: windowMatch[2]!,
+          generatedAt: windowMatch[3]!,
+        }
       : null,
     rows,
   };

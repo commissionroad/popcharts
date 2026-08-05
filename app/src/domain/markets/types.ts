@@ -80,11 +80,26 @@ export type MarketAiReview = {
   verdict: AiReviewVerdict;
 };
 
-/** One sample on a market's implied-probability history curve. */
-export type PricePathPoint = {
-  /** ISO timestamp of the trade behind this sample, when known. */
+/**
+ * One sample on a market's price history, identical across its whole trading
+ * life (repo ADR 0025): the server replays the LMSR for the pre-graduation
+ * half and derives pool prices for the post-graduation half, and this shape
+ * deliberately carries no marker of which mechanism produced it.
+ *
+ * Both prices are explicit rather than NO being derived from YES: after
+ * graduation the two outcomes trade in *separate* pools, so their prices are
+ * independent observations that only sum to 100 once arbitrage has closed the
+ * complete-set gap. Pre-graduation the pair happens to be complementary
+ * because one LMSR state prices both sides — a property of the data, not of
+ * this type.
+ *
+ * `at` is optional only for fixture-backed sample markets, whose synthetic
+ * paths carry no timestamps; every server-derived point is timestamped.
+ */
+export type PricePoint = {
   at?: string;
-  cents: number;
+  noCents: number;
+  yesCents: number;
 };
 
 /**

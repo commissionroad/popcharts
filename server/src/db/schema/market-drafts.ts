@@ -11,6 +11,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { DRAFT_PUBLIC_ID_LENGTH } from "src/drafts/public-id";
+
 /**
  * Lifecycle of an off-chain market draft (ADR 0022). `changes_requested` is
  * the draft projection of a `manual_review` verdict: the reviewer found
@@ -60,6 +62,13 @@ export const marketDrafts = pgTable(
   "market_drafts",
   {
     id: serial("id").primaryKey(),
+    // The draft's identity everywhere outside this database: the API speaks
+    // it and the create flow puts it in the address bar. The serial `id` stays
+    // the primary key so the review, review-job, and charge foreign keys stay
+    // narrow integers, and it is never exposed.
+    publicId: varchar("public_id", { length: DRAFT_PUBLIC_ID_LENGTH })
+      .notNull()
+      .unique(),
     ownerUserId: text("owner_user_id").notNull(),
     intendedCreatorAddress: varchar("intended_creator_address", { length: 42 }),
 

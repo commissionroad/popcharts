@@ -3,6 +3,7 @@ import { type Abi, createPublicClient, createWalletClient, http } from "viem";
 import { mockCollateralAbi } from "@/integrations/contracts/mock-collateral";
 import { completeSetBinaryMarketAbi } from "@/integrations/contracts/postgrad-venue";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
+import { reviewCreditVaultAbi } from "@/integrations/contracts/review-credit-vault";
 
 import { TEST_WALLET_ADDRESS } from "./test-wallet";
 
@@ -26,6 +27,7 @@ export type LifecycleEnv = {
   chainId: number;
   collateralAddress: `0x${string}`;
   pregradManagerAddress: `0x${string}`;
+  reviewCreditVaultAddress: `0x${string}`;
   rpcUrl: string;
 };
 
@@ -48,6 +50,9 @@ export function lifecycleEnv(): LifecycleEnv {
     collateralAddress: read("POPCHARTS_E2E_COLLATERAL_ADDRESS") as `0x${string}`,
     pregradManagerAddress: read(
       "POPCHARTS_E2E_PREGRAD_MANAGER_ADDRESS"
+    ) as `0x${string}`,
+    reviewCreditVaultAddress: read(
+      "POPCHARTS_E2E_REVIEW_CREDIT_VAULT_ADDRESS"
     ) as `0x${string}`,
     rpcUrl: read("POPCHARTS_E2E_RPC_URL"),
   };
@@ -247,6 +252,64 @@ export async function waitForMarketStatus(
   );
 }
 
+/** The unified price-history read (repo ADR 0025), typed to what the specs
+ * assert. */
+export type ApiPriceHistory = {
+  graduatedAt?: string;
+  points: Array<{ at?: string; noCents: number; yesCents: number }>;
+  streams?: Record<string, number>;
+};
+
+/**
+ * Polls the unified price-history read until `until` accepts it — the
+ * assembled ADR 0025 server path (hook tick → indexer row → sibling
+ * forward-fill → decimals read → unified read) runs behind the indexer's
+ * sweep, so a spec that just traded must wait for the projection to catch up
+ * exactly like `waitForMarketStatus` does for lifecycle transitions.
+ */
+export async function waitForPriceHistory(
+  env: LifecycleEnv,
+  marketId: bigint,
+  until: (history: ApiPriceHistory) => boolean,
+  options: { timeoutMs?: number } = {}
+): Promise<ApiPriceHistory> {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const deadline = Date.now() + timeoutMs;
+  let last = "never fetched";
+
+  while (Date.now() < deadline) {
+    // Per-request cap so one stalled fetch cannot outlive `timeoutMs` and
+    // silently hand control to Playwright's much larger spec timeout.
+    try {
+      const response = await fetch(
+        `${env.apiBaseUrl}/markets/${env.chainId}/${marketId}/price-history`,
+        { signal: AbortSignal.timeout(10_000) }
+      );
+      if (response.ok) {
+        const history = (await response.json()) as ApiPriceHistory;
+        last = `${history.points.length} points, streams ${JSON.stringify(
+          history.streams ?? null
+        )}`;
+        if (until(history)) {
+          return history;
+        }
+      } else {
+        last = `HTTP ${response.status}`;
+      }
+    } catch (error) {
+      // The error NAME only (TimeoutError vs TypeError etc.) — the no-raw-
+      // error-render guardrail bans `.message` reads outside the error
+      // utility, and the name is enough to tell a stall from a refusal.
+      last = `fetch failed (${error instanceof Error ? error.name : "unknown"})`;
+    }
+    await new Promise((resolveSleep) => setTimeout(resolveSleep, 1_000));
+  }
+
+  throw new Error(
+    `Market ${marketId} price history never satisfied the predicate within ${timeoutMs}ms (last: ${last}).`
+  );
+}
+
 /**
  * Current local chain time in epoch milliseconds. Deadline fields must be
  * derived from this, not wall clock: dev resolution jumps the chain days
@@ -262,4 +325,33 @@ export async function chainNowMs(env: LifecycleEnv): Promise<number> {
 /** The app route for a market, mirroring buildApiMarketAppId. */
 export function marketPath(env: LifecycleEnv, marketId: bigint): string {
   return `/markets/${env.chainId}:${marketId}`;
+}
+
+/**
+ * Deposits prepaid review credit for `beneficiary`, paid by the beneficiary's
+ * own unlocked hardhat account (ADR 0022 P3a). The submission gate reads the
+ * *indexed* deposit, not the chain, so callers that submit immediately
+ * afterwards are racing the indexer sweep — deposit as early as possible, and
+ * rely on the create flow's credit panel to recover if the sweep loses.
+ */
+export async function depositReviewCredit(
+  env: LifecycleEnv,
+  beneficiary: `0x${string}`,
+  amountWad: bigint
+): Promise<void> {
+  const client = createWalletClient({
+    account: beneficiary,
+    transport: http(env.rpcUrl),
+  });
+  const hash = await client.writeContract({
+    abi: reviewCreditVaultAbi,
+    address: env.reviewCreditVaultAddress,
+    account: beneficiary,
+    chain: null,
+    functionName: "depositFor",
+    args: [beneficiary],
+    value: amountWad,
+  });
+
+  await publicClient(env).waitForTransactionReceipt({ hash });
 }

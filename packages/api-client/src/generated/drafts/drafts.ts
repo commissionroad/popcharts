@@ -6,12 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  BuildMarketDraftPublishParamsParams,
+  GetMarketDraftReviewCreditParams,
   MarketDraft,
+  MarketDraftBondShortfall,
   MarketDraftCloneRequest,
   MarketDraftList,
   MarketDraftPublishParams,
   MarketDraftPublished,
   MarketDraftPublishedWrite,
+  MarketDraftReviewCredit,
   MarketDraftValidationErrors,
   MarketDraftWrite,
 } from ".././models";
@@ -123,6 +127,83 @@ export const createMarketDraft = async (
     status: res.status,
     headers: res.headers,
   } as createMarketDraftResponse;
+};
+
+/**
+ * The wallet's prepaid review credit: indexed deposits minus metered charges, the per-review rate, and run counts. metered=false means no vault is configured and submission is ungated.
+ * @summary Read a wallet's review credit
+ */
+export type getMarketDraftReviewCreditResponse200 = {
+  data: MarketDraftReviewCredit;
+  status: 200;
+};
+
+export type getMarketDraftReviewCreditResponse401 = {
+  data: string;
+  status: 401;
+};
+
+export type getMarketDraftReviewCreditResponse422 = {
+  data: string;
+  status: 422;
+};
+
+export type getMarketDraftReviewCreditResponse501 = {
+  data: string;
+  status: 501;
+};
+
+export type getMarketDraftReviewCreditResponseSuccess =
+  getMarketDraftReviewCreditResponse200 & {
+    headers: Headers;
+  };
+export type getMarketDraftReviewCreditResponseError = (
+  | getMarketDraftReviewCreditResponse401
+  | getMarketDraftReviewCreditResponse422
+  | getMarketDraftReviewCreditResponse501
+) & {
+  headers: Headers;
+};
+
+export type getMarketDraftReviewCreditResponse =
+  | getMarketDraftReviewCreditResponseSuccess
+  | getMarketDraftReviewCreditResponseError;
+
+export const getGetMarketDraftReviewCreditUrl = (
+  params: GetMarketDraftReviewCreditParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/drafts/credit?${stringifiedParams}`
+    : `/drafts/credit`;
+};
+
+export const getMarketDraftReviewCredit = async (
+  params: GetMarketDraftReviewCreditParams,
+  options?: RequestInit
+): Promise<getMarketDraftReviewCreditResponse> => {
+  const res = await fetch(getGetMarketDraftReviewCreditUrl(params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getMarketDraftReviewCreditResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getMarketDraftReviewCreditResponse;
 };
 
 /**
@@ -394,6 +475,11 @@ export type submitMarketDraftResponse401 = {
   status: 401;
 };
 
+export type submitMarketDraftResponse402 = {
+  data: MarketDraftBondShortfall;
+  status: 402;
+};
+
 export type submitMarketDraftResponse404 = {
   data: string;
   status: 404;
@@ -419,6 +505,7 @@ export type submitMarketDraftResponseSuccess = submitMarketDraftResponse202 & {
 };
 export type submitMarketDraftResponseError = (
   | submitMarketDraftResponse401
+  | submitMarketDraftResponse402
   | submitMarketDraftResponse404
   | submitMarketDraftResponse409
   | submitMarketDraftResponse422
@@ -500,15 +587,31 @@ export type buildMarketDraftPublishParamsResponse =
   | buildMarketDraftPublishParamsResponseSuccess
   | buildMarketDraftPublishParamsResponseError;
 
-export const getBuildMarketDraftPublishParamsUrl = (draftId: string) => {
-  return `/drafts/${draftId}/publish-params`;
+export const getBuildMarketDraftPublishParamsUrl = (
+  draftId: string,
+  params?: BuildMarketDraftPublishParamsParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/drafts/${draftId}/publish-params?${stringifiedParams}`
+    : `/drafts/${draftId}/publish-params`;
 };
 
 export const buildMarketDraftPublishParams = async (
   draftId: string,
+  params?: BuildMarketDraftPublishParamsParams,
   options?: RequestInit
 ): Promise<buildMarketDraftPublishParamsResponse> => {
-  const res = await fetch(getBuildMarketDraftPublishParamsUrl(draftId), {
+  const res = await fetch(getBuildMarketDraftPublishParamsUrl(draftId, params), {
     ...options,
     method: "POST",
   });

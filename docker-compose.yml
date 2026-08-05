@@ -11,7 +11,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # Over TCP, not the Unix socket: the entrypoint's temporary initdb server
+      # is socket-only, so a socket probe reports healthy before the real
+      # server exists. See waitForPostgresServer in
+      # scripts/shared/docker/ensureLocalPostgres.ts.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
       interval: 10s
       timeout: 5s
       retries: 5

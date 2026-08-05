@@ -87,13 +87,19 @@ them all (0014).
   (2026-06-13) fixed the product ladder before the review gate existed and
   requires an ADR update to alter it; none exists — lint candidate.
 
-## Proposed change (ADR 0022, Proposed — not yet built)
+## Front of the lifecycle: review-first (ADR 0022, half built)
 
 [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md)
 inverts the front of the lifecycle to **review-first**: a question lives as an
 off-chain editable **Draft** and is AI-reviewed *before* any chain write. On
 approval the creator publishes via a gated `createMarket`, so markets are **born
 `Active`** and the on-chain `UnderReview` status + `approveMarket`/`rejectMarket`
-are retired (the indexer would project new markets straight to `bootstrap`). Until
-it lands, the on-chain-first `UnderReview → Active/Rejected` flow above is still
-the reality.
+are retired (the indexer would project new markets straight to `bootstrap`).
+
+**The off-chain half is built** (drafts, draft review, the review bond, templates —
+landed 2026-08-03), **the on-chain half is not.** `createMarket` is still ungated and
+markets are still born `UnderReview`; publish bridges the two by calling
+`createMarket` and then immediately force-approving with the review-manager key. So
+the chain-level `UnderReview → Active/Rejected` flow above remains the reality, even
+though a creator now reaches it through a draft. A draft's own states are
+`editing → in_review → approved | rejected | changes_requested → published`.

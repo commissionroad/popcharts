@@ -18,12 +18,12 @@ export type {
 } from "./generated/pregrad-manager.js";
 
 export {
-  reviewBondVaultAbi,
-  reviewBondVaultContract,
-  reviewBondVaultDeployments,
-} from "./generated/review-bond-vault.js";
+  reviewCreditVaultAbi,
+  reviewCreditVaultContract,
+  reviewCreditVaultDeployments,
+} from "./generated/review-credit-vault.js";
 
-export type { ReviewBondVaultDeploymentMap } from "./generated/review-bond-vault.js";
+export type { ReviewCreditVaultDeploymentMap } from "./generated/review-credit-vault.js";
 
 export {
   boundedPoolOrderManagerAbi,
@@ -120,4 +120,10 @@ export {
   POSTGRAD_MARKET_STATUS_MEMBERS,
 } from "./generated/contract-enums.js";
 export type { MarketStatusCode, PostgradMarketStatusCode } from "./generated/contract-enums.js";
+export {
+  buildMarketCreationAuthorizationTypedData,
+  generateCreationAuthorizationNonce,
+  MARKET_CREATION_AUTHORIZATION_TYPES,
+} from "./market-creation-authorization.js";
+export type { MarketCreationParams } from "./market-creation-authorization.js";
 export { WAD, wadToCents, wadToNumber } from "./wad.js";

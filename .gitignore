@@ -55,3 +55,7 @@ yarn-error.log*
 
 # Local DB backups / snapshots — never commit
 .local-backups/
+
+# Generated white-paper reader page (rebuild with `pnpm run whitepaper`);
+# the published PDFs in documents/ are the committed artifacts
+/whitepaper/index.html

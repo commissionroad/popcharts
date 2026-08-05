@@ -159,7 +159,9 @@ describe("run-local-chain-e2e whole run", function () {
 
   it("starts the chain on the resolved port when nothing answers", async function () {
     const signals: string[] = [];
-    let spawned: { args: readonly string[]; env: NodeJS.ProcessEnv } | undefined;
+    let spawned:
+      | { args: readonly string[]; env: NodeJS.ProcessEnv }
+      | undefined;
     let probes = 0;
 
     await runLocalChainE2e({

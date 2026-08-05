@@ -5,6 +5,7 @@ pragma solidity ^0.8.26;
 // solhint-disable use-natspec
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {PoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol";
 import {IHooks} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
@@ -114,7 +115,8 @@ contract HookSkeletonAndPriceBoundsTest is Test {
     assertEq(amountIn, EXACT_INPUT);
     assertGt(amountOut, 0);
 
-    (bool observed, int24 beforeTick, int24 afterTick) = hook.lastSwapTickObservation(poolId);
+    (bool observed, int24 beforeTick, int24 afterTick, uint64 sequence) = hook
+      .lastSwapTickObservation(poolId);
     (, int24 currentTick, , ) = stateView.getSlot0(poolId);
 
     assertTrue(observed);
@@ -122,6 +124,192 @@ contract HookSkeletonAndPriceBoundsTest is Test {
     assertEq(afterTick, currentTick);
     assertLt(afterTick, 0);
     assertGe(afterTick, -120);
+    assertEq(sequence, 1);
+  }
+
+  function test_SwapSequenceIsContiguousAndEmittedPerPool() public {
+    _initializeBoundedPool(-120, 120);
+    _addLiquidity();
+
+    // Alternating directions keep the pool inside its band across all swaps.
+    bool zeroForOne = true;
+    for (uint64 expected = 1; expected <= 3; ++expected) {
+      // The ordinal must ride on the event itself — the indexer never reads
+      // hook storage — so pin the emitted payload, not just the view.
+      (, int24 tickBefore, , ) = stateView.getSlot0(poolId);
+      vm.expectEmit(true, false, false, false, address(hook));
+      emit BoundedPredictionHook.AfterSwapTickObserved(poolId, tickBefore, expected);
+      _swapWithinBounds(zeroForOne);
+
+      (, , , uint64 sequence) = hook.lastSwapTickObservation(poolId);
+      assertEq(sequence, expected);
+      zeroForOne = !zeroForOne;
+    }
+  }
+
+  function test_SwapSequenceEmittedValueMatchesStoredValue() public {
+    _initializeBoundedPool(-120, 120);
+    _addLiquidity();
+    _swapWithinBounds(true);
+
+    // Full-strictness re-check of the second swap's event: after one priming
+    // swap the pool sits at a known tick, so tick and sequence can both be
+    // pinned exactly (checkData = true).
+    (, int24 currentTick, , ) = stateView.getSlot0(poolId);
+    vm.recordLogs();
+    _swapWithinBounds(false);
+    (, , int24 afterTick, uint64 sequence) = hook.lastSwapTickObservation(poolId);
+    assertEq(sequence, 2);
+    assertGt(afterTick, currentTick);
+
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    bool found = false;
+    for (uint256 i = 0; i < logs.length; ++i) {
+      if (logs[i].topics[0] == BoundedPredictionHook.AfterSwapTickObserved.selector) {
+        (int24 emittedTick, uint64 emittedSequence) = abi.decode(logs[i].data, (int24, uint64));
+        assertEq(emittedTick, afterTick);
+        assertEq(emittedSequence, sequence);
+        found = true;
+      }
+    }
+    assertTrue(found);
+  }
+
+  function test_RevertedSwapDoesNotBurnASequence() public {
+    // One normal swap succeeds, an oversized swap blows past the band and
+    // reverts, and the ordinal must not advance for it — gap detection relies
+    // on sequences being contiguous over successful swaps (repo ADR 0025).
+    _initializeBoundedPool(-120, 120);
+    _addLiquidity();
+
+    _swapWithinBounds(true);
+    (, , , uint64 sequenceAfterFirst) = hook.lastSwapTickObservation(poolId);
+    assertEq(sequenceAfterFirst, 1);
+
+    // try/catch instead of expectRevert so the failure can be pinned to the
+    // afterSwap bounds rejection specifically — the exact out-of-bounds tick
+    // is price-path dependent, but the wrapped selectors are not. A revert for
+    // any other reason (say, insufficient balance) must fail this test rather
+    // than masquerade as the rollback being proven.
+    try
+      router.swap(
+        poolKey,
+        SwapParams({
+          zeroForOne: true,
+          amountSpecified: -int256(uint256(1_000 * COLLATERAL_UNIT)),
+          sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+        }),
+        address(this),
+        ""
+      )
+    {
+      fail();
+    } catch (bytes memory reason) {
+      assertEq(bytes4(reason), CustomRevert.WrappedError.selector);
+      bytes memory args = new bytes(reason.length - 4);
+      for (uint256 i = 0; i < args.length; ++i) {
+        args[i] = reason[i + 4];
+      }
+      (address target, bytes4 selector, bytes memory inner, ) = abi.decode(
+        args,
+        (address, bytes4, bytes, bytes)
+      );
+      assertEq(target, address(hook));
+      assertEq(selector, BoundedPredictionHook.afterSwap.selector);
+      assertEq(bytes4(inner), PoolTickBounds.PoolTickOutOfBounds.selector);
+    }
+
+    (, , , uint64 sequenceAfterRevert) = hook.lastSwapTickObservation(poolId);
+    assertEq(sequenceAfterRevert, 1);
+
+    _swapWithinBounds(false);
+    (, , , uint64 sequenceAfterNext) = hook.lastSwapTickObservation(poolId);
+    assertEq(sequenceAfterNext, 2);
+  }
+
+  function test_SwapSequencesAreIndependentPerPool() public {
+    // Interleaved swaps across two pools served by the same hook: each pool
+    // must count 1, 2 on its own. A single pool cannot distinguish a per-pool
+    // counter from an accidentally global one — interleaving can (a global
+    // counter would show pool B starting at 2).
+    _initializeBoundedPool(-120, 120);
+    _addLiquidity();
+
+    (PoolKey memory secondKey, PoolId secondPoolId) = _initializeSecondBoundedPool();
+
+    _swapWithinBounds(true);
+    _swapOnKey(secondKey, true);
+    _swapWithinBounds(false);
+    _swapOnKey(secondKey, false);
+
+    (, , , uint64 firstPoolSequence) = hook.lastSwapTickObservation(poolId);
+    (, , , uint64 secondPoolSequence) = hook.lastSwapTickObservation(secondPoolId);
+    assertEq(firstPoolSequence, 2);
+    assertEq(secondPoolSequence, 2);
+  }
+
+  function _initializeSecondBoundedPool()
+    private
+    returns (PoolKey memory secondKey, PoolId secondPoolId)
+  {
+    // A second outcome token above token0 keeps the sort order stable without
+    // re-mining the hook: the pair (token0, second) is distinct from
+    // (token0, token1) even if the new token sorts between or above them.
+    V4TestERC20 secondOutcome = new V4TestERC20("Second Outcome", "OUT2", OUTCOME_DECIMALS);
+    secondOutcome.mint(address(this), STARTING_RAW_BALANCE);
+    secondOutcome.approve(address(router), type(uint256).max);
+
+    (Currency currency0, Currency currency1) = address(token0) < address(secondOutcome)
+      ? (Currency.wrap(address(token0)), Currency.wrap(address(secondOutcome)))
+      : (Currency.wrap(address(secondOutcome)), Currency.wrap(address(token0)));
+
+    secondKey = PoolKey({
+      currency0: currency0,
+      currency1: currency1,
+      fee: FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(hook))
+    });
+    secondPoolId = secondKey.toId();
+
+    poolTickBounds.setPoolTickBounds(secondPoolId, -120, 120);
+    poolManager.initialize(secondKey, TickMath.getSqrtPriceAtTick(0));
+    router.modifyLiquidity(
+      secondKey,
+      ModifyLiquidityParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        liquidityDelta: int256(uint256(LIQUIDITY)),
+        salt: bytes32(0)
+      }),
+      ""
+    );
+  }
+
+  function _swapOnKey(PoolKey memory key, bool zeroForOne) private {
+    router.swap(
+      key,
+      SwapParams({
+        zeroForOne: zeroForOne,
+        amountSpecified: -int256(uint256(EXACT_INPUT)),
+        sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+      }),
+      address(this),
+      ""
+    );
+  }
+
+  function _swapWithinBounds(bool zeroForOne) private {
+    router.swap(
+      poolKey,
+      SwapParams({
+        zeroForOne: zeroForOne,
+        amountSpecified: -int256(uint256(EXACT_INPUT)),
+        sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+      }),
+      address(this),
+      ""
+    );
   }
 
   function test_SwapBeyondBoundsReverts() public {

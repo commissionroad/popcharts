@@ -2,7 +2,10 @@ import { parseEventLogs } from "viem";
 
 import { pregradManagerAbi } from "@popcharts/protocol";
 
-import { transitionReviewedMarketOnChain } from "src/ai-review-runner/chain-review";
+import {
+  mintPublishAuthorization,
+  type SerializedPublishAuthorization,
+} from "src/api/services/publish-authorization";
 import type {
   ReviewProviderName,
   ReviewResult,
@@ -11,19 +14,24 @@ import type {
   ReviewVerdict,
 } from "src/ai-review/types";
 import { createReadOnlyClient } from "src/blockchain/client";
-import { config } from "src/config";
-import { and, db, desc, eq, inArray, schema } from "src/db/client";
+import { config, ZERO_ADDRESS } from "src/config";
+import { and, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import type { DraftReviewFeedback } from "src/db/schema/market-draft-reviews";
 import type {
   MarketDraftRow,
   MarketDraftStatus,
 } from "src/db/schema/market-drafts";
 import {
+  lockWalletCredit,
+  quoteReviewRun,
+} from "src/draft-review/review-credit-meter";
+import {
   buildDraftMetadata,
   validateDraftForSubmission,
   type DraftValidationErrors,
 } from "src/draft-review/content";
 import { buildDraftReviewFeedback } from "src/draft-review/feedback";
+import { isDraftPublicId, newDraftPublicId } from "src/drafts/public-id";
 
 const WAD = 10n ** 18n;
 /** Matches the app's derivation: graduation target = 0.5 × b, in collateral. */
@@ -84,7 +92,7 @@ export type MarketDraftResponse = {
   createdAt: string;
   description: string;
   graduationWindowSeconds: number;
-  id: number;
+  id: string;
   intendedCreatorAddress: string | null;
   isTemplate: boolean;
   latestReview?: MarketDraftReviewResponse;
@@ -116,7 +124,7 @@ export function serializeMarketDraft(
     createdAt: draft.createdAt.toISOString(),
     description: draft.description,
     graduationWindowSeconds: draft.graduationWindowSeconds,
-    id: draft.id,
+    id: draft.publicId,
     intendedCreatorAddress: draft.intendedCreatorAddress,
     isTemplate: draft.isTemplate,
     ...(latestReview
@@ -190,7 +198,7 @@ export async function getMarketDraft({
   draftId,
   owner,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
 }): Promise<GetMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -219,6 +227,7 @@ export async function createMarketDraft({
     .insert(schema.marketDrafts)
     .values({
       ownerUserId: owner,
+      publicId: newDraftPublicId(),
       ...contentColumns(content),
     })
     .returning();
@@ -242,7 +251,7 @@ export async function updateMarketDraft({
   owner,
   patch,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
   patch: MarketDraftContentPatch;
 }): Promise<UpdateMarketDraftResult> {
@@ -281,7 +290,7 @@ export async function updateMarketDraft({
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, draft.status),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -309,7 +318,7 @@ export async function deleteMarketDraft({
   draftId,
   owner,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
 }): Promise<DeleteMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -327,7 +336,7 @@ export async function deleteMarketDraft({
 }
 
 export type CloneMarketDraftSource =
-  | { draftId: number; kind: "draft" }
+  | { draftId: string; kind: "draft" }
   | { chainId: number; kind: "market"; marketId: bigint };
 
 export type CloneMarketDraftResult =
@@ -367,6 +376,7 @@ export async function cloneMarketDraft({
     .insert(schema.marketDrafts)
     .values({
       ownerUserId: owner,
+      publicId: newDraftPublicId(),
       ...contentColumns({ ...content, isTemplate: asTemplate }),
     })
     .returning();
@@ -380,21 +390,49 @@ export async function cloneMarketDraft({
 export type SubmitMarketDraftResult =
   | { draft: MarketDraftResponse; kind: "submitted" }
   | { errors: DraftValidationErrors; kind: "invalid" }
+  | {
+      availableWad: bigint;
+      kind: "insufficient_bond";
+      requiredWad: bigint;
+      runsUsed: number;
+    }
+  | { kind: "missing_wallet" }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
 
+export type SubmitMarketDraftDependencies = {
+  quoteCharge: typeof quoteReviewRun;
+};
+
+const defaultSubmitDependencies: SubmitMarketDraftDependencies = {
+  quoteCharge: quoteReviewRun,
+};
+
 /**
- * Submits a draft for AI review: validates completeness, snapshots the content
- * hash, locks the draft in `in_review`, and enqueues a review job for the
- * runner. Resubmitting after edits produces a fresh hash and a fresh review.
+ * Submits a draft for AI review: validates completeness, prices the review
+ * run against the creator's prepaid credit (the meter refuses before any
+ * provider money is spent), snapshots the content hash, locks the draft in
+ * `in_review`, and enqueues a review job for the runner, recording the meter
+ * charge in the same transaction. Resubmitting after edits produces a fresh
+ * hash and a fresh review.
+ *
+ * The quote runs *inside* the transaction, serialized per wallet by
+ * {@link lockWalletCredit}: the balance read and the charge insert are not
+ * otherwise atomic, so two drafts submitting concurrently for one wallet
+ * would each see the same remaining run and together overspend it. The lock
+ * makes the second submit wait, re-read the balance with the first charge
+ * committed, and get refused honestly.
  */
-export async function submitMarketDraft({
-  draftId,
-  owner,
-}: {
-  draftId: number;
-  owner: string;
-}): Promise<SubmitMarketDraftResult> {
+export async function submitMarketDraft(
+  {
+    draftId,
+    owner,
+  }: {
+    draftId: string;
+    owner: string;
+  },
+  dependencies: SubmitMarketDraftDependencies = defaultSubmitDependencies,
+): Promise<SubmitMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
 
   if (!draft) {
@@ -421,51 +459,86 @@ export async function submitMarketDraft({
 
   const { metadataHash } = buildDraftMetadata(draft);
   const now = new Date();
-  const updated = await db.transaction(async (tx) => {
-    // Conditional on the state and version observed above: the validated
-    // content and the snapshot hash were computed from that read, so a
-    // concurrent edit or duplicate submit must turn into a conflict rather
-    // than enqueue a review of content nobody checked.
-    const [row] = await tx
-      .update(schema.marketDrafts)
-      .set({
-        status: "in_review",
-        submittedAt: now,
-        submittedMetadataHash: metadataHash,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(schema.marketDrafts.id, draft.id),
-          eq(schema.marketDrafts.status, draft.status),
-          eq(schema.marketDrafts.updatedAt, draft.updatedAt),
-        ),
-      )
-      .returning();
+  const outcome = await db.transaction(
+    async (tx): Promise<SubmitMarketDraftResult | { row: MarketDraftRow }> => {
+      if (draft.intendedCreatorAddress) {
+        await lockWalletCredit(tx, draft.intendedCreatorAddress);
+      }
 
-    if (!row) {
-      return null;
-    }
+      const quote = await dependencies.quoteCharge({ dbc: tx, draft });
 
-    await tx.insert(schema.marketDraftReviewJobs).values({
-      draftId: draft.id,
-      metadataHash,
-    });
+      if (quote.kind === "missing_wallet") {
+        return { kind: "missing_wallet" };
+      }
 
-    return row;
-  });
+      if (quote.kind === "insufficient") {
+        return {
+          availableWad: quote.availableWad,
+          kind: "insufficient_bond",
+          requiredWad: quote.requiredWad,
+          runsUsed: quote.runsUsed,
+        };
+      }
 
-  if (!updated) {
-    return {
-      kind: "wrong_status",
-      message: "This draft just changed elsewhere — reload and try again.",
-    };
+      // Conditional on the state and version observed above: the validated
+      // content and the snapshot hash were computed from that read, so a
+      // concurrent edit or duplicate submit must turn into a conflict rather
+      // than enqueue a review of content nobody checked.
+      const [row] = await tx
+        .update(schema.marketDrafts)
+        .set({
+          status: "in_review",
+          submittedAt: now,
+          submittedMetadataHash: metadataHash,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.marketDrafts.id, draft.id),
+            eq(schema.marketDrafts.status, draft.status),
+            draftVersionMatches(draft),
+          ),
+        )
+        .returning();
+
+      if (!row) {
+        return {
+          kind: "wrong_status",
+          message: "This draft just changed elsewhere — reload and try again.",
+        };
+      }
+
+      await tx.insert(schema.marketDraftReviewJobs).values({
+        draftId: draft.id,
+        metadataHash,
+      });
+
+      // The meter charge rides the same transaction as the job it pays for:
+      // a conflicted submit charges nothing, a charged submit always has its
+      // job. Credit is non-refundable, so this row is final — there is no
+      // settlement to reconcile it against and nothing reverses it.
+      if (quote.kind === "chargeable" && draft.intendedCreatorAddress) {
+        await tx.insert(schema.draftReviewCharges).values({
+          amount: quote.amountWad,
+          chargedAddress: draft.intendedCreatorAddress.toLowerCase(),
+          draftId: draft.id,
+          kind: "review_run",
+          rate: quote.rateWad,
+        });
+      }
+
+      return { row };
+    },
+  );
+
+  if (!("row" in outcome)) {
+    return outcome;
   }
 
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
-    draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
+    draft: serializeMarketDraft(outcome.row, reviews.get(draft.id) ?? null),
     kind: "submitted",
   };
 }
@@ -549,6 +622,7 @@ export async function applyDraftReviewResult(
  * which the app fills from its own chain config. */
 export type DraftPublishParams = {
   bypassAiResolution: boolean;
+  collateral: string;
   graduationDeadline: string;
   graduationThreshold: string;
   liquidityParameter: string;
@@ -560,7 +634,12 @@ export type DraftPublishParams = {
 };
 
 export type BuildDraftPublishParamsResult =
-  | { kind: "ready"; params: DraftPublishParams }
+  | {
+      kind: "ready";
+      params: DraftPublishParams;
+      /** Present when this deployment can sign (ADR 0022 P4); absent unarmed. */
+      authorization?: SerializedPublishAuthorization;
+    }
   | { kind: "content_changed"; message: string }
   | { kind: "not_found" }
   | { kind: "wrong_status"; message: string };
@@ -572,10 +651,13 @@ export type BuildDraftPublishParamsResult =
  * draft that lingered for weeks still publishes with full windows.
  */
 export async function buildDraftPublishParams({
+  creatorAddress,
   draftId,
   owner,
 }: {
-  draftId: number;
+  /** Wallet that will send createMarket; binds the minted authorization. */
+  creatorAddress?: `0x${string}`;
+  draftId: string;
   owner: string;
 }): Promise<BuildDraftPublishParamsResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -605,34 +687,59 @@ export async function buildDraftPublishParams({
   const graduationDeadline = nowSeconds + BigInt(draft.graduationWindowSeconds);
   const resolutionTime = nowSeconds + BigInt(draft.resolutionWindowSeconds);
   const liquidityParameter = wholeToWad(draft.liquidityParameter);
+  const openingProbabilityWad = (BigInt(draft.openingProbability) * WAD) / 100n;
+  const graduationThreshold =
+    (liquidityParameter * GRADUATION_THRESHOLD_MULTIPLE_BPS) / 10_000n;
+  const collateral = config.contracts.collateral;
+  // No early-YES control on drafts yet; gate YES at the resolution deadline,
+  // matching the create form (ADR 0012 slice 2).
+  const yesNotBefore = resolutionTime;
+
+  // The signature must cover the exact values the app will submit, so it is
+  // minted over the same resolved bigints this response serializes — never
+  // re-derived from the draft later. Absent when this deployment cannot sign
+  // or the caller did not say which wallet publishes (the authorization binds
+  // the creator, so there is nothing to mint without one).
+  const authorization =
+    creatorAddress && collateral !== ZERO_ADDRESS
+      ? await mintPublishAuthorization({
+          chainSeconds: nowSeconds,
+          creator: creatorAddress,
+          params: {
+            bypassAiResolution: false,
+            collateral,
+            graduationDeadline,
+            graduationThreshold,
+            liquidityParameter,
+            metadata: metadataPayload,
+            metadataHash: metadataHash as `0x${string}`,
+            openingProbabilityWad,
+            resolutionTime,
+            yesNotBefore,
+          },
+        })
+      : undefined;
 
   return {
+    authorization,
     kind: "ready",
     params: {
       bypassAiResolution: false,
+      collateral,
       graduationDeadline: graduationDeadline.toString(),
-      graduationThreshold: (
-        (liquidityParameter * GRADUATION_THRESHOLD_MULTIPLE_BPS) /
-        10_000n
-      ).toString(),
+      graduationThreshold: graduationThreshold.toString(),
       liquidityParameter: liquidityParameter.toString(),
       metadata: metadataPayload,
       metadataHash,
-      openingProbabilityWad: (
-        (BigInt(draft.openingProbability) * WAD) /
-        100n
-      ).toString(),
+      openingProbabilityWad: openingProbabilityWad.toString(),
       resolutionTime: resolutionTime.toString(),
-      // No early-YES control on drafts yet; gate YES at the resolution
-      // deadline, matching the create form (ADR 0012 slice 2).
-      yesNotBefore: resolutionTime.toString(),
+      yesNotBefore: yesNotBefore.toString(),
     },
   };
 }
 
 export type MarkMarketDraftPublishedResult =
   | {
-      bridgeApproved: boolean;
       draft: MarketDraftResponse;
       kind: "published";
     }
@@ -738,7 +845,7 @@ export async function markMarketDraftPublished(
     transactionHash,
   }: {
     chainId: number;
-    draftId: number;
+    draftId: string;
     marketId: bigint;
     owner: string;
     transactionHash: string;
@@ -788,7 +895,7 @@ export async function markMarketDraftPublished(
       and(
         eq(schema.marketDrafts.id, draft.id),
         eq(schema.marketDrafts.status, "approved"),
-        eq(schema.marketDrafts.updatedAt, draft.updatedAt),
+        draftVersionMatches(draft),
       ),
     )
     .returning();
@@ -800,36 +907,34 @@ export async function markMarketDraftPublished(
     };
   }
 
-  let bridgeApproved = false;
-
-  try {
-    const transition = await transitionReviewedMarketOnChain({
-      chainId,
-      marketId,
-      targetMarketStatus: "bootstrap",
-    });
-    bridgeApproved = transition !== null;
-  } catch (error) {
-    console.warn(
-      `[drafts] bridge approval for market ${marketId.toString()} failed; the market review runner will pick it up`,
-      error,
-    );
-  }
-
   const reviews = await latestReviewsFor([draft.id]);
 
   return {
-    bridgeApproved,
     draft: serializeMarketDraft(updated, reviews.get(draft.id) ?? null),
     kind: "published",
   };
 }
 
+/**
+ * The optimistic-version condition for guarded transitions. Compared at
+ * millisecond precision on both sides: the driver round-trips timestamps as
+ * JS Dates (milliseconds), while rows written by the column's defaultNow()
+ * carry microseconds — a raw equality would never match those rows.
+ */
+function draftVersionMatches(draft: MarketDraftRow) {
+  // The version token travels as an ISO string: postgres-js refuses raw
+  // Date params inside sql fragments (PGlite accepts them, so tests alone
+  // would not catch it).
+  return sql`date_trunc('milliseconds', ${schema.marketDrafts.updatedAt}) = ${draft.updatedAt.toISOString()}::timestamp`;
+}
+
 async function selectOwnedDraft(
   owner: string,
-  draftId: number,
+  draftId: string,
 ): Promise<MarketDraftRow | null> {
-  if (!Number.isSafeInteger(draftId) || draftId <= 0) {
+  // The id comes off a URL, so it is user input: reject anything that is not a
+  // well-formed public id before it reaches the query.
+  if (!isDraftPublicId(draftId)) {
     return null;
   }
 
@@ -838,7 +943,7 @@ async function selectOwnedDraft(
     .from(schema.marketDrafts)
     .where(
       and(
-        eq(schema.marketDrafts.id, draftId),
+        eq(schema.marketDrafts.publicId, draftId),
         eq(schema.marketDrafts.ownerUserId, owner),
         eq(schema.marketDrafts.deleted, false),
       ),
@@ -846,6 +951,91 @@ async function selectOwnedDraft(
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+/**
+ * One published market's approving draft review. Deliberately not pre-keyed:
+ * the market services own the `chainId:marketId` key format for their review
+ * maps, and mirroring it here would be a second definition to drift.
+ */
+export type PublishedMarketDraftReview = {
+  chainId: number;
+  marketId: bigint;
+  review: DraftReviewRow;
+};
+
+/**
+ * Resolves published markets back to the draft review that approved them.
+ *
+ * This is the only review source for markets created after ADR 0022 P5 retired
+ * the on-chain review path: nothing writes `market_ai_reviews` any more, so
+ * without this join a published market carries no review at all.
+ *
+ * Only reviews of the draft's *submitted* snapshot count, and exactly one row
+ * comes back per market. A draft accumulates one review row per submission,
+ * and resubmitting unchanged content adds another row against the same hash,
+ * so rows are narrowed to the published snapshot and reduced to the newest —
+ * the last word on the content that actually shipped, never a stale verdict on
+ * since-edited text. Publish enforces that this snapshot is what went on
+ * chain, so the review always describes the live market's metadata.
+ */
+export async function latestReviewsForPublishedMarkets({
+  chainIds,
+  marketIds,
+}: {
+  chainIds: number[];
+  marketIds: bigint[];
+}): Promise<PublishedMarketDraftReview[]> {
+  if (chainIds.length === 0 || marketIds.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      chainId: schema.marketDrafts.publishedChainId,
+      marketId: schema.marketDrafts.publishedMarketId,
+      review: schema.marketDraftReviews,
+    })
+    .from(schema.marketDraftReviews)
+    .innerJoin(
+      schema.marketDrafts,
+      eq(schema.marketDrafts.id, schema.marketDraftReviews.draftId),
+    )
+    .where(
+      and(
+        inArray(schema.marketDrafts.publishedChainId, chainIds),
+        inArray(schema.marketDrafts.publishedMarketId, marketIds),
+        eq(
+          schema.marketDraftReviews.metadataHash,
+          schema.marketDrafts.submittedMetadataHash,
+        ),
+      ),
+    )
+    .orderBy(
+      desc(schema.marketDraftReviews.reviewedAt),
+      desc(schema.marketDraftReviews.id),
+    );
+
+  const latest = new Map<string, PublishedMarketDraftReview>();
+
+  for (const { chainId, marketId, review } of rows) {
+    // The publish columns are nullable together; the inArray filters already
+    // exclude nulls, so this only narrows the types.
+    if (chainId === null || marketId === null) {
+      continue;
+    }
+
+    // Rows arrive newest-first, so the first sighting of a market is its
+    // latest review. The key is local to this dedupe and never escapes — the
+    // caller keys the results with its own review-map format.
+    const key = `${chainId}:${marketId}`;
+
+    if (!latest.has(key)) {
+      latest.set(key, { chainId, marketId, review });
+    }
+  }
+
+  return [...latest.values()];
 }
 
 async function latestReviewsFor(
@@ -941,7 +1131,7 @@ function draftContentChanges(
 
 async function draftCloneContent(
   owner: string,
-  draftId: number,
+  draftId: string,
 ): Promise<MarketDraftContentPatch | null> {
   const source = await selectOwnedDraft(owner, draftId);
 

@@ -4,7 +4,7 @@ title: App Component Inventory
 description: Living inventory of the twelve shared UI components in app/src/components and their designkit reference mappings (last audited 2026-07-02)
 sources:
   - app/docs/component-inventory.md
-updated: 2026-07-07
+updated: 2026-08-04
 ---
 
 # App Component Inventory
@@ -23,7 +23,8 @@ promoted.
   no-only / no-demand legend — currently static demo bands), `PriceCurve`
   (YES/NO price-history chart: trailing-window pills 1H–1M/ALL, quarter
   gridlines with axis values, crosshair hover readout, optional creator
-  outcome labels).
+  outcome labels; optional `postgradPoints`/`graduatedAt` extend it past
+  graduation — see below).
 - UI: `Button` (primary/secondary/ghost, sm/md/lg, link support, glow),
   `Field` (labeled input/textarea with hint/error, mono, suffix),
   `GraduationBar` (matched-liquidity progress toward target),
@@ -45,6 +46,29 @@ The component set maps directly onto the mechanism UI:
 [graduation clearing](../concepts/graduation-clearing.md) progress,
 `PriceCurve` shows the virtual LMSR path, and `StatusPill` renders the
 [market lifecycle](../concepts/market-lifecycle.md) ladder.
+
+## `PriceCurve` spans both mechanisms (2026-08-03)
+
+`PriceCurve` used to stop at graduation — it replayed the virtual LMSR over
+pre-graduation receipts and had no notion of the bounded venue, so a graduated
+market showed a frozen receipt history while trading carried on underneath it.
+Two optional inputs, `postgradPoints` (the venue's traded prices) and
+`graduatedAt`, now extend it across the whole trading life, with a dashed rule
+and shaded region marking where the mechanism changed. Both halves share one
+0–100 axis: an outcome token paying one collateral on a win is priced in the
+same units as an implied probability.
+
+The two phases are modelled **separately on purpose**. Pre-graduation, YES and
+NO come from one LMSR state, so NO is exactly YES's complement. After
+graduation they trade in
+[separate pools](../concepts/complete-sets.md) and are independent
+observations that only sum to 100 once arbitrage closes the gap — so both
+prices are carried rather than derived, and the crosshair reports their sum as
+"Set", the one readout the shared-LMSR half cannot produce.
+
+**Nothing is wired to real data yet** — this is the design, visible in
+Storybook (screenshots in `app/docs/screenshots/postgrad-price-chart-*.png`).
+The existing call site passes neither new input and renders as before.
 
 ## Update checklist
 

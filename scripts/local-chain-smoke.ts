@@ -17,6 +17,10 @@ import { type PostgradDeployment } from "./shared/deployments/readPostgradDeploy
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
 import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
+import {
+  pregradDeployServerEnv,
+  pregradDeployServerEnvLines,
+} from "./shared/env/pregradDeployServerEnv.ts";
 import { resolveAndRegisterStack } from "./shared/localStack/resolveAndRegisterStack.ts";
 import { SMOKE_READINESS_LINE } from "./shared/localStack/smokeReadinessLine.ts";
 import { isRpcReady } from "./shared/net/isRpcReady.ts";
@@ -187,6 +191,10 @@ async function main(): Promise<void> {
       deployBlock: deploy.deployBlock,
       postgradAdapterAddress: deploy.postgradAdapterAddress,
       pregradManagerAddress: deploy.pregradManagerAddress,
+      // Activates the review-credit meter (ADR 0022 P3a): without this the
+      // lifecycle lane runs unmetered and the funded-deposit journey has
+      // nothing to exercise.
+      reviewCreditVaultAddress: deploy.reviewCreditVaultAddress,
     }),
     ...postgradServerEnv(postgrad),
   };
@@ -273,9 +281,7 @@ async function main(): Promise<void> {
   console.log(`- Indexed tx: ${indexedMarket.createdTransactionHash}`);
 
   if (keepRunning) {
-    console.log(
-      `\n${SMOKE_READINESS_LINE}. Press Ctrl-C to stop.`,
-    );
+    console.log(`\n${SMOKE_READINESS_LINE}. Press Ctrl-C to stop.`);
     await new Promise(() => {});
   }
 
@@ -343,18 +349,13 @@ function buildServerEnv(
   return {
     DATABASE_URL: databaseUrl,
     HEALTH_CHECK_FILE: healthFile,
-    LOCAL_COLLATERAL_ADDRESS: overrides.collateralAddress ?? "",
-    LOCAL_POSTGRAD_ADAPTER_ADDRESS: overrides.postgradAdapterAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
+    ...pregradDeployServerEnv(overrides),
     NETWORK: "local",
     PORT: apiPort,
     // The lifecycle e2e lane drives graduation/resolution through the local
     // dev endpoints; they are local-network-only and additionally gated on
     // this flag, so the smoke API opts in explicitly.
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
-    PREGRAD_MANAGER_ADDRESS: overrides.pregradManagerAddress ?? "",
-    PREGRAD_MANAGER_DEPLOY_BLOCK: overrides.deployBlock ?? "0",
     RPC_HTTP_URL: rpcHttpUrl,
     RPC_WSS_URL: rpcWssUrl,
   };
@@ -375,12 +376,7 @@ function writeLocalEnv(
     "NETWORK=local",
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    `PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_PREGRAD_MANAGER_ADDRESS=${deploy.pregradManagerAddress}`,
-    `LOCAL_PREGRAD_MANAGER_DEPLOY_BLOCK=${deploy.deployBlock}`,
-    `LOCAL_COLLATERAL_ADDRESS=${deploy.collateralAddress}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${deploy.postgradAdapterAddress}`,
+    ...pregradDeployServerEnvLines(deploy),
     ...postgradEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",

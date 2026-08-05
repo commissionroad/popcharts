@@ -10,9 +10,7 @@ import { drawCancel } from "./scenarios/draw-cancel";
 import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
 import { indexerRestart } from "./scenarios/indexer-restart";
-import { manualReview } from "./scenarios/manual-review";
 import { partialClearing } from "./scenarios/partial-clearing";
-import { rejectedCreation } from "./scenarios/rejected-creation";
 
 /**
  * Entry point for the lifecycle nightly suite (ADR 0017 Track C item C3;
@@ -20,23 +18,26 @@ import { rejectedCreation } from "./scenarios/rejected-creation";
  * stack — chain, API, indexer, keeper, and the heuristic review/resolution
  * services — normally provided by `pnpm local:lifecycle-nightly`.
  *
- * Scenario order matters twice over: chain-time jumps are global,
- * forward-only, and leave a PERMANENT chain-vs-wall offset (hardhat keeps
- * jump offsets; they never decay), and scenarios needing the resolution
- * runner wait out wall-clock time equal to their resolution window plus
- * every offset accumulated before their market was created. So the
- * resolution-dependent scenarios run first — each later one budgets its
- * predecessors' jumps into its wait — and scenarios that need no resolution
- * runner trail the group. (Partial clearing still advances the chain: its
- * graduation fast-forwards past the clearing challenge deadline. That is a
- * permanent forward offset, but nothing after it waits on the wall-clock
- * resolution runner, so it only costs suite time, not correctness. Append a
- * resolution-dependent scenario after it and that offset must be budgeted.)
+ * Scenario order matters because chain-time jumps are global, forward-only,
+ * and leave a PERMANENT chain-vs-wall offset (hardhat keeps jump offsets; they
+ * never decay), while a scenario needing the resolution runner waits out
+ * wall-clock time equal to its resolution window PLUS every offset accumulated
+ * before its market was created — the runner's eligibility is `new Date()`,
+ * which no jump can move. That coupling is quadratic in the number of
+ * resolution-dependent scenarios, so the rule is: never jump a gate that is
+ * already being waited out on the wall clock. The resolution-dependent
+ * scenarios therefore jump nothing before their wait (see the note in
+ * happy-path), which keeps each one's cost at its own window rather than its
+ * window plus its predecessors'.
  *
- * The two dispute scenarios sit inside the resolution-dependent group for the
- * same reason, and each adds one more permanent offset of its own: they never
- * wait a dispute window out in real time, they jump the chain clock to the
- * proposal's deadline (bounded by that scenario's DISPUTE_WINDOW_SECONDS).
+ * The jumps that remain are the ones with no wall-clock counterpart, and they
+ * are deliberately small and late: each dispute scenario closes its proposal
+ * window by jumping to the deadline (bounded by that scenario's
+ * DISPUTE_WINDOW_SECONDS), failed-graduation jumps its graduation deadline,
+ * and partial clearing's graduation fast-forwards past the clearing challenge
+ * deadline. Those offsets are permanent, so the resolution-dependent scenarios
+ * still run FIRST and the rest trail them; appending a resolution-dependent
+ * scenario after this group would put those offsets back into its wait.
  */
 const SCENARIOS: readonly Scenario[] = [
   happyPath,
@@ -45,8 +46,6 @@ const SCENARIOS: readonly Scenario[] = [
   disputeSettlement,
   partialClearing,
   failedGraduation,
-  manualReview,
-  rejectedCreation,
   indexerRestart,
   aiOutage,
 ];

@@ -7,11 +7,16 @@ import { fileURLToPath } from "node:url";
 
 import { validateLocalPregradDeployment } from "./shared/chain/validateLocalPregradDeployment.ts";
 import { parseSmokeMarket } from "./shared/deployments/smokeMarket.ts";
+import { DEFAULT_HARDHAT_ACCOUNT_ADDRESS } from "./shared/chain/defaultHardhatPrivateKey.ts";
+import {
+  createDraftApi,
+  draftWriteFrom,
+  parsePublishTransactionHash,
+} from "./shared/localMarket/draftFlow.ts";
 import { getErrorMessage } from "./shared/errors/getErrorMessage.ts";
 import { localChainEnvFile } from "./shared/env/localDevEnvFiles.ts";
 import { readEnvFile } from "./shared/env/readEnvFile.ts";
 import { resolveIndexerApiBaseUrl } from "./shared/env/resolveIndexerApiBaseUrl.ts";
-import { buildProtocolCommandEnv } from "./shared/localMarket/buildProtocolCommandEnv.ts";
 import { buildGeneratedMarket } from "./shared/localMarket/generatedMarketPlan.ts";
 import { readExistingGeneratedMarketOptions } from "./shared/localMarket/indexedMarketOptions.ts";
 import {
@@ -151,18 +156,75 @@ async function main(): Promise<void> {
     }`,
   );
 
+  // The market is created THROUGH the API's draft flow — the same reviewed,
+  // authorized path the product uses (repo ADR 0022 P5 removed the ungated
+  // contract path this script previously called). The draft owner and the
+  // publishing wallet default to the first Hardhat account.
+  const creatorAddress = DEFAULT_HARDHAT_ACCOUNT_ADDRESS;
+  const drafts = createDraftApi({ apiBaseUrl, owner: creatorAddress });
+
+  const draft = await drafts.create(draftWriteFrom(generatedMarket, creatorAddress));
+  console.log(`[${logLabel}] draft ${draft.id} created via ${apiBaseUrl}`);
+  await drafts.submit(draft.id);
+  console.log(`[${logLabel}] submitted for review`);
+
+  const reviewed = await drafts.waitForReview(draft.id);
+
+  if (reviewed.status !== "approved") {
+    console.log(
+      `[${logLabel}] review outcome: ${reviewed.status} — no market published`,
+    );
+    for (const item of reviewed.feedback) {
+      console.log(`[${logLabel}]   - ${item}`);
+    }
+    return;
+  }
+
+  console.log(`[${logLabel}] approved; minting publish authorization`);
+  const publishPayload = await drafts.publishParams(draft.id, creatorAddress);
+
+  if (!publishPayload.authorization) {
+    throw new Error(
+      "The API minted no creation authorization — is this stack armed? Redeploy contracts (just local-dev) and retry.",
+    );
+  }
+
   const output = await run(
     "pnpm",
-    ["--dir", "protocol", "run", "local:create-market"],
+    ["--dir", "protocol", "run", "local:publish-authorized-market"],
     {
-      env: buildProtocolCommandEnv({
-        baseEnv: commandEnv,
-        chainEnv,
-        generatedMarket,
-      }),
+      env: {
+        ...commandEnv,
+        ...chainEnv,
+        POPCHARTS_PUBLISH_PAYLOAD: JSON.stringify({
+          authorization: publishPayload.authorization,
+          params: {
+            bypassAiResolution: publishPayload.bypassAiResolution,
+            collateral: publishPayload.collateral,
+            graduationDeadline: publishPayload.graduationDeadline,
+            graduationThreshold: publishPayload.graduationThreshold,
+            liquidityParameter: publishPayload.liquidityParameter,
+            metadata: publishPayload.metadata,
+            metadataHash: publishPayload.metadataHash,
+            openingProbabilityWad: publishPayload.openingProbabilityWad,
+            resolutionTime: publishPayload.resolutionTime,
+            yesNotBefore: publishPayload.yesNotBefore,
+          },
+        }),
+      },
     },
   );
   const market = parseSmokeMarket(output.stdout);
+  const transactionHash = parsePublishTransactionHash(output.stdout);
+
+  await drafts.markPublished(draft.id, {
+    chainId: market.chainId,
+    marketId: market.marketId,
+    transactionHash,
+  });
+  console.log(
+    `[${logLabel}] market ${market.marketId} published from draft ${draft.id}`,
+  );
 
   try {
     await persistMarketMetadata({

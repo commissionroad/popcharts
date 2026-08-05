@@ -6,9 +6,11 @@ import {
   type MarketsApiFetch,
 } from "@/integrations/indexer/markets-api";
 import { parseApiMarketAppId } from "@/lib/app-id";
+import { logError } from "@/lib/error-logger";
 
 import { apiMarketToMarket } from "./api-market";
 import { markets as fixtureMarkets } from "./fixtures";
+import type { PricePoint } from "./types";
 
 export type MarketDataSource = "auto" | "api" | "fixtures";
 export type DevMarketResolutionSide = "yes" | "no";
@@ -56,24 +58,56 @@ export async function getMarketById(id: string, options: MarketQueryOptions = {}
 }
 
 /**
- * Fetches the indexed ReceiptPlaced events for one market, oldest first, so
- * the caller can rebuild the real LMSR price path. Fixture-backed markets have
- * no receipt history and yield an empty list.
+ * Fetches a market's whole-life price history (repo ADR 0025): the server
+ * replays the LMSR over the receipt book and, for a graduated market, appends
+ * the bounded venue's prices past the handoff — one shape, oldest first.
+ * Returns an empty list for a fixture-backed market, which has no indexer to
+ * ask.
+ *
+ * A failed read reports the same empty list rather than throwing, which is
+ * the one place this module deliberately swallows an error. The market read
+ * itself is load-bearing — without it there is no page — but the chart is
+ * not: the page falls back to the market's own synthetic path, so losing
+ * chart fidelity beats losing the page.
  */
-export async function getMarketReceipts(id: string, options: MarketQueryOptions = {}) {
+export type MarketPricePath = {
+  points: PricePoint[];
+  /** Last live-tick ordinal per venue stream, the client's gap-check seed. */
+  streams: Record<string, number>;
+};
+
+const EMPTY_PRICE_PATH: MarketPricePath = { points: [], streams: {} };
+
+export async function getMarketPricePath(
+  id: string,
+  options: MarketQueryOptions = {}
+): Promise<MarketPricePath> {
   const config = resolveMarketQueryConfig(options);
 
   if (!config.useApi) {
-    return [];
+    return EMPTY_PRICE_PATH;
   }
 
   const lookup = resolveMarketLookup(id, config.chainId);
 
   if (!lookup) {
-    return [];
+    return EMPTY_PRICE_PATH;
   }
 
-  return config.client.getMarketReceipts(lookup);
+  try {
+    const history = await config.client.getMarketPriceHistory(lookup);
+
+    return {
+      points: history?.points ?? [],
+      streams: history?.streams ?? {},
+    };
+  } catch (error) {
+    // Degraded, not silent: the chart falls back to the market's synthetic
+    // path and the failure still reaches the logs rather than disappearing.
+    logError(error, { marketId: id, operation: "getMarketPricePath" });
+
+    return EMPTY_PRICE_PATH;
+  }
 }
 
 export async function getMarkets(options: MarketQueryOptions = {}) {

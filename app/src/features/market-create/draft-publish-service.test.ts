@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
-import type { CreateMarketWallet } from "./create-market-service";
+import type { CreateMarketWallet } from "./draft-publish-service";
 import { persistPublishedMetadata, publishDraftMarket } from "./draft-publish-service";
 
 const configState = vi.hoisted(() => ({
@@ -33,6 +33,7 @@ const contractConfig: PopChartsContractConfig = {
   collateralAddress: "0x0000000000000000000000000000000000000002",
   nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
   pregradManagerAddress: "0x0000000000000000000000000000000000000001",
+  reviewCreditVaultAddress: null,
   rpcUrl: "http://127.0.0.1:8545",
 };
 
@@ -128,16 +129,108 @@ describe("publishDraftMarket", () => {
         functionName: "createMarket",
         args: [
           expect.objectContaining({
-            // The app adds only its configured collateral to the params.
+            // Server-pinned: the signature covers every field, collateral
+            // included, so the app adds nothing of its own.
             collateral: contractConfig.collateralAddress,
             graduationDeadline: 1_900_000_000n,
             metadataHash: METADATA_HASH,
             openingProbabilityWad: WAD / 2n,
           }),
+          { expiry: 1_900_000_900n, nonce: 12_345n, signature: `0x${"5a".repeat(65)}` },
         ],
         value: clients.creationFee,
       })
     );
+  });
+
+  it("refuses to publish without a creation authorization", async () => {
+    configState.config = contractConfig;
+    const { wallet } = mockWallet();
+
+    const { authorization: _minted, ...unarmed } = publishParams();
+
+    await expect(publishDraftMarket({ params: unarmed, wallet })).rejects.toThrow(
+      "minted no creation authorization"
+    );
+  });
+
+  it("refuses a signed collateral that differs from the app's", async () => {
+    configState.config = contractConfig;
+    const { wallet } = mockWallet();
+
+    await expect(
+      publishDraftMarket({
+        params: publishParams({
+          collateral: "0x00000000000000000000000000000000000000dd",
+        }),
+        wallet,
+      })
+    ).rejects.toThrow("signed a different collateral");
+  });
+
+  it("re-mints once and retries when the authorization expired on-chain", async () => {
+    configState.config = contractConfig;
+    const { clients, wallet } = mockWallet();
+    clients.writeContract
+      .mockRejectedValueOnce(
+        new Error(
+          'The contract function "createMarket" reverted.\n\nError: MarketCreationAuthorizationExpired(uint64 expiry)'
+        )
+      )
+      .mockResolvedValueOnce(PUBLISH_HASH);
+    const remint = vi.fn(async () =>
+      publishParams({
+        authorization: {
+          expiry: "1900001800",
+          nonce: "67890",
+          signature: `0x${"6b".repeat(65)}`,
+        },
+      })
+    );
+
+    const published = await publishDraftMarket({
+      params: publishParams(),
+      remint,
+      wallet,
+    });
+
+    expect(published.marketId).toBe("9");
+    expect(remint).toHaveBeenCalledTimes(1);
+    expect(clients.writeContract).toHaveBeenCalledTimes(2);
+    const secondArgs = clients.writeContract.mock.calls[1]![0] as {
+      args: unknown[];
+    };
+    expect(secondArgs.args[1]).toEqual({
+      expiry: 1_900_001_800n,
+      nonce: 67_890n,
+      signature: `0x${"6b".repeat(65)}`,
+    });
+  });
+
+  it("treats a non-Error rejection as non-expiry and surfaces it", async () => {
+    configState.config = contractConfig;
+    const { clients, wallet } = mockWallet();
+    // Wallets can reject with plain objects; the expiry matcher must not
+    // assume an Error chain.
+    clients.writeContract.mockRejectedValueOnce("user rejected");
+    const remint = vi.fn();
+
+    await expect(
+      publishDraftMarket({ params: publishParams(), remint, wallet })
+    ).rejects.toBe("user rejected");
+    expect(remint).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a non-expiry revert without re-minting", async () => {
+    configState.config = contractConfig;
+    const { clients, wallet } = mockWallet();
+    clients.writeContract.mockRejectedValueOnce(new Error("insufficient funds"));
+    const remint = vi.fn();
+
+    await expect(
+      publishDraftMarket({ params: publishParams(), remint, wallet })
+    ).rejects.toThrow("insufficient funds");
+    expect(remint).not.toHaveBeenCalled();
   });
 });
 
@@ -226,9 +319,19 @@ describe("persistPublishedMetadata", () => {
   });
 });
 
-function publishParams(): MarketDraftPublishParams {
+function publishParams(
+  overrides: Partial<MarketDraftPublishParams> = {}
+): MarketDraftPublishParams {
   return {
+    authorization: {
+      expiry: "1900000900",
+      nonce: "12345",
+      signature: `0x${"5a".repeat(65)}`,
+    },
     bypassAiResolution: false,
+    // Must match contractConfig.collateralAddress: the service refuses a
+    // signed collateral that differs from the app's configured one.
+    collateral: "0x0000000000000000000000000000000000000002",
     graduationDeadline: "1900000000",
     graduationThreshold: "2500000000000000000000",
     liquidityParameter: "5000000000000000000000",
@@ -237,6 +340,7 @@ function publishParams(): MarketDraftPublishParams {
     openingProbabilityWad: (WAD / 2n).toString(),
     resolutionTime: "1900600000",
     yesNotBefore: "1900600000",
+    ...overrides,
   };
 }
 

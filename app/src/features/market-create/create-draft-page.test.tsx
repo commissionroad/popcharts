@@ -1,3 +1,4 @@
+import type { MarketDraftBondShortfall } from "@popcharts/api-client/models";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,7 @@ import {
   createInitialMarketDraft,
 } from "@/domain/market-creation/create-market";
 import type { CreateMarketDraft } from "@/domain/market-creation/types";
+import type { ReviewCreditDepositState } from "@/integrations/contracts/hooks/use-review-credit";
 import { draftReviewFactory, marketDraftFactory } from "@/test/factories/drafts";
 
 import { CreateDraftPage } from "./create-draft-page";
@@ -26,11 +28,45 @@ vi.mock("@/integrations/contracts/config", () => ({
   },
 }));
 
+// The real ReviewCreditPanel renders inside the page; stub its chain hook so
+// the page test stays off wagmi and the wallet stack.
+const reviewCreditMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/integrations/contracts/hooks/use-review-credit", () => ({
+  useReviewCreditDeposit: reviewCreditMock,
+}));
+
+// Same reason: the credit card's read hook reaches the wallet provider.
+const creditPositionMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/integrations/indexer/use-review-credit-position", () => ({
+  useReviewCreditPosition: creditPositionMock,
+}));
+
+/** The account the card reports on, and so the account a top-up credits. */
+const BENEFICIARY = "0x1111111111111111111111111111111111111111" as const;
+
+const FUNDED_CREDIT = {
+  availableWad: "10700000000000000000",
+  metered: true,
+  rateWad: "100000000000000000",
+  runsRemaining: 107,
+  runsUsed: 6,
+};
+
 const INITIAL_NOW = "2030-07-01T12:00:00.000Z";
 const QUESTION = "Will bitcoin close above $100k on 2027-01-01?";
 
 beforeEach(() => {
   useDraftFlowMock.mockReset();
+  reviewCreditMock.mockReset();
+  reviewCreditMock.mockReturnValue(reviewCreditState());
+  creditPositionMock.mockReset();
+  creditPositionMock.mockReturnValue({
+    address: BENEFICIARY,
+    credit: FUNDED_CREDIT,
+    refresh: () => undefined,
+  });
   configState.marketCreationMode = "mock";
 });
 
@@ -59,10 +95,10 @@ describe("CreateDraftPage", () => {
   it("threads an initial draft id from the studio into the flow", () => {
     stubFlow();
 
-    render(<CreateDraftPage initialDraftId={7} initialNow={INITIAL_NOW} />);
+    render(<CreateDraftPage initialDraftId="7" initialNow={INITIAL_NOW} />);
 
     expect(useDraftFlowMock).toHaveBeenCalledWith({
-      initialDraftId: 7,
+      initialDraftId: "7",
       initialNow: INITIAL_NOW,
     });
   });
@@ -124,6 +160,63 @@ describe("CreateDraftPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Publish & pay/ }));
 
     expect(flow.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the review scores reachable on an approved draft", () => {
+    const review = draftReviewFactory();
+
+    stubFlow({
+      latestReview: review,
+      serverDraft: marketDraftFactory({ status: "approved" }),
+      stage: "approved",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    // Approved is not the same as strong: a weak dimension has to stay visible
+    // next to the publish button, not be replaced by a green check.
+    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    expect(screen.getByText("Corroboration")).toBeInTheDocument();
+    expect(screen.getByText(review.scoreRationales.corroboration)).toBeInTheDocument();
+  });
+
+  it("omits the score panel on an approved draft that has no review", () => {
+    stubFlow({
+      latestReview: null,
+      serverDraft: marketDraftFactory({ status: "approved" }),
+      stage: "approved",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.queryByText("Review scores")).not.toBeInTheDocument();
+  });
+
+  it("keeps the last scores while editing, flagged stale once the draft changes", () => {
+    stubFlow({ latestReview: draftReviewFactory(), stage: "editing" });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Scores from last review")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Resubmit to score the current version/)
+    ).toBeInTheDocument();
+  });
+
+  it("does not flag the scores stale when the draft still hashes to the review", () => {
+    stubFlow({
+      latestReview: draftReviewFactory({
+        metadataHash: buildCreateMarketPreview(draftFixture()).metadataHash,
+      }),
+      stage: "editing",
+    });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Resubmit to score the current version/)
+    ).not.toBeInTheDocument();
   });
 
   it("charges the devchain creation fee label when configured", () => {
@@ -212,6 +305,118 @@ describe("CreateDraftPage", () => {
 
     expect(screen.getByText("Live preview")).toBeInTheDocument();
   });
+
+  it("takes the aside over with the credit panel when the meter refuses", () => {
+    const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("Review credit needed")).toBeInTheDocument();
+    expect(screen.getByText("You're out of review credit.")).toBeInTheDocument();
+    expect(screen.queryByText("Live preview")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss credit prompt" }));
+
+    expect(flow.clearBondShortfall).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the credit meter in the aside before anything is submitted", () => {
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.getByText("107 reviews left")).toBeInTheDocument();
+  });
+
+  it("stands the card down while the refusal panel states the same figures", () => {
+    stubFlow({ bondShortfall: bondShortfallFixture() });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(screen.queryByText("107 reviews left")).not.toBeInTheDocument();
+    expect(screen.getByText("Review credit needed")).toBeInTheDocument();
+  });
+
+  it("opens the top-up dialog from the card's icon, crediting the read account", () => {
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // The beneficiary must be the account the card is reporting on, not the
+    // draft's creator — those can differ, and crediting the wrong one is
+    // unrecoverable.
+    expect(screen.getByText(BENEFICIARY)).toBeInTheDocument();
+  });
+
+  it("closes the top-up dialog again", () => {
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Top up review credit" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Close top-up dialog" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("re-reads the credit when the draft enters review, where it is charged", () => {
+    const refresh = vi.fn();
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
+    stubFlow({ stage: "in_review" });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("does not wait for the verdict, which spends nothing further", () => {
+    // The charge rides the submit transaction, so a landed review is not a
+    // second balance change and must not trigger a second read.
+    const refresh = vi.fn();
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
+    stubFlow({ latestReview: draftReviewFactory(), stage: "feedback" });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("leaves the credit unread while the draft is still being edited", () => {
+    const refresh = vi.fn();
+    creditPositionMock.mockReturnValue({
+      address: BENEFICIARY,
+      credit: FUNDED_CREDIT,
+      refresh,
+    });
+    stubFlow();
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("resubmits the draft once the deposit confirms, without a poller", () => {
+    // No fetchCredit on the flow: the panel funds immediately on confirm and
+    // the resubmit's own 402 would re-open it if the indexer still lags.
+    reviewCreditMock.mockReturnValue(reviewCreditState({ status: "success" }));
+    const flow = stubFlow({ bondShortfall: bondShortfallFixture() });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(flow.submitForReview).toHaveBeenCalledTimes(1);
+  });
 });
 
 type DraftFlow = ReturnType<typeof useCreateDraftFlow>;
@@ -234,14 +439,38 @@ function readyWalletAction(): WalletCreateAction {
   };
 }
 
+function bondShortfallFixture(): MarketDraftBondShortfall {
+  return {
+    availableWad: "0",
+    message: "You're out of review credit.",
+    requiredWad: "100000000000000000",
+    runsUsed: 3,
+  };
+}
+
+function reviewCreditState(
+  overrides: Partial<ReviewCreditDepositState> = {}
+): ReviewCreditDepositState {
+  return {
+    deposit: vi.fn(),
+    enabled: true,
+    error: null,
+    status: "idle",
+    ...overrides,
+  };
+}
+
 function stubFlow(overrides: Partial<DraftFlow> = {}): DraftFlow {
   const draft = draftFixture();
   const flow: DraftFlow = {
     advanced: false,
     applyGraduationPreset: vi.fn(),
     applyResolutionPreset: vi.fn(),
+    bondShortfall: null,
     canPersist: false,
+    clearBondShortfall: vi.fn(),
     errorCount: 0,
+    fetchCredit: null,
     fieldFeedback: {},
     flowError: null,
     formDraft: draft,

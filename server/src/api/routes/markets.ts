@@ -17,8 +17,6 @@ import {
   DevMarketCloseResponseSchema,
   DevMarketGraduateIneligibleSchema,
   DevMarketGraduateResponseSchema,
-  DevMarketReviewIneligibleSchema,
-  DevMarketReviewResponseSchema,
   DevMarketResolveIneligibleSchema,
   DevMarketResolveResponseSchema,
   DevMarketResolveSideSchema,
@@ -42,6 +40,7 @@ import {
   MarketMetadataWriteSchema,
   MarketOrderBookSchema,
   MarketPostgradSchema,
+  MarketPriceHistorySchema,
   MarketResolutionSchema,
   MarketSchema,
   MarketStatusSchema,
@@ -55,6 +54,7 @@ import {
   VenueOrderListSchema,
   VenueOrderSchema,
   VenueOrderStatusSchema,
+  PricePointSchema,
   VenuePoolSideSchema,
 } from "src/api/models/markets";
 import { requestManualMarketReview } from "src/api/services/admin-review";
@@ -65,7 +65,6 @@ import {
 } from "src/api/services/dev-market-graduate";
 import { requestMarketResolutionCheck } from "src/api/services/resolution-request";
 import { resolveDevMarket } from "src/api/services/dev-market-resolve";
-import { forceMarketReview } from "src/api/services/dev-market-review";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -79,6 +78,7 @@ import {
   getMarketVenueOrders,
   VENUE_ORDER_STATUS_FILTERS,
 } from "src/api/services/venue-orderbook";
+import { getMarketPriceHistory } from "src/api/services/price-history";
 import { literalUnion } from "src/shared/typebox-literals";
 
 /**
@@ -105,8 +105,6 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     DevMarketCloseResponse: DevMarketCloseResponseSchema,
     DevMarketGraduateIneligible: DevMarketGraduateIneligibleSchema,
     DevMarketGraduateResponse: DevMarketGraduateResponseSchema,
-    DevMarketReviewIneligible: DevMarketReviewIneligibleSchema,
-    DevMarketReviewResponse: DevMarketReviewResponseSchema,
     DevMarketResolveIneligible: DevMarketResolveIneligibleSchema,
     DevMarketResolveResponse: DevMarketResolveResponseSchema,
     DevMarketResolveSide: DevMarketResolveSideSchema,
@@ -134,7 +132,9 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     MarketMetadata: MarketMetadataSchema,
     MarketMetadataWrite: MarketMetadataWriteSchema,
     MarketOrderBook: MarketOrderBookSchema,
+    MarketPriceHistory: MarketPriceHistorySchema,
     MarketStatus: MarketStatusSchema,
+    PricePoint: PricePointSchema,
     ReceiptPlacedEvent: ReceiptPlacedEventSchema,
     ReceiptPlacedEventList: ReceiptPlacedEventListSchema,
     VenueOrder: VenueOrderSchema,
@@ -356,73 +356,6 @@ const marketRoutesWithDevTools =
           },
         )
         .post(
-          "/dev/markets/:chainId/:marketId/review",
-          async ({ body, params, set }) => {
-            const result = await forceMarketReview({
-              chainId: Number.parseInt(params.chainId, 10),
-              marketId: params.marketId,
-              reasons: body.reasons,
-              verdict: body.verdict,
-            });
-
-            if (result.kind === "reviewed") {
-              return {
-                market: result.market,
-                status: "reviewed" as const,
-                ...(result.transactionHash
-                  ? { transactionHash: result.transactionHash }
-                  : {}),
-                verdict: result.verdict,
-              };
-            }
-
-            if (result.kind === "ineligible") {
-              set.status = 409;
-              return {
-                market: result.market,
-                message: result.message,
-                reason: result.reason,
-                status: "ineligible" as const,
-              };
-            }
-
-            if (result.kind === "dev_disabled") {
-              set.status = 404;
-              return "Not found";
-            }
-
-            set.status = result.kind === "invalid_market_id" ? 400 : 404;
-            return result.message;
-          },
-          {
-            body: t.Object({
-              reasons: t.Optional(t.Array(t.String())),
-              verdict: t.Union([
-                t.Literal("approve"),
-                t.Literal("reject"),
-                t.Literal("manual_review"),
-              ]),
-            }),
-            params: t.Object({
-              chainId: t.String(),
-              marketId: t.String(),
-            }),
-            response: {
-              200: "DevMarketReviewResponse",
-              400: t.String(),
-              404: t.String(),
-              409: "DevMarketReviewIneligible",
-            },
-            detail: {
-              operationId: "forceMarketReview",
-              summary: "Dev-only force a market review verdict",
-              description:
-                "Local-only development tool gated on POPCHARTS_DEV_TOOLS_ENABLED. Records a deterministic market review without invoking the AI review service or runner, transitioning approved or rejected markets on-chain before persisting the review.",
-              tags: ["Development"],
-            },
-          },
-        )
-        .post(
           "/dev/markets/:chainId/:marketId/resolve/:side",
           async ({ params, set }) => {
             const result = await resolveDevMarket({
@@ -608,6 +541,39 @@ export const marketRoutes = marketRoutesWithDevTools
         summary: "Get a market's venue order book",
         description:
           "Returns the bounded-venue depth ladder for a graduated market's YES and NO outcome pools, aggregated from indexed open maker orders. Each level quotes the display price (WAD collateral per outcome token) at the tick-range edge nearest the current pool price and the outcome-token quantity its remaining liquidity represents. Markets without indexed venue pools return the book with both ladders omitted.",
+        tags: ["Markets"],
+      },
+    },
+  )
+  .get(
+    "/markets/:chainId/:marketId/price-history",
+    async ({ params, set }) => {
+      const history = await getMarketPriceHistory({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      if (!history) {
+        set.status = 404;
+        return "Market not found";
+      }
+
+      return history;
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "MarketPriceHistory",
+        404: t.String(),
+      },
+      detail: {
+        operationId: "getMarketPriceHistory",
+        summary: "Get a market's whole-life price history",
+        description:
+          "Returns the market's price path across its whole trading life as fractional YES and NO cents: the virtual LMSR's implied probabilities over the receipt book (an opening point at creation, one point per receipt), then — once graduated — a synthesized handoff point where the venue pools were initialized at the pre-graduation closing price, followed by one point per indexed taker swap with the untouched outcome carried forward. The point shape is identical across the seam; graduatedAt is a chart annotation, not a phase marker on points. Histories are downsampled to a fixed ceiling, always keeping the opening and latest samples. Supersedes the venue-only read (repo ADR 0025).",
         tags: ["Markets"],
       },
     },

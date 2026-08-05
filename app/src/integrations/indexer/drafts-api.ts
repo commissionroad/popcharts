@@ -3,6 +3,7 @@ import {
   getCloneMarketDraftUrl,
   getCreateMarketDraftUrl,
   getDeleteMarketDraftUrl,
+  getGetMarketDraftReviewCreditUrl,
   getGetMarketDraftUrl,
   getListMarketDraftsUrl,
   getMarkMarketDraftPublishedUrl,
@@ -11,10 +12,12 @@ import {
 } from "@popcharts/api-client/drafts";
 import type {
   MarketDraft,
+  MarketDraftBondShortfall,
   MarketDraftCloneRequest,
   MarketDraftPublished,
   MarketDraftPublishedWrite,
   MarketDraftPublishParams,
+  MarketDraftReviewCredit,
   MarketDraftValidationErrors,
   MarketDraftWrite,
 } from "@popcharts/api-client/models";
@@ -38,15 +41,27 @@ import { DisplayableError } from "@/lib/error-handling";
  * passes them through instead of masking them with a fallback.
  */
 export class DraftsApiError extends DisplayableError {
+  /** Set when the review-credit meter refused the submission (HTTP 402). */
+  readonly bondShortfall: MarketDraftBondShortfall | undefined;
   readonly fieldErrors: Record<string, string> | undefined;
   readonly status: number;
 
-  constructor(message: string, status: number, fieldErrors?: Record<string, string>) {
+  constructor(
+    message: string,
+    status: number,
+    details: {
+      bondShortfall?: MarketDraftBondShortfall;
+      fieldErrors?: Record<string, string>;
+    } = {}
+  ) {
     super(message);
     this.name = "DraftsApiError";
     this.status = status;
-    if (fieldErrors) {
-      this.fieldErrors = fieldErrors;
+    if (details.bondShortfall) {
+      this.bondShortfall = details.bondShortfall;
+    }
+    if (details.fieldErrors) {
+      this.fieldErrors = details.fieldErrors;
     }
   }
 }
@@ -54,16 +69,21 @@ export class DraftsApiError extends DisplayableError {
 export type DraftsApiClient = {
   clone: (body: MarketDraftCloneRequest) => Promise<MarketDraft>;
   create: (body: MarketDraftWrite) => Promise<MarketDraft>;
-  get: (draftId: number) => Promise<MarketDraft | null>;
+  /** The wallet's prepaid review-credit position, from the indexed view. */
+  credit: (address: string) => Promise<MarketDraftReviewCredit>;
+  get: (draftId: string) => Promise<MarketDraft | null>;
   list: () => Promise<MarketDraft[]>;
   markPublished: (
-    draftId: number,
+    draftId: string,
     body: MarketDraftPublishedWrite
   ) => Promise<MarketDraftPublished>;
-  publishParams: (draftId: number) => Promise<MarketDraftPublishParams>;
-  remove: (draftId: number) => Promise<void>;
-  submit: (draftId: number) => Promise<MarketDraft>;
-  update: (draftId: number, body: MarketDraftWrite) => Promise<MarketDraft>;
+  publishParams: (
+    draftId: string,
+    creatorAddress?: string
+  ) => Promise<MarketDraftPublishParams>;
+  remove: (draftId: string) => Promise<void>;
+  submit: (draftId: string) => Promise<MarketDraft>;
+  update: (draftId: string, body: MarketDraftWrite) => Promise<MarketDraft>;
 };
 
 /**
@@ -112,6 +132,8 @@ export function createDraftsApiClient({
         body: JSON.stringify(body),
         method: "POST",
       }),
+    credit: (address) =>
+      request<MarketDraftReviewCredit>(getGetMarketDraftReviewCreditUrl({ address })),
     get: async (draftId) => {
       try {
         return await request<MarketDraft>(getGetMarketDraftUrl(String(draftId)));
@@ -129,9 +151,12 @@ export function createDraftsApiClient({
         body: JSON.stringify(body),
         method: "POST",
       }),
-    publishParams: (draftId) =>
+    publishParams: (draftId, creatorAddress) =>
       request<MarketDraftPublishParams>(
-        getBuildMarketDraftPublishParamsUrl(String(draftId)),
+        getBuildMarketDraftPublishParamsUrl(
+          String(draftId),
+          creatorAddress ? { creatorAddress } : undefined
+        ),
         { method: "POST" }
       ),
     remove: async (draftId) => {
@@ -155,12 +180,16 @@ async function toDraftsApiError(response: Response): Promise<DraftsApiError> {
   const text = await response.text();
   const parsed = parseBody(text);
 
+  if (isBondShortfall(parsed)) {
+    return new DraftsApiError(parsed.message, response.status, {
+      bondShortfall: parsed,
+    });
+  }
+
   if (isValidationErrors(parsed)) {
-    return new DraftsApiError(
-      parsed.message,
-      response.status,
-      compactFieldErrors(parsed.errors)
-    );
+    return new DraftsApiError(parsed.message, response.status, {
+      fieldErrors: compactFieldErrors(parsed.errors),
+    });
   }
 
   if (typeof parsed === "string" && parsed.length > 0) {
@@ -192,6 +221,18 @@ function parseBody(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function isBondShortfall(value: unknown): value is MarketDraftBondShortfall {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "availableWad" in value &&
+    "requiredWad" in value &&
+    "runsUsed" in value &&
+    "message" in value &&
+    typeof value.message === "string"
+  );
 }
 
 function isValidationErrors(value: unknown): value is MarketDraftValidationErrors {

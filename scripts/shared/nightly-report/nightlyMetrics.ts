@@ -115,7 +115,8 @@ export function latestNightlyOf(
 /** Serializes runs back to JSONL (whole-file rewrite, since upsert can replace). */
 export function serializeNightlyHistory(rows: NightlyRun[]): string {
   return (
-    rows.map((row) => JSON.stringify(row)).join("\n") + (rows.length ? "\n" : "")
+    rows.map((row) => JSON.stringify(row)).join("\n") +
+    (rows.length ? "\n" : "")
   );
 }
 
@@ -139,7 +140,12 @@ function mark(result: string): string {
 export function renderNightlySection(runs: NightlyRun[]): string {
   if (runs.length === 0) return "";
   const recent = runs.slice(-NIGHTLY_ROWS).reverse();
-  const header = ["Date", "Commit", "Result", ...NIGHTLY_SUITES.map((s) => s.label)];
+  const header = [
+    "Date",
+    "Commit",
+    "Result",
+    ...NIGHTLY_SUITES.map((s) => s.label),
+  ];
   const lines: string[] = [];
   lines.push("## Nightly lifecycle");
   lines.push("");
@@ -154,7 +160,9 @@ export function renderNightlySection(runs: NightlyRun[]): string {
       run.conclusion === "success"
         ? `[✓ pass](${run.runUrl})`
         : `[✗ fail](${run.runUrl})`;
-    const suiteMarks = NIGHTLY_SUITES.map((s) => mark(run.suites[s.key] ?? "–"));
+    const suiteMarks = NIGHTLY_SUITES.map((s) =>
+      mark(run.suites[s.key] ?? "–"),
+    );
     lines.push(
       `| ${run.ts.slice(0, 10)} | \`${run.commit.slice(0, 7)}\` | ${result} | ${suiteMarks.join(" | ")} |`,
     );

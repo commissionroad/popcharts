@@ -1,4 +1,4 @@
-import { SIDE_YES } from "@popcharts/protocol";
+import { computeMatchedMarketCap, SIDE_YES } from "@popcharts/protocol";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
@@ -102,6 +102,7 @@ export async function persistReceiptPlacedRecord(
         liquidityParameter: schema.markets.liquidityParameter,
         noShares: schema.markets.noShares,
         openingProbabilityWad: schema.markets.openingProbabilityWad,
+        totalEscrowed: schema.markets.totalEscrowed,
         yesShares: schema.markets.yesShares,
       });
 
@@ -112,6 +113,33 @@ export async function persistReceiptPlacedRecord(
     if (!market) {
       throw new MarketNotIndexedError(record);
     }
+
+    // The band-pass matched cap after this receipt, folded over the market's
+    // whole book — the same O(receipts) computation every market read already
+    // performs (loadMatchedMarketCaps), so the trade path costs what a read
+    // costs. Includes the receipt inserted above: same transaction, so the
+    // select sees it. If receipt books outgrow this fold it has to become an
+    // incremental band aggregate — on the read path first, this call second.
+    const bookRows = await tx
+      .select({
+        rHigh: schema.receiptPlacedEvents.rHigh,
+        rLow: schema.receiptPlacedEvents.rLow,
+        side: schema.receiptPlacedEvents.side,
+      })
+      .from(schema.receiptPlacedEvents)
+      .where(
+        and(
+          eq(schema.receiptPlacedEvents.chainId, record.chainId),
+          eq(schema.receiptPlacedEvents.marketId, record.marketId),
+        ),
+      );
+    const matchedMarketCapWad = computeMatchedMarketCap(
+      bookRows.map((row) => ({
+        rHigh: BigInt(row.rHigh),
+        rLow: BigInt(row.rLow),
+        side: row.side,
+      })),
+    );
 
     // Signal the price/chart/graduation bar and the bettor's portfolio, atomic
     // with the receipt+counter writes above. The tick rides the frame so the
@@ -132,6 +160,8 @@ export async function persistReceiptPlacedRecord(
         openingProbabilityWad: market.openingProbabilityWad,
         yesSharesWad: market.yesShares,
         noSharesWad: market.noShares,
+        matchedMarketCapWad,
+        totalEscrowedWad: market.totalEscrowed,
       }),
     });
   });

@@ -3,9 +3,9 @@ export {
   watchMarketCreatedEvents,
 } from "./market-created";
 export {
-  recoverMarketReviewEvents,
-  watchMarketReviewEvents,
-} from "./market-review";
+  recoverMarketCreationFeeEvents,
+  watchMarketCreationFeeEvents,
+} from "./market-creation-fee";
 export {
   recoverOutcomeTokenTransferEvents,
   watchOutcomeTokenTransferEvents,
@@ -22,5 +22,9 @@ export {
   recoverReceiptPlacedEvents,
   watchReceiptPlacedEvents,
 } from "./receipt-placed";
+export {
+  recoverReviewCreditEvents,
+  watchReviewCreditEvents,
+} from "./review-credit";
 export { recoverSettlementEvents, watchSettlementEvents } from "./settlement";
 export { recoverVenueOrderEvents, watchVenueOrderEvents } from "./venue-orders";

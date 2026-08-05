@@ -4,14 +4,13 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildAiReviewEnv } from "./shared/aiReview/buildAiReviewEnv.ts";
-import { buildAiReviewRunnerEnv } from "./shared/aiReview/buildAiReviewRunnerEnv.ts";
 import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts";
-import { localAiReviewRunnerPollMs } from "./shared/aiReview/localAiReviewRunnerPollMs.ts";
 import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_CHAIN_PRIVATE_KEY } from "./shared/chain/defaultHardhatPrivateKey.ts";
 import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
+  pregradDeployOverrides,
   type PregradDeploy,
 } from "./shared/deployments/pregradDeploy.ts";
 import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
@@ -36,6 +35,11 @@ import {
 import { waitFor } from "./shared/wait/waitFor.ts";
 
 /**
+ * Pre-control-plane local dev orchestrator, reachable as
+ * `pnpm run local:dev:inline`. `just local-dev` runs local-dev-control.ts
+ * instead; this path stays for runs that cannot use Process Compose or that
+ * need `--no-postgrad`, which the control plane does not offer.
+ *
  * Full local dev orchestrator: docker-compose Postgres, Hardhat chain, local
  * protocol deployment (pregrad + postgrad venue + demo market), Bun API and
  * indexer, the local AI review service/runner, and the Next.js app wired for
@@ -144,9 +148,6 @@ async function main(): Promise<void> {
     console.log("\nLocal AI review stack is ready:");
     console.log(`- AI Review service: ${aiReviewBaseUrl}`);
     console.log(`- AI Review readiness: ${aiReviewBaseUrl}/ready`);
-    console.log(
-      `- Runner: polling Postgres every ${localAiReviewRunnerPollMs()}ms`,
-    );
     console.log(`- Database: ${databaseUrl}`);
     console.log("\nPress Ctrl-C to stop the AI review service and runner.");
 
@@ -188,12 +189,7 @@ async function main(): Promise<void> {
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
   const serverEnv = {
-    ...buildLocalServerEnv(resources, {
-      collateralAddress: deploy.collateralAddress,
-      deployBlock: deploy.deployBlock,
-      postgradAdapterAddress: deploy.postgradAdapterAddress,
-      pregradManagerAddress: deploy.pregradManagerAddress,
-    }),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
     ...postgradServerEnv(postgrad),
   };
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
@@ -340,11 +336,10 @@ async function main(): Promise<void> {
 }
 
 function printUsage(): void {
-  console.log(`Usage: pnpm run local:dev
-       pnpm run local:dev -- --no-ai-review
-       pnpm run local:dev -- --keep-db
-       pnpm run local:dev -- --no-postgrad
-       pnpm run local:ai-review
+  console.log(`Usage: pnpm run local:dev:inline
+       pnpm run local:dev:inline -- --no-ai-review
+       pnpm run local:dev:inline -- --keep-db
+       pnpm run local:dev:inline -- --ai-review-only
 
 Start the full local Pop Charts stack:
   - docker-compose Postgres
@@ -422,7 +417,7 @@ function ensureDependenciesInstalled(): void {
   }
 
   throw new Error(
-    `Missing ${missing.join(", ")}. Run 'just setup' before 'just local-dev'.`,
+    `Missing ${missing.join(", ")}. Run 'just setup' before 'pnpm run local:dev:inline'.`,
   );
 }
 
@@ -447,19 +442,8 @@ async function startAiReviewStack(
     },
   );
 
-  const runner = supervisor.start(
-    "ai-review-runner",
-    "bun",
-    ["run", "--cwd", "server", "start:ai-review-runner"],
-    {
-      env: buildAiReviewRunnerEnv(serverEnv, resources),
-    },
-  );
-
-  return [aiReview, runner];
+  return [aiReview];
 }
-
-
 
 async function run(
   name: string,
