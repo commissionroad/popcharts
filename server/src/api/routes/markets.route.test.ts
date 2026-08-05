@@ -320,15 +320,16 @@ describe("market routes", () => {
     );
 
     expect(response.status).toBe(200);
-    // Newest first: the primary market, then the three older terminal
-    // fixtures in insertion order. The postgrad venue block only appears on
-    // detail reads, so the list rows carry the event-sourced postgrad data.
+    // Newest first: the primary market, then the terminal fixtures — which
+    // share one block timestamp, so the marketId tiebreaker orders them
+    // newest-id first. The postgrad venue block only appears on detail
+    // reads, so the list rows carry the event-sourced postgrad data.
     expect(await response.json()).toEqual([
       expectedMarket(),
-      expectedDrawMarket(),
-      expectedResolvedMarket(),
-      expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
       expectedInDisputeWindowMarket(),
+      expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
+      expectedResolvedMarket(),
+      expectedDrawMarket(),
     ]);
   });
 
@@ -453,8 +454,8 @@ describe("market routes", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
-      expectedResolvedMarket(),
       expectedInDisputeWindowMarket(),
+      expectedResolvedMarket(),
     ]);
   });
 
@@ -465,8 +466,8 @@ describe("market routes", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
-      expectedDrawMarket(),
       expectedTerminalMarket(PREGRAD_CANCELLED_MARKET_ID, "cancelled", 2),
+      expectedDrawMarket(),
     ]);
   });
 
