@@ -7,7 +7,7 @@ import type { PopChartsContractConfig } from "@/integrations/contracts/config";
 import { pregradManagerAbi } from "@/integrations/contracts/pregrad-manager";
 
 import type { CreateMarketWallet } from "./draft-publish-service";
-import { persistPublishedMetadata, publishDraftMarket } from "./draft-publish-service";
+import { publishDraftMarket } from "./draft-publish-service";
 
 const configState = vi.hoisted(() => ({
   config: null as unknown,
@@ -234,91 +234,6 @@ describe("publishDraftMarket", () => {
   });
 });
 
-describe("persistPublishedMetadata", () => {
-  it("posts the parsed metadata to the api and reports success as undefined", async () => {
-    const fetcher = vi.fn(async () => jsonResponse({ ok: true }, 200));
-    vi.stubGlobal("fetch", fetcher);
-
-    const syncError = await persistPublishedMetadata({
-      chainId: 31337,
-      metadataHash: METADATA_HASH,
-      metadataPayload: '{"question":"Will it publish?"}',
-    });
-
-    expect(syncError).toBeUndefined();
-    const [url, init] = fetcher.mock.calls[0] as unknown as Parameters<typeof fetch>;
-    expect(url).toBe("/api/indexer/market-metadata");
-    expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
-      chainId: 31337,
-      metadata: { question: "Will it publish?" },
-      metadataHash: METADATA_HASH,
-    });
-  });
-
-  it("returns the api's own error message", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ error: "Indexer API is offline." }, 502))
-    );
-
-    await expect(
-      persistPublishedMetadata({
-        chainId: 31337,
-        metadataHash: METADATA_HASH,
-        metadataPayload: "{}",
-      })
-    ).resolves.toBe("Indexer API is offline.");
-  });
-
-  it("falls back to generic copy when the failure body is unreadable", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("not json", { status: 500 }))
-    );
-
-    await expect(
-      persistPublishedMetadata({
-        chainId: 31337,
-        metadataHash: METADATA_HASH,
-        metadataPayload: "{}",
-      })
-    ).resolves.toBe("Market metadata could not be saved to the API.");
-  });
-
-  it("falls back to generic copy when the failure body has no error field", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({}, 500))
-    );
-
-    await expect(
-      persistPublishedMetadata({
-        chainId: 31337,
-        metadataHash: METADATA_HASH,
-        metadataPayload: "{}",
-      })
-    ).resolves.toBe("Market metadata could not be saved to the API.");
-  });
-
-  it("reports generic copy instead of throwing when the network fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("Network unreachable.");
-      })
-    );
-
-    await expect(
-      persistPublishedMetadata({
-        chainId: 31337,
-        metadataHash: METADATA_HASH,
-        metadataPayload: "{}",
-      })
-    ).resolves.toBe("Market metadata could not be saved to the API.");
-  });
-});
-
 function publishParams(
   overrides: Partial<MarketDraftPublishParams> = {}
 ): MarketDraftPublishParams {
@@ -419,11 +334,4 @@ function marketCreatedLog() {
       },
     }),
   };
-}
-
-function jsonResponse(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    headers: { "content-type": "application/json" },
-    status,
-  });
 }

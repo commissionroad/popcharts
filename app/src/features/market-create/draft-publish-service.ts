@@ -152,48 +152,6 @@ function isAuthorizationExpiredError(error: unknown): boolean {
   return seen.some((message) => message.includes("MarketCreationAuthorizationExpired"));
 }
 
-/**
- * Best-effort display-metadata sync after a publish, mirroring the existing
- * create flow: the on-chain event is the source of truth, this fills the
- * API's display table. Returns an error message instead of throwing so a sync
- * hiccup never obscures a successful publish.
- */
-export async function persistPublishedMetadata({
-  chainId,
-  metadataHash,
-  metadataPayload,
-}: {
-  chainId: number;
-  metadataHash: string;
-  metadataPayload: string;
-}): Promise<string | undefined> {
-  try {
-    const response = await fetch("/api/indexer/market-metadata", {
-      body: JSON.stringify({
-        chainId,
-        metadata: JSON.parse(metadataPayload) as Record<string, unknown>,
-        metadataHash,
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
-    });
-
-    if (response.ok) {
-      return undefined;
-    }
-
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-
-    return body?.error ?? "Market metadata could not be saved to the API.";
-  } catch {
-    return "Market metadata could not be saved to the API.";
-  }
-}
-
 async function readCreationFee(wallet: CreateMarketWallet): Promise<bigint> {
   const config = getPopChartsContractConfig();
 
