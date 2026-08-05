@@ -1768,3 +1768,53 @@ a new (status, created_block_timestamp) index with a marketId tiebreaker
 state; silent fixtures fallback removed. Also corrected the stale "admin
 re-review still open" claim (closed by #478) and noted the Resolving
 anti-join sketch was obsoleted by ADR 0024's real dispute statuses.
+
+## [2026-08-05] ingest | ADR 0014 fee model — success fee, protocol-topped seeding, LP-fee-untouched post-grad split
+Pages: ~summaries/protocol-adr-0014-pre-graduation-withdrawals-and-fees.md,
+~summaries/whitepaper-v6.md, ~concepts/creation-fee-custody.md, ~index.md
+Notes: The fee design changed shape under questioning rather than just gaining
+numbers. Making the entry fee refundable when a market fails to graduate stops
+it being a fee at all: it becomes a **second escrow**, earned only at clearing
+on matched cost, which rules out the `CreationFeeVault` pattern (the owner must
+not be able to withdraw money that may go back to traders) and forces the paid
+amount to be stored on the receipt rather than derived from a mutable `φ_in`.
+Because `L = F`, the protocol's take is exactly `φ_in · F` and every refunded
+unit returns carrying its prepaid fee — verified against Example A to the
+published decimals.
+
+Two findings killed the original seeding story. Depth per side is `φ_in/2` of
+matched cap, so **no sane fee rate funds a usable pool** (5% depth needs a 10%
+fee); seeding is now topped up from protocol capital to 10% of the graduation
+threshold, where the subsidy does 9× what the fees do. And `ProtocolFees.sol`
+accrues per *currency*, not per pool — read from vendored v4-core — so there is
+**no on-chain attribution** of v4's native protocol fee to a market or creator;
+the creator's ongoing share must be computed off-chain from indexed swap
+volume. `MAX_PROTOCOL_FEE = 1000` caps that native fee at 0.1%.
+
+Deliberately not taken: a fee on `mintCompleteSets`. It is avoidable (buy from
+the pool instead) and it widens the keeper's `YES + NO ≈ 1` band to ±2%, which
+is visible to every user as the two pools disagreeing. Recorded in the ADR that
+any future mint fee ships with a keeper exemption in the same change.
+
+## [2026-08-05] ingest | docs/fee-model.md — flat fee reference + the P3 enumeration blocker
+Pages: ~concepts/creation-fee-custody.md, ~index.md
+No separate summary page: a per-source summary would near-duplicate the ADR 0014
+summary, so the fee concept page carries the pointer instead.
+Notes: Added `docs/fee-model.md` as the flat implementer reference for all four
+fees — the ADR is the decision record, this is what someone reads before
+writing code. It carries the post-graduation collection mechanics worked out
+after the ADR was first written: controller via `setProtocolFeeController`,
+`setProtocolFee(poolKey, 4_097_000)` for a symmetric 0.1% (the uint24 packs two
+12-bit directional fees), `collectProtocolFees` in its own transaction because
+it reverts on a synced currency, and the fact that `collectProtocolFees` emits
+no event so the controller must.
+
+Two findings recorded that change work already planned. **The fee is taken from
+the swap's input currency**, so sells accrue YES/NO rather than collateral and
+half the post-grad fee revenue is in tokens that go to zero on the losing side;
+policy is to pair and `mergeCompleteSets` before resolution. And **ADR 0014's
+P3 is not buildable as written**: `ReceiptBook` keys receipts globally by ID
+with no per-market enumeration, so a withdrawal cannot iterate the opposite side
+to compute its opposed set. Two routes recorded (per-side coverage unions, or
+off-chain-compute-and-verify following ADR 0006's pattern) with the note that
+this must be resolved *before* P1, since the storage design follows from it.

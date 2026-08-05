@@ -1,11 +1,11 @@
 ---
 type: summary
 title: "ADR 0014: Pre-Graduation Withdrawals, Fees, And Post-Graduation Seeding"
-description: Proposed — lock-the-overlap withdrawals (unopposed bands only, F provably invariant), segment-list receipts, 1% entry and 5% withdrawal fees outside escrow, and fee-funded seeding of the v4 pools that must be unwound before resolution
+description: Proposed — lock-the-overlap withdrawals (F provably invariant), segment-list receipts, a 1% entry fee that is really a success fee (earned only on matched cost), 5% withdrawal penalty, protocol-topped pool seeding, and the LP-fee-untouched post-graduation split
 sources:
   - protocol/docs/adr/0014-pre-graduation-withdrawals-and-fees.md
   - whitepaper/v0.6.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # ADR 0014: Pre-Graduation Withdrawals, Fees, And Post-Graduation Seeding
@@ -43,15 +43,35 @@ regime the bootstrap phase serves.
 2. **Segment-list receipts.** Withdrawal splits intervals, so `rLow`/`rHigh`
    become a finite union. Measured fragmentation ≤ 2 segments, unbounded in
    theory, so the contract must cap it.
-3. **Fees outside escrow.** `φ_in` = 1% at purchase, `φ_out` = 5% on
-   withdrawal, into a pot `Φ` held apart from `totalEscrowed`; identity becomes
-   `E = R + L + Φ`. A fee out of `L` or netted against refunds is forbidden.
-   5% rather than 10% because the withdrawer is collecting an
-   already-guaranteed refund early, so a deterrent-grade rate is paid mostly by
-   honest impatience.
-4. **Fee revenue seeds the v4 pools.** Balance at the clearing price `p*`
-   forces the split: mint `Φ/2` sets, seed `Φ/2` YES + `(Φ/2)p*` and `Φ/2` NO +
-   `(Φ/2)(1−p*)`.
+3. **The entry fee is a success fee, and a second escrow.** `φ_in` = 1% is
+   charged on the whole receipt at purchase but **earned only on the part that
+   matches**, so the protocol keeps exactly `φ_in · F` (because `L = F`) and
+   every refunded unit returns carrying the fee prepaid on it. A market that
+   fails to graduate, or is cancelled, refunds the entry fee in full. `φ_out` =
+   5% on withdrawal is the only unconditionally earned money. Collecting up
+   front is **forced**: a fully filled receipt has no refund to bill against,
+   and taking it from `L` breaks `L = F`. Consequences — it cannot use the
+   `CreationFeeVault` shape (the owner must not be able to withdraw money that
+   may go back to traders), and the paid fee must be **stored on the receipt,
+   not derived**, or a later `φ_in` change would repay the wrong rate.
+4. **Seeding is protocol-topped, not fee-funded.** Balance at `p*` forces the
+   split (mint `Φ/2` sets, seed `Φ/2` YES + `(Φ/2)p*` and `Φ/2` NO +
+   `(Φ/2)(1−p*)`), but fees alone cannot fill it: depth per side is `φ_in/2` of
+   matched cap, so 5% depth would need a 10% fee. The pot is topped up from
+   protocol capital to **10% of the graduation threshold** — on Example A the
+   subsidy does 9× what the fees do, taking depth from 0.5% to 5.0% of cap.
+5. **Post-graduation: LPs keep the whole LP fee.** The protocol takes only
+   v4's native protocol fee, capped at **0.1%** (`MAX_PROTOCOL_FEE = 1000`,
+   read from vendored v4-core). No hook fee — both swap callbacks keep
+   returning zero deltas — and no mint fee, which is avoidable anyway and would
+   widen the keeper's `YES + NO ≈ 1` arb band to **±2%**. Any future mint fee
+   must ship with a keeper exemption in the same change.
+6. **Creator earns from both surfaces.** 10% of the success fee at graduation,
+   plus a share of the 0.1% protocol fee. The second needs **off-chain
+   attribution**: `ProtocolFees.sol` accrues per *currency*, not per pool, so
+   there is no on-chain link from fees to a market or creator. Trusted but
+   reproducible from indexed swap volume; the trustless alternative is a hook
+   fee, rejected above.
 
 ## The seeding caveat
 

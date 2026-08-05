@@ -5,7 +5,7 @@ description: Current mechanism source of truth (rev 0.6, August 2026) — adds t
 sources:
   - whitepaper/v0.6.md
   - protocol/docs/adr/0014-pre-graduation-withdrawals-and-fees.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # Whitepaper v0.6
@@ -82,10 +82,15 @@ implementation is not.
 
 ## Fees and seeding (§7, new)
 
-Two fees, both **outside escrow**: an entry fee `φ_in` on a receipt's cost at
-purchase, and a withdrawal fee `φ_out` on a withdrawn band's recorded cost. The
-identity becomes `E = R + L + Φ`, with `E − Φ = R + L` unchanged over escrow
-alone. A fee taken out of `L` or netted against refunds is forbidden — `L = F`
+Two fees, both **outside escrow** and neither earned when collected. The entry
+fee `φ_in` is charged on the whole receipt but earned only on the part that
+matches, so the protocol keeps exactly `φ_in · F` and refunds carry back the fee
+prepaid on them — the entry fee is a **success fee**, refunded in full when a
+market never graduates. `φ_out` on a withdrawn band is the only unconditionally
+earned money, and because an unopposed band never matched, a withdrawer pays
+exactly `φ_out` of what they take back. The identity becomes `E = R + L + Φ`,
+with `E − Φ = R + L` unchanged over escrow alone. Collecting up front is forced:
+a filled receipt has no refund to bill against, and `L` has no slack. A fee taken out of `L` or netted against refunds is forbidden — `L = F`
 has no slack. This satisfies v4's own explicit-fee constraint; see
 [creation-fee custody](../concepts/creation-fee-custody.md).
 
@@ -109,6 +114,14 @@ at 35% ends resolution worth ~88% of holding if YES wins and **~5% if YES
 loses** — structural, since the losing token goes to zero and the pool holds
 most of it. Protocol liquidity must be withdrawn before resolution or bounded
 tightly; see [postgrad v4 venue](../entities/postgrad-v4-venue.md).
+
+**Fees alone cannot seed a usable pool at any rate** — depth per side is
+`φ_in/2` of matched cap, so 5% depth would demand a 10% entry fee. A deployment
+that wants the seed to function tops it up from its own capital. The paper is
+explicit that this is a subsidy of *market making*, not of *solvency*: complete
+sets stay backed one-for-one, the Theorem is untouched, and the bootstrap phase
+still costs nothing to back. §11's "costs the protocol nothing" is qualified
+accordingly.
 
 ## Limitations added (§10)
 
