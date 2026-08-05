@@ -31,6 +31,7 @@ import {
   type DraftValidationErrors,
 } from "src/draft-review/content";
 import { buildDraftReviewFeedback } from "src/draft-review/feedback";
+import { newDraftPublicId } from "src/drafts/public-id";
 
 const WAD = 10n ** 18n;
 /** Matches the app's derivation: graduation target = 0.5 × b, in collateral. */
@@ -226,6 +227,7 @@ export async function createMarketDraft({
     .insert(schema.marketDrafts)
     .values({
       ownerUserId: owner,
+      publicId: newDraftPublicId(),
       ...contentColumns(content),
     })
     .returning();
@@ -374,6 +376,7 @@ export async function cloneMarketDraft({
     .insert(schema.marketDrafts)
     .values({
       ownerUserId: owner,
+      publicId: newDraftPublicId(),
       ...contentColumns({ ...content, isTemplate: asTemplate }),
     })
     .returning();

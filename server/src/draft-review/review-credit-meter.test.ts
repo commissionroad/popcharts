@@ -7,6 +7,7 @@ import {
   it,
 } from "bun:test";
 
+import { newDraftPublicId } from "src/drafts/public-id";
 import { submitMarketDraft } from "src/api/services/market-drafts";
 import { config } from "src/config";
 import type { db as productionDb } from "src/db/client";
@@ -68,6 +69,7 @@ async function seedDraft(
       category: "Crypto",
       intendedCreatorAddress: WALLET,
       ownerUserId: OWNER,
+      publicId: newDraftPublicId(),
       question: "Will the meter charge?",
       resolutionCriteria: "Resolves YES per the seeded source.",
       resolutionSources: "https://example.com",

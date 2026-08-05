@@ -87,6 +87,7 @@ async function insertDraft({
     .insert(schema.marketDrafts)
     .values({
       ownerUserId: "owner-1",
+      publicId: "k3f9x2mq7rt4wbnz",
       publishedChainId,
       publishedMarketId,
       question: "Will the index close above 5000?",
