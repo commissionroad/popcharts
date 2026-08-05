@@ -3,23 +3,36 @@ type: summary
 title: Whitepaper history — v0.1 through v0.6
 description: Evolution of the mechanism papers — v0.1's price-bucket batch auction, v3's pivot to path-overlap clearing, v4's full spec, v0.5's solvency proof, and v0.6's withdrawals and fees
 sources:
+  - whitepaper/README.md
+  - whitepaper/v0.1.md
+  - whitepaper/v0.2.md
+  - whitepaper/v0.3.md
   - documents/whitepaper_v0_1.pdf
   - documents/whitepaper_v3.pdf
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
-# Whitepaper history — v0.1 and v3
+# Whitepaper history — v0.1 through v0.3
 
-Two superseded drafts of the mechanism paper precede
+Superseded drafts of the mechanism paper precede
 [whitepaper v4](whitepaper-v4.md), and two revisions follow it — see the tail
 of this page for v0.5 and [v0.6](whitepaper-v6.md), the current source of
 truth. Per protocol ADR 0002 they are **context
 only**: useful for lifecycle vocabulary and oracle/resolution modularity, but
-v4 supersedes their clearing mechanics. Note a file-naming quirk: the file
-`whitepaper_v3.pdf` is internally labeled **"WORKING DRAFT, rev. 0.2"**
-(May 2026), and `whitepaper_v0_1.pdf` carries no rev label (dated
-May 27, 2026); v4 is rev 0.4 (June 2026). File version numbers and internal
-revision numbers do not line up.
+v4 supersedes their clearing mechanics.
+
+**The full ladder is now in-repo.** The markdown sources were imported
+2026-08-04 alongside the MathJax build, so `whitepaper/v0.1.md` … `v0.6.md`
+are the authority and `documents/*.pdf` are rendered artifacts (the schema's
+raw-source layer says so explicitly). That resolves the file-naming quirk this
+page previously flagged: the PDF set was ambiguous because
+`whitepaper_v3.pdf` is internally labeled **"WORKING DRAFT, rev. 0.2"** (May
+2026) while `whitepaper_v0_1.pdf` carries no rev label (May 27, 2026). The
+markdown ladder separates v0.2 and v0.3 as distinct revisions (911 and 629
+lines), so *internal* revision numbers — not PDF filenames — are the reliable
+identifier. One more marker of the ladder: v0.1–v0.5 are titled
+"PredictFun White Paper"; the rename to **"Pop Charts White Paper"** happens at
+v0.6.
 
 ## v0.1 — price-bucket batch auction (May 27, 2026)
 

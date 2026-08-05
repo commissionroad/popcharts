@@ -7,6 +7,7 @@ import {
   it,
 } from "bun:test";
 
+import { newDraftPublicId } from "src/drafts/public-id";
 import { submitMarketDraft } from "src/api/services/market-drafts";
 import { config } from "src/config";
 import type { db as productionDb } from "src/db/client";
@@ -68,6 +69,7 @@ async function seedDraft(
       category: "Crypto",
       intendedCreatorAddress: WALLET,
       ownerUserId: OWNER,
+      publicId: newDraftPublicId(),
       question: "Will the meter charge?",
       resolutionCriteria: "Resolves YES per the seeded source.",
       resolutionSources: "https://example.com",
@@ -302,7 +304,7 @@ describe("submitMarketDraft metering", () => {
     await seedDeposit({ amount: WAD });
 
     const result = await submitMarketDraft(
-      { draftId: draft.id, owner: OWNER },
+      { draftId: draft.publicId, owner: OWNER },
       { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
     );
 
@@ -326,7 +328,7 @@ describe("submitMarketDraft metering", () => {
     await seedDeposit({ amount: WAD });
 
     const first = await submitMarketDraft(
-      { draftId: draft.id, owner: OWNER },
+      { draftId: draft.publicId, owner: OWNER },
       { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
     );
 
@@ -343,7 +345,7 @@ describe("submitMarketDraft metering", () => {
       .where(eq(schema.marketDrafts.id, draft.id));
 
     const second = await submitMarketDraft(
-      { draftId: reread!.id, owner: OWNER },
+      { draftId: reread!.publicId, owner: OWNER },
       { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
     );
 
@@ -362,7 +364,7 @@ describe("submitMarketDraft metering", () => {
     const draft = await seedDraft();
 
     const result = await submitMarketDraft(
-      { draftId: draft.id, owner: OWNER },
+      { draftId: draft.publicId, owner: OWNER },
       { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
     );
 
@@ -390,7 +392,7 @@ describe("submitMarketDraft metering", () => {
 
     for (let run = 0; run < 2; run += 1) {
       const result = await submitMarketDraft(
-        { draftId: draft.id, owner: OWNER },
+        { draftId: draft.publicId, owner: OWNER },
         { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
       );
 
@@ -403,7 +405,7 @@ describe("submitMarketDraft metering", () => {
     }
 
     const third = await submitMarketDraft(
-      { draftId: draft.id, owner: OWNER },
+      { draftId: draft.publicId, owner: OWNER },
       { quoteCharge: (input) => quoteReviewRun(input, meterDeps()) },
     );
 

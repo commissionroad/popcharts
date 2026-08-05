@@ -48,7 +48,8 @@ Concretely:
    **relative duration** and the resolution time as an **absolute timestamp** — see
    decision 4 and "Amendment: deadline timing"). Its _bookkeeping_ columns add: id,
    `owner_user_id` (the Privy user / DID), `intended_creator_address` (lowercased wallet the
-   creator expects to publish from), `status`, `is_template`, `visibility`, `deleted`
+   creator expects to publish from), `public_id` (the draft's identity outside the
+   database — see the 2026-08-05 amendment), `status`, `is_template`, `visibility`, `deleted`
    (soft-delete), timestamps (created / updated / submitted / reviewed / published),
    `published_market_id` (the back-link, set once live), and a pointer to the latest
    rejection's reasons. Note the **publish authorization is not stored on the draft** — it is
@@ -438,6 +439,68 @@ deposit and owner sweep — both still indexed and receipt-linked. The **operato
 funds covering reviews not yet delivered**, which is inherent to prepayment and accepted at
 this price point; it would need revisiting if balances grew large.
 
+## Amendment: draft public id and the published-market review link (2026-08-05)
+
+Two additions, both landed: drafts gained a public identifier distinct from their row id,
+and the question this ADR left open about a published market's review linkage is now
+answered.
+
+### Draft public id
+
+Decision 1 lists `id` among the draft's bookkeeping columns without saying what a _draft
+id_ is to anyone outside the database. In practice the serial primary key became the draft's
+public name — `/drafts/:id`, and (once the create flow started writing it) the address bar.
+Two problems with that. A serial id is enumerable, which is a property to give up
+deliberately rather than by default. And a draft URL is the only thing standing between a
+closed tab and lost work, so it wants to be an identifier the product owns rather than an
+artifact of insertion order.
+
+`market_drafts.public_id` is now that identifier: 16 characters over a 32-symbol lowercase
+alphanumeric alphabet with every look-alike pair broken (`0`, `1`, `l`, `o` removed, so the
+surviving `i` cannot be misread as a `1` no id contains). Exactly 32 symbols is load-bearing
+— 256 is a whole multiple of it, which is what keeps byte-modulo sampling uniform. 80 bits
+puts collision odds at a million drafts near one in a trillion; the _guarantee_ is the unique
+index, not the entropy.
+
+The serial `id` stays the primary key. The review, review-job, and charge foreign keys
+therefore stay narrow integers and nothing rewrites in lockstep — the integer simply stops
+leaving the database. It is minted **server-side at create**. Client-side minting was
+considered and rejected: it only buys an id _before_ the first save, which is durability the
+draft row does not yet have anyway, and it would put the id format in two workspaces.
+
+Ownership is enforced independently of the id, so a guessed id yields nothing — this change
+buys durable, non-enumerable links, not access control.
+
+Landed as #468 (column, migration, minting) → #469 (the API and app switch).
+
+### Published markets resolve their review by join, not by copy
+
+The draft review data model section above ends: _"The published market keeps its existing
+review linkage only if we later choose to copy the winning draft-review into a market-scoped
+audit row at publish; the ADR does not require that."_
+
+P5 forced the question. Retiring the on-chain review path left `market_ai_reviews` with no
+writer, and the market detail page reads its review from that table — so every market created
+after P5 rendered no review at all. The table was flagged as deferred cleanup, but nothing
+re-pointed the read.
+
+**Decided: resolve by join, do not copy.** A published market finds its review through the
+publish bookkeeping on `market_drafts` (`published_chain_id`, `published_market_id`),
+narrowed to the draft's submitted snapshot. Copying would have created a second source of
+truth for one fact, and the copy would drift the moment a draft review was corrected.
+
+The join is exact rather than approximate, which is what makes it safe: publish refuses
+unless the draft is unchanged since review and verifies the on-chain `metadataHash` matches,
+so the reviewed snapshot is provably the same metadata as the live market. Legacy
+`market_ai_reviews` rows still win where they exist — for a pre-P5 market, that row _is_ the
+review that gated it.
+
+This closes the open question in favour of the linkage the ADR declined to require, and
+retires the follow-up to clean up `market_ai_reviews`: the table is now read-only history
+with a live reader, not cruft.
+
+Landed as #465.
+
 ## Amendment: deadline timing — absolute resolution date, relative graduation window (2026-08-05)
 
 Decision 4 stores both deadlines as relative durations and resolves them at publish. Half of
@@ -456,8 +519,8 @@ happened yet", and the reviewer sees only window seconds — never a resolved da
 against the question text — so it approved the mismatch three times. The same
 representation mismatch (the form edits absolutes over relative storage, converting against
 a moving clock on every save) is the root of the drift-autosave defect that silently voided
-fresh approvals; that got a mechanical client fix, but the mismatch itself is what this
-amendment removes.
+fresh approvals; a mechanical client fix for that is in flight separately, but the mismatch
+itself is what this amendment removes.
 
 **The split.** The two deadlines are different kinds of thing, so they get different native
 representations:

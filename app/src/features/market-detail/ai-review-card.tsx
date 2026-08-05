@@ -1,8 +1,8 @@
 import { ChevronDown, ShieldAlert, Sparkles } from "lucide-react";
 import type { CSSProperties } from "react";
 
+import { ReviewScoreBreakdown } from "@/components/ui/review-score-breakdown";
 import type {
-  AiReviewScores,
   AiReviewSourceTier,
   AiReviewVerdict,
   MarketAiReview,
@@ -14,22 +14,6 @@ const VERDICT: Record<AiReviewVerdict, { color: string; label: string }> = {
   manual_review: { color: "var(--pc-amber)", label: "Manual review" },
   reject: { color: "var(--no)", label: "Rejected" },
 };
-
-/**
- * Display order and polarity for the seven reviewer dimensions. Scores run
- * 0-5; for risk: true dimensions a high score is bad, so the tone scale is
- * inverted.
- */
-const SCORE_DIMENSIONS: { key: keyof AiReviewScores; label: string; risk: boolean }[] =
-  [
-    { key: "objectivity", label: "Objectivity", risk: false },
-    { key: "publicKnowability", label: "Public knowability", risk: false },
-    { key: "sourceQuality", label: "Source quality", risk: false },
-    { key: "corroboration", label: "Corroboration", risk: false },
-    { key: "contentSafety", label: "Content safety", risk: false },
-    { key: "disputeRisk", label: "Dispute risk", risk: true },
-    { key: "promptInjectionRisk", label: "Prompt injection risk", risk: true },
-  ];
 
 const SOURCE_TIER: Record<AiReviewSourceTier, { color: string; label: string }> = {
   primary: { color: "var(--pc-lime)", label: "Primary" },
@@ -78,16 +62,12 @@ export function AiReviewCard({ review }: { review: MarketAiReview }) {
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-x-8 gap-y-3 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-2">
-        {SCORE_DIMENSIONS.map((dimension) => (
-          <ScoreRow
-            key={dimension.key}
-            label={dimension.label}
-            risk={dimension.risk}
-            rationale={review.scoreRationales[dimension.key]}
-            score={review.scores[dimension.key]}
-          />
-        ))}
+      <div className="mt-5 border-t border-[var(--border-soft)] pt-5">
+        <ReviewScoreBreakdown
+          columns={2}
+          scoreRationales={review.scoreRationales}
+          scores={review.scores}
+        />
       </div>
 
       {review.reasons.length > 0 ? (
@@ -137,50 +117,6 @@ export function AiReviewCard({ review }: { review: MarketAiReview }) {
           </ul>
         </details>
       ) : null}
-    </div>
-  );
-}
-
-function ScoreRow({
-  label,
-  rationale,
-  risk,
-  score,
-}: {
-  label: string;
-  rationale: string;
-  risk: boolean;
-  score: number;
-}) {
-  const filled = Math.min(Math.max(Math.round(score), 0), 5);
-  const goodness = risk ? 5 - filled : filled;
-  const tone =
-    goodness >= 4 ? "var(--yes)" : goodness >= 2 ? "var(--pc-amber)" : "var(--no)";
-
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
-          {label}
-        </span>
-        <span className="font-mono text-[11px] text-[var(--text-secondary)]">
-          {filled}/5
-        </span>
-      </div>
-      <div className="mt-1.5 flex gap-1">
-        {Array.from({ length: 5 }, (_, index) => (
-          <span
-            className="h-1.5 flex-1 rounded-[var(--radius-pill)]"
-            key={index}
-            style={{
-              backgroundColor: index < filled ? tone : "var(--border)",
-            }}
-          />
-        ))}
-      </div>
-      <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-        {rationale}
-      </p>
     </div>
   );
 }

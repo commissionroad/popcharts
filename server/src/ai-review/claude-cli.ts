@@ -1,17 +1,13 @@
+import { evidenceFromClaudeCliStream } from "./claude-cli/evidence";
+import { parseClaudeCliStream } from "./claude-cli/stream";
 import { buildCliReviewPrompt, parseCliReviewFinding } from "./cli-support";
 import {
   cliExitError,
   runWithBunSpawn,
-  truncate,
   type CliRunner,
 } from "src/shared/cli-runner";
 import type { AiReviewConfig } from "./config";
-import type { MarketReviewRequest, PolicyFinding } from "./types";
-
-type ClaudeCliEnvelope = {
-  is_error?: boolean;
-  result?: string;
-};
+import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /** Command runner seam so tests can fake the CLI without spawning processes. */
 export type ClaudeCliRunner = CliRunner;
@@ -19,7 +15,9 @@ export type ClaudeCliRunner = CliRunner;
 /**
  * Reviews a market by driving the host's logged-in Claude Code CLI in headless
  * print mode with native web search. Model output is treated as untrusted and
- * normalized through the same parsing path as the other review providers.
+ * normalized through the same parsing path as the other review providers, and
+ * the evidence returned alongside the finding is what the CLI's own tool
+ * records prove was retrieved.
  */
 export async function reviewWithClaudeCli({
   config,
@@ -34,7 +32,7 @@ export async function reviewWithClaudeCli({
   model?: string;
   request: MarketReviewRequest;
   runCommand?: ClaudeCliRunner;
-}): Promise<PolicyFinding & { modelId: string }> {
+}): Promise<PolicyFinding & { evidence: EvidenceItem[]; modelId: string }> {
   const modelId = model ?? config.claudeCliModel;
   const argv = [
     config.claudeCliCommand,
@@ -44,8 +42,13 @@ export async function reviewWithClaudeCli({
     modelId,
     "--allowedTools",
     "WebSearch,WebFetch",
+    // stream-json rather than the simpler `json` envelope: only the streamed
+    // transcript carries the WebSearch/WebFetch tool records that prove which
+    // URLs were actually reached, and sourceChecks are credited against those.
+    // In print mode stream-json requires --verbose.
     "--output-format",
-    "json",
+    "stream-json",
+    "--verbose",
   ];
   // The CLI must authenticate with the host's Claude Code subscription login.
   // A set ANTHROPIC_API_KEY would shadow it and bill (or fail on) the API org
@@ -64,30 +67,16 @@ export async function reviewWithClaudeCli({
     throw cliExitError("claude CLI", exitCode, stderr);
   }
 
-  const envelope = parseEnvelope(stdout);
-  if (envelope.is_error) {
-    throw new Error(
-      `claude CLI reported an error result: ${truncate(envelope.result ?? "", 200)}`,
-    );
-  }
+  const stream = parseClaudeCliStream(stdout);
+  const evidence = evidenceFromClaudeCliStream(stream);
 
-  return parseCliReviewFinding({
-    modelId,
-    raw: envelope.result ?? "",
-    source: "claude CLI",
-  });
-}
-
-function parseEnvelope(stdout: string): ClaudeCliEnvelope {
-  try {
-    const parsed: unknown = JSON.parse(stdout);
-    if (typeof parsed === "object" && parsed !== null) {
-      return parsed as ClaudeCliEnvelope;
-    }
-  } catch {
-    // fall through to the error below
-  }
-  throw new Error(
-    `claude CLI did not return a JSON envelope: ${truncate(stdout, 200)}`,
-  );
+  return {
+    ...parseCliReviewFinding({
+      evidence,
+      modelId,
+      raw: stream.result,
+      source: "claude CLI",
+    }),
+    evidence,
+  };
 }

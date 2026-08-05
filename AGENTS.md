@@ -85,6 +85,27 @@
   actual count of duplicates, any copy you deliberately left alone, and why.
   A miscount in the request is not a reason to widen or narrow the change
   silently.
+- **Ship substantial work as a stack of small PRs, generated output first.**
+  Do not publish one large PR for a change that spans workspaces or phases.
+  Split it, and keep every PR in the stack green on its own — each one
+  compiles and passes its workspace gate without the ones after it.
+
+  When a change produces **generated** output (drizzle snapshots and
+  migrations, `server/generated/openapi.json`, `packages/api-client/src/generated/`,
+  `protocol/src/generated/`), that output goes in its own PR **first**,
+  carrying only the minimum hand-written source that produces it — the schema
+  column, the model field, the contract change — and nothing else. Everything
+  built on top follows as separate, small, hand-written-only PRs. A reviewer
+  should never have to find twenty hand-written lines inside a six-thousand-line
+  regenerated snapshot.
+
+  Judge this by the size of the generated diff, not its existence: a
+  regeneration that moves a handful of lines can ride along with the change
+  that caused it. Measure before splitting.
+
+  Every PR body states its **hand-written line count** separately from the
+  generated total, and names the command that produced the generated files so
+  a reviewer can reproduce them.
 
 # Personal Commands
 

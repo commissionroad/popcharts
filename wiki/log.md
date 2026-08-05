@@ -1633,6 +1633,129 @@ Follow-up: `wiki/concepts/product-honesty-rule.md` was not re-read this pass
 and may need a line about not presenting withdrawal as free exit — ADR 0014
 measures ~86% of a book as still locked.
 
+## [2026-08-05] ingest | repo ADR 0022 amendment — draft public id + published-market review link
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~entities/ai-review-service.md, ~index.md
+Notes: Two amendments folded in, both already landed (#465, #468, #469). The
+substantive one closes a question this ADR had explicitly left open: its draft
+review data-model section said a published market keeps a review linkage "only
+if we later choose to copy the winning draft-review into a market-scoped audit
+row". P5 forced the answer by leaving `market_ai_reviews` with no writer while
+the market detail page still read from it, so every market created after P5
+rendered no review at all. Decided by **join, not copy** — copying would make a
+second source of truth for one fact. The join is safe only because publish
+already refuses a draft changed since review and verifies the on-chain
+metadataHash, so the reviewed snapshot is provably the live market's metadata;
+worth remembering that the linkage rests on that guarantee rather than on
+convention. The second amendment is the draft `public_id` (16 chars, 32-symbol
+alphabet with look-alikes removed, serial `id` retained as the primary key so
+the review/job/charge FKs stay integers).
+
+Two corrections made in passing. `index.md`'s ADR 0022 line still claimed "the
+contract gate is still open, so `createMarket` remains ungated and publish
+force-approves over it" — false since P4/P5 landed on 2026-08-04, and it
+contradicted the summary page's own status paragraph. Rewritten. And the P5
+leftover recorded as "the admin re-review service and the historical
+`market_ai_reviews`/`market_ai_review_jobs` tables" has split in two: the
+reviews table is no longer cruft (it is read-only history with a live reader),
+while `market_ai_review_jobs` is worse than recorded — the admin re-review
+service still enqueues into it and no worker has claimed that queue since P5,
+so those jobs go nowhere. Called out on the entity page rather than silently
+dropped; it is a live bug, not a cleanup item.
+
+## [2026-08-05] lint | ADR 0023 missing entirely; 0022/0025 index+description contradictions; whitepaper ladder now in-repo
+Pages: +summaries/root-adr-0023-protocol-security-audit-program.md,
+~summaries/root-adr-0025-unified-price-stream.md,
+~summaries/root-adr-0022-review-first-market-creation.md,
+~summaries/whitepaper-history.md, ~concepts/product-honesty-rule.md,
+~entities/protocol-workspace.md, ~index.md
+Notes: Organic ingestion since last lint: **14/25 doc-touching commits
+self-ingested** (recounted after main moved mid-pass). Of the 11 misses, 5
+needed no wiki change at all (2e86d249 a prettier-only reformat; 5805a3fb,
+233367e8, 7dc6a5fb screenshot adds) and 2 were covered by a sibling commit in
+the same stack (df40f91f ADR 0025 P1 → 60028479; ef0d7d7b whitepaper import →
+9bf147a8).
+
+**The remaining misses are all one file.** `app/docs/component-inventory.md`
+changed in five commits (7ffe1cd9, 28191ca6, 8aad55bf, b366a8d9, 98dd4d99) and
+not one of them touched `wiki/`. It is the only raw source with a systematic
+ingest failure rather than an incidental one, and it leaves
+`entities/designkit.md` (updated 2026-07-07) a month behind its source. Not
+fixed this pass — fixing it properly means re-reading the inventory in full,
+which is its own ingest — but it should be the first thing the next pass does,
+and if it misses again the rule itself is the problem, not the sessions.
+
+**The headline finding is older than this window.** `docs/adr/0023-protocol-
+security-audit-program.md` landed 2026-07-21 with **no wiki page at all**, and
+neither of its two commits touched `wiki/`. It then survived the 2026-07-26 and
+2026-08-04 lints — both of which were supposed to catch "raw sources that are
+brand new (no summary page)". It is the only one of 34 ADRs without a summary.
+Now ingested, and verified against the repo rather than taken from the ADR's
+own prose: the Slither wrapper, `slither.config.json`, the security test path,
+the skill, and `/audit-next` all exist; `protocol/docs/security/audit/` holds
+only README + TEMPLATE, so **0 of 42 catalogue items are done** and Phase 0 is
+3/4. Lesson for future passes: the per-ADR coverage check (does
+`summaries/<area>-adr-<n>-*` exist for every ADR file?) is cheap and was not
+being run — run it every pass.
+
+Two contradictions where a page's own frontmatter fought its body, both
+mirrored into index.md:
+- **ADR 0025** — description said "Six phases, none started" and the page
+  opened "PROPOSED", while the body already documented P1–P3 landing and the
+  ADR now ticks **all six**. Corrected to complete. The raw ADR's `Status:`
+  header still reads `Proposed` despite every box being ticked — flagged on the
+  page, not edited (raw sources are read-only here).
+- **ADR 0022** — description said "the contract gate is not [built]" after P4
+  (the gate) and P5 (retiring the on-chain review path) both landed 2026-08-04.
+  Corrected; P6 and P8 remain the open phases. **Found concurrently**: the ADR
+  0022 amendment ingest immediately above this entry caught the same
+  `index.md` contradiction while this pass was running, and landed first. Its
+  index row is the one kept — it is strictly more current, carrying the
+  2026-08-05 public-id and join-not-copy amendments. Only the frontmatter
+  description fix is this pass's. Two independent passes hitting the same stale
+  line on the same day is itself the signal: that row had been wrong since
+  2026-08-04.
+
+Closed the follow-up the 2026-08-04 entry left open: `concepts/product-honesty-
+rule.md` now has a "Withdrawal is not free exit" section. Protocol ADR 0014
+states it outright — ~15% of escrow withdrawable, **~86% of the book stays
+locked**, "the product must not present it as one" — plus the two facts copy has
+to respect (opposed bands locked for both receipts until clearing; a 5%
+`φ_out` fee on the withdrawn band's recorded cost, refunding path cost not mark
+value). The honesty rule now has two symmetrical clauses: never imply a
+guaranteed fill, never imply a guaranteed exit.
+
+`summaries/whitepaper-history.md` still sourced only the two PDFs after the
+markdown ladder was imported 2026-08-04. Re-sourced to `whitepaper/v0.1–v0.3.md`
++ README. This also resolves the file-naming quirk the page had been flagging:
+v0.2 and v0.3 are distinct in-repo revisions (911 and 629 lines), so internal
+revision numbers, not PDF filenames, are the reliable identifier. Noted that the
+"PredictFun" → "Pop Charts" rename lands at v0.6.
+
+Integrity clean: 0 broken internal links, 0 pages missing from index.md, 0
+orphans, 0 wiki-referenced source paths pointing at absent files.
+
+Schema observation (not fixed): CLAUDE.md says a page's `description` is "used
+verbatim in index.md", but in practice nearly every index row is an abbreviated
+or expanded rewrite. The convention is de facto "index rows are their own prose"
+— worth either amending the schema or accepting the divergence deliberately,
+because the verbatim rule as written makes the drift check unusable (it fires on
+~60 pages).
+
+Follow-ups for next lint:
+- `entities/designkit.md` (updated 2026-07-07) vs `app/docs/component-inventory.md`
+  (changed 2026-08-04 in three commits) — the real un-ingested content gap.
+- Older staleness backlog, none of it touched this pass: `docs/architecture.md`
+  moved 2026-07-26 and is a source for `overview.md`, `concepts/market-lifecycle.md`,
+  `entities/app-workspace.md`, `entities/protocol-workspace.md`; `app/CONTEXT.md`
+  moved 2026-08-04 and is a source for `summaries/app-context.md` and
+  `entities/app-workspace.md`; `protocol/docs/postgrad-contract-metadata.md`
+  moved 2026-08-04 and feeds four entity pages. 26 stale (page, source) pairs
+  total — this pass fixed 6 of them and deliberately left the rest rather than
+  bulk-rewriting on date evidence alone.
+- Re-check whether ADR 0023's `Status: Proposed` and ADR 0025's `Status:
+  Proposed` get corrected at the source; both now contradict their own
+  checklists.
+
 ## [2026-08-05] ingest | repo ADR 0022 — deadline-timing amendment
 Pages: ~summaries/root-adr-0022-review-first-market-creation.md, ~index.md
 Notes: New amendment section in the ADR (dated 2026-08-05): the resolution
@@ -1641,6 +1764,7 @@ graduation window stays a relative duration, each stored only in the
 representation the creator edits; adds P9 (open). Driven by a live smoke
 finding — a Dec-31-anchored question published with a "1 week after publish"
 resolution window, approved because the reviewer never sees resolved dates.
-Also refreshed the stale index line for this summary (it still claimed P4/P5
-open; both landed 2026-08-04) and aligned it verbatim with the frontmatter
-description per schema.
+Merge note: this ingest landed alongside the same-day public-id amendment
+ingest and the 2026-08-05 lint (both above), which had already refreshed the
+stale index line — this entry now only appends the deadline-timing clause to
+it and adds the P9 entry + amendment section to the summary.

@@ -6,7 +6,7 @@ import { draftFeedbackItemFactory, draftReviewFactory } from "@/test/factories/d
 import {
   FeedbackItemCard,
   FeedbackPanel,
-  ReviewScoreBars,
+  ReviewScorePanel,
   severityStyle,
 } from "./feedback-panel";
 
@@ -62,59 +62,38 @@ describe("FeedbackItemCard", () => {
   });
 });
 
-describe("ReviewScoreBars", () => {
-  it("colors each dimension by its goodness, inverting the risk rows", () => {
-    render(
-      <ReviewScoreBars
-        review={draftReviewFactory({
-          scores: {
-            contentSafety: 2,
-            corroboration: 4,
-            disputeRisk: 1,
-            objectivity: 5,
-            promptInjectionRisk: 5,
-            publicKnowability: 3,
-            sourceQuality: 0,
-          },
-        })}
-      />
-    );
+describe("ReviewScorePanel", () => {
+  it("renders the dimensions and their rationales behind a disclosure", () => {
+    const review = draftReviewFactory();
 
-    expect(scoreRow("Objectivity")).toEqual({
-      color: "var(--yes)",
-      raw: "5",
-      width: "100%",
-    });
-    expect(scoreRow("Public knowability")).toEqual({
-      color: "var(--pc-amber)",
-      raw: "3",
-      width: "60%",
-    });
-    expect(scoreRow("Source quality")).toEqual({
-      color: "var(--no)",
-      raw: "0",
-      width: "0%",
-    });
-    expect(scoreRow("Corroboration")).toEqual({
-      color: "var(--yes)",
-      raw: "4",
-      width: "80%",
-    });
-    expect(scoreRow("Content safety")).toEqual({
-      color: "var(--pc-amber)",
-      raw: "2",
-      width: "40%",
-    });
-    expect(scoreRow("Dispute risk")).toEqual({
-      color: "var(--yes)",
-      raw: "1",
-      width: "80%",
-    });
-    expect(scoreRow("Injection risk")).toEqual({
-      color: "var(--no)",
-      raw: "5",
-      width: "0%",
-    });
+    render(<ReviewScorePanel review={review} />);
+
+    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    expect(screen.getByText("Objectivity")).toBeInTheDocument();
+    expect(screen.getByText(review.scoreRationales.objectivity)).toBeInTheDocument();
+  });
+
+  it("arrives expanded", () => {
+    const { container } = render(<ReviewScorePanel review={draftReviewFactory()} />);
+
+    expect(container.querySelector("details")).toHaveAttribute("open");
+  });
+
+  it("says so when the draft has moved on since the review", () => {
+    render(<ReviewScorePanel review={draftReviewFactory()} stale />);
+
+    expect(screen.getByText("Scores from last review")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Resubmit to score the current version/)
+    ).toBeInTheDocument();
+  });
+
+  it("does not warn about staleness for a current review", () => {
+    render(<ReviewScorePanel review={draftReviewFactory()} />);
+
+    expect(
+      screen.queryByText(/Resubmit to score the current version/)
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -130,8 +109,12 @@ describe("FeedbackPanel", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Phrase it as a yes/no question")).toBeInTheDocument();
-    expect(screen.getByText("Review scores")).toBeInTheDocument();
+    // Scores sit inline on the failure path rather than behind a disclosure:
+    // this is the screen a creator is meant to act on.
     expect(screen.getByText("Objectivity")).toBeInTheDocument();
+    expect(
+      screen.getByText(draftReviewFactory().scoreRationales.objectivity)
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resubmit as is" })).toBeEnabled();
     expect(
       screen.getByText("Edits re-run the review with fresh eyes")
@@ -164,22 +147,6 @@ describe("FeedbackPanel", () => {
     expect(onResubmit).toHaveBeenCalledTimes(1);
   });
 });
-
-/** Reads the rendered bar color/width plus the raw score for one dimension. */
-function scoreRow(label: string) {
-  const row = screen.getByText(label).parentElement;
-  const fill = row?.querySelector("div")?.firstElementChild;
-
-  if (!(fill instanceof HTMLElement) || !row?.lastElementChild) {
-    throw new Error(`missing score bar for ${label}`);
-  }
-
-  return {
-    color: fill.style.backgroundColor,
-    raw: row.lastElementChild.textContent,
-    width: fill.style.width,
-  };
-}
 
 function panel(overrides: Partial<Parameters<typeof FeedbackPanel>[0]> = {}) {
   return (

@@ -67,7 +67,7 @@ export function useStudio() {
   const [drafts, setDrafts] = useState<MarketDraft[]>([]);
   const [shelf, setShelf] = useState<StudioShelf>("all");
   const [error, setError] = useState<string | null>(null);
-  const [busyDraftId, setBusyDraftId] = useState<number | null>(null);
+  const [busyDraftId, setBusyDraftId] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
@@ -117,7 +117,7 @@ export function useStudio() {
   );
 
   async function mutate(
-    draftId: number,
+    draftId: string,
     operation: string,
     action: (api: DraftsApiClient) => Promise<unknown>
   ) {
@@ -141,7 +141,7 @@ export function useStudio() {
   return {
     busyDraftId,
     canPersist: Boolean(client),
-    cloneDraft: (draftId: number, asTemplate = false) =>
+    cloneDraft: (draftId: string, asTemplate = false) =>
       mutate(draftId, "clone-draft", (api) =>
         api.clone({ asTemplate, fromDraftId: draftId })
       ),
@@ -165,7 +165,7 @@ export function useStudio() {
     error,
     isLoading,
     refresh,
-    removeDraft: (draftId: number) =>
+    removeDraft: (draftId: string) =>
       mutate(draftId, "delete-draft", (api) => api.remove(draftId)),
     setShelf,
     shelf,

@@ -3,12 +3,13 @@ type: entity
 title: AI review service and runner
 description: Stateless moderation/knowability HTTP service with pluggable providers plus a DB-leasing runner that keeps transient local-model failures pending and gates market entry — working end to end locally.
 sources:
+  - docs/adr/0022-review-first-market-creation.md
   - docs/ai-review-runner-design.md
   - docs/ai-review-next-phase.md
   - docs/adr/0011-ai-review-service-hardening.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - server/README.md
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # AI review service and runner
@@ -110,6 +111,20 @@ translator turning hard flags and scores into per-field
 `approved | rejected | changes_requested` — the third state, absent from the original
 design, carries *quality* feedback (from a `manual_review` verdict) as distinct from
 a *policy* rejection.
+
+**Where a published market's review comes from (decided 2026-08-05).** P5 left
+`market_ai_reviews` with no writer while the market detail page still read from it, so
+markets created after P5 rendered no review at all. Resolved by **join, not copy**: a
+published market finds its review through the publish bookkeeping on `market_drafts`,
+narrowed to the draft's submitted snapshot and taken newest-first. Copying draft reviews
+into a market-scoped row was rejected as a second source of truth for one fact. The join
+is exact — publish refuses unless the draft is unchanged since review and verifies the
+on-chain `metadataHash`, so the reviewed snapshot is provably the live market's metadata.
+`market_ai_reviews` is now read-only history with a live reader: legacy rows still win
+where they exist, because for a pre-P5 market that row *is* the review that gated it.
+
+Note `market_ai_review_jobs` is **not** in the same position — the admin re-review service
+still enqueues into it and no worker claims that queue.
 
 **The on-chain review path still exists alongside it.** Publish bridges to the
 ungated `createMarket` and force-approves with the review-manager key, so this

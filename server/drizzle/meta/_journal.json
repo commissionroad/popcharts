@@ -260,6 +260,13 @@
       "when": 1785890744076,
       "tag": "0036_curvy_captain_america",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785944353246,
+      "tag": "0037_wide_joystick",
+      "breakpoints": true
     }
   ]
 }
