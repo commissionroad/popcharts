@@ -3,12 +3,11 @@ import { getNetworkConfig, ZERO_ADDRESS } from "./networks";
 /**
  * The server's resolved runtime configuration: the selected network's chain,
  * RPC, and contract settings plus server-level flags. Feature flags like
- * adminReviewEnabled and devToolsEnabled default to off — dangerous endpoints
+ * devToolsEnabled defaults to off — dangerous endpoints
  * must be enabled explicitly per environment.
  */
 export const config = {
   ...getNetworkConfig(),
-  adminReviewEnabled: process.env.POPCHARTS_ADMIN_REVIEW_ENABLED === "true",
   apiPort: Number.parseInt(process.env.PORT ?? "3001", 10),
   devToolsEnabled: process.env.POPCHARTS_DEV_TOOLS_ENABLED === "true",
   healthCheckFile:
