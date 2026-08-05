@@ -52,6 +52,13 @@ jobs:
             # protocol/scripts/shared (price policy, tick math) via package
             # exports; changes there alter the shipped app bundle.
             - protocol/scripts/shared/**
+            # The app reaches into the repo-root scripts by relative path
+            # (localMarket types, time helpers), so a change there can break
+            # the app typecheck. Its absence here is how it did: a required
+            # `Check app` reported "skipping" rather than failing, which is
+            # indistinguishable from passing.
+            - scripts/shared/localMarket/**
+            - scripts/shared/time/**
             - server/generated/openapi.json
             - pnpm-lock.yaml
             - pnpm-workspace.yaml
