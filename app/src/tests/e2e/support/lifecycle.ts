@@ -297,7 +297,10 @@ export async function waitForPriceHistory(
         last = `HTTP ${response.status}`;
       }
     } catch (error) {
-      last = `fetch failed: ${error instanceof Error ? error.message : error}`;
+      // The error NAME only (TimeoutError vs TypeError etc.) — the no-raw-
+      // error-render guardrail bans `.message` reads outside the error
+      // utility, and the name is enough to tell a stall from a refusal.
+      last = `fetch failed (${error instanceof Error ? error.name : "unknown"})`;
     }
     await new Promise((resolveSleep) => setTimeout(resolveSleep, 1_000));
   }
