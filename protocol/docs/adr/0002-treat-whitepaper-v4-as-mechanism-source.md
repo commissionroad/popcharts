@@ -37,10 +37,10 @@ out of scope unless a future revision and ADR change the mechanism.
 
 Revision lineage, for reading old code and old ADRs:
 
-| Revision | Published as | What changed |
-|---|---|---|
-| v0.6 | — | Pre-graduation withdrawals (lock the overlap, Lemma 3), fees outside the solvency identity, post-graduation pool seeding. Renamed to Pop Charts. See [ADR 0014](0014-pre-graduation-withdrawals-and-fees.md). |
-| v0.5 | — | Shortened rewrite of v0.4; replaced the informal solvency argument with Lemmas 1–2 and the exact-collateralization theorem. Never published as a PDF. |
-| v0.4 | `documents/whitepaper_v4.pdf` | The revision this ADR originally named. |
-| v0.3 | `documents/whitepaper_v3.pdf` | Superseded clearing approach. |
-| v0.1 | `documents/whitepaper_v0_1.pdf` | Superseded; retains resolution design later split into its own ADRs. |
+| Revision | Published as                    | What changed                                                                                                                                                                                                  |
+| -------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v0.6     | —                               | Pre-graduation withdrawals (lock the overlap, Lemma 3), fees outside the solvency identity, post-graduation pool seeding. Renamed to Pop Charts. See [ADR 0014](0014-pre-graduation-withdrawals-and-fees.md). |
+| v0.5     | —                               | Shortened rewrite of v0.4; replaced the informal solvency argument with Lemmas 1–2 and the exact-collateralization theorem. Never published as a PDF.                                                         |
+| v0.4     | `documents/whitepaper_v4.pdf`   | The revision this ADR originally named.                                                                                                                                                                       |
+| v0.3     | `documents/whitepaper_v3.pdf`   | Superseded clearing approach.                                                                                                                                                                                 |
+| v0.1     | `documents/whitepaper_v0_1.pdf` | Superseded; retains resolution design later split into its own ADRs.                                                                                                                                          |

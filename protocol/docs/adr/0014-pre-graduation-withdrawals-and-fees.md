@@ -18,14 +18,14 @@ market to have already reached a refund-claimable status.
 Whitepaper v0.4 §4 justified that lock on two grounds. Both were re-examined
 against the implementation and neither survives:
 
-- **Solvency.** The argument imports intuition from a *funded* LMSR, where a
+- **Solvency.** The argument imports intuition from a _funded_ LMSR, where a
   pooled reserve must equal `C(r) − C(r₀)` and refunding a trader's original
   cost after the curve moved leaves a hole. A virtual LMSR has no pool. Escrow
   is per-receipt and completeness is proved per band, so returning a receipt's
   own recorded cost removes a row and its money together and leaves `E = R + L`
   intact.
-- **Determinism.** Clearing is deterministic because the book is *frozen at
-  clearing*, not because it was append-only before it.
+- **Determinism.** Clearing is deterministic because the book is _frozen at
+  clearing_, not because it was append-only before it.
   `computeBandPassClearing` reads only `rLow`, `rHigh`, `side`, `cost`,
   `shares`, and `sequence`; it never reads `market.state.path`. A withdrawal
   deletes a row from the frozen book and every remaining row clears identically.
@@ -52,7 +52,7 @@ cost less the withdrawal fee.
 The property that makes this safe is that opposition is monotone where
 retention is not. A receipt's retained share of a band is `m_k / Y_k`, which
 falls when a same-side receipt arrives and rises when an opposite-side one
-does — a running estimate that cannot be vested. Whether a band has *ever* been
+does — a running estimate that cannot be vested. Whether a band has _ever_ been
 opposed only accumulates.
 
 An unopposed band has `m_k = min(Y_k, 0) = 0` before the withdrawal and
@@ -98,7 +98,7 @@ the market, so nothing inside calibrates the rate — and the withdrawer is
 collecting a refund the mechanism already guaranteed them, early, so a rate
 high enough to deter a determined manipulator is paid mostly by honest
 impatience. Charging on cost under-prices withdrawals of cheap extreme bands,
-which are the display-moving ones; charging on withdrawn *width* would target
+which are the display-moving ones; charging on withdrawn _width_ would target
 that better and is deferred until manipulation is actually observed.
 
 ### 4. Fee revenue seeds the post-graduation pools
