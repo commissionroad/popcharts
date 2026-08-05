@@ -85,8 +85,8 @@ describe("generateLocalMarket", () => {
 function generatedMarket() {
   return {
     graduationSeconds: 60 * 60,
-    // A coherent generated market; the incoherent variant exists only for
-    // --rejectable review drills (scripts/shared/localMarket/generatedMarket).
+    // A normal generated market is coherent; the incoherent variant is the
+    // deliberate rejection case this suite asserts is never requested.
     incoherent: false,
     kind: "crypto" as const,
     metadata: {
