@@ -134,6 +134,12 @@ describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
     expect(tick?.t).toBe("2026-07-14T00:00:00.000Z");
     expect(typeof tick?.yesPriceCents).toBe("number");
     expect((tick?.yesPriceCents ?? 0) + (tick?.noPriceCents ?? 0)).toBe(100);
+    // Post-trade totals ride the same frame: volume is the escrowed total the
+    // increment just wrote (250 wei-of-WAD → tiny but exact as a decoded
+    // number), matched is the band fold over the one-sided book — zero, since
+    // a single YES receipt overlaps no NO coverage.
+    expect(tick?.volumeUsd).toBeCloseTo(250 / 1e18, 24);
+    expect(tick?.matchedUsd).toBe(0);
   });
 
   it("dedups a replay via the real unique index and skips the increments", async () => {
@@ -164,5 +170,27 @@ describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
         eq(schema.receiptPlacedEvents.transactionHash, orphan.transactionHash),
       );
     expect(orphanRows).toHaveLength(0);
+  });
+
+  // Deliberately last: this suite shares one PGlite database and the earlier
+  // tests rely on replaying receipt 1 being a no-op — a genuinely new receipt
+  // must not run before them.
+  it("reports a non-zero matched total once YES and NO coverage overlap", async () => {
+    await persistReceiptPlacedRecord(
+      receiptRecord({
+        logIndex: 9,
+        receiptId: 3n,
+        sequence: 2n,
+        side: 1,
+        transactionHash: `0x${"55".repeat(32)}`,
+      }),
+      dbc,
+    );
+
+    const rows = await changeFeedRows();
+    const tick = rows.at(-1)?.payload;
+    // One YES and one NO receipt over the same band: min coverage 1 × width.
+    expect(tick?.matchedUsd).toBeCloseTo(0.5, 12);
+    expect(tick?.volumeUsd).toBeCloseTo(500 / 1e18, 24);
   });
 });

@@ -2,7 +2,7 @@ import { RECEIPTS_STREAM } from "@popcharts/live-channels";
 import { ArrowLeft, BadgeCheck, Coins, ReceiptText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
-import { GraduationBar } from "@/components/ui/graduation-bar";
+import { SmallMetric } from "@/components/ui/small-metric";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { isAwaitingResolution } from "@/domain/markets/status";
@@ -21,6 +21,7 @@ import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
 import { MarketDisputePanel } from "./market-dispute-panel";
 import { MarketLivePrice } from "./market-live-price";
+import { MarketLiveStats } from "./market-live-stats";
 import { MarketPositionPanel } from "./market-position-panel";
 
 export function MarketDetailPage({
@@ -133,21 +134,12 @@ export function MarketDetailPage({
 
           {settled ? null : (
             <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-card)] p-5">
-              <GraduationBar
-                matchedUsd={market.matchedUsd}
-                targetUsd={market.graduationTargetUsd}
-              />
-              <div className="mt-5 grid gap-3 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-3">
-                <SmallMetric
-                  label="Volume"
-                  value={formatUsdCompact(market.volumeUsd)}
-                />
-                <SmallMetric
-                  label="Receipts"
-                  value={market.receiptCount.toLocaleString()}
-                />
+              {/* Graduation bar + volume + receipts move live off the trade
+                  ticks' post-trade totals; b is static curve config, passed
+                  through as the island's server-rendered child. */}
+              <MarketLiveStats market={market}>
                 <SmallMetric label="b" value={formatB(market.b)} />
-              </div>
+              </MarketLiveStats>
               {market.status === "graduating" ? (
                 <Link
                   className="mt-5 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--status-graduating)] bg-[var(--surface-raised)] px-4 py-3 font-mono text-xs tracking-[0.06em] text-[var(--status-graduating)] uppercase"
@@ -357,17 +349,6 @@ function ContractAddressRow({ label, value }: { label: string; value: string }) 
       <span className="font-mono text-[11px] break-all text-[var(--text-primary)]">
         {value}
       </span>
-    </div>
-  );
-}
-
-function SmallMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-mono text-[10px] tracking-[0.1em] text-[var(--text-muted)] uppercase">
-        {label}
-      </div>
-      <div className="font-display tabular mt-1 text-xl font-black">{value}</div>
     </div>
   );
 }
