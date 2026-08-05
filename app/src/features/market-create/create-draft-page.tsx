@@ -34,16 +34,19 @@ export function CreateDraftPage({
   const creationFeeLabel =
     marketCreationMode === "devchain" ? "1 native USDC" : "Waived in preview";
   const { credit: reviewCredit, refresh: refreshCredit } = useReviewCreditPosition();
-  const latestReviewId = flow.latestReview?.id ?? null;
+  const inReview = flow.stage === "in_review";
 
-  // A completed review is the one thing that spends credit, and charges are
-  // metered off-chain so they signal no live channel. Re-read when a new
-  // review lands, otherwise the card would keep showing the pre-submit count.
+  // The run is charged in the same transaction that queues the review job
+  // (server market-drafts service), so the draft *entering* review is when
+  // the balance moved — not when the verdict lands. Waiting for the verdict
+  // would leave the card showing the pre-charge count for the whole review,
+  // and forever if the job stalled. Charges are metered off-chain and signal
+  // no live channel, so this re-read is the only thing that catches them.
   useEffect(() => {
-    if (latestReviewId !== null) {
+    if (inReview) {
       refreshCredit();
     }
-  }, [latestReviewId, refreshCredit]);
+  }, [inReview, refreshCredit]);
 
   return (
     <div>

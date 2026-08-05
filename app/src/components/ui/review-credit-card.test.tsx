@@ -108,4 +108,17 @@ describe("ReviewCreditCard", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("renders nothing at a zero rate, where reviews are free", () => {
+    // The server reports runsRemaining: 0 for a free stack while still
+    // passing every submission — rendering "Out of credit" would invent a
+    // blocker.
+    const { container } = render(
+      <ReviewCreditCard
+        credit={credit({ availableWad: "0", rateWad: "0", runsRemaining: 0 })}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });

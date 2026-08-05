@@ -31,11 +31,14 @@ export function ReviewCreditCard({
   /** Offers a top-up action. Omitted where the caller cannot service one. */
   onTopUp?: () => void;
 }) {
-  // Nothing to meter: either the position has not been read yet, or the stack
-  // runs no vault and submission is ungated (the API's metered=false). A card
-  // reading "0 reviews left" on an ungated stack would be a lie that reads as
-  // a blocker.
-  if (!credit?.metered) {
+  // Nothing to meter, for any of three reasons: the position has not been read
+  // yet; the stack runs no vault and submission is ungated (the API's
+  // metered=false); or the rate is zero, which the server treats as "reviews
+  // are free" and reports as runsRemaining: 0 while still letting every
+  // submission through. That last one is why the rate is checked rather than
+  // trusted — a free stack would otherwise render "Out of credit" in red and
+  // read as a blocker that does not exist.
+  if (!credit?.metered || BigInt(credit.rateWad) === 0n) {
     return null;
   }
 

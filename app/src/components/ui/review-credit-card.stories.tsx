@@ -146,3 +146,20 @@ export const UngatedRendersNothing: Story = {
 export const UnknownRendersNothing: Story = {
   args: { credit: null },
 };
+
+/**
+ * A metered stack priced at zero: the server reports `runsRemaining: 0` and
+ * still passes every submission, so the card stays out of the way rather than
+ * rendering "Out of credit" over a stack where reviews are free.
+ */
+export const FreeReviewsRenderNothing: Story = {
+  args: {
+    credit: {
+      availableWad: "0",
+      metered: true,
+      rateWad: "0",
+      runsRemaining: 0,
+      runsUsed: 4,
+    },
+  },
+};

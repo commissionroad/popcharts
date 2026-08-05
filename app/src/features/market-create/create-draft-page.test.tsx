@@ -276,17 +276,29 @@ describe("CreateDraftPage", () => {
     expect(screen.getByText("Review credit needed")).toBeInTheDocument();
   });
 
-  it("re-reads the credit once a review lands, since charges signal nothing", () => {
+  it("re-reads the credit when the draft enters review, where it is charged", () => {
     const refresh = vi.fn();
     creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
-    stubFlow({ latestReview: draftReviewFactory(), stage: "feedback" });
+    stubFlow({ stage: "in_review" });
 
     render(<CreateDraftPage initialNow={INITIAL_NOW} />);
 
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("leaves the credit unread while no review has come back", () => {
+  it("does not wait for the verdict, which spends nothing further", () => {
+    // The charge rides the submit transaction, so a landed review is not a
+    // second balance change and must not trigger a second read.
+    const refresh = vi.fn();
+    creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
+    stubFlow({ latestReview: draftReviewFactory(), stage: "feedback" });
+
+    render(<CreateDraftPage initialNow={INITIAL_NOW} />);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("leaves the credit unread while the draft is still being edited", () => {
     const refresh = vi.fn();
     creditPositionMock.mockReturnValue({ credit: FUNDED_CREDIT, refresh });
     stubFlow();
