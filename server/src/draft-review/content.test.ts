@@ -18,6 +18,7 @@ function makeDraft(overrides: Partial<MarketDraftRow> = {}): MarketDraftRow {
     description: "A market about the bitcoin price.",
     graduationWindowSeconds: 60 * 60,
     id: 1,
+    publicId: "k3f9x2mq7rt4wbnz",
     intendedCreatorAddress: null,
     isTemplate: false,
     liquidityParameter: 5000,

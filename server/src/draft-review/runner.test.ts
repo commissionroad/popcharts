@@ -7,6 +7,7 @@ import {
   it,
 } from "bun:test";
 
+import { newDraftPublicId } from "src/drafts/public-id";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
 import type { db as productionDb } from "src/db/client";
 import { eq, schema, setDbForTesting } from "src/db/client";
@@ -92,6 +93,7 @@ async function seedDraftAndJob({
     .values({
       category: "Crypto",
       ownerUserId: OWNER,
+      publicId: newDraftPublicId(),
       question: QUESTION,
       resolutionCriteria: "Resolves YES per the CoinGecko daily close.",
       resolutionSources: "https://www.coingecko.com",
