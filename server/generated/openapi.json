@@ -106,68 +106,6 @@
         }
       }
     },
-    "/markets/{chainId}/metadata": {
-      "post": {
-        "operationId": "saveMarketMetadata",
-        "summary": "Save off-chain market metadata",
-        "description": "Stores human-readable market metadata by chain ID and metadata hash so indexed markets can render their question and resolution context.",
-        "tags": [
-          "Markets"
-        ],
-        "parameters": [
-          {
-            "name": "chainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MarketMetadataWrite"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "$ref": "#/components/schemas/MarketMetadataWrite"
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/MarketMetadataWrite"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Response for status 200",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarketMetadata"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Response for status 400",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/dev/markets/{chainId}/{marketId}/close": {
       "post": {
         "operationId": "closeDevMarket",
@@ -2609,61 +2547,6 @@
             "type": "string"
           },
           "updatedAt": {
-            "type": "string"
-          }
-        }
-      },
-      "MarketMetadataWrite": {
-        "type": "object",
-        "required": [
-          "category",
-          "createdAt",
-          "description",
-          "metadataHash",
-          "question",
-          "resolutionCriteria"
-        ],
-        "properties": {
-          "category": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "createdAt": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "metadataHash": {
-            "pattern": "^0x[0-9a-fA-F]{64}$",
-            "type": "string"
-          },
-          "outcomeNo": {
-            "maxLength": 40,
-            "minLength": 1,
-            "type": "string"
-          },
-          "outcomeYes": {
-            "maxLength": 40,
-            "minLength": 1,
-            "type": "string"
-          },
-          "question": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "resolutionCriteria": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "resolutionSources": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "resolutionUrl": {
             "type": "string"
           }
         }

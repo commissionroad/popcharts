@@ -2,7 +2,6 @@ import type {
   MarketAiReviewResponse,
   MarketCreatedEventResponse,
   MarketMetadataResponse,
-  MarketMetadataWrite,
   MarketPostgradResponse,
   MarketResolutionResponse,
   MarketResponse,
@@ -272,49 +271,6 @@ export async function selectLiveMarketRow({
   }
 
   return row.market;
-}
-
-/**
- * Idempotently stores off-chain market metadata keyed by (chainId,
- * metadataHash), replacing any previous row for the same hash so re-submitted
- * metadata always converges to the latest write. Returns null for an invalid
- * chain id.
- */
-export async function upsertMarketMetadata(
-  chainId: number,
-  metadata: MarketMetadataWrite,
-): Promise<MarketMetadataResponse | null> {
-  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-    return null;
-  }
-
-  const values = {
-    category: metadata.category,
-    chainId,
-    description: metadata.description,
-    metadataCreatedAt: metadata.createdAt,
-    metadataHash: metadata.metadataHash,
-    outcomeNo: metadata.outcomeNo ?? null,
-    outcomeYes: metadata.outcomeYes ?? null,
-    question: metadata.question,
-    resolutionCriteria: metadata.resolutionCriteria,
-    resolutionSources: metadata.resolutionSources ?? [],
-    resolutionUrl: metadata.resolutionUrl ?? null,
-    updatedAt: new Date(),
-  };
-  const rows = await db
-    .insert(schema.marketMetadata)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [
-        schema.marketMetadata.chainId,
-        schema.marketMetadata.metadataHash,
-      ],
-      set: values,
-    })
-    .returning();
-
-  return rows[0] ? serializeMarketMetadataRow(rows[0]) : null;
 }
 
 /**
