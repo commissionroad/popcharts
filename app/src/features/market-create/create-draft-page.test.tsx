@@ -71,10 +71,10 @@ describe("CreateDraftPage", () => {
   it("threads an initial draft id from the studio into the flow", () => {
     stubFlow();
 
-    render(<CreateDraftPage initialDraftId={7} initialNow={INITIAL_NOW} />);
+    render(<CreateDraftPage initialDraftId="7" initialNow={INITIAL_NOW} />);
 
     expect(useDraftFlowMock).toHaveBeenCalledWith({
-      initialDraftId: 7,
+      initialDraftId: "7",
       initialNow: INITIAL_NOW,
     });
   });

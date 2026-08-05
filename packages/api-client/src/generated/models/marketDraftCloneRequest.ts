@@ -9,7 +9,6 @@ import type { MarketDraftCloneRequestFromMarket } from "./marketDraftCloneReques
 
 export interface MarketDraftCloneRequest {
   asTemplate?: boolean;
-  /** @minimum 1 */
-  fromDraftId?: number;
+  fromDraftId?: string;
   fromMarket?: MarketDraftCloneRequestFromMarket;
 }

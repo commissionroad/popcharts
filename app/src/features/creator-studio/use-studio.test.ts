@@ -57,14 +57,14 @@ describe("draftBelongsOnShelf", () => {
 describe("useStudio loading", () => {
   it("loads the connected wallet's drafts", async () => {
     const api = stubApi({
-      list: vi.fn(async () => [marketDraftFactory({ id: 1 })]),
+      list: vi.fn(async () => [marketDraftFactory({ id: "1" })]),
     });
 
     const { result } = renderHook(() => useStudio());
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.drafts.map((draft) => draft.id)).toEqual([1]);
+    expect(result.current.drafts.map((draft) => draft.id)).toEqual(["1"]);
     expect(result.current.error).toBeNull();
     expect(result.current.canPersist).toBe(true);
     expect(result.current.walletReady).toBe(true);
@@ -177,9 +177,9 @@ describe("useStudio shelves", () => {
   it("filters the visible drafts by the selected shelf", async () => {
     stubApi({
       list: vi.fn(async () => [
-        marketDraftFactory({ id: 1, status: "approved" }),
-        marketDraftFactory({ id: 2, status: "in_review" }),
-        marketDraftFactory({ id: 3, isTemplate: true }),
+        marketDraftFactory({ id: "1", status: "approved" }),
+        marketDraftFactory({ id: "2", status: "in_review" }),
+        marketDraftFactory({ id: "3", isTemplate: true }),
       ]),
     });
 
@@ -187,16 +187,20 @@ describe("useStudio shelves", () => {
 
     await waitFor(() => expect(result.current.drafts).toHaveLength(3));
     expect(result.current.shelf).toBe("all");
-    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual([1, 2, 3]);
+    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
 
     act(() => result.current.setShelf("approved"));
 
     expect(result.current.shelf).toBe("approved");
-    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual([1]);
+    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual(["1"]);
 
     act(() => result.current.setShelf("templates"));
 
-    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual([3]);
+    expect(result.current.visibleDrafts.map((draft) => draft.id)).toEqual(["3"]);
   });
 });
 
@@ -208,10 +212,10 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.cloneDraft(12);
+      await result.current.cloneDraft("12");
     });
 
-    expect(api.clone).toHaveBeenCalledWith({ asTemplate: false, fromDraftId: 12 });
+    expect(api.clone).toHaveBeenCalledWith({ asTemplate: false, fromDraftId: "12" });
     expect(api.list).toHaveBeenCalledTimes(2);
     expect(result.current.busyDraftId).toBeNull();
   });
@@ -223,10 +227,10 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.cloneDraft(12, true);
+      await result.current.cloneDraft("12", true);
     });
 
-    expect(api.clone).toHaveBeenCalledWith({ asTemplate: true, fromDraftId: 12 });
+    expect(api.clone).toHaveBeenCalledWith({ asTemplate: true, fromDraftId: "12" });
   });
 
   it("marks the draft busy while its mutation is in flight", async () => {
@@ -244,10 +248,10 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     act(() => {
-      void result.current.cloneDraft(12);
+      void result.current.cloneDraft("12");
     });
 
-    await waitFor(() => expect(result.current.busyDraftId).toBe(12));
+    await waitFor(() => expect(result.current.busyDraftId).toBe("12"));
 
     act(() => releaseClone());
 
@@ -261,10 +265,10 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.removeDraft(12);
+      await result.current.removeDraft("12");
     });
 
-    expect(api.remove).toHaveBeenCalledWith(12);
+    expect(api.remove).toHaveBeenCalledWith("12");
   });
 
   it("toggles a draft's template flag", async () => {
@@ -274,10 +278,10 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.toggleTemplate(marketDraftFactory({ id: 7 }));
+      await result.current.toggleTemplate(marketDraftFactory({ id: "7" }));
     });
 
-    expect(api.update).toHaveBeenCalledWith(7, { isTemplate: true });
+    expect(api.update).toHaveBeenCalledWith("7", { isTemplate: true });
   });
 
   it("surfaces mutation failures and clears the busy marker", async () => {
@@ -291,7 +295,7 @@ describe("useStudio mutations", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.removeDraft(12);
+      await result.current.removeDraft("12");
     });
 
     expect(result.current.error).toBe("Draft not found.");
@@ -304,7 +308,7 @@ describe("useStudio mutations", () => {
     const { result } = renderHook(() => useStudio());
 
     await act(async () => {
-      await result.current.cloneDraft(12);
+      await result.current.cloneDraft("12");
     });
 
     expect(api.clone).not.toHaveBeenCalled();

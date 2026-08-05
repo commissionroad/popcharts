@@ -17,7 +17,7 @@ describe("SaveIndicator", () => {
   });
 
   it("names the saved draft once a save has landed", () => {
-    render(indicator({ draftId: 12, savedAt: "2026-07-30T12:00:00.000Z" }));
+    render(indicator({ draftId: "12", savedAt: "2026-07-30T12:00:00.000Z" }));
 
     expect(screen.getByText("Saved · draft #12")).toBeInTheDocument();
   });
@@ -35,7 +35,7 @@ describe("SaveIndicator", () => {
   });
 
   it("keeps the autosave hint when a draft id has no save time", () => {
-    render(indicator({ draftId: 12 }));
+    render(indicator({ draftId: "12" }));
 
     expect(screen.getByText("Drafts autosave as you type")).toBeInTheDocument();
   });

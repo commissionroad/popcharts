@@ -71,19 +71,19 @@ export type DraftsApiClient = {
   create: (body: MarketDraftWrite) => Promise<MarketDraft>;
   /** The wallet's prepaid review-credit position, from the indexed view. */
   credit: (address: string) => Promise<MarketDraftReviewCredit>;
-  get: (draftId: number) => Promise<MarketDraft | null>;
+  get: (draftId: string) => Promise<MarketDraft | null>;
   list: () => Promise<MarketDraft[]>;
   markPublished: (
-    draftId: number,
+    draftId: string,
     body: MarketDraftPublishedWrite
   ) => Promise<MarketDraftPublished>;
   publishParams: (
-    draftId: number,
+    draftId: string,
     creatorAddress?: string
   ) => Promise<MarketDraftPublishParams>;
-  remove: (draftId: number) => Promise<void>;
-  submit: (draftId: number) => Promise<MarketDraft>;
-  update: (draftId: number, body: MarketDraftWrite) => Promise<MarketDraft>;
+  remove: (draftId: string) => Promise<void>;
+  submit: (draftId: string) => Promise<MarketDraft>;
+  update: (draftId: string, body: MarketDraftWrite) => Promise<MarketDraft>;
 };
 
 /**

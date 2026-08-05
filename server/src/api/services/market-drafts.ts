@@ -31,7 +31,7 @@ import {
   type DraftValidationErrors,
 } from "src/draft-review/content";
 import { buildDraftReviewFeedback } from "src/draft-review/feedback";
-import { newDraftPublicId } from "src/drafts/public-id";
+import { isDraftPublicId, newDraftPublicId } from "src/drafts/public-id";
 
 const WAD = 10n ** 18n;
 /** Matches the app's derivation: graduation target = 0.5 × b, in collateral. */
@@ -92,7 +92,7 @@ export type MarketDraftResponse = {
   createdAt: string;
   description: string;
   graduationWindowSeconds: number;
-  id: number;
+  id: string;
   intendedCreatorAddress: string | null;
   isTemplate: boolean;
   latestReview?: MarketDraftReviewResponse;
@@ -124,7 +124,7 @@ export function serializeMarketDraft(
     createdAt: draft.createdAt.toISOString(),
     description: draft.description,
     graduationWindowSeconds: draft.graduationWindowSeconds,
-    id: draft.id,
+    id: draft.publicId,
     intendedCreatorAddress: draft.intendedCreatorAddress,
     isTemplate: draft.isTemplate,
     ...(latestReview
@@ -198,7 +198,7 @@ export async function getMarketDraft({
   draftId,
   owner,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
 }): Promise<GetMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -251,7 +251,7 @@ export async function updateMarketDraft({
   owner,
   patch,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
   patch: MarketDraftContentPatch;
 }): Promise<UpdateMarketDraftResult> {
@@ -318,7 +318,7 @@ export async function deleteMarketDraft({
   draftId,
   owner,
 }: {
-  draftId: number;
+  draftId: string;
   owner: string;
 }): Promise<DeleteMarketDraftResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -336,7 +336,7 @@ export async function deleteMarketDraft({
 }
 
 export type CloneMarketDraftSource =
-  | { draftId: number; kind: "draft" }
+  | { draftId: string; kind: "draft" }
   | { chainId: number; kind: "market"; marketId: bigint };
 
 export type CloneMarketDraftResult =
@@ -428,7 +428,7 @@ export async function submitMarketDraft(
     draftId,
     owner,
   }: {
-    draftId: number;
+    draftId: string;
     owner: string;
   },
   dependencies: SubmitMarketDraftDependencies = defaultSubmitDependencies,
@@ -657,7 +657,7 @@ export async function buildDraftPublishParams({
 }: {
   /** Wallet that will send createMarket; binds the minted authorization. */
   creatorAddress?: `0x${string}`;
-  draftId: number;
+  draftId: string;
   owner: string;
 }): Promise<BuildDraftPublishParamsResult> {
   const draft = await selectOwnedDraft(owner, draftId);
@@ -845,7 +845,7 @@ export async function markMarketDraftPublished(
     transactionHash,
   }: {
     chainId: number;
-    draftId: number;
+    draftId: string;
     marketId: bigint;
     owner: string;
     transactionHash: string;
@@ -930,9 +930,11 @@ function draftVersionMatches(draft: MarketDraftRow) {
 
 async function selectOwnedDraft(
   owner: string,
-  draftId: number,
+  draftId: string,
 ): Promise<MarketDraftRow | null> {
-  if (!Number.isSafeInteger(draftId) || draftId <= 0) {
+  // The id comes off a URL, so it is user input: reject anything that is not a
+  // well-formed public id before it reaches the query.
+  if (!isDraftPublicId(draftId)) {
     return null;
   }
 
@@ -941,7 +943,7 @@ async function selectOwnedDraft(
     .from(schema.marketDrafts)
     .where(
       and(
-        eq(schema.marketDrafts.id, draftId),
+        eq(schema.marketDrafts.publicId, draftId),
         eq(schema.marketDrafts.ownerUserId, owner),
         eq(schema.marketDrafts.deleted, false),
       ),
@@ -1129,7 +1131,7 @@ function draftContentChanges(
 
 async function draftCloneContent(
   owner: string,
-  draftId: number,
+  draftId: string,
 ): Promise<MarketDraftContentPatch | null> {
   const source = await selectOwnedDraft(owner, draftId);
 
