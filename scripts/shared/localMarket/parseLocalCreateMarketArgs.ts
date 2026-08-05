@@ -110,9 +110,10 @@ Options:
   --kind <kind>            Generate crypto, weather, or random.
                             Defaults to random.
   --rejectable              Author a deliberately incoherent market (its
-                            criteria contradict its own question) so market
-                            review rejects it. By default about 1 run in 4 does
-                            this on its own to exercise the reject path.
+                            criteria contradict its own question). Only a model
+                            reviewer catches this — the default heuristic
+                            provider approves it and the run says so. By
+                            default about 1 run in 4 does this on its own.
   --coherent                Force a normal, coherent market (never incoherent).
   --local-chain-env <path>  Load a generated local-chain env file. Names the
                             chain outright, so it bypasses stack registry

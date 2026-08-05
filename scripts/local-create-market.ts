@@ -180,6 +180,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (generatedMarket.incoherent) {
+    // Publishing anyway keeps the run useful, but silence here reads as "the
+    // reject path works" when nothing tested it.
+    console.warn(
+      `[${logLabel}] NOTE: review APPROVED the intentionally incoherent ` +
+        `market, so this run did not exercise the reject path. The ` +
+        `contradiction is semantic and the deterministic heuristic does not ` +
+        `read for it; point POPCHARTS_DRAFT_REVIEW_PROVIDER at a model ` +
+        `provider to see it rejected.`,
+    );
+  }
+
   console.log(`[${logLabel}] approved; minting publish authorization`);
   const publishPayload = await drafts.publishParams(draft.id, creatorAddress);
 
