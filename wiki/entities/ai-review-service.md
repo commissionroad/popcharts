@@ -155,10 +155,14 @@ narrowed to the draft's submitted snapshot and taken newest-first. Copying draft
 into a market-scoped row was rejected as a second source of truth for one fact. The join
 is exact — publish refuses unless the draft is unchanged since review and verifies the
 on-chain `metadataHash`, so the reviewed snapshot is provably the live market's metadata.
-`market_ai_reviews` is now read-only history with a live reader: legacy rows still win
-where they exist, because for a pre-P5 market that row *is* the review that gated it.
+`market_ai_reviews` was **dropped**, not kept — migration
+`0038_romantic_starhawk.sql` drops it and `market_ai_review_jobs` together, and
+`getLatestMarketReviews` (`server/src/api/services/markets.ts`) queries only the
+draft-review side. ADR 0022 and two comments in `markets.ts` still describe it as
+read-only history whose legacy rows "win where they exist"; that was true when
+written and stopped being true at 0038. The join above is the only review reader.
 
-`market_ai_review_jobs` went further: it has neither a writer nor a claimer, and
+`market_ai_review_jobs` likewise has neither a writer nor a claimer, and
 its Drizzle table is gone. Only the shared review enums survive, relocated into
 `server/src/db/schema/market-draft-reviews.ts:23-27`, whose comment records the
 move. (An earlier version of this page said an admin re-review service still

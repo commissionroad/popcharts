@@ -10,7 +10,7 @@ sources:
   - docs/adr/0007-track-verticals-with-progress-adrs.md
   - protocol/docs/adr/0011-admin-market-cancellation.md
   - docs/adr/0018-terminal-market-surface-and-redemption-ux.md
-updated: 2026-07-14
+updated: 2026-08-06
 ---
 
 # Market lifecycle
@@ -28,11 +28,16 @@ in **three vocabularies with three masters** (do not unify — see
 
 ## Transitions and their drivers
 
-- **Creation → UnderReview**: no collateral escrow before review approval.
-  The [AI review runner](../entities/ai-review-service.md) (or chain events
-  from a manual review manager) moves it: approve→Active/bootstrap,
-  reject→Rejected (terminal). Guarded updates keyed on status + metadata_hash
-  keep runner verdicts and chain events from clobbering each other.
+- **Creation → UnderReview** *(retired 2026-08-04, ADR 0022 P5)*: markets used
+  to be born `UnderReview` with no collateral escrow, and the standalone AI
+  review runner (or chain events from a manual review manager) moved them:
+  approve→Active/bootstrap, reject→Rejected (terminal). Guarded updates keyed on
+  status + metadata_hash kept runner verdicts and chain events from clobbering
+  each other. P5 deleted that runner and the on-chain review path with it —
+  review now happens against an off-chain draft before any market exists, and a
+  published market is born Active. Pre-P5 markets can still be found in
+  `UnderReview`. See [review-first](#front-of-the-lifecycle-review-first-adr-0022-half-built)
+  below and [AI review service](../entities/ai-review-service.md).
 - **Active (bootstrap)**: receipts placed against the virtual LMSR — locked,
   append-only, non-withdrawable, non-transferable
   ([protocol ADR 0003](../summaries/protocol-adr-0003-v1-receipts-locked-non-transferable.md)).

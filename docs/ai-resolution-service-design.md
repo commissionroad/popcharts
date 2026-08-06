@@ -8,7 +8,8 @@ in [§13](#13-decisions-resolved-2026-07-09); the rest is settled by mirroring t
 AI-review vertical.
 
 Companion docs: `docs/ai-review-runner-design.md` (the architecture this
-mirrors), ADR 0012 (the vertical), ADR 0008 (resolver hooks / `bypassAiResolution`),
+mirrors — since superseded, see its banner), ADR 0012 (the vertical), ADR 0008
+(resolver hooks / `bypassAiResolution`),
 ADR 0010 (postgrad resolution indexing), ADR 0009/0011 (shared operator auth).
 
 ## 1. Purpose
@@ -178,6 +179,24 @@ per the funds-holding-contract rule.
 | Smoke | `ai-review-runner/smoke.ts` | `ai-resolution-runner/smoke.ts` |
 | Orchestration | `review-service` + `review-runner` | `resolution-service` + `resolution-runner` |
 
+> **The "AI review (existing)" column is now history.** ADR 0022 P5 retired the
+> on-chain review path on 2026-08-04. Verified absent from `server/src` on
+> 2026-08-06: `server/src/ai-review-runner/`, `chain-review.ts`,
+> `admin-review.ts`, `readReviewManagerPrivateKey`, and any review-runner smoke
+> or config entry point. Both `market_ai_reviews` and `market_ai_review_jobs`
+> were dropped outright by migration `0038_romantic_starhawk.sql` — ADR 0022's
+> own text still calls the reviews table "read-only history with a live reader",
+> which was true when written and is not true now. Review runs off-chain against
+> drafts (`server/src/draft-review/`, `market_draft_reviews` /
+> `market_draft_review_jobs`), with the loop hosted in the API process.
+>
+> The column is left as written because it records what the resolution vertical
+> was cloned from — it is not a map of live code. See
+> [AI review runner design](ai-review-runner-design.md), which carries the full
+> supersession note. The resolution side of the table is still accurate, except
+> that the runner proposes into a dispute window rather than resolving outright
+> (§9).
+
 The durable seams to clone verbatim (per the review map): the provider registry
 `satisfies` pattern, the `response-parsing` "model output is never trusted"
 discipline, the lease columns (`lease_until`/`locked_by`) + skip-locked claim +
@@ -264,7 +283,10 @@ the per-outcome gate when mapping the verdict (§7). New enums
 ## 7. Runner lifecycle
 
 Clone `ai-review-runner/index.ts`'s `while (!stopRequested)` loop
-(enqueue → claim → process → sleep, SIGINT/SIGTERM drains).
+(enqueue → claim → process → sleep, SIGINT/SIGTERM drains). *That file is gone
+(ADR 0022 P5); the shape it describes is what `src/ai-resolution-runner/index.ts`
+now implements, and the surviving relative is the in-API
+`startDraftReviewRunner()` in `src/draft-review/runner.ts`.*
 
 **Discovery / enqueue.** Select markets in status `graduated` whose
 `yes_not_before <= now`, that have no active resolution job and no prior terminal
@@ -389,6 +411,8 @@ reject / replace a pending verdict, gated by the **shared operator auth** (ADR
 vars mirroring review. (A `RESOLUTION_DELAY_MS` was planned here and never
 built; the on-chain dispute window replaced it — §9.) Runner config mirrors
 `ai-review-runner/config.ts` (`AI_RESOLUTION_RUNNER_*`, `AI_RESOLUTION_SERVICE_URL`).
+*That file is gone with the runner, and there are no `AI_REVIEW_RUNNER_*` vars
+any more; `src/ai-resolution-runner/config.ts` is now the only copy of the shape.*
 
 **Orchestration** — add `resolution-service` and `resolution-runner` to
 `local-dev.control-plane.yaml` mirroring the two review processes (readiness

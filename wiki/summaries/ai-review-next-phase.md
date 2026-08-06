@@ -4,7 +4,7 @@ title: AI Review Next Phase (docs/ai-review-next-phase.md)
 description: Post-PR-42 direction for the AI review system — one Market Review service with pluggable heuristic/ollama/anthropic providers, an indexer/service/runner split, startup validation, AWS shape, and prompt-injection defenses.
 sources:
   - docs/ai-review-next-phase.md
-updated: 2026-07-07
+updated: 2026-08-06
 ---
 
 # AI Review Next Phase
@@ -100,7 +100,9 @@ registry, startup validation, `/health` vs `/ready`, persistence schema,
 runner polling, manual trigger, retry/backoff, API read model, Anthropic
 budget controls, and tests — much of which the
 [runner design doc](ai-review-runner-design.md) subsequently marked
-implemented.
+implemented — and which ADR 0022 P5 then retired. The source doc carries a
+historical banner as of 2026-08-06: the provider argument and the service
+boundary still hold, the wiring from "Suggested flow" onward does not.
 
 ## Related pages
 

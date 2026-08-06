@@ -4,7 +4,7 @@ title: AI Resolution Service & Runner Design (docs/ai-resolution-service-design.
 description: The design ADR 0012 required before build — a stateless resolution service + DB-leased runner that decides yes/no/draw/too_early from public evidence and submits proposeResolution/cancel, built as a sibling of AI review, with per-outcome temporal gates and an on-chain floor guard.
 sources:
   - docs/ai-resolution-service-design.md
-updated: 2026-08-04
+updated: 2026-08-06
 ---
 
 # AI Resolution Service & Runner Design
@@ -16,7 +16,9 @@ from public evidence and submits it on-chain — automatically for confident,
 unambiguous cases, parked for a human otherwise. It is built as a **sibling of
 [AI review](../entities/ai-review-service.md)**: wherever a choice is already
 made in `server/src/ai-review*`, it is cloned rather than reinvented (see
-[AI review runner design](ai-review-runner-design.md) for the mirrored shape).
+[AI review runner design](ai-review-runner-design.md) for the mirrored shape —
+now superseded, so it records what resolution was cloned from rather than live
+code).
 
 ## On-chain surface it targets
 
@@ -124,6 +126,6 @@ window. Either way the resolver key stays on the operator side.
 
 - [AI-assisted resolution](../concepts/ai-assisted-resolution.md) — the concept this design fills in
 - [Repo ADR 0012](root-adr-0012-ai-assisted-resolution.md) — the vertical it implements
-- [AI review runner design](ai-review-runner-design.md) — the architecture it mirrors
+- [AI review runner design](ai-review-runner-design.md) — the architecture it mirrors (superseded)
 - [Repo ADR 0008](root-adr-0008-protocol-functionality-completion.md) — resolver entry points / the on-chain gate it closes
 - [Server workspace](../entities/server-workspace.md) — hosts the service and runner

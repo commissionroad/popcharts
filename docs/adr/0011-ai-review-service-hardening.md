@@ -1,6 +1,12 @@
 # ADR 0011: AI Review Service Hardening
 
-Status: Accepted
+Status: Accepted — the review *service* hardening stands; the on-chain review
+*path* described in Context was retired by [ADR 0022](0022-review-first-market-creation.md)
+P5 on 2026-08-04. Read the Context section as a description of 2026-07-06, not
+of today: there is no review runner process, no `approveMarket` / `rejectMarket`
+transition, and no `market_ai_review_jobs` queue. Review now runs off-chain
+against drafts (`server/src/draft-review/`), still through the same stateless
+service this ADR hardens.
 
 Date: 2026-07-06
 
