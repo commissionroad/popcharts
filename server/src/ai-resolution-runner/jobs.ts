@@ -67,7 +67,9 @@ export type ResolutionJobDependencies = {
  * already landed on-chain in scope so the runner can finish its own work — an
  * attempt that proposed but failed before persisting its audit row retries
  * against a market that is no longer `graduated`. `disputed` is deliberately
- * excluded: a contested proposal is waiting on a human, not on the AI.
+ * excluded: a contested proposal is waiting on a human, not on the AI. That
+ * exclusion governs *acting* only — see {@link RUNNER_AUDIT_ONLY_MARKET_STATUSES}
+ * for the read-only path that still writes the audit row such a market is owed.
  *
  * These two gates were pinned to the bare `graduated` literal before the runner
  * proposed instead of resolved, because re-entering a market mid-window meant a
@@ -83,6 +85,20 @@ const RUNNER_ELIGIBLE_MARKET_STATUSES = [
 ] as const;
 
 /**
+ * Statuses the runner must not act on, but which still carry an on-chain
+ * resolution proposal the audit trail has to explain. Standing down on one of
+ * these without writing the row is how the evidence disappears: the proposal is
+ * permanent, the job is closed, and the enqueue query never returns.
+ *
+ * The window is real. An attempt that proposed but died before persisting
+ * leaves a retryable job; a disputer moving the market to `disputed` (or the
+ * keeper finalizing it to `resolved`) before that retry lands turns a recoverable
+ * failure into a permanent hole — precisely when an operator is being asked to
+ * overrule a verdict whose reasoning was never written down.
+ */
+const RUNNER_AUDIT_ONLY_MARKET_STATUSES = ["disputed", "resolved"] as const;
+
+/**
  * Marks an audit row whose verdict was taken from the chain because the model
  * re-run disagreed with the proposal already standing. Reading it means: trust
  * `verdict` for what happened, and `outcome`/`reasons` for what a later look at
@@ -96,7 +112,13 @@ export const CHAIN_VERDICT_DIVERGENCE_HARD_FLAG = "chain_verdict_divergence";
  * persisted, possibly proposed on-chain), or a retryable/terminal failure.
  */
 export type ResolutionJobOutcome =
-  | { job: MarketResolutionJobRow; status: "cancelled" }
+  | {
+      job: MarketResolutionJobRow;
+      // Present when the job stood down from a market that already carried an
+      // on-chain proposal, and wrote the missing audit row on its way out.
+      resolution?: MarketResolutionRow;
+      status: "cancelled";
+    }
   | { job: MarketResolutionJobRow; status: "requeued" }
   | {
       job: MarketResolutionJobRow;
@@ -355,6 +377,29 @@ export function decideResolutionAction({
 }
 
 /**
+ * What to do with a job whose market has left the runner-eligible statuses.
+ * `cancel` closes it as before. `record_then_cancel` means the market may still
+ * be owed an audit row, so the chain gets one read before the job closes — the
+ * runner never proposes down this path, it only writes down what already
+ * happened.
+ */
+export function decideStandDownAction({
+  hasResolution,
+  status,
+}: {
+  hasResolution: boolean;
+  status: MarketRow["status"];
+}): "cancel" | "record_then_cancel" {
+  if (hasResolution) {
+    return "cancel";
+  }
+
+  return isRunnerAuditOnlyMarketStatus(status)
+    ? "record_then_cancel"
+    : "cancel";
+}
+
+/**
  * Reconciles a model verdict against the proposal the chain actually carries.
  *
  * A retry re-runs the model from scratch, so it can reach a different verdict
@@ -412,12 +457,12 @@ export async function processResolutionJob({
   // `hasGraduated`: widening it for symmetry with the display-side predicates
   // would let a settled or contested market back in.
   if (!isRunnerEligibleMarketStatus(claimed.market.status)) {
-    const job = await cancelResolutionJob({
-      job: claimed.job,
+    return await standDownResolutionJob({
+      claimed,
+      config,
+      dependencies,
       now,
-      reason: `Market status is ${claimed.market.status}.`,
     });
-    return { job, status: "cancelled" };
   }
 
   try {
@@ -504,6 +549,120 @@ export async function processResolutionJob({
 }
 
 /**
+ * Closes a job whose market the runner may no longer act on, writing the missing
+ * audit row first when the market already carries an on-chain proposal nothing
+ * has explained.
+ *
+ * The rescue re-runs the model, because the attempt that proposed took its
+ * evidence to the grave when its write failed. The verdict still comes from the
+ * chain — {@link reconcileVerdictWithChain} — so a fresh run that changes its
+ * mind annotates the record instead of contradicting it.
+ *
+ * A failure here is deliberately retryable rather than a cancel: leaving the job
+ * alive gives the audit row another chance, and an exhausted job lands in
+ * `terminal_failed`, which is visible, instead of a silent `cancelled`.
+ */
+async function standDownResolutionJob({
+  claimed,
+  config,
+  dependencies,
+  now,
+}: {
+  claimed: ClaimedResolutionJob;
+  config: AiResolutionRunnerConfig;
+  dependencies: ResolutionJobDependencies;
+  now: Date;
+}): Promise<ResolutionJobOutcome> {
+  const reason = `Market status is ${claimed.market.status}.`;
+
+  try {
+    const action = decideStandDownAction({
+      hasResolution: await hasPersistedResolution(claimed.job),
+      status: claimed.market.status,
+    });
+
+    if (action === "cancel") {
+      const job = await cancelResolutionJob({ job: claimed.job, now, reason });
+      return { job, status: "cancelled" };
+    }
+
+    // Read-only by construction: this cannot reach proposeResolution(), so a
+    // market the runner has been told to leave alone stays untouched even if
+    // the indexed status and the contract disagree.
+    const proposal = await dependencies.readOnChainResolutionProposal({
+      chainId: claimed.market.chainId,
+      postgradMarketAddress: claimed.postgradMarketAddress,
+    });
+
+    if (!proposal) {
+      const job = await cancelResolutionJob({ job: claimed.job, now, reason });
+      return { job, status: "cancelled" };
+    }
+
+    const result = await dependencies.resolveMarketWithService({
+      config,
+      request: buildMarketResolutionRequest(claimed),
+    });
+    // The model's own verdict goes in, not the chain's: passing the chain
+    // verdict here would compare it against itself and never record that the
+    // re-run disagreed. Gates are deliberately skipped — the proposal is already
+    // standing, so there is nothing left to hold back.
+    const reconciled = reconcileVerdictWithChain({
+      proposedSide: proposal.proposedSide,
+      result,
+      verdict: result.verdict,
+    });
+
+    const persisted = await persistResolutionJobResult({
+      job: claimed.job,
+      jobCompletion: {
+        reason: `${reason} Recorded the audit row for the proposal already on-chain.`,
+        status: "cancelled",
+      },
+      postgradMarketAddress: claimed.postgradMarketAddress,
+      resolvedAt: proposal.blockTimestamp,
+      result: reconciled.result,
+      verdict: reconciled.verdict,
+    });
+
+    return {
+      job: persisted.job,
+      resolution: persisted.resolution,
+      status: "cancelled",
+    };
+  } catch (error) {
+    const job = await markResolutionJobFailure({
+      error,
+      job: claimed.job,
+      now,
+      retryBaseMs: config.backoffMs,
+    });
+
+    return {
+      job,
+      status: job.status as "retryable_failed" | "terminal_failed",
+    };
+  }
+}
+
+/** Whether this market already has the audit row the job would write. */
+async function hasPersistedResolution(job: MarketResolutionJobRow) {
+  const [existing] = await db
+    .select({ id: schema.marketResolutions.id })
+    .from(schema.marketResolutions)
+    .where(
+      and(
+        eq(schema.marketResolutions.chainId, job.chainId),
+        eq(schema.marketResolutions.marketId, job.marketId),
+        eq(schema.marketResolutions.metadataHash, job.metadataHash),
+      ),
+    )
+    .limit(1);
+
+  return existing !== undefined;
+}
+
+/**
  * Builds the stateless resolution request from persisted rows. Job-level
  * provider/model overrides are honored; market text never chooses provider,
  * model, or web mode.
@@ -555,14 +714,26 @@ export function buildMarketResolutionRequest({
   };
 }
 
+/**
+ * Writes the audit row and closes the job in one transaction. `jobCompletion`
+ * decides how the job closes: `succeeded` for the normal path, `cancelled` for a
+ * stand-down that recorded a proposal it did not make. Either way the row and
+ * the job's pointer at it land together, so the paper trail cannot be half
+ * written.
+ */
 async function persistResolutionJobResult({
   job,
+  jobCompletion = { reason: null, status: "succeeded" },
   postgradMarketAddress,
   resolvedAt,
   result,
   verdict,
 }: {
   job: MarketResolutionJobRow;
+  jobCompletion?: {
+    reason: string | null;
+    status: "cancelled" | "succeeded";
+  };
   postgradMarketAddress: string;
   resolvedAt: Date;
   result: ResolutionResult;
@@ -602,18 +773,20 @@ async function persistResolutionJobResult({
       .update(schema.marketResolutionJobs)
       .set({
         completedAt: resolvedAt,
-        lastError: null,
+        lastError: jobCompletion.reason,
         leaseUntil: null,
         lockedBy: null,
         resolutionId: resolution.id,
-        status: "succeeded",
+        status: jobCompletion.status,
         updatedAt: resolvedAt,
       })
       .where(eq(schema.marketResolutionJobs.id, job.id))
       .returning();
 
     if (!updatedJob) {
-      throw new Error(`Failed to mark resolution job ${job.id} succeeded.`);
+      throw new Error(
+        `Failed to mark resolution job ${job.id} ${jobCompletion.status}.`,
+      );
     }
 
     // Signal the market page + board badge that a resolution decision landed,
@@ -640,6 +813,18 @@ export function isRunnerEligibleMarketStatus(
   status: MarketRow["status"],
 ): boolean {
   return (RUNNER_ELIGIBLE_MARKET_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
+/**
+ * Whether a market the runner may not act on could still be owed an audit row.
+ * See {@link RUNNER_AUDIT_ONLY_MARKET_STATUSES}.
+ */
+export function isRunnerAuditOnlyMarketStatus(
+  status: MarketRow["status"],
+): boolean {
+  return (RUNNER_AUDIT_ONLY_MARKET_STATUSES as readonly string[]).includes(
     status,
   );
 }

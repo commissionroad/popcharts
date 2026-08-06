@@ -177,6 +177,136 @@ beforeEach(async () => {
   await resetDb();
 });
 
+describe("processResolutionJob standing down from a disputed market", () => {
+  // The reported defect, end to end: an attempt proposed on-chain, its audit
+  // write failed, and a dispute landed before the retry. The old code cancelled
+  // here and the reasoning was lost for good — at the exact moment an operator
+  // was being asked to overrule it.
+  it("writes the missing audit row before closing the job", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies();
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("cancelled");
+
+    const resolutions = await readResolutions();
+    expect(resolutions).toHaveLength(1);
+    expect(resolutions[0]).toMatchObject({
+      chainId: CHAIN_ID,
+      marketId: MARKET_ID,
+      metadataHash: METADATA_HASH,
+      postgradMarketAddress: POSTGRAD_MARKET,
+    });
+  });
+
+  it("records the side standing on-chain, not the re-run's own verdict", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies();
+
+    await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    const [resolution] = await readResolutions();
+    // The chain holds YES; this run concluded NO. The money followed YES.
+    expect(resolution?.verdict).toBe("resolve_yes");
+    expect(resolution?.outcome).toBe("no");
+    expect(resolution?.hardFlags).toContain(CHAIN_VERDICT_DIVERGENCE_HARD_FLAG);
+  });
+
+  it("stamps the row with the chain's timestamp, not the wall clock", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies();
+
+    await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    const [resolution] = await readResolutions();
+    expect(resolution?.resolvedAt).toEqual(PROPOSED_AT);
+  });
+
+  it("closes the job as cancelled and points it at the row it wrote", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies();
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    const [resolution] = await readResolutions();
+    const [job] = await dbc
+      .select()
+      .from(schema.marketResolutionJobs)
+      .where(eq(schema.marketResolutionJobs.id, claimed.job.id));
+
+    expect(job).toMatchObject({
+      leaseUntil: null,
+      lockedBy: null,
+      resolutionId: resolution?.id,
+      status: "cancelled",
+    });
+    expect(outcome).toMatchObject({ status: "cancelled" });
+  });
+
+  it("signals the change feed so the market page sees the decision", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies();
+
+    await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    const changes = await dbc.select().from(schema.changeFeed);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      chainId: CHAIN_ID,
+      op: "insert",
+      sourceTable: "market_resolutions",
+    });
+    expect(BigInt(changes[0]?.marketId ?? -1n)).toBe(MARKET_ID);
+  });
+
+  it("leaves a job retryable when the rescue itself fails", async () => {
+    const claimed = await seedClaimedJob("disputed");
+    const { dependencies } = makeDependencies({
+      resolveMarketWithService: async () => {
+        throw new Error("resolution service is down");
+      },
+    });
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    // Cancelling on a transient failure would throw away the last chance to
+    // write the row; a retryable job keeps that chance alive.
+    expect(outcome.status).toBe("retryable_failed");
+    expect(await readResolutions()).toHaveLength(0);
+  });
+});
+
 describe("processResolutionJob on a market whose proposal already stands", () => {
   // `resolution_pending` is an eligible status, so a retry runs the full path.
   // A re-run that abstains submits nothing — but the chain still holds the side

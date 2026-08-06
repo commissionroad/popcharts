@@ -54,6 +54,11 @@ export async function runAiResolutionRunner(
         jobId: outcome.job.id,
         marketId: outcome.job.marketId.toString(),
         metadataHash: outcome.job.metadataHash,
+        // Present only when a stand-down recorded the audit row a market was
+        // still owed, which is otherwise an invisible repair.
+        ...(outcome.status === "cancelled" && outcome.resolution
+          ? { recordedResolutionId: outcome.resolution.id }
+          : {}),
         status: outcome.status,
       });
     }

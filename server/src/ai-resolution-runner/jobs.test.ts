@@ -6,6 +6,8 @@ import {
   buildMarketResolutionRequest,
   CHAIN_VERDICT_DIVERGENCE_HARD_FLAG,
   decideResolutionAction,
+  decideStandDownAction,
+  isRunnerAuditOnlyMarketStatus,
   isRunnerEligibleMarketStatus,
   reconcileVerdictWithChain,
   type ClaimedResolutionJob,
@@ -36,6 +38,42 @@ describe("isRunnerEligibleMarketStatus", () => {
     expect(isRunnerEligibleMarketStatus("resolved")).toBe(false);
     expect(isRunnerEligibleMarketStatus("cancelled")).toBe(false);
     expect(isRunnerEligibleMarketStatus("bootstrap")).toBe(false);
+  });
+});
+
+describe("isRunnerAuditOnlyMarketStatus", () => {
+  it("still owes an audit row for a market carrying an on-chain proposal", () => {
+    expect(isRunnerAuditOnlyMarketStatus("disputed")).toBe(true);
+    expect(isRunnerAuditOnlyMarketStatus("resolved")).toBe(true);
+  });
+
+  it("owes nothing for a market that never reached a proposal", () => {
+    expect(isRunnerAuditOnlyMarketStatus("cancelled")).toBe(false);
+    expect(isRunnerAuditOnlyMarketStatus("bootstrap")).toBe(false);
+    expect(isRunnerAuditOnlyMarketStatus("graduated")).toBe(false);
+  });
+});
+
+describe("decideStandDownAction", () => {
+  // The lost-audit-row case: the attempt that proposed died before writing, and
+  // a disputer moved the market before the retry landed. Cancelling here is what
+  // used to delete the evidence for good.
+  it("records before cancelling when a contested market has no audit row", () => {
+    expect(
+      decideStandDownAction({ hasResolution: false, status: "disputed" }),
+    ).toBe("record_then_cancel");
+  });
+
+  it("just cancels when the audit row is already written", () => {
+    expect(
+      decideStandDownAction({ hasResolution: true, status: "disputed" }),
+    ).toBe("cancel");
+  });
+
+  it("just cancels a market that never carried a proposal", () => {
+    expect(
+      decideStandDownAction({ hasResolution: false, status: "cancelled" }),
+    ).toBe("cancel");
   });
 });
 
