@@ -1818,3 +1818,33 @@ with no per-market enumeration, so a withdrawal cannot iterate the opposite side
 to compute its opposed set. Two routes recorded (per-side coverage unions, or
 off-chain-compute-and-verify following ADR 0006's pattern) with the note that
 this must be resolved *before* P1, since the storage design follows from it.
+
+## [2026-08-05] ingest | server/README.md + sample.env — AI review docs realigned to the code
+Pages: ~summaries/server-readme.md, ~entities/ai-review-service.md, ~index.md
+
+Docs-only realignment after verifying each claim against `server/src`. The
+documented AI review default was `codex-cli`; the code has defaulted to
+`anthropic` over pre-collected evidence (`precollected` + `tavily`) since the
+evidence-mode work, so the default, `TAVILY_API_KEY`, `AI_REVIEW_EVIDENCE_MODE`
+and `AI_REVIEW_SEARCH_PROVIDER` are now documented in `server/sample.env`.
+
+The larger find: **the separate AI review runner no longer exists.**
+`server/src/ai-review-runner/` holds only `corroboration.ts`; the live loop is
+`startDraftReviewRunner()` in `server/src/draft-review/runner.ts`, started
+in-process by `server/src/api/index.ts`. Consequently these documented things
+are all absent from the code — `bun run dev:ai-review-runner`,
+`bun run smoke:ai-review-runner`, `AI_REVIEW_SMOKE_PORT`,
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` (read nowhere),
+`POST /admin/markets/:chainId/:marketId/review` (no `/admin` route exists), and
+`approveMarket`/`rejectMarket` (absent from `server/src`). `market_ai_reviews`
+is retired in favour of `market_draft_reviews` / `market_draft_review_jobs`.
+
+Contradiction flagged, not resolved: `docs/ai-review-runner-design.md` still
+describes the three-process runner, so `entities/ai-review-service.md` carries a
+dated staleness banner instead of a rewrite, per this schema's rule that code is
+ground truth for behaviour but raw sources are not edited during wiki work.
+
+Follow-ups: `docs/ai-review-runner-design.md` and `docs/backend-runtime-architecture.md`
+need the same treatment at their source, and `server/sample.env` still ships
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` and `POPCHARTS_ADMIN_REVIEW_ENABLED`,
+which no server code reads.

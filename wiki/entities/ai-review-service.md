@@ -22,6 +22,19 @@ architecture.
 
 ## Three-process architecture
 
+> **Stale as of 2026-08-05 — flagged, not rewritten.** The code no longer has a
+> separate review runner. `server/src/ai-review-runner/` holds only
+> `corroboration.ts`; the live loop is `startDraftReviewRunner()` in
+> `server/src/draft-review/runner.ts`, started in-process by
+> `server/src/api/index.ts`. It works on `market_draft_review_jobs` /
+> `market_draft_reviews` over off-chain drafts (ADR 0022). `market_ai_reviews`
+> is retired, `approveMarket`/`rejectMarket` appear nowhere in `server/src`, and
+> nothing reads `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`. The description below
+> still reflects `docs/ai-review-runner-design.md`, which has not been updated;
+> per this wiki's schema the contradiction is flagged rather than silently
+> resolved. See [Server README](../summaries/server-readme.md) for the shipped
+> behaviour.
+
 - **Indexer** writes `under_review` projections; no model/web access ever.
 - **Service** (`server/src/ai-review/`, port 3002) — stateless HTTP: metadata
   - optional context in → verdict out. No DB polling or projection writes.
@@ -44,13 +57,18 @@ by `AI_REVIEW_ANTHROPIC_MAX_WEB*\*`). `AI_REVIEW_INTERNET_ACCESS=off|provided_ur
 restricts evidence. Response parsing (verdict/score clamping) is a single
 shared module — a deliberate security control (cleanup program B1).
 
-**Default provider is `codex-cli`** (changed 2026-07-29; `claude-cli` from
-2026-07-25, `ollama` before that): `just local-dev` starts the real
-agent-based path. Local provider latency now follows
+**Default provider is `anthropic` over pre-collected evidence**
+(`AI_REVIEW_EVIDENCE_MODE=precollected`, `AI_REVIEW_SEARCH_PROVIDER=tavily`;
+verified against `server/src/ai-review/config.ts` on 2026-08-05, and previously
+`codex-cli` from 2026-07-29, `claude-cli` from 2026-07-25, `ollama` before
+that). That path needs `ANTHROPIC_API_KEY` and `TAVILY_API_KEY`. The local stack
+overrides all three — `claude-cli`, `native`, `duckduckgo` — in
+`scripts/shared/aiReview/buildAiReviewEnv.ts`, so `just local-dev` starts the
+real agent-based path with no API key. Local provider latency follows
 the durable queue rather than becoming a review result:
 
-- The model has a five-minute local budget; runner request and DB lease limits
-  are longer.
+- The model has a five-minute local budget; the draft review job lease is also
+  five minutes.
 - Transient provider failures remain retryable jobs, with no immutable review
   row, scorecard, or auto-approval.
 - Public market reads report `pending`, `complete`, or `attention_required`;
