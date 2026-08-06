@@ -1,5 +1,12 @@
 # AI Review Next Phase
 
+> **Historical — this is the plan as of PR #42, not the current design.** The
+> "next production-facing phase" proposed below became the on-chain review
+> runner, which ADR 0022 P5 retired on 2026-08-04. The service boundary and the
+> provider argument still hold; the wiring described from "Suggested flow"
+> onward does not. See `server/README.md` ("Draft Review Runner") for what runs
+> today.
+
 ## Status
 
 PR #42 adds a standalone AI review HTTP server under `server/src/ai-review`.
@@ -247,7 +254,8 @@ collector capability:
 The next production-facing phase should wire review into the submitted-market
 flow.
 
-Detailed design: [AI Review Runner Design](ai-review-runner-design.md).
+Detailed design: [AI Review Runner Design](ai-review-runner-design.md)
+(superseded — it carries the same historical banner).
 
 Suggested flow:
 

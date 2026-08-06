@@ -4,7 +4,7 @@ title: Monorepo Architecture (docs/architecture.md)
 description: Workspace map, acyclic dependency graph, committed-generated-code freshness gates, and the two intentional duplications (MarketStatus, LMSR math).
 sources:
   - docs/architecture.md
-updated: 2026-07-26
+updated: 2026-08-06
 ---
 
 # Monorepo Architecture
@@ -27,8 +27,8 @@ disagree, fix one of them in the same PR.
   models for the server API and its `api:check` freshness gate.
 - [`server/`](../entities/server-workspace.md) — Bun + Elysia read API,
   viem event [indexer](../entities/indexer.md), the
-  [AI review service and runner](../entities/ai-review-service.md)
-  (`src/ai-review/`, `src/ai-review-runner/`), the AI resolution service and
+  [AI review service and its in-API draft loop](../entities/ai-review-service.md)
+  (`src/ai-review/`, `src/draft-review/`), the AI resolution service and
   runner (`src/ai-resolution/`, `src/ai-resolution-runner/`), the complete-set
   [clearing keeper](../entities/clearing-keeper.md) (`src/keeper/`),
   Drizzle/PostgreSQL persistence, shared viem client factories

@@ -4,10 +4,18 @@ title: Repo ADR 0011 — AI review service hardening
 description: Vertical ADR to harden the working AI review loop for unattended operation — safe evidence fetching, strict output validation, prompt-version policy, metrics, stuck-job recovery. Manual re-review is a local operator action, not an authenticated API endpoint.
 sources:
   - docs/adr/0011-ai-review-service-hardening.md
-updated: 2026-07-14
+updated: 2026-08-06
 ---
 
 # Repo ADR 0011: AI Review Service Hardening
+
+> **Read the Context as 2026-07-06, not today.** The ADR's Status line was
+> amended on 2026-08-06: the review *service* hardening it specifies still
+> stands, but the on-chain review *path* its Context describes — a review runner
+> process, `approveMarket`/`rejectMarket`, the `market_ai_review_jobs` queue —
+> was retired by [ADR 0022](root-adr-0022-review-first-market-creation.md) P5 on
+> 2026-08-04. Review now runs off-chain against drafts through the same
+> stateless service.
 
 **Status: Accepted.** Dated 2026-07-06. Vertical checklist per ADR 0007
 ([summary](root-adr-0007-track-verticals-with-progress-adrs.md)).

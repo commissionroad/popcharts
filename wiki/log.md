@@ -2016,3 +2016,42 @@ since resolved the staleness banner by marking
 `docs/ai-review-runner-design.md` superseded. The env var names still appearing
 in that doc and in `docs/backend-runtime-architecture.md` now read as
 description of a superseded design, not drift, so nothing is left flagged.
+
+## [2026-08-06] ingest | review-runner drift, the files PRs #502 and #503 did not reach
+Pages: ~summaries/architecture.md, ~summaries/ai-resolution-service-design.md,
+~summaries/ai-review-next-phase.md, ~summaries/root-adr-0011-ai-review-service-hardening.md,
+~entities/ai-review-service.md, ~concepts/market-lifecycle.md
+
+Third pass over the same drift. #502 fixed `docs/ai-review-runner-design.md` and
+`docs/backend-runtime-architecture.md`; #503 fixed `server/sample.env` and this
+wiki's `entities/server-workspace.md`. Neither reached the remaining sources,
+which still described the deleted runner as live: `docs/architecture.md`
+(directory list), `docs/ai-resolution-service-design.md` (the review column of
+the sibling comparison, plus §7 and the config section), `docs/adr/0011` (its
+Context), and `docs/ai-review-next-phase.md` (its proposed next phase *is* the
+retired runner).
+
+**Correction to a claim this wiki and ADR 0022 both carry.** `market_ai_reviews`
+was described as "read-only history with a live reader", legacy rows winning
+where they exist. It was **dropped** — `server/drizzle/0038_romantic_starhawk.sql`
+drops `market_ai_reviews` and `market_ai_review_jobs` together, and
+`getLatestMarketReviews` in `server/src/api/services/markets.ts` queries only the
+draft-review side. The claim was true when ADR 0022 §"resolve by join" was
+written and stopped being true at migration 0038. `entities/ai-review-service.md`
+now says so; #503's `entities/server-workspace.md` already had it right.
+
+Verified against `server/src` on 2026-08-06: no `server/src/ai-review-runner/`
+directory, no review-runner smoke entry point, no `AI_REVIEW_RUNNER_*` config,
+and `startDraftReviewRunner()` called at `server/src/api/index.ts:44`.
+
+Notes / not fixed here:
+- Two comments in `server/src/api/services/markets.ts` (around the
+  `getLatestMarketReviews` doc block) still say legacy `market_ai_reviews` rows
+  win. Stale code comments, not docs — a code change.
+- `scripts/local-dev.ts` and `scripts/local-dev-control.ts` still emit
+  `LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS` / `LOCAL_AI_REVIEW_RUNNER_LEASE_MS`,
+  which nothing reads. Same class as the vars #503 removed.
+- `concepts/market-lifecycle.md` still heads its ADR 0022 section "half built"
+  while the ADR reads "All phases delivered" — ADR 0022's own status drift.
+- `docs/adr/0016`'s dated changelog rows still name `ai-review-runner/jobs.ts`.
+  Left alone: they record what was true on 2026-07-06.
