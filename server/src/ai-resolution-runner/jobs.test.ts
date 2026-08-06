@@ -4,8 +4,10 @@ import type { ResolutionResult } from "src/ai-resolution/types";
 
 import {
   buildMarketResolutionRequest,
+  CHAIN_VERDICT_DIVERGENCE_HARD_FLAG,
   decideResolutionAction,
   isRunnerEligibleMarketStatus,
+  reconcileVerdictWithChain,
   type ClaimedResolutionJob,
   type MarketMetadataRow,
   type MarketResolutionJobRow,
@@ -34,6 +36,77 @@ describe("isRunnerEligibleMarketStatus", () => {
     expect(isRunnerEligibleMarketStatus("resolved")).toBe(false);
     expect(isRunnerEligibleMarketStatus("cancelled")).toBe(false);
     expect(isRunnerEligibleMarketStatus("bootstrap")).toBe(false);
+  });
+});
+
+describe("reconcileVerdictWithChain", () => {
+  const result: ResolutionResult = {
+    confidence: 0.9,
+    evidence: [],
+    hardFlags: ["sources_disagree"],
+    outcome: "no",
+    promptVersion: "v1",
+    provider: "anthropic",
+    reasons: ["The model's own reason."],
+    sourceChecks: [],
+    verdict: "resolve_no",
+  };
+
+  it("leaves an agreeing verdict untouched", () => {
+    expect(
+      reconcileVerdictWithChain({
+        proposedSide: "no",
+        result,
+        verdict: "resolve_no",
+      }),
+    ).toEqual({ result, verdict: "resolve_no" });
+  });
+
+  // A retry re-runs the model from scratch, so it can reach a verdict the chain
+  // never acted on. The chain moved the money, so the chain wins the column.
+  it("records the on-chain side when the re-run disagrees", () => {
+    const reconciled = reconcileVerdictWithChain({
+      proposedSide: "yes",
+      result,
+      verdict: "resolve_no",
+    });
+
+    expect(reconciled.verdict).toBe("resolve_yes");
+    expect(reconciled.result.hardFlags).toEqual([
+      "sources_disagree",
+      CHAIN_VERDICT_DIVERGENCE_HARD_FLAG,
+    ]);
+  });
+
+  // A re-run that abstains still disagrees with a proposal that was acted on,
+  // and an operator adjudicating the dispute needs to see that gap.
+  it("flags a re-run that would not have decided at all", () => {
+    const reconciled = reconcileVerdictWithChain({
+      proposedSide: "yes",
+      result: { ...result, outcome: "abstain", verdict: "manual_review" },
+      verdict: "manual_review",
+    });
+
+    expect(reconciled.verdict).toBe("resolve_yes");
+    expect(reconciled.result.hardFlags).toContain(
+      CHAIN_VERDICT_DIVERGENCE_HARD_FLAG,
+    );
+  });
+
+  it("keeps the disagreeing run's own outcome and reasons readable", () => {
+    const reconciled = reconcileVerdictWithChain({
+      proposedSide: "yes",
+      result,
+      verdict: "resolve_no",
+    });
+
+    // The model's conclusion is evidence about the dispute, not something to
+    // overwrite — only the acted-on verdict comes from the chain.
+    expect(reconciled.result.outcome).toBe("no");
+    expect(reconciled.result.reasons).toEqual([
+      "Recorded resolve_yes to match the proposal already on-chain; this run concluded resolve_no.",
+      "The model's own reason.",
+    ]);
   });
 });
 

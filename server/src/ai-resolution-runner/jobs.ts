@@ -1,3 +1,5 @@
+import type { MarketSide } from "@popcharts/protocol";
+
 import type {
   MarketResolutionOptions,
   MarketResolutionRequest,
@@ -7,7 +9,13 @@ import type {
 import { and, asc, db, desc, eq, inArray, schema, sql } from "src/db/client";
 import { recordLiveChange } from "src/change-feed/writer";
 
-import { proposeMarketResolutionOnChain } from "./chain-resolution";
+import {
+  chainSideVerdict,
+  type MarketResolutionProposalResult,
+  type OnChainResolutionProposal,
+  proposeMarketResolutionOnChain,
+  readOnChainResolutionProposal,
+} from "./chain-resolution";
 import { resolveMarketWithService } from "./client";
 import type { AiResolutionRunnerConfig } from "./config";
 import {
@@ -42,8 +50,14 @@ export type ClaimedResolutionJob = {
   postgradMarketAddress: `0x${string}`;
 };
 
+/**
+ * The chain and model calls one job makes, injectable so tests drive the whole
+ * path without an RPC or a provider. The read-only chain call is separate from
+ * the propose call on purpose: the stand-down path is handed only the former.
+ */
 export type ResolutionJobDependencies = {
   proposeMarketResolutionOnChain: typeof proposeMarketResolutionOnChain;
+  readOnChainResolutionProposal: typeof readOnChainResolutionProposal;
   resolveMarketWithService: typeof resolveMarketWithService;
 };
 
@@ -67,6 +81,14 @@ const RUNNER_ELIGIBLE_MARKET_STATUSES = [
   "graduated",
   "resolution_pending",
 ] as const;
+
+/**
+ * Marks an audit row whose verdict was taken from the chain because the model
+ * re-run disagreed with the proposal already standing. Reading it means: trust
+ * `verdict` for what happened, and `outcome`/`reasons` for what a later look at
+ * the evidence concluded.
+ */
+export const CHAIN_VERDICT_DIVERGENCE_HARD_FLAG = "chain_verdict_divergence";
 
 /**
  * Terminal state of one processing attempt: cancelled (market left the
@@ -333,7 +355,43 @@ export function decideResolutionAction({
 }
 
 /**
- * Runs one claimed job end to end: cancels if the market left the resolvable
+ * Reconciles a model verdict against the proposal the chain actually carries.
+ *
+ * A retry re-runs the model from scratch, so it can reach a different verdict
+ * than the attempt that proposed — fresh evidence, a changed source, a
+ * non-deterministic model. The chain is the act that moved money, so it wins the
+ * `verdict` column; the model's own `outcome` and `reasons` are preserved
+ * untouched, and the disagreement is recorded rather than silently discarded.
+ */
+export function reconcileVerdictWithChain({
+  proposedSide,
+  result,
+  verdict,
+}: {
+  proposedSide: MarketSide;
+  result: ResolutionResult;
+  verdict: ResolutionVerdict;
+}): { result: ResolutionResult; verdict: ResolutionVerdict } {
+  const chainVerdict = chainSideVerdict(proposedSide);
+  if (chainVerdict === verdict) {
+    return { result, verdict };
+  }
+
+  return {
+    result: {
+      ...result,
+      hardFlags: [...result.hardFlags, CHAIN_VERDICT_DIVERGENCE_HARD_FLAG],
+      reasons: [
+        `Recorded ${chainVerdict} to match the proposal already on-chain; this run concluded ${verdict}.`,
+        ...result.reasons,
+      ],
+    },
+    verdict: chainVerdict,
+  };
+}
+
+/**
+ * Runs one claimed job end to end: stands down if the market left the resolvable
  * statuses, calls the resolution service, applies the per-outcome gates,
  * submits proposeResolution() on confident in-window YES/NO, and persists the
  * audit row atomically with job completion. On error it schedules a backed-off
@@ -384,28 +442,51 @@ export async function processResolutionJob({
       return { job, status: "requeued" };
     }
 
-    const proposal = decision.submit
-      ? await dependencies.proposeMarketResolutionOnChain({
-          chainId: claimed.market.chainId,
-          postgradMarketAddress: claimed.postgradMarketAddress,
+    // A non-submitting verdict still needs the chain read. `resolution_pending`
+    // is an eligible status, so a re-run that lands on manual_review or
+    // cancel_draw can be looking at a market whose proposal already stands —
+    // writing its own verdict there would contradict the act that moved the
+    // money. Reading returns null for a market carrying no proposal, which is
+    // every `graduated` job, so the cost is one status() call.
+    const proposal:
+      MarketResolutionProposalResult | OnChainResolutionProposal | null =
+      decision.submit
+        ? await dependencies.proposeMarketResolutionOnChain({
+            chainId: claimed.market.chainId,
+            postgradMarketAddress: claimed.postgradMarketAddress,
+            verdict: decision.verdict,
+          })
+        : await dependencies.readOnChainResolutionProposal({
+            chainId: claimed.market.chainId,
+            postgradMarketAddress: claimed.postgradMarketAddress,
+          });
+
+    // A proposal this run did not submit — an earlier attempt of this same job,
+    // or another actor — means the chain holds a side this run never chose.
+    // Record what the chain holds, not what this run happened to reach.
+    const reconciled = proposal
+      ? reconcileVerdictWithChain({
+          proposedSide: proposal.proposedSide,
+          result,
           verdict: decision.verdict,
         })
-      : null;
+      : { result, verdict: decision.verdict };
 
     const persisted = await persistResolutionJobResult({
       job: claimed.job,
       postgradMarketAddress: claimed.postgradMarketAddress,
       resolvedAt: proposal?.blockTimestamp ?? now,
-      result,
-      verdict: decision.verdict,
+      result: reconciled.result,
+      verdict: reconciled.verdict,
     });
 
     return {
       job: persisted.job,
-      proposedOnChain: proposal?.kind === "proposed",
+      proposedOnChain:
+        proposal !== null && "kind" in proposal && proposal.kind === "proposed",
       resolution: persisted.resolution,
       status: "succeeded",
-      verdict: decision.verdict,
+      verdict: reconciled.verdict,
     };
   } catch (error) {
     const job = await markResolutionJobFailure({
@@ -565,5 +646,6 @@ export function isRunnerEligibleMarketStatus(
 
 const defaultResolutionJobDependencies: ResolutionJobDependencies = {
   proposeMarketResolutionOnChain,
+  readOnChainResolutionProposal,
   resolveMarketWithService,
 };
