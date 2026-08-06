@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Market } from "@/domain/markets/types";
 import { useDispute } from "@/integrations/contracts/hooks/use-dispute";
+import { useFinalize } from "@/integrations/contracts/hooks/use-finalize";
 import { useMarketDisputeState } from "@/integrations/contracts/hooks/use-market-dispute-state";
 import type { MarketDisputeSnapshot } from "@/integrations/contracts/market-dispute-state";
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
@@ -12,6 +13,9 @@ import { marketFactory } from "@/test/factories/markets";
 import { MarketDisputePanel } from "./market-dispute-panel";
 
 vi.mock("@/integrations/contracts/hooks/use-dispute", () => ({ useDispute: vi.fn() }));
+vi.mock("@/integrations/contracts/hooks/use-finalize", () => ({
+  useFinalize: vi.fn(),
+}));
 vi.mock("@/integrations/contracts/hooks/use-market-dispute-state", () => ({
   useMarketDisputeState: vi.fn(),
 }));
@@ -25,6 +29,7 @@ const MARKET_ADDRESS = "0x2222222222222222222222222222222222222222";
 const NOW = 1_700_000_000_000;
 const CHAIN = { id: 31337, name: "Hardhat Local" };
 const dispute = vi.fn();
+const finalize = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +38,13 @@ beforeEach(() => {
   vi.mocked(useDispute).mockReturnValue({
     dispute,
     error: null,
+    result: null,
+    status: "idle",
+    step: null,
+  });
+  vi.mocked(useFinalize).mockReturnValue({
+    error: null,
+    finalize,
     result: null,
     status: "idle",
     step: null,
@@ -163,7 +175,7 @@ describe("MarketDisputePanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("counts down once a second and disables the button when the window closes", () => {
+  it("counts down once a second and offers settlement when the window closes", () => {
     const setInterval = vi.spyOn(window, "setInterval");
     render(<MarketDisputePanel market={graduatedMarket()} />);
 
@@ -173,8 +185,10 @@ describe("MarketDisputePanel", () => {
       tick();
     });
 
-    expect(screen.getByText(/the dispute window has closed/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /dispute/i })).toBeDisabled();
+    expect(screen.getByText("Ready to settle")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /settle this market/i })).toBeEnabled();
+    // Disputing is over, so the bonded action must not still be on offer.
+    expect(screen.queryByRole("button", { name: /dispute/i })).not.toBeInTheDocument();
   });
 
   it("drops the hours segment inside the last hour of the window", () => {
@@ -315,6 +329,120 @@ describe("MarketDisputePanel", () => {
     expect(
       screen.getByText(/Someone disputed the proposed an outcome outcome/)
     ).toBeInTheDocument();
+  });
+});
+
+// The window has closed but the contract still says pending. The keeper finds
+// pending markets through the indexed status, so the only way a person sees
+// this state is that the keeper does not know the market is here — settling by
+// hand is the recovery, and `finalizeResolution()` is permissionless so any
+// viewer can do it.
+describe("MarketDisputePanel settlement", () => {
+  beforeEach(() => {
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: null,
+      loading: false,
+      snapshot: snapshotFixture({ deadline: (NOW - 1_000) / 1_000 }),
+    });
+  });
+
+  it("says the outcome stands and costs nothing beyond the network fee", () => {
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByText(/The dispute window has closed/)).toBeInTheDocument();
+    expect(screen.getByText(/you pay only the network fee/)).toBeInTheDocument();
+    // No bond warning: this action moves no collateral from the caller.
+    expect(screen.queryByText(/Your money is at risk/)).not.toBeInTheDocument();
+  });
+
+  it("settles the market contract when clicked", () => {
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /settle this market/i }));
+
+    expect(finalize).toHaveBeenCalledWith(MARKET_ADDRESS);
+  });
+
+  it.each([
+    ["finalizing", "Settling…"],
+    ["confirming", "Confirming…"],
+  ] as const)("names the in-flight transaction while %s", (step, label) => {
+    vi.mocked(useFinalize).mockReturnValue({
+      error: null,
+      finalize,
+      result: null,
+      status: "pending",
+      step,
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByRole("button", { name: label })).toBeDisabled();
+  });
+
+  it("tells a disconnected viewer to connect before settling", () => {
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: null }));
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByRole("button", { name: /settle this market/i })).toBeDisabled();
+    expect(
+      screen.getByText("Connect a wallet to settle this market.")
+    ).toBeInTheDocument();
+  });
+
+  it("tells a wrong-chain viewer which network to switch to", () => {
+    vi.mocked(useWalletAccount).mockReturnValue(walletState({ activeChainId: 1 }));
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByRole("button", { name: /settle this market/i })).toBeDisabled();
+    expect(
+      screen.getByText("Switch your wallet to Hardhat Local to settle this market.")
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a failed settlement", () => {
+    vi.mocked(useFinalize).mockReturnValue({
+      error: "This market was settled before your transaction landed.",
+      finalize,
+      result: null,
+      status: "error",
+      step: null,
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(
+      screen.getByText("This market was settled before your transaction landed.")
+    ).toBeInTheDocument();
+  });
+
+  it("keeps confirming the settlement after the contract reads back as resolved", () => {
+    vi.mocked(useFinalize).mockReturnValue({
+      error: null,
+      finalize,
+      result: {
+        transactionHash: `0x${"ef".repeat(32)}`,
+        winningSide: "no",
+      },
+      status: "success",
+      step: null,
+    });
+    // What the very next on-chain read reports once the market settles. Without
+    // the success branch this blanks the panel out from under the person who
+    // just signed for it.
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: null,
+      loading: false,
+      snapshot: snapshotFixture({ phase: "none" }),
+    });
+
+    render(<MarketDisputePanel market={graduatedMarket()} />);
+
+    expect(screen.getByText("Market settled")).toBeInTheDocument();
+    expect(screen.getByText(/You settled this market to/)).toBeInTheDocument();
+    expect(screen.getByText(/Redemption opens here/)).toBeInTheDocument();
   });
 });
 
