@@ -44,7 +44,7 @@ The doc now carries this table, each row checked against code:
 
 | Described | State |
 | --- | --- |
-| `server/src/ai-review-runner/index.ts` entrypoint | Absent; the directory holds only `corroboration.ts` + test |
+| `server/src/ai-review-runner/index.ts` entrypoint | Absent; the whole directory is gone (its last orphaned files deleted 2026-08-06) |
 | `dev:`/`start:`/`smoke:ai-review-runner` scripts | Absent from `server/package.json` |
 | `market_ai_review_jobs`, `market_ai_reviews` | Retired with ADR 0022 P5; live tables are `market_draft_review_jobs`, `market_draft_reviews` |
 | `POST /admin/markets/:chainId/:marketId/review` | No `/admin` route exists |

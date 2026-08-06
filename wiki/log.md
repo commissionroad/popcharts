@@ -1968,3 +1968,10 @@ Not resolved: the indexer row still says "chain events + ~15s sweep". The only
 sweep in `indexer/index.ts` is a 2s recovery poll gated on `config.name ===
 "local"`, so the prod trigger story needs its own check — left alone rather than
 swapped for a second unverified claim.
+
+Amended before landing: PR #498 (`c276473a`) landed mid-review and deleted the
+orphaned `corroboration.ts` + test, **emptying `server/src/ai-review-runner/`**.
+Claims written hours earlier said the directory "holds only `corroboration.ts`
+and its test". All four now say the directory is gone. The ADR 0019
+corroboration module survives only under `ai-resolution-runner/`, still imported
+by nothing but its own test.

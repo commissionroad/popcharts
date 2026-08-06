@@ -256,15 +256,17 @@ indexer writes in the same transaction as each indexed event.
 ## Status notes and known gaps (rechecked 2026-08-06)
 
 - **Corroboration is still not wired into the live path.** The multi-run
-  agreement policy (ADR 0019) is defined and tested in `corroboration.ts` under
-  both `server/src/ai-review-runner/` and `server/src/ai-resolution-runner/`,
-  but neither module is imported by anything except its own test.
-  `processResolutionJob` calls the service once and commits, including the
-  irreversible on-chain action. Confirm this before relying on corroboration to
-  gate on-chain resolution. (The review-side `processReviewJob` named in the
-  2026-07-24 version of this note no longer exists.)
-- **`corroboration.ts` is now the only file left in `ai-review-runner/`.** The
-  directory is a leftover of the retired runner, not a live process.
+  agreement policy (ADR 0019) survives only in
+  `server/src/ai-resolution-runner/corroboration.ts`, which nothing imports
+  except its own test. `processResolutionJob` calls the service once and
+  commits, including the irreversible on-chain action. Confirm this before
+  relying on corroboration to gate on-chain resolution. (The review-side
+  `processReviewJob` named in the 2026-07-24 version of this note no longer
+  exists.)
+- **`server/src/ai-review-runner/` is gone entirely.** Its last two files — an
+  orphaned `corroboration.ts` and its test, which had no caller — were deleted
+  on 2026-08-06, emptying the directory. Nothing named for the review runner
+  remains in `server/src`.
 - **ADR 0022 landed, and this doc's 2026-07-24 prediction was half right.** The
   producer did change from the indexer to the API, and the on-chain
   `approve / reject` output and `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` did go

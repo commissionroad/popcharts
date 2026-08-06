@@ -45,7 +45,7 @@ Each row was checked against the code, not against the surrounding prose.
 
 | Described below                                                       | State on 2026-08-06                                                                                                                          |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| A runner entrypoint at `server/src/ai-review-runner/index.ts`         | Absent. That directory holds only `corroboration.ts` and its test.                                                                           |
+| A runner entrypoint at `server/src/ai-review-runner/index.ts`         | Absent. The whole `server/src/ai-review-runner/` directory is gone — its last two files, an orphaned `corroboration.ts` and its test, were deleted on 2026-08-06. |
 | `dev:ai-review-runner`, `start:ai-review-runner`, `smoke:ai-review-runner` | Absent from `server/package.json`.                                                                                                       |
 | `market_ai_review_jobs` and `market_ai_reviews`                       | Retired with ADR 0022 P5 (`server/src/db/schema/market-draft-reviews.ts:23`). The live tables are `market_draft_review_jobs` and `market_draft_reviews`. |
 | `POST /admin/markets/:chainId/:marketId/review`                       | No `/admin` route exists in `server/src`.                                                                                                    |
