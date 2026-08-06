@@ -1,8 +1,67 @@
 # AI Review Runner Design
 
-Status: Runner foundation, manual enqueue, and local smoke implemented
+Status: **Superseded by [ADR 0022](adr/0022-review-first-market-creation.md).**
+The separate runner process designed here was built and has since been removed.
+This document is kept as the design record for the leased-job pattern that
+survived into draft review.
 
-Date: 2026-06-23
+Date: 2026-06-23. Supersession verified against `server/src` on 2026-08-06.
+
+## What replaced this design
+
+Review no longer runs in its own process, and it no longer reviews on-chain
+markets. ADR 0022 moved review off-chain onto editable drafts, before any market
+exists. The live path:
+
+- A creator submits a draft. The same transaction moves the draft to
+  `in_review` and inserts one `market_draft_review_jobs` row
+  (`server/src/api/services/market-drafts.ts:511`), so review is never queued
+  for content that was not validated.
+- `startDraftReviewRunner()` polls that table once a second
+  (`server/src/draft-review/runner.ts:303`). The API starts it in-process when
+  it runs as the main module (`server/src/api/index.ts:44`). There is no
+  separate runner process to run or deploy.
+- Each sweep claims up to three due jobs under a five-minute lease using
+  `FOR UPDATE SKIP LOCKED`, reviews the submitted draft snapshot, and writes one
+  `market_draft_reviews` row.
+- The verdict moves the draft, never a market: `approve` to `approved`, `reject`
+  to `rejected`, and anything else to `changes_requested`
+  (`server/src/api/services/market-drafts.ts:581-586`).
+- A failed attempt retries with exponential backoff from 15 seconds, capped at
+  five minutes. After the last attempt the draft returns to `editing` and no
+  review row is written.
+- The loop calls `reviewMarket()` in process. It does not call the AI Review
+  HTTP service over HTTP. That service still exists
+  (`server/src/ai-review/server.ts`, port 3002, `bun run start:ai-review`), but
+  its only remaining HTTP caller is the offline eval harness
+  (`server/src/ai-review/evals/run-review-evals.ts`).
+
+`server/README.md` documents the shipped behaviour and is the operational
+reference. This document is not.
+
+## What this design describes that does not exist
+
+Each row was checked against the code, not against the surrounding prose.
+
+| Described below                                                       | State on 2026-08-06                                                                                                                          |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| A runner entrypoint at `server/src/ai-review-runner/index.ts`         | Absent. That directory holds only `corroboration.ts` and its test.                                                                           |
+| `dev:ai-review-runner`, `start:ai-review-runner`, `smoke:ai-review-runner` | Absent from `server/package.json`.                                                                                                       |
+| `market_ai_review_jobs` and `market_ai_reviews`                       | Retired with ADR 0022 P5 (`server/src/db/schema/market-draft-reviews.ts:23`). The live tables are `market_draft_review_jobs` and `market_draft_reviews`. |
+| `POST /admin/markets/:chainId/:marketId/review`                       | No `/admin` route exists in `server/src`.                                                                                                    |
+| `POPCHARTS_ADMIN_REVIEW_ENABLED`                                      | Written by the local stack's env scripts. Read by no server code.                                                                            |
+| `approveMarket` and `rejectMarket` on-chain transitions               | Absent from `server/src`. ADR 0022 P5 removed the on-chain review machinery.                                                                 |
+| `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`                                | Read by no code. Still declared in `server/sample.env:26`, which is a known leftover. Draft review holds no chain key.                        |
+| The `AI_REVIEW_RUNNER_*` env vars                                     | None exist. Interval, batch size, lease, and backoff are constants in `server/src/draft-review/runner.ts:23-25`.                              |
+| `markets` status transitions to `bootstrap` or `rejected`             | Draft review moves the `market_drafts` row, never a market. (`rejected` is also a draft status; do not confuse the two.)                      |
+| `AI_REVIEW_SMOKE_PORT`                                                | Defined and read by nothing. No smoke entrypoint exists for it to configure.                                                                 |
+
+Everything below this line is the original design, dated 2026-06-23. It is kept
+for the reasoning behind the leased-job queue, the argument for polling as a
+recovery mechanism, and the retry semantics — all of which survived into draft
+review. Read it as history, not as a description of the system.
+
+---
 
 ## Context
 
@@ -345,6 +404,13 @@ local path.
 
 ## Manual Trigger
 
+> **Superseded — this endpoint was never built and has no route.** `server/src`
+> exposes no `/admin` path, and no server code reads
+> `POPCHARTS_ADMIN_REVIEW_ENABLED`. There is no operator re-review trigger.
+> Re-review is creator-driven: the owner resubmits a draft that is `editing`,
+> `changes_requested`, or `rejected`, which enqueues a fresh job
+> (`server/src/api/services/market-drafts.ts:49-53`).
+
 Add an internal API endpoint on the server API, not on the AI Review service:
 
 ```text
@@ -385,6 +451,11 @@ The endpoint should enqueue work. It should not call the AI Review service
 directly.
 
 ## Process Shape
+
+> **Superseded — none of this shape exists.** There is no runner entrypoint, no
+> `ai-review-runner` package script, and no `AI_REVIEW_RUNNER_*` env var. Draft
+> review is a polling loop inside the API process; see "What replaced this
+> design" above. Do not run the commands below.
 
 Add a new runtime entrypoint:
 

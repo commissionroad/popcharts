@@ -17,7 +17,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Testing strategy](concepts/testing-strategy.md) — Solidity-first layers, whitepaper golden tests, smoke tiers, and the e2e launch gate
 - [Deployment and infrastructure](concepts/deployment-and-infrastructure.md) — Vercel frontend live (2026-07-14); AWS CDK backend + Arc protocol still M5
 - [Monorepo architecture](concepts/monorepo-architecture.md) — acyclic workspace contract and the intentional-duplication doctrine
-- [Backend drain-loop pattern](concepts/backend-drain-loop-pattern.md) — the one shape every backend process shares (a long-lived loop draining a durable seam, crash-recovered from the DB) and why the two AI subsystems add an isolated stateless service on top
+- [Backend drain-loop pattern](concepts/backend-drain-loop-pattern.md) — the one shape every backend process shares (a long-lived loop draining a durable seam, crash-recovered from the DB), why resolution isolates its model call behind a stateless service, and why draft review folded back into the API
 - [Local dev orchestration](concepts/local-dev-orchestration.md) — the just/manifest-driven local stacks, now becoming slot-addressed concurrent instances (ADR 0020)
 - [Product honesty rule](concepts/product-honesty-rule.md) — the tested never-imply-a-guaranteed-fill copy contract
 - [Price stream](concepts/price-stream.md) — how a trade becomes a chart point in both lifecycle halves, and why only one half can append incrementally
@@ -34,7 +34,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [app/ workspace](entities/app-workspace.md) — Next.js frontend, domain-first layout, Privy auth
 - [server/ workspace](entities/server-workspace.md) — Bun/Elysia API, DB, and AI review processes
 - [Indexer](entities/indexer.md) — viem chain ingestion and rebuildable projections
-- [AI review service](entities/ai-review-service.md) — moderation/knowability service + durable pending/retry lifecycle gating market entry
+- [AI review service and draft review loop](entities/ai-review-service.md) — moderation/knowability review over off-chain drafts, run as a leased-queue loop inside the API; no separate runner process and no chain key
 - [designkit/](entities/designkit.md) — read-only design-system source of truth
 - [Devchain](entities/devchain.md) — local Hardhat proving ground for every exit criterion
 - [Arc Testnet](entities/arc-testnet.md) — target network: chain 5042002, dual-decimal USDC, self-hosted v4
@@ -103,7 +103,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [Root README](summaries/root-readme.md) — quickstart, local stacks, just menu
 - [Architecture](summaries/architecture.md) — workspace map, dependency contract, intentional duplications
 - [Devchain](summaries/devchain.md) — local e2e flow, postgrad local deploy, Arc config
-- [AI review runner design](summaries/ai-review-runner-design.md) — the durable-job runner bridging projections to the review service
+- [AI review runner design](summaries/ai-review-runner-design.md) — **superseded by ADR 0022**; the design record for the removed standalone runner, plus what replaced it
 - [AI review next phase](summaries/ai-review-next-phase.md) — provider triad, service split rationale, AWS shape, injection defenses
 - [AI resolution service & runner design](summaries/ai-resolution-service-design.md) — the ADR 0012 design: resolution as a sibling of review, per-outcome temporal gates, on-chain floor guard, 0.85/24h safety valves
 - [AI verdict failure taxonomy](summaries/ai-verdict-failure-taxonomy.md) — the ADR 0019 classification: WHAT/WHERE/WHEN resolvability contract from Kalshi/Polymarket practice, failure classes with calibrated verdicts, six real disputes mapped to eval seed cases
