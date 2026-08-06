@@ -7,14 +7,16 @@ sources:
   - app/docs/adr/0002-styling-and-design-system.md
   - app/docs/component-inventory.md
   - protocol/CONSTITUTION.md
-updated: 2026-07-07
+updated: 2026-08-06
 ---
 
 # designkit/
 
 Reference material, not a code workspace: brand assets, design tokens,
 component guidelines. Production code **adapts** kit references (8 of the
-app's 12 shared components trace to it), never copies inline-style JSX;
+app's 15 shared components trace to it — the kit's reference set has not grown
+since it was written, so every component added since is kit-less), never
+copies inline-style JSX;
 Tailwind v4 maps to the kit's semantic tokens
 ([app ADR 0002](../summaries/app-adr-0002-styling-and-design-system.md)).
 

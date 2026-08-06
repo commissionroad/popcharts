@@ -1849,6 +1849,85 @@ need the same treatment at their source, and `server/sample.env` still ships
 `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` and `POPCHARTS_ADMIN_REVIEW_ENABLED`,
 which no server code reads.
 
+## [2026-08-06] lint | component-inventory misses again (4×) and is now 3 components behind; three exported charts untracked at the source
+Pages: ~summaries/app-component-inventory.md, ~entities/designkit.md, ~index.md
+Notes: Organic ingestion since last lint: **8/15 doc-touching commits
+self-ingested**. Of the 7 misses, 2 owed nothing (233367e8, 7dc6a5fb are
+screenshot-only adds) and 1 was covered by siblings in the same ADR 0022 stack
+(578caff2 → d1316e1c/1d1c14b7/9c9f6650). That leaves **4 real misses, and all
+four are `app/docs/component-inventory.md`** (190dd125, 8aad55bf, b366a8d9,
+98dd4d99) — the exact file the 2026-08-05 entry named as the one systematic
+failure, with the note that "if it misses again the rule itself is the problem,
+not the sessions". It missed again, four times, inside 24 hours. Recording that
+verdict plainly: the per-session ingest rule is not reaching this file, and the
+next pass should treat it as a process fix (a check in the
+`component-inventory` skill itself) rather than another manual catch-up.
+
+PR #496 (b0866c78, AI review operational docs) self-ingested cleanly —
+`summaries/server-readme.md` + `entities/ai-review-service.md` + index + log in
+the same commit. That is the pattern working.
+
+**The catch-up ingest, done properly this time.** The page claimed twelve
+components; there are **fifteen**. Three landed unrecorded: `ReviewCreditCard`
+(prepaid credit position, tones by runs left, renders nothing when the credit
+is null/unmetered/zero-priced), `ReviewScoreBreakdown` (the single definition
+of the seven reviewer dimensions), and `SmallMetric`. Verified against code,
+not taken from the doc: `LOW_CREDIT_RUNS = 3` and
+`REVIEW_SCORE_DIMENSIONS` carries exactly seven entries with `invertsRisk:
+true` on two of them.
+
+`ReviewScoreBreakdown` earned a product-honesty cross-link rather than a bare
+row. The two dimensions the reviewer scores as *risks* are inverted and renamed
+to the safety they imply (Dispute resistance, Prompt injection security) so
+five filled bars is the best outcome on every row. A "high is bad" row sitting
+among "high is good" rows reads as a score and gets misread — same family of
+measure as the honesty rule's other clauses.
+
+**`PriceCurve`'s two-list API is gone, and this page was still documenting
+it.** The 2026-08-03 section described `postgradPoints` + `graduatedAt` as the
+way the chart spans both mechanisms. ADR 0025 P4 replaced that with one
+phase-blind `points` list (`{at?, yesCents, noCents}`); `graduatedAt` survives
+only as an annotation. The page's own reasoning is what makes the merge safe
+and is now stated that way: carrying both prices per point instead of deriving
+NO from YES is precisely what lets one list serve a shared-LMSR phase and two
+independent pools. Rewritten rather than patched — the old section's premise
+was the API.
+
+Two findings in the raw source, flagged not edited:
+- `Last audited: 2026-07-02` while the table changed in five commits through
+  2026-08-05. The header is stale, the rows are current.
+- **Three exported components under `app/src/components/charts/` have no
+  inventory row** since 2026-07-09: `MatchingBandsGraphic`,
+  `MatchingBandsHeatmap`, `ReceiptAnatomyView`. Checked the call sites before
+  writing this down — the latter two are imported only by their own stories and
+  tests, and the first only by those two, so all three are Storybook-only
+  mechanism explainers. That is probably why they were skipped, but the doc's
+  scope sentence carries no production-use qualifier, so the source is either
+  three rows short or one sentence too wide. The inventory's next audit has to
+  pick one.
+
+Integrity swept clean: 0 broken wiki-internal links, 0 pages missing from
+`index.md`, 0 orphans, 0 raw sources unreferenced by any page, and **34/34 ADRs
+have a summary** — the per-ADR coverage check the last entry asked for is now
+run and passing.
+
+Staleness: **28 (page, source) pairs**, up from 26. Three pages fixed here; the
+rest are date-evidence only and were again left rather than bulk-rewritten. The
+oldest cluster is unchanged — `protocol/docs/postgrad-contract-metadata.md`
+(2026-08-04) feeding four entity pages that have not moved since mid-July.
+
+Follow-ups for next lint:
+- **Schema vs practice, needs a decision.** `wiki/CLAUDE.md` says the
+  frontmatter `description:` is "used verbatim in `index.md`". In practice
+  **99 of 101** index rows carry a shortened hook instead. Two working
+  conventions, one written rule. Amend the schema to describe the hook (cheap,
+  matches reality) rather than rewrite 99 rows — but that is a schema change,
+  so it is proposed here, not taken.
+- Still open from 2026-08-05, unresolved at the source: ADR 0023 and ADR 0025
+  both read `Status: Proposed` while their checklists are complete.
+- `app/docs/component-inventory.md` — if the next pass finds a fifth missed
+  commit, stop catching it up by hand and fix the skill.
+
 ## [2026-08-06] ingest | docs/ai-review-runner-design.md + docs/backend-runtime-architecture.md — the two remaining stale runner sources
 Pages: ~summaries/ai-review-runner-design.md, ~concepts/backend-drain-loop-pattern.md, ~entities/ai-review-service.md, ~index.md
 

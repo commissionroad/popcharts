@@ -123,7 +123,7 @@ Start at [overview.md](overview.md) for orientation. Maintenance rules:
 - [App ADR 0003](summaries/app-adr-0003-domain-first-module-layout.md) — domain-first module boundaries
 - [App ADR 0004](summaries/app-adr-0004-testing-and-ci-gates.md) — layered testing and required CI gates
 - [App ADR 0005](summaries/app-adr-0005-code-quality-and-dependency-policy.md) — strict TS quality stack and ADR-gated dependencies
-- [Component inventory](summaries/app-component-inventory.md) — the twelve shared UI components and designkit mappings
+- [Component inventory](summaries/app-component-inventory.md) — the fifteen shared UI components and designkit mappings; three exported chart components are untracked
 - [App resolution README](summaries/app-domain-resolution-readme.md) — resolution is an intentional placeholder
 - [App integrations README](summaries/app-integrations-readme.md) — adapters-only boundary rule
 - [Server README](summaries/server-readme.md) — API + indexer + AI review setup (anthropic over pre-collected evidence by default, claude-cli locally), the in-API draft review runner, endpoints, smoke flows
