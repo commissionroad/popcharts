@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Server README
-description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and in-process draft-review runner (codex-cli by default), local chain smoke, indexed PregradManager events, and key endpoints
+description: Bun/Elysia API + viem indexer workspace — local setup, AI review service (anthropic + pre-collected evidence by default), the in-API draft review runner, local chain smoke, indexed PregradManager events, and key endpoints
 sources:
   - server/README.md
-updated: 2026-08-06
+updated: 2026-08-05
 ---
 
 # Server README
@@ -64,36 +64,44 @@ moderation and knowability checks — see
 `AI_REVIEW_INTERNET_ACCESS` can be `off` or `provided_urls` to restrict
 evidence collection.
 
-**Default provider is Codex CLI** (changed 2026-07-29; Claude CLI from
-2026-07-25, Ollama before that): `just local-dev` starts the real agent-based
-path rather than the heuristic. The stock local timing is five
-minutes for the model call, six for the runner request, and ten for the DB
-lease. Transient provider failures return a retryable response, keep the market
-pending, and do not persist a heuristic review or scorecard. Completed reviews
+**Default provider is Anthropic over pre-collected evidence**
+(`AI_REVIEW_EVIDENCE_MODE=precollected`, `AI_REVIEW_SEARCH_PROVIDER=tavily`),
+which needs `ANTHROPIC_API_KEY` and `TAVILY_API_KEY`. The local stack
+deliberately differs: it sets Claude CLI with native evidence and key-free
+search, so a local stack needs no API key. The stock local timing is five
+minutes for the model call and a five-minute lease per draft review job.
+Transient provider failures return a retryable response, keep the job
+pending, and do not persist a review row. Completed reviews
 store one rationale per score. Hard-flag rejects from the heuristic gate remain
 final before model work; explicit heuristic mode remains available for smoke.
 
 ## Draft review runner
 
-**Not a separate process.** Review moved onto drafts under
-[ADR 0022](root-adr-0022-review-first-market-creation.md), and the API server
-hosts the runner in-process: it claims draft-review jobs, calls the review
-service, and records the verdict on the draft. An approved draft becomes
-publishable and markets are born `Active`, so there is no on-chain review gate
-in the [market lifecycle](../concepts/market-lifecycle.md) any more.
+Draft review runs **in-process with the API server**, not as a separate
+process: `src/api/index.ts` calls `startDraftReviewRunner()` in its main block,
+so `bun run dev` starts it. Submitting a draft moves it to `in_review` and
+inserts one `market_draft_review_jobs` row in the same transaction. The loop
+polls that table each second, claims up to three due jobs under a five-minute
+lease, writes one `market_draft_reviews` row, and moves the draft —
+`approve`→`approved`, `reject`→`rejected`, anything else→`changes_requested`,
+the review gate in the
+[market lifecycle](../concepts/market-lifecycle.md). A failed attempt backs off
+exponentially from 15s, capped at 5min; after the last attempt the draft returns
+to `editing` with no review row. Draft review defaults to the deterministic `heuristic` provider
+because it shares the API process; `POPCHARTS_DRAFT_REVIEW_PROVIDER` selects
+another.
 
-Signing the publish authorization needs
-`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`; local dev (`NETWORK=local`)
-falls back to a built-in dev account, so only shared deployments set it.
-
-A parked draft lands in `changes_requested`, which the creator edits and
-resubmits — there is no operator review path.
+The README's former separate-runner commands (`dev:ai-review-runner`,
+`smoke:ai-review-runner`), its `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` signing
+paragraph, and its `POST /admin/markets/:chainId/:marketId/review` enqueue
+endpoint were removed on 2026-08-05: none of them exist in the code any more.
 
 ## Local orchestration
 
-From the repo root: `just local-dev` starts the full local app stack plus AI
-review service and runner on the **codex-cli** provider (pending retries, see
-above); `just local-ai-review` starts just Postgres + review service + runner. `just setup && just local-smoke`
+From the repo root: `just local-dev` starts the full local app stack plus the AI
+review service on the **claude-cli** provider (pending retries, see
+above); `just local-ai-review` starts just Postgres + review service — it starts
+no API, so it runs no draft review loop. `just setup && just local-smoke`
 runs the full local chain smoke: docker-compose Postgres, local protocol
 contracts on a Hardhat node ([devchain](../entities/devchain.md)), generated
 `server/.env.local-chain`, API + indexer, market creation, and verification

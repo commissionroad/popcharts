@@ -40,10 +40,12 @@ safe public evidence first, then passes that evidence to the local model as
 untrusted context. Localhost, private IPs, non-HTTP URLs, oversized fetches, and
 unsafe redirects are blocked.
 
-With `AI_REVIEW_PROVIDER=anthropic`, the service calls Anthropic's Messages API
-and enables Claude's native `web_search` and `web_fetch` tools. Hard-block
-heuristics still run before the model call, and Claude search/fetch usage is
-capped by the `AI_REVIEW_ANTHROPIC_MAX_WEB_*` settings.
+With `AI_REVIEW_PROVIDER=anthropic`, the service calls Anthropic's Messages API.
+What the model may do depends on `AI_REVIEW_EVIDENCE_MODE`. In the default
+`precollected` mode the service gathers the evidence first and gives the model
+no tools. In `native` mode the service enables Claude's `web_search` and
+`web_fetch` tools, capped by the `AI_REVIEW_ANTHROPIC_MAX_WEB_*` settings.
+Hard-block heuristics run before the model call in both modes.
 
 Two providers drive a coding CLI installed on the host instead of calling an
 API directly. `AI_REVIEW_PROVIDER=claude-cli` runs Claude Code in headless
@@ -57,9 +59,18 @@ only to the Codex API. The Codex model is pinned rather than inherited — its C
 resolves a default from a server-side catalogue that can change tier, and cost,
 without a deploy here.
 
-`codex-cli` is the default when `AI_REVIEW_PROVIDER` is unset, so the service
-needs a Codex CLI install on the host. Every other provider stays one
-environment variable away.
+`anthropic` is the default when `AI_REVIEW_PROVIDER` is unset, and it runs over
+evidence the service collects itself: `AI_REVIEW_EVIDENCE_MODE` defaults to
+`precollected` and `AI_REVIEW_SEARCH_PROVIDER` defaults to `tavily`. That path
+needs `ANTHROPIC_API_KEY` and `TAVILY_API_KEY`. Set
+`AI_REVIEW_SEARCH_PROVIDER=duckduckgo` for the key-free search fallback. Every
+other provider stays one environment variable away.
+
+The local stack does not use those defaults. It sets
+`AI_REVIEW_PROVIDER=claude-cli`, `AI_REVIEW_EVIDENCE_MODE=native`, and
+`AI_REVIEW_SEARCH_PROVIDER=duckduckgo` in
+`scripts/shared/aiReview/buildAiReviewEnv.ts`, so a local stack needs no API
+key. Override each one with the matching `LOCAL_AI_REVIEW_*` variable.
 
 ```bash
 cd server
@@ -88,8 +99,10 @@ evidence collection, set `AI_REVIEW_INTERNET_ACCESS=off`; to fetch only
 provided resolution source URLs, set `AI_REVIEW_INTERNET_ACCESS=provided_urls`.
 
 From the repository root, `just local-dev` starts the full local app stack plus
-the AI Review service and runner on the Ollama provider (the real agent-based
-path). Pull the model once before relying on it:
+the AI Review service. That stack reviews with headless Claude Code
+(`claude-cli`), which browses for itself, so it needs a logged-in Claude Code
+and no API key. Set `LOCAL_AI_REVIEW_PROVIDER=ollama` to review with a local
+model instead, and pull that model once first:
 
 ```bash
 ollama pull gpt-oss:20b   # AI_REVIEW_OLLAMA_MODEL default
@@ -99,39 +112,58 @@ With the runtime up and the model present, review is real: evidence is gathered
 over `safe-web` and the model returns an evidence-backed verdict with scores,
 one rationale per score, and source checks. Those verdicts are model judgments
 and are not deterministic — a clean market may come back `manual_review` on one
-run and `approve` on the next. That is expected; a parked draft lands in
-`changes_requested`, which the creator can edit and resubmit.
+run and `approve` on the next. That is expected. A draft that does not come back
+`approve` or `reject` moves to `changes_requested`, so it returns to its creator
+to edit and submit again.
 
-The stock local stack gives the model five minutes, the runner six minutes, and
-the database lease ten minutes. A transient runtime or model failure returns a
-retryable service response: the job remains pending and no heuristic review row
-or scorecard is persisted. After the retry ceiling the public market state says
-review needs attention. Hard-flag rejects from the deterministic gate are still
-final before any model runs. Set `AI_REVIEW_PROVIDER=heuristic` explicitly for
-a no-model deterministic run. Use
-`just local-ai-review` when you only want local Postgres plus the review service
-and runner, without the app, API, indexer, or local chain.
+The stock local stack gives the model five minutes (`AI_REVIEW_TIMEOUT_MS`) and
+leases each draft review job for five minutes. A transient runtime or model
+failure returns a retryable service response: the job remains pending and no
+review row is persisted. After the retry ceiling the draft returns to `editing`.
+Hard-flag rejects from the deterministic gate are still final before any model
+runs. Set `AI_REVIEW_PROVIDER=heuristic` explicitly for a no-model deterministic
+run. Use `just local-ai-review` when you only want local Postgres plus the
+review service, without the app, API, indexer, or local chain. That command
+starts no API, so it runs no draft review loop.
 
-For Claude web-search review:
+For Claude web-search review, opt out of the pre-collected default so the model
+browses with its own tools:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export AI_REVIEW_PROVIDER=anthropic
+export AI_REVIEW_EVIDENCE_MODE=native
 export AI_REVIEW_ANTHROPIC_MODEL=claude-sonnet-4-6
 bun run dev:ai-review
 ```
 
 ## Draft Review Runner
 
-Review runs on drafts, before publish (ADR 0022). The runner is not a separate
-process: the API server hosts it in-process and it claims draft-review jobs,
-calls the AI Review service, and records the verdict on the draft. An approved
-draft becomes publishable; markets are born `Active`.
+Draft review runs in-process with the API server. It is not a separate process.
+`src/api/index.ts` calls `startDraftReviewRunner()` when the API runs as the
+main module, so the API command starts the runner as well:
 
-Signing the publish authorization needs
-`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`. Local development
-(`NETWORK=local`) falls back to a built-in dev account, so only shared
-deployments have to set it.
+```bash
+cd server
+bun run dev
+```
+
+A job is enqueued when a creator submits a draft. The same transaction moves the
+draft to `in_review` and inserts one `market_draft_review_jobs` row, so a review
+is never queued for content that was not validated.
+
+The runner polls that table once a second. Each sweep claims up to three due
+jobs under a five-minute lease, reviews the submitted draft snapshot, and writes
+one `market_draft_reviews` row. The verdict then moves the draft: `approve` to
+`approved`, `reject` to `rejected`, and anything else to `changes_requested`. A
+failed attempt retries with exponential backoff from 15 seconds, capped at five
+minutes. After the last attempt the draft returns to `editing` and no review row
+is written, so a silent failure never reaches the creator as review feedback.
+
+Draft review defaults to the deterministic `heuristic` provider, because the loop
+shares the API process. It takes the rest of its settings from the AI Review
+config, but it ignores `AI_REVIEW_PROVIDER`. Set
+`POPCHARTS_DRAFT_REVIEW_PROVIDER` to review drafts with a model instead.
 
 ## Local Chain Smoke
 

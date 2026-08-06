@@ -1819,33 +1819,148 @@ to compute its opposed set. Two routes recorded (per-side coverage unions, or
 off-chain-compute-and-verify following ADR 0006's pattern) with the note that
 this must be resolved *before* P1, since the storage design follows from it.
 
-## [2026-08-06] ingest | server/README.md — retire the two dead review env vars
-Pages: ~summaries/server-readme.md, ~entities/ai-review-service.md,
-~entities/server-workspace.md
-Notes: `server/sample.env` still documented `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`
-and `POPCHARTS_ADMIN_REVIEW_ENABLED`, neither of which any code reads. Confirmed
-retired, not unwired: ADR 0022 P5 (`418623b2`) deleted `approveMarket` /
-`rejectMarket` and the review-manager role from the contract, and `e47dc1c3`
-says in its own message that it removes `POPCHARTS_ADMIN_REVIEW_ENABLED` — it
-removed the server config read but missed `sample.env` and the local env
-writers. So the residue is an incomplete removal, not a deliberate hold.
+## [2026-08-05] ingest | server/README.md + sample.env — AI review docs realigned to the code
+Pages: ~summaries/server-readme.md, ~entities/ai-review-service.md, ~index.md
 
-The `## AI Review Runner` section of `server/README.md` was dead in every line,
-not just its two env references: the separate runner process, the
-`under_review` markets it polled, the `market_ai_reviews` it persisted, the
-on-chain transitions it applied, and both `bun run dev:ai-review-runner` and
-`bun run smoke:ai-review-runner` are all gone. Replaced with the live shape —
-review runs on drafts, the runner is in-process with the API
-(`src/api/index.ts` → `src/draft-review/runner.ts`), and publish signs with
-`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`.
+Docs-only realignment after verifying each claim against `server/src`. The
+documented AI review default was `codex-cli`; the code has defaulted to
+`anthropic` over pre-collected evidence (`precollected` + `tavily`) since the
+evidence-mode work, so the default, `TAVILY_API_KEY`, `AI_REVIEW_EVIDENCE_MODE`
+and `AI_REVIEW_SEARCH_PROVIDER` are now documented in `server/sample.env`.
 
-`sample.env` was inverted rather than merely stale: it told operators to set the
-retired review-manager key while omitting the live authorizer key that replaced
-it, so a shared deployment configured from it could not publish a market.
+The larger find: **the separate AI review runner no longer exists.**
+`server/src/ai-review-runner/` holds only `corroboration.ts`; the live loop is
+`startDraftReviewRunner()` in `server/src/draft-review/runner.ts`, started
+in-process by `server/src/api/index.ts`. Consequently these documented things
+are all absent from the code — `bun run dev:ai-review-runner`,
+`bun run smoke:ai-review-runner`, `AI_REVIEW_SMOKE_PORT`,
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` (read nowhere),
+`POST /admin/markets/:chainId/:marketId/review` (no `/admin` route exists), and
+`approveMarket`/`rejectMarket` (absent from `server/src`). `market_ai_reviews`
+is retired in favour of `market_draft_reviews` / `market_draft_review_jobs`.
 
-Left alone deliberately: `docs/ai-review-runner-design.md`,
-`docs/backend-runtime-architecture.md`, `docs/ai-resolution-service-design.md`,
-and `docs/adr/0009-server-api-hardening.md` still describe the retired path.
-That is the pre-existing doc-drift backlog and a larger rewrite than this
-change; `entities/ai-review-service.md` carries a source-drift flag pointing at
-it.
+Contradiction flagged, not resolved: `docs/ai-review-runner-design.md` still
+describes the three-process runner, so `entities/ai-review-service.md` carries a
+dated staleness banner instead of a rewrite, per this schema's rule that code is
+ground truth for behaviour but raw sources are not edited during wiki work.
+
+Follow-ups: `docs/ai-review-runner-design.md` and `docs/backend-runtime-architecture.md`
+need the same treatment at their source, and `server/sample.env` still ships
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` and `POPCHARTS_ADMIN_REVIEW_ENABLED`,
+which no server code reads.
+
+## [2026-08-06] lint | component-inventory misses again (4×) and is now 3 components behind; three exported charts untracked at the source
+Pages: ~summaries/app-component-inventory.md, ~entities/designkit.md, ~index.md
+Notes: Organic ingestion since last lint: **8/15 doc-touching commits
+self-ingested**. Of the 7 misses, 2 owed nothing (233367e8, 7dc6a5fb are
+screenshot-only adds) and 1 was covered by siblings in the same ADR 0022 stack
+(578caff2 → d1316e1c/1d1c14b7/9c9f6650). That leaves **4 real misses, and all
+four are `app/docs/component-inventory.md`** (190dd125, 8aad55bf, b366a8d9,
+98dd4d99) — the exact file the 2026-08-05 entry named as the one systematic
+failure, with the note that "if it misses again the rule itself is the problem,
+not the sessions". It missed again, four times, inside 24 hours. Recording that
+verdict plainly: the per-session ingest rule is not reaching this file, and the
+next pass should treat it as a process fix (a check in the
+`component-inventory` skill itself) rather than another manual catch-up.
+
+PR #496 (b0866c78, AI review operational docs) self-ingested cleanly —
+`summaries/server-readme.md` + `entities/ai-review-service.md` + index + log in
+the same commit. That is the pattern working.
+
+**The catch-up ingest, done properly this time.** The page claimed twelve
+components; there are **fifteen**. Three landed unrecorded: `ReviewCreditCard`
+(prepaid credit position, tones by runs left, renders nothing when the credit
+is null/unmetered/zero-priced), `ReviewScoreBreakdown` (the single definition
+of the seven reviewer dimensions), and `SmallMetric`. Verified against code,
+not taken from the doc: `LOW_CREDIT_RUNS = 3` and
+`REVIEW_SCORE_DIMENSIONS` carries exactly seven entries with `invertsRisk:
+true` on two of them.
+
+`ReviewScoreBreakdown` earned a product-honesty cross-link rather than a bare
+row. The two dimensions the reviewer scores as *risks* are inverted and renamed
+to the safety they imply (Dispute resistance, Prompt injection security) so
+five filled bars is the best outcome on every row. A "high is bad" row sitting
+among "high is good" rows reads as a score and gets misread — same family of
+measure as the honesty rule's other clauses.
+
+**`PriceCurve`'s two-list API is gone, and this page was still documenting
+it.** The 2026-08-03 section described `postgradPoints` + `graduatedAt` as the
+way the chart spans both mechanisms. ADR 0025 P4 replaced that with one
+phase-blind `points` list (`{at?, yesCents, noCents}`); `graduatedAt` survives
+only as an annotation. The page's own reasoning is what makes the merge safe
+and is now stated that way: carrying both prices per point instead of deriving
+NO from YES is precisely what lets one list serve a shared-LMSR phase and two
+independent pools. Rewritten rather than patched — the old section's premise
+was the API.
+
+Two findings in the raw source, flagged not edited:
+- `Last audited: 2026-07-02` while the table changed in five commits through
+  2026-08-05. The header is stale, the rows are current.
+- **Three exported components under `app/src/components/charts/` have no
+  inventory row** since 2026-07-09: `MatchingBandsGraphic`,
+  `MatchingBandsHeatmap`, `ReceiptAnatomyView`. Checked the call sites before
+  writing this down — the latter two are imported only by their own stories and
+  tests, and the first only by those two, so all three are Storybook-only
+  mechanism explainers. That is probably why they were skipped, but the doc's
+  scope sentence carries no production-use qualifier, so the source is either
+  three rows short or one sentence too wide. The inventory's next audit has to
+  pick one.
+
+Integrity swept clean: 0 broken wiki-internal links, 0 pages missing from
+`index.md`, 0 orphans, 0 raw sources unreferenced by any page, and **34/34 ADRs
+have a summary** — the per-ADR coverage check the last entry asked for is now
+run and passing.
+
+Staleness: **28 (page, source) pairs**, up from 26. Three pages fixed here; the
+rest are date-evidence only and were again left rather than bulk-rewritten. The
+oldest cluster is unchanged — `protocol/docs/postgrad-contract-metadata.md`
+(2026-08-04) feeding four entity pages that have not moved since mid-July.
+
+Follow-ups for next lint:
+- **Schema vs practice, needs a decision.** `wiki/CLAUDE.md` says the
+  frontmatter `description:` is "used verbatim in `index.md`". In practice
+  **99 of 101** index rows carry a shortened hook instead. Two working
+  conventions, one written rule. Amend the schema to describe the hook (cheap,
+  matches reality) rather than rewrite 99 rows — but that is a schema change,
+  so it is proposed here, not taken.
+- Still open from 2026-08-05, unresolved at the source: ADR 0023 and ADR 0025
+  both read `Status: Proposed` while their checklists are complete.
+- `app/docs/component-inventory.md` — if the next pass finds a fifth missed
+  commit, stop catching it up by hand and fix the skill.
+
+## [2026-08-06] ingest | server/sample.env — retire the two dead review env vars
+Pages: ~entities/server-workspace.md
+Closes the `sample.env` follow-up the 2026-08-05 entry left open. That pass
+realigned the prose and flagged that `server/sample.env` still shipped
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` and `POPCHARTS_ADMIN_REVIEW_ENABLED`;
+this removes them, plus the three script sites the flag did not name.
+
+Confirmed retired, not unwired, before deleting. ADR 0022 P5 (`418623b2`)
+removed `approveMarket` / `rejectMarket` and the review-manager role from
+`PregradManager` — verified against `protocol/contracts/`, where neither
+function nor the role appears and `MarketStatus` no longer carries
+`UnderReview` / `Rejected`. `e47dc1c3` says in its own message that it removes
+`POPCHARTS_ADMIN_REVIEW_ENABLED`, and its diff shows it removed the server
+config read but never touched `sample.env` or `scripts/shared/env/`. So the
+residue was an incomplete removal, not a deliberate hold. `e7953342` recorded
+that a future human-review feature is purely additive, so nothing here was
+load-bearing for one.
+
+`sample.env` was inverted, not merely stale: it told operators to set the
+retired review-manager key while omitting the live successor,
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`, which signs publish
+authorizations and is required off-local. A shared deployment configured from
+that file would have set a dead key and been unable to publish a market. The
+retired block is replaced by the live one, which no doc previously carried.
+
+`entities/server-workspace.md` was the one wiki page the 2026-08-05 pass did not
+reach: it still listed `src/ai-review-runner/` as a process, `markets` as
+starting `under_review`, the dropped `market_ai_reviews` /
+`market_ai_review_jobs` tables, and `POPCHARTS_ADMIN_REVIEW_ENABLED` among the
+hardening gaps. All four corrected against the code.
+
+`summaries/server-readme.md` and `entities/ai-review-service.md` needed no
+change here — the 2026-08-05 pass had already realigned both, including its
+deliberate choice to flag `docs/ai-review-runner-design.md` rather than rewrite
+around it. That flag stands, and the four drifted design docs it names remain
+the open follow-up.
