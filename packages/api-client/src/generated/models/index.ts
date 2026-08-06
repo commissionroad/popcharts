@@ -105,3 +105,7 @@ export * from "./venueOrderList";
 export * from "./venueOrderStatus";
 export * from "./venuePoolSide";
 export * from "./versionInfo";
+export * from "./resolutionFinalizeAccepted";
+export * from "./resolutionFinalizeAcceptedStatus";
+export * from "./resolutionFinalizeRefused";
+export * from "./resolutionFinalizeRefusedStatus";

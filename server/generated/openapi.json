@@ -782,6 +782,76 @@
         }
       }
     },
+    "/markets/{chainId}/{marketId}/resolution-finalize": {
+      "post": {
+        "operationId": "requestResolutionFinalization",
+        "summary": "Settle a market whose dispute window has closed",
+        "description": "Public settlement failsafe for a proposal the keeper has not finalized — the finalize sibling of the graduation trigger and the resolution-check poke (repo ADR 0024). The keeper discovers pending proposals from the indexed market status, so a proposal the indexer missed is one nothing settles automatically: the market stays in ResolutionPending and winners cannot redeem. Safe unauthenticated and unbonded: finalizeResolution() is permissionless on the contract and takes no payment, so the server signs nothing the caller could not sign themselves, and the outcome is the one already proposed. Cost is bounded by the contract, not by caller identity — chain state is read first and no transaction is sent unless the market is genuinely settleable, so repeat requests are free reads (409).",
+        "tags": [
+          "Resolution"
+        ],
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "marketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionFinalizeAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionFinalizeRefused"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/drafts": {
       "get": {
         "operationId": "listMarketDrafts",
@@ -2023,6 +2093,50 @@
               "too_early",
               "already_evaluated",
               "cooling_down"
+            ]
+          }
+        }
+      },
+      "ResolutionFinalizeAccepted": {
+        "type": "object",
+        "required": [
+          "message",
+          "status",
+          "transactionHash"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "settled"
+            ]
+          },
+          "transactionHash": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolutionFinalizeRefused": {
+        "type": "object",
+        "required": [
+          "message",
+          "status"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_graduated",
+              "no_pending_proposal",
+              "window_open",
+              "disputed",
+              "already_resolved"
             ]
           }
         }

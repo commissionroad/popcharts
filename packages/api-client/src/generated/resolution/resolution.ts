@@ -5,7 +5,12 @@
  * Read API for Pop Charts indexed market events.
  * OpenAPI spec version: 0.1.0
  */
-import type { ResolutionCheckAccepted, ResolutionCheckRefused } from ".././models";
+import type {
+  ResolutionCheckAccepted,
+  ResolutionCheckRefused,
+  ResolutionFinalizeAccepted,
+  ResolutionFinalizeRefused,
+} from ".././models";
 
 /**
  * Public early-resolution nudge for a graduated market past its earliest resolution time — the resolution sibling of the graduation failsafe (repo ADR 0024). Queues one resolver evaluation; the AI resolver still decides the outcome and the on-chain dispute window still guards it, so the endpoint is safe unauthenticated. Cost is bounded by a per-market 24-hour cooldown rather than caller identity: repeat requests inside the window are refused (409) with the next eligible time.
@@ -74,4 +79,73 @@ export const requestMarketResolutionCheck = async (
     status: res.status,
     headers: res.headers,
   } as requestMarketResolutionCheckResponse;
+};
+
+/**
+ * Public settlement failsafe for a proposal the keeper has not finalized — the finalize sibling of the graduation trigger and the resolution-check poke (repo ADR 0024). The keeper discovers pending proposals from the indexed market status, so a proposal the indexer missed is one nothing settles automatically: the market stays in ResolutionPending and winners cannot redeem. Safe unauthenticated and unbonded: finalizeResolution() is permissionless on the contract and takes no payment, so the server signs nothing the caller could not sign themselves, and the outcome is the one already proposed. Cost is bounded by the contract, not by caller identity — chain state is read first and no transaction is sent unless the market is genuinely settleable, so repeat requests are free reads (409).
+ * @summary Settle a market whose dispute window has closed
+ */
+export type requestResolutionFinalizationResponse200 = {
+  data: ResolutionFinalizeAccepted;
+  status: 200;
+};
+
+export type requestResolutionFinalizationResponse400 = {
+  data: string;
+  status: 400;
+};
+
+export type requestResolutionFinalizationResponse404 = {
+  data: string;
+  status: 404;
+};
+
+export type requestResolutionFinalizationResponse409 = {
+  data: ResolutionFinalizeRefused;
+  status: 409;
+};
+
+export type requestResolutionFinalizationResponseSuccess =
+  requestResolutionFinalizationResponse200 & {
+    headers: Headers;
+  };
+export type requestResolutionFinalizationResponseError = (
+  | requestResolutionFinalizationResponse400
+  | requestResolutionFinalizationResponse404
+  | requestResolutionFinalizationResponse409
+) & {
+  headers: Headers;
+};
+
+export type requestResolutionFinalizationResponse =
+  | requestResolutionFinalizationResponseSuccess
+  | requestResolutionFinalizationResponseError;
+
+export const getRequestResolutionFinalizationUrl = (
+  chainId: string,
+  marketId: string
+) => {
+  return `/markets/${chainId}/${marketId}/resolution-finalize`;
+};
+
+export const requestResolutionFinalization = async (
+  chainId: string,
+  marketId: string,
+  options?: RequestInit
+): Promise<requestResolutionFinalizationResponse> => {
+  const res = await fetch(getRequestResolutionFinalizationUrl(chainId, marketId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: requestResolutionFinalizationResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as requestResolutionFinalizationResponse;
 };

@@ -576,6 +576,35 @@ export const ResolutionCheckRefusedSchema = t.Object(
   { $id: "ResolutionCheckRefused" },
 );
 
+/** Accepted settle request: the proposed outcome is now final on chain. */
+export const ResolutionFinalizeAcceptedSchema = t.Object(
+  {
+    message: t.String(),
+    status: t.Literal("settled"),
+    transactionHash: t.String(),
+  },
+  { $id: "ResolutionFinalizeAccepted" },
+);
+
+/**
+ * Refused settle request. Every status here is ordinary operation, not an
+ * error: the underlying call is permissionless, so the keeper or another
+ * finalizer may have moved the market between page render and request.
+ */
+export const ResolutionFinalizeRefusedSchema = t.Object(
+  {
+    message: t.String(),
+    status: literalUnion([
+      "not_graduated",
+      "no_pending_proposal",
+      "window_open",
+      "disputed",
+      "already_resolved",
+    ] as const),
+  },
+  { $id: "ResolutionFinalizeRefused" },
+);
+
 /** Graduation refusal, with the reason and current settlement totals. */
 export const GraduationIneligibleSchema = t.Object(
   {
