@@ -99,8 +99,8 @@ With the runtime up and the model present, review is real: evidence is gathered
 over `safe-web` and the model returns an evidence-backed verdict with scores,
 one rationale per score, and source checks. Those verdicts are model judgments
 and are not deterministic — a clean market may come back `manual_review` on one
-run and `approve` on the next. That is expected; resolve parked markets through
-the admin/dev review path.
+run and `approve` on the next. That is expected; a parked draft lands in
+`changes_requested`, which the creator can edit and resubmit.
 
 The stock local stack gives the model five minutes, the runner six minutes, and
 the database lease ten minutes. A transient runtime or model failure returns a
@@ -121,49 +121,17 @@ export AI_REVIEW_ANTHROPIC_MODEL=claude-sonnet-4-6
 bun run dev:ai-review
 ```
 
-## AI Review Runner
+## Draft Review Runner
 
-The AI Review runner is a separate process from both the indexer and the AI
-Review service. It polls Postgres for eligible `under_review` markets, leases
-review jobs, calls the AI Review service, persists `market_ai_reviews`, and
-applies guarded on-chain market status transitions before the SQL projection
-can move to `bootstrap` or `rejected`.
+Review runs on drafts, before publish (ADR 0022). The runner is not a separate
+process: the API server hosts it in-process and it claims draft-review jobs,
+calls the AI Review service, and records the verdict on the draft. An approved
+draft becomes publishable; markets are born `Active`.
 
-Outside local development, set `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` to a
-review manager account. Local development falls back to
-`POPCHARTS_DEVCHAIN_PRIVATE_KEY` and then the default local account.
-
-```bash
-cd server
-bun run dev:ai-review-runner
-```
-
-Operators can manually enqueue a review job through the API server when
-`POPCHARTS_ADMIN_REVIEW_ENABLED=true`:
-
-```bash
-curl -s http://localhost:3001/admin/markets/5042002/123/review \
-  -H 'content-type: application/json' \
-  -d '{"force": true, "provider": "heuristic"}'
-```
-
-The endpoint only enqueues work for the runner. It does not call the AI Review
-service directly, and it remains disabled by default.
-
-Run the local smoke command to exercise the full DB-to-service-to-DB path
-without a model dependency:
-
-```bash
-cd server
-bun run smoke:ai-review-runner
-```
-
-The smoke command expects local Postgres to be running on the configured
-`DATABASE_URL` with the current server schema already applied. It starts an
-in-process AI Review service with the heuristic provider, seeds one
-`under_review` market plus metadata, enqueues and claims one job, persists the
-review, and verifies the market status transition. It defaults to port `3012`;
-set `AI_REVIEW_SMOKE_PORT` if that port is already occupied.
+Signing the publish authorization needs
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`. Local development
+(`NETWORK=local`) falls back to a built-in dev account, so only shared
+deployments have to set it.
 
 ## Local Chain Smoke
 

@@ -1,10 +1,10 @@
 ---
 type: summary
 title: Server README
-description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and runner (codex-cli by default), local chain smoke, indexed PregradManager events, and key endpoints
+description: Bun/Elysia API + viem indexer workspace — local setup, AI review service and in-process draft-review runner (codex-cli by default), local chain smoke, indexed PregradManager events, and key endpoints
 sources:
   - server/README.md
-updated: 2026-08-04
+updated: 2026-08-06
 ---
 
 # Server README
@@ -73,21 +73,21 @@ pending, and do not persist a heuristic review or scorecard. Completed reviews
 store one rationale per score. Hard-flag rejects from the heuristic gate remain
 final before model work; explicit heuristic mode remains available for smoke.
 
-## AI review runner
+## Draft review runner
 
-A third process, distinct from both indexer and review service. It polls
-Postgres for eligible `under_review` markets, leases review jobs, calls the
-review service, persists `market_ai_reviews`, and applies **guarded on-chain
-market status transitions** before the SQL projection can move to `bootstrap`
-or `rejected` — the review gate in the
-[market lifecycle](../concepts/market-lifecycle.md). Outside local dev it
-signs with `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`; local dev falls back to
-`POPCHARTS_DEVCHAIN_PRIVATE_KEY`, then the default local account. Operators
-can enqueue jobs via
-`POST /admin/markets/:chainId/:marketId/review` only when
-`POPCHARTS_ADMIN_REVIEW_ENABLED=true` (disabled by default; enqueue-only).
-`bun run smoke:ai-review-runner` exercises the full DB→service→DB path with
-the heuristic provider (default port 3012).
+**Not a separate process.** Review moved onto drafts under
+[ADR 0022](root-adr-0022-review-first-market-creation.md), and the API server
+hosts the runner in-process: it claims draft-review jobs, calls the review
+service, and records the verdict on the draft. An approved draft becomes
+publishable and markets are born `Active`, so there is no on-chain review gate
+in the [market lifecycle](../concepts/market-lifecycle.md) any more.
+
+Signing the publish authorization needs
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`; local dev (`NETWORK=local`)
+falls back to a built-in dev account, so only shared deployments set it.
+
+A parked draft lands in `changes_requested`, which the creator edits and
+resubmits — there is no operator review path.
 
 ## Local orchestration
 

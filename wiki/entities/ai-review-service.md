@@ -9,30 +9,36 @@ sources:
   - docs/adr/0011-ai-review-service-hardening.md
   - docs/adr/0019-ai-verdict-quality-program.md
   - server/README.md
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # AI review service and runner
 
-Reviews newly created markets (moderation + public-knowability) before they
-open for trading. This gates market **creation** — distinct from
+Reviews market **drafts** (moderation + public-knowability) before any market
+exists on chain. This gates market **creation** — distinct from
 post-graduation [AI-assisted resolution](../concepts/ai-assisted-resolution.md),
 whose design is accepted and whose build is underway as a sibling of this
 architecture.
 
-## Three-process architecture
+## Two-process architecture
 
-- **Indexer** writes `under_review` projections; no model/web access ever.
 - **Service** (`server/src/ai-review/`, port 3002) — stateless HTTP: metadata
   - optional context in → verdict out. No DB polling or projection writes.
-- **Runner** (`server/src/ai-review-runner/`) — polls/claims
-  `market_ai_review_jobs` via `FOR UPDATE SKIP LOCKED` with leases, calls the
-  service, persists append-only `market_ai_reviews` (keyed to metadata_hash so
-  reviews can't silently apply to changed text), then applies guarded
-  transitions: approve→`bootstrap`, reject→`rejected`, manual_review→unchanged
-  — submitting on-chain `approveMarket`/`rejectMarket` first (signs with
-  `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`), exponential backoff. Polling is
-  intentional, for recoverability.
+- **Runner** (`server/src/draft-review/runner.ts`) — **not a separate
+  process**: the API server starts it in-process (`src/api/index.ts`). It
+  claims draft-review jobs via `FOR UPDATE SKIP LOCKED` with leases, calls the
+  service, and records the verdict on the draft. Polling is intentional, for
+  recoverability.
+
+The indexer no longer participates. It used to write `under_review`
+projections for the runner to resolve; ADR 0022 P5 removed that status, so
+indexed markets are born `Active`.
+
+> **Source drift (2026-08-06).** This page has been corrected against the code,
+> but its source
+> [`docs/ai-review-runner-design.md`](../../docs/ai-review-runner-design.md)
+> still documents the retired three-process, on-chain-gated design. Fix that
+> source, then re-ingest this page.
 
 ## Providers
 
@@ -123,16 +129,19 @@ on-chain `metadataHash`, so the reviewed snapshot is provably the live market's 
 `market_ai_reviews` is now read-only history with a live reader: legacy rows still win
 where they exist, because for a pre-P5 market that row *is* the review that gated it.
 
-Note `market_ai_review_jobs` is **not** in the same position — the admin re-review service
-still enqueues into it and no worker claims that queue.
+`market_ai_review_jobs` is gone entirely: the admin re-review service that
+enqueued into it was retired first (nothing had claimed the queue since P5
+deleted the market-review runner), then the table itself was dropped with
+`market_ai_reviews`.
 
-**The on-chain review path still exists alongside it.** Publish bridges to the
-ungated `createMarket` and force-approves with the review-manager key, so this
-service's on-chain transition path stays live until ADR 0022's P4 lands and P5
-retires it.
+**The on-chain review path is retired**, completing ADR 0022 P5. Publish now
+spends a creator-bound authorization signed with
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`, and markets are born
+`Active` — there is no `approveMarket`/`rejectMarket` bridge and no
+review-manager key left to force-approve with.
 
 ## Related pages
 
 - [Market lifecycle](../concepts/market-lifecycle.md) — the gate it operates
-- [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) — review moved off-chain onto drafts (built); the on-chain path retires with its P5
+- [Repo ADR 0022](../summaries/root-adr-0022-review-first-market-creation.md) — review moved off-chain onto drafts (built); its P5 retired the on-chain path
 - [Server workspace](server-workspace.md), [indexer](indexer.md)

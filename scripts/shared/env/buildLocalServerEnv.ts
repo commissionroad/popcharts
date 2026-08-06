@@ -26,7 +26,6 @@ export function buildLocalServerEnv(
     ...pregradDeployServerEnv(overrides),
     NETWORK: "local",
     PORT: process.env.LOCAL_API_PORT ?? String(resources.apiPort),
-    POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
     POPCHARTS_DEVCHAIN_PRIVATE_KEY:
       process.env.POPCHARTS_DEVCHAIN_PRIVATE_KEY ??
       DEFAULT_LOCAL_CHAIN_PRIVATE_KEY,

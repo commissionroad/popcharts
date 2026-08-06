@@ -9,7 +9,7 @@ sources:
   - docs/architecture.md
   - docs/ai-review-runner-design.md
   - docs/portfolio-data-design.md
-updated: 2026-07-26
+updated: 2026-08-06
 ---
 
 # server/ workspace
@@ -34,8 +34,9 @@ One Docker image, entrypoint-selected:
    (`MARKET_LIST_LIMIT`), `since` cursor. API status vocabulary is a TypeBox
    snake_case union; chain `Active` maps to `"bootstrap"`, `Frozen` unexposed.
 2. **Indexer** (`src/indexer/`) — see [indexer](indexer.md).
-3. **AI review runner** (`src/ai-review-runner/`) + the separate **AI review
-   service** (`src/ai-review/`, port 3002) — see [AI review service](ai-review-service.md).
+3. **AI review service** (`src/ai-review/`, port 3002) — the separate process;
+   its **draft-review runner** (`src/draft-review/runner.ts`) runs in-process
+   with the API, not on its own. See [AI review service](ai-review-service.md).
 4. **AI resolution runner** (`src/ai-resolution-runner/`) + the separate **AI
    resolution service** (`src/ai-resolution/`) — the post-graduation sibling of
    AI review; see [AI-assisted resolution](../concepts/ai-assisted-resolution.md).
@@ -43,10 +44,11 @@ One Docker image, entrypoint-selected:
    see [clearing keeper](clearing-keeper.md). Built, but poll-based and still
    gated to the local network.
 
-Tables: `markets` (keyed chain_id+market_id, starts `under_review`),
-`market_metadata`, append-only `market_ai_reviews`, durable
-`market_ai_review_jobs`. viem client factories centralized in
-`src/blockchain/client.ts`.
+Tables: `markets` (keyed chain_id+market_id, starts `Active` — ADR 0022 P5
+removed `under_review`), `market_metadata`, append-only
+`market_draft_reviews`, durable `market_draft_review_jobs`. The on-chain-era
+`market_ai_reviews` / `market_ai_review_jobs` were dropped with the review
+path. viem client factories centralized in `src/blockchain/client.ts`.
 
 ## Live-updates relay (built 2026-07-22, [root ADR 0021](../summaries/root-adr-0021-live-market-updates.md))
 
@@ -72,8 +74,10 @@ yet — see [ADR 0021](../summaries/root-adr-0021-live-market-updates.md).
 
 ## Hardening gaps (all open, [root ADR 0009](../summaries/root-adr-0009-server-api-hardening.md))
 
-Admin/dev endpoints gated only by env flags (`POPCHARTS_ADMIN_REVIEW_ENABLED`,
-`POPCHARTS_DEV_TOOLS_ENABLED`); no rate limiting; no search endpoint; planned
+Dev endpoints gated only by an env flag (`POPCHARTS_DEV_TOOLS_ENABLED` — the
+admin re-review endpoint and its `POPCHARTS_ADMIN_REVIEW_ENABLED` flag were
+retired with the on-chain review path under ADR 0022 P5); no rate limiting; no
+search endpoint; planned
 user auth is likely SIWE-style wallet signatures.
 
 **There is no shared "operator auth" coming, and an older version of this page

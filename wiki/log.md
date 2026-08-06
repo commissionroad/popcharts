@@ -1818,3 +1818,34 @@ with no per-market enumeration, so a withdrawal cannot iterate the opposite side
 to compute its opposed set. Two routes recorded (per-side coverage unions, or
 off-chain-compute-and-verify following ADR 0006's pattern) with the note that
 this must be resolved *before* P1, since the storage design follows from it.
+
+## [2026-08-06] ingest | server/README.md — retire the two dead review env vars
+Pages: ~summaries/server-readme.md, ~entities/ai-review-service.md,
+~entities/server-workspace.md
+Notes: `server/sample.env` still documented `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY`
+and `POPCHARTS_ADMIN_REVIEW_ENABLED`, neither of which any code reads. Confirmed
+retired, not unwired: ADR 0022 P5 (`418623b2`) deleted `approveMarket` /
+`rejectMarket` and the review-manager role from the contract, and `e47dc1c3`
+says in its own message that it removes `POPCHARTS_ADMIN_REVIEW_ENABLED` — it
+removed the server config read but missed `sample.env` and the local env
+writers. So the residue is an incomplete removal, not a deliberate hold.
+
+The `## AI Review Runner` section of `server/README.md` was dead in every line,
+not just its two env references: the separate runner process, the
+`under_review` markets it polled, the `market_ai_reviews` it persisted, the
+on-chain transitions it applied, and both `bun run dev:ai-review-runner` and
+`bun run smoke:ai-review-runner` are all gone. Replaced with the live shape —
+review runs on drafts, the runner is in-process with the API
+(`src/api/index.ts` → `src/draft-review/runner.ts`), and publish signs with
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`.
+
+`sample.env` was inverted rather than merely stale: it told operators to set the
+retired review-manager key while omitting the live authorizer key that replaced
+it, so a shared deployment configured from it could not publish a market.
+
+Left alone deliberately: `docs/ai-review-runner-design.md`,
+`docs/backend-runtime-architecture.md`, `docs/ai-resolution-service-design.md`,
+and `docs/adr/0009-server-api-hardening.md` still describe the retired path.
+That is the pre-existing doc-drift backlog and a larger rewrite than this
+change; `entities/ai-review-service.md` carries a source-drift flag pointing at
+it.
