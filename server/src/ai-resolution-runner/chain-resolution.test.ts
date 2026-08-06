@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
-import { POSTGRAD_MARKET_STATUS } from "@popcharts/protocol";
+import { POSTGRAD_MARKET_STATUS, SIDE_NO, SIDE_YES } from "@popcharts/protocol";
 
 import {
+  chainSideVerdict,
   type MarketResolutionProposalDependencies,
   proposeMarketResolutionOnChain,
+  readOnChainResolutionProposal,
   readResolverPrivateKey,
   resolutionChainAction,
 } from "./chain-resolution";
@@ -20,6 +22,7 @@ function makeDeps(
     currentChainId: () => 31337,
     getLatestBlockTimestamp: async () => new Date("2026-01-01T00:00:00.000Z"),
     readMarketStatus: async () => POSTGRAD_MARKET_STATUS.trading,
+    readProposedSide: async () => SIDE_YES,
     submitResolutionProposal: async (address, side) => {
       writes.push({ address, side });
       return TX;
@@ -89,6 +92,38 @@ describe("proposeMarketResolutionOnChain", () => {
     expect(writes).toEqual([]);
   });
 
+  // The caller persists this side as the audit verdict, so a no-op must report
+  // what the contract holds rather than echoing back the verdict it was asked
+  // for — those two disagree exactly when the audit row matters most.
+  it("reports the side already on-chain, not the verdict it was asked to propose", async () => {
+    const { deps, writes } = makeDeps({
+      readMarketStatus: async () => POSTGRAD_MARKET_STATUS.disputed,
+      readProposedSide: async () => SIDE_NO,
+    });
+
+    const result = await proposeMarketResolutionOnChain(
+      { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
+      deps,
+    );
+
+    expect(result).toMatchObject({
+      kind: "already_on_chain",
+      proposedSide: "no",
+    });
+    expect(writes).toEqual([]);
+  });
+
+  it("reports the side it just submitted", async () => {
+    const { deps } = makeDeps();
+
+    const result = await proposeMarketResolutionOnChain(
+      { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_no" },
+      deps,
+    );
+
+    expect(result).toMatchObject({ kind: "proposed", proposedSide: "no" });
+  });
+
   it("throws when the market is in an unexpected on-chain status", async () => {
     const { deps } = makeDeps({
       readMarketStatus: async () => POSTGRAD_MARKET_STATUS.cancelled,
@@ -139,6 +174,76 @@ describe("proposeMarketResolutionOnChain", () => {
 
     expect(result).toBeNull();
     expect(writes).toEqual([]);
+  });
+});
+
+describe("chainSideVerdict", () => {
+  it("maps the on-chain side back to the verdict it implies", () => {
+    expect(chainSideVerdict("yes")).toBe("resolve_yes");
+    expect(chainSideVerdict("no")).toBe("resolve_no");
+  });
+});
+
+describe("readOnChainResolutionProposal", () => {
+  it.each([
+    ["a proposal is pending", POSTGRAD_MARKET_STATUS.resolutionPending],
+    ["the proposal is disputed", POSTGRAD_MARKET_STATUS.disputed],
+    ["the market is resolved", POSTGRAD_MARKET_STATUS.resolved],
+  ])("returns the standing proposal when %s", async (_label, status) => {
+    const { deps } = makeDeps({
+      readMarketStatus: async () => status,
+      readProposedSide: async () => SIDE_NO,
+    });
+
+    await expect(
+      readOnChainResolutionProposal(
+        { chainId: 31337, postgradMarketAddress: MARKET },
+        deps,
+      ),
+    ).resolves.toEqual({
+      blockTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+      proposedSide: "no",
+    });
+  });
+
+  it.each([
+    ["still trading", POSTGRAD_MARKET_STATUS.trading],
+    ["cancelled", POSTGRAD_MARKET_STATUS.cancelled],
+  ])("returns null when the market is %s", async (_label, status) => {
+    const { deps } = makeDeps({ readMarketStatus: async () => status });
+
+    await expect(
+      readOnChainResolutionProposal(
+        { chainId: 31337, postgradMarketAddress: MARKET },
+        deps,
+      ),
+    ).resolves.toBeNull();
+  });
+
+  // The whole point of the read-only path: it is handed to a job that has been
+  // told to stand down, so it must have no way to reach proposeResolution().
+  it("never submits a transaction", async () => {
+    const { deps, writes } = makeDeps({
+      readMarketStatus: async () => POSTGRAD_MARKET_STATUS.trading,
+    });
+
+    await readOnChainResolutionProposal(
+      { chainId: 31337, postgradMarketAddress: MARKET },
+      deps,
+    );
+
+    expect(writes).toEqual([]);
+  });
+
+  it("throws on a chain-id mismatch", async () => {
+    const { deps } = makeDeps({ currentChainId: () => 999 });
+
+    await expect(
+      readOnChainResolutionProposal(
+        { chainId: 31337, postgradMarketAddress: MARKET },
+        deps,
+      ),
+    ).rejects.toThrow("does not match");
   });
 });
 
