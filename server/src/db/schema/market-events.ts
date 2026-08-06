@@ -7,6 +7,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -94,7 +95,12 @@ export const receiptPlacedEvents = pgTable(
       table.transactionHash,
       table.logIndex,
     ),
-    uniqueIndex("receipt_placed_events_chain_receipt_idx").on(
+    // A unique *constraint*, not a uniqueIndex: receipt_entry_fee_events
+    // foreign-keys to (chainId, receiptId), and generateMigration emits FK
+    // clauses before CREATE UNIQUE INDEX statements, so an index-only target
+    // fails DDL replay in the PGlite harness. `markets` uses unique() for its
+    // FK targets for the same reason.
+    unique("receipt_placed_events_chain_receipt_idx").on(
       table.chainId,
       table.receiptId,
     ),
