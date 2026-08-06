@@ -2078,3 +2078,12 @@ both orchestrators documented `codex-cli` as the local review provider default
 and told the reader to install the Codex CLI. `buildAiReviewEnv` has defaulted
 to `claude-cli` since the evidence-mode work, and `local-ai-review-env.test.ts`
 pins it. Corrected in both `--help` blocks.
+
+## [2026-08-06] ingest | correct two env-var rows PR #503 invalidated
+Pages: ~summaries/ai-review-runner-design.md, ~entities/ai-review-service.md
+
+PR #503 removed `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` from `server/sample.env`
+and `POPCHARTS_ADMIN_REVIEW_ENABLED` from the local env scripts, hours after
+#502 documented both as surviving leftovers. Both now read "gone" here and in
+`docs/ai-review-runner-design.md`. Verified against current `main`: neither name
+appears in `server/sample.env`, `scripts/`, or `server/src`.
