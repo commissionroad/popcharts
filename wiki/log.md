@@ -1975,3 +1975,44 @@ Claims written hours earlier said the directory "holds only `corroboration.ts`
 and its test". All four now say the directory is gone. The ADR 0019
 corroboration module survives only under `ai-resolution-runner/`, still imported
 by nothing but its own test.
+
+## [2026-08-06] ingest | server/sample.env — retire the two dead review env vars
+Pages: ~entities/server-workspace.md
+Closes the `sample.env` follow-up the 2026-08-05 entry left open. That pass
+realigned the prose and flagged that `server/sample.env` still shipped
+`POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` and `POPCHARTS_ADMIN_REVIEW_ENABLED`;
+this removes them, plus the three script sites the flag did not name
+(`scripts/shared/env/buildLocalServerEnv.ts`,
+`scripts/shared/env/writeLocalChainServerEnv.ts`, and the pinned key set in
+`scripts/test/write-local-chain-server-env.test.ts`).
+
+Confirmed retired, not unwired, before deleting. ADR 0022 P5 (`418623b2`)
+removed `approveMarket` / `rejectMarket` and the review-manager role from
+`PregradManager` — verified against `protocol/contracts/`, where neither
+function nor the role appears and `MarketStatus` no longer carries
+`UnderReview` / `Rejected`. `e47dc1c3` says in its own message that it removes
+`POPCHARTS_ADMIN_REVIEW_ENABLED`, and its diff shows it removed the server
+config read but never touched `sample.env` or `scripts/shared/env/`. So the
+residue was an incomplete removal, not a deliberate hold. `e7953342` recorded
+that a future human-review feature is purely additive, so nothing here was
+load-bearing for one.
+
+`sample.env` was inverted, not merely stale: it told operators to set the
+retired review-manager key while omitting the live successor,
+`POPCHARTS_MARKET_CREATION_AUTHORIZER_PRIVATE_KEY`, which signs publish
+authorizations and is required off-local. A shared deployment configured from
+that file would have set a dead key and been unable to publish a market. The
+retired block is replaced by the live one, which no doc previously carried.
+
+`entities/server-workspace.md` is the one wiki page neither the 2026-08-05 pass
+nor the design-doc pass reached: it still listed `src/ai-review-runner/` as a
+process, `markets` as starting `under_review`, the dropped `market_ai_reviews`
+/ `market_ai_review_jobs` tables, and `POPCHARTS_ADMIN_REVIEW_ENABLED` among
+the hardening gaps. All four corrected against the code.
+
+`summaries/server-readme.md` and `entities/ai-review-service.md` needed no
+change here — the 2026-08-05 pass realigned both, and the design-doc pass has
+since resolved the staleness banner by marking
+`docs/ai-review-runner-design.md` superseded. The env var names still appearing
+in that doc and in `docs/backend-runtime-architecture.md` now read as
+description of a superseded design, not drift, so nothing is left flagged.

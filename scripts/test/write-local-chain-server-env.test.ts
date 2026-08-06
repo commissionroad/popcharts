@@ -28,7 +28,6 @@ const DEPLOY: PregradDeploy = {
 const ENV: NodeJS.ProcessEnv = {
   DATABASE_URL: "postgres://db",
   PORT: "3001",
-  POPCHARTS_ADMIN_REVIEW_ENABLED: "true",
   POPCHARTS_DEV_TOOLS_ENABLED: "true",
   AI_REVIEW_SERVICE_URL: "http://127.0.0.1:4001",
   AI_REVIEW_RUNNER_POLL_MS: "1000",
@@ -62,7 +61,6 @@ describe("writeLocalChainServerEnv", function () {
         "DATABASE_URL=postgres://db",
         "PORT=3001",
         "NETWORK=local",
-        "POPCHARTS_ADMIN_REVIEW_ENABLED=true",
         "POPCHARTS_DEV_TOOLS_ENABLED=true",
         "AI_REVIEW_SERVICE_URL=http://127.0.0.1:4001",
         "AI_REVIEW_RUNNER_POLL_MS=1000",
