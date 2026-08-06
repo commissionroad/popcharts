@@ -1927,3 +1927,51 @@ Follow-ups for next lint:
   both read `Status: Proposed` while their checklists are complete.
 - `app/docs/component-inventory.md` — if the next pass finds a fifth missed
   commit, stop catching it up by hand and fix the skill.
+
+## [2026-08-06] ingest | docs/ai-review-runner-design.md + docs/backend-runtime-architecture.md — the two remaining stale runner sources
+Pages: ~summaries/ai-review-runner-design.md, ~concepts/backend-drain-loop-pattern.md, ~entities/ai-review-service.md, ~index.md
+
+Closes the follow-up left open by the 2026-08-05 entry. Both design docs still
+described a separate AI review runner process; each claim was rechecked against
+`server/src` before rewriting, not against the surrounding prose.
+
+`docs/ai-review-runner-design.md` is now **superseded by ADR 0022** and headed by
+a verified account of the in-API draft review loop plus a table naming every
+artifact it describes that does not exist. `docs/backend-runtime-architecture.md`
+is descriptive, so its AI-review lane was corrected rather than flagged: the
+mermaid lane, the subsystem table, the chain-key claims, and the 2026-07-24
+status notes.
+
+**The staleness banner on `entities/ai-review-service.md` is removed**, since the
+source it pointed at is fixed. The page now describes the shipped shape.
+
+Three findings beyond the known runner drift:
+
+- The draft review loop **does not call the review service over HTTP** — it calls
+  `reviewMarket()` in process. The stateless service still exists (port 3002) but
+  nothing in the live path reaches it: no server code reads
+  `AI_REVIEW_SERVICE_URL`, its only HTTP caller is the ADR 0019 eval harness, and
+  it has no container in the CDK stack. The 2026-07-24 doc had predicted the
+  queue would survive "drained by a runner that calls a stateless service"; the
+  queue survived, the runner and the service call did not.
+- This page previously said an "admin re-review service still enqueues into"
+  `market_ai_review_jobs`. There is no `/admin` route in `server/src`, nothing
+  enqueues into that table, and its Drizzle definition is gone — only the shared
+  review enums survive, relocated into `db/schema/market-draft-reviews.ts`.
+- `just server-ai-review-smoke`, cited in this page's Status section, is not in
+  the justfile. The live recipes are `just local-dev` and `just local-ai-review`.
+
+Also corrected while in the file: the indexer runs **9** viem watchers, not 8
+(counted in `server/src/indexer/index.ts`).
+
+Not resolved: the indexer row still says "chain events + ~15s sweep". The only
+sweep in `indexer/index.ts` is a 2s recovery poll gated on `config.name ===
+"local"`, so the prod trigger story needs its own check — left alone rather than
+swapped for a second unverified claim.
+
+Amended before landing: PR #498 (`c276473a`) landed mid-review and deleted the
+orphaned `corroboration.ts` + test, **emptying `server/src/ai-review-runner/`**.
+Claims written hours earlier said the directory "holds only `corroboration.ts`
+and its test". All four now say the directory is gone. The ADR 0019
+corroboration module survives only under `ai-resolution-runner/`, still imported
+by nothing but its own test.
