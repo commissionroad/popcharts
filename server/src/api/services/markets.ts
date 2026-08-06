@@ -31,14 +31,16 @@ const MARKET_LIST_LIMIT = 200;
 /** Drizzle select shape of a markets row, shared by the market services. */
 export type MarketRow = typeof schema.markets.$inferSelect;
 /**
- * The review a published market exposes, independent of which table stores it.
+ * The review a published market exposes.
  *
- * Reviews are draft reviews: judged on the draft *before* publish and linked
- * to the market through `published_market_id` (the on-chain-era
- * `market_ai_reviews` table retired with ADR 0022 P5). Publish refuses unless the draft is
- * byte-identical to its reviewed snapshot and the on-chain metadata hash
- * matches, so a draft review describes exactly the market that came out of it
- * — which is what lets one serializer, and one card, cover both.
+ * Every review is a draft review: judged on the draft *before* publish and
+ * linked to the market through `published_market_id`. The on-chain-era
+ * `market_ai_reviews` table is gone — ADR 0022 P5 retired the path and
+ * migration 0038 dropped the table — so this is the only shape there is.
+ * Publish refuses unless the draft is byte-identical to its reviewed snapshot
+ * and the on-chain metadata hash matches, so a draft review describes exactly
+ * the market that came out of it — which is what lets one serializer, and one
+ * card, cover both.
  */
 export type PublishedMarketReviewRow = Pick<
   typeof schema.marketDraftReviews.$inferSelect,
@@ -523,14 +525,12 @@ function currentPregradManagerAddress() {
 }
 
 /**
- * Loads the latest review for each market from whichever table holds it,
- * keyed by chain and market id.
+ * Loads the latest draft review for each market, keyed by chain and market id.
  *
- * Legacy `market_ai_reviews` rows win where they exist: for a market created
- * before ADR 0022 P5, that row *is* the review that gated it. Everything
- * created since is reviewed as a draft, so the draft-review fallback is the
- * only source that returns anything for new markets — without it the market
- * detail page renders no review at all.
+ * There is one source. An earlier version of this preferred legacy
+ * `market_ai_reviews` rows for pre-P5 markets, but migration 0038 dropped that
+ * table, so the draft-review join is all that remains — and without it the
+ * market detail page renders no review at all.
  */
 async function getLatestMarketReviews(markets: MarketRow[]) {
   const reviews = new Map<string, PublishedMarketReviewRow>();

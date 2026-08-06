@@ -349,25 +349,23 @@ Start the full local Pop Charts stack:
     complete-set market (skip with --no-postgrad)
   - Bun API server
   - Bun indexer
-  - local AI Review service and durable runner using the host's logged-in
-    Claude Code CLI (subscription auth); temporary provider failures remain
-    pending and retry automatically
+  - local AI Review service using the host's logged-in Claude Code CLI
+    (subscription auth); the draft review loop runs inside the API process, and
+    temporary provider failures remain pending and retry automatically
   - Next.js app configured for devchain market creation
 
 Prerequisite for model review:
-  The default codex-cli provider requires a Codex CLI install on the host. Set
-  LOCAL_AI_REVIEW_PROVIDER to claude-cli, ollama, heuristic, or anthropic to
-  override it.
+  The default claude-cli provider requires a logged-in Claude Code CLI on the
+  host. Set LOCAL_AI_REVIEW_PROVIDER to codex-cli, ollama, heuristic, or
+  anthropic to override it.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=codex-cli
+  LOCAL_AI_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_TIMEOUT_MS=300000
-  LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
-  LOCAL_AI_REVIEW_RUNNER_LEASE_MS=600000
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true
   LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${resources.dbName}`);

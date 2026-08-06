@@ -262,22 +262,20 @@ Selected processes can be passed through for focused debugging, for example:
   pnpm run local:dev -- review-service
 
 Prerequisite for model-backed review:
-  The default codex-cli provider requires a Codex CLI install on the host. Set
-  LOCAL_AI_REVIEW_PROVIDER to claude-cli, ollama, heuristic, or anthropic to
-  override it. Transient provider failures stay pending and retry instead of
-  creating a completed heuristic review.
+  The default claude-cli provider requires a logged-in Claude Code CLI on the
+  host. Set LOCAL_AI_REVIEW_PROVIDER to codex-cli, ollama, heuristic, or
+  anthropic to override it. Transient provider failures stay pending and retry
+  instead of creating a completed heuristic review.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
-  LOCAL_AI_REVIEW_PROVIDER=codex-cli
+  LOCAL_AI_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true
   LOCAL_AI_REVIEW_TIMEOUT_MS=300000
-  LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS=360000
-  LOCAL_AI_REVIEW_RUNNER_LEASE_MS=600000
   LOCAL_AI_RESOLUTION_PORT=3004
   LOCAL_AI_RESOLUTION_PROVIDER=heuristic
   LOCAL_AI_RESOLUTION_INTERNET_ACCESS=off

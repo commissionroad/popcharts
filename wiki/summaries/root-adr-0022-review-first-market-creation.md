@@ -4,7 +4,7 @@ title: Repo ADR 0022 — Review-first market creation (off-chain drafts, gated p
 description: Accepted inversion of market creation — questions live as off-chain editable Drafts reviewed before any chain write; on approval the creator publishes via a gated createMarket (authorizer signature, born Active) paying the fee at publish, not submit; plus templates, Privy-auth drafts, and a real-markets-only board. All phases built — P1–P5/P7 2026-08-03..04 (contract gate, on-chain review path retired), P6+P8 2026-08-05 (event-only metadata, server-side SQL status filters, fixtures fallback gone).
 sources:
   - docs/adr/0022-review-first-market-creation.md
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # Repo ADR 0022: Review-first Market Creation
@@ -291,7 +291,15 @@ source of truth for one fact — a published market now resolves its review thro
 publish bookkeeping on `market_drafts`, narrowed to the draft's submitted snapshot. The
 join is exact, not approximate: publish refuses unless the draft is unchanged since
 review and verifies the on-chain `metadataHash`, so the reviewed snapshot is provably the
-live market's metadata. Legacy rows still win where they exist. Landed as #465.
+live market's metadata. Landed as #465.
+
+The ADR's follow-on claim — that `market_ai_reviews` survives as read-only history whose
+legacy rows "still win where they exist" — was **superseded on 2026-08-06 and the ADR now
+says so at that paragraph**. Migration `server/drizzle/0038_romantic_starhawk.sql` dropped
+`market_ai_reviews` and `market_ai_review_jobs`, and `getLatestMarketReviews`
+(`server/src/api/services/markets.ts`) queries the draft-review join alone. The decision
+stands — resolve by join, do not copy — but the join is the only reader, not the preferred
+one. See [AI review service](../entities/ai-review-service.md).
 
 ## Related pages
 

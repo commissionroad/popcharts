@@ -2055,3 +2055,26 @@ Notes / not fixed here:
   while the ADR reads "All phases delivered" — ADR 0022's own status drift.
 - `docs/adr/0016`'s dated changelog rows still name `ai-review-runner/jobs.ts`.
   Left alone: they record what was true on 2026-07-06.
+
+## [2026-08-06] ingest | ADR 0022 corrected at the source: market_ai_reviews was dropped
+Pages: ~summaries/root-adr-0022-review-first-market-creation.md
+
+Follow-up to the same day's earlier ingest, which corrected this claim in
+`entities/ai-review-service.md` but could not touch the ADR (raw source). The
+ADR now carries a superseded note at the "resolve by join, do not copy"
+section: migration `server/drizzle/0038_romantic_starhawk.sql` dropped
+`market_ai_reviews` and `market_ai_review_jobs`, so the promised "read-only
+history with a live reader" no longer exists and no legacy row "still wins".
+The decision itself stands; only the claim about what survives beside it was
+wrong. The summary page now mirrors that.
+
+Landed alongside the code-comment and script cleanups this correction implies:
+two stale doc comments in `server/src/api/services/markets.ts`, and the dead
+`LOCAL_AI_REVIEW_RUNNER_REQUEST_TIMEOUT_MS` / `_LEASE_MS` overrides that both
+local-dev orchestrators advertised in `--help` and no code read.
+
+Found while there, unrelated to the retired runner but in the same help text:
+both orchestrators documented `codex-cli` as the local review provider default
+and told the reader to install the Codex CLI. `buildAiReviewEnv` has defaulted
+to `claude-cli` since the evidence-mode work, and `local-ai-review-env.test.ts`
+pins it. Corrected in both `--help` blocks.
