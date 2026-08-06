@@ -495,6 +495,16 @@ with a live reader, not cruft.
 
 Landed as #465.
 
+> **Superseded 2026-08-06 — the table was dropped after all.** The two
+> paragraphs above were true when written. Migration
+> `server/drizzle/0038_romantic_starhawk.sql` then dropped `market_ai_reviews`
+> and `market_ai_review_jobs` outright, and `getLatestMarketReviews`
+> (`server/src/api/services/markets.ts`) now queries only the draft-review join.
+> So there is no read-only history and no legacy row that "still wins" — the
+> join described here is the *only* review reader. The decision itself stands:
+> resolve by join, do not copy. Only the claim about what survives alongside it
+> is out of date.
+
 ## Phased build plan
 
 Ordered so each phase is independently shippable and the keystone (drafts + off-chain
