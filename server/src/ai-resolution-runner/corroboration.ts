@@ -2,10 +2,9 @@ import type { ResolutionResult } from "src/ai-resolution/types";
 
 /**
  * Escalating-corroboration policy for on-chain resolution verdicts (ADR
- * 0019), the sibling of ai-review-runner/corroboration.ts. Only
- * resolve_yes / resolve_no move bettors' money irreversibly, so only those
- * verdicts require an agreeing second run (third as tiebreak); draws,
- * too_early re-queues, and manual parks are safe single-run states.
+ * 0019). Only resolve_yes / resolve_no move bettors' money irreversibly, so
+ * only those verdicts require an agreeing second run (third as tiebreak);
+ * draws, too_early re-queues, and manual parks are safe single-run states.
  *
  * The caller re-applies decideResolutionAction to the corroborated result:
  * a tiebreak can legitimately flip YES→NO, and the flipped verdict must
