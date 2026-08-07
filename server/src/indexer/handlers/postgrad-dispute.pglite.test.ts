@@ -447,19 +447,6 @@ describe("proposal events confirm the runner's pending row (ADR 0026)", () => {
     });
   });
 
-  // A pending row records what the AI decided; `confirmed` asserts the chain
-  // acted on it. If an operator proposed the other side while the runner's row
-  // sat pending, confirming it would fabricate the record/chain divergence
-  // this whole program removed.
-  it("leaves a pending row alone when its verdict is not the proposed side", async () => {
-    await seedPendingResolution("resolve_no");
-
-    await persistPostgradDisputeRecord(disputeRecord(), dbc);
-
-    const [row] = await resolutionRows();
-    expect(row).toMatchObject({ commitState: "pending", resolvedAt: null });
-  });
-
   // Operator and creator self-resolve proposals never had a pending row.
   it("no-ops without error when no pending row exists", async () => {
     await persistPostgradDisputeRecord(disputeRecord(), dbc);
@@ -493,5 +480,134 @@ describe("proposal events confirm the runner's pending row (ADR 0026)", () => {
     const [row] = await resolutionRows();
     // The CAS on `pending` means the earlier settlement's timestamp survives.
     expect(row?.resolvedAt).toEqual(settledAt);
+  });
+
+  // An opposite-side proposal is authoritative evidence the AI's judgment lost
+  // the race: the event that could have confirmed it has now been consumed, so
+  // leaving the row pending would be an eternal lie in the operator lens — and
+  // (ADR 0026 review) the market is resolving AGAINST the recorded judgment,
+  // which is exactly when a human should look.
+  it("supersedes a pending row whose verdict lost to the other side, and pages", async () => {
+    const alerts = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await seedPendingResolution("resolve_no");
+
+      await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+      const [row] = await resolutionRows();
+      expect(row).toMatchObject({
+        commitState: "superseded",
+        resolvedAt: new Date("2026-07-14T00:00:00Z"),
+        // The judgment columns are untouched: superseded preserves what the
+        // AI concluded, truthfully never acted on.
+        verdict: "resolve_no",
+      });
+      expect(
+        alerts.mock.calls.some(([line]) =>
+          String(line).includes("resolution_superseded"),
+        ),
+      ).toBe(true);
+    } finally {
+      alerts.mockRestore();
+    }
+  });
+
+  it("signals the feed for a superseded settlement too", async () => {
+    const alerts = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await seedPendingResolution("resolve_no");
+
+      await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+      const signals = await dbc
+        .select({
+          op: schema.changeFeed.op,
+          table: schema.changeFeed.sourceTable,
+        })
+        .from(schema.changeFeed);
+      expect(signals).toContainEqual({
+        op: "update",
+        table: "market_resolutions",
+      });
+    } finally {
+      alerts.mockRestore();
+    }
+  });
+
+  it("does not page a supersede on a replayed log", async () => {
+    const alerts = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await seedPendingResolution("resolve_no");
+      await persistPostgradDisputeRecord(disputeRecord(), dbc);
+      await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+      const supersededPages = alerts.mock.calls.filter(([line]) =>
+        String(line).includes("resolution_superseded"),
+      );
+      expect(supersededPages).toHaveLength(1);
+    } finally {
+      alerts.mockRestore();
+    }
+  });
+
+  // The settlement is scoped to the market's CURRENT metadata version through
+  // the markets row, mirroring every other resolution query — a leftover
+  // pending row from a stale metadata version must not be settled by the
+  // current version's event.
+  it("leaves a pending row from a different metadata version alone", async () => {
+    const staleHash = `0x${"77".repeat(32)}`;
+    await dbc.insert(schema.marketMetadata).values({
+      category: "Testing",
+      chainId: CHAIN_ID,
+      description: "A stale metadata version.",
+      metadataCreatedAt: "2026-07-12T00:00:00.000Z",
+      metadataHash: staleHash,
+      question: "The stale version of the question?",
+      resolutionCriteria: "Resolves YES under the old criteria.",
+    });
+    await dbc.insert(schema.markets).values({
+      chainId: CHAIN_ID,
+      collateral: "0x00000000000000000000000000000000000000dd",
+      contractId: 1,
+      createdBlockNumber: 98n,
+      createdBlockTimestamp: new Date("2026-07-12T00:00:00Z"),
+      createdLogIndex: 1,
+      createdTransactionHash: `0x${"88".repeat(32)}`,
+      creator: "0x00000000000000000000000000000000000000aa",
+      graduationThreshold: 1_000_000n,
+      graduationTime: new Date("2026-08-01T00:00:00Z"),
+      liquidityParameter: 1_000_000_000n,
+      marketId: 8n,
+      metadataHash: staleHash,
+      openingProbabilityWad: 500_000_000_000_000_000n,
+      resolutionTime: new Date("2026-09-01T00:00:00Z"),
+      status: "graduated",
+    });
+    const [staleRow] = await dbc
+      .insert(schema.marketResolutions)
+      .values({
+        chainId: CHAIN_ID,
+        commitState: "pending",
+        evidence: [],
+        hardFlags: [],
+        marketId: 8n,
+        metadataHash: staleHash,
+        outcome: "yes",
+        promptVersion: "v1",
+        provider: "anthropic",
+        reasons: ["A different market's judgment."],
+        sourceChecks: [],
+        verdict: "resolve_yes",
+      })
+      .returning();
+
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const [after] = await dbc
+      .select()
+      .from(schema.marketResolutions)
+      .where(eq(schema.marketResolutions.id, staleRow!.id));
+    // Market 7's event settles nothing on market 8.
+    expect(after?.commitState).toBe("pending");
   });
 });

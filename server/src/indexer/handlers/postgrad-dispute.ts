@@ -6,8 +6,9 @@ import {
 } from "@popcharts/protocol";
 import type { Log } from "viem";
 
+import { AUTO_RESOLVE_VERDICT_BY_SIDE } from "src/ai-resolution/types";
 import type { NetworkConfig } from "src/config";
-import { and, db, eq, schema } from "src/db/client";
+import { and, db, eq, schema, sql } from "src/db/client";
 import type { PostgradDisputeKind } from "src/db/schema/postgrad-dispute-events";
 import {
   applyMarketStatusTransition,
@@ -193,7 +194,7 @@ export async function persistPostgradDisputeRecord(
 ) {
   const transition = DISPUTE_TRANSITIONS[record.event.kind];
 
-  const applied = await dbc.transaction(async (tx) => {
+  const outcome = await dbc.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.postgradDisputeEvents)
       .values(record.event)
@@ -203,7 +204,7 @@ export async function persistPostgradDisputeRecord(
     // A conflict means this exact log was already processed (recovery replay
     // or a second indexer); the projection was handled the first time.
     if (inserted.length === 0) {
-      return false;
+      return null;
     }
 
     await applyMarketStatusTransition(tx, {
@@ -224,40 +225,63 @@ export async function persistPostgradDisputeRecord(
       logIndex: record.event.logIndex,
     });
 
-    if (record.event.kind === "proposed") {
-      await confirmPendingResolution(tx, record.event);
-    }
+    const supersededAlerts =
+      record.event.kind === "proposed"
+        ? await confirmPendingResolution(tx, record.event)
+        : [];
 
-    return true;
+    return { supersededAlerts };
   });
 
-  // Raised after the commit and only for a row that actually landed, so a
+  // Raised after the commit and only for writes that actually landed, so a
   // rolled-back write cannot page and a recovery replay of the same log cannot
   // page twice. stderr, because the alarm treats this as an incident.
-  if (applied && record.operatorAlert) {
+  if (outcome && record.operatorAlert) {
     console.error(record.operatorAlert);
+  }
+  for (const alert of outcome?.supersededAlerts ?? []) {
+    console.error(alert);
   }
 }
 
 /**
- * Confirms the runner's `pending` audit row against the proposal the chain just
- * acknowledged (ADR 0026 phase 4). This is the only writer of the
- * `pending → confirmed` transition, and it stamps `resolved_at` from the
- * event's block — the timestamp does not exist before this moment.
+ * Settles the runner's `pending` audit row against the proposal the chain just
+ * acknowledged (ADR 0026 phase 4). This is the only writer of both
+ * `pending → confirmed` and `pending → superseded`, and it stamps
+ * `resolved_at` from the event's block — the timestamp does not exist before
+ * this moment.
  *
- * Three guards, all load-bearing:
+ * What `confirmed` means, decided in review: **the chain holds a proposal for
+ * the side this row's verdict names** — the judgment was recorded before the
+ * fact and the outcome the chain enforces matches it. It deliberately does NOT
+ * assert which transaction carried the proposal; that provenance lives in
+ * `postgrad_dispute_events.transaction_hash`. Carrying an expected hash from
+ * submission to confirmation was considered and rejected: the runner would
+ * have to write it AFTER proposing, reintroducing the post-act crash window
+ * the outbox exists to remove.
+ *
+ * The guards, all load-bearing:
  *
  * - **Compare-and-set on `pending`.** A replayed log dedupes out before
  *   reaching here, but the CAS also makes a racing second writer harmless and
  *   never rewrites a row some other path already settled.
- * - **The verdict must match the proposed side.** A pending row records what
- *   the AI decided; `confirmed` asserts the chain acted on it. If an operator
- *   proposed the other side while the runner's row sat pending, confirming it
- *   would fabricate exactly the record/chain divergence ADR 0026 removed — the
- *   row stays `pending`, truthfully "never acted on", and phase 5 surfaces it.
- * - **Zero matches is not an error.** Operator and creator self-resolve
- *   proposals never had a pending row; those paths keep writing their own
- *   `confirmed` rows as today.
+ * - **Match goes by verdict.** The event's side maps to a verdict through the
+ *   single shared pairing (`AUTO_RESOLVE_VERDICT_BY_SIDE` — the same table the
+ *   propose path submits from, so the two cannot drift apart).
+ * - **A mismatch is settled, not skipped.** An opposite-side proposal is
+ *   authoritative evidence this judgment lost the race and will never be
+ *   submitted — the event that could have confirmed it has now been consumed.
+ *   The row becomes `superseded` (terminal; judgment columns untouched,
+ *   truthfully never acted on) and an operator page is raised, because a
+ *   market resolving against the AI's recorded verdict is exactly what a
+ *   human should look at.
+ * - **Zero matches is not an error.** An operator or creator self-resolve
+ *   proposal on a market the runner never judged has no pending row, and no
+ *   path writes an audit row for it — `postgrad_dispute_events` is its paper
+ *   trail.
+ * - **Scoped to the market's own metadata version** through the `markets` row,
+ *   mirroring every other resolution query, so a leftover row from a previous
+ *   metadata version can never be settled by the current version's event.
  */
 async function confirmPendingResolution(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -266,32 +290,49 @@ async function confirmPendingResolution(
   // `proposed` rows always carry a side (buildPostgradDisputeRecord requires
   // it); the null check narrows the type rather than guarding a real case.
   if (!event.proposedSide) {
-    return;
+    return [];
   }
+  // Captured so the narrowing survives into the alert-mapping closure below.
+  const proposedSide = event.proposedSide;
 
-  const actedOnVerdict =
-    event.proposedSide === "yes" ? "resolve_yes" : "resolve_no";
+  const actedOnVerdict = AUTO_RESOLVE_VERDICT_BY_SIDE[proposedSide];
+
+  const pendingRowForThisMarket = and(
+    eq(schema.marketResolutions.chainId, event.chainId),
+    eq(schema.marketResolutions.marketId, event.marketId),
+    eq(schema.marketResolutions.commitState, "pending"),
+    sql`${schema.marketResolutions.metadataHash} = (
+      select ${schema.markets.metadataHash}
+      from ${schema.markets}
+      where ${schema.markets.chainId} = ${event.chainId}
+        and ${schema.markets.marketId} = ${event.marketId}
+    )`,
+  );
 
   const confirmed = await tx
     .update(schema.marketResolutions)
-    .set({
-      commitState: "confirmed",
-      resolvedAt: event.blockTimestamp,
-    })
+    .set({ commitState: "confirmed", resolvedAt: event.blockTimestamp })
     .where(
       and(
-        eq(schema.marketResolutions.chainId, event.chainId),
-        eq(schema.marketResolutions.marketId, event.marketId),
-        eq(schema.marketResolutions.commitState, "pending"),
+        pendingRowForThisMarket,
         eq(schema.marketResolutions.verdict, actedOnVerdict),
       ),
     )
     .returning({ id: schema.marketResolutions.id });
 
-  for (const row of confirmed) {
+  const superseded = await tx
+    .update(schema.marketResolutions)
+    .set({ commitState: "superseded", resolvedAt: event.blockTimestamp })
+    .where(pendingRowForThisMarket)
+    .returning({
+      id: schema.marketResolutions.id,
+      verdict: schema.marketResolutions.verdict,
+    });
+
+  for (const row of [...confirmed, ...superseded]) {
     // The runner deliberately does not signal on the pending insert — the
-    // judgment is not news until the chain acknowledges it. This is that
-    // signal, atomic with the confirmation.
+    // judgment is not news until the chain settles it. This is that signal,
+    // atomic with the settlement.
     await recordLiveChange(tx, {
       sourceTable: "market_resolutions",
       op: "update",
@@ -302,6 +343,20 @@ async function confirmPendingResolution(
       logIndex: event.logIndex,
     });
   }
+
+  // Returned rather than paged here: alerts follow this file's discipline of
+  // paging only after the commit, so a rolled-back settlement cannot page.
+  return superseded.map((row) =>
+    formatOperatorAlert(OPERATOR_ALERT_EVENTS.resolutionSuperseded, {
+      chainId: event.chainId,
+      marketId: event.marketId.toString(),
+      pendingVerdict: row.verdict,
+      postgradMarket: event.postgradMarket,
+      proposedSide,
+      resolutionId: row.id,
+      transactionHash: event.transactionHash,
+    }),
+  );
 }
 
 /**
