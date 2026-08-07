@@ -13,71 +13,34 @@ import type { db as productionDb } from "src/db/client";
 import { setDbForTesting } from "src/db/client";
 import * as schema from "src/db/schema";
 import { createPgliteDb } from "src/test-support/pglite-db";
+import {
+  RESOLUTION_FIXTURE,
+  resolutionRowValues,
+  seedResolutionMarket,
+} from "src/test-support/resolution-fixtures";
 
 import { collectPendingRows, formatAge } from "./pending-status";
 
-const CHAIN_ID = 31337;
-const MARKET_ID = 7n;
-const METADATA_HASH = `0x${"22".repeat(32)}`;
+const {
+  chainId: CHAIN_ID,
+  marketId: MARKET_ID,
+  metadataHash: METADATA_HASH,
+} = RESOLUTION_FIXTURE;
 const NOW = new Date("2026-07-20T12:00:00.000Z");
 
 let dbc: typeof productionDb;
 let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-async function seedMarket() {
-  await dbc.insert(schema.contracts).values({
-    address: "0x00000000000000000000000000000000000000cc",
-    chainId: CHAIN_ID,
-    name: "PregradManager",
-  });
-  await dbc.insert(schema.marketMetadata).values({
-    category: "Testing",
-    chainId: CHAIN_ID,
-    description: "A market with a judgment in flight.",
-    metadataCreatedAt: "2026-07-01T00:00:00.000Z",
-    metadataHash: METADATA_HASH,
-    question: "Does the operator lens see the pending row?",
-    resolutionCriteria: "Resolves YES when it does.",
-  });
-  await dbc.insert(schema.markets).values({
-    chainId: CHAIN_ID,
-    collateral: "0x00000000000000000000000000000000000000dd",
-    contractId: 1,
-    createdBlockNumber: 99n,
-    createdBlockTimestamp: new Date("2026-07-01T00:00:00.000Z"),
-    createdLogIndex: 0,
-    createdTransactionHash: `0x${"33".repeat(32)}`,
-    creator: "0x00000000000000000000000000000000000000aa",
-    graduationThreshold: 1_000_000n,
-    graduationTime: new Date("2026-07-02T00:00:00.000Z"),
-    liquidityParameter: 1_000_000_000n,
-    marketId: MARKET_ID,
-    metadataHash: METADATA_HASH,
-    openingProbabilityWad: 500_000_000_000_000_000n,
-    resolutionTime: new Date("2026-07-03T00:00:00.000Z"),
-    status: "resolution_pending",
-  });
-}
-
 async function seedResolution(commitState: "confirmed" | "pending") {
   const [row] = await dbc
     .insert(schema.marketResolutions)
-    .values({
-      chainId: CHAIN_ID,
-      commitState,
-      createdAt: new Date("2026-07-20T10:00:00.000Z"),
-      evidence: [],
-      hardFlags: [],
-      marketId: MARKET_ID,
-      metadataHash: METADATA_HASH,
-      outcome: "yes",
-      promptVersion: "v1",
-      provider: "anthropic",
-      reasons: ["Because."],
-      sourceChecks: [],
-      verdict: "resolve_yes",
-    })
+    .values(
+      resolutionRowValues({
+        commitState,
+        createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      }),
+    )
     .returning();
   return row!;
 }
@@ -94,7 +57,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
-  await seedMarket();
+  await seedResolutionMarket(dbc, { status: "resolution_pending" });
 });
 
 describe("collectPendingRows", () => {
@@ -122,7 +85,7 @@ describe("collectPendingRows", () => {
       jobLastError: "RPC unreachable",
       jobStatus: "retryable_failed",
       marketId: "7",
-      question: "Does the operator lens see the pending row?",
+      question: RESOLUTION_FIXTURE.question,
       verdict: "resolve_yes",
     });
   });

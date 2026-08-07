@@ -38,7 +38,7 @@ if (process.argv.includes("--json")) {
     if (row.jobLastError) console.log(`  last error: ${row.jobLastError}`);
   }
   console.log(
-    "\nA long-lived row means the proposal never landed, the indexer is behind, or an operator proposed the other side (a verdict mismatch is never auto-confirmed). See ADR 0026.",
+    "\nA long-lived row means the proposal never landed, the indexer is behind, or a same-side external proposal consumed the confirming event first. Opposite-side losses settle as superseded and page instead of lingering here. See ADR 0026.",
   );
 }
 

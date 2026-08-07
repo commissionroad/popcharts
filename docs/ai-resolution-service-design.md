@@ -335,9 +335,12 @@ transaction:
 
 A retry adopts its own `pending` row and resumes from the recorded verdict — it
 never re-runs the model, which is what previously let the record disagree with
-the chain. The **indexer's** `ResolutionProposed` handler settles the row
-(`confirmed` + `resolved_at` from the block), compare-and-set on `pending` and
-only when the row's verdict matches the proposed side. Parked verdicts
+the chain. The **indexer's** `ResolutionProposed` handler settles the row from
+the event, compare-and-set on `pending`: `confirmed` (+ `resolved_at` from the
+block) when the proposed side matches the row's verdict, `superseded` — with a
+`resolution_superseded` operator page — when it does not, because an
+opposite-side proposal is proof the judgment lost and its confirming event has
+been consumed. Parked verdicts
 (`cancel_draw`/`manual_review`) never reach the chain and land `confirmed` on
 arrival. Operator visibility for rows stuck `pending`:
 `bun run scripts/resolution-pending-status.ts` (`resolution:pending`).

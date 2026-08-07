@@ -22,8 +22,10 @@ export type PendingRow = {
  * Every `market_resolutions` row the runner committed before proposing that
  * the indexer has not yet confirmed, newest first, joined to the job that
  * wrote it and the market's question. A short-lived row is the normal
- * in-flight state; a long-lived one is a proposal that never landed, a
- * stalled indexer, or a verdict mismatch the confirmation refused (ADR 0026).
+ * in-flight state; a long-lived one is a proposal that never landed, a stalled
+ * indexer, or a same-side external proposal whose event predated the row.
+ * (An opposite-side event settles the row as `superseded` and pages, so
+ * mismatches do not linger here — ADR 0026.)
  */
 export async function collectPendingRows(now: Date): Promise<PendingRow[]> {
   const rows = await db
