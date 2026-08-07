@@ -34,6 +34,11 @@ export function isSubmittableResolutionVerdict(
  * caller performs run 1 and the gate check; this helper spends up to two
  * more service calls confirming it. `onBeforeRun` fires before each extra
  * call so the job lease can be renewed.
+ *
+ * The heuristic provider single-passes: it is deterministic, so a rerun
+ * reproduces the same verdict by construction and buys zero information.
+ * Safe to trust the provider name here because resolveMarketWithService
+ * throws on failure — there is no degraded-result path that could fake it.
  */
 export async function corroborateResolution({
   callService,
@@ -44,6 +49,10 @@ export async function corroborateResolution({
   first: ResolutionResult;
   onBeforeRun?: (run: number) => Promise<void>;
 }): Promise<CorroboratedResolution> {
+  if (first.provider === "heuristic") {
+    return { outcome: "confirmed", result: first, runs: [first] };
+  }
+
   const runs: ResolutionResult[] = [first];
 
   await onBeforeRun?.(2);

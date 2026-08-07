@@ -12,7 +12,7 @@ import {
   createVenueContractWriter,
 } from "src/api/services/postgrad-venue";
 import { config } from "src/config";
-import { and, db, eq, schema } from "src/db/client";
+import { and, db, desc, eq, schema } from "src/db/client";
 
 import { assertEqual } from "../asserts";
 import { chainNowSeconds, resolutionRunnerTimeoutMs } from "../chain-time";
@@ -172,6 +172,9 @@ export const happyPath: Scenario = {
       });
       assertResolution(resolved);
 
+      // The deciding row is the newest (id DESC, matching the runner's own
+      // resume reader); .limit(1) without an order reads in heap order once a
+      // market carries more than one audit row.
       const [verdict] = await db
         .select()
         .from(schema.marketResolutions)
@@ -181,6 +184,7 @@ export const happyPath: Scenario = {
             eq(schema.marketResolutions.marketId, market.marketId),
           ),
         )
+        .orderBy(desc(schema.marketResolutions.id))
         .limit(1);
       assertEqual("resolution outcome", verdict?.outcome, "yes");
       assertEqual("resolution provider", verdict?.provider, "heuristic");
