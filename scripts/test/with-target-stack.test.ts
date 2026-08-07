@@ -81,7 +81,7 @@ function stack(overrides: Partial<StackDescriptor> = {}): StackDescriptor {
     appPort: 3010,
     reviewPort: 3012,
     resolutionPort: 3014,
-    pcAdminPort: 8081,
+    pcAdminPort: 8090,
     dbName: "popcharts_1",
     envFilePath: "/nonexistent/.env.local-chain.1",
     deployAddressesPath: null,

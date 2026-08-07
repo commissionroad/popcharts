@@ -20,6 +20,7 @@ import {
   deriveStackResources,
   slotForAppPort,
   slotForChainPort,
+  slotForControlPort,
 } from "../shared/localStack/ports.ts";
 
 test("slot 0 reproduces every legacy local stack resource", function () {
@@ -49,7 +50,7 @@ test("slots 1 and 2 apply the documented offsets", function () {
     appPort: 3010,
     reviewPort: 3012,
     resolutionPort: 3014,
-    pcAdminPort: 8081,
+    pcAdminPort: 8090,
     dbName: "popcharts_1",
     chainRpcHttpUrl: "http://127.0.0.1:8555",
     chainRpcWssUrl: "ws://127.0.0.1:8555",
@@ -64,7 +65,7 @@ test("slots 1 and 2 apply the documented offsets", function () {
     appPort: 3020,
     reviewPort: 3022,
     resolutionPort: 3024,
-    pcAdminPort: 8082,
+    pcAdminPort: 8100,
     dbName: "popcharts_2",
     chainRpcHttpUrl: "http://127.0.0.1:8565",
     chainRpcWssUrl: "ws://127.0.0.1:8565",
@@ -136,6 +137,22 @@ test("the app-port grid never claims another resource's port", function () {
     assert.equal(slotForAppPort(reviewPort), undefined);
     assert.equal(slotForAppPort(resolutionPort), undefined);
   }
+});
+
+test("a control port maps back to the slot that owns it", function () {
+  for (const slot of [0, 1, 2, 7]) {
+    const resources = deriveStackResources(slot);
+    assert.equal(slotForControlPort(resources.pcAdminPort), slot);
+  }
+});
+
+test("the old stride-1 control ports no longer name a slot", function () {
+  // 8081/8082 were slots 1 and 2 before the stride changed. A stale command
+  // carrying one must hit nothing rather than a live neighbour's control API,
+  // which is the whole point of the change.
+  assert.equal(slotForControlPort(8081), undefined);
+  assert.equal(slotForControlPort(8082), undefined);
+  assert.equal(slotForControlPort(8079), undefined);
 });
 
 test("slot-aware env paths preserve the legacy slot-0 filename", function () {

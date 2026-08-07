@@ -100,10 +100,29 @@ Given slot `s`:
 | App port | `3000 + 10s` | 3000 | 3010 |
 | AI review port | `3002 + 10s` | 3002 | 3012 |
 | AI resolution port | `3004 + 10s` | 3004 | 3014 |
-| process-compose admin | `8080 + s` | 8080 | 8081 |
+| process-compose admin | `8080 + 10s` | 8080 | 8090 |
 | Postgres database | `popcharts` / `popcharts_<s>` | popcharts | popcharts_1 |
 | Env file | `.env.local-chain` / `.env.local-chain.<s>` | (legacy) | .env.local-chain.1 |
 | Indexer health marker | `.env.local-dev.indexer-health` / `….<s>` | (legacy) | .env.local-dev.indexer-health.1 |
+
+**Amendment (2026-08-07): the control port strides by 10 like every other
+resource.** It was originally `8080 + s`, so slots sat on 8080/8081/8082 —
+adjacent digits, while every other resource announces its slot at a glance
+(8545/8555, `popcharts`/`popcharts_1`). Twice, a worktree session reached for
+the memorable 8080 and stopped the primary checkout's stack; the control API is
+unauthenticated, `/project/stop` ends a whole stack, and `hardhat node` holds
+its chain state in memory, so both times the state was unrecoverable.
+
+Striding the control port does not by itself stop someone typing 8080, but it
+makes a stale or mistyped port hit nothing and fail loudly instead of a live
+neighbour. Two further layers were added with it: `scripts/stack`, which
+resolves the port from the registry entry matching the calling worktree and
+offers no way to name another, and `scripts/guard-stack-control.ts`, a
+PreToolUse hook that blocks any shell command addressing a control port this
+worktree does not own. Ownership is keyed on the registry's `worktreePath`
+rather than on "the only running stack" — that fallback, which
+`resolveTargetStack` still applies for read-and-create scripts, is precisely
+what handed a stackless worktree the primary checkout's control plane.
 
 ### Mechanism: the registry
 

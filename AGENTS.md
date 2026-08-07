@@ -8,6 +8,20 @@
   Opus/Fable) belongs in that model's own file (`CLAUDE.md`), not here. When
   adding a command, write the skill once under `skills/`, then add one
   delegating adapter per harness that needs native discovery.
+- **Never name a dev-stack control port. Use `pnpm run local:stack`.** The
+  process-compose control API is unauthenticated, `/project/stop` ends a whole
+  stack, and the devchain keeps its state in memory — so commanding the wrong
+  stack destroys someone else's chain permanently. `8080` is **slot 0's**, the
+  primary checkout's — never assume it is yours. Do not derive your own port
+  either; `scripts/shared/localStack/ports.ts` owns that formula and restating
+  it here is how the two drift. Do not `curl` a control port and do not pass
+  `-p` to `process-compose`: run
+  `pnpm run local:stack <list|status|stop|start|restart|logs>`, which resolves
+  the port from the registry entry matching your worktree and cannot address
+  another. A worktree with no stack of its own has no control port at all —
+  that is an error to report, never a reason to fall back to the one stack that
+  happens to be running. `scripts/guard-stack-control.ts` blocks the unsafe
+  shapes, but the rule binds whether or not the guard is wired.
 - **Contain agent worktrees in the repository.** Create dedicated worktrees
   under the primary checkout's ignored `.worktrees/<slug>/` directory. Keep
   legacy harness-managed `.claude/worktrees/` checkouts in place until their
