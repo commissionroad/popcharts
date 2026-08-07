@@ -288,6 +288,13 @@
       "when": 1785965812195,
       "tag": "0040_natural_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785979018404,
+      "tag": "0041_amazing_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

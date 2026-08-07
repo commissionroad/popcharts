@@ -2,6 +2,7 @@ export * from "./change-feed";
 export * from "./complete-set-events";
 export * from "./contracts";
 export * from "./draft-review-charges";
+export * from "./entry-fee-events";
 export * from "./indexer-state";
 export * from "./market-creation-fee-events";
 export * from "./market-draft-reviews";
