@@ -28,6 +28,8 @@ contract PregradManagerTest is BaseTest {
     uint64 challengeDeadline;
   }
 
+  uint256 private constant ONE_PERCENT_WAD = 1e16;
+
   PregradManager private manager;
 
   function setUp() public override {
@@ -1553,6 +1555,226 @@ contract PregradManagerTest is BaseTest {
     _fundAndApprove(account, address(manager), amount, type(uint256).max);
   }
 
+  // ---------------------------------------------------------------- entry fee
+
+  function test_EntryFeeRateDefaultsToZero() public view {
+    assertEq(manager.entryFeeRateWad(), 0);
+    assertEq(manager.entryFeeFor(100 * WAD), 0);
+  }
+
+  function test_SetEntryFeeRateUpdatesAndEnforcesCap() public {
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeRateUpdated(0, ONE_PERCENT_WAD);
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    assertEq(manager.entryFeeRateWad(), ONE_PERCENT_WAD);
+    assertEq(manager.entryFeeFor(100 * WAD), WAD);
+
+    uint256 aboveCap = manager.MAX_ENTRY_FEE_RATE_WAD() + 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.EntryFeeRateExceedsMaximum.selector,
+        aboveCap,
+        manager.MAX_ENTRY_FEE_RATE_WAD()
+      )
+    );
+    manager.setEntryFeeRate(aboveCap);
+
+    address notOwner = makeAddr("fee-rate-stranger");
+    vm.prank(notOwner);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+  }
+
+  function test_MaxCostBoundsTotalDebitAcrossRateChanges() public {
+    address buyer = makeAddr("fee-frontrun-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
+      marketId,
+      MarketTypes.Side.Yes,
+      100 * WAD
+    );
+
+    // The buyer signs a fee-free debit; the owner arms the rate before the
+    // transaction lands. The placement must revert, never charge extra.
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    uint256 fee = manager.entryFeeFor(quote.cost);
+    vm.prank(buyer);
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.CostExceedsLimit.selector, quote.cost + fee, quote.cost)
+    );
+    manager.placeReceipt(
+      MarketTypes.PlaceReceiptParams({
+        marketId: marketId,
+        side: MarketTypes.Side.Yes,
+        shares: 100 * WAD,
+        maxCost: quote.cost
+      })
+    );
+  }
+
+  function test_PlaceReceiptCollectsEntryFeeOutsideEscrow() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    address buyer = makeAddr("fee-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+
+    MarketTypes.ReceiptQuote memory quote = manager.quoteReceipt(
+      marketId,
+      MarketTypes.Side.Yes,
+      100 * WAD
+    );
+    uint256 expectedFee = manager.entryFeeFor(quote.cost);
+    assertGt(expectedFee, 0);
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeCollected(1, marketId, buyer, expectedFee);
+    vm.prank(buyer);
+    uint256 receiptId = manager.placeReceipt(
+      MarketTypes.PlaceReceiptParams({
+        marketId: marketId,
+        side: MarketTypes.Side.Yes,
+        shares: 100 * WAD,
+        maxCost: quote.cost + expectedFee
+      })
+    );
+
+    MarketTypes.Receipt memory receipt = manager.getReceipt(receiptId);
+    assertEq(receipt.entryFeePaid, expectedFee);
+    assertEq(manager.marketEntryFeeEscrow(marketId), expectedFee);
+    // The fee never enters clearing's accounting surface.
+    assertEq(manager.getMarketState(marketId).totalEscrowed, quote.cost);
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore - quote.cost - expectedFee);
+    assertEq(collateral.balanceOf(address(manager)), quote.cost + expectedFee);
+  }
+
+  function test_RefundedReceiptReturnsEntryFeeInFull() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    address buyer = makeAddr("fee-refund-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.No,
+      100 * WAD
+    );
+    uint256 feePaid = manager.getReceipt(receiptId).entryFeePaid;
+    assertGt(feePaid, 0);
+
+    vm.warp(manager.getMarketConfig(marketId).graduationDeadline);
+    manager.markRefundable(marketId);
+
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeRefunded(receiptId, marketId, buyer, feePaid);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
+    manager.claimRefundedReceipt(receiptId);
+
+    // The success fee never vested: cost and fee both come home whole.
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost + feePaid);
+    assertEq(manager.marketEntryFeeEscrow(marketId), 0);
+    assertEq(manager.marketEntryFeesEarned(marketId), 0);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+  }
+
+  function test_CancelledMarketRefundsEntryFeeInFull() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    address buyer = makeAddr("fee-cancel-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.No,
+      100 * WAD
+    );
+    uint256 feePaid = manager.getReceipt(receiptId).entryFeePaid;
+
+    manager.cancelMarket(marketId);
+
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+    manager.claimRefundedReceipt(receiptId);
+
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost + feePaid);
+    assertEq(manager.marketEntryFeeEscrow(marketId), 0);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+  }
+
+  function test_GraduatedClaimSplitsEntryFeeAlongClearingLine() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    (SubmittedClearingFixture memory fixture, , ) = _finalizeSingleReceiptMarket();
+    bytes32[] memory proof = new bytes32[](0);
+
+    uint256 feePaid = manager.getReceipt(fixture.receiptId).entryFeePaid;
+    assertGt(feePaid, 0);
+    // The fee splits along the exact line clearing drew on the cost; floor
+    // division sends rounding dust to earned, never back to the bettor.
+    uint256 expectedFeeRefund = (feePaid * fixture.claim.refund) / fixture.quote.cost;
+    uint256 expectedFeeEarned = feePaid - expectedFeeRefund;
+    uint256 buyerBalanceBefore = collateral.balanceOf(fixture.buyer);
+
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeEarned(fixture.receiptId, fixture.marketId, expectedFeeEarned);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeRefunded(
+      fixture.receiptId,
+      fixture.marketId,
+      fixture.buyer,
+      expectedFeeRefund
+    );
+    manager.claimGraduatedReceipt(fixture.claim, proof);
+
+    assertEq(
+      collateral.balanceOf(fixture.buyer),
+      buyerBalanceBefore + fixture.claim.refund + expectedFeeRefund
+    );
+    assertEq(manager.marketEntryFeeEscrow(fixture.marketId), 0);
+    assertEq(manager.marketEntryFeesEarned(fixture.marketId), expectedFeeEarned);
+    // Conservation: everything collected either went home or was earned.
+    assertEq(feePaid, expectedFeeRefund + expectedFeeEarned);
+    // The earned pot is the only fee value left in the contract.
+    assertEq(collateral.balanceOf(address(manager)), expectedFeeEarned);
+  }
+
+  function test_WithdrawEarnedEntryFees() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    (SubmittedClearingFixture memory fixture, , ) = _finalizeSingleReceiptMarket();
+    manager.claimGraduatedReceipt(fixture.claim, new bytes32[](0));
+    uint256 earned = manager.marketEntryFeesEarned(fixture.marketId);
+    assertGt(earned, 0);
+
+    address recipient = makeAddr("fee-treasury");
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.EntryFeeWithdrawalExceedsEarned.selector,
+        earned,
+        earned + 1
+      )
+    );
+    manager.withdrawEarnedEntryFees(fixture.marketId, recipient, earned + 1);
+
+    vm.expectRevert(abi.encodeWithSelector(PregradManager.InvalidEntryFeeRecipient.selector));
+    manager.withdrawEarnedEntryFees(fixture.marketId, address(0), 0);
+
+    address notOwner = makeAddr("fee-withdraw-stranger");
+    vm.prank(notOwner);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+    manager.withdrawEarnedEntryFees(fixture.marketId, recipient, 0);
+
+    // Zero amount sweeps the full earned balance.
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EarnedEntryFeesWithdrawn(fixture.marketId, recipient, earned);
+    manager.withdrawEarnedEntryFees(fixture.marketId, recipient, 0);
+
+    assertEq(collateral.balanceOf(recipient), earned);
+    assertEq(manager.marketEntryFeesEarned(fixture.marketId), 0);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+  }
+
   function _placeReceiptAs(
     address buyer,
     uint256 marketId,
@@ -1560,6 +1782,10 @@ contract PregradManagerTest is BaseTest {
     uint256 shares
   ) private returns (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) {
     quote = manager.quoteReceipt(marketId, side, shares);
+    // maxCost bounds the total debit, so include the fee at the current rate.
+    // Computed before the prank: an external call in the argument expression
+    // would consume it and place the receipt as the test contract instead.
+    uint256 maxTotalDebit = quote.cost + manager.entryFeeFor(quote.cost);
 
     vm.prank(buyer);
     receiptId = manager.placeReceipt(
@@ -1567,7 +1793,7 @@ contract PregradManagerTest is BaseTest {
         marketId: marketId,
         side: side,
         shares: shares,
-        maxCost: quote.cost
+        maxCost: maxTotalDebit
       })
     );
   }

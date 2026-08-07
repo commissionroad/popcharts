@@ -151,6 +151,38 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "rateWad",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "maximumRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeRateExceedsMaximum",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "available",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "requested",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeWithdrawalExceedsEarned",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "receiptId",
         type: "uint256",
       },
@@ -245,6 +277,11 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "InvalidCreationFeeRecipient",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidEntryFeeRecipient",
     type: "error",
   },
   {
@@ -882,6 +919,137 @@ export const pregradManagerAbi = [
       {
         indexed: true,
         internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "EarnedEntryFeesWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeCollected",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeEarned",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "previousRateWad",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeRateUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "EntryFeeRefunded",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
         name: "receiptId",
         type: "uint256",
       },
@@ -1374,6 +1542,19 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "MAX_ENTRY_FEE_RATE_WAD",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MAX_METADATA_BYTES",
     outputs: [
       {
@@ -1697,6 +1878,38 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "cost",
+        type: "uint256",
+      },
+    ],
+    name: "entryFeeFor",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "entryFeeRateWad",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "marketId",
         type: "uint256",
       },
@@ -1961,6 +2174,11 @@ export const pregradManagerAbi = [
             type: "uint256",
           },
           {
+            internalType: "uint256",
+            name: "entryFeePaid",
+            type: "uint256",
+          },
+          {
             internalType: "int256",
             name: "rLow",
             type: "int256",
@@ -2219,6 +2437,44 @@ export const pregradManagerAbi = [
         type: "uint256",
       },
     ],
+    name: "marketEntryFeeEscrow",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "marketEntryFeesEarned",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
     name: "marketExists",
     outputs: [
       {
@@ -2398,6 +2654,19 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "newRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "setEntryFeeRate",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "authorizer",
         type: "address",
@@ -2549,6 +2818,29 @@ export const pregradManagerAbi = [
       },
     ],
     name: "withdrawCreationFees",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawEarnedEntryFees",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
