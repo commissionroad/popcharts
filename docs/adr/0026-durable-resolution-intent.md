@@ -73,19 +73,23 @@ confirming a resolution.
   reconstruct it — and nothing forms a new AI opinion on a market that has
   already gone to a human.
 
-### The sweep
+### Rows whose transaction never landed
 
-One case remains, and it is the only thing the sweep exists for: the runner
-committed a `pending` row and the transaction never landed — RPC failure, a
-revert, a nonce collision, or the process dying between the two steps.
+One case survives the three steps: the runner committed a `pending` row and the
+transaction never landed — RPC failure, a revert, a nonce collision, or the
+process dying in between.
 
-A sweep over `pending` rows older than a threshold reads the contract:
+**The correctness of that case is carried by the enqueue guard below, not by a
+sweep.** Once `noResolutionForCurrentMarket()` counts only `confirmed` rows, a
+`pending` row does not block its market. The market re-enqueues, the retry
+adopts the existing row (the partial unique index guarantees there is only one),
+and it tries again. The path self-heals without anything reading the chain.
 
-- A proposal stands → leave it alone. The indexer will confirm it, or has
-  already; the sweep does not race the watcher for the same write.
-- No proposal, and the owning job is no longer active → set
-  `commit_state = 'abandoned'`. The market becomes enqueueable again, and the
-  judgment that was never acted on stays on file.
+What remains unhandled is cosmetic and operational: the row sits at `pending`
+indefinitely, and nobody is told. Whether that earns a sweep is an open
+question — see below. It is deliberately not settled here, because the last
+draft of this ADR asserted a sweep was necessary and that assertion did not
+survive being checked.
 
 ### The guard that must land first
 
@@ -119,13 +123,25 @@ transitions once, forward. Defaulting `commit_state` to `confirmed` keeps every
 existing row and every non-runner writer (manual override, creator
 self-resolve) correct with no data migration.
 
-### Relationship to PR #499
+### The earlier PRs are all closed
 
-Keep it; land it independently. It adds `readOnChainResolutionProposal`, which
-is what the sweep uses to ask whether a proposal exists and for which side. It
-changes no behaviour on its own.
+PRs #499, #500 and #495 are closed. Nothing from that stack is being carried
+forward, and this ADR should be read as replacing it rather than building on it.
 
-PRs #500 and #495 are closed as superseded.
+- **#495** wrote the missing row on the stand-down path. Subsumed: the row is
+  never missing. It also re-ran the model on a market already under human
+  adjudication and filed that fresh opinion as the audit record for a proposal
+  it did not make — reviewed as the wrong thing to do at all, not merely
+  redundant.
+- **#500** reconciled the row's verdict against `proposedSide()`. Subsumed:
+  it existed because the retry re-ran the model, and the retry no longer does.
+- **#499** supplied the chain reads the other two needed. Three of its four
+  exports served only them; the fourth, `readOnChainResolutionProposal`, is
+  broader than a sweep would need and belongs with the sweep if that survives.
+
+The one thing #495 did that nothing here replaces is repairing markets that have
+already lost their row. That is deferred, deliberately, and belongs in a
+provenance-checking one-off rather than in the runner.
 
 ## Progress
 
@@ -163,30 +179,65 @@ Phase 4 — indexer confirms:
       path; it writes its own row as today and must not be treated as an error.
 - [ ] Confirmation is idempotent under replay, per the existing indexer rules.
 
-Phase 5 — sweep and visibility:
+Phase 5 — visibility:
 
-- [ ] Sweep stale `pending` rows on the existing runner poll loop: leave rows
-      whose proposal stands, abandon those with none and no active job.
-- [ ] Operator alert on abandon, and surface `pending` / `abandoned` rows in
-      the postgrad admin CLI beside the existing dispute actions.
+- [ ] Surface `pending` rows and their age in the postgrad admin CLI, beside
+      the existing dispute actions. This is the cheap half of the sweep
+      question: if operators can see stuck rows, an automated sweep may never
+      be needed.
 - [ ] Update `docs/ai-resolution-service-design.md`, which still describes the
       runner writing its audit row only after a successful chain call.
+
+Phase 6 — a sweep, only if Phase 5 shows it is needed:
+
+- [ ] Decide the open question below first. Do not build this speculatively.
+
+## Open question — is a sweep worth building?
+
+A `pending` row whose transaction never landed is already harmless: the enqueue
+guard ignores it, the market re-enqueues, and the retry adopts the row. What is
+missing is that the row stays `pending` forever and nobody is notified.
+
+Three ways to close that, cheapest first:
+
+1. **Nothing.** Operators see stuck rows in the admin CLI (Phase 5). A row
+   pending for hours is a symptom of an unhealthy indexer or resolver key, both
+   of which have their own alarms.
+2. **Time-based cleanup, no chain read.** Mark rows `abandoned` after a
+   threshold with no active job. Simple, but the threshold is a guess about
+   maximum indexer lag, and guessing it wrong mislabels a row whose proposal
+   did land.
+3. **Chain-reading sweep.** Ask the contract whether a proposal exists before
+   abandoning. Correct, and the only option that cannot mislabel — but it
+   reintroduces a chain-reading dependency for a case the enqueue guard already
+   renders harmless.
+
+Note why option 2's threshold is the crux: the database cannot answer this
+question about itself. Every DB fact about whether the proposal landed —
+`markets.status`, the indexed resolution events — is written by the same indexer
+whose staleness is in question. That is what pushes option 3 toward a chain
+read, and it is also why option 1 is attractive: a question the system cannot
+answer internally may be better escalated to a human than guessed at.
+
+Recommendation: ship Phases 1–5, run it, and revisit with evidence about how
+often rows actually stick.
 
 ## Consequences
 
 The runner does one extra database round trip before the chain write, on a path
 already dominated by a model call and a transaction confirmation.
 
-Confirmation now depends on the indexer. A stalled indexer leaves rows `pending`
-longer, which is visible and already alarmed rather than silent — and the sweep
-deliberately does not confirm on the indexer's behalf, so there is one writer
-for that transition.
+Confirmation now depends on the indexer, and nothing else may write that
+transition — one writer, so a replayed or out-of-order event cannot race a
+second source. A stalled indexer leaves rows `pending` longer, which is visible
+rather than silent, and indexer health is already alarmed independently.
 
-`abandoned` is a weaker signal than it first appears: `market_resolution_jobs`
-already records failure-to-act through `last_error` and `terminal_failed`. What
-this ordering adds is that the *judgment* survives, which the job row does not
-carry. That is the whole justification, and it is why the ordering — not the
-status value — is the decision.
+`abandoned` is a weaker signal than it first appears, and may not be needed at
+all. `market_resolution_jobs` already records failure-to-act through
+`last_error` and `terminal_failed`. What this ordering adds is that the
+*judgment* survives, which the job row does not carry. That is the whole
+justification, and it is why the ordering — not any status value — is the
+decision.
 
 This does not fix the lease-expiry race. The job update matches on `id` rather
 than lease owner, so a worker outliving its lease can still double-write. The
