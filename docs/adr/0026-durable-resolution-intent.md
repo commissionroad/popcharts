@@ -81,12 +81,21 @@ must filter on `commit_state`, and the table stops being strictly append-only �
 a row transitions once, forward, from `pending` to a terminal state.
 
 That is a real cost, and it is accepted because the exposure is small and
-measurable rather than hypothetical. Exactly one production query gates on a
-row existing (`noResolutionForCurrentMarket()`); the only other readers are
-lifecycle-nightly scenarios. There is no operator UI, export, or API endpoint
-reading this table today. Designing around readers that do not exist is
-speculation, and it is cheaper to add the filter to one query now than to carry
-a second table, a foreign key, and a duplicated JSONB payload indefinitely.
+enumerable rather than hypothetical. **Two** production predicates gate on a row
+existing, both inside the runner and both listed in Phase 2:
+`noResolutionForCurrentMarket()` in the enqueue query, and
+`hasPersistedResolution()` in the stand-down path that PR #495 adds. Every other
+reader is a lifecycle-nightly scenario. There is no operator UI, export, or API
+endpoint reading this table today. Designing around readers that do not exist is
+speculation, and it is cheaper to filter two runner-local predicates than to
+carry a second table, a foreign key, and a duplicated JSONB payload
+indefinitely.
+
+The count moved from one to two while this ADR was open, which is worth
+recording: the argument for the column is "few, enumerable readers", and that is
+a claim to re-check at implementation time rather than inherit from this
+paragraph. If it reaches a handful, or any reader lands outside the runner,
+re-open the rejected alternative below.
 
 ### The rejected alternative: a separate intents table
 
@@ -128,6 +137,15 @@ Complementary, not superseded. Land the open stack first.
   `pending` row at all — rows lost before this ADR ships, and operator or
   creator self-resolve paths the runner never drove.
 
+**One live interaction, not a conflict but close to one.** PR #495 introduces
+`hasPersistedResolution()`, a second predicate that treats "a row exists" as
+"nothing left to record". This ADR makes that inference false for `pending`
+rows. Shipped in the wrong order — a `pending` row written before
+`hasPersistedResolution()` learns to filter — the rescue would cancel the job
+believing the audit row was already written, and the hole PR #495 closed would
+reopen with no test failing. Phase 2 exists to make that unshippable, and it is
+why Phase 2 precedes Phase 3 rather than riding along with it.
+
 ## Progress
 
 Phase 1 — schema (generated output first, per `AGENTS.md`):
@@ -142,14 +160,19 @@ Phase 1 — schema (generated output first, per `AGENTS.md`):
 - [ ] Drizzle snapshot + migration. This PR carries only the schema file that
       produces them.
 
-Phase 2 — the enqueue guard (before anything writes a `pending` row):
+Phase 2 — the existence guards (before anything writes a `pending` row):
 
 - [ ] `noResolutionForCurrentMarket()` counts only `confirmed` rows. Landing
       this ahead of Phase 3 means a `pending` row can never strand a market,
       whatever order the rest arrives in.
-- [ ] Audit every other reader of `market_resolutions` at the same commit; the
-      sweep found only lifecycle-nightly scenarios, so re-check rather than
-      trust that.
+- [ ] `hasPersistedResolution()` (PR #495's stand-down path) counts only
+      `confirmed` rows. Without this the two changes actively fight: a
+      `pending` row would satisfy the "already has a row" check, so the rescue
+      would cancel the job without recording anything and reintroduce exactly
+      the hole PR #495 closed.
+- [ ] Re-enumerate every other reader of `market_resolutions` at that commit
+      rather than trusting the count in this ADR. It was one when the ADR was
+      drafted and two by the time PR #495 was written.
 
 Phase 3 — runner writes before it acts:
 
