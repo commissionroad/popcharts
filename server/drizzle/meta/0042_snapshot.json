@@ -1,6 +1,6 @@
 {
-  "id": "39c751a2-41af-40ff-9238-7c53e2b813bb",
-  "prevId": "58a8670b-7d1a-461e-a4d8-ed35ed560a09",
+  "id": "e835ab0e-39b4-4fdb-a019-249e43789387",
+  "prevId": "39c751a2-41af-40ff-9238-7c53e2b813bb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3515,12 +3515,19 @@
           "primaryKey": false,
           "notNull": true
         },
+        "commit_state": {
+          "name": "commit_state",
+          "type": "resolution_commit_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'confirmed'"
+        },
         "resolved_at": {
           "name": "resolved_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -3575,6 +3582,34 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "market_resolutions_pending_unique_idx": {
+          "name": "market_resolutions_pending_unique_idx",
+          "columns": [
+            {
+              "expression": "chain_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "metadata_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"market_resolutions\".\"commit_state\" = 'pending'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5777,6 +5812,15 @@
         "automatic",
         "manual",
         "retry"
+      ]
+    },
+    "public.resolution_commit_state": {
+      "name": "resolution_commit_state",
+      "schema": "public",
+      "values": [
+        "pending",
+        "confirmed",
+        "superseded"
       ]
     },
     "public.resolution_outcome": {

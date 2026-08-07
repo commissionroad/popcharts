@@ -53,6 +53,7 @@ type Receipt = {
   side: number;
   shares: bigint;
   cost: bigint;
+  entryFeePaid: bigint;
   rLow: bigint;
   rHigh: bigint;
   sequence: bigint;

@@ -88,12 +88,14 @@ abstract contract ReceiptBook {
   /// @param owner Account that placed the receipt.
   /// @param params Receipt placement parameters.
   /// @param quote Locked LMSR quote backing the receipt.
+  /// @param entryFeePaid Entry fee collected alongside the cost.
   /// @param sequence Per-market receipt sequence number.
   function _insertReceipt(
     uint256 receiptId,
     address owner,
     MarketTypes.PlaceReceiptParams calldata params,
     MarketTypes.ReceiptQuote memory quote,
+    uint256 entryFeePaid,
     uint64 sequence
   ) internal {
     _receipts[receiptId] = MarketTypes.Receipt({
@@ -102,6 +104,7 @@ abstract contract ReceiptBook {
       side: params.side,
       shares: params.shares,
       cost: quote.cost,
+      entryFeePaid: entryFeePaid,
       rLow: quote.rLow,
       rHigh: quote.rHigh,
       sequence: sequence,

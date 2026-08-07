@@ -151,7 +151,10 @@ library MarketTypes {
     Side side;
     /// @notice Provisional share quantity to sweep through the virtual LMSR.
     uint256 shares;
-    /// @notice Maximum collateral the buyer is willing to escrow for this receipt.
+    /// @notice Maximum total collateral the buyer will part with: the receipt's
+    ///   escrowed cost plus its entry fee. Bounding the whole debit means an
+    ///   owner fee-rate change mid-flight can only revert a placement, never
+    ///   charge more than the buyer authorized.
     uint256 maxCost;
   }
 
@@ -177,6 +180,10 @@ library MarketTypes {
     uint256 shares;
     /// @notice Collateral paid and escrowed for the receipt's exact path cost.
     uint256 cost;
+    /// @notice Entry fee collected at placement, held refundable until clearing.
+    /// @dev Stored rather than derived so a later rate change cannot repay the
+    ///      wrong amount on an old receipt (protocol ADR 0014 §3).
+    uint256 entryFeePaid;
     /// @notice Lower bound of the LMSR path interval traversed by the receipt.
     int256 rLow;
     /// @notice Upper bound of the LMSR path interval traversed by the receipt.
