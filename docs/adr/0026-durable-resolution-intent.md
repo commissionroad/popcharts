@@ -241,10 +241,14 @@ Phase 4 — indexer confirms:
 
 Phase 5 — visibility:
 
-- [ ] Surface `pending` rows and their age in the postgrad admin CLI, beside
-      the existing dispute actions. This is the cheap half of the sweep
-      question: if operators can see stuck rows, an automated sweep may never
-      be needed.
+- [ ] Surface `pending` rows and their age to operators. This is the cheap half
+      of the sweep question: if operators can see stuck rows, an automated
+      sweep may never be needed. **Home amended at implementation time:** this
+      phase originally said "in the postgrad admin CLI", but that CLI is in the
+      protocol workspace and chain-only, and protocol must not import server
+      code — pending rows are a server-DB fact. The lens is a server script
+      (`server/scripts/resolution-pending-status.ts`, package script
+      `resolution:pending`); the protocol CLI stays the chain-side lens.
 - [ ] Update `docs/ai-resolution-service-design.md`, which still describes the
       runner writing its audit row only after a successful chain call.
 
