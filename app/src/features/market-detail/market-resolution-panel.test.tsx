@@ -3,10 +3,8 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Market } from "@/domain/markets/types";
-import { useDispute } from "@/integrations/contracts/hooks/use-dispute";
 import { useMarketDisputeState } from "@/integrations/contracts/hooks/use-market-dispute-state";
 import type { MarketDisputeSnapshot } from "@/integrations/contracts/market-dispute-state";
-import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { marketFactory } from "@/test/factories/markets";
 
 import { MarketResolutionPanel } from "./market-resolution-panel";
@@ -15,18 +13,28 @@ import {
   type SettleMarketActionResult,
 } from "./resolution-actions";
 
-vi.mock("@/integrations/contracts/hooks/use-dispute", () => ({ useDispute: vi.fn() }));
 vi.mock("@/integrations/contracts/hooks/use-market-dispute-state", () => ({
   useMarketDisputeState: vi.fn(),
 }));
-vi.mock("@/integrations/wallet/wallet-provider", () => ({
-  useWalletAccount: vi.fn(),
-}));
 vi.mock("./resolution-actions", () => ({ settleMarketAction: vi.fn() }));
 
-// The settle surface is covered on its own in `market-settle-action.test.tsx`.
-// Stubbing it here keeps these tests about what the panel decides: when to
-// offer settling, what it hands down, and what it does with the answer.
+// Both action surfaces are covered on their own, in
+// `market-dispute-action.test.tsx` and `market-settle-action.test.tsx`.
+// Stubbing them here keeps these tests about what the panel decides: which
+// surface a given chain state reaches, and what it does with the settle answer.
+vi.mock("./market-dispute-action", () => ({
+  MarketDisputeAction: ({
+    remainingMs,
+    snapshot,
+  }: {
+    remainingMs: number;
+    snapshot: MarketDisputeSnapshot;
+  }) => (
+    <p>
+      dispute {snapshot.phase} {remainingMs}
+    </p>
+  ),
+}));
 vi.mock("./market-settle-action", () => ({
   MarketSettleAction: ({
     onSettle,
@@ -50,24 +58,13 @@ vi.mock("./market-settle-action", () => ({
   ),
 }));
 
-const ACCOUNT = "0x1111111111111111111111111111111111111111" as const;
 const RESOLVER = "0x4444444444444444444444444444444444444444" as const;
 const MARKET_ADDRESS = "0x2222222222222222222222222222222222222222";
 const NOW = 1_700_000_000_000;
-const CHAIN = { id: 31337, name: "Hardhat Local" };
-const dispute = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(Date, "now").mockReturnValue(NOW);
-  vi.mocked(useWalletAccount).mockReturnValue(walletState());
-  vi.mocked(useDispute).mockReturnValue({
-    dispute,
-    error: null,
-    result: null,
-    status: "idle",
-    step: null,
-  });
   vi.mocked(useMarketDisputeState).mockReturnValue({
     error: null,
     loading: false,
@@ -137,62 +134,11 @@ describe("MarketResolutionPanel", () => {
     );
   });
 
-  it("shows the proposed outcome, the countdown, and the forfeiture warning", () => {
+  it("offers disputing while the window is open, with the time left", () => {
     render(<MarketResolutionPanel market={graduatedMarket()} />);
 
-    expect(screen.getByText("Resolution proposed")).toBeInTheDocument();
-    // 1h 01m 05s from the fixture deadline.
-    expect(screen.getByText("1h 01m 05s")).toBeInTheDocument();
-    expect(
-      screen.getByText(/the bond is forfeited to the protocol owner/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Dispute with a $100.00 bond" })
-    ).toBeEnabled();
-  });
-
-  it("states a non-round bond exactly instead of rounding what is pulled", () => {
-    // 250.40 native USDC. formatUsd would render this "$250" — a button that
-    // promises $250 while the market pulls $250.40.
-    vi.mocked(useMarketDisputeState).mockReturnValue({
-      error: null,
-      loading: false,
-      snapshot: snapshotFixture({ bond: 250_400_000n, collateralDecimals: 6 }),
-    });
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByRole("button", { name: "Dispute with a $250.40 bond" })
-    ).toBeEnabled();
-    expect(screen.getByText("$250.40")).toBeInTheDocument();
-  });
-
-  it("never renders a sub-cent bond as $0.00, which would read as free", () => {
-    vi.mocked(useMarketDisputeState).mockReturnValue({
-      error: null,
-      loading: false,
-      snapshot: snapshotFixture({ bond: 1n, collateralDecimals: 6 }),
-    });
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByRole("button", { name: "Dispute with a $0.000001 bond" })
-    ).toBeEnabled();
-  });
-
-  it("blocks a viewer on the wrong chain and names the chain to switch to", () => {
-    vi.mocked(useWalletAccount).mockReturnValue(walletState({ activeChainId: 1 }));
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(screen.getByRole("button", { name: /dispute/i })).toBeDisabled();
-    expect(
-      screen.getByText(
-        "Switch your wallet to Hardhat Local to dispute this resolution."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText("dispute pending 3665000")).toBeInTheDocument();
+    expect(screen.queryByText(/^settle/)).not.toBeInTheDocument();
   });
 
   it("counts down once a second and offers settlement when the window closes", () => {
@@ -207,147 +153,25 @@ describe("MarketResolutionPanel", () => {
 
     expect(screen.getByText("settle YES")).toBeInTheDocument();
     // Disputing is over, so the bonded action must not still be on offer.
-    expect(screen.queryByRole("button", { name: /dispute/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^dispute /)).not.toBeInTheDocument();
   });
 
-  it("drops the hours segment inside the last hour of the window", () => {
+  it("keeps a disputed market on the dispute surface after its window closes", () => {
+    // Only an operator settles a disputed market, so the public settle press
+    // must never appear here — the endpoint would refuse it anyway.
     vi.mocked(useMarketDisputeState).mockReturnValue({
       error: null,
       loading: false,
-      snapshot: snapshotFixture({ deadline: (NOW + 65_000) / 1_000 }),
+      snapshot: snapshotFixture({
+        deadline: (NOW - 1_000) / 1_000,
+        phase: "disputed",
+      }),
     });
 
     render(<MarketResolutionPanel market={graduatedMarket()} />);
 
-    expect(screen.getByText("1m 05s")).toBeInTheDocument();
-  });
-
-  it("posts the dispute against the market contract when clicked", () => {
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /dispute/i }));
-
-    expect(dispute).toHaveBeenCalledWith(MARKET_ADDRESS);
-  });
-
-  it("tells the resolver their self-dispute posts no bond", () => {
-    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: RESOLVER }));
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(screen.getByText(/your dispute posts no bond/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dispute (no bond)" })).toBeEnabled();
-  });
-
-  it("asks a disconnected viewer to connect before disputing", () => {
-    vi.mocked(useWalletAccount).mockReturnValue(
-      walletState({ activeChainId: null, address: null })
-    );
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(screen.getByRole("button", { name: /dispute/i })).toBeDisabled();
-    expect(
-      screen.getByText("Connect a wallet to dispute this resolution.")
-    ).toBeInTheDocument();
-  });
-
-  it.each([
-    ["approving", "Approving bond…"],
-    ["disputing", "Disputing…"],
-  ] as const)("names the %s transaction while it is in flight", (step, label) => {
-    vi.mocked(useDispute).mockReturnValue({
-      dispute,
-      error: null,
-      result: null,
-      status: "pending",
-      step,
-    });
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(screen.getByRole("button", { name: label })).toBeDisabled();
-  });
-
-  it("re-reads the on-chain state once a dispute confirms", () => {
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    act(() => {
-      vi.mocked(useDispute).mock.calls[0]?.[0]?.onDisputed?.();
-    });
-
-    expect(useMarketDisputeState).toHaveBeenLastCalledWith(
-      expect.objectContaining({ refreshKey: 1 })
-    );
-  });
-
-  it("shows the dispute error inline", () => {
-    vi.mocked(useDispute).mockReturnValue({
-      dispute,
-      error: "The dispute window closed before this transaction landed.",
-      result: null,
-      status: "error",
-      step: null,
-    });
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByText("The dispute window closed before this transaction landed.")
-    ).toBeInTheDocument();
-  });
-
-  it("tells the disputer their bond is at stake once the market is frozen", () => {
-    disputedBy(ACCOUNT, 100n * 10n ** 18n);
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(screen.getByText("Resolution disputed")).toBeInTheDocument();
-    expect(
-      screen.getByText(/You disputed the proposed YES outcome/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/bond is held by the market: refunded if the operator settles/)
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
-
-  it("names another account's dispute without claiming their bond", () => {
-    disputedBy(RESOLVER, 100n * 10n ** 18n);
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByText(/Someone disputed the proposed YES outcome/)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/0x444\.\.\.444/)).toBeInTheDocument();
-    expect(screen.queryByText(/bond is held by the market/)).not.toBeInTheDocument();
-  });
-
-  it("omits the bond line for the resolver's bond-free self-dispute", () => {
-    vi.mocked(useWalletAccount).mockReturnValue(walletState({ address: RESOLVER }));
-    disputedBy(RESOLVER, 0n);
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByText(/You disputed the proposed YES outcome/)
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/bond is held by the market/)).not.toBeInTheDocument();
-  });
-
-  it("falls back to a neutral label when the proposed side is unreadable", () => {
-    vi.mocked(useMarketDisputeState).mockReturnValue({
-      error: null,
-      loading: false,
-      snapshot: snapshotFixture({ phase: "disputed", proposedSide: null }),
-    });
-
-    render(<MarketResolutionPanel market={graduatedMarket()} />);
-
-    expect(
-      screen.getByText(/Someone disputed the proposed an outcome outcome/)
-    ).toBeInTheDocument();
+    expect(screen.getByText("dispute disputed 0")).toBeInTheDocument();
+    expect(screen.queryByText(/^settle/)).not.toBeInTheDocument();
   });
 });
 
@@ -357,16 +181,14 @@ describe("MarketResolutionPanel", () => {
 // the recovery, and the server makes the permissionless call on their behalf.
 describe("MarketResolutionPanel settlement", () => {
   beforeEach(() => {
-    windowClosed();
+    vi.mocked(useMarketDisputeState).mockReturnValue({
+      error: null,
+      loading: false,
+      snapshot: snapshotFixture({ deadline: (NOW - 1_000) / 1_000 }),
+    });
   });
 
-  it("asks the server to settle, taking nothing from the viewer's wallet", async () => {
-    // No wallet at all: settling moves no collateral, signs nothing for the
-    // caller, and grants them nothing, so there is no gate to pass.
-    vi.mocked(useWalletAccount).mockReturnValue(
-      walletState({ activeChainId: null, address: null })
-    );
-
+  it("asks the server to settle, naming the market by its app id", async () => {
     render(<MarketResolutionPanel market={graduatedMarket()} />);
     fireEvent.click(screen.getByRole("button", { name: "settle this market" }));
 
@@ -504,33 +326,6 @@ describe("MarketResolutionPanel settlement", () => {
     expect(screen.queryByText(/window_open/)).not.toBeInTheDocument();
   });
 });
-
-function walletState(
-  overrides: Partial<ReturnType<typeof useWalletAccount>> = {}
-): ReturnType<typeof useWalletAccount> {
-  return {
-    activeChainId: CHAIN.id,
-    address: ACCOUNT,
-    defaultChain: CHAIN,
-    ...overrides,
-  } as ReturnType<typeof useWalletAccount>;
-}
-
-function disputedBy(disputer: `0x${string}`, bondHeld: bigint) {
-  vi.mocked(useMarketDisputeState).mockReturnValue({
-    error: null,
-    loading: false,
-    snapshot: snapshotFixture({ bondHeld, disputer, phase: "disputed" }),
-  });
-}
-
-function windowClosed() {
-  vi.mocked(useMarketDisputeState).mockReturnValue({
-    error: null,
-    loading: false,
-    snapshot: snapshotFixture({ deadline: (NOW - 1_000) / 1_000 }),
-  });
-}
 
 function snapshotFixture(
   overrides: Partial<MarketDisputeSnapshot> = {}

@@ -164,13 +164,14 @@ export function MarketDetailPage({
             </>
           ) : isGraduated ? (
             <>
-              {/* The dispute window opens and closes while the market is still
-                  indexed as graduated (the pending/disputed statuses are not
-                  projected yet), so this panel reads the postgrad contract
+              {/* The indexed market says only *that* a resolution is pending,
+                  never what was proposed, when the window shuts, or what a
+                  dispute costs — so this panel reads the postgrad contract
                   directly and renders nothing outside a live proposal. That
                   read is also what lets it offer settlement for a market the
-                  keeper never picked up — the keeper looks at the indexed
-                  status, so it cannot see one. */}
+                  keeper never picked up: the keeper finds work through the
+                  same projection, so a proposal the indexer missed is
+                  invisible to it. */}
               <MarketResolutionPanel market={market} />
               <PostgradTradePanel market={market} />
             </>
