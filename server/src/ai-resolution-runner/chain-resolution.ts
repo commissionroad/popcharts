@@ -124,12 +124,14 @@ export function resolutionChainAction(
  * included.
  *
  * The decode depends on the revert reaching us with ABI context, which is the
- * usual shape: `writeContract` estimates gas first, the estimate reverts, and
- * viem wraps the decoded `ContractFunctionRevertedError` as a cause. If a
- * provider instead broadcasts and the transaction reverts on-chain, that
- * surfaces from `waitForTransactionTimestamp` as an ordinary failure and the
- * job retries — noisier, never silently wrong. Worth confirming against a real
- * node before relying on the cheap path.
+ * shape verified live against a hardhat node (2026-08-07): `writeContract`
+ * estimates gas first, the estimate reverts, and viem wraps the decoded
+ * `ContractFunctionRevertedError` into the cause chain of a
+ * `ContractFunctionExecutionError` — a real second proposal classified true,
+ * a real cancelled-market revert classified false. If a provider instead
+ * broadcasts and the transaction reverts on-chain, that surfaces from
+ * `waitForSuccessfulProposal` as an ordinary failure and the job retries —
+ * noisier, never silently wrong.
  *
  * The caller has already committed its `pending` audit row before calling this.
  */
