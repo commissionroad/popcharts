@@ -31,6 +31,16 @@ export function noActiveResolutionJobForCurrentMarket() {
   )`;
 }
 
+/**
+ * Excludes markets whose resolution is already recorded and confirmed on-chain.
+ *
+ * `commit_state = 'confirmed'` is load-bearing, not a tidy-up (ADR 0026). The
+ * runner writes its judgment `pending` *before* proposing, so an unqualified
+ * existence check would read that row as "already resolved" and drop the market
+ * out of enqueue — permanently, since nothing else would ever pick it up. A
+ * `pending` row must stay invisible here so a proposal that never landed gets
+ * retried.
+ */
 export function noResolutionForCurrentMarket() {
   return sql`not exists (
     select 1
@@ -38,5 +48,6 @@ export function noResolutionForCurrentMarket() {
     where ${schema.marketResolutions.chainId} = ${schema.markets.chainId}
       and ${schema.marketResolutions.marketId} = ${schema.markets.marketId}
       and ${schema.marketResolutions.metadataHash} = ${schema.markets.metadataHash}
+      and ${schema.marketResolutions.commitState} = 'confirmed'
   )`;
 }
