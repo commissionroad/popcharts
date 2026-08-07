@@ -363,6 +363,31 @@ export async function processResolutionJob({
   }
 
   try {
+    // An earlier attempt may already have committed its judgment and then died
+    // before, during, or after the chain call. Resume from that row rather than
+    // asking the model again: re-deriving a verdict is what let the record
+    // disagree with the chain (ADR 0026).
+    const adopted = await findResumableResolution(claimed.job);
+    if (adopted?.commitState === "confirmed") {
+      const job = await completeResolutionJob({ job: claimed.job, now });
+      return {
+        job,
+        proposedOnChain: false,
+        resolution: adopted,
+        status: "succeeded",
+        verdict: adopted.verdict,
+      };
+    }
+
+    if (adopted) {
+      return await proposeAndComplete({
+        claimed,
+        dependencies,
+        now,
+        resolution: adopted,
+      });
+    }
+
     const result = await dependencies.resolveMarketWithService({
       config,
       request: buildMarketResolutionRequest(claimed),
@@ -384,29 +409,34 @@ export async function processResolutionJob({
       return { job, status: "requeued" };
     }
 
-    const proposal = decision.submit
-      ? await dependencies.proposeMarketResolutionOnChain({
-          chainId: claimed.market.chainId,
-          postgradMarketAddress: claimed.postgradMarketAddress,
-          verdict: decision.verdict,
-        })
-      : null;
+    // Nothing irreversible follows a parked verdict, so there is no window to
+    // protect: the row lands `confirmed` with the job, exactly as before.
+    if (!decision.submit) {
+      const persisted = await persistParkedResolution({
+        job: claimed.job,
+        postgradMarketAddress: claimed.postgradMarketAddress,
+        resolvedAt: now,
+        result,
+        verdict: decision.verdict,
+      });
 
-    const persisted = await persistResolutionJobResult({
+      return {
+        job: persisted.job,
+        proposedOnChain: false,
+        resolution: persisted.resolution,
+        status: "succeeded",
+        verdict: decision.verdict,
+      };
+    }
+
+    const resolution = await persistPendingResolution({
       job: claimed.job,
       postgradMarketAddress: claimed.postgradMarketAddress,
-      resolvedAt: proposal?.blockTimestamp ?? now,
       result,
       verdict: decision.verdict,
     });
 
-    return {
-      job: persisted.job,
-      proposedOnChain: proposal?.kind === "proposed",
-      resolution: persisted.resolution,
-      status: "succeeded",
-      verdict: decision.verdict,
-    };
+    return await proposeAndComplete({ claimed, dependencies, now, resolution });
   } catch (error) {
     const job = await markResolutionJobFailure({
       error,
@@ -420,6 +450,133 @@ export async function processResolutionJob({
       status: job.status as "retryable_failed" | "terminal_failed",
     };
   }
+}
+
+/**
+ * Submits the proposal for an already-committed judgment, then closes the job.
+ *
+ * Two transactions on purpose, with the chain call between them. The runner
+ * never writes `commit_state = 'confirmed'` — that is the indexer's transition,
+ * taken from the `ResolutionProposed` event (ADR 0026) — so a job can finish
+ * while its row is still `pending`, and that is the expected steady state for
+ * the moment between the transaction landing and the indexer seeing it.
+ */
+async function proposeAndComplete({
+  claimed,
+  dependencies,
+  now,
+  resolution,
+}: {
+  claimed: ClaimedResolutionJob;
+  dependencies: ResolutionJobDependencies;
+  now: Date;
+  resolution: MarketResolutionRow;
+}): Promise<ResolutionJobOutcome> {
+  const proposal = await dependencies.proposeMarketResolutionOnChain({
+    chainId: claimed.market.chainId,
+    postgradMarketAddress: claimed.postgradMarketAddress,
+    verdict: resolution.verdict,
+  });
+
+  const job = await completeResolutionJob({ job: claimed.job, now });
+
+  return {
+    job,
+    proposedOnChain: proposal?.kind === "proposed",
+    resolution,
+    status: "succeeded",
+    verdict: resolution.verdict,
+  };
+}
+
+/**
+ * The row a retry should resume from, if its earlier attempt left one. Scoped
+ * to this job's exact market metadata version, which is what the partial unique
+ * index constrains — so there is at most one `pending` row to find.
+ */
+async function findResumableResolution(job: MarketResolutionJobRow) {
+  const [existing] = await db
+    .select()
+    .from(schema.marketResolutions)
+    .where(
+      and(
+        eq(schema.marketResolutions.chainId, job.chainId),
+        eq(schema.marketResolutions.marketId, job.marketId),
+        eq(schema.marketResolutions.metadataHash, job.metadataHash),
+      ),
+    )
+    .orderBy(desc(schema.marketResolutions.id))
+    .limit(1);
+
+  return existing;
+}
+
+/**
+ * Commits the judgment before anything irreversible happens, and points the job
+ * at it. One transaction: a row the job does not reference, or a job pointing at
+ * nothing, would both leave the paper trail half written.
+ */
+async function persistPendingResolution({
+  job,
+  postgradMarketAddress,
+  result,
+  verdict,
+}: {
+  job: MarketResolutionJobRow;
+  postgradMarketAddress: string;
+  result: ResolutionResult;
+  verdict: ResolutionVerdict;
+}): Promise<MarketResolutionRow> {
+  return await db.transaction(async (tx) => {
+    const [resolution] = await tx
+      .insert(schema.marketResolutions)
+      .values({
+        ...resolutionValues({ job, postgradMarketAddress, result, verdict }),
+        // No `resolvedAt`: the block timestamp does not exist yet, and the
+        // indexer stamps it from the confirming event.
+        commitState: "pending",
+      })
+      .returning();
+
+    if (!resolution) {
+      throw new Error("Failed to persist market resolution.");
+    }
+
+    await tx
+      .update(schema.marketResolutionJobs)
+      .set({ resolutionId: resolution.id, updatedAt: new Date() })
+      .where(eq(schema.marketResolutionJobs.id, job.id));
+
+    return resolution;
+  });
+}
+
+/** Closes a job whose proposal is submitted, or was already standing. */
+async function completeResolutionJob({
+  job,
+  now,
+}: {
+  job: MarketResolutionJobRow;
+  now: Date;
+}) {
+  const [updatedJob] = await db
+    .update(schema.marketResolutionJobs)
+    .set({
+      completedAt: now,
+      lastError: null,
+      leaseUntil: null,
+      lockedBy: null,
+      status: "succeeded",
+      updatedAt: now,
+    })
+    .where(eq(schema.marketResolutionJobs.id, job.id))
+    .returning();
+
+  if (!updatedJob) {
+    throw new Error(`Failed to mark resolution job ${job.id} succeeded.`);
+  }
+
+  return updatedJob;
 }
 
 /**
@@ -474,7 +631,43 @@ export function buildMarketResolutionRequest({
   };
 }
 
-async function persistResolutionJobResult({
+/** The judgment columns, shared by the pending and parked insert paths. */
+function resolutionValues({
+  job,
+  postgradMarketAddress,
+  result,
+  verdict,
+}: {
+  job: MarketResolutionJobRow;
+  postgradMarketAddress: string;
+  result: ResolutionResult;
+  verdict: ResolutionVerdict;
+}) {
+  return {
+    chainId: job.chainId,
+    confidence: result.confidence ?? null,
+    evidence: result.evidence,
+    hardFlags: result.hardFlags,
+    marketId: job.marketId,
+    metadataHash: job.metadataHash,
+    modelId: result.modelId ?? null,
+    outcome: result.outcome,
+    postgradMarketAddress,
+    promptVersion: result.promptVersion,
+    provider: result.provider,
+    reasons: result.reasons,
+    sourceChecks: result.sourceChecks,
+    verdict,
+  };
+}
+
+/**
+ * Writes a parked verdict and completes the job atomically — the pre-ADR 0026
+ * shape, kept for `manual_review` and `cancel_draw`. These never reach the
+ * chain, so the row is `confirmed` on arrival and no indexer event will ever
+ * follow it.
+ */
+async function persistParkedResolution({
   job,
   postgradMarketAddress,
   resolvedAt,
@@ -488,28 +681,16 @@ async function persistResolutionJobResult({
   verdict: ResolutionVerdict;
 }) {
   return await db.transaction(async (tx) => {
-    // The resolution row is append-only audit evidence; the job row is mutable
-    // queue state and points at the resolution that completed it. The runner
-    // does NOT flip markets.status — a MarketResolved indexer watcher is the
-    // canonical projector, since operator/self-resolve paths also resolve.
+    // The job row is mutable queue state and points at the resolution that
+    // completed it. The runner does NOT flip markets.status — a MarketResolved
+    // indexer watcher is the canonical projector, since operator/self-resolve
+    // paths also resolve.
     const [resolution] = await tx
       .insert(schema.marketResolutions)
       .values({
-        chainId: job.chainId,
-        confidence: result.confidence ?? null,
-        evidence: result.evidence,
-        hardFlags: result.hardFlags,
-        marketId: job.marketId,
-        metadataHash: job.metadataHash,
-        modelId: result.modelId ?? null,
-        outcome: result.outcome,
-        postgradMarketAddress,
-        promptVersion: result.promptVersion,
-        provider: result.provider,
-        reasons: result.reasons,
+        ...resolutionValues({ job, postgradMarketAddress, result, verdict }),
+        commitState: "confirmed",
         resolvedAt,
-        sourceChecks: result.sourceChecks,
-        verdict,
       })
       .returning();
 

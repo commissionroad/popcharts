@@ -4,7 +4,7 @@ import {
   SIDE_NO,
   SIDE_YES,
 } from "@popcharts/protocol";
-import type { Hash } from "viem";
+import { type BaseError, ContractFunctionRevertedError, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -18,10 +18,13 @@ import type { ResolutionVerdict } from "../ai-resolution/types";
 const DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 /**
- * Contract statuses that already carry a resolution outcome, so the runner has
- * nothing left to write: another actor proposed first (`ResolutionPending`), a
- * proposal is under adjudication (`Disputed`), or the market already settled
- * (`Resolved`).
+ * Contract statuses that already carry a resolution outcome, so there is
+ * nothing left to propose: a proposal is pending (`ResolutionPending`), under
+ * adjudication (`Disputed`), or the market already settled (`Resolved`).
+ *
+ * Read out of the revert rather than checked beforehand — see
+ * {@link isAlreadyProposedRevert}. Every other non-`Trading` status, `Cancelled`
+ * above all, is a genuine failure and must not be mistaken for one of these.
  */
 const RESOLUTION_ALREADY_ON_CHAIN_STATUSES: ReadonlySet<number> = new Set([
   POSTGRAD_MARKET_STATUS.resolutionPending,
@@ -29,24 +32,56 @@ const RESOLUTION_ALREADY_ON_CHAIN_STATUSES: ReadonlySet<number> = new Set([
   POSTGRAD_MARKET_STATUS.resolved,
 ]);
 
+/** The contract-encoded side a verdict resolves to, per MarketTypes.Side. */
 export type ResolutionChainAction = { side: typeof SIDE_YES | typeof SIDE_NO };
 
-export type MarketResolutionProposalResult = {
-  blockTimestamp: Date;
-  kind: "already_on_chain" | "proposed";
-  transactionHash?: Hash;
-};
+/**
+ * What one propose attempt achieved. `already_proposed` is a success, not a
+ * failure: the market carries a proposal, which is all the runner needed. It
+ * carries no timestamp because the runner does not record one — the indexer
+ * stamps `resolved_at` from the confirming event (ADR 0026).
+ */
+export type MarketResolutionProposalResult =
+  | { blockTimestamp: Date; kind: "proposed"; transactionHash: Hash }
+  | { kind: "already_proposed" };
 
 export type MarketResolutionProposalDependencies = {
   currentChainId: () => number;
-  getLatestBlockTimestamp: () => Promise<Date>;
-  readMarketStatus: (marketAddress: `0x${string}`) => Promise<number>;
   submitResolutionProposal: (
     marketAddress: `0x${string}`,
     side: number,
   ) => Promise<Hash>;
   waitForTransactionTimestamp: (transactionHash: Hash) => Promise<Date>;
 };
+
+/**
+ * Whether a failed `proposeResolution` failed because the market already
+ * carries a proposal.
+ *
+ * `proposeResolution` opens with `_requireStatus(Status.Trading)` and reverts
+ * `InvalidStatus(actual, expected)` for every other status, so the revert is
+ * the authoritative answer to "did someone already propose" — no pre-flight
+ * read can be, because the chain moves between the read and the write.
+ *
+ * `actual` decides it. `ResolutionPending`/`Disputed`/`Resolved` mean the work
+ * is done; `Cancelled` reverts through the same error and is a real failure the
+ * runner must not swallow.
+ */
+export function isAlreadyProposedRevert(error: unknown): boolean {
+  const reverted = (error as BaseError | undefined)?.walk?.(
+    (candidate) => candidate instanceof ContractFunctionRevertedError,
+  );
+  if (!(reverted instanceof ContractFunctionRevertedError)) {
+    return false;
+  }
+
+  if (reverted.data?.errorName !== "InvalidStatus") {
+    return false;
+  }
+
+  const [actual] = reverted.data.args ?? [];
+  return RESOLUTION_ALREADY_ON_CHAIN_STATUSES.has(Number(actual));
+}
 
 /**
  * Maps an auto-resolvable verdict to the winning side. Returns null for every
@@ -76,11 +111,22 @@ export function resolutionChainAction(
  * window is configured to zero: the proposal is finalizable immediately, but
  * something still has to call `finalizeResolution`.
  *
- * Guarded by the on-chain status: only a market still in `Trading` is proposed
- * on, and any status that already carries a resolution outcome is a no-op
- * success rather than an error — a permissionless dispute window means other
- * actors move the market too. The DB audit row is written by the caller only
- * after this succeeds.
+ * Not guarded by a pre-flight status read (ADR 0026). The contract refuses a
+ * second proposal itself — `_requireStatus(Status.Trading)` — so a read could
+ * only predict an answer the write already gives, and would still be racing the
+ * chain between the two calls. A revert that means "already proposed" is
+ * translated into a success here; anything else propagates, `Cancelled`
+ * included.
+ *
+ * The decode depends on the revert reaching us with ABI context, which is the
+ * usual shape: `writeContract` estimates gas first, the estimate reverts, and
+ * viem wraps the decoded `ContractFunctionRevertedError` as a cause. If a
+ * provider instead broadcasts and the transaction reverts on-chain, that
+ * surfaces from `waitForTransactionTimestamp` as an ordinary failure and the
+ * job retries — noisier, never silently wrong. Worth confirming against a real
+ * node before relying on the cheap path.
+ *
+ * The caller has already committed its `pending` audit row before calling this.
  */
 export async function proposeMarketResolutionOnChain(
   {
@@ -106,26 +152,18 @@ export async function proposeMarketResolutionOnChain(
     );
   }
 
-  const currentStatus = await dependencies.readMarketStatus(
-    postgradMarketAddress,
-  );
-  if (RESOLUTION_ALREADY_ON_CHAIN_STATUSES.has(currentStatus)) {
-    return {
-      blockTimestamp: await dependencies.getLatestBlockTimestamp(),
-      kind: "already_on_chain",
-    };
-  }
-
-  if (currentStatus !== POSTGRAD_MARKET_STATUS.trading) {
-    throw new Error(
-      `Postgrad market ${postgradMarketAddress} has contract status ${currentStatus}; expected ${POSTGRAD_MARKET_STATUS.trading} (Trading) before a resolution proposal.`,
+  let transactionHash: Hash;
+  try {
+    transactionHash = await dependencies.submitResolutionProposal(
+      postgradMarketAddress,
+      action.side,
     );
+  } catch (error) {
+    if (isAlreadyProposedRevert(error)) {
+      return { kind: "already_proposed" };
+    }
+    throw error;
   }
-
-  const transactionHash = await dependencies.submitResolutionProposal(
-    postgradMarketAddress,
-    action.side,
-  );
 
   return {
     blockTimestamp:
@@ -165,20 +203,6 @@ function createDefaultDependencies(): MarketResolutionProposalDependencies {
 
   return {
     currentChainId: () => config.chainId,
-    getLatestBlockTimestamp: async () => {
-      const block = await publicClient.getBlock();
-
-      return new Date(Number(block.timestamp) * 1000);
-    },
-    readMarketStatus: async (marketAddress) => {
-      const status = await publicClient.readContract({
-        abi: completeSetBinaryMarketAbi,
-        address: marketAddress,
-        functionName: "status",
-      });
-
-      return Number(status);
-    },
     submitResolutionProposal: async (marketAddress, side) =>
       walletClient.writeContract({
         abi: completeSetBinaryMarketAbi,
