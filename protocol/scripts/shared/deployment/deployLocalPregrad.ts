@@ -2,6 +2,7 @@ import type { network } from "hardhat";
 import type { Address } from "viem";
 
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";
+import { LOCAL_DEVCHAIN } from "../chain/localDevchain.js";
 import { localDisputeConfigArgs } from "./localDisputeConfig.js";
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
@@ -31,6 +32,16 @@ export type DeploySummary = {
  */
 export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<DeploySummary> {
   const publicClient = await viem.getPublicClient();
+  // This seam stamps the zero dispute config and dev-only trust wiring, so it
+  // must never reach a real chain — no escape hatch. Real networks deploy the
+  // adapter through deploy-complete-set-postgrad with explicit dispute config.
+  const chainId = await publicClient.getChainId();
+  if (chainId !== LOCAL_DEVCHAIN.chainId) {
+    throw new Error(
+      `deployLocalPregrad is local-only (expected chain ${LOCAL_DEVCHAIN.chainId}, ` +
+        `connected to ${chainId}). Use deploy-complete-set-postgrad for real networks.`,
+    );
+  }
   const [walletClient] = await viem.getWalletClients();
   const deployerAddress = getWalletClientAddress({
     missingMessage: "Expected the local Hardhat network to expose a deployer account.",
@@ -66,7 +77,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
   const deployBlock = await publicClient.getBlockNumber();
 
   return {
-    chainId: await publicClient.getChainId(),
+    chainId,
     collateralAddress: collateral.address,
     deployBlock: deployBlock.toString(),
     postgradAdapterAddress: postgradAdapter.address,

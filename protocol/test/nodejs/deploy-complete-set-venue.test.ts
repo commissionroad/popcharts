@@ -22,6 +22,11 @@ import {
 const WAD = 10n ** 18n;
 const HOOK_ADDRESS_FLAG_MASK = (1n << 14n) - 1n;
 
+// Distinct nonzero values pin the (window, bond) constructor argument order:
+// a swapped pair reads back swapped, which equal values could never detect.
+const TEST_DISPUTE_WINDOW = 86_400n;
+const TEST_DISPUTE_BOND = 100n;
+
 // The full deployment chain behind `just local-dev` (and `just
 // local-deploy-venue` / `local-deploy-postgrad` /
 // `local-create-complete-set-market`), run in-process against the real
@@ -102,6 +107,8 @@ describe("complete-set venue deployment chain", async function () {
       connection,
       deployerAddress,
       deterministicFactory: VENUE_STACK_DEPLOYMENT.deterministicFactoryAddress,
+      disputeBond: TEST_DISPUTE_BOND,
+      disputeWindow: TEST_DISPUTE_WINDOW,
       outcomeDecimals: 18,
       poolManager: venueAddresses.poolManager,
       pregradManagerAddress: pregradManager.address,
@@ -150,6 +157,11 @@ describe("complete-set venue deployment chain", async function () {
     );
     assert.equal(getAddress((await adapter.read.resolver()) as Address), deployerAddress);
     assert.equal(await adapter.read.outcomeDecimals(), 18);
+
+    // The seam must stamp exactly the values it was handed — a regression to
+    // the local zero constant (or a swapped argument pair) fails here.
+    assert.equal(await adapter.read.disputeWindow(), TEST_DISPUTE_WINDOW);
+    assert.equal(await adapter.read.disputeBond(), TEST_DISPUTE_BOND);
   });
 
   it("creates and configures a tradeable complete-set market on the venue", async function () {

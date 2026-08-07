@@ -5,7 +5,10 @@ import { concatHex, encodeDeployData, getAddress, type Address, type Hex } from 
 import { mineHookSalt } from "../contract/mineHookSalt.js";
 import { hasBytecode } from "./deterministicFactory.js";
 import { ensureTokenPullerBytecode } from "./tokenPuller.js";
-import { localDisputeConfigArgs } from "./localDisputeConfig.js";
+import {
+  assertDeployableDisputeConfig,
+  type ZeroDisputeConfigToken,
+} from "./resolveDisputeConfig.js";
 
 // Exact hook permission bits BoundedPredictionHook.hookPermissionFlags()
 // requires its deployment address to encode: beforeSwap (1 << 7) and
@@ -27,9 +30,14 @@ export type PostgradVenueContracts = {
 };
 
 export type DeployCompleteSetPostgradArgs = {
+  // Zero-config deploys on a real chain must carry the literal token, so a
+  // hard-coded bypass reads as the admission it is (resolveDisputeConfig.ts).
+  allowZeroDisputeConfig?: ZeroDisputeConfigToken;
   connection: Pick<LocalNetworkConnection, "viem">;
   deployerAddress: Address;
   deterministicFactory: Address;
+  disputeBond: bigint;
+  disputeWindow: bigint;
   outcomeDecimals: number;
   poolManager: Address;
   pregradManagerAddress: Address;
@@ -51,8 +59,17 @@ export async function deployCompleteSetPostgradContracts(
 ): Promise<PostgradVenueContracts> {
   const { connection, deployerAddress, walletClient } = args;
   const publicClient = await connection.viem.getPublicClient();
+  const chainId = await publicClient.getChainId();
+  // Nothing touches the chain before this guard: a caller that hardcodes zero
+  // dispute config dies here on any real network (repo ADR 0024).
+  assertDeployableDisputeConfig({
+    allowZeroDisputeConfig: args.allowZeroDisputeConfig,
+    chainId,
+    disputeBond: args.disputeBond,
+    disputeWindow: args.disputeWindow,
+  });
   const tokenPullerMode = await ensureTokenPullerBytecode({
-    chainId: await publicClient.getChainId(),
+    chainId,
     connection,
     publicClient,
     tokenPuller: args.transferApproval,
@@ -119,10 +136,26 @@ export async function deployCompleteSetPostgradContracts(
     deployerAddress,
     args.resolverAddress,
     args.outcomeDecimals,
-    ...localDisputeConfigArgs(),
+    args.disputeWindow,
+    args.disputeBond,
   ]);
   const postgradAdapterAddress = getAddress(postgradAdapter.address);
+
+  // Read the stamped config back so a regression that drops the constructor
+  // threading (or swaps the argument order) fails the deploy, not a market.
+  const deployedDisputeWindow = (await postgradAdapter.read.disputeWindow()) as bigint;
+  const deployedDisputeBond = (await postgradAdapter.read.disputeBond()) as bigint;
+  if (deployedDisputeWindow !== args.disputeWindow || deployedDisputeBond !== args.disputeBond) {
+    throw new Error(
+      `CompleteSetPostgradAdapter reports dispute config (window=${deployedDisputeWindow}s, ` +
+        `bond=${deployedDisputeBond} raw), expected (window=${args.disputeWindow}s, ` +
+        `bond=${args.disputeBond} raw).`,
+    );
+  }
   console.log(`CompleteSetPostgradAdapter: ${postgradAdapterAddress}`);
+  console.log(
+    `Dispute config stamped: window ${deployedDisputeWindow}s, bond ${deployedDisputeBond} raw`,
+  );
 
   return {
     boundedHookAddress: hookAddress,
