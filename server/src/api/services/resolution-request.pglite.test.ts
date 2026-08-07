@@ -16,72 +16,27 @@ import type { db as productionDb } from "src/db/client";
 import { setDbForTesting } from "src/db/client";
 import * as schema from "src/db/schema";
 import { createPgliteDb } from "src/test-support/pglite-db";
+import {
+  RESOLUTION_FIXTURE,
+  resolutionRowValues,
+  seedResolutionMarket,
+} from "src/test-support/resolution-fixtures";
 
 import { requestMarketResolutionCheck } from "./resolution-request";
 
-const CHAIN_ID = 31337;
-const MARKET_ID = 7n;
-const METADATA_HASH = `0x${"22".repeat(32)}`;
-const RESOLUTION_TIME = new Date("2026-07-03T00:00:00.000Z");
+const {
+  chainId: CHAIN_ID,
+  marketId: MARKET_ID,
+  metadataHash: METADATA_HASH,
+} = RESOLUTION_FIXTURE;
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 
 let dbc: typeof productionDb;
 let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-function resolutionRow(
-  commitState: "confirmed" | "pending",
-): typeof schema.marketResolutions.$inferInsert {
-  return {
-    chainId: CHAIN_ID,
-    commitState,
-    evidence: [],
-    hardFlags: [],
-    marketId: MARKET_ID,
-    metadataHash: METADATA_HASH,
-    outcome: "yes",
-    promptVersion: "v1",
-    provider: "anthropic",
-    reasons: ["Because."],
-    sourceChecks: [],
-    verdict: "resolve_yes",
-  };
-}
-
-async function seedGraduatedMarket() {
-  await dbc.insert(schema.contracts).values({
-    address: "0x00000000000000000000000000000000000000cc",
-    chainId: CHAIN_ID,
-    name: "PregradManager",
-  });
-  await dbc.insert(schema.marketMetadata).values({
-    category: "Testing",
-    chainId: CHAIN_ID,
-    description: "A graduated market awaiting resolution.",
-    metadataCreatedAt: "2026-07-01T00:00:00.000Z",
-    metadataHash: METADATA_HASH,
-    question: "Is a pending row an evaluation?",
-    resolutionCriteria: "Resolves YES when it is not.",
-  });
-  await dbc.insert(schema.markets).values({
-    chainId: CHAIN_ID,
-    collateral: "0x00000000000000000000000000000000000000dd",
-    contractId: 1,
-    createdBlockNumber: 99n,
-    createdBlockTimestamp: new Date("2026-07-01T00:00:00.000Z"),
-    createdLogIndex: 0,
-    createdTransactionHash: `0x${"33".repeat(32)}`,
-    creator: "0x00000000000000000000000000000000000000aa",
-    graduationThreshold: 1_000_000n,
-    graduationTime: new Date("2026-07-02T00:00:00.000Z"),
-    liquidityParameter: 1_000_000_000n,
-    marketId: MARKET_ID,
-    metadataHash: METADATA_HASH,
-    openingProbabilityWad: 500_000_000_000_000_000n,
-    resolutionTime: RESOLUTION_TIME,
-    status: "graduated",
-  });
-}
+const resolutionRow = (commitState: "confirmed" | "pending") =>
+  resolutionRowValues({ commitState });
 
 async function request() {
   return await requestMarketResolutionCheck(
@@ -102,7 +57,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
-  await seedGraduatedMarket();
+  await seedResolutionMarket(dbc);
 });
 
 describe("requestMarketResolutionCheck", () => {
