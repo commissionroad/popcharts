@@ -62,11 +62,17 @@ const rpcPort = String(resources.chainPort);
 const rpcHttpUrl = resources.chainRpcHttpUrl;
 const apiBaseUrl = `http://127.0.0.1:${process.env.LOCAL_API_PORT ?? resources.apiPort}`;
 
-// Deterministic offline providers for both AI services; explicit LOCAL_*
-// overrides still win for debugging runs.
+// Deterministic offline providers for both AI services and the API's
+// in-process draft loop; explicit LOCAL_* overrides still win for debugging
+// runs.
 process.env.LOCAL_AI_REVIEW_PROVIDER ??= "heuristic";
 process.env.LOCAL_AI_REVIEW_INTERNET_ACCESS ??= "off";
 process.env.LOCAL_AI_RESOLUTION_PROVIDER ??= "heuristic";
+// Hard pin, deliberately stricter than the ??= siblings above: the draft gate
+// decides whether the nightly's market creation succeeds at all, so an
+// inherited shell dial here would turn nightly reds into model variance (and
+// spend model budget). Nightly reds must mean lifecycle regressions.
+process.env.LOCAL_DRAFT_REVIEW_PROVIDER = "heuristic";
 
 const supervisor = createProcessSupervisor({
   cwd: repoRoot,

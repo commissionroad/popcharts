@@ -36,6 +36,14 @@ export function writeLocalChainServerEnv({
     `POPCHARTS_DEV_TOOLS_ENABLED=${env.POPCHARTS_DEV_TOOLS_ENABLED}`,
     `AI_REVIEW_SERVICE_URL=${env.AI_REVIEW_SERVICE_URL}`,
     `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
+    // The control-plane API reads only this file, and it hosts the
+    // in-process draft-review loop. Dropping these lines reverts that API to
+    // the heuristic gate over the deployed evidence defaults.
+    `AI_REVIEW_EVIDENCE_MODE=${env.AI_REVIEW_EVIDENCE_MODE}`,
+    `AI_REVIEW_SEARCH_PROVIDER=${env.AI_REVIEW_SEARCH_PROVIDER}`,
+    `AI_REVIEW_RETRY_PROVIDER_FAILURES=${env.AI_REVIEW_RETRY_PROVIDER_FAILURES}`,
+    `AI_REVIEW_TIMEOUT_MS=${env.AI_REVIEW_TIMEOUT_MS}`,
+    `POPCHARTS_DRAFT_REVIEW_PROVIDER=${env.POPCHARTS_DRAFT_REVIEW_PROVIDER}`,
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
     ...pregradDeployServerEnvLines(deploy),

@@ -55,6 +55,13 @@ const noAiReview = args.includes("--no-ai-review");
 const aiReviewEnabled = aiReviewOnly || !noAiReview;
 const keepDb = args.includes("--keep-db");
 const noPostgrad = args.includes("--no-postgrad");
+
+// --no-ai-review means "without review workers"; the draft loop inside the
+// API is one, so it drops to the deterministic heuristic too.
+if (noAiReview) {
+  process.env.LOCAL_DRAFT_REVIEW_PROVIDER ??= "heuristic";
+}
+
 const { resources } = await resolveAndRegisterStack(process.cwd());
 
 const databaseUrl =
@@ -357,13 +364,16 @@ Start the full local Pop Charts stack:
 Prerequisite for model review:
   The default claude-cli provider requires a logged-in Claude Code CLI on the
   host. Set LOCAL_AI_REVIEW_PROVIDER to codex-cli, ollama, heuristic, or
-  anthropic to override it.
+  anthropic to override it. Draft review inside the API uses the same
+  logged-in-CLI default; LOCAL_DRAFT_REVIEW_PROVIDER=heuristic dials only the
+  draft gate back.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
   LOCAL_AI_REVIEW_PROVIDER=claude-cli
+  LOCAL_DRAFT_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_TIMEOUT_MS=300000
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true

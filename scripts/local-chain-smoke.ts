@@ -356,6 +356,11 @@ function buildServerEnv(
     // dev endpoints; they are local-network-only and additionally gated on
     // this flag, so the smoke API opts in explicitly.
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
+    // The @lifecycle draft specs (draft-review-first.spec.ts) assert the
+    // deterministic heuristic choreography. The supervisor merges
+    // process.env under this object, so without the pin a shell-exported
+    // POPCHARTS_DRAFT_REVIEW_PROVIDER would leak into the e2e API.
+    POPCHARTS_DRAFT_REVIEW_PROVIDER: "heuristic",
     RPC_HTTP_URL: rpcHttpUrl,
     RPC_WSS_URL: rpcWssUrl,
   };
