@@ -1,7 +1,7 @@
 # Pop Charts — Agent Instructions
 
 This repo's platform- and agent-agnostic instructions (skills, `/land` and
-other personal commands, workspace gates, wiki and naming rules) live in
+other personal commands, workspace gates, and naming rules) live in
 `AGENTS.md`, shared with every agent that reads this codebase. Load them:
 
 @AGENTS.md

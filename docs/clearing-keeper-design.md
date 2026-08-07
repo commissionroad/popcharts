@@ -6,8 +6,7 @@ integer rounding policy (whitepaper open question 3), the keeper's decision
 logic across all three outcomes, the reconstruction/verification of the frozen
 book, module layout, and the golden-test plan.
 
-Companion docs: `wiki/concepts/graduation-clearing.md` (the mechanism),
-`documents/whitepaper_v4.pdf` §5–§11 (the math source of truth),
+Companion docs: `documents/whitepaper_v4.pdf` §5–§11 (the math source of truth),
 protocol ADR 0006 (optimistic offchain clearing), protocol ADR 0010 (challenge
 window default 0), ADR 0008 (this vertical), ADR 0014 (E2E must boot it),
 ADR 0015 (deploys as its own service).

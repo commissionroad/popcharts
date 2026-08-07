@@ -43,9 +43,6 @@ yarn-error.log*
 # Agent worktrees
 /.worktrees/
 
-# Obsidian vault config (wiki/ opened as a vault)
-.obsidian/
-
 # Personal local worktree/branch auto-prune (referenced by .claude/settings.local.json)
 /.claude/prune-stale-worktrees.sh
 

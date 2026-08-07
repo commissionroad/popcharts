@@ -321,5 +321,4 @@ existing human workflows and the `just` recipes are unchanged. Agents in
 worktrees get first-class concurrent stacks instead of silent collisions, and
 the class of failure in the 2026-07-17 incident becomes impossible: a foreign
 chain is detected, not adopted, and each stack's data lives in its own
-database. The `wiki/concepts/local-dev-orchestration.md` page is updated to
-describe the slot model.
+database.
