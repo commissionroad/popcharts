@@ -57,9 +57,13 @@ the indexer confirm from the event it already watches.
 3. **Runner completes the job.** Mark `market_resolution_jobs.status =
    'succeeded'`. A second transaction, and deliberately not merged with
    anything else.
-4. **Indexer confirms.** The existing `ResolutionProposed` watcher sets
-   `commit_state = 'confirmed'` and stamps `resolved_at` from the block,
-   taking the side from the event.
+4. **Indexer settles.** The existing `ResolutionProposed` watcher, in the same
+   transaction as the event insert, compare-and-sets the pending row:
+   `confirmed` (stamping `resolved_at` from the block) when the proposed side
+   matches the row's verdict, `superseded` — with a `resolution_superseded`
+   operator page — when it does not. An opposite-side proposal is proof the
+   judgment lost the race and its confirming event has been consumed;
+   settling it terminally beats an eternal pending row (pre-land review).
 
 The runner never writes the confirmation. Status propagation is already the
 indexer's job in this codebase, deliberately, because the operator override and
@@ -102,6 +106,21 @@ This removes the `already_on_chain` pre-check the earlier PRs were built
 around. It was defensive code duplicating a guarantee the contract already
 gives, and it read the chain to predict an outcome the chain reports anyway.
 
+### What `confirmed` asserts — and deliberately does not
+
+`confirmed` means **the chain holds a proposal for the side this row's verdict
+names**: the judgment was recorded before the fact, and the outcome the chain
+enforces matches it. It does not assert which transaction carried the proposal.
+If an operator proposed the same side while the runner's row sat pending, the
+row confirms — correctly, under this definition — and transaction provenance
+stays where it lives, `postgrad_dispute_events.transaction_hash`.
+
+The alternative (carry an expected transaction hash from submission to
+confirmation, raised in the independent review) was rejected: the hash does not
+exist until after `proposeResolution` returns, so the runner would have to
+write it after acting — reintroducing exactly the post-act crash window this
+ADR removes.
+
 ### Where a crash leaves things
 
 Every gap in the sequence resolves without special handling:
@@ -142,6 +161,29 @@ What remains unhandled is cosmetic and operational: the row sits at `pending`
 indefinitely, and nobody is told. Phase 5 makes that visible to operators; no
 automated pass is being built. An earlier draft of this ADR asserted a sweep was
 necessary, and that assertion did not survive being checked.
+
+### Enqueue looks only at `graduated`
+
+New jobs are created for `graduated` markets only. A `resolution_pending`
+market already carries someone's proposal, and when that proposal was not this
+runner's, nothing ever writes the `confirmed` row that would terminate
+re-enqueue — so a wider eligibility list turns the poll loop into a no-sleep
+hot cycle (enqueue → adopt → already-proposed → succeeded → re-enqueue) for
+the whole dispute window. Found as the blocker in the pre-land review. Crash
+recovery flows through the still-active job via claim/retry; already-claimed
+jobs keep the wider status list so in-flight retries still finish.
+
+### Post-claim job writes are fenced
+
+Every job-state write after the claim — the pending-row link, completion, the
+failure stamp — is compare-and-set on (id, `locked_by`, `status = 'running'`).
+With the default batch size and model timeout, a batch's tail job can outlive
+its lease in normal operation while a second runner reclaims it; unfenced, the
+stale runner overwrote the new owner's state (a job pointing at a judgment the
+chain never acted on, spurious failure flips). A missed fence rolls back —
+including the pending insert, so no orphan row collides with the new owner's —
+and surfaces as a `lease_lost` outcome that touches nothing. This was the
+"lease-aware job completion" deferral, pulled into scope by the review.
 
 ### The guard that must land first
 
@@ -317,6 +359,17 @@ often rows actually stick.
 The runner does one extra database round trip before the chain write, on a path
 already dominated by a model call and a transaction confirmation.
 
+The `InvalidStatus` revert decode was verified against installed viem 2.52.2:
+`writeContract` wraps RPC errors carrying revert data through
+`getContractError`, so the decoded `ContractFunctionRevertedError` sits in the
+cause chain the runner walks. The residual dependency is the node returning
+revert data at gas estimation (hardhat and standard nodes do; the runner never
+passes explicit gas, so estimation always runs). One race is accepted rather
+than engineered away: a competing proposal landing between estimation and
+mining reverts at the receipt stage, which carries no decodable data — that
+attempt burns one retry, and the next attempt classifies cleanly at
+estimation.
+
 Confirmation now depends on the indexer, and nothing else may write that
 transition — one writer, so a replayed or out-of-order event cannot race a
 second source. A stalled indexer leaves rows `pending` longer, which is visible
@@ -342,5 +395,3 @@ partial unique index narrows it.
   now covers, and it belongs in a deliberate one-off, not in the runner.
 - **Splitting unconfirmed judgments into their own table.** Rejected above. The
   trigger to revisit is `market_resolutions` gaining readers outside the runner.
-- **Lease-aware job completion.** Match the job update on lease owner and
-  status, not `id` alone.
