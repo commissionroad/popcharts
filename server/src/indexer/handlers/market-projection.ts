@@ -1,4 +1,4 @@
-import { and, eq, schema } from "src/db/client";
+import { and, db, eq, schema } from "src/db/client";
 import type { MarketStatus } from "src/db/schema/markets";
 // The generic "process db handle or the transaction a seam already opened"
 // type; declared once for the change-feed writer and reused here rather than
@@ -28,6 +28,34 @@ export class MarketNotIndexedError extends ParkSweepError {
       `Market chainId=${chainId} marketId=${marketId} has no markets row yet; MarketCreated has not been persisted.`,
     );
     this.name = "MarketNotIndexedError";
+  }
+}
+
+/**
+ * Requires the market row an event row will reference, throwing the parkable
+ * MarketNotIndexedError when it is missing. Shared by the persists whose rows
+ * foreign-key to `markets` (creation fees, entry fees): the explicit check
+ * makes the constraint safe rather than replacing it — a row deleted between
+ * this select and the caller's insert still raises the FK, which is the
+ * correct hard failure (AGENTS.md).
+ */
+export async function requireMarketRowIndexed(
+  chainId: number,
+  marketId: bigint,
+  dbc: typeof db = db,
+): Promise<void> {
+  const [market] = await dbc
+    .select({ id: schema.markets.id })
+    .from(schema.markets)
+    .where(
+      and(
+        eq(schema.markets.chainId, chainId),
+        eq(schema.markets.marketId, marketId),
+      ),
+    );
+
+  if (!market) {
+    throw new MarketNotIndexedError({ chainId, marketId });
   }
 }
 
