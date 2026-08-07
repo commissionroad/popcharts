@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   foreignKey,
@@ -10,6 +11,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -44,10 +46,31 @@ export const resolutionVerdict = pgEnum("resolution_verdict", [
 ]);
 
 /**
- * Append-only audit log of resolution determinations, keyed to the market
- * metadata hash that was judged. Rows are never updated, so every stored
- * verdict — model, heuristic, or manual — stays reproducible. Sibling of
- * market_ai_reviews (ADR 0012).
+ * Postgres enum for how far a resolution row has got, per ADR 0026. The runner
+ * writes its judgment `pending` before submitting `proposeResolution`, so the
+ * reasoning survives a crash between the two writes; the indexer moves the row
+ * to `confirmed` when it sees the `ResolutionProposed` event.
+ *
+ * Deliberately two values. An `abandoned` terminal state for rows whose
+ * transaction never landed is specified but not built — the enqueue guard makes
+ * such a row harmless, so nothing would write it today. Add it with
+ * `ALTER TYPE ... ADD VALUE` if ADR 0026's Phase 6 ever happens.
+ */
+export const resolutionCommitState = pgEnum("resolution_commit_state", [
+  "pending",
+  "confirmed",
+]);
+
+/**
+ * Audit log of resolution determinations, keyed to the market metadata hash
+ * that was judged. Every stored verdict — model, heuristic, or manual — stays
+ * reproducible. Sibling of market_ai_reviews (ADR 0012).
+ *
+ * Append-only in its judgment: `verdict`, `outcome`, `reasons`, `evidence`, and
+ * the rest are written once and never rewritten. `commit_state` is the one
+ * mutable column, and it moves once, forward (ADR 0026). Because of it, **a row
+ * existing no longer means the resolution happened on-chain** — read
+ * `commit_state` before treating a row as fact.
  */
 export const marketResolutions = pgTable(
   "market_resolutions",
@@ -69,7 +92,16 @@ export const marketResolutions = pgTable(
     evidence: jsonb("evidence").$type<EvidenceItem[]>().notNull(),
     sourceChecks: jsonb("source_checks").$type<SourceCheck[]>().notNull(),
     hardFlags: jsonb("hard_flags").$type<string[]>().notNull(),
-    resolvedAt: timestamp("resolved_at").defaultNow().notNull(),
+    // Defaults to `confirmed` so every existing row, and every writer that is
+    // not the runner's propose path (manual override, creator self-resolve),
+    // keeps its current meaning without a data migration.
+    commitState: resolutionCommitState("commit_state")
+      .default("confirmed")
+      .notNull(),
+    // Null while `pending`: the block timestamp does not exist until the
+    // proposal lands, and inventing one is the inference the money paper-trail
+    // invariant forbids. Set by the indexer from the confirming event.
+    resolvedAt: timestamp("resolved_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -96,5 +128,13 @@ export const marketResolutions = pgTable(
       table.chainId,
       table.metadataHash,
     ),
+    // At most one unconfirmed row per market metadata version, so a retry
+    // adopts the pending row its earlier attempt wrote instead of fanning out
+    // duplicates. Mirrors the active-job index on market_resolution_jobs.
+    // Confirmed rows are deliberately unconstrained: manual override and
+    // creator self-resolve can legitimately add to the history.
+    uniqueIndex("market_resolutions_pending_unique_idx")
+      .on(table.chainId, table.marketId, table.metadataHash)
+      .where(sql`${table.commitState} = 'pending'`),
   ],
 );

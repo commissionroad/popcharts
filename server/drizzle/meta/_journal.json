@@ -288,6 +288,13 @@
       "when": 1785965812195,
       "tag": "0040_natural_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786125242602,
+      "tag": "0041_clean_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }
