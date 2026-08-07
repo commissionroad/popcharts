@@ -51,9 +51,13 @@ the indexer confirm from the event it already watches.
 
 1. **Runner writes intent.** Insert `market_resolutions` with
    `commit_state = 'pending'` — full model judgment and the verdict it intends
-   to submit — and commit, before any chain call.
+   to submit — point the job's `resolution_id` at it, and commit. One
+   transaction, before any chain call.
 2. **Runner proposes.** `proposeResolution(side)` on the market contract.
-3. **Indexer confirms.** The existing `ResolutionProposed` watcher sets
+3. **Runner completes the job.** Mark `market_resolution_jobs.status =
+   'succeeded'`. A second transaction, and deliberately not merged with
+   anything else.
+4. **Indexer confirms.** The existing `ResolutionProposed` watcher sets
    `commit_state = 'confirmed'` and stamps `resolved_at` from the block,
    taking the side from the event.
 
@@ -61,6 +65,55 @@ The runner never writes the confirmation. Status propagation is already the
 indexer's job in this codebase, deliberately, because the operator override and
 creator self-resolve paths also move markets — the same reasoning applies to
 confirming a resolution.
+
+### The job row and the audit row now mean different things
+
+`market_resolutions` is what was decided. `market_resolution_jobs` is the work
+of deciding it — the lease, the attempt count, the backoff. Today they complete
+in one transaction; splitting the resolution write ends that, so the two states
+become independent and each keeps its own meaning:
+
+- `job.status = 'succeeded'` — the runner did its work and submitted.
+- `commit_state = 'confirmed'` — the chain acknowledged it.
+
+Neither waits on the other, and the indexer never touches the job row.
+
+### The runner does not pre-check the chain
+
+Step 2 calls `proposeResolution` without first asking the contract whether a
+proposal already stands. It cannot need to: `proposeResolution` opens with
+`_requireStatus(Status.Trading)` and reverts `InvalidStatus(actual, expected)`
+otherwise. A second proposal is impossible, and the refusal is a typed custom
+error the runner can decode exactly rather than guess at. viem simulates before
+sending, so the revert surfaces at simulation and costs no gas.
+
+So a retry that resumes a `pending` row simply proposes again:
+
+- Success → step 3.
+- `InvalidStatus(ResolutionPending, Trading)` → the proposal already exists.
+  The runner's work is done; complete the job and leave `commit_state` alone,
+  because confirming it is the indexer's transition.
+- Anything else → a real failure; retry with backoff.
+
+A cheap skip comes free: if the row is already `confirmed`, there is nothing to
+do at all.
+
+This removes the `already_on_chain` pre-check the earlier PRs were built
+around. It was defensive code duplicating a guarantee the contract already
+gives, and it read the chain to predict an outcome the chain reports anyway.
+
+### Where a crash leaves things
+
+Every gap in the sequence resolves without special handling:
+
+| Crash point | State left behind | How it resolves |
+| --- | --- | --- |
+| Before step 1 | Nothing | Job retries from scratch. |
+| Between 1 and 2 | `pending` row, job active | Retry adopts the row, proposes. |
+| Between 2 and 3 | `pending` row, proposal on-chain | Retry adopts the row, proposes, gets `InvalidStatus`, completes the job. Indexer confirms. |
+| After 3, indexer down | `pending` row, job succeeded | Indexer confirms when it catches up. |
+
+The only residue is a row whose transaction never landed at all, covered below.
 
 ### What this removes
 
@@ -86,10 +139,9 @@ adopts the existing row (the partial unique index guarantees there is only one),
 and it tries again. The path self-heals without anything reading the chain.
 
 What remains unhandled is cosmetic and operational: the row sits at `pending`
-indefinitely, and nobody is told. Whether that earns a sweep is an open
-question — see below. It is deliberately not settled here, because the last
-draft of this ADR asserted a sweep was necessary and that assertion did not
-survive being checked.
+indefinitely, and nobody is told. Phase 5 makes that visible to operators; no
+automated pass is being built. An earlier draft of this ADR asserted a sweep was
+necessary, and that assertion did not survive being checked.
 
 ### The guard that must land first
 
@@ -147,9 +199,11 @@ provenance-checking one-off rather than in the runner.
 
 Phase 1 — schema (generated output first, per `AGENTS.md`):
 
-- [ ] `resolution_commit_state` enum (`pending` / `confirmed` / `abandoned`) and
-      `market_resolutions.commit_state`, defaulting to `confirmed` so existing
-      rows and non-runner writers need no migration.
+- [ ] `resolution_commit_state` enum with **two** values, `pending` and
+      `confirmed`, and `market_resolutions.commit_state` defaulting to
+      `confirmed` so existing rows and non-runner writers need no migration.
+      `abandoned` is deliberately absent: nothing writes it unless Phase 6
+      happens, and `ALTER TYPE ... ADD VALUE` is cheap when it does.
 - [ ] `resolved_at` becomes nullable — a `pending` row has no block timestamp,
       and inventing one is the inference the paper-trail invariant forbids.
 - [ ] Partial unique index: at most one `pending` row per market metadata
@@ -163,10 +217,16 @@ Phase 2 — the existence guard (before anything can write a `pending` row):
 
 Phase 3 — runner writes before it acts:
 
-- [ ] Insert the `pending` row, commit, then call
-      `proposeMarketResolutionOnChain`.
+- [ ] Insert the `pending` row and point `job.resolution_id` at it, in one
+      transaction, then call `proposeMarketResolutionOnChain`, then mark the
+      job succeeded in a second transaction.
 - [ ] A retry adopts its existing `pending` row and resumes from the recorded
       verdict. It must not call the resolution service again.
+- [ ] Delete the `already_on_chain` pre-check. Decode
+      `InvalidStatus(actual, expected)` from the revert instead and treat it as
+      "already proposed, work done" — complete the job, leave `commit_state` to
+      the indexer.
+- [ ] Skip entirely when the adopted row is already `confirmed`.
 - [ ] Non-submitting verdicts (`manual_review`, `cancel_draw`) write
       `confirmed` directly — nothing irreversible follows, so there is nothing
       to protect against.
@@ -195,13 +255,18 @@ Phase 6 — a reconciliation pass, only if Phase 5 shows it is needed:
       the runner's poll loop, and any abandon is a compare-and-set on
       `commit_state = 'pending'`.
 
-## Open question — is a sweep worth building?
+## Settled: no reconciliation pass for now
+
+**Decision (2026-08-06): option 1 — do nothing beyond Phase 5 visibility.**
+Revisit with evidence from a running system rather than in advance.
 
 A `pending` row whose transaction never landed is already harmless: the enqueue
 guard ignores it, the market re-enqueues, and the retry adopts the row. What is
-missing is that the row stays `pending` forever and nobody is notified.
+missing is that the row stays `pending` forever and nobody is notified — which
+Phase 5's admin-CLI surface makes visible without any automation.
 
-Three ways to close that, cheapest first:
+The three options, kept on record because the trade moves if rows turn out to
+stick often:
 
 1. **Nothing.** Operators see stuck rows in the admin CLI (Phase 5). A row
    pending for hours is a symptom of an unhealthy indexer or resolver key, both
@@ -240,7 +305,7 @@ Two things that placement does *not* do, worth stating so nobody assumes them:
   `commit_state = 'pending'`, wherever the code lives. Co-locating only shrinks
   the surface.
 
-Recommendation: ship Phases 1–5, run it, and revisit with evidence about how
+Decided as above: ship Phases 1–5 and revisit only with evidence about how
 often rows actually stick.
 
 ## Consequences
