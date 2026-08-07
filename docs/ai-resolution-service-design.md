@@ -259,12 +259,17 @@ validity guardrails), so the DB additions are:
 All additive and nullable; the runner reads `resolution_time` +
 `yes_not_before` from `markets` (which it already joins).
 
-**`market_resolutions`** (append-only audit) — mirrors `market_ai_reviews`:
+**`market_resolutions`** (audit) — mirrors `market_ai_reviews`:
 `id`, `chain_id`, `market_id`, `metadata_hash`, `postgrad_market_address`
 (the child `CompleteSetBinaryMarket`), `provider`, `model_id`, `prompt_version`,
 `outcome`, `verdict`, `confidence`, `reasons jsonb`, `evidence jsonb`,
-`source_checks jsonb`, `hard_flags jsonb`, `resolved_at`, `created_at`. New
-enums `resolution_outcome`, `resolution_verdict`, and a distinct
+`source_checks jsonb`, `hard_flags jsonb`, `commit_state`, `resolved_at`
+(nullable while `pending`), `created_at`. The judgment columns are write-once;
+`commit_state` (ADR 0026) is the one mutable column and moves once, forward,
+from `pending` to `confirmed` — **a row existing does not by itself mean the
+resolution happened on-chain**; readers filter on `commit_state`. New
+enums `resolution_outcome`, `resolution_verdict`, `resolution_commit_state`,
+and a distinct
 `resolution_provider` — the same providers as review **plus `manual`** for
 operator-override / self-resolve rows, which is why it is not a reuse of
 `ai_review_provider`. `confidence` is nullable (null for `manual` rows).
@@ -313,11 +318,32 @@ apply the per-outcome time gate, then map `verdict` → action:
   operator; `cancel()` is only ever submitted via the override / self-resolve
   path, never automatically.
 
-**On-chain guarded transition** (`chain-resolution.ts`, mirrors
-`chain-review.ts`): read the child market's contract status; if already
-`Resolved`/`Cancelled` return `already_transitioned`; else require `Trading`
-before writing; submit with the resolver key; wait for receipt. Then persist:
-append to `market_resolutions`, mark the job `succeeded`.
+**On-chain transition** (`chain-resolution.ts`), reordered by ADR 0026 into a
+transactional outbox because the DB write and the chain write cannot share a
+transaction:
+
+1. Persist the judgment to `market_resolutions` with `commit_state = 'pending'`
+   and point the job's `resolution_id` at it — **before** any chain call, so
+   the reasoning survives a crash on either side of the transaction.
+2. Submit `proposeResolution(side)` with the resolver key. There is **no
+   pre-flight status read**: the contract refuses a second proposal itself
+   (`_requireStatus(Trading)`), and the runner decodes the
+   `InvalidStatus(actual, expected)` revert — `ResolutionPending`/`Disputed`/
+   `Resolved` mean "already proposed, work done"; `Cancelled` propagates as a
+   real failure.
+3. Mark the job `succeeded` in a second transaction.
+
+A retry adopts its own `pending` row and resumes from the recorded verdict — it
+never re-runs the model, which is what previously let the record disagree with
+the chain. The **indexer's** `ResolutionProposed` handler settles the row from
+the event, compare-and-set on `pending`: `confirmed` (+ `resolved_at` from the
+block) when the proposed side matches the row's verdict, `superseded` — with a
+`resolution_superseded` operator page — when it does not, because an
+opposite-side proposal is proof the judgment lost and its confirming event has
+been consumed. Parked verdicts
+(`cancel_draw`/`manual_review`) never reach the chain and land `confirmed` on
+arrival. Operator visibility for rows stuck `pending`:
+`bun run scripts/resolution-pending-status.ts` (`resolution:pending`).
 
 **Status propagation** is **not** done by a guarded `markets` UPDATE in the
 runner (unlike review). Because a market can also reach `Resolved`/`Cancelled`

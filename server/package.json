@@ -23,6 +23,7 @@
     "nightly:lifecycle": "bun run src/lifecycle-nightly/run.ts",
     "openapi:check": "bun run scripts/generate-openapi.ts --check && bun run scripts/validate-openapi.ts",
     "openapi:generate": "bun run scripts/generate-openapi.ts && bun run scripts/validate-openapi.ts",
+    "resolution:pending": "bun run scripts/resolution-pending-status.ts",
     "start:api": "bun run src/api/index.ts",
     "start:keeper": "bun run src/keeper/index.ts",
     "start:ai-review": "bun run src/ai-review/server.ts",
