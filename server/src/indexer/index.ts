@@ -6,6 +6,7 @@ import {
   type BlockchainClient,
 } from "src/blockchain/client";
 import {
+  recoverEntryFeeEvents,
   recoverMarketCreatedEvents,
   recoverMarketCreationFeeEvents,
   recoverOutcomeTokenTransferEvents,
@@ -15,6 +16,7 @@ import {
   recoverReviewCreditEvents,
   recoverSettlementEvents,
   recoverVenueOrderEvents,
+  watchEntryFeeEvents,
   watchMarketCreatedEvents,
   watchMarketCreationFeeEvents,
   watchOutcomeTokenTransferEvents,
@@ -67,6 +69,7 @@ async function main() {
   console.log("\n--- Starting real-time event watchers ---");
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
   const unwatchMarketCreationFee = watchMarketCreationFeeEvents(client);
+  const unwatchEntryFees = watchEntryFeeEvents(client);
   const unwatchReviewBond = watchReviewCreditEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
@@ -97,6 +100,7 @@ async function main() {
     markUnhealthy();
     unwatchMarketCreated();
     unwatchMarketCreationFee();
+    unwatchEntryFees();
     unwatchReviewBond();
     unwatchReceiptPlaced();
     unwatchSettlement();
@@ -124,6 +128,10 @@ async function recoverMissedEvents(
   await recoverMarketCreationFeeEvents(client, currentBlock, { quiet });
   await recoverReviewCreditEvents(client, currentBlock, { quiet });
   await recoverReceiptPlacedEvents(client, currentBlock, { quiet });
+  // After receipt recovery on purpose: entry-fee rows foreign-key to
+  // receipt_placed_events, so a cold backfill that recovered fees first would
+  // park every collected log for the length of its retry budget.
+  await recoverEntryFeeEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
   await recoverVenueOrderEvents(client, currentBlock, { quiet });
   await recoverPoolPriceTickEvents(client, currentBlock, { quiet });

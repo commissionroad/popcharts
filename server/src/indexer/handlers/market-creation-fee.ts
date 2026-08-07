@@ -1,9 +1,8 @@
-import { and, eq } from "drizzle-orm";
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
 import { db, schema } from "src/db/client";
-import { MarketNotIndexedError } from "src/indexer/handlers/market-projection";
+import { requireMarketRowIndexed } from "src/indexer/handlers/market-projection";
 import { logValueRequirer } from "src/indexer/utils/log-values";
 
 const requireValue = logValueRequirer("Market creation fee log");
@@ -76,22 +75,11 @@ export async function persistMarketCreationFeeRecord(
   record: MarketCreationFeeRecord,
   dbc: typeof db = db,
 ) {
-  const [market] = await dbc
-    .select({ id: schema.markets.id })
-    .from(schema.markets)
-    .where(
-      and(
-        eq(schema.markets.chainId, record.event.chainId),
-        eq(schema.markets.marketId, record.event.marketId),
-      ),
-    );
-
-  if (!market) {
-    throw new MarketNotIndexedError({
-      chainId: record.event.chainId,
-      marketId: record.event.marketId,
-    });
-  }
+  await requireMarketRowIndexed(
+    record.event.chainId,
+    record.event.marketId,
+    dbc,
+  );
 
   await dbc
     .insert(schema.marketCreationFeeEvents)

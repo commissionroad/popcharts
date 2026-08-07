@@ -2,6 +2,7 @@ export {
   recoverMarketCreatedEvents,
   watchMarketCreatedEvents,
 } from "./market-created";
+export { recoverEntryFeeEvents, watchEntryFeeEvents } from "./entry-fees";
 export {
   recoverMarketCreationFeeEvents,
   watchMarketCreationFeeEvents,
