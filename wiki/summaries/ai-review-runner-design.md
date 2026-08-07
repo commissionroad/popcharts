@@ -48,9 +48,9 @@ The doc now carries this table, each row checked against code:
 | `dev:`/`start:`/`smoke:ai-review-runner` scripts | Absent from `server/package.json` |
 | `market_ai_review_jobs`, `market_ai_reviews` | Retired with ADR 0022 P5; live tables are `market_draft_review_jobs`, `market_draft_reviews` |
 | `POST /admin/markets/:chainId/:marketId/review` | No `/admin` route exists |
-| `POPCHARTS_ADMIN_REVIEW_ENABLED` | Written by local env scripts, read by no server code |
+| `POPCHARTS_ADMIN_REVIEW_ENABLED` | Gone; read by no code, removed from the local env scripts 2026-08-06 |
 | `approveMarket` / `rejectMarket` | Absent from `server/src` |
-| `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` | Read by no code; still declared in `server/sample.env` |
+| `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` | Gone; read by no code, removed from `server/sample.env` 2026-08-06 |
 | `AI_REVIEW_RUNNER_*` env vars | None exist; the values are constants in `server/src/draft-review/runner.ts` |
 | `markets` transitions to `bootstrap` / `rejected` | Draft review moves drafts, not markets |
 | `AI_REVIEW_SMOKE_PORT` | Defined and read by nothing |

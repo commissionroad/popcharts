@@ -172,8 +172,9 @@ enqueues into that table.)
 **The on-chain review path is gone.** P4 and P5 both landed on 2026-08-04: the
 ungated `createMarket`, the force-approve bridge, and the review-manager key
 went with them. `approveMarket` and `rejectMarket` appear nowhere in
-`server/src`, and no code reads `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` — the
-variable survives only as a leftover line in `server/sample.env`.
+`server/src`, and `POPCHARTS_REVIEW_MANAGER_PRIVATE_KEY` is gone entirely — read
+by no code, and removed from `server/sample.env` on 2026-08-06 along with
+`POPCHARTS_ADMIN_REVIEW_ENABLED`.
 
 ## Related pages
 
