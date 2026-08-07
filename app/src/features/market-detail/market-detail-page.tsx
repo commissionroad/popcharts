@@ -17,10 +17,10 @@ import { AiReviewCard } from "./ai-review-card";
 import { ClaimWinningsPanel } from "./claim-winnings-panel";
 import { GraduateMarketButton } from "./graduate-market-button";
 import { MarketAboutCard } from "./market-about-card";
-import { MarketDisputePanel } from "./market-dispute-panel";
 import { MarketLivePrice } from "./market-live-price";
 import { MarketLiveStats } from "./market-live-stats";
 import { MarketPositionPanel } from "./market-position-panel";
+import { MarketResolutionPanel } from "./market-resolution-panel";
 
 export function MarketDetailPage({
   market,
@@ -164,11 +164,14 @@ export function MarketDetailPage({
             </>
           ) : isGraduated ? (
             <>
-              {/* The dispute window opens while the market is still indexed as
-                  graduated (the pending/disputed statuses are not projected
-                  yet), so this panel reads the postgrad contract directly and
-                  renders nothing outside an open window. */}
-              <MarketDisputePanel market={market} />
+              {/* The dispute window opens and closes while the market is still
+                  indexed as graduated (the pending/disputed statuses are not
+                  projected yet), so this panel reads the postgrad contract
+                  directly and renders nothing outside a live proposal. That
+                  read is also what lets it offer settlement for a market the
+                  keeper never picked up — the keeper looks at the indexed
+                  status, so it cannot see one. */}
+              <MarketResolutionPanel market={market} />
               <PostgradTradePanel market={market} />
             </>
           ) : (

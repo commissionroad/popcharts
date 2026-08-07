@@ -9,11 +9,12 @@ import type {
 import { markets as fixtureMarkets } from "./fixtures";
 import {
   getMarketById,
-  getMarkets,
   getMarketPricePath,
+  getMarkets,
   requestDevMarketGraduation,
   requestDevMarketResolution,
   requestMarketGraduation,
+  requestMarketResolutionFinalization,
   requestPregradMarketCloseForRefund,
   usesFixtureMarkets,
 } from "./queries";
@@ -509,6 +510,51 @@ describe("market queries", () => {
     ).rejects.toThrowError("Market graduation requires a chain-prefixed market id.");
   });
 
+  it("requests settlement by chain-prefixed app id", async () => {
+    const client = createClient({
+      settlement: {
+        message: "Market settled to its proposed outcome.",
+        status: "settled",
+        transactionHash: `0x${"ab".repeat(32)}`,
+      },
+    });
+
+    const result = await requestMarketResolutionFinalization("5042002:7", {
+      client,
+      source: "api",
+    });
+
+    expect(client.requestResolutionFinalization).toHaveBeenCalledWith({
+      chainId: 5042002,
+      marketId: "7",
+    });
+    expect(result.status).toBe("settled");
+  });
+
+  it("resolves with a refusal rather than throwing when the market moved first", async () => {
+    const client = createClient({
+      settlement: { message: "Market is already settled.", status: "already_resolved" },
+    });
+
+    await expect(
+      requestMarketResolutionFinalization("5042002:7", { client, source: "api" })
+    ).resolves.toMatchObject({ status: "already_resolved" });
+  });
+
+  it("rejects settlement requests for fixture-backed markets", async () => {
+    await expect(
+      requestMarketResolutionFinalization("eth-5000-august", { source: "fixtures" })
+    ).rejects.toThrowError("Market settlement requires API-backed market data.");
+  });
+
+  it("rejects settlement requests without a chain-scoped id", async () => {
+    const client = createClient();
+
+    await expect(
+      requestMarketResolutionFinalization("7", { client, source: "api" })
+    ).rejects.toThrowError("Market settlement requires a chain-prefixed market id.");
+  });
+
   it("rejects dev close requests for fixture-backed markets", async () => {
     await expect(
       requestPregradMarketCloseForRefund("eth-5000-august", { source: "fixtures" })
@@ -701,6 +747,7 @@ function createClient({
   market = null,
   markets = [],
   priceHistory = null,
+  settlement,
 }: {
   close?: Awaited<ReturnType<MarketsApiClient["closePregradMarket"]>>;
   devGraduation?: Awaited<ReturnType<MarketsApiClient["graduateDevMarket"]>>;
@@ -709,6 +756,7 @@ function createClient({
   market?: ApiMarket | null;
   markets?: ApiMarket[];
   priceHistory?: Awaited<ReturnType<MarketsApiClient["getMarketPriceHistory"]>>;
+  settlement?: Awaited<ReturnType<MarketsApiClient["requestResolutionFinalization"]>>;
 } = {}): MarketsApiClient {
   return {
     closePregradMarket: vi.fn(async () => {
@@ -746,6 +794,13 @@ function createClient({
     getMarkets: vi.fn(async () => markets),
     getPortfolio: vi.fn(async () => null),
     listMarketOrders: vi.fn(async () => []),
+    requestResolutionFinalization: vi.fn(async () => {
+      if (!settlement) {
+        throw new Error("Missing settlement fixture.");
+      }
+
+      return settlement;
+    }),
   };
 }
 

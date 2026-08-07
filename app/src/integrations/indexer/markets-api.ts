@@ -26,9 +26,12 @@ import type {
   MarketPriceHistory,
   Portfolio,
   ReceiptPlacedEvent,
+  ResolutionFinalizeAccepted,
+  ResolutionFinalizeRefused,
   VenueOrder,
 } from "@popcharts/api-client/models";
 import { getGetPortfolioUrl } from "@popcharts/api-client/portfolio";
+import { getRequestResolutionFinalizationUrl } from "@popcharts/api-client/resolution";
 
 export type ApiMarketMetadata = MarketMetadata;
 export type ApiMarket = Market;
@@ -44,6 +47,17 @@ export type ApiGraduationResponse = GraduationResponse;
 export type ApiDevMarketCloseResponse = DevMarketCloseResponse;
 export type ApiDevMarketGraduateResponse = DevMarketGraduateResponse;
 export type ApiDevMarketResolveResponse = DevMarketResolveResponse;
+
+/**
+ * What a public settle request answered. The refusal arm is ordinary
+ * operation, not a failure: `finalizeResolution()` is permissionless, so the
+ * keeper or another viewer may settle the market between the page render and
+ * the request landing, and the endpoint says so with a 409 and a reason
+ * instead of an error.
+ */
+export type ApiResolutionFinalizeResult =
+  | ResolutionFinalizeAccepted
+  | ResolutionFinalizeRefused;
 
 export type MarketApiLookup = {
   chainId: number | string;
@@ -78,6 +92,9 @@ export type MarketsApiClient = {
   listMarketOrders: (
     lookup: MarketApiLookup & { owner: string }
   ) => Promise<ApiVenueOrder[]>;
+  requestResolutionFinalization: (
+    lookup: MarketApiLookup
+  ) => Promise<ApiResolutionFinalizeResult>;
 };
 
 export class MarketsApiError extends Error {
@@ -266,13 +283,40 @@ export function createMarketsApiClient({
 
       return response ?? [];
     },
+    async requestResolutionFinalization({ chainId, marketId }) {
+      const response = await requestJson<ApiResolutionFinalizeResult>(
+        fetcher,
+        buildUrl(
+          normalizedBaseUrl,
+          getRequestResolutionFinalizationUrl(
+            encodeURIComponent(String(chainId)),
+            encodeURIComponent(marketId)
+          )
+        ),
+        { method: "POST" },
+        // A refusal is an answer, not a failure — see
+        // `ApiResolutionFinalizeResult`.
+        [409]
+      );
+
+      if (!response) {
+        throw new MarketsApiError("Market not found.", 404);
+      }
+
+      return response;
+    },
   };
 }
 
 async function requestJson<T>(
   fetcher: MarketsApiFetch,
   url: URL,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  /**
+   * Non-2xx statuses whose JSON body is a documented result rather than a
+   * failure, so the caller reads the body instead of catching an error.
+   */
+  bodyStatuses: readonly number[] = []
 ): Promise<T | null> {
   const response = await fetcher(url, {
     ...init,
@@ -284,7 +328,7 @@ async function requestJson<T>(
     return null;
   }
 
-  if (!response.ok) {
+  if (!response.ok && !bodyStatuses.includes(response.status)) {
     const body = await response.text();
     throw new MarketsApiError(
       `Markets API request failed (${response.status}): ${errorMessage(

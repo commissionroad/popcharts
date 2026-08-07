@@ -637,6 +637,94 @@ describe("createMarketsApiClient", () => {
       status: 500,
     });
   });
+
+  it("requests settlement for a market whose dispute window has closed", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(async () =>
+      jsonResponse({
+        message: "Market settled to its proposed outcome.",
+        status: "settled",
+        transactionHash: `0x${"ab".repeat(32)}`,
+      })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    const result = await client.requestResolutionFinalization({
+      chainId: 5042002,
+      marketId: "7",
+    });
+
+    const [input, init] = firstFetchCall(fetcher);
+
+    expect(result.status).toBe("settled");
+    expect(init?.method).toBe("POST");
+    expect(String(input)).toBe(
+      "http://localhost:3001/markets/5042002/7/resolution-finalize"
+    );
+  });
+
+  it("reads a settlement refusal from the 409 body instead of throwing", async () => {
+    // Losing the race to the keeper is ordinary operation, not a failure: the
+    // endpoint answers with the reason, and the caller renders it as a state.
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            message: "Market is already settled.",
+            status: "already_resolved",
+          }),
+          { headers: { "content-type": "application/json" }, status: 409 }
+        )
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.requestResolutionFinalization({ chainId: 5042002, marketId: "7" })
+    ).resolves.toEqual({
+      message: "Market is already settled.",
+      status: "already_resolved",
+    });
+  });
+
+  it("still throws when a settlement request fails outright", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("upstream indexer exploded", { status: 502 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.requestResolutionFinalization({ chainId: 5042002, marketId: "7" })
+    ).rejects.toMatchObject({
+      message: "Markets API request failed (502): upstream indexer exploded",
+      status: 502,
+    });
+  });
+
+  it("reports a market the indexer has never seen as not found", async () => {
+    const fetcher: MockedFunction<MarketsApiFetch> = vi.fn(
+      async () => new Response("Market not found.", { status: 404 })
+    );
+    const client = createMarketsApiClient({
+      baseUrl: "http://localhost:3001",
+      fetcher,
+    });
+
+    await expect(
+      client.requestResolutionFinalization({ chainId: 5042002, marketId: "404" })
+    ).rejects.toMatchObject({
+      message: "Market not found.",
+      name: "MarketsApiError",
+      status: 404,
+    });
+  });
 });
 
 function firstFetchCall(fetcher: MockedFunction<MarketsApiFetch>) {

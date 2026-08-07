@@ -9,7 +9,8 @@
     "./graduation": "./src/generated/graduation/graduation.ts",
     "./markets": "./src/generated/markets/markets.ts",
     "./models": "./src/generated/models/index.ts",
-    "./portfolio": "./src/generated/portfolio/portfolio.ts"
+    "./portfolio": "./src/generated/portfolio/portfolio.ts",
+    "./resolution": "./src/generated/resolution/resolution.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {

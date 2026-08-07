@@ -183,6 +183,33 @@ export async function requestDevMarketGraduation(
   });
 }
 
+/**
+ * Asks the server to settle a graduated market whose dispute window has closed
+ * (repo ADR 0024) — the finalize sibling of {@link requestMarketGraduation}.
+ * The keeper finds pending proposals through the indexed market status, so a
+ * proposal the indexer missed is one nothing settles on its own, and this is
+ * the recovery. Resolves with a refusal rather than throwing when the market
+ * moved first: losing the race is ordinary operation.
+ */
+export async function requestMarketResolutionFinalization(
+  id: string,
+  options: MarketQueryOptions = {}
+) {
+  const config = resolveMarketQueryConfig(options);
+
+  if (!config.useApi) {
+    throw new Error("Market settlement requires API-backed market data.");
+  }
+
+  const lookup = resolveMarketLookup(id, config.chainId);
+
+  if (!lookup) {
+    throw new Error("Market settlement requires a chain-prefixed market id.");
+  }
+
+  return config.client.requestResolutionFinalization(lookup);
+}
+
 export async function requestPregradMarketCloseForRefund(
   id: string,
   options: MarketQueryOptions = {}

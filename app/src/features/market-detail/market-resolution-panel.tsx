@@ -1,7 +1,7 @@
 "use client";
 
 import { Gavel, Loader2, RotateCw, ShieldAlert } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { formatUnits } from "viem";
 
 import { type Market, marketSideLabel } from "@/domain/markets/types";
@@ -10,16 +10,35 @@ import { useMarketDisputeState } from "@/integrations/contracts/hooks/use-market
 import { useWalletAccount } from "@/integrations/wallet/wallet-provider";
 import { formatAddress } from "@/lib/format";
 
+import { MarketSettleAction } from "./market-settle-action";
+import {
+  settleMarketAction,
+  type SettleMarketActionResult,
+} from "./resolution-actions";
+import { ResolutionPanelShell } from "./resolution-panel-shell";
+
 /**
- * The dispute surface for a graduated market whose resolution has been
- * proposed but not finalized. Driven entirely by on-chain reads — the indexed
- * market status has no pending/disputed states yet (ADR 0024 Phase 2), and a
- * bond is real money, so the countdown and the amount must come from the
- * contract that enforces them. Renders nothing outside an open window — but a
- * *failed* read is never silent, because rendering it as an ordinary
- * graduated market hides a window the viewer could still act in.
+ * The resolution surface for a graduated market whose outcome has been
+ * proposed but not settled. It carries both public actions the window allows,
+ * in the order the window reaches them: dispute the proposal while the window
+ * is open, and settle the market once it closes.
+ *
+ * Driven entirely by on-chain reads — the indexed market status has no
+ * pending/disputed states yet (ADR 0024 Phase 2), and a bond is real money, so
+ * the countdown and the amount must come from the contract that enforces them.
+ * Reading the chain is also what makes the settle action worth offering: the
+ * keeper finds markets to settle through the indexed status, so a market the
+ * indexer missed is one nothing settles automatically, and this panel is the
+ * only surface that can still see it. Only the settle *write* goes to the
+ * server.
+ *
+ * Renders nothing outside a live proposal, with two deliberate exceptions. A
+ * *failed* read is never silent, because rendering it as an ordinary graduated
+ * market hides a window the viewer could still act in. And a settlement this
+ * viewer just triggered keeps its confirmation, because the contract has left
+ * the pending state by then and the panel would otherwise vanish mid-click.
  */
-export function MarketDisputePanel({ market }: { market: Market }) {
+export function MarketResolutionPanel({ market }: { market: Market }) {
   const wallet = useWalletAccount();
   const [refreshKey, setRefreshKey] = useState(0);
   const reread = () => setRefreshKey((value) => value + 1);
@@ -29,10 +48,33 @@ export function MarketDisputePanel({ market }: { market: Market }) {
     refreshKey,
   });
   const { dispute, error, status, step } = useDispute({ onDisputed: reread });
+  const settlement = useSettlement({ marketId: market.id, onSettled: reread });
   const remainingMs = useCountdown(snapshot?.deadline ?? null);
 
   if (!marketAddress) {
     return null;
+  }
+
+  const proposedLabel = snapshot?.proposedSide
+    ? marketSideLabel(market, snapshot.proposedSide)
+    : "an outcome";
+
+  // Ahead of every read-driven branch on purpose. A confirmed settlement moves
+  // the contract to Resolved, so the next read reports `none` — or fails —
+  // and either would blank the panel out from under the person who just
+  // pressed. Redemption is driven by the indexed status, which can lag the
+  // chain by a sweep or more (and this button exists for the case where that
+  // lag is the whole problem), so the confirmation has to say what happened
+  // rather than leave a space that reads as a failed click.
+  if (settlement.outcome?.status === "settled") {
+    return (
+      <MarketSettleAction
+        onSettle={settlement.settle}
+        outcome={settlement.outcome}
+        pending={settlement.pending}
+        proposedLabel={proposedLabel}
+      />
+    );
   }
 
   // A failed read is not the same as "no window is open", and rendering both
@@ -42,7 +84,7 @@ export function MarketDisputePanel({ market }: { market: Market }) {
   // proposal reads. Say so, and give them a way back in.
   if (readError) {
     return (
-      <Panel tone="var(--danger)" title="Resolution status unavailable">
+      <ResolutionPanelShell tone="var(--danger)" title="Resolution status unavailable">
         <p className="text-sm leading-6 text-[var(--text-secondary)]">{readError}</p>
         <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
           A dispute window may be open on this market. Retry before assuming there is
@@ -55,7 +97,7 @@ export function MarketDisputePanel({ market }: { market: Market }) {
         >
           <RotateCw size={15} /> Check again
         </button>
-      </Panel>
+      </ResolutionPanelShell>
     );
   }
 
@@ -63,17 +105,13 @@ export function MarketDisputePanel({ market }: { market: Market }) {
     return null;
   }
 
-  const proposedLabel = snapshot.proposedSide
-    ? marketSideLabel(market, snapshot.proposedSide)
-    : "an outcome";
-
   const isDisputer =
     snapshot.disputer !== null &&
     wallet.address?.toLowerCase() === snapshot.disputer.toLowerCase();
 
   if (snapshot.phase === "disputed") {
     return (
-      <Panel tone="var(--danger)" title="Resolution disputed">
+      <ResolutionPanelShell tone="var(--danger)" title="Resolution disputed">
         <p className="text-sm leading-6 text-[var(--text-secondary)]">
           {isDisputer ? "You disputed" : "Someone disputed"} the proposed{" "}
           {proposedLabel} outcome
@@ -94,33 +132,40 @@ export function MarketDisputePanel({ market }: { market: Market }) {
             outcome stands.
           </p>
         ) : null}
-      </Panel>
+      </ResolutionPanelShell>
+    );
+  }
+
+  // The window has closed and the contract still says pending, so disputing is
+  // over and settling is what is left. The previous behaviour here was a
+  // disabled dispute button — a dead end for the only viewer who can still do
+  // something about a market the keeper never picked up.
+  if (remainingMs <= 0) {
+    return (
+      <MarketSettleAction
+        onSettle={settlement.settle}
+        outcome={settlement.outcome}
+        pending={settlement.pending}
+        proposedLabel={proposedLabel}
+      />
     );
   }
 
   const bondUsd = formatBond(snapshot.bond, snapshot.collateralDecimals);
   const isResolver = wallet.address?.toLowerCase() === snapshot.resolver.toLowerCase();
-  const windowClosed = remainingMs <= 0;
   const pending = status === "pending";
-  const blocker = getDisputeBlocker({ wallet, windowClosed });
+  const blocker = getDisputeBlocker(wallet);
 
   return (
-    <Panel tone="var(--warning)" title="Resolution proposed">
+    <ResolutionPanelShell tone="var(--warning)" title="Resolution proposed">
       <p className="text-sm leading-6 text-[var(--text-secondary)]">
         This market is proposed to resolve{" "}
         <span className="font-bold text-[var(--text-primary)]">{proposedLabel}</span>.
-        It finalizes automatically{" "}
-        {windowClosed ? (
-          "— the dispute window has closed."
-        ) : (
-          <>
-            in{" "}
-            <span className="font-mono font-bold text-[var(--text-primary)]">
-              {formatRemaining(remainingMs)}
-            </span>
-            , and until then anyone can dispute it.
-          </>
-        )}
+        It finalizes automatically in{" "}
+        <span className="font-mono font-bold text-[var(--text-primary)]">
+          {formatRemaining(remainingMs)}
+        </span>
+        , and until then anyone can dispute it.
       </p>
 
       <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--danger)] bg-[var(--surface-raised)] p-3">
@@ -167,7 +212,7 @@ export function MarketDisputePanel({ market }: { market: Market }) {
         )}
       </button>
 
-      {blocker?.message ? (
+      {blocker ? (
         <p className="mt-2 font-mono text-[11px] leading-5 text-[var(--text-muted)]">
           {blocker.message}
         </p>
@@ -176,33 +221,45 @@ export function MarketDisputePanel({ market }: { market: Market }) {
       {error ? (
         <p className="mt-3 text-[12px] leading-5 text-[var(--danger)]">{error}</p>
       ) : null}
-    </Panel>
+    </ResolutionPanelShell>
   );
 }
 
-function Panel({
-  children,
-  title,
-  tone,
+/**
+ * Drives the public settle request and holds its answer. The state lives here
+ * rather than in {@link MarketSettleAction} because a successful settle takes
+ * the contract out of the phase that renders that component at all.
+ *
+ * Only a settlement re-reads the chain. A refusal means the chain moved
+ * without this caller, and the message explaining that is the useful thing on
+ * screen — re-reading would replace it with whatever state won the race.
+ */
+function useSettlement({
+  marketId,
+  onSettled,
 }: {
-  children: ReactNode;
-  title: string;
-  tone: string;
+  marketId: string;
+  onSettled: () => void;
 }) {
-  return (
-    <section
-      className="rounded-[var(--radius-lg)] border bg-[var(--surface-card)] p-5"
-      style={{ borderColor: tone }}
-    >
-      <div
-        className="mb-3 font-mono text-[10px] tracking-[0.14em] uppercase"
-        style={{ color: tone }}
-      >
-        {title}
-      </div>
-      {children}
-    </section>
-  );
+  const [outcome, setOutcome] = useState<SettleMarketActionResult | null>(null);
+  const [pending, startSettling] = useTransition();
+
+  return {
+    outcome,
+    pending,
+    settle: () => {
+      setOutcome(null);
+      startSettling(async () => {
+        const result = await settleMarketAction(marketId);
+
+        setOutcome(result);
+
+        if (result.status === "settled") {
+          onSettled();
+        }
+      });
+    },
+  };
 }
 
 /**
@@ -232,20 +289,13 @@ function useCountdown(deadline: number | null) {
  * the service (which throws on a mismatch) because an ungated button lets a
  * wrong-chain holder click, sign nothing, and learn nothing — the house
  * pattern is `getWalletCreateAction` / `getVenueSwapAction`.
+ *
+ * Disputing only. Settling has no wallet gate at all: it moves no collateral,
+ * signs nothing on the caller's behalf, and grants them nothing.
  */
-function getDisputeBlocker({
-  wallet,
-  windowClosed,
-}: {
-  wallet: ReturnType<typeof useWalletAccount>;
-  windowClosed: boolean;
-}): { message: string | null } | null {
-  if (windowClosed) {
-    // The panel's own prose already says the window closed; a second line
-    // under the button would only repeat it.
-    return { message: null };
-  }
-
+function getDisputeBlocker(
+  wallet: ReturnType<typeof useWalletAccount>
+): { message: string } | null {
   if (!wallet.address) {
     return { message: "Connect a wallet to dispute this resolution." };
   }

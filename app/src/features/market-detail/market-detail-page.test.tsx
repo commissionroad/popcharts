@@ -40,9 +40,9 @@ vi.mock("./claim-winnings-panel", () => ({
   ),
 }));
 
-vi.mock("./market-dispute-panel", () => ({
-  MarketDisputePanel: ({ market }: { market: Market }) => (
-    <div>Dispute panel for {market.id}</div>
+vi.mock("./market-resolution-panel", () => ({
+  MarketResolutionPanel: ({ market }: { market: Market }) => (
+    <div>Resolution panel for {market.id}</div>
   ),
 }));
 
@@ -255,7 +255,9 @@ describe("MarketDetailPage", () => {
     // The dispute window opens while the market is still indexed as graduated,
     // so the panel rides alongside the trade ticket and hides itself when no
     // window is open on-chain.
-    expect(screen.getByText("Dispute panel for eth-5000-august")).toBeInTheDocument();
+    expect(
+      screen.getByText("Resolution panel for eth-5000-august")
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Postgrad trade panel for eth-5000-august")
     ).toBeInTheDocument();
