@@ -1,8 +1,17 @@
 import { describe, expect, it } from "bun:test";
 
-import { POSTGRAD_MARKET_STATUS } from "@popcharts/protocol";
+import {
+  completeSetBinaryMarketAbi,
+  POSTGRAD_MARKET_STATUS,
+} from "@popcharts/protocol";
+import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  encodeErrorResult,
+} from "viem";
 
 import {
+  isAlreadyProposedRevert,
   type MarketResolutionProposalDependencies,
   proposeMarketResolutionOnChain,
   readResolverPrivateKey,
@@ -12,20 +21,44 @@ import {
 const MARKET = `0x${"ab".repeat(20)}` as `0x${string}`;
 const TX = `0x${"11".repeat(32)}` as `0x${string}`;
 
+/**
+ * A real decoded revert, built from the generated ABI and wrapped exactly the
+ * way viem's writeContract throws it: the decoded ContractFunctionRevertedError
+ * sits in the CAUSE CHAIN of a ContractFunctionExecutionError, never at the
+ * top (verified against viem 2.52.2's getContractError). Throwing the bare
+ * inner error here would let a walk→instanceof refactor pass every test while
+ * breaking against a real node.
+ */
+function invalidStatusRevert(actual: number) {
+  const reverted = new ContractFunctionRevertedError({
+    abi: [...completeSetBinaryMarketAbi],
+    data: encodeErrorResult({
+      abi: [...completeSetBinaryMarketAbi],
+      args: [actual, POSTGRAD_MARKET_STATUS.trading],
+      errorName: "InvalidStatus",
+    }),
+    functionName: "proposeResolution",
+  });
+
+  return new ContractFunctionExecutionError(reverted, {
+    abi: [...completeSetBinaryMarketAbi],
+    args: [0],
+    contractAddress: MARKET,
+    functionName: "proposeResolution",
+  });
+}
+
 function makeDeps(
   overrides: Partial<MarketResolutionProposalDependencies> = {},
 ) {
   const writes: { address: `0x${string}`; side: number }[] = [];
   const deps: MarketResolutionProposalDependencies = {
     currentChainId: () => 31337,
-    getLatestBlockTimestamp: async () => new Date("2026-01-01T00:00:00.000Z"),
-    readMarketStatus: async () => POSTGRAD_MARKET_STATUS.trading,
     submitResolutionProposal: async (address, side) => {
       writes.push({ address, side });
       return TX;
     },
-    waitForTransactionTimestamp: async () =>
-      new Date("2026-01-02T00:00:00.000Z"),
+    waitForSuccessfulProposal: async () => {},
     ...overrides,
   };
 
@@ -47,16 +80,23 @@ describe("resolutionChainAction", () => {
 
 describe("proposeMarketResolutionOnChain", () => {
   it("proposes YES on the market address when it is still trading", async () => {
-    const { deps, writes } = makeDeps();
+    const waited: string[] = [];
+    const { deps, writes } = makeDeps({
+      waitForSuccessfulProposal: async (hash) => {
+        waited.push(hash);
+      },
+    });
 
     const result = await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
       deps,
     );
 
-    expect(result?.kind).toBe("proposed");
-    expect(result?.transactionHash).toBe(TX);
+    expect(result).toMatchObject({ kind: "proposed", transactionHash: TX });
     expect(writes).toEqual([{ address: MARKET, side: 0 }]);
+    // The receipt gate is what turns a broadcast into a success; a proposed
+    // result without it would report success for a transaction that reverted.
+    expect(waited).toEqual([TX]);
   });
 
   it("proposes NO with side 1", async () => {
@@ -70,28 +110,36 @@ describe("proposeMarketResolutionOnChain", () => {
     expect(writes).toEqual([{ address: MARKET, side: 1 }]);
   });
 
-  // The dispute window is permissionless, so the runner is never the only actor
-  // that can move a market out of Trading. Every status that already carries a
-  // resolution outcome is a no-op success, not a job failure.
+  // The contract refuses a second proposal itself. The runner reads that
+  // refusal out of the revert rather than predicting it with a status read,
+  // which could only race the chain between the read and the write.
   it.each([
     ["a proposal is already pending", POSTGRAD_MARKET_STATUS.resolutionPending],
     ["the pending proposal is disputed", POSTGRAD_MARKET_STATUS.disputed],
     ["the market is already resolved", POSTGRAD_MARKET_STATUS.resolved],
-  ])("is a no-op when %s", async (_label, status) => {
-    const { deps, writes } = makeDeps({ readMarketStatus: async () => status });
+  ])("reports already_proposed when %s", async (_label, status) => {
+    const { deps } = makeDeps({
+      submitResolutionProposal: async () => {
+        throw invalidStatusRevert(status);
+      },
+    });
 
     const result = await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
       deps,
     );
 
-    expect(result?.kind).toBe("already_on_chain");
-    expect(writes).toEqual([]);
+    expect(result).toEqual({ kind: "already_proposed" });
   });
 
-  it("throws when the market is in an unexpected on-chain status", async () => {
+  // Cancelled reverts through the same InvalidStatus error and is a real
+  // failure. Swallowing it would mark the job succeeded for a market that can
+  // never be resolved.
+  it("propagates the revert when the market was cancelled", async () => {
     const { deps } = makeDeps({
-      readMarketStatus: async () => POSTGRAD_MARKET_STATUS.cancelled,
+      submitResolutionProposal: async () => {
+        throw invalidStatusRevert(POSTGRAD_MARKET_STATUS.cancelled);
+      },
     });
 
     await expect(
@@ -103,7 +151,26 @@ describe("proposeMarketResolutionOnChain", () => {
         },
         deps,
       ),
-    ).rejects.toThrow("expected 0 (Trading)");
+    ).rejects.toThrow(ContractFunctionExecutionError);
+  });
+
+  it("propagates a failure that is not a revert at all", async () => {
+    const { deps } = makeDeps({
+      submitResolutionProposal: async () => {
+        throw new Error("RPC unreachable");
+      },
+    });
+
+    await expect(
+      proposeMarketResolutionOnChain(
+        {
+          chainId: 31337,
+          postgradMarketAddress: MARKET,
+          verdict: "resolve_yes",
+        },
+        deps,
+      ),
+    ).rejects.toThrow("RPC unreachable");
   });
 
   it("throws on a chain-id mismatch", async () => {
@@ -123,8 +190,8 @@ describe("proposeMarketResolutionOnChain", () => {
 
   it("returns null and touches nothing for a parked verdict", async () => {
     const { deps, writes } = makeDeps({
-      readMarketStatus: async () => {
-        throw new Error("status should not be read for a parked verdict");
+      submitResolutionProposal: async () => {
+        throw new Error("nothing should be submitted for a parked verdict");
       },
     });
 
@@ -139,6 +206,29 @@ describe("proposeMarketResolutionOnChain", () => {
 
     expect(result).toBeNull();
     expect(writes).toEqual([]);
+  });
+});
+
+describe("isAlreadyProposedRevert", () => {
+  it.each([
+    ["resolution pending", POSTGRAD_MARKET_STATUS.resolutionPending],
+    ["disputed", POSTGRAD_MARKET_STATUS.disputed],
+    ["resolved", POSTGRAD_MARKET_STATUS.resolved],
+  ])("recognises %s as already proposed", (_label, status) => {
+    expect(isAlreadyProposedRevert(invalidStatusRevert(status))).toBe(true);
+  });
+
+  it("does not recognise a cancelled market", () => {
+    expect(
+      isAlreadyProposedRevert(
+        invalidStatusRevert(POSTGRAD_MARKET_STATUS.cancelled),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not recognise an ordinary error", () => {
+    expect(isAlreadyProposedRevert(new Error("boom"))).toBe(false);
+    expect(isAlreadyProposedRevert(undefined)).toBe(false);
   });
 });
 

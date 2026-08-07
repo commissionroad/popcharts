@@ -35,6 +35,12 @@ export const OPERATOR_ALERT_EVENTS = {
   marketStatusOutOfOrder: "market_status_out_of_order",
   /** A bonded dispute froze a graduated market until a human settles it. */
   resolutionDisputed: "resolution_disputed",
+  /**
+   * A proposal landed for the OPPOSITE side of the AI's recorded pending
+   * judgment, which is now superseded (ADR 0026): the market is resolving
+   * against what the AI concluded — exactly when a human should look.
+   */
+  resolutionSuperseded: "resolution_superseded",
 } as const;
 
 /** Tag of a single operator page; the value half of `OPERATOR_ALERT_EVENTS`. */

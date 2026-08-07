@@ -1,4 +1,4 @@
-import { db, eq, schema } from "src/db/client";
+import { and, db, eq, schema } from "src/db/client";
 
 import type { MarketResolutionJobRow } from "./jobs";
 
@@ -30,6 +30,14 @@ export function compactError(error: unknown) {
   return message.replace(/\s+/g, " ").slice(0, MAX_ERROR_LENGTH);
 }
 
+/**
+ * Records one failed attempt with backed-off retry scheduling, or a terminal
+ * failure once attempts are exhausted. Fenced on this runner still owning the
+ * job (`locked_by` + `running`, ADR 0026 review): returns **null** when the
+ * fence matched nothing — the lease expired and another runner owns the job —
+ * so the caller reports `lease_lost` instead of overwriting the new owner's
+ * state with a stale failure.
+ */
 export async function markResolutionJobFailure({
   error,
   job,
@@ -61,14 +69,16 @@ export async function markResolutionJobFailure({
       status,
       updatedAt: now,
     })
-    .where(eq(schema.marketResolutionJobs.id, job.id))
+    .where(
+      and(
+        eq(schema.marketResolutionJobs.id, job.id),
+        eq(schema.marketResolutionJobs.lockedBy, job.lockedBy ?? ""),
+        eq(schema.marketResolutionJobs.status, "running"),
+      ),
+    )
     .returning();
 
-  if (!updatedJob) {
-    throw new Error(`Failed to mark resolution job ${job.id} failed.`);
-  }
-
-  return updatedJob;
+  return updatedJob ?? null;
 }
 
 export async function cancelResolutionJob({
