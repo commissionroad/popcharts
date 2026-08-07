@@ -12,12 +12,11 @@
   under the primary checkout's ignored `.worktrees/<slug>/` directory. Keep
   legacy harness-managed `.claude/worktrees/` checkouts in place until their
   owning sessions clean them up; do not move another agent's live worktree.
-- `wiki/` is an LLM-maintained knowledge wiki over this repo's design docs
-  (ADRs, whitepapers, architecture docs). When you need design context, read
-  `wiki/index.md` first and open only the pages it points to, instead of
-  bulk-reading docs. Maintenance rules (ingest/query/lint) are in
-  `wiki/CLAUDE.md`; after changing any doc the wiki summarizes, run the
-  ingest workflow for it.
+- **The design docs are the only source of truth.** `docs/`, `protocol/docs/`,
+  `app/docs/`, and `whitepaper/` are what you read for design context, and what
+  you update when a decision changes. Do not build a derived summary layer over
+  them — a second copy drifts from the first, and a stale summary is worse than
+  no summary because it reads as current.
 - Never create, edit, delete, or otherwise mutate files outside this repository
   without explicit user approval. If a tool installer may change shell profiles,
   global config, home-directory caches, keychains, or other user files, ask first

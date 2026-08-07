@@ -111,7 +111,7 @@ Phase 5 — ops:
 
 - [ ] Alarm on `ResolutionDisputed` (a dispute is an operator page, not a
       background event).
-- [ ] Update ADR 0012's delay-window checkbox to point here; wiki ingest.
+- [ ] Update ADR 0012's delay-window checkbox to point here.
 
 ## Consequences
 
