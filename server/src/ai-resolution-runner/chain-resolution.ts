@@ -1,5 +1,6 @@
 import {
   completeSetBinaryMarketAbi,
+  marketSideToContractSide,
   POSTGRAD_MARKET_STATUS,
   SIDE_NO,
   SIDE_YES,
@@ -13,7 +14,10 @@ import {
 } from "src/blockchain/client";
 import { config } from "src/config";
 
-import type { ResolutionVerdict } from "../ai-resolution/types";
+import {
+  AUTO_RESOLVE_VERDICT_BY_SIDE,
+  type ResolutionVerdict,
+} from "../ai-resolution/types";
 
 const DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -37,13 +41,13 @@ export type ResolutionChainAction = { side: typeof SIDE_YES | typeof SIDE_NO };
 
 /**
  * What one propose attempt achieved. `already_proposed` is a success, not a
- * failure: the market carries a proposal, which is all the runner needed. It
- * carries no timestamp because the runner does not record one — the indexer
- * stamps `resolved_at` from the confirming event (ADR 0026).
+ * failure: the market carries a proposal, which is all the runner needed.
+ * Neither variant carries a timestamp — the runner records none, because the
+ * indexer stamps `resolved_at` from the confirming event (ADR 0026), and dead
+ * data on a result type invites someone to consume it.
  */
 export type MarketResolutionProposalResult =
-  | { blockTimestamp: Date; kind: "proposed"; transactionHash: Hash }
-  | { kind: "already_proposed" };
+  { kind: "proposed"; transactionHash: Hash } | { kind: "already_proposed" };
 
 export type MarketResolutionProposalDependencies = {
   currentChainId: () => number;
@@ -51,7 +55,8 @@ export type MarketResolutionProposalDependencies = {
     marketAddress: `0x${string}`,
     side: number,
   ) => Promise<Hash>;
-  waitForTransactionTimestamp: (transactionHash: Hash) => Promise<Date>;
+  /** Resolves when the transaction mined successfully; throws on a revert. */
+  waitForSuccessfulProposal: (transactionHash: Hash) => Promise<void>;
 };
 
 /**
@@ -91,12 +96,12 @@ export function isAlreadyProposedRevert(error: unknown): boolean {
 export function resolutionChainAction(
   verdict: ResolutionVerdict,
 ): ResolutionChainAction | null {
-  if (verdict === "resolve_yes") {
-    return { side: SIDE_YES };
-  }
-
-  if (verdict === "resolve_no") {
-    return { side: SIDE_NO };
+  for (const [side, sideVerdict] of Object.entries(
+    AUTO_RESOLVE_VERDICT_BY_SIDE,
+  )) {
+    if (sideVerdict === verdict) {
+      return { side: marketSideToContractSide(side as "yes" | "no") };
+    }
   }
 
   return null;
@@ -165,12 +170,9 @@ export async function proposeMarketResolutionOnChain(
     throw error;
   }
 
-  return {
-    blockTimestamp:
-      await dependencies.waitForTransactionTimestamp(transactionHash),
-    kind: "proposed",
-    transactionHash,
-  };
+  await dependencies.waitForSuccessfulProposal(transactionHash);
+
+  return { kind: "proposed", transactionHash };
 }
 
 export function readResolverPrivateKey(
@@ -210,22 +212,20 @@ function createDefaultDependencies(): MarketResolutionProposalDependencies {
         functionName: "proposeResolution",
         args: [side],
       }),
-    waitForTransactionTimestamp: async (transactionHash) => {
+    waitForSuccessfulProposal: async (transactionHash) => {
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: transactionHash,
       });
 
+      // A receipt-stage revert carries no decodable error data, so it cannot
+      // be classified as already-proposed here; it surfaces as a plain failure
+      // and the retry re-attempts, hitting the decodable estimation revert if
+      // a proposal really does stand (accepted trade, ADR 0026 review).
       if (receipt.status !== "success") {
         throw new Error(
           `Resolution proposal transaction failed: ${transactionHash}`,
         );
       }
-
-      const block = await publicClient.getBlock({
-        blockNumber: receipt.blockNumber,
-      });
-
-      return new Date(Number(block.timestamp) * 1000);
     },
   };
 }

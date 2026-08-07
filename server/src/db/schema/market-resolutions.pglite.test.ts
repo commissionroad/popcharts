@@ -16,68 +16,14 @@ import { eq } from "drizzle-orm";
 import type { db as productionDb } from "src/db/client";
 import * as schema from "src/db/schema";
 import { createPgliteDb } from "src/test-support/pglite-db";
-
-const CHAIN_ID = 31337;
-const MARKET_ID = 7n;
-const METADATA_HASH = `0x${"22".repeat(32)}`;
+import {
+  resolutionRowValues,
+  seedResolutionMarket,
+} from "src/test-support/resolution-fixtures";
 
 let dbc: typeof productionDb;
 let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
-
-function resolutionRow(
-  overrides: Partial<typeof schema.marketResolutions.$inferInsert> = {},
-) {
-  return {
-    chainId: CHAIN_ID,
-    evidence: [],
-    hardFlags: [],
-    marketId: MARKET_ID,
-    metadataHash: METADATA_HASH,
-    outcome: "yes" as const,
-    promptVersion: "v1",
-    provider: "anthropic" as const,
-    reasons: ["Because."],
-    sourceChecks: [],
-    verdict: "resolve_yes" as const,
-    ...overrides,
-  };
-}
-
-async function seedMarket() {
-  await dbc.insert(schema.contracts).values({
-    address: "0x00000000000000000000000000000000000000cc",
-    chainId: CHAIN_ID,
-    name: "PregradManager",
-  });
-  await dbc.insert(schema.marketMetadata).values({
-    category: "Testing",
-    chainId: CHAIN_ID,
-    description: "A graduated market awaiting resolution.",
-    metadataCreatedAt: "2026-07-01T00:00:00.000Z",
-    metadataHash: METADATA_HASH,
-    question: "Does the partial index hold?",
-    resolutionCriteria: "Resolves YES when it does.",
-  });
-  await dbc.insert(schema.markets).values({
-    chainId: CHAIN_ID,
-    collateral: "0x00000000000000000000000000000000000000dd",
-    contractId: 1,
-    createdBlockNumber: 99n,
-    createdBlockTimestamp: new Date("2026-07-01T00:00:00.000Z"),
-    createdLogIndex: 0,
-    createdTransactionHash: `0x${"33".repeat(32)}`,
-    creator: "0x00000000000000000000000000000000000000aa",
-    graduationThreshold: 1_000_000n,
-    graduationTime: new Date("2026-07-02T00:00:00.000Z"),
-    liquidityParameter: 1_000_000_000n,
-    marketId: MARKET_ID,
-    metadataHash: METADATA_HASH,
-    openingProbabilityWad: 500_000_000_000_000_000n,
-    resolutionTime: new Date("2026-07-03T00:00:00.000Z"),
-    status: "graduated",
-  });
-}
 
 beforeAll(async () => {
   ({ dbc, reset: resetDb, teardown: teardownDb } = await createPgliteDb());
@@ -89,14 +35,14 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
-  await seedMarket();
+  await seedResolutionMarket(dbc);
 });
 
 describe("market_resolutions commit_state", () => {
   it("defaults to confirmed, so a writer that ignores it keeps today's meaning", async () => {
     const [row] = await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow())
+      .values(resolutionRowValues())
       .returning();
 
     expect(row?.commitState).toBe("confirmed");
@@ -105,7 +51,7 @@ describe("market_resolutions commit_state", () => {
   it("leaves resolved_at null until something confirms the row", async () => {
     const [row] = await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "pending" }))
+      .values(resolutionRowValues({ commitState: "pending" }))
       .returning();
 
     // The block timestamp does not exist yet. Inventing one is the inference
@@ -117,7 +63,7 @@ describe("market_resolutions commit_state", () => {
     const resolvedAt = new Date("2026-07-04T00:00:00.000Z");
     const [row] = await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "confirmed", resolvedAt }))
+      .values(resolutionRowValues({ commitState: "confirmed", resolvedAt }))
       .returning();
 
     expect(row?.resolvedAt).toEqual(resolvedAt);
@@ -134,7 +80,7 @@ describe("market_resolutions pending unique index", () => {
     const insertPending = async () =>
       await dbc
         .insert(schema.marketResolutions)
-        .values(resolutionRow({ commitState: "pending" }));
+        .values(resolutionRowValues({ commitState: "pending" }));
 
     await insertPending();
 
@@ -146,7 +92,7 @@ describe("market_resolutions pending unique index", () => {
   it("allows a pending row once an earlier one has been confirmed", async () => {
     const [first] = await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "pending" }))
+      .values(resolutionRowValues({ commitState: "pending" }))
       .returning();
     await dbc
       .update(schema.marketResolutions)
@@ -155,7 +101,7 @@ describe("market_resolutions pending unique index", () => {
 
     await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "pending" }));
+      .values(resolutionRowValues({ commitState: "pending" }));
 
     expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(2);
   });
@@ -165,10 +111,12 @@ describe("market_resolutions pending unique index", () => {
   it("does not constrain confirmed rows", async () => {
     await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "confirmed" }));
+      .values(resolutionRowValues({ commitState: "confirmed" }));
     await dbc
       .insert(schema.marketResolutions)
-      .values(resolutionRow({ commitState: "confirmed", provider: "manual" }));
+      .values(
+        resolutionRowValues({ commitState: "confirmed", provider: "manual" }),
+      );
 
     expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(2);
   });

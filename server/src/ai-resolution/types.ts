@@ -80,6 +80,24 @@ export const RESOLUTION_VERDICTS = [
 export type ResolutionVerdict = (typeof RESOLUTION_VERDICTS)[number];
 
 /**
+ * The verdict a market side maps to and back — the single definition of the
+ * side↔verdict pairing (ADR 0026 review: the propose path and the indexer's
+ * confirmation path each spelled it independently, and a divergence between
+ * them would either submit the wrong side or refuse every confirmation).
+ */
+export const AUTO_RESOLVE_VERDICT_BY_SIDE = {
+  no: "resolve_no",
+  yes: "resolve_yes",
+} as const satisfies Record<"yes" | "no", ResolutionVerdict>;
+
+/**
+ * A verdict the runner submits on-chain — one that appears in
+ * {@link AUTO_RESOLVE_VERDICT_BY_SIDE}. Everything else parks or re-queues.
+ */
+export type AutoResolveVerdict =
+  (typeof AUTO_RESOLVE_VERDICT_BY_SIDE)[keyof typeof AUTO_RESOLVE_VERDICT_BY_SIDE];
+
+/**
  * The submitter-authored market text plus the resolution timing the market
  * committed to on-chain. Every string field is untrusted user input and must be
  * treated as potential prompt injection; the timestamps are trusted (they come

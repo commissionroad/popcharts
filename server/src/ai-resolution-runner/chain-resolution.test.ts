@@ -4,7 +4,11 @@ import {
   completeSetBinaryMarketAbi,
   POSTGRAD_MARKET_STATUS,
 } from "@popcharts/protocol";
-import { ContractFunctionRevertedError, encodeErrorResult } from "viem";
+import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  encodeErrorResult,
+} from "viem";
 
 import {
   isAlreadyProposedRevert,
@@ -18,17 +22,28 @@ const MARKET = `0x${"ab".repeat(20)}` as `0x${string}`;
 const TX = `0x${"11".repeat(32)}` as `0x${string}`;
 
 /**
- * A real decoded revert, built from the generated ABI, so these tests exercise
- * the same decode path production does rather than a hand-shaped stand-in.
+ * A real decoded revert, built from the generated ABI and wrapped exactly the
+ * way viem's writeContract throws it: the decoded ContractFunctionRevertedError
+ * sits in the CAUSE CHAIN of a ContractFunctionExecutionError, never at the
+ * top (verified against viem 2.52.2's getContractError). Throwing the bare
+ * inner error here would let a walk→instanceof refactor pass every test while
+ * breaking against a real node.
  */
 function invalidStatusRevert(actual: number) {
-  return new ContractFunctionRevertedError({
+  const reverted = new ContractFunctionRevertedError({
     abi: [...completeSetBinaryMarketAbi],
     data: encodeErrorResult({
       abi: [...completeSetBinaryMarketAbi],
       args: [actual, POSTGRAD_MARKET_STATUS.trading],
       errorName: "InvalidStatus",
     }),
+    functionName: "proposeResolution",
+  });
+
+  return new ContractFunctionExecutionError(reverted, {
+    abi: [...completeSetBinaryMarketAbi],
+    args: [0],
+    contractAddress: MARKET,
     functionName: "proposeResolution",
   });
 }
@@ -43,8 +58,7 @@ function makeDeps(
       writes.push({ address, side });
       return TX;
     },
-    waitForTransactionTimestamp: async () =>
-      new Date("2026-01-02T00:00:00.000Z"),
+    waitForSuccessfulProposal: async () => {},
     ...overrides,
   };
 
@@ -66,7 +80,12 @@ describe("resolutionChainAction", () => {
 
 describe("proposeMarketResolutionOnChain", () => {
   it("proposes YES on the market address when it is still trading", async () => {
-    const { deps, writes } = makeDeps();
+    const waited: string[] = [];
+    const { deps, writes } = makeDeps({
+      waitForSuccessfulProposal: async (hash) => {
+        waited.push(hash);
+      },
+    });
 
     const result = await proposeMarketResolutionOnChain(
       { chainId: 31337, postgradMarketAddress: MARKET, verdict: "resolve_yes" },
@@ -75,6 +94,9 @@ describe("proposeMarketResolutionOnChain", () => {
 
     expect(result).toMatchObject({ kind: "proposed", transactionHash: TX });
     expect(writes).toEqual([{ address: MARKET, side: 0 }]);
+    // The receipt gate is what turns a broadcast into a success; a proposed
+    // result without it would report success for a transaction that reverted.
+    expect(waited).toEqual([TX]);
   });
 
   it("proposes NO with side 1", async () => {
@@ -129,7 +151,7 @@ describe("proposeMarketResolutionOnChain", () => {
         },
         deps,
       ),
-    ).rejects.toThrow(ContractFunctionRevertedError);
+    ).rejects.toThrow(ContractFunctionExecutionError);
   });
 
   it("propagates a failure that is not a revert at all", async () => {
