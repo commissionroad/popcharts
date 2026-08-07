@@ -374,3 +374,124 @@ describe("persistPostgradResolutionRecord terminal guard (PGlite)", () => {
     expect(await marketStatus()).toBe("cancelled");
   });
 });
+
+/**
+ * Seeds the row the runner writes before proposing (ADR 0026 phase 3), so the
+ * proposal event has something to confirm.
+ */
+async function seedPendingResolution(
+  verdict: "resolve_yes" | "resolve_no" = "resolve_yes",
+) {
+  // The shared fixture seeds markets but not market_metadata, which the
+  // resolutions FK requires; only this describe block needs it.
+  await dbc.insert(schema.marketMetadata).values({
+    category: "Testing",
+    chainId: CHAIN_ID,
+    description: "A graduated market whose proposal is in flight.",
+    metadataCreatedAt: "2026-07-13T00:00:00.000Z",
+    metadataHash: `0x${"22".repeat(32)}`,
+    question: "Does the proposal event confirm the pending row?",
+    resolutionCriteria: "Resolves YES when it does.",
+  });
+  const [row] = await dbc
+    .insert(schema.marketResolutions)
+    .values({
+      chainId: CHAIN_ID,
+      commitState: "pending",
+      evidence: [],
+      hardFlags: [],
+      marketId: MARKET_ID,
+      metadataHash: `0x${"22".repeat(32)}`,
+      outcome: verdict === "resolve_yes" ? "yes" : "no",
+      promptVersion: "v1",
+      provider: "anthropic",
+      reasons: ["The event concluded."],
+      sourceChecks: [],
+      verdict,
+    })
+    .returning();
+  return row!;
+}
+
+async function resolutionRows() {
+  return await dbc.select().from(schema.marketResolutions);
+}
+
+describe("proposal events confirm the runner's pending row (ADR 0026)", () => {
+  it("confirms the pending row and stamps resolved_at from the block", async () => {
+    await seedPendingResolution("resolve_yes");
+
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const [row] = await resolutionRows();
+    expect(row).toMatchObject({
+      commitState: "confirmed",
+      resolvedAt: new Date("2026-07-14T00:00:00Z"),
+    });
+  });
+
+  it("signals the market page for the confirmation, atomic with it", async () => {
+    await seedPendingResolution("resolve_yes");
+
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const signals = await dbc
+      .select({
+        op: schema.changeFeed.op,
+        table: schema.changeFeed.sourceTable,
+      })
+      .from(schema.changeFeed);
+    expect(signals).toContainEqual({
+      op: "update",
+      table: "market_resolutions",
+    });
+  });
+
+  // A pending row records what the AI decided; `confirmed` asserts the chain
+  // acted on it. If an operator proposed the other side while the runner's row
+  // sat pending, confirming it would fabricate the record/chain divergence
+  // this whole program removed.
+  it("leaves a pending row alone when its verdict is not the proposed side", async () => {
+    await seedPendingResolution("resolve_no");
+
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const [row] = await resolutionRows();
+    expect(row).toMatchObject({ commitState: "pending", resolvedAt: null });
+  });
+
+  // Operator and creator self-resolve proposals never had a pending row.
+  it("no-ops without error when no pending row exists", async () => {
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    expect(await resolutionRows()).toHaveLength(0);
+    expect(await marketStatus()).toBe("resolution_pending");
+  });
+
+  it("does not re-confirm or re-signal on a replayed log", async () => {
+    await seedPendingResolution("resolve_yes");
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const signals = await dbc
+      .select({ table: schema.changeFeed.sourceTable })
+      .from(schema.changeFeed);
+    expect(
+      signals.filter(({ table }) => table === "market_resolutions"),
+    ).toHaveLength(1);
+  });
+
+  it("never rewrites a row another path already settled", async () => {
+    const settledAt = new Date("2026-07-10T00:00:00Z");
+    await seedPendingResolution("resolve_yes");
+    await dbc
+      .update(schema.marketResolutions)
+      .set({ commitState: "confirmed", resolvedAt: settledAt });
+
+    await persistPostgradDisputeRecord(disputeRecord(), dbc);
+
+    const [row] = await resolutionRows();
+    // The CAS on `pending` means the earlier settlement's timestamp survives.
+    expect(row?.resolvedAt).toEqual(settledAt);
+  });
+});

@@ -7,7 +7,7 @@ import {
 import type { Log } from "viem";
 
 import type { NetworkConfig } from "src/config";
-import { db, schema } from "src/db/client";
+import { and, db, eq, schema } from "src/db/client";
 import type { PostgradDisputeKind } from "src/db/schema/postgrad-dispute-events";
 import {
   applyMarketStatusTransition,
@@ -224,6 +224,10 @@ export async function persistPostgradDisputeRecord(
       logIndex: record.event.logIndex,
     });
 
+    if (record.event.kind === "proposed") {
+      await confirmPendingResolution(tx, record.event);
+    }
+
     return true;
   });
 
@@ -232,6 +236,71 @@ export async function persistPostgradDisputeRecord(
   // page twice. stderr, because the alarm treats this as an incident.
   if (applied && record.operatorAlert) {
     console.error(record.operatorAlert);
+  }
+}
+
+/**
+ * Confirms the runner's `pending` audit row against the proposal the chain just
+ * acknowledged (ADR 0026 phase 4). This is the only writer of the
+ * `pending → confirmed` transition, and it stamps `resolved_at` from the
+ * event's block — the timestamp does not exist before this moment.
+ *
+ * Three guards, all load-bearing:
+ *
+ * - **Compare-and-set on `pending`.** A replayed log dedupes out before
+ *   reaching here, but the CAS also makes a racing second writer harmless and
+ *   never rewrites a row some other path already settled.
+ * - **The verdict must match the proposed side.** A pending row records what
+ *   the AI decided; `confirmed` asserts the chain acted on it. If an operator
+ *   proposed the other side while the runner's row sat pending, confirming it
+ *   would fabricate exactly the record/chain divergence ADR 0026 removed — the
+ *   row stays `pending`, truthfully "never acted on", and phase 5 surfaces it.
+ * - **Zero matches is not an error.** Operator and creator self-resolve
+ *   proposals never had a pending row; those paths keep writing their own
+ *   `confirmed` rows as today.
+ */
+async function confirmPendingResolution(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  event: typeof schema.postgradDisputeEvents.$inferInsert,
+) {
+  // `proposed` rows always carry a side (buildPostgradDisputeRecord requires
+  // it); the null check narrows the type rather than guarding a real case.
+  if (!event.proposedSide) {
+    return;
+  }
+
+  const actedOnVerdict =
+    event.proposedSide === "yes" ? "resolve_yes" : "resolve_no";
+
+  const confirmed = await tx
+    .update(schema.marketResolutions)
+    .set({
+      commitState: "confirmed",
+      resolvedAt: event.blockTimestamp,
+    })
+    .where(
+      and(
+        eq(schema.marketResolutions.chainId, event.chainId),
+        eq(schema.marketResolutions.marketId, event.marketId),
+        eq(schema.marketResolutions.commitState, "pending"),
+        eq(schema.marketResolutions.verdict, actedOnVerdict),
+      ),
+    )
+    .returning({ id: schema.marketResolutions.id });
+
+  for (const row of confirmed) {
+    // The runner deliberately does not signal on the pending insert — the
+    // judgment is not news until the chain acknowledges it. This is that
+    // signal, atomic with the confirmation.
+    await recordLiveChange(tx, {
+      sourceTable: "market_resolutions",
+      op: "update",
+      chainId: event.chainId,
+      marketId: event.marketId,
+      rowId: row.id,
+      blockNumber: event.blockNumber,
+      logIndex: event.logIndex,
+    });
   }
 }
 
