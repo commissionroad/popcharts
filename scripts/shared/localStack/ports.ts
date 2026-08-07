@@ -67,7 +67,15 @@ export function deriveStackResources(slot: number): StackPorts {
     appPort: BASE_APP_PORT + SLOT_PORT_STRIDE * slot,
     reviewPort: BASE_REVIEW_PORT + SLOT_PORT_STRIDE * slot,
     resolutionPort: BASE_RESOLUTION_PORT + SLOT_PORT_STRIDE * slot,
-    pcAdminPort: BASE_PC_ADMIN_PORT + slot,
+    // Strided like every other port, and deliberately so: this one addresses
+    // the control API that can stop another slot's whole stack, and a devchain
+    // stopped that way loses its in-memory state for good. At the old stride
+    // of 1 the control ports were 8080/8081/8082 — adjacent digits, while every
+    // other resource (8545/8555, popcharts/popcharts_1) announces its slot at a
+    // glance. Twice, a worktree session reached for the memorable 8080 and shut
+    // down the primary checkout's stack. Striding makes a stale or mistyped
+    // port hit nothing and fail loudly instead of a live neighbour.
+    pcAdminPort: BASE_PC_ADMIN_PORT + SLOT_PORT_STRIDE * slot,
     dbName: slot === 0 ? BASE_DATABASE_NAME : `${BASE_DATABASE_NAME}_${slot}`,
     chainRpcHttpUrl: `http://127.0.0.1:${chainPort}`,
     chainRpcWssUrl: `ws://127.0.0.1:${chainPort}`,
@@ -109,4 +117,17 @@ export function slotForChainPort(chainPort: number): number | undefined {
 /** The slot whose Next.js app listens on `appPort`. See `slotForPort`. */
 export function slotForAppPort(appPort: number): number | undefined {
   return slotForPort(appPort, BASE_APP_PORT);
+}
+
+/**
+ * The slot whose process-compose control API listens on `pcAdminPort`. See
+ * `slotForPort`.
+ *
+ * This is the lookup a caller holding a control port needs before acting on
+ * it: the control API has no authentication and its `/project/stop` takes the
+ * whole stack down, so "which slot am I about to command?" must be answerable
+ * from the port alone rather than assumed.
+ */
+export function slotForControlPort(pcAdminPort: number): number | undefined {
+  return slotForPort(pcAdminPort, BASE_PC_ADMIN_PORT);
 }
