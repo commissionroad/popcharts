@@ -98,6 +98,7 @@
   actual count of duplicates, any copy you deliberately left alone, and why.
   A miscount in the request is not a reason to widen or narrow the change
   silently.
+
 - **Ship substantial work as a stack of small PRs, generated output first.**
   Do not publish one large PR for a change that spans workspaces or phases.
   Split it, and keep every PR in the stack green on its own — each one
@@ -135,6 +136,15 @@
   repository, passing a PR number, PR URL, or branch if the user provides one.
   The command merges the PR, updates the base branch locally, removes the
   feature worktree, and deletes the feature branch.
+- When the user writes `/verdict-next` (optionally with a catalogue item id —
+  natively discoverable via the `.claude/commands/` and `.agents/skills/`
+  adapters), use `skills/engineering/verdict-next/SKILL.md`: run exactly one
+  pass of the ADR 0027 verdict-quality loop — first eligible unchecked
+  catalogue item in `docs/adr/0027-verdict-quality-loop.md` (or the given
+  id), its item-type playbook, `--runs 3` minimum where measurement is
+  required, one `verdict-loop`-labelled PR that ticks the box and appends
+  the ledger row. The skill never merges. Drive the whole catalogue with
+  `/loop /verdict-next`.
 - When the user writes `/full-review` (optionally with a PR number, URL, or
   branch — natively discoverable via the `.claude/commands/` and
   `.agents/skills/` adapters), use

@@ -42,6 +42,13 @@ in their descriptions.
 - `engineering/server-openapi-sync` — keep the TypeBox route schemas, the
   committed `server/generated/openapi.json`, and the app's orval-generated
   client in sync; regenerate all three surfaces in the same PR.
+- `engineering/verdict-next` — one pass of the ADR 0027 verdict-quality
+  loop: pick the next eligible unchecked catalogue item (measurement /
+  dataset / red-team / prompt / meta), execute its playbook, measure per
+  the evals READMEs (`--runs 3` minimum, claude-cli provider, off-grid
+  eval ports), and ship a single `verdict-loop` PR that ticks the box and
+  appends the ledger row. The unit of work the nightly loop repeats;
+  `nightly-task.md` alongside it is the scheduled-task reference.
 
 ## Protocol (`protocol/`)
 
