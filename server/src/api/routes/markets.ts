@@ -20,6 +20,8 @@ import {
   GraduationIneligibleSchema,
   ResolutionCheckAcceptedSchema,
   ResolutionCheckRefusedSchema,
+  ResolutionFinalizeAcceptedSchema,
+  ResolutionFinalizeRefusedSchema,
   GraduationResponseSchema,
   GraduationSummarySchema,
   MarketAiReviewSchema,
@@ -53,6 +55,7 @@ import {
 } from "src/api/services/dev-market-graduate";
 import { requestMarketResolutionCheck } from "src/api/services/resolution-request";
 import { resolveDevMarket } from "src/api/services/dev-market-resolve";
+import { requestResolutionFinalization } from "src/api/services/resolution-finalize-request";
 import { requestMarketGraduation } from "src/api/services/graduation";
 import {
   getMarketById,
@@ -96,6 +99,8 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     GraduationIneligible: GraduationIneligibleSchema,
     ResolutionCheckAccepted: ResolutionCheckAcceptedSchema,
     ResolutionCheckRefused: ResolutionCheckRefusedSchema,
+    ResolutionFinalizeAccepted: ResolutionFinalizeAcceptedSchema,
+    ResolutionFinalizeRefused: ResolutionFinalizeRefusedSchema,
     GraduationResponse: GraduationResponseSchema,
     GraduationSummary: GraduationSummarySchema,
     Market: MarketSchema,
@@ -653,6 +658,56 @@ export const marketRoutes = marketRoutesWithDevTools
         summary: "Request a resolution check",
         description:
           "Public early-resolution nudge for a graduated market past its earliest resolution time — the resolution sibling of the graduation failsafe (repo ADR 0024). Queues one resolver evaluation; the AI resolver still decides the outcome and the on-chain dispute window still guards it, so the endpoint is safe unauthenticated. Cost is bounded by a per-market 24-hour cooldown rather than caller identity: repeat requests inside the window are refused (409) with the next eligible time.",
+        tags: ["Resolution"],
+      },
+    },
+  )
+  .post(
+    "/markets/:chainId/:marketId/resolution-finalize",
+    async ({ params, set }) => {
+      const result = await requestResolutionFinalization({
+        chainId: Number.parseInt(params.chainId, 10),
+        marketId: params.marketId,
+      });
+
+      switch (result.kind) {
+        case "settled":
+          return {
+            message: result.message,
+            status: result.kind,
+            transactionHash: result.transactionHash,
+          };
+        case "not_graduated":
+        case "no_pending_proposal":
+        case "window_open":
+        case "disputed":
+        case "already_resolved":
+          set.status = 409;
+          return { message: result.message, status: result.kind };
+        case "invalid_market_id":
+          set.status = 400;
+          return result.message;
+        case "not_found":
+          set.status = 404;
+          return result.message;
+      }
+    },
+    {
+      params: t.Object({
+        chainId: t.String(),
+        marketId: t.String(),
+      }),
+      response: {
+        200: "ResolutionFinalizeAccepted",
+        400: t.String(),
+        404: t.String(),
+        409: "ResolutionFinalizeRefused",
+      },
+      detail: {
+        operationId: "requestResolutionFinalization",
+        summary: "Settle a market whose dispute window has closed",
+        description:
+          "Public settlement failsafe for a proposal the keeper has not finalized — the finalize sibling of the graduation trigger and the resolution-check poke (repo ADR 0024). The keeper discovers pending proposals from the indexed market status, so a proposal the indexer missed is one nothing settles automatically: the market stays in ResolutionPending and winners cannot redeem. Safe unauthenticated and unbonded: finalizeResolution() is permissionless on the contract and takes no payment, so the server signs nothing the caller could not sign themselves, and the outcome is the one already proposed. Cost is bounded by the contract, not by caller identity — chain state is read first and no transaction is sent unless the market is genuinely settleable, so repeat requests are free reads (409).",
         tags: ["Resolution"],
       },
     },
