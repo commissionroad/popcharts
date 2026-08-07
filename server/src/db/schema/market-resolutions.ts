@@ -48,17 +48,21 @@ export const resolutionVerdict = pgEnum("resolution_verdict", [
 /**
  * Postgres enum for how far a resolution row has got, per ADR 0026. The runner
  * writes its judgment `pending` before submitting `proposeResolution`, so the
- * reasoning survives a crash between the two writes; the indexer moves the row
- * to `confirmed` when it sees the `ResolutionProposed` event.
+ * reasoning survives a crash between the two writes; the indexer settles the
+ * row from the `ResolutionProposed` event — `confirmed` when the proposed side
+ * matches the row's verdict, `superseded` when it does not (another actor's
+ * proposal won; the judgment is preserved, truthfully never acted on).
  *
- * Deliberately two values. An `abandoned` terminal state for rows whose
- * transaction never landed is specified but not built — the enqueue guard makes
- * such a row harmless, so nothing would write it today. Add it with
+ * Deliberately no `abandoned` value. A terminal state for rows whose
+ * transaction never landed AND whose market never got any proposal is
+ * specified but not built — such a row keeps its market re-enqueueable and is
+ * listed by the operator lens, so nothing would write it today. Add it with
  * `ALTER TYPE ... ADD VALUE` if ADR 0026's Phase 6 ever happens.
  */
 export const resolutionCommitState = pgEnum("resolution_commit_state", [
   "pending",
   "confirmed",
+  "superseded",
 ]);
 
 /**

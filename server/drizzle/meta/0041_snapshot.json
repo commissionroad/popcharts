@@ -1,5 +1,5 @@
 {
-  "id": "80f6aea6-0279-48d8-8995-a266394be809",
+  "id": "56bb9caf-6aca-417c-92eb-9d4bc80d48a3",
   "prevId": "58a8670b-7d1a-461e-a4d8-ed35ed560a09",
   "version": "7",
   "dialect": "postgresql",
@@ -5457,7 +5457,8 @@
       "schema": "public",
       "values": [
         "pending",
-        "confirmed"
+        "confirmed",
+        "superseded"
       ]
     },
     "public.resolution_outcome": {

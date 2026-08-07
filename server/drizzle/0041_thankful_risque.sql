@@ -1,4 +1,4 @@
-CREATE TYPE "public"."resolution_commit_state" AS ENUM('pending', 'confirmed');--> statement-breakpoint
+CREATE TYPE "public"."resolution_commit_state" AS ENUM('pending', 'confirmed', 'superseded');--> statement-breakpoint
 ALTER TABLE "market_resolutions" ALTER COLUMN "resolved_at" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "market_resolutions" ALTER COLUMN "resolved_at" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "market_resolutions" ADD COLUMN "commit_state" "resolution_commit_state" DEFAULT 'confirmed' NOT NULL;--> statement-breakpoint
