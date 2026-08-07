@@ -188,9 +188,12 @@ Phase 5 — visibility:
 - [ ] Update `docs/ai-resolution-service-design.md`, which still describes the
       runner writing its audit row only after a successful chain call.
 
-Phase 6 — a sweep, only if Phase 5 shows it is needed:
+Phase 6 — a reconciliation pass, only if Phase 5 shows it is needed:
 
 - [ ] Decide the open question below first. Do not build this speculatively.
+- [ ] If built, it belongs in the indexer service as a periodic pass, not on
+      the runner's poll loop, and any abandon is a compare-and-set on
+      `commit_state = 'pending'`.
 
 ## Open question — is a sweep worth building?
 
@@ -218,6 +221,24 @@ question about itself. Every DB fact about whether the proposal landed —
 whose staleness is in question. That is what pushes option 3 toward a chain
 read, and it is also why option 1 is attractive: a question the system cannot
 answer internally may be better escalated to a human than guessed at.
+
+**Where it would live, if built: the indexer service, not the runner.** An
+earlier draft put the sweep on the runner's poll loop. Wrong home. The indexer
+already owns chain reads, RPC failover, and the parkable-error discipline, and
+"make the database agree with the chain" is its job — the runner's is deciding
+verdicts. It also keeps both `commit_state` transitions in one service.
+
+Two things that placement does *not* do, worth stating so nobody assumes them:
+
+- It cannot be event-driven. The failure being detected is that **no event was
+  ever emitted**, so no watcher can fire. This would be a periodic pass over
+  rows, which is a new shape for a service that today runs watchers plus a
+  health interval. Not free.
+- It does not on its own fix the race where the sweep reads "no proposal", the
+  transaction lands, the indexer confirms, and the sweep then overwrites
+  `confirmed` with `abandoned`. Any abandon must be a compare-and-set on
+  `commit_state = 'pending'`, wherever the code lives. Co-locating only shrinks
+  the surface.
 
 Recommendation: ship Phases 1–5, run it, and revisit with evidence about how
 often rows actually stick.
