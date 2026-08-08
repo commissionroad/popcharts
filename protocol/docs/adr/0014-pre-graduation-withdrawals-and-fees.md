@@ -320,16 +320,30 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
          where the optimistic pattern is strongest: a challenger refutes it by
          naming one opposite-side receipt id, which the contract loads from
          the global mapping and checks for market, side, liveness, and
-         overlap — O(1) whatever the book's size or shape. Two rules keep the
-         races out: claimed segments stay recorded on the pending request
+         overlap — O(1) whatever the book's size or shape. Three rules keep
+         the races out: claimed segments stay recorded on the pending request
          until finalization, so a colluding opposer's own withdrawal cannot
-         outrun refutation; and a `nextReceiptId` snapshot taken at request
-         time pins the refutation set, so coverage placed during the window
-         cannot invalidate an honest claim. The costs are real: withdrawal is
-         request-then-finalize rather than instant, the freeze must settle
-         pending requests (trivial at a zero window), challenge bonds are
-         deferred exactly as clearing's are, and turning the window on later
-         inherits clearing's honest-watcher assumption on a per-user path.
+         outrun refutation; each request's challenge deadline is stamped at
+         request time (ADR 0010's in-flight pattern) and never precedes an
+         earlier request's, with challenges landing strictly inside the
+         window and finalization waiting for it, so a dependent claim can
+         never finalize while the claim that enabled it is still
+         challengeable; and a `nextReceiptId` snapshot stamped at request
+         time — never taken from the requester — pins the refutation set, so
+         coverage placed during the window cannot invalidate an honest
+         claim. The sharpest attack — a colluding pair requesting both sides
+         of an opposed band, the second request passing because the first
+         emptied the live view — therefore extracts the band only if both
+         claims survive their windows unchallenged: one challenger refutes
+         the first claim by the second's pending-recorded coverage and the
+         second by the restored first, so the residual risk is exactly
+         clearing's honest-watcher assumption, which the v1 attester
+         discharges by refusing the false claim at the zero window. The
+         costs are real: withdrawal is request-then-finalize rather than
+         instant, the freeze must settle pending requests (trivial at a zero
+         window), challenge bonds are deferred exactly as clearing's are,
+         and turning the window on later inherits clearing's honest-watcher
+         assumption on a per-user path.
 
       **Decision (2026-08-08): route 2.** Route 1 taxes the high-frequency
       operation — placement — with unbounded shared state to subsidize the
