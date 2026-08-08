@@ -10,7 +10,7 @@ import {PoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol
 import {IHooks} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {IProtocolFees} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IProtocolFees.sol";
-import {ProtocolFeeLibrary} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {IUnlockCallback} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {TickMath} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-periphery/lib/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolId.sol";
@@ -109,10 +109,8 @@ contract PostgradFeeControllerVenueTest is Test {
     assertEq(controller.owner(), address(this));
   }
 
-  function test_FeeConstantsMatchVenueCapAndDocumentedPacking() public view {
-    // Parity with the vendored fee library the contract cannot import (its
-    // pragma pins 0.8.26 exactly); this suite compiles at 0.8.26, so it can.
-    assertEq(controller.MAX_PROTOCOL_FEE_PIPS(), ProtocolFeeLibrary.MAX_PROTOCOL_FEE);
+  function test_SymmetricFeeMatchesDocumentedPacking() public view {
+    // The docs/fee-model.md packing, derived independently of the contract.
     assertEq(controller.SYMMETRIC_PROTOCOL_FEE(), uint24(1000) | (uint24(1000) << 12));
     assertEq(controller.SYMMETRIC_PROTOCOL_FEE(), 4_097_000);
   }
@@ -255,6 +253,17 @@ contract PostgradFeeControllerVenueTest is Test {
     controller.sweepProtocolFees(poolKey.currency0, address(0));
   }
 
+  function test_SweepInsideUnlockRevertsWhileCurrencySynced() public {
+    // Pins the own-transaction rule the sweep natspec and docs/fee-model.md
+    // state: with the fee currency mid-sync inside an unlock cycle, the venue
+    // rejects the sweep, so it can never run inside an unlock/settle flow.
+    SyncedSweepDriver driver = new SyncedSweepDriver(IPoolManager(address(poolManager)));
+    poolManager.setProtocolFeeController(address(driver.controller()));
+
+    vm.expectRevert(IProtocolFees.ProtocolFeeCurrencySynced.selector);
+    driver.sweepWhileSynced(poolKey.currency0, treasury);
+  }
+
   function test_OnlyOwnerGatesEveryMutatingFunction() public {
     PoolKey[] memory keys = new PoolKey[](1);
     keys[0] = poolKey;
@@ -306,5 +315,30 @@ contract PostgradFeeControllerVenueTest is Test {
     }
 
     revert UnableToDeploySortedPoolTokens();
+  }
+}
+
+/// Test-only reproduction of the forbidden ops shape: a sweep issued while
+/// the fee currency is mid-sync inside an unlock cycle. Owns (and installs
+/// via the test) its own controller so the venue's synced-currency guard,
+/// not its caller check, is what fires.
+contract SyncedSweepDriver is IUnlockCallback {
+  IPoolManager private poolManager;
+  PostgradFeeController public controller;
+
+  constructor(IPoolManager poolManager_) {
+    poolManager = poolManager_;
+    controller = new PostgradFeeController(IProtocolFees(address(poolManager_)), address(this));
+  }
+
+  function sweepWhileSynced(Currency currency, address recipient) external {
+    poolManager.unlock(abi.encode(currency, recipient));
+  }
+
+  function unlockCallback(bytes calldata data) external returns (bytes memory) {
+    (Currency currency, address recipient) = abi.decode(data, (Currency, address));
+    poolManager.sync(currency);
+    controller.sweepProtocolFees(currency, recipient);
+    return "";
   }
 }

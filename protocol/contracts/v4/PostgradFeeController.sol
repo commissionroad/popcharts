@@ -10,6 +10,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Currency} from "@uniswap/v4-periphery/lib/v4-core/src/types/Currency.sol";
 import {IProtocolFees} from "@uniswap/v4-periphery/lib/v4-core/src/interfaces/IProtocolFees.sol";
+import {ProtocolFeeLibrary} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 
@@ -58,14 +59,9 @@ contract PostgradFeeController is Ownable, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   /// @notice Cap on each direction's protocol fee, in pips of the input amount.
-  /// @dev Mirrors `MAX_PROTOCOL_FEE` in the vendored v4-core ProtocolFeeLibrary
-  ///   (source attribution: Uniswap v4-core), which cannot be imported because
-  ///   it pins solidity 0.8.26 exactly and this contract must also compile in
-  ///   0.8.28 units with the complete-set market. The vendored package is
-  ///   version-pinned, so the mirror cannot drift silently; arming tests
-  ///   observe the venue accepting `SYMMETRIC_PROTOCOL_FEE` on-chain, which
-  ///   fails if the venue's cap ever drops below this value.
-  uint16 public constant MAX_PROTOCOL_FEE_PIPS = 1000;
+  /// @dev Re-exported from the venue's own fee library so ops tooling can read
+  ///   the cap from this ABI; a binding, not a copy.
+  uint16 public constant MAX_PROTOCOL_FEE_PIPS = ProtocolFeeLibrary.MAX_PROTOCOL_FEE;
 
   /// @notice Bit width of one direction's fee inside the packed uint24.
   uint8 private constant ONE_FOR_ZERO_FEE_SHIFT = 12;
