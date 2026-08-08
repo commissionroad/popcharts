@@ -11,10 +11,18 @@ reference an implementer reads first.
 
 ## The four fees
 
+> **Status (2026-08-08).** The entry fee is implemented end to end — contract
+> (#494), event tables (#497), indexer ingestion (#519), app quoting/approval/
+> display (#526) — and ships with the rate at zero. Arming it is an ops
+> action: `local:set-entry-fee-rate` on a local stack, `setEntryFeeRate` as
+> the owner in production. The withdrawal fee waits on the withdrawal
+> mechanism (ADR 0014 P1–P3); the post-graduation 0.1% waits on the
+> controller (P7).
+
 | Fee | Rate | Charged | Earned | Refundable |
 | --- | --- | --- | --- | --- |
 | Market creation | fixed, native | at market creation | on collection | no |
-| Entry `φ_in` | 1% of receipt cost | at `placeReceipt` | at clearing, on **matched** cost only | **yes — in full if the market never graduates** |
+| Entry `φ_in` | 1% of receipt cost — **built, ships disarmed** | at `placeReceipt` | at clearing, on **matched** cost only | **yes — in full if the market never graduates** |
 | Withdrawal `φ_out` | 5% of withdrawn cost | on withdrawing an unopposed band | immediately | never |
 | Post-graduation trading | 0.1% (v4 native cap) | every swap | immediately | no |
 
