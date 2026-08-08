@@ -15,7 +15,9 @@ exists, but it is uneven and nothing drives it forward:
   (`baselines/ollama-gpt-oss-20b.json`), and a weekly CI lane
   (`.github/workflows/verdict-evals.yml`) that is dormant scaffolding: it
   skips itself until the `ANTHROPIC_API_KEY` secret and a committed
-  `baselines/anthropic.json` exist. There is no top-level README and no
+  `baselines/anthropic.json` exist. It stays dormant — this program is
+  local-only by user decision (2026-08-08) and never runs in or reports
+  through CI (see A6). There is no top-level README and no
   measured-iteration ledger on this side.
 - **Resolution evals** (`server/src/ai-resolution/evals/`): 35 labeled cases
   across 6 classes, a runner, a README with a measured-iteration ledger, and
@@ -152,12 +154,11 @@ item:
       regressions. Acceptance: new baseline JSONs as reviewed diffs,
       before/after numbers in the PR body, ledger rows appended. Ships
       alone — no prompt or dataset changes ride along.
-- [ ] **A6 [measurement]** BLOCKED(api-credits) Anthropic baseline + arm
-      the weekly CI lane: commit
-      `server/src/ai-review/evals/baselines/anthropic.json` from a reviewed
-      run, provision the `ANTHROPIC_API_KEY` secret (user action), extend
-      the lane to run the resolution set through A1's checker. The lane
-      stays absent from required checks.
+- **A6 — removed by user decision (2026-08-08).** This program is
+  local-only: the loop never runs in, gates on, or reports through CI, and
+  ADR 0019's dormant weekly lane stays dormant. claude-cli runs recorded in
+  the Ledger are the canonical quality record. Not a selectable item; kept
+  here so the id sequence and this decision stay visible.
 - [ ] **A7 [measurement]** Operator lens for parked rows: extend the
       pending-rows lens shipped by PR #518 (`server` `resolution:pending`
       script) to also list `manual_review` parked rows — market, provider,
@@ -316,9 +317,9 @@ when:
 
 - datasets are at target (B5: combined ≥ 150; adversarial ~15/~12; holdout
   populated by the user and runner-excluded),
-- both regression checkers exist, and the weekly CI lane runs green — CI
-  green means the **anthropic** baselines (the lane cannot run claude-cli);
-  claude-cli baselines validate via ledger-recorded local runs,
+- both regression checkers exist and run green in ledger-recorded local
+  claude-cli runs (`--runs 3`) — the canonical quality record; the program
+  never gates or reports through CI (user decision, 2026-08-08),
 - per-run cost/latency instrumentation is live and the SQL quality views
   answer drift questions from production data (A3 + A4),
 - the Ledger shows at least one full A→E cycle with no guardrail
@@ -332,7 +333,8 @@ steady state, not completion.
 - **Provider cost experiments** — deferred until A3 produces real
   per-verdict cost data to compare against.
 - **Deployed draft-gate provider decision** — P0.5 sets the wiring; the
-  production provider choice waits on API credits and the A6 baseline.
+  production provider choice waits on API credits, outside this program's
+  scope.
 - **Fixes to the resolution money path beyond Phase 0** — the propose →
   finalize → redeem chain is exercised by this program's measurements but
   changed only through its own reviewed PRs with revert-catching tests.
