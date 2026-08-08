@@ -14,7 +14,7 @@ import {
 } from "../../src/clearing/opposed-set.js";
 import {
   refuteWithdrawalClaim,
-  verifyWithdrawalClaim,
+  verifyWithdrawalRequest,
   withdrawalRequestCalldataBytes,
 } from "../../src/clearing/withdrawal-claim.js";
 import { SIDE_NO, SIDE_YES } from "../../src/market-side.js";
@@ -133,14 +133,7 @@ describe("opposed-set route measurements (ADR 0014 P3 spike)", () => {
         // Route 2 over the same withdrawal: verify the honest claim, and
         // refute the fraudulent complement (the opposed set) by naming a
         // covering opposite-side receipt, as an on-chain challenger would.
-        const claim = {
-          marketId: 1n,
-          nextReceiptIdSnapshot: BigInt(receipts.length + 1),
-          receiptId: candidate.receiptId,
-          segments: split.free,
-        };
-        verifyWithdrawalClaim({
-          claim,
+        verifyWithdrawalRequest({
           liquidityParameter: B,
           receipt: {
             active: true,
@@ -149,12 +142,21 @@ describe("opposed-set route measurements (ADR 0014 P3 spike)", () => {
             segments: candidate.segments,
             side: candidate.side,
           },
+          request: { receiptId: candidate.receiptId, segments: split.free },
         });
         claimSegmentCounts.push(split.free.length);
         claimCalldataBytes.push(withdrawalRequestCalldataBytes(split.free.length));
 
         if (split.opposed.length > 0) {
-          const fraud = { ...claim, segments: split.opposed };
+          // The stored claim record as the contract would stamp it: the
+          // snapshot is the book's nextReceiptId at request time, never a
+          // caller input.
+          const fraud = {
+            marketId: 1n,
+            nextReceiptIdSnapshot: BigInt(receipts.length + 1),
+            receiptId: candidate.receiptId,
+            segments: split.opposed,
+          };
           const counterexample = receipts.find(
             (other) =>
               other.side === oppositeSide &&

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { computeMatchedMarketCap } from "../../src/clearing/band-pass-clearing.js";
 import { segmentsSidePathCost } from "../../src/clearing/opposed-set.js";
 import {
   refuteWithdrawalClaim,
-  verifyWithdrawalClaim,
+  verifyWithdrawalRequest,
+  WithdrawalRequestModel,
   withdrawalChallengeCalldataBytes,
   withdrawalRequestCalldataBytes,
   type SegmentedReceipt,
@@ -14,6 +16,7 @@ import { SIDE_NO, SIDE_YES } from "../../src/market-side.js";
 import { WAD, WALK_LIQUIDITY_PARAMETER } from "./opposed-set-walk-fixtures.js";
 
 const B = WALK_LIQUIDITY_PARAMETER;
+const WINDOW = 100n;
 
 function yesReceipt(overrides: Partial<SegmentedReceipt> = {}): SegmentedReceipt {
   return {
@@ -36,12 +39,12 @@ function claimOf(overrides: Partial<WithdrawalClaim> = {}): WithdrawalClaim {
   };
 }
 
-describe("verifyWithdrawalClaim", () => {
-  it("accepts a contained claim and refunds its exact recorded path cost", () => {
+describe("verifyWithdrawalRequest", () => {
+  it("accepts a contained request and refunds its exact recorded path cost", () => {
     const receipt = yesReceipt();
-    const claim = claimOf();
-    const verification = verifyWithdrawalClaim({ claim, liquidityParameter: B, receipt });
-    assert.equal(verification.refund, segmentsSidePathCost(claim.segments, SIDE_YES, B));
+    const request = { receiptId: 7n, segments: [{ rHigh: 40n * WAD, rLow: 10n * WAD }] };
+    const verification = verifyWithdrawalRequest({ liquidityParameter: B, receipt, request });
+    assert.equal(verification.refund, segmentsSidePathCost(request.segments, SIDE_YES, B));
     assert.equal(verification.recordsLoaded, 5);
   });
 
@@ -52,39 +55,45 @@ describe("verifyWithdrawalClaim", () => {
         { rHigh: 100n * WAD, rLow: 60n * WAD },
       ],
     });
+    const request = { receiptId: 7n, segments: [{ rHigh: 40n * WAD, rLow: 10n * WAD }] };
     assert.throws(
-      () => verifyWithdrawalClaim({ claim: claimOf(), liquidityParameter: B, receipt }),
+      () => verifyWithdrawalRequest({ liquidityParameter: B, receipt, request }),
       /outside live support/,
     );
   });
 
-  it("rejects unordered, overlapping, empty, and settled claims", () => {
-    const unordered = claimOf({
+  it("rejects unordered, overlapping, empty, and settled requests", () => {
+    const unordered = {
+      receiptId: 7n,
       segments: [
         { rHigh: 40n * WAD, rLow: 30n * WAD },
         { rHigh: 20n * WAD, rLow: 10n * WAD },
       ],
-    });
+    };
     assert.throws(
       () =>
-        verifyWithdrawalClaim({ claim: unordered, liquidityParameter: B, receipt: yesReceipt() }),
+        verifyWithdrawalRequest({
+          liquidityParameter: B,
+          receipt: yesReceipt(),
+          request: unordered,
+        }),
       /unordered/,
     );
     assert.throws(
       () =>
-        verifyWithdrawalClaim({
-          claim: claimOf({ segments: [] }),
+        verifyWithdrawalRequest({
           liquidityParameter: B,
           receipt: yesReceipt(),
+          request: { receiptId: 7n, segments: [] },
         }),
       /no segments/,
     );
     assert.throws(
       () =>
-        verifyWithdrawalClaim({
-          claim: claimOf(),
+        verifyWithdrawalRequest({
           liquidityParameter: B,
           receipt: yesReceipt({ active: false }),
+          request: { receiptId: 7n, segments: [{ rHigh: 40n * WAD, rLow: 10n * WAD }] },
         }),
       /settled/,
     );
@@ -144,38 +153,163 @@ describe("refuteWithdrawalClaim", () => {
       false,
     );
   });
+});
 
-  it("a colluding opposer's own pending withdrawal stays refutable both ways", () => {
-    // A (YES) fraudulently claims segments actually opposed by B (NO); B then
-    // claims the same region. Pending segments stay recorded until finalize,
-    // so a challenger refutes A by naming B and B by naming A.
-    const claimA = claimOf({
-      receiptId: 7n,
-      segments: [{ rHigh: 40n * WAD, rLow: 10n * WAD }],
-      nextReceiptIdSnapshot: 9n,
-    });
-    const receiptB = yesReceipt({
-      receiptId: 8n,
-      segments: [{ rHigh: 35n * WAD, rLow: 20n * WAD }],
-      side: SIDE_NO,
-    });
-    const claimB = claimOf({
-      receiptId: 8n,
-      segments: [{ rHigh: 35n * WAD, rLow: 20n * WAD }],
-      nextReceiptIdSnapshot: 9n,
-    });
-    const receiptA = yesReceipt({ receiptId: 7n });
+describe("WithdrawalRequestModel", () => {
+  const band = { rHigh: 40n * WAD, rLow: 10n * WAD };
 
-    assert.equal(
-      refuteWithdrawalClaim({ claim: claimA, claimantSide: SIDE_YES, namedReceipt: receiptB })
-        .refuted,
-      true,
+  /** One opposed band: YES and NO both cover it, so it contributes w to F. */
+  function opposedPair() {
+    const model = new WithdrawalRequestModel({
+      challengeWindow: WINDOW,
+      liquidityParameter: B,
+      marketId: 1n,
+    });
+    const yes = model.addReceipt({ segments: [band], side: SIDE_YES });
+    const no = model.addReceipt({ segments: [band], side: SIDE_NO });
+    return { model, no, yes };
+  }
+
+  function matchedCap(
+    model: WithdrawalRequestModel,
+    receiptIds: bigint[],
+    sides: number[],
+  ): bigint {
+    return computeMatchedMarketCap(
+      receiptIds.flatMap((receiptId, index) =>
+        model.liveSegments(receiptId).map((segment) => ({ ...segment, side: sides[index]! })),
+      ),
     );
-    assert.equal(
-      refuteWithdrawalClaim({ claim: claimB, claimantSide: SIDE_NO, namedReceipt: receiptA })
-        .refuted,
-      true,
-    );
+  }
+
+  it("honest flow: request removes live support, finalize pays after the window", () => {
+    const model = new WithdrawalRequestModel({
+      challengeWindow: WINDOW,
+      liquidityParameter: B,
+      marketId: 1n,
+    });
+    const lone = model.addReceipt({ segments: [{ rHigh: 100n * WAD, rLow: 0n }], side: SIDE_YES });
+
+    const requestId = model.requestWithdrawal(lone, [band], 0n);
+    assert.deepEqual(model.liveSegments(lone), [
+      { rHigh: 10n * WAD, rLow: 0n },
+      { rHigh: 100n * WAD, rLow: 40n * WAD },
+    ]);
+
+    assert.throws(() => model.finalize(requestId, WINDOW - 1n), /before its challenge deadline/);
+    // Challenges are strict-interior: the deadline itself is finalize
+    // territory, not challenge territory.
+    assert.throws(() => model.challenge(requestId, lone, WINDOW), /window closed/);
+
+    const refund = model.finalize(requestId, WINDOW);
+    assert.equal(refund, segmentsSidePathCost([band], SIDE_YES, B));
+    assert.equal(model.request(requestId).state, "finalized");
+    assert.throws(() => model.challenge(requestId, lone, WINDOW - 1n), /finalized/);
+  });
+
+  it("collusion chain: both false claims are refutable in order and F survives", () => {
+    const { model, no, yes } = opposedPair();
+    const capBefore = matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]);
+    assert.equal(capBefore, band.rHigh - band.rLow);
+
+    // (1) YES falsely requests its opposed band — structural checks pass,
+    // opposition is deliberately not checked at request time.
+    const requestYes = model.requestWithdrawal(yes, [band], 0n);
+    assert.deepEqual(model.liveSegments(yes), []);
+    // (2) Same block, the colluding NO requests the same band: the live book
+    // now shows no YES coverage there, and the request also passes.
+    const requestNo = model.requestWithdrawal(no, [band], 0n);
+    assert.deepEqual(model.liveSegments(no), []);
+
+    // (a) The dependent claim can never finalize while the enabling claim is
+    // still challengeable: equal deadlines, and finalize needs the deadline.
+    assert.throws(() => model.finalize(requestNo, WINDOW - 1n), /before its challenge deadline/);
+
+    // (b) At window-minus-one a challenger refutes YES by naming NO — NO's
+    // coverage of the band is pending-recorded, not live. The refutation
+    // restores YES's segments.
+    const refuteYes = model.challenge(requestYes, no, WINDOW - 1n);
+    assert.equal(refuteYes.refuted, true);
+    assert.deepEqual(model.liveSegments(yes), [band]);
+
+    // (c) Then NO's claim falls to the now-live YES coverage.
+    const refuteNo = model.challenge(requestNo, yes, WINDOW - 1n);
+    assert.equal(refuteNo.refuted, true);
+    assert.deepEqual(model.liveSegments(no), [band]);
+
+    assert.equal(model.request(requestYes).state, "challenged");
+    assert.equal(model.request(requestNo).state, "challenged");
+    assert.throws(() => model.finalize(requestNo, WINDOW), /challenged/);
+    assert.equal(matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]), capBefore);
+  });
+
+  it("collusion chain: the reverse challenge order works too", () => {
+    const { model, no, yes } = opposedPair();
+    const capBefore = matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]);
+    const requestYes = model.requestWithdrawal(yes, [band], 0n);
+    const requestNo = model.requestWithdrawal(no, [band], 0n);
+
+    // Refute NO first: YES's coverage is pending-recorded at this point.
+    assert.equal(model.challenge(requestNo, yes, WINDOW - 1n).refuted, true);
+    // Then YES's claim falls to the restored, now-live NO coverage.
+    assert.equal(model.challenge(requestYes, no, WINDOW - 1n).refuted, true);
+
+    assert.deepEqual(model.liveSegments(yes), [band]);
+    assert.deepEqual(model.liveSegments(no), [band]);
+    assert.equal(matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]), capBefore);
+  });
+
+  it("collusion chain: NO requesting first is symmetric", () => {
+    const { model, no, yes } = opposedPair();
+    const capBefore = matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]);
+    const requestNo = model.requestWithdrawal(no, [band], 0n);
+    const requestYes = model.requestWithdrawal(yes, [band], 0n);
+
+    assert.throws(() => model.finalize(requestYes, WINDOW - 1n), /before its challenge deadline/);
+    assert.equal(model.challenge(requestNo, yes, WINDOW - 1n).refuted, true);
+    assert.equal(model.challenge(requestYes, no, WINDOW - 1n).refuted, true);
+    assert.equal(matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]), capBefore);
+  });
+
+  it("unchallenged collusion extracts the band — the honest-watcher residual", () => {
+    const { model, no, yes } = opposedPair();
+    const requestYes = model.requestWithdrawal(yes, [band], 0n);
+    const requestNo = model.requestWithdrawal(no, [band], 0n);
+
+    assert.equal(model.finalize(requestYes, WINDOW), segmentsSidePathCost([band], SIDE_YES, B));
+    assert.equal(model.finalize(requestNo, WINDOW), segmentsSidePathCost([band], SIDE_NO, B));
+    // Both sides collected the band's recorded cost and F dropped by its
+    // width: exactly the failure the challenge window (or the v1 attester)
+    // must prevent.
+    assert.equal(matchedCap(model, [yes, no], [SIDE_YES, SIDE_NO]), 0n);
+  });
+
+  it("stamps the snapshot itself: coverage placed after a request cannot refute", () => {
+    const model = new WithdrawalRequestModel({
+      challengeWindow: WINDOW,
+      liquidityParameter: B,
+      marketId: 1n,
+    });
+    const yes = model.addReceipt({ segments: [band], side: SIDE_YES });
+    const requestId = model.requestWithdrawal(yes, [band], 0n);
+
+    // An opposing receipt arriving during the window overlaps the claimed
+    // band but sits at or above the stamped snapshot — not a refutation.
+    const late = model.addReceipt({ segments: [band], side: SIDE_NO });
+    assert.equal(model.challenge(requestId, late, WINDOW - 1n).refuted, false);
+    assert.equal(model.request(requestId).state, "pending");
+    assert.equal(model.finalize(requestId, WINDOW), segmentsSidePathCost([band], SIDE_YES, B));
+  });
+
+  it("later requests never finalize before earlier deadlines", () => {
+    const { model, no, yes } = opposedPair();
+    model.requestWithdrawal(yes, [band], 0n);
+    const requestNo = model.requestWithdrawal(no, [band], 10n);
+
+    assert.equal(model.request(requestNo).deadline, 10n + WINDOW);
+    assert.throws(() => model.finalize(requestNo, WINDOW + 5n), /before its challenge deadline/);
+    assert.equal(model.finalize(requestNo, WINDOW + 10n), segmentsSidePathCost([band], SIDE_NO, B));
+    assert.throws(() => model.requestWithdrawal(yes, [band], 5n), /Time ran backwards/);
   });
 });
 
