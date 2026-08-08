@@ -62,6 +62,7 @@ type PostgradVenueContractSpec = {
 // (and the deployments/protocol.json registry) name their entries.
 const POSTGRAD_VENUE_SINGLETON_KEYS = [
   "boundedHook",
+  "feeController",
   "orderManager",
   "poolTickBounds",
   "postgradAdapter",
@@ -129,6 +130,14 @@ const POSTGRAD_VENUE_CONTRACTS: readonly PostgradVenueContractSpec[] = [
     manifest: "postgrad",
     manifestKeys: ["poolTickBounds"],
     name: "PoolTickBounds",
+    perMarket: false,
+  },
+  {
+    artifactPath: "artifacts/contracts/v4/PostgradFeeController.sol/PostgradFeeController.json",
+    camelName: "postgradFeeController",
+    manifest: "venueStack",
+    manifestKeys: ["feeController"],
+    name: "PostgradFeeController",
     perMarket: false,
   },
 ];

@@ -327,18 +327,26 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       without P6** — seeding without an unwind path donates the pot to
       arbitrageurs, and the unwind is also what makes any third-party
       subsidy investable.
-- [ ] **P7 — Post-graduation fee split.** Mechanics in
-      [docs/fee-model.md](../../../docs/fee-model.md). A controller contract
-      (not an operator EOA — `collectProtocolFees` emits no event, and the
-      paper-trail rule needs one) set via `setProtocolFeeController`;
-      `setProtocolFee(poolKey, 4_097_000)` per pool for a symmetric 0.1%;
-      periodic `collectProtocolFees` in its own transaction, never inside an
-      unlock/settle cycle. LP fee untouched, no hook change. Creator paid their
-      success-fee share on chain at graduation and their trading share from
-      off-chain volume attribution. **Includes the outcome-token policy**: fees
-      accrue in whichever currency the trader pays, so sells accrue YES/NO that
-      go to zero on the losing side — pair and `mergeCompleteSets` before
-      resolution.
+- [x] **P7 — Post-graduation fee controller (delivered 2026-08-08).**
+      Mechanics in [docs/fee-model.md](../../../docs/fee-model.md).
+      `PostgradFeeController` (a contract, not an operator EOA —
+      `collectProtocolFees` emits no event, and the paper-trail rule needs
+      one) deploys with the venue stack, where the venue owner installs it
+      via `setProtocolFeeController` in the same Ignition module. Owner
+      surface: per-pool arming (single and batch) validating both 12-bit
+      directions against the 1000-pip cap, with the symmetric 0.1% default
+      derived as `1000 | (1000 << 12)`; an evented full-accrual sweep,
+      documented to run in its own transaction and never inside an
+      unlock/settle cycle; and the outcome-token policy — pair held YES/NO,
+      merge `min(yes, no)` floored to the decimal conversion grid before
+      resolution, evented owner withdrawal for merged collateral and the
+      unpaired remainder. **Nothing arms at deployment or graduation**:
+      arming is an ops action (`local:arm-pool-protocol-fee` on a local
+      stack, `armPoolProtocolFee` as the owner in production), matching the
+      entry fee shipping disarmed. LP fee untouched, no hook change.
+      Deferred: indexer ingestion of the controller's events, the creator's
+      10% success-fee share paid at graduation (§6), and the creator's
+      trading share from off-chain volume attribution.
 
 ## Deferred work
 
