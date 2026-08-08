@@ -12,12 +12,10 @@ exists, but it is uneven and nothing drives it forward:
 - **Review evals** (`server/src/ai-review/evals/`): 52 labeled cases across 7
   taxonomy classes, a runner (`run-review-evals.ts`), a regression checker
   (`check-eval-regression.ts`), one committed baseline
-  (`baselines/ollama-gpt-oss-20b.json`), and a weekly CI lane
-  (`.github/workflows/verdict-evals.yml`) that is dormant scaffolding: it
-  skips itself until the `ANTHROPIC_API_KEY` secret and a committed
-  `baselines/anthropic.json` exist. It stays dormant — this program is
-  local-only by user decision (2026-08-08) and never runs in or reports
-  through CI (see A6). There is no top-level README and no
+  (`baselines/ollama-gpt-oss-20b.json`), and — until this ADR — a dormant
+  weekly CI lane (`.github/workflows/verdict-evals.yml`), deleted here:
+  this program is local-only by user decision (2026-08-08) and never runs
+  in or reports through CI (see A6). There is no top-level README and no
   measured-iteration ledger on this side.
 - **Resolution evals** (`server/src/ai-resolution/evals/`): 35 labeled cases
   across 6 classes, a runner, a README with a measured-iteration ledger, and
@@ -98,22 +96,22 @@ lands, the user (or the landing session) edits its line to
   `ai-resolution-runner/corroboration.ts` module and `corroborationEnabled`
   knob get their call site back, with a regression test that fails if the
   call site is removed. Supporting-row reads respect the ADR 0026
-  `commit_state` reader rule. — **status: in review ([#521](https://github.com/commissionroad/popcharts/pull/521))**
+  `commit_state` reader rule. — **status: landed ([#521](https://github.com/commissionroad/popcharts/pull/521))**
 - **P0.2 Draft-review corroboration restored** — the review-side
   reject-corroboration policy (deleted as orphaned in `c276473a`) returns
-  with a revert-catching test. — **status: in review ([#522](https://github.com/commissionroad/popcharts/pull/522))**
+  with a revert-catching test. — **status: landed ([#522](https://github.com/commissionroad/popcharts/pull/522))**
 - **P0.3 Non-zero dispute window in deploy seams** — non-local deploys must
   supply explicit nonzero dispute config or refuse to run (the local zero
   stays: a locked user decision the lifecycle harness depends on), per
-  ADR 0024. — **status: in review ([#523](https://github.com/commissionroad/popcharts/pull/523))**
+  ADR 0024. — **status: landed ([#523](https://github.com/commissionroad/popcharts/pull/523))**
 - **P0.4 Hard-flag gate in `deriveVerdict`** — a run carrying blocking hard
   flags (e.g. `prompt_injection`) can never yield `resolve_yes`/`resolve_no`
-  regardless of confidence ("the flag-gate PR"). — **status: in review
+  regardless of confidence ("the flag-gate PR"). — **status: landed
   ([#524](https://github.com/commissionroad/popcharts/pull/524))**
 - **P0.5 Draft-review publish gate gets a model default** — the deployed
   configuration sets an explicit model-backed
   `POPCHARTS_DRAFT_REVIEW_PROVIDER` (or documents why heuristic remains
-  correct per environment). — **status: in review ([#525](https://github.com/commissionroad/popcharts/pull/525))**
+  correct per environment). — **status: landed ([#525](https://github.com/commissionroad/popcharts/pull/525))**
 
 ## Catalogue
 
@@ -156,9 +154,10 @@ item:
       alone — no prompt or dataset changes ride along.
 - **A6 — removed by user decision (2026-08-08).** This program is
   local-only: the loop never runs in, gates on, or reports through CI, and
-  ADR 0019's dormant weekly lane stays dormant. claude-cli runs recorded in
-  the Ledger are the canonical quality record. Not a selectable item; kept
-  here so the id sequence and this decision stay visible.
+  ADR 0019's dormant weekly lane (`verdict-evals.yml`) was deleted with
+  this decision. claude-cli runs recorded in the Ledger are the canonical
+  quality record. Not a selectable item; kept here so the id sequence and
+  this decision stay visible.
 - [ ] **A7 [measurement]** Operator lens for parked rows: extend the
       pending-rows lens shipped by PR #518 (`server` `resolution:pending`
       script) to also list `manual_review` parked rows — market, provider,
