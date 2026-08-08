@@ -15,7 +15,14 @@ const VenueStackModule = buildModule("VenueStack", (m) => {
   const quoter = m.contract(QUOTER_ARTIFACT, [poolManager]);
   const swapRouter = m.contract("MinimalV4SwapRouter", [poolManager]);
 
-  return { poolManager, quoter, stateView, swapRouter };
+  // The controller must be installed by the pool manager's owner (account 0,
+  // the module's default sender) before it can arm fees or sweep accruals.
+  // Installing it arms nothing: every pool's protocol fee stays zero until an
+  // operator arms it (ADR 0014 P7, docs/fee-model.md).
+  const feeController = m.contract("PostgradFeeController", [poolManager, initialOwner]);
+  m.call(poolManager, "setProtocolFeeController", [feeController]);
+
+  return { feeController, poolManager, quoter, stateView, swapRouter };
 });
 
 export default VenueStackModule;
