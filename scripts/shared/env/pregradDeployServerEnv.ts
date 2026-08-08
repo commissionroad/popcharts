@@ -1,4 +1,7 @@
-import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
+import {
+  pregradDeployOverrides,
+  type PregradDeploy,
+} from "../deployments/pregradDeploy.ts";
 
 /**
  * The ONE place a pregrad deploy's fields become server env vars.
@@ -15,6 +18,11 @@ import { type PregradDeploy } from "../deployments/pregradDeploy.ts";
  * Absent fields map to the blank values the pre-deploy boot relies on (the
  * orchestrators start services before the deploy completes, with the same
  * env shape and empty addresses).
+ *
+ * This block is the ONLY writer of `LOCAL_POSTGRAD_ADAPTER_ADDRESS`. The
+ * postgrad venue block deliberately does not emit it, because the key's value
+ * depends on both deploys — see `resolvePostgradAdapterAddress`, which callers
+ * run (via `pregradDeployOverrides`) before handing the address here.
  */
 export function pregradDeployServerEnv(
   overrides: Partial<Omit<PregradDeploy, "chainId">> = {},
@@ -37,8 +45,11 @@ export function pregradDeployServerEnv(
  * readers (`run-lifecycle-e2e.ts`) fail loudly on a *missing* key but would
  * misread an empty one as configured.
  */
-export function pregradDeployServerEnvLines(deploy: PregradDeploy): string[] {
-  return Object.entries(pregradDeployServerEnv(deploy))
+export function pregradDeployServerEnvLines(
+  deploy: PregradDeploy,
+  postgrad: { readonly postgradAdapter: string } | null,
+): string[] {
+  return Object.entries(pregradDeployServerEnv(pregradDeployOverrides(deploy, postgrad)))
     .filter(([, value]) => value !== "")
     .map(([key, value]) => `${key}=${value}`);
 }

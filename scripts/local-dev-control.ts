@@ -437,7 +437,7 @@ async function deployContracts(): Promise<void> {
 
   const serverEnv = buildLocalServerEnv(
     resources,
-    pregradDeployOverrides(deploy),
+    pregradDeployOverrides(deploy, postgrad),
   );
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
 

@@ -162,7 +162,7 @@ async function main(): Promise<void> {
   const postgrad = await deployPostgradVenue(run, deploy);
 
   const serverEnv = {
-    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy, postgrad)),
     ...postgradServerEnv(postgrad),
   };
   writeLocalChainServerEnv({

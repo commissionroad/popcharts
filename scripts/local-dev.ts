@@ -189,7 +189,7 @@ async function main(): Promise<void> {
   // generated env file), so the venue addresses must be merged here for the
   // API's venue reads and the keeper to see them.
   const serverEnv = {
-    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy)),
+    ...buildLocalServerEnv(resources, pregradDeployOverrides(deploy, postgrad)),
     ...postgradServerEnv(postgrad),
   };
   const appEnv = buildLocalAppEnv({ apiBaseUrl, deploy, postgrad, rpcHttpUrl });
