@@ -165,6 +165,8 @@ shares the API process. It takes the rest of its settings from the AI Review
 config, but it ignores `AI_REVIEW_PROVIDER`. Set
 `POPCHARTS_DRAFT_REVIEW_PROVIDER` to review drafts with a model instead.
 
+With a model provider, terminal verdicts need an agreeing rerun before they commit (ADR 0019); `POPCHARTS_DRAFT_REVIEW_CORROBORATION=false` opts out.
+
 ## Local Chain Smoke
 
 From the repository root, run the full local smoke workflow:
