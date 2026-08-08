@@ -282,27 +282,76 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       cost net of `φ_out`, decrement `totalEscrowed` and `state.path`, and emit
       a receipt-mutation event the indexer can replay.
 
-      **The opposed set cannot simply be computed on chain, and this phase is
-      blocked on choosing how.** `ReceiptBook` stores receipts in
-      `mapping(uint256 receiptId => Receipt)` keyed globally;
-      `market.state.receiptCount` is a counter, not an index. There is **no
-      per-market receipt enumeration on chain at all**, so a withdrawal cannot
-      iterate the opposite side to find out which of its bands are opposed.
-      Two routes, and the choice determines what P1 must store:
+      **The opposed set cannot simply be computed on chain.** `ReceiptBook`
+      stores receipts in `mapping(uint256 receiptId => Receipt)` keyed
+      globally; `market.state.receiptCount` is a counter, not an index. There
+      is **no per-market receipt enumeration on chain at all**, so a
+      withdrawal cannot iterate the opposite side to find out which of its
+      bands are opposed. Two routes, and the choice determines what P1 must
+      store:
 
-      1. **Maintain a per-market coverage union per side.** Placing a receipt
-         merges its interval into its own side's union; a receipt's opposed set
-         is then `I_ℓ ∩ opposite_union`, no iteration required. Sound, because
-         a band only ever leaves a union when no opposite-side receipt covers
-         it, which is exactly a band no one's opposed set depends on. Cost is
-         the number of disjoint intervals in each union — small in practice,
-         unbounded in the worst case.
-      2. **Compute off chain and verify on chain**, the shape this repo already
-         uses for clearing ([ADR 0006](0006-use-optimistic-offchain-graduation-clearing.md)).
-         Consistent with the house pattern and bounded in gas, at the cost of a
-         proof/attestation step in the withdrawal path.
+      1. **Maintain a per-market coverage union per side** (not chosen).
+         Placing a receipt merges its interval into its own side's union; a
+         receipt's opposed set is then `I_ℓ ∩ opposite_union`, no iteration
+         required. Sound — a band only ever leaves the live book while
+         unopposed, which is exactly a band no one's opposed set depends on —
+         but structurally worse in both variants. A monotone union never
+         shrinks, so a withdrawn interval's coverage over-locks everything
+         placed over the vacated region later, and place-then-withdraw *buys*
+         that poisoning for `φ_out` of the poisoner's own path cost, principal
+         refunded in full. An exact live union fixes over-locking by
+         cover-counting, at two storage writes on every placement forever and
+         a withdrawal-time read that walks every live boundary left of the
+         receipt. Both variants fragment without bound under a legal
+         alternating trade sequence (one permanent fragment per cycle), and a
+         fragment cap degrades into blocked placements or forced
+         over-locking.
+      2. **Compute off chain and verify on chain** (chosen), the clearing
+         shape of
+         [ADR 0006](0006-use-optimistic-offchain-graduation-clearing.md): the
+         withdrawer submits the free segments as a claim; the contract checks
+         containment in the receipt's live support, prices the refund with the
+         LMSR band math it already has, removes the segments from live support
+         at request time, and pays after a challenge window
+         (owner-configurable per ADR 0010 — zero while a manager-run service
+         attests claims, exactly clearing's v1 trust model). The claim's one
+         unverifiable statement — "no live opposite-side receipt covers these
+         bands" — is an absence over an unenumerable mapping, and that is
+         where the optimistic pattern is strongest: a challenger refutes it by
+         naming one opposite-side receipt id, which the contract loads from
+         the global mapping and checks for market, side, liveness, and
+         overlap — O(1) whatever the book's size or shape. Two rules keep the
+         races out: claimed segments stay recorded on the pending request
+         until finalization, so a colluding opposer's own withdrawal cannot
+         outrun refutation; and a `nextReceiptId` snapshot taken at request
+         time pins the refutation set, so coverage placed during the window
+         cannot invalidate an honest claim. The costs are real: withdrawal is
+         request-then-finalize rather than instant, the freeze must settle
+         pending requests (trivial at a zero window), challenge bonds are
+         deferred exactly as clearing's are, and turning the window on later
+         inherits clearing's honest-watcher assumption on a per-user path.
 
-      Resolve this **before** P1 — the storage design follows from it.
+      **Decision (2026-08-08): route 2.** Route 1 taxes the high-frequency
+      operation — placement — with unbounded shared state to subsidize the
+      rare one, and every escape from its adversarial cases either blocks
+      trades or reintroduces over-locking; route 2 leaves placement untouched,
+      prices withdrawal in bounded gas and calldata (164–228 bytes organic,
+      capped by P1's segment cap), needs no fragment cap, cannot be poisoned,
+      and asserts the one kind of negative an optimistic protocol can refute
+      in O(1) — all on the trust model this repo already accepted for
+      clearing. Measured over 398 seeded random-walk books (4–40 receipts,
+      withdrawals interleaved): organic union state is small (p95 3 fragments
+      per side, ≤3 records touched per placement), but the monotone variant
+      still over-locks 0.36% of live escrow — 3.0% of the truly free set,
+      80/398 books affected — and the alternating construction grows a
+      64-fragment union whose merge lands on the next honest spanning
+      placement. Prototypes, the split, and the harness:
+      `protocol/src/clearing/opposed-set.ts`, `coverage-union.ts`,
+      `withdrawal-claim.ts`, and their `protocol/test/nodejs` suites.
+      **P1 consequence:** `Receipt` carries its segment list and nothing else
+      changes — no per-market union, no new market-state fields, no
+      placement-path writes. The pending-request record (claimed segments,
+      refund, deadline, `nextReceiptId` snapshot) is P3 storage, not P1.
 
 - [x] **P4a — Entry fee (delivered 2026-08-08, PRs #494/#497/#519/#526).**
       Charged at `placeReceipt` and stored on the receipt; held outside
@@ -316,7 +365,7 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       placement debited cost + fee, and the indexer recorded the `collected`
       row at the exact floor-division amount.
 - [ ] **P4b — Withdrawal fee.** Charged at P3's `withdrawReceiptBands`;
-      blocked on P3's opposed-set decision like the rest of the withdrawal
+      blocked on P3's implementation like the rest of the withdrawal
       mechanism.
 - [ ] **P5 — Graduation seeding.** At handoff, top the fee pot up to 10% of the
       graduation threshold from protocol capital, mint half the total as
