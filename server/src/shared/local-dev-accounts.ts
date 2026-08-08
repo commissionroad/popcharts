@@ -12,6 +12,15 @@
  * `scripts/shared/chain/defaultHardhatPrivateKey.ts`. The two cannot share a
  * module: the server image builds from the `server/` directory alone, so a
  * bundled entrypoint that imports across that boundary fails to build.
+ *
+ * Hardhat itself lists this key first in `EDR_NETWORK_DEFAULT_PRIVATE_KEYS`,
+ * beside the `EDR_NETWORK_MNEMONIC` it derives from, in
+ * `hardhat/src/internal/builtin-plugins/network-manager/edr/edr-constants.ts`.
+ * Importing that is not an option and the copy here is deliberate: the
+ * subpath is absent from hardhat's `exports` map, so it does not resolve;
+ * `internal/` marks it free to move in any release; and hardhat is not a
+ * server dependency at all — it reaches `server/node_modules` only through
+ * the `file:../protocol` link, which the server image never copies.
  */
 export const DEFAULT_HARDHAT_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
