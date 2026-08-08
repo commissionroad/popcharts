@@ -1,4 +1,5 @@
 import { parseLabeledJson } from "../json/parseLabeledJson.ts";
+import { resolvePostgradAdapterAddress } from "./resolvePostgradAdapterAddress.ts";
 
 /**
  * Payload of the `LOCAL_CHAIN_SMOKE_DEPLOY=` line emitted by
@@ -66,14 +67,23 @@ function isEvmAddress(value: unknown): boolean {
  * `PregradDeploy` means updating this one projection instead of re-listing
  * the fields in every orchestrator (the copy-per-site version silently
  * dropped new fields).
+ *
+ * `postgrad` is required rather than defaulted: the postgrad adapter address
+ * depends on whether a venue was deployed (see
+ * `resolvePostgradAdapterAddress`), and a caller that forgets to say silently
+ * gets the wrong adapter. Pass `null` for a stack with no venue.
  */
 export function pregradDeployOverrides(
   deploy: PregradDeploy,
+  postgrad: { readonly postgradAdapter: string } | null,
 ): Partial<Omit<PregradDeploy, "chainId">> {
   return {
     collateralAddress: deploy.collateralAddress,
     deployBlock: deploy.deployBlock,
-    postgradAdapterAddress: deploy.postgradAdapterAddress,
+    postgradAdapterAddress: resolvePostgradAdapterAddress(
+      postgrad,
+      deploy.postgradAdapterAddress,
+    ),
     pregradManagerAddress: deploy.pregradManagerAddress,
     ...(deploy.reviewCreditVaultAddress
       ? { reviewCreditVaultAddress: deploy.reviewCreditVaultAddress }

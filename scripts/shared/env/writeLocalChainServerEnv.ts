@@ -38,7 +38,7 @@ export function writeLocalChainServerEnv({
     `AI_REVIEW_RUNNER_POLL_MS=${env.AI_REVIEW_RUNNER_POLL_MS}`,
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    ...pregradDeployServerEnvLines(deploy),
+    ...pregradDeployServerEnvLines(deploy, postgrad),
     ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
