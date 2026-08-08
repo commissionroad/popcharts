@@ -100,7 +100,15 @@ REPO="$(resolve "$REPO")" || fail "cannot resolve $REPO"
 INVOKED_FROM="$(resolve "$INVOKED_FROM")" || fail "cannot resolve invoking worktree"
 cd "$REPO" 2>/dev/null || fail "cannot enter $REPO"
 
-git fetch --prune origin >/dev/null 2>&1 || true
+# Everything below judges "done" by comparing against origin/main. A failed
+# fetch leaves that ref stale, and stale + automatic deletion is the wrong
+# combination: if main was force-pushed, a branch we still see as contained
+# may carry commits the real main no longer has. Manual runs warn and let the
+# operator decide; --auto simply stands down.
+if ! git fetch --prune origin >/dev/null 2>&1; then
+  ((AUTO)) && exit 0
+  say "warning: could not fetch origin — judging against a possibly stale origin/main"
+fi
 
 BASE="origin/main"
 git rev-parse --verify --quiet "$BASE" >/dev/null 2>&1 || fail "no $BASE to compare against"
@@ -140,14 +148,19 @@ if ! command -v jq >/dev/null 2>&1; then
 elif [ -z "$(find "$SESSION_STORE" -type f -name 'local_*.json' 2>/dev/null | head -n1)" ]; then
   CAN_PROVE_IDLE=0
 else
-  while IFS= read -r c; do
-    add_protected "$c"
-  done < <(
-    find "$SESSION_STORE" -type f -name 'local_*.json' -print0 2>/dev/null \
-      | while IFS= read -r -d '' f; do
-          jq -r 'select(.isArchived == false) | .cwd, (.originCwd // empty)' "$f" 2>/dev/null
-        done
-  )
+  # A record we cannot parse is not an absent record: it may be the live
+  # session that is protecting a worktree right now, half-written or in a
+  # schema we do not know. Reading it as "no cwd here" is the fail-open shape
+  # that reaps live work, so one bad file disables reaping altogether.
+  while IFS= read -r -d '' f; do
+    if ! record="$(jq -r 'select(.isArchived == false) | .cwd, (.originCwd // empty)' "$f" 2>/dev/null)"; then
+      CAN_PROVE_IDLE=0
+      break
+    fi
+    while IFS= read -r c; do
+      add_protected "$c"
+    done <<< "$record"
+  done < <(find "$SESSION_STORE" -type f -name 'local_*.json' -print0 2>/dev/null)
 fi
 
 # A live CLI pid in a worktree protects it even if its desktop record lags.
@@ -231,9 +244,21 @@ pr_state() {
   gh pr list --state all --head "$1" --limit 1 --json state --jq '.[0].state' 2>/dev/null
 }
 
+# Returns non-zero when the tag was not created. Callers must treat that as a
+# refusal to delete: "archived first" is the promise that makes deleting an
+# unmerged tip acceptable at all.
 archive_tip() {
   local branch="$1" ref="$2"
   git tag -f "archive/$TODAY/$branch" "$ref" >/dev/null 2>&1
+}
+
+# Delete a branch only if it still points where we judged it. `git branch -D`
+# resolves the name again at delete time, so a ref advanced by another process
+# between the check and the delete would be destroyed with its new commits.
+# `update-ref -d` with an expected old value is atomic and refuses instead.
+delete_branch_at() {
+  local branch="$1" oid="$2"
+  git update-ref -d "refs/heads/$branch" "$oid" >/dev/null 2>&1
 }
 
 removed_worktrees=0
@@ -269,7 +294,10 @@ while IFS=$'\t' read -r wt br det lk; do
       CLOSED|MERGED) ;;                        # abandoned or landed elsewhere
       *) continue ;;                           # open or unknown: leave it alone
     esac
-    ((ACT)) && archive_tip "$branch" "refs/heads/$branch"
+    if ((ACT)) && ! archive_tip "$branch" "refs/heads/$branch"; then
+      say "skipping $branch: could not write its archive tag"
+      continue
+    fi
   fi
 
   if ((ACT)); then
@@ -291,13 +319,16 @@ checked_out="$(git worktree list --porcelain | awk '/^branch /{print substr($0,8
 while read -r branch; do
   [ "$branch" = "main" ] && continue
   list_contains "refs/heads/$branch" "$checked_out" && continue
-  [ "$(git rev-parse "refs/heads/$branch" 2>/dev/null)" = "$BASE_OID" ] && continue
   has_open_pr "$branch" && continue
+  # Judge and delete the same commit. Every check below uses this OID, and the
+  # delete refuses if the ref has moved since.
+  oid="$(git rev-parse --verify --quiet "refs/heads/$branch")" || continue
+  [ "$oid" = "$BASE_OID" ] && continue
 
-  if git merge-base --is-ancestor "refs/heads/$branch" "$BASE" 2>/dev/null; then
-    # Contained in origin/main: -D cannot lose anything.
+  if git merge-base --is-ancestor "$oid" "$BASE" 2>/dev/null; then
+    # Contained in origin/main: deleting cannot lose a commit.
     if ((ACT)); then
-      git branch -D "$branch" >/dev/null 2>&1 && ((deleted_branches++))
+      delete_branch_at "$branch" "$oid" && ((deleted_branches++))
     else
       say "would delete branch $branch (merged)"
     fi
@@ -310,14 +341,17 @@ while read -r branch; do
   case "$state" in
     CLOSED|MERGED)
       if ((ACT)); then
-        archive_tip "$branch" "refs/heads/$branch"
-        git branch -D "$branch" >/dev/null 2>&1 && ((deleted_branches++))
+        if archive_tip "$branch" "$oid"; then
+          delete_branch_at "$branch" "$oid" && ((deleted_branches++))
+        else
+          say "skipping $branch: could not write its archive tag"
+        fi
       else
         say "would delete branch $branch (PR $state, archived first)"
       fi
       ;;
     OPEN) ;;
-    *) review_later+=("$branch  ($(git rev-list --count "$BASE".."$branch" 2>/dev/null) unmerged commits, no PR)") ;;
+    *) review_later+=("$branch  ($(git rev-list --count "$BASE..$oid" 2>/dev/null) unmerged commits, no PR)") ;;
   esac
 done < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
@@ -334,16 +368,38 @@ done < <(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}'
 
 for parent in .worktrees .claude/worktrees; do
   [ -d "$parent" ] || continue
+  # A symlinked parent would let the glob below enumerate, and rm -rf, a
+  # directory outside the repository. Resolve it and require containment.
+  parent_resolved="$(resolve "$parent")" || continue
+  case "$parent_resolved" in "$REPO"/*) ;; *) continue ;; esac
+
   for d in "$parent"/*/; do
     [ -d "$d" ] || continue
     p="$(resolve "$d")" || continue
+    # Same containment check per entry: a symlinked child escapes too.
+    case "$p" in "$REPO"/*) ;; *) continue ;; esac
     list_contains "$p" "$known_worktrees" && continue
     # A registered worktree always carries a .git file. If one is here, git
     # has simply not been told about it yet — that is a repair job, not a
     # deletion. `git worktree prune` handles the registration side safely.
     [ -e "$d/.git" ] && continue
     worktree_is_busy "$p" && continue
+    # An unregistered directory with no .git is not proof of abandonment: it
+    # is also what a worktree looks like in the seconds before `git worktree
+    # add` finishes. Apply the same recency guard the worktree sweep uses.
+    worktree_touched_recently "$p" && continue
+
     if ((ACT)); then
+      # Re-read the registration immediately before deleting: `git worktree
+      # add` may have claimed this path since the snapshot above.
+      still_unknown=1
+      while IFS= read -r q; do
+        rq="$(resolve "$q")" || continue
+        [ "$rq" = "$p" ] && still_unknown=0 && break
+      done < <(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}')
+      [ "$still_unknown" = "1" ] || continue
+      [ -e "$d/.git" ] && continue
+
       rm -rf "$d" && ((removed_worktrees++))
     else
       say "would remove orphan directory $d"
@@ -365,9 +421,15 @@ if ((REMOTE)) && ((!AUTO)); then
     if ! git merge-base --is-ancestor "$rb" "$BASE" 2>/dev/null; then
       state="$(pr_state "$n")"
       case "$state" in
-        CLOSED|MERGED) ((ACT)) && archive_tip "$n" "$rb" ;;
+        CLOSED|MERGED) ;;
         *) continue ;;
       esac
+      # Deleting a remote branch is the one step no local reflog can undo, so
+      # the archive tag is not optional here.
+      if ((ACT)) && ! archive_tip "$n" "$rb"; then
+        say "skipping origin/$n: could not write its archive tag"
+        continue
+      fi
     fi
 
     if ((ACT)); then

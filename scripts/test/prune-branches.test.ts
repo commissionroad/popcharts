@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -195,19 +195,61 @@ test("prune-branches --auto prunes what is done and protects what is not", async
   });
 });
 
-test("a worktree touched in the last few hours is protected", function (t) {
+test("anything touched in the last few hours is protected", function (t) {
   const world = buildWorld();
   t.after(function () {
     rmSync(world.root, { recursive: true, force: true });
   });
 
-  // Same fixture, same empty session store — only the recency guard is left to
-  // save merged-with-wt, whose files were written moments ago. This is the
-  // backstop for a session record that is missing or stale.
+  // Same fixture, same session store — only the recency guard is left to save
+  // merged-with-wt, whose files were written moments ago. This is the backstop
+  // for a session record that is missing or stale.
   runAuto(world, join(world.root, "sessions"), "6");
 
   assert.equal(world.worktreeExists("merged-with-wt"), true);
   assert.equal(world.branchExists("merged-with-wt"), true);
+
+  // A directory with no .git is also what a worktree looks like in the seconds
+  // before `git worktree add` finishes. Recency has to cover the path sweep,
+  // not just the worktree sweep.
+  assert.equal(existsSync(join(world.repo, ".worktrees", "orphan-dir")), true);
+});
+
+test("an unparseable session record stops all reaping", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  // Half-written or schema-changed records must not read as "no session here".
+  writeFileSync(join(world.root, "sessions", "local_torn.json"), '{"isArchi');
+  runAuto(world, join(world.root, "sessions"));
+
+  assert.equal(world.worktreeExists("merged-with-wt"), true);
+  assert.equal(world.worktreeExists("merged-busy"), true);
+});
+
+test("a landed branch that picks up new commits is left alone", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  // Reopening a branch after its work landed is ordinary. What makes it worth
+  // asserting is that "already merged" was true a moment ago, so a check that
+  // reads the branch name rather than a pinned commit would delete the new
+  // work. The narrower TOCTOU window this shares with a concurrent writer is
+  // closed structurally, by `git update-ref -d` taking the expected old OID;
+  // that half is not reachable from a test without injecting a race.
+  git(world.repo, "checkout", "-q", "merged-no-wt");
+  git(world.repo, "commit", "-q", "--allow-empty", "-m", "reopened after landing");
+  const moved = git(world.repo, "rev-parse", "HEAD");
+  git(world.repo, "checkout", "-q", "main");
+
+  runAuto(world, join(world.root, "sessions"));
+
+  assert.equal(world.branchExists("merged-no-wt"), true);
+  assert.equal(git(world.repo, "rev-parse", "merged-no-wt"), moved);
 });
 
 test("an unreadable session store protects every worktree", function (t) {

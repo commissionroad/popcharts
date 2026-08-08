@@ -37,10 +37,23 @@ Never touches:
 - A branch with an open PR, `main`, or the branch you are standing on.
 - A worktree with uncommitted changes, a locked worktree, or one an
   unarchived Claude session is sitting in.
-- A worktree anything modified in the last 6 hours
-  (`PRUNE_MIN_IDLE_HOURS` overrides).
+- Anything modified in the last 6 hours — worktrees and untracked directories
+  alike (`PRUNE_MIN_IDLE_HOURS` overrides). A directory with no `.git` is also
+  what a worktree looks like in the seconds before `git worktree add`
+  finishes, so recency covers that sweep too.
 - A branch carrying unique commits with no PR at all. Those are reported for
   you to judge, never deleted — nothing else in this repo tracks them.
+
+Refuses rather than guesses:
+
+- If the archive tag cannot be written, the branch is not deleted. "Archived
+  first" is what makes deleting an unmerged tip acceptable.
+- If `git fetch` fails, `origin/main` is stale and `--auto` stands down
+  entirely; a manual run warns and continues. Judging "already merged"
+  against a stale base is how a force-push turns into lost commits.
+- Branch deletion pins the commit it judged (`git update-ref -d` with the
+  expected old value), so a ref another process advanced in between is
+  refused, not destroyed.
 
 ## Agent-driving notes
 
