@@ -20,7 +20,11 @@ const LOCAL_DRAFT_OPENING_PROBABILITY = 50;
 const DRAFT_OWNER_HEADER = "x-popcharts-draft-owner";
 
 const REVIEW_POLL_INTERVAL_MS = 1_000;
-const REVIEW_TIMEOUT_MS = 120_000;
+// Local stacks gate drafts with the claude-cli model by default, and an
+// escalating corroborated review runs the model up to three times. The wait
+// budget owns that worst case: 3 x AI_REVIEW_TIMEOUT_MS (300 s each) plus
+// queue latency.
+const REVIEW_TIMEOUT_MS = 960_000;
 
 /**
  * The review-credit meter's refusal (HTTP 402), as the submit endpoint
@@ -209,9 +213,11 @@ export function createDraftApi({
       request<unknown>(`/drafts/${draftId}/submit`, { method: "POST" }),
 
     /**
-     * Polls until the draft leaves in_review. The local stack reviews with
-     * the in-process heuristic runner, so this settles in seconds; the
-     * timeout exists for stacks whose API is up but whose runner is wedged.
+     * Polls until the draft leaves in_review. The local stack gates drafts
+     * with the claude-cli model by default, so a review may run to the
+     * provider timeout several corroborated times; a stack dialed to
+     * LOCAL_DRAFT_REVIEW_PROVIDER=heuristic settles in seconds. The timeout
+     * exists for stacks whose API is up but whose runner is wedged.
      */
     waitForReview: async (draftId: string): Promise<DraftReviewOutcome> => {
       const deadline = Date.now() + REVIEW_TIMEOUT_MS;
@@ -238,7 +244,9 @@ export function createDraftApi({
 
         if (Date.now() > deadline) {
           throw new Error(
-            `Draft ${draftId} is still ${draft.status} after ${REVIEW_TIMEOUT_MS / 1_000}s — is the API's draft-review runner alive?`,
+            `Draft ${draftId} is still ${draft.status} after ${REVIEW_TIMEOUT_MS / 1_000}s. ` +
+              `The runner may still be retrying in the background (up to 5 attempts with backoff) — ` +
+              `re-check the draft later, or dial LOCAL_DRAFT_REVIEW_PROVIDER=heuristic for a fast deterministic gate.`,
           );
         }
 

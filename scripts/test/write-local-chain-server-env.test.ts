@@ -51,6 +51,11 @@ const ENV: NodeJS.ProcessEnv = {
   POPCHARTS_DEV_TOOLS_ENABLED: "true",
   AI_REVIEW_SERVICE_URL: "http://127.0.0.1:4001",
   AI_REVIEW_RUNNER_POLL_MS: "1000",
+  AI_REVIEW_EVIDENCE_MODE: "native",
+  AI_REVIEW_SEARCH_PROVIDER: "duckduckgo",
+  AI_REVIEW_RETRY_PROVIDER_FAILURES: "true",
+  AI_REVIEW_TIMEOUT_MS: "300000",
+  POPCHARTS_DRAFT_REVIEW_PROVIDER: "claude-cli",
   RPC_HTTP_URL: "http://127.0.0.1:8545",
   RPC_WSS_URL: "ws://127.0.0.1:8545",
   HEALTH_CHECK_FILE: "/tmp/health",
@@ -84,6 +89,14 @@ describe("writeLocalChainServerEnv", function () {
         "POPCHARTS_DEV_TOOLS_ENABLED=true",
         "AI_REVIEW_SERVICE_URL=http://127.0.0.1:4001",
         "AI_REVIEW_RUNNER_POLL_MS=1000",
+        // The control-plane API boots from this file alone, so dropping the
+        // draft-gate lines silently reverts it to the heuristic gate over
+        // the deployed evidence defaults.
+        "AI_REVIEW_EVIDENCE_MODE=native",
+        "AI_REVIEW_SEARCH_PROVIDER=duckduckgo",
+        "AI_REVIEW_RETRY_PROVIDER_FAILURES=true",
+        "AI_REVIEW_TIMEOUT_MS=300000",
+        "POPCHARTS_DRAFT_REVIEW_PROVIDER=claude-cli",
         "RPC_HTTP_URL=http://127.0.0.1:8545",
         "RPC_WSS_URL=ws://127.0.0.1:8545",
         "PREGRAD_MANAGER_ADDRESS=0x0000000000000000000000000000000000000b01",

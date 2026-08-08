@@ -24,6 +24,21 @@ export function buildAiReviewEnv(
 ): NodeJS.ProcessEnv {
   return {
     ...serverEnv,
+    ...sharedLocalReviewModelEnv(),
+    AI_REVIEW_PORT: localAiReviewPort(resources),
+    AI_REVIEW_PROVIDER: process.env.LOCAL_AI_REVIEW_PROVIDER ?? "claude-cli",
+  };
+}
+
+/**
+ * The LOCAL_*-dialed review-model settings shared by the review service and
+ * the API process, whose in-process draft-review loop reads the same
+ * AI_REVIEW_* config. One source: if the API missed these, its draft reviews
+ * would inherit the deployed evidence defaults (precollected + tavily) and
+ * spend every review on no-key evidence collection.
+ */
+export function sharedLocalReviewModelEnv(): NodeJS.ProcessEnv {
+  return {
     AI_REVIEW_FALLBACK_APPROVE:
       process.env.LOCAL_AI_REVIEW_FALLBACK_APPROVE ?? "false",
     AI_REVIEW_FETCH_SEARCH_RESULTS:
@@ -35,8 +50,6 @@ export function buildAiReviewEnv(
     // (precollected + tavily); see the note above.
     AI_REVIEW_EVIDENCE_MODE:
       process.env.LOCAL_AI_REVIEW_EVIDENCE_MODE ?? "native",
-    AI_REVIEW_PORT: localAiReviewPort(resources),
-    AI_REVIEW_PROVIDER: process.env.LOCAL_AI_REVIEW_PROVIDER ?? "claude-cli",
     AI_REVIEW_SEARCH_PROVIDER:
       process.env.LOCAL_AI_REVIEW_SEARCH_PROVIDER ?? "duckduckgo",
     AI_REVIEW_RETRY_PROVIDER_FAILURES:

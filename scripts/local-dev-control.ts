@@ -161,6 +161,13 @@ async function startControlPlane(rawArgs: readonly string[]): Promise<void> {
     // to travel through the environment to reach it.
     env.POPCHARTS_LOCAL_DEV_AI_REVIEW_ONLY = "true";
   }
+  if (noAiReview) {
+    // --no-ai-review means "without review workers"; the draft loop inside
+    // the API is one, so it drops to the deterministic heuristic. The dial
+    // travels through process-compose to the deploy-contracts child, which
+    // writes the generated env the API reads.
+    env.LOCAL_DRAFT_REVIEW_PROVIDER ??= "heuristic";
+  }
 
   mkdirSync(processComposeConfigDir, { recursive: true });
   await ensureToolInstalled();
@@ -265,13 +272,16 @@ Prerequisite for model-backed review:
   The default claude-cli provider requires a logged-in Claude Code CLI on the
   host. Set LOCAL_AI_REVIEW_PROVIDER to codex-cli, ollama, heuristic, or
   anthropic to override it. Transient provider failures stay pending and retry
-  instead of creating a completed heuristic review.
+  instead of creating a completed heuristic review. Draft review inside the
+  API uses the same logged-in-CLI default; LOCAL_DRAFT_REVIEW_PROVIDER=heuristic
+  dials only the draft gate back.
 
 Environment overrides:
   LOCAL_APP_PORT=3000
   LOCAL_API_PORT=3001
   LOCAL_AI_REVIEW_PORT=3002
   LOCAL_AI_REVIEW_PROVIDER=claude-cli
+  LOCAL_DRAFT_REVIEW_PROVIDER=claude-cli
   LOCAL_AI_REVIEW_INTERNET_ACCESS=search
   LOCAL_AI_REVIEW_FALLBACK_APPROVE=false
   LOCAL_AI_REVIEW_RETRY_PROVIDER_FAILURES=true

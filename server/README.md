@@ -116,8 +116,10 @@ run and `approve` on the next. That is expected. A draft that does not come back
 `approve` or `reject` moves to `changes_requested`, so it returns to its creator
 to edit and submit again.
 
-The stock local stack gives the model five minutes (`AI_REVIEW_TIMEOUT_MS`) and
-leases each draft review job for five minutes. A transient runtime or model
+The stock local stack gives each model run five minutes (`AI_REVIEW_TIMEOUT_MS`)
+and leases each draft review job for five minutes; a corroborated review renews
+the lease between runs, so one lease never covers more than one model call. A
+transient runtime or model
 failure returns a retryable service response: the job remains pending and no
 review row is persisted. After the retry ceiling the draft returns to `editing`.
 Hard-flag rejects from the deterministic gate are still final before any model
@@ -164,6 +166,10 @@ Draft review defaults to the deterministic `heuristic` provider, because the loo
 shares the API process. It takes the rest of its settings from the AI Review
 config, but it ignores `AI_REVIEW_PROVIDER`. Set
 `POPCHARTS_DRAFT_REVIEW_PROVIDER` to review drafts with a model instead.
+The local stack orchestrators set it to `claude-cli` at the stack seam
+(`scripts/shared/env/buildLocalServerEnv.ts`), so `just local-dev` gates drafts
+with the host's logged-in CLI; `LOCAL_DRAFT_REVIEW_PROVIDER=heuristic` dials
+that back.
 
 With a model provider, terminal verdicts need an agreeing rerun before they commit (ADR 0019); `POPCHARTS_DRAFT_REVIEW_CORROBORATION=false` opts out.
 

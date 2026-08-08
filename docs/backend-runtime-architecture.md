@@ -184,6 +184,14 @@ explicitly, and `POPCHARTS_DRAFT_REVIEW_PROVIDER` is the opt-in to a model. That
 default is what keeps the shared process cheap, and it is the thing to revisit
 if draft volume or provider latency grows.
 
+Local stacks take that opt-in at the stack seam, not in code:
+`scripts/shared/env/buildLocalServerEnv.ts` sets
+`POPCHARTS_DRAFT_REVIEW_PROVIDER=claude-cli` (dialed by
+`LOCAL_DRAFT_REVIEW_PROVIDER`), so `just local-dev` reviews drafts with the
+host's logged-in CLI and no API key. Deployed environments never run that
+builder and leave the variable unset, so the in-code heuristic default governs
+there — no API credits exist in those environments.
+
 ## Where the durability actually comes from
 
 Worth stating precisely, because it guides future changes: the runner's

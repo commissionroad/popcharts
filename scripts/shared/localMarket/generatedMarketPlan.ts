@@ -49,10 +49,10 @@ export async function buildGeneratedMarket({
     console.log(
       `[${logLabel}] authoring an INTENTIONALLY INCOHERENT market — its ` +
         `resolution criteria contradict its own question. Catching that needs ` +
-        `a reviewer that reads for meaning: the default heuristic provider ` +
-        `matches patterns and will approve it. Set ` +
-        `POPCHARTS_DRAFT_REVIEW_PROVIDER to a model provider to exercise the ` +
-        `reject path. Pass --coherent to force a normal market.`,
+        `a reviewer that reads for meaning: the local stack's default ` +
+        `claude-cli model gate should reject it, while a stack dialed to ` +
+        `LOCAL_DRAFT_REVIEW_PROVIDER=heuristic matches patterns and will ` +
+        `approve it. Pass --coherent to force a normal market.`,
     );
   }
 
