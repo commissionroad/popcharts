@@ -16,10 +16,10 @@ writes; the regression check reads nothing else from it.
    change, named for the provider/model it measures:
    - `ollama-gpt-oss-20b.json` — the local-model baseline `just verdict-evals`
      compares against.
-   - `anthropic.json` — the baseline the `verdict-evals` CI lane
-     (`.github/workflows/verdict-evals.yml`) compares against. The lane stays
-     dormant until this file exists (and the `ANTHROPIC_API_KEY` secret is
-     provisioned).
+   - Provider-named files for any other reviewed run worth pinning. There
+     is deliberately no CI comparison lane: the verdict-quality program is
+     local-only (ADR 0027, user decision 2026-08-08), and ledger-recorded
+     local runs are the canonical quality record.
 
 Updating a baseline is a deliberate act with a diff and a reviewer — that is
 the point. A prompt/policy change that moves the numbers ships together with
