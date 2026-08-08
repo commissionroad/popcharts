@@ -304,11 +304,20 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
 
       Resolve this **before** P1 — the storage design follows from it.
 
-- [ ] **P4 — Fees.** Entry fee at `placeReceipt`, stored on the receipt rather
-      than derived; withdrawal fee at P3; both held outside `totalEscrowed` and
-      refundable per §3. Assert in the clearing invariant suite that fees earned
-      equal `φ_in · F` and that a non-graduating market returns the entry fee in
-      full, alongside the existing triple-equality.
+- [x] **P4a — Entry fee (delivered 2026-08-08, PRs #494/#497/#519/#526).**
+      Charged at `placeReceipt` and stored on the receipt; held outside
+      `totalEscrowed`; refunded in full on both non-graduation paths; split
+      pro-rata at the graduated claim via full-precision mulDiv; `maxCost`
+      bounds the total debit; four paper-trail events ingested into
+      receipt-linked tables; app quotes, bounds, approves, and displays the
+      fee. Rate ships **disarmed** (0) — arming is an ops action via
+      `local:set-entry-fee-rate` locally, `setEntryFeeRate` in production.
+      Verified live end-to-end: 1% armed on a worktree stack, a browser
+      placement debited cost + fee, and the indexer recorded the `collected`
+      row at the exact floor-division amount.
+- [ ] **P4b — Withdrawal fee.** Charged at P3's `withdrawReceiptBands`;
+      blocked on P3's opposed-set decision like the rest of the withdrawal
+      mechanism.
 - [ ] **P5 — Graduation seeding.** At handoff, top the fee pot up to 10% of the
       graduation threshold from protocol capital, mint half the total as
       complete sets, and seed both pools per the `p*` split — through the
