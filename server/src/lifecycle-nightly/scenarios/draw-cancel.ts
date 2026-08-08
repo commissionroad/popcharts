@@ -5,7 +5,7 @@ import {
 import type { Address } from "viem";
 
 import { config } from "src/config";
-import { and, db, eq, schema } from "src/db/client";
+import { and, db, desc, eq, schema } from "src/db/client";
 
 import { assertEqual, assertTruthy } from "../asserts";
 import { resolutionRunnerTimeoutMs } from "../chain-time";
@@ -82,6 +82,9 @@ export const drawCancel: Scenario = {
       const verdict = await waitForCondition(
         `market ${market.marketId} draw verdict recorded`,
         async () => {
+          // The deciding row is the newest (id DESC, matching the runner's
+          // own resume reader); .limit(1) without an order reads in heap
+          // order once a market carries more than one audit row.
           const [row] = await db
             .select()
             .from(schema.marketResolutions)
@@ -91,6 +94,7 @@ export const drawCancel: Scenario = {
                 eq(schema.marketResolutions.marketId, market.marketId),
               ),
             )
+            .orderBy(desc(schema.marketResolutions.id))
             .limit(1);
           return row ?? null;
         },

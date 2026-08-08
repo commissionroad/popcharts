@@ -11,7 +11,7 @@ import {
   it,
 } from "bun:test";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import type { ResolutionResult } from "src/ai-resolution/types";
 
@@ -45,7 +45,7 @@ let dbc: typeof productionDb;
 let resetDb: () => Promise<void>;
 let teardownDb: () => Promise<void>;
 
-const resolutionRow = (commitState: "confirmed" | "pending") =>
+const resolutionRow = (commitState: "confirmed" | "pending" | "superseded") =>
   resolutionRowValues({ commitState });
 
 async function enqueue() {
@@ -90,6 +90,17 @@ describe("enqueueEligibleMarketResolutionJobs", () => {
   // though the proposal may never have reached the chain.
   it("still enqueues a market whose only row is pending", async () => {
     await dbc.insert(schema.marketResolutions).values(resolutionRow("pending"));
+
+    expect(await enqueue()).toHaveLength(1);
+  });
+
+  // Supporting corroboration rows (ADR 0019) and lost-race judgments both land
+  // `superseded`. Neither records an on-chain fact, so neither may count as an
+  // existing resolution here.
+  it("still enqueues a market whose only row is superseded", async () => {
+    await dbc
+      .insert(schema.marketResolutions)
+      .values(resolutionRow("superseded"));
 
     expect(await enqueue()).toHaveLength(1);
   });
@@ -482,5 +493,345 @@ describe("lease fencing (ADR 0026 review)", () => {
       lockedBy: "other-runner",
       status: "running",
     });
+  });
+});
+
+const CORROBORATING_CONFIG: AiResolutionRunnerConfig = {
+  ...CONFIG,
+  corroborationEnabled: true,
+};
+
+/**
+ * Dependencies stub that hands out one scripted result per service call and
+ * records every proposed verdict. Throws on a call past the script's end, so
+ * each test pins its exact service-call count twice: by the counter and by
+ * the script length.
+ */
+function scriptedDependencies(results: ResolutionResult[]): {
+  dependencies: ResolutionJobDependencies;
+  proposedVerdicts: string[];
+  serviceCalls: () => number;
+} {
+  let serviceCalls = 0;
+  const proposedVerdicts: string[] = [];
+
+  return {
+    dependencies: {
+      proposeMarketResolutionOnChain: async ({ verdict }) => {
+        proposedVerdicts.push(verdict);
+        return {
+          blockTimestamp: new Date("2026-07-21T00:00:00.000Z"),
+          kind: "proposed",
+          transactionHash: `0x${"11".repeat(32)}`,
+        };
+      },
+      resolveMarketWithService: async () => {
+        const result = results[serviceCalls];
+        serviceCalls += 1;
+        if (!result) {
+          throw new Error(`Unexpected service call #${serviceCalls}.`);
+        }
+        return result;
+      },
+    },
+    proposedVerdicts,
+    serviceCalls: () => serviceCalls,
+  };
+}
+
+async function resolutionRowsById() {
+  return await dbc
+    .select()
+    .from(schema.marketResolutions)
+    .orderBy(asc(schema.marketResolutions.id));
+}
+
+// The exact-call-count and row-count assertions are the regression guard for
+// the ADR 0019 wiring: a rewrite that drops corroboration collapses 2 calls /
+// 2 rows to 1 / 1 and goes red here. Supporting rows land `superseded` with
+// their own verdicts; the deciding row is inserted last, so it is the max-id
+// row every latest-row reader picks.
+describe("processResolutionJob corroborates terminal verdicts (ADR 0019)", () => {
+  it("confirms a terminal verdict with a second agreeing run", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult(),
+      modelResult({ reasons: ["second opinion agrees"] }),
+    ]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("succeeded");
+    expect(scripted.serviceCalls()).toBe(2);
+    expect(scripted.proposedVerdicts).toEqual(["resolve_yes"]);
+    const rows = await resolutionRowsById();
+    expect(rows).toHaveLength(2);
+    // Run 1 is audit-only: overruled by the deciding run, never proposed, no
+    // chain moment — so no resolvedAt and no pending state to settle.
+    expect(rows[0]).toMatchObject({
+      commitState: "superseded",
+      reasons: ["The event concluded YES."],
+      resolvedAt: null,
+      verdict: "resolve_yes",
+    });
+    // The corroborated (second) result decides, and the proposing row is the
+    // one the job points at.
+    expect(rows[1]).toMatchObject({
+      commitState: "pending",
+      reasons: ["second opinion agrees"],
+      verdict: "resolve_yes",
+    });
+    const [job] = await dbc.select().from(schema.marketResolutionJobs);
+    expect(job).toMatchObject({
+      resolutionId: rows[1]?.id,
+      status: "succeeded",
+    });
+  });
+
+  it("proposes the flipped side after a 2-of-3 tiebreak", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult(),
+      modelResult({ outcome: "no", verdict: "resolve_no" }),
+      modelResult({
+        outcome: "no",
+        reasons: ["tiebreak agrees with NO"],
+        verdict: "resolve_no",
+      }),
+    ]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("succeeded");
+    expect(scripted.serviceCalls()).toBe(3);
+    expect(scripted.proposedVerdicts).toEqual(["resolve_no"]);
+    const rows = await resolutionRowsById();
+    expect(rows).toHaveLength(3);
+    // Supporting rows record each run's OWN verdict, in call order.
+    expect(rows[0]).toMatchObject({
+      commitState: "superseded",
+      verdict: "resolve_yes",
+    });
+    expect(rows[1]).toMatchObject({
+      commitState: "superseded",
+      verdict: "resolve_no",
+    });
+    expect(rows[2]).toMatchObject({
+      commitState: "pending",
+      reasons: ["tiebreak agrees with NO"],
+      verdict: "resolve_no",
+    });
+  });
+
+  it("demotes to manual_review when no majority forms, without proposing", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult(),
+      modelResult({ outcome: "no", verdict: "resolve_no" }),
+      modelResult({ outcome: "abstain", verdict: "manual_review" }),
+    ]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("succeeded");
+    expect(scripted.serviceCalls()).toBe(3);
+    expect(scripted.proposedVerdicts).toEqual([]);
+    // The demoted decision is synthesized, so all three actual runs persist
+    // as supporting rows and the deciding park row makes four.
+    const rows = await resolutionRowsById();
+    expect(rows).toHaveLength(4);
+    expect(rows.map((row) => [row.commitState, row.verdict])).toEqual([
+      ["superseded", "resolve_yes"],
+      ["superseded", "resolve_no"],
+      ["superseded", "manual_review"],
+      ["confirmed", "manual_review"],
+    ]);
+    // A demotion parks: confirmed on arrival, disagreement recorded first.
+    expect(rows[3]).toMatchObject({ resolvedAt: NOW });
+    expect(rows[3]?.reasons[0]).toContain("Corroboration");
+  });
+
+  // A tiebreak flip must pass its own time gate, not inherit the original's:
+  // a NO landing before the deadline re-queues to it, and the attempt
+  // persists nothing — the supporting runs are discarded with it.
+  it("requeues a flipped verdict that fails its own time gate", async () => {
+    const futureDeadline = new Date("2026-08-01T00:00:00.000Z");
+    await dbc.update(schema.markets).set({
+      resolutionTime: futureDeadline,
+      yesNotBefore: new Date("2026-07-02T00:00:00.000Z"),
+    });
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult(),
+      modelResult({ outcome: "no", verdict: "resolve_no" }),
+      modelResult({ outcome: "no", verdict: "resolve_no" }),
+    ]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("requeued");
+    expect(scripted.serviceCalls()).toBe(3);
+    expect(scripted.proposedVerdicts).toEqual([]);
+    expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(0);
+    const [job] = await dbc.select().from(schema.marketResolutionJobs);
+    expect(job).toMatchObject({
+      runAfter: futureDeadline,
+      status: "queued",
+    });
+  });
+
+  // The corroboration-specific fence: the renewal before run 2 notices the
+  // loss, so the stale attempt stops before spending more model budget — and
+  // long before it could race the new owner's proposal.
+  it("stops before run 2 when the lease is stolen mid-corroboration", async () => {
+    const claimed = await claimJob();
+    let serviceCalls = 0;
+    const scripted = scriptedDependencies([]);
+    const dependencies: ResolutionJobDependencies = {
+      ...scripted.dependencies,
+      resolveMarketWithService: async () => {
+        serviceCalls += 1;
+        if (serviceCalls > 1) {
+          throw new Error("run 2 must not start after the lease is lost");
+        }
+        // Steal the lease while run 1 is in flight, so the renewal before
+        // run 2 matches zero rows.
+        await dbc
+          .update(schema.marketResolutionJobs)
+          .set({ lockedBy: "thief-runner" })
+          .where(eq(schema.marketResolutionJobs.id, claimed.job.id));
+        return modelResult();
+      },
+    };
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("lease_lost");
+    expect(serviceCalls).toBe(1);
+    expect(scripted.proposedVerdicts).toEqual([]);
+    expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(0);
+    // The thief's claim stands untouched: still running, still theirs, no
+    // failure recorded against it.
+    const [job] = await dbc.select().from(schema.marketResolutionJobs);
+    expect(job).toMatchObject({
+      lastError: null,
+      lockedBy: "thief-runner",
+      status: "running",
+    });
+  });
+
+  // The other end of the widened steal window: corroboration puts two more
+  // service calls between claim and persist, so a steal can also land after
+  // run 3 — past every renewal — leaving the persist fence as the only guard.
+  // On the demotion path that persist is the parked one, and it must roll the
+  // park row AND the supporting rows back rather than stamping the thief's
+  // reclaimed job `succeeded`.
+  it("rolls a demoted park back when the lease is stolen after run 3", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult(),
+      modelResult({ outcome: "no", verdict: "resolve_no" }),
+      modelResult({ outcome: "abstain", verdict: "manual_review" }),
+    ]);
+    const dependencies: ResolutionJobDependencies = {
+      ...scripted.dependencies,
+      resolveMarketWithService: async (args) => {
+        const result =
+          await scripted.dependencies.resolveMarketWithService(args);
+        if (scripted.serviceCalls() === 3) {
+          // Steal the lease while run 3 is in flight: both renewals already
+          // passed, so only the fenced completion inside the persist
+          // transaction can notice the loss.
+          await dbc
+            .update(schema.marketResolutionJobs)
+            .set({ lockedBy: "thief-runner" })
+            .where(eq(schema.marketResolutionJobs.id, claimed.job.id));
+        }
+        return result;
+      },
+    };
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("lease_lost");
+    expect(scripted.serviceCalls()).toBe(3);
+    expect(scripted.proposedVerdicts).toEqual([]);
+    // The transaction rolled back whole: no confirmed park row, and no
+    // orphaned superseded supporting rows either.
+    expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(0);
+    // The thief's claim stands untouched: still running, still theirs, no
+    // failure recorded against it.
+    const [job] = await dbc.select().from(schema.marketResolutionJobs);
+    expect(job).toMatchObject({
+      lastError: null,
+      lockedBy: "thief-runner",
+      status: "running",
+    });
+  });
+
+  it("single-passes the deterministic heuristic provider", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([
+      modelResult({ provider: "heuristic" }),
+    ]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CORROBORATING_CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("succeeded");
+    expect(scripted.serviceCalls()).toBe(1);
+    expect(scripted.proposedVerdicts).toEqual(["resolve_yes"]);
+    expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(1);
+  });
+
+  it("makes one service call and one row when corroboration is off", async () => {
+    const claimed = await claimJob();
+    const scripted = scriptedDependencies([modelResult()]);
+
+    const outcome = await processResolutionJob({
+      claimed,
+      config: CONFIG,
+      dependencies: scripted.dependencies,
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("succeeded");
+    expect(scripted.serviceCalls()).toBe(1);
+    expect(scripted.proposedVerdicts).toEqual(["resolve_yes"]);
+    expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(1);
   });
 });

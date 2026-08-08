@@ -10,6 +10,7 @@ import { recordLiveChange } from "src/change-feed/writer";
 import { proposeMarketResolutionOnChain } from "./chain-resolution";
 import { resolveMarketWithService } from "./client";
 import type { AiResolutionRunnerConfig } from "./config";
+import { corroborateResolution } from "./corroboration";
 import {
   cancelResolutionJob,
   markResolutionJobFailure,
@@ -415,16 +416,54 @@ export async function processResolutionJob({
       });
     }
 
-    const result = await dependencies.resolveMarketWithService({
+    const request = buildMarketResolutionRequest(claimed);
+    const firstResult = await dependencies.resolveMarketWithService({
       config,
-      request: buildMarketResolutionRequest(claimed),
+      request,
     });
-    const decision = decideResolutionAction({
+    let result = firstResult;
+    let supportingRuns: ResolutionResult[] = [];
+    let decision = decideResolutionAction({
       backoffMs: config.backoffMs,
       market: claimed.market,
       now,
       result,
     });
+
+    // Only a run that is actually about to submit proposeResolution() needs
+    // corroboration; re-queues and parks are safe single-run states (ADR
+    // 0019). Every extra run completes before any judgment row is written, so
+    // the rows the persist paths commit always record the corroborated
+    // decision.
+    if (
+      config.corroborationEnabled &&
+      decision.kind === "persist" &&
+      decision.submit
+    ) {
+      const corroborated = await corroborateResolution({
+        callService: () =>
+          dependencies.resolveMarketWithService({ config, request }),
+        first: firstResult,
+        // A corroborated resolution can outlive one lease window — renew
+        // before each extra run so another runner cannot double-claim.
+        onBeforeRun: async () => {
+          await renewResolutionJobLease({ config, job: claimed.job });
+        },
+      });
+      result = corroborated.result;
+      // Identity, not equality: a demoted decision synthesizes a new result
+      // object, so every actual run (including the overruled one) persists
+      // as a supporting audit row.
+      supportingRuns = corroborated.runs.filter((run) => run !== result);
+      // Re-apply the time gates: a tiebreak may have flipped YES→NO, and the
+      // winning verdict must pass its own gate, not inherit the original's.
+      decision = decideResolutionAction({
+        backoffMs: config.backoffMs,
+        market: claimed.market,
+        now,
+        result,
+      });
+    }
 
     if (decision.kind === "requeue") {
       const job = await requeueResolutionJob({
@@ -444,6 +483,7 @@ export async function processResolutionJob({
         postgradMarketAddress: claimed.postgradMarketAddress,
         resolvedAt: now,
         result,
+        supportingRuns,
         verdict: decision.verdict,
       });
 
@@ -460,6 +500,7 @@ export async function processResolutionJob({
       job: claimed.job,
       postgradMarketAddress: claimed.postgradMarketAddress,
       result,
+      supportingRuns,
       verdict: decision.verdict,
     });
 
@@ -561,14 +602,22 @@ async function persistPendingResolution({
   job,
   postgradMarketAddress,
   result,
+  supportingRuns = [],
   verdict,
 }: {
   job: MarketResolutionJobRow;
   postgradMarketAddress: string;
   result: ResolutionResult;
+  supportingRuns?: ResolutionResult[];
   verdict: ResolutionVerdict;
 }): Promise<MarketResolutionRow> {
   return await db.transaction(async (tx) => {
+    await insertSupportingResolutionRuns(tx, {
+      job,
+      postgradMarketAddress,
+      supportingRuns,
+    });
+
     const [resolution] = await tx
       .insert(schema.marketResolutions)
       .values({
@@ -613,6 +662,37 @@ function ownedResolutionJob(job: MarketResolutionJobRow) {
     eq(schema.marketResolutionJobs.lockedBy, job.lockedBy ?? ""),
     eq(schema.marketResolutionJobs.status, "running"),
   );
+}
+
+/**
+ * Pushes the job's lease out by one more window between corroboration runs —
+ * the extra service calls can outlive the window one claim bought. Goes
+ * through the ownership fence like every post-claim write: a renewal matching
+ * nothing means another runner holds the job now, and aborting before the
+ * next service call is what keeps a stale attempt from spending model budget
+ * on — and then racing a proposal against — a job it no longer owns.
+ */
+async function renewResolutionJobLease({
+  config,
+  job,
+  now = new Date(),
+}: {
+  config: Pick<AiResolutionRunnerConfig, "leaseMs">;
+  job: MarketResolutionJobRow;
+  now?: Date;
+}): Promise<void> {
+  const rows = await db
+    .update(schema.marketResolutionJobs)
+    .set({
+      leaseUntil: new Date(now.getTime() + config.leaseMs),
+      updatedAt: now,
+    })
+    .where(ownedResolutionJob(job))
+    .returning({ id: schema.marketResolutionJobs.id });
+
+  if (rows.length === 0) {
+    throw new ResolutionJobLeaseLostError(job.id);
+  }
 }
 
 /**
@@ -733,25 +813,80 @@ function resolutionValues({
 }
 
 /**
+ * Persists the corroboration runs the decision overruled (ADR 0019), inside
+ * the same transaction as the deciding row. Supporting rows go first, in call
+ * order, so the deciding row is always the newest and every latest-row reader
+ * (adopt, nightly probes) keeps seeing the governing verdict. Each records the
+ * run's OWN pipeline verdict, not the corroborated decision.
+ *
+ * They land `superseded` on arrival: the deciding run overruled them, they
+ * will never be proposed, and no indexer event will ever settle them — the
+ * mirror of parked rows landing `confirmed`. That keeps them out of the
+ * pending operator lens, the confirmed-only enqueue guard, and the pending
+ * partial unique index. No `resolvedAt`: no chain moment relates to a
+ * judgment that was never acted on. No change_feed signal either — one
+ * decision, one signal; these rows are audit-only.
+ */
+async function insertSupportingResolutionRuns(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  {
+    job,
+    postgradMarketAddress,
+    supportingRuns,
+  }: {
+    job: MarketResolutionJobRow;
+    postgradMarketAddress: string;
+    supportingRuns: ResolutionResult[];
+  },
+) {
+  for (const run of supportingRuns) {
+    await tx.insert(schema.marketResolutions).values({
+      ...resolutionValues({
+        job,
+        postgradMarketAddress,
+        result: run,
+        verdict: run.verdict,
+      }),
+      commitState: "superseded",
+    });
+  }
+}
+
+/**
  * Writes a parked verdict and completes the job atomically — the pre-ADR 0026
  * shape, kept for `manual_review` and `cancel_draw`. These never reach the
  * chain, so the row is `confirmed` on arrival and no indexer event will ever
  * follow it.
+ *
+ * The completion goes through the ownership fence like every post-claim
+ * write, and it must: corroboration puts up to two more service calls between
+ * claim and persist (a demotion parks only after run 3), so the lease can be
+ * lost after the last renewal and before this transaction. An id-only update
+ * here would let that stale attempt insert the park row plus its supporting
+ * rows and stamp the new owner's reclaimed job `succeeded`.
  */
 async function persistParkedResolution({
   job,
   postgradMarketAddress,
   resolvedAt,
   result,
+  supportingRuns = [],
   verdict,
 }: {
   job: MarketResolutionJobRow;
   postgradMarketAddress: string;
   resolvedAt: Date;
   result: ResolutionResult;
+  supportingRuns?: ResolutionResult[];
   verdict: ResolutionVerdict;
 }) {
   return await db.transaction(async (tx) => {
+    await insertSupportingResolutionRuns(tx, {
+      job,
+      postgradMarketAddress,
+      supportingRuns,
+    });
+
     // The job row is mutable queue state and points at the resolution that
     // completed it. The runner does NOT flip markets.status — a MarketResolved
     // indexer watcher is the canonical projector, since operator/self-resolve
@@ -780,11 +915,15 @@ async function persistParkedResolution({
         status: "succeeded",
         updatedAt: resolvedAt,
       })
-      .where(eq(schema.marketResolutionJobs.id, job.id))
+      .where(ownedResolutionJob(job))
       .returning();
 
+    // Losing the lease here rolls the park row and the supporting rows back
+    // with it: the new owner will run the model and write its own judgment,
+    // and completing the reclaimed job out from under it is exactly the
+    // unfenced overwrite the fence exists to stop.
     if (!updatedJob) {
-      throw new Error(`Failed to mark resolution job ${job.id} succeeded.`);
+      throw new ResolutionJobLeaseLostError(job.id);
     }
 
     // Signal the market page + board badge that a resolution decision landed,
