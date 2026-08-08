@@ -13,14 +13,13 @@ import {
   createWalletClient,
 } from "src/blockchain/client";
 import { config } from "src/config";
+import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY } from "src/shared/local-dev-accounts";
 
 import {
   AUTO_RESOLVE_VERDICT_BY_SIDE,
   type ResolutionVerdict,
 } from "../ai-resolution/types";
 
-const DEFAULT_LOCAL_RESOLVER_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 /**
  * Contract statuses that already carry a resolution outcome, so there is
  * nothing left to propose: a proposal is pending (`ResolutionPending`), under
