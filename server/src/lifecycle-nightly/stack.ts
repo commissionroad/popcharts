@@ -64,6 +64,12 @@ export const SCENARIO_ACCOUNTS = {
   disputeSettlementNo: 9,
   /** Bonds a public dispute against the resolver's proposal. */
   disputeSettlementDisputer: 4,
+  /** Places both receipts of the entry-fee scenario's refund-path market. */
+  entryFeeRefundTrader: 1,
+  /** Balanced YES side of the entry-fee graduation book, plus its one-sided excess. */
+  entryFeeGraduationYes: 2,
+  /** Balanced NO side of the entry-fee graduation book. */
+  entryFeeGraduationNo: 3,
   /** Simulate-only prober for negative guards; never submits a transaction. */
   receiptProbe: 10,
 } as const;

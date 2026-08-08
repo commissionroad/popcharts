@@ -6,6 +6,7 @@ import { runScenarios, type Scenario } from "./report";
 import { disputeSettlement } from "./scenarios/dispute-settlement";
 import { disputeWindowFinalize } from "./scenarios/dispute-window-finalize";
 import { drawCancel } from "./scenarios/draw-cancel";
+import { entryFee } from "./scenarios/entry-fee";
 import { failedGraduation } from "./scenarios/failed-graduation";
 import { happyPath } from "./scenarios/happy-path";
 import { indexerRestart } from "./scenarios/indexer-restart";
@@ -32,9 +33,10 @@ import { partialClearing } from "./scenarios/partial-clearing";
  * The jumps that remain are the ones with no wall-clock counterpart, and they
  * are deliberately small and late: each dispute scenario closes its proposal
  * window by jumping to the deadline (bounded by that scenario's
- * DISPUTE_WINDOW_SECONDS), failed-graduation jumps its graduation deadline,
- * and partial clearing's graduation fast-forwards past the clearing challenge
- * deadline. Those offsets are permanent, so the resolution-dependent scenarios
+ * DISPUTE_WINDOW_SECONDS), failed-graduation and entry-fee's refund path jump
+ * their graduation deadlines, and partial clearing's graduation fast-forwards
+ * past the clearing challenge deadline. Those offsets are permanent, so the
+ * resolution-dependent scenarios
  * still run FIRST and the rest trail them; appending a resolution-dependent
  * scenario after this group would put those offsets back into its wait.
  */
@@ -45,6 +47,7 @@ const SCENARIOS: readonly Scenario[] = [
   disputeSettlement,
   partialClearing,
   failedGraduation,
+  entryFee,
   indexerRestart,
 ];
 
