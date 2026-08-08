@@ -7,6 +7,29 @@ log_configuration:
     max_size_mb: 10
     max_backups: 3
 
+# Restart policy for the long-running services below.
+#
+# `always`, not `on_failure`. A failed readiness probe makes process-compose
+# terminate its process with SIGTERM, and every service pane runs through the
+# `inherit` helper in scripts/local-dev-control.ts, which reports a
+# signal-terminated child as exit 0. So a probe-killed service is
+# indistinguishable from a clean stop, and `on_failure` declines to restart
+# it. That is the 2026-07-14 failure exactly: a hung review service was killed
+# by its probe, and the stack ran on degraded, in silence.
+#
+# `always` is safe for teardown because process-compose suppresses restarts
+# once project shutdown begins — Ctrl-C and `local:stack stop` both tear the
+# stack down without a restart loop. Nothing below exits 0 on purpose; they
+# are all daemons.
+#
+# `max_restarts` bounds a genuinely broken service: it parks after ten
+# attempts with a visible restart count, rather than looping forever.
+#
+# `chain` is deliberately excluded — the devchain keeps its state in memory,
+# and deploy-contracts does not re-run, so a restarted chain would come back
+# empty and contractless. That is worse than a stopped one, because it looks
+# healthy.
+
 processes:
   prepare-database:
     description: Start local Postgres, apply local constraints, and push the schema.
@@ -71,6 +94,10 @@ processes:
       success_threshold: 1
       failure_threshold: 30
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/review-service.log
 
 
@@ -90,6 +117,10 @@ processes:
       success_threshold: 1
       failure_threshold: 30
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/resolution-service.log
 
   resolution-runner:
@@ -102,6 +133,10 @@ processes:
       resolution-service:
         condition: process_healthy
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/resolution-runner.log
 
   api:
@@ -120,6 +155,10 @@ processes:
       success_threshold: 1
       failure_threshold: 30
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/api.log
 
   indexer:
@@ -138,6 +177,10 @@ processes:
       success_threshold: 1
       failure_threshold: 45
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/indexer.log
 
   keeper:
@@ -148,6 +191,10 @@ processes:
       indexer:
         condition: process_healthy
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/keeper.log
 
   app:
@@ -166,4 +213,8 @@ processes:
       success_threshold: 1
       failure_threshold: 60
     success_exit_codes: [130, 143]
+    availability:
+      restart: "always"
+      backoff_seconds: 5
+      max_restarts: 10
     log_location: .local-dev/logs/app.log
