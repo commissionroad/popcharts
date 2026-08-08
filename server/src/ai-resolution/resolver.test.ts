@@ -23,32 +23,58 @@ afterEach(() => {
 
 describe("deriveVerdict", () => {
   it("re-queues a too_early outcome", () => {
-    expect(deriveVerdict("too_early", 1, 3, 0.85)).toBe("requeue_too_early");
+    expect(deriveVerdict("too_early", 1, 3, 0.85, [])).toBe(
+      "requeue_too_early",
+    );
   });
 
   it("parks a draw for operator confirmation", () => {
-    expect(deriveVerdict("draw", 1, 3, 0.85)).toBe("cancel_draw");
+    expect(deriveVerdict("draw", 1, 3, 0.85, [])).toBe("cancel_draw");
   });
 
   it("auto-resolves a confident, evidenced yes/no", () => {
-    expect(deriveVerdict("yes", 0.9, 1, 0.85)).toBe("resolve_yes");
-    expect(deriveVerdict("no", 0.85, 2, 0.85)).toBe("resolve_no");
+    expect(deriveVerdict("yes", 0.9, 1, 0.85, [])).toBe("resolve_yes");
+    expect(deriveVerdict("no", 0.85, 2, 0.85, [])).toBe("resolve_no");
+  });
+
+  it("parks a confident, evidenced yes/no that carries a hard flag", () => {
+    expect(deriveVerdict("yes", 0.99, 3, 0.85, ["prompt_injection"])).toBe(
+      "manual_review",
+    );
+    expect(deriveVerdict("no", 0.9, 2, 0.85, ["sources_disagree"])).toBe(
+      "manual_review",
+    );
+  });
+
+  it("leaves too_early and draw routing untouched by hard flags", () => {
+    expect(deriveVerdict("too_early", 1, 3, 0.85, ["prompt_injection"])).toBe(
+      "requeue_too_early",
+    );
+    expect(deriveVerdict("draw", 1, 3, 0.85, ["prompt_injection"])).toBe(
+      "cancel_draw",
+    );
   });
 
   it("parks a decided outcome below the threshold", () => {
-    expect(deriveVerdict("yes", 0.8, 3, 0.85)).toBe("manual_review");
+    expect(deriveVerdict("yes", 0.8, 3, 0.85, [])).toBe("manual_review");
   });
 
   it("parks a decided outcome with no evidence", () => {
-    expect(deriveVerdict("yes", 0.99, 0, 0.85)).toBe("manual_review");
+    expect(deriveVerdict("yes", 0.99, 0, 0.85, [])).toBe("manual_review");
   });
 
   it("parks a decided outcome with null confidence", () => {
-    expect(deriveVerdict("no", null, 3, 0.85)).toBe("manual_review");
+    expect(deriveVerdict("no", null, 3, 0.85, [])).toBe("manual_review");
   });
 
   it("parks an abstain outcome", () => {
-    expect(deriveVerdict("abstain", null, 0, 0.85)).toBe("manual_review");
+    expect(deriveVerdict("abstain", null, 0, 0.85, [])).toBe("manual_review");
+  });
+
+  it("parks an abstain outcome carrying the service_error flag", () => {
+    expect(deriveVerdict("abstain", null, 0, 0.85, ["service_error"])).toBe(
+      "manual_review",
+    );
   });
 });
 
@@ -120,5 +146,75 @@ describe("resolveMarket (heuristic provider)", () => {
     expect(result.verdict).toBe("manual_review");
     expect(result.provider).toBe("ollama");
     expect(result.hardFlags).toContain("service_error");
+    // The fail-safe path bypasses buildResult, so no demotion reason appends.
+    expect(result.reasons).toHaveLength(1);
+  });
+});
+
+describe("resolveMarket (ollama provider, hard-flag wiring)", () => {
+  // 127.0.0.1 fails the safe-web hostname guard synchronously — no DNS
+  // lookup, no fetch — so collectEvidence records an `unreachable` evidence
+  // item that satisfies the evidence gate while the test stays hermetic.
+  const wiringRequest: MarketResolutionRequest = {
+    metadata: {
+      question: "Did it happen?",
+      resolutionCriteria: "Resolve from the official source.",
+      resolutionUrl: "http://127.0.0.1/x",
+    },
+    options: { internetAccess: "provided_urls", provider: "ollama" },
+  };
+
+  function mockOllamaChat(hardFlags: string[]) {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.endsWith("/api/chat")) {
+        return Promise.reject(new Error(`Unexpected fetch in test: ${url}`));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            message: {
+              content: JSON.stringify({
+                confidence: 0.99,
+                hardFlags,
+                outcome: "yes",
+                reasons: ["The official source confirms it."],
+                sourceChecks: [],
+              }),
+            },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  it("parks a flagged confident YES instead of auto-resolving", async () => {
+    mockOllamaChat(["prompt_injection"]);
+
+    const result = await resolveMarket({
+      config: aiResolutionConfig,
+      nowMs: NOW,
+      request: wiringRequest,
+    });
+
+    expect(result.outcome).toBe("yes");
+    expect(result.verdict).toBe("manual_review");
+    expect(result.hardFlags).toContain("prompt_injection");
+    expect(result.reasons.some((r) => /block auto-resolve/.test(r))).toBe(true);
+  });
+
+  it("still auto-resolves the same confident YES without flags", async () => {
+    mockOllamaChat([]);
+
+    const result = await resolveMarket({
+      config: aiResolutionConfig,
+      nowMs: NOW,
+      request: wiringRequest,
+    });
+
+    expect(result.outcome).toBe("yes");
+    expect(result.verdict).toBe("resolve_yes");
+    expect(result.hardFlags).toHaveLength(0);
   });
 });

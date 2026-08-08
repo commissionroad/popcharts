@@ -81,15 +81,18 @@ export async function resolveMarket({
 
 /**
  * The safety gate. A decided YES/NO auto-resolves only with confidence at or
- * above the abstention threshold AND at least one evidence item; a draw always
- * parks for an operator (`cancel_draw`); `too_early` re-queues; everything else
- * (abstain, low confidence, no evidence) parks as `manual_review`.
+ * above the abstention threshold AND at least one evidence item AND zero hard
+ * flags — any model-emitted flag (e.g. prompt_injection, sources_disagree)
+ * parks the market instead of resolving it; a draw always parks for an
+ * operator (`cancel_draw`); `too_early` re-queues; everything else (abstain,
+ * low confidence, no evidence) parks as `manual_review`.
  */
 export function deriveVerdict(
   outcome: ResolutionOutcome,
   confidence: number | null,
   evidenceCount: number,
   abstentionThreshold: number,
+  hardFlags: readonly string[],
 ): ResolutionVerdict {
   if (outcome === "too_early") {
     return "requeue_too_early";
@@ -102,7 +105,7 @@ export function deriveVerdict(
   if (outcome === "yes" || outcome === "no") {
     const confident =
       typeof confidence === "number" && confidence >= abstentionThreshold;
-    if (confident && evidenceCount >= 1) {
+    if (confident && evidenceCount >= 1 && hardFlags.length === 0) {
       return outcome === "yes" ? "resolve_yes" : "resolve_no";
     }
 
@@ -117,25 +120,41 @@ function buildResult(
   provider: ResolutionModelProviderName,
   abstentionThreshold: number,
 ): ResolutionResult {
+  const hardFlags = unique(finding.hardFlags);
+  const verdict = deriveVerdict(
+    finding.outcome,
+    finding.confidence,
+    finding.evidence.length,
+    abstentionThreshold,
+    hardFlags,
+  );
+  // Record why a flagged decided outcome parked; verdict and reason derive
+  // from the same deduped array, so they cannot disagree.
+  const flagsParkedDecidedOutcome =
+    (finding.outcome === "yes" || finding.outcome === "no") &&
+    hardFlags.length > 0 &&
+    verdict === "manual_review";
+  const reasons = flagsParkedDecidedOutcome
+    ? [
+        ...finding.reasons,
+        `Hard flags (${hardFlags.join(", ")}) block auto-resolve; parked for manual review.`,
+      ]
+    : finding.reasons;
+
   return {
     confidence: finding.confidence,
     evidence: finding.evidence,
-    hardFlags: unique(finding.hardFlags),
+    hardFlags,
     modelId: finding.modelId,
     outcome: finding.outcome,
     promptVersion: AI_RESOLUTION_PROMPT_VERSION,
     provider,
-    reasons: finding.reasons,
+    reasons,
     sourceChecks: filterSourceChecksByEvidence(
       finding.sourceChecks,
       finding.evidence,
     ),
-    verdict: deriveVerdict(
-      finding.outcome,
-      finding.confidence,
-      finding.evidence.length,
-      abstentionThreshold,
-    ),
+    verdict,
   };
 }
 

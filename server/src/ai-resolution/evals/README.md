@@ -55,8 +55,8 @@ case's acceptable set (accuracy) or equal its single expected outcome
 (provider outage/timeout fail-safe) count as errors, not outcomes. The
 derived on-chain verdict (`resolve_yes` / `resolve_no` / `cancel_draw` /
 `requeue_too_early` / `manual_review`) is recorded per run for inspection
-but not graded — it additionally depends on the confidence/evidence gates
-in `resolver.ts`.
+but not graded — it additionally depends on the confidence/evidence/hard-flag
+gates in `resolver.ts`.
 
 ## Measured iterations (negative results included)
 

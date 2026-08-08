@@ -11,8 +11,8 @@
  *
  * Cases are scored against the OUTCOME (yes/no/draw/too_early/abstain); the
  * derived on-chain verdict (resolve_yes/resolve_no/cancel_draw/
- * requeue_too_early/manual_review) also depends on the confidence/evidence
- * gates, so it is recorded per run but not graded.
+ * requeue_too_early/manual_review) also depends on the confidence/evidence/
+ * hard-flag gates, so it is recorded per run but not graded.
  *
  * Usage (service must be running, e.g. the local stack's :3004 — see the
  * README in this directory for how to start an ad-hoc instance):

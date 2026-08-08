@@ -61,12 +61,13 @@ export const RESOLUTION_OUTCOMES = [
 export type ResolutionOutcome = (typeof RESOLUTION_OUTCOMES)[number];
 
 /**
- * The action derived from an outcome plus the confidence/evidence/time gates.
+ * The action derived from an outcome plus the confidence/evidence/hard-flag/time gates.
  * - `resolve_yes` / `resolve_no`: submit `resolve(side)` on-chain.
  * - `cancel_draw`: recommend `cancel()` — parked for operator confirmation,
  *   never auto-submitted.
  * - `requeue_too_early`: bump `run_after` and try again later.
- * - `manual_review`: park for an operator (low confidence, abstain, error).
+ * - `manual_review`: park for an operator (low confidence, abstain, hard
+ *   flags, error).
  */
 export const RESOLUTION_VERDICTS = [
   "resolve_yes",
