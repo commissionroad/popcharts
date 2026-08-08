@@ -126,7 +126,7 @@ item:
 
 ### Section A — Measurement
 
-- [ ] **A1 [measurement]** Port the regression checker to resolution evals:
+- [x] **A1 [measurement]** Port the regression checker to resolution evals:
       `server/src/ai-resolution/evals/check-eval-regression.ts` (+ unit
       test) with the same tolerance and guarded-class semantics as the
       review-side checker. Acceptance: a deliberately degraded fixture
@@ -243,6 +243,11 @@ items follow the same one-item-per-pass rule. A meta item may NOT change
 the Guardrails below or the skill's Hard prohibitions — the most it may do
 is add a `NEEDS-DECISION:` question edit for the user to answer.
 
+- [ ] **M1 [meta]** The Ship playbook writes the Ledger row's PR number in
+      the same commit that precedes PR creation, so the number cannot be
+      known; specify the two-step (commit with #TBD, amend after
+      `gh pr create` returns the number) in the skill's Ship section.
+
 ## Guardrails
 
 These are constraints on the loop, not aspirations. The skill enforces
@@ -346,5 +351,6 @@ One row per pass, appended by the skill (newest last). `type` is the item's
 playbook tag; `metric-before`/`metric-after` are the headline eval numbers
 where the pass measured, `—` where it did not.
 
-| date | item | type | metric-before | metric-after | PR  | notes |
-| ---- | ---- | ---- | ------------- | ------------ | --- | ----- |
+| date       | item | type        | metric-before | metric-after | PR   | notes                                                                    |
+| ---------- | ---- | ----------- | ------------- | ------------ | ---- | ------------------------------------------------------------------------ |
+| 2026-08-08 | A1   | measurement | —             | —            | #533 | shipped: resolution regression checker + fixtures; proof runs in PR body |

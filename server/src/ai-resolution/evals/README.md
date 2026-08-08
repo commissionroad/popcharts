@@ -49,6 +49,24 @@ bun run src/ai-resolution/evals/run-resolution-evals.ts \
 `--filter` matches taxonomy-class or case-id prefixes. Reports (JSON +
 markdown) land in `server/eval-reports/` (gitignored) by default.
 
+## Regression check
+
+Compare a run's JSON report against a committed baseline from
+`baselines/` (same semantics as the review-side
+`src/ai-review/evals/check-eval-regression.ts`). From `server/`:
+
+```sh
+bun run src/ai-resolution/evals/check-eval-regression.ts \
+  --report eval-reports/<run>.json \
+  --baseline src/ai-resolution/evals/baselines/<provider>.json \
+  [--tolerance 0.05]
+```
+
+Exits 1 when overall accuracy or strict accuracy drops more than the
+tolerance below the baseline, or when any class the baseline scored at
+or above 0.99 falls below the 0.75 floor — the floor applies regardless
+of tolerance. A per-class delta table prints either way.
+
 Scoring: each case runs N times; the majority outcome must land in the
 case's acceptable set (accuracy) or equal its single expected outcome
 (strict). Runs whose response carries the `service_error` hard flag
