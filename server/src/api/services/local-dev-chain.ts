@@ -1,8 +1,6 @@
 import type { BlockchainClient } from "src/blockchain/client";
 import { config } from "src/config";
-
-const DEFAULT_HARDHAT_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+import { DEFAULT_HARDHAT_PRIVATE_KEY } from "src/shared/local-dev-accounts";
 
 /**
  * Shared plumbing for dev-only services that drive the local Hardhat chain:

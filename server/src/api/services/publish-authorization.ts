@@ -6,6 +6,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { config, ZERO_ADDRESS } from "src/config";
+import { DEFAULT_HARDHAT_PRIVATE_KEY as DEFAULT_LOCAL_AUTHORIZER_PRIVATE_KEY } from "src/shared/local-dev-accounts";
 
 /**
  * How long a minted publish authorization stays valid. Minutes on purpose
@@ -15,9 +16,6 @@ import { config, ZERO_ADDRESS } from "src/config";
  * surfacing an error — minting is free.
  */
 export const PUBLISH_AUTHORIZATION_TTL_SECONDS = 15n * 60n;
-
-const DEFAULT_LOCAL_AUTHORIZER_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 /** Wire shape of a minted authorization; bigints as strings. */
 export type SerializedPublishAuthorization = {
