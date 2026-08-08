@@ -1,0 +1,28 @@
+{
+  "overall": {
+    "accuracy": 0.85,
+    "cases": 40,
+    "strictAccuracy": 0.775,
+    "unanimousRate": 0.6
+  },
+  "classes": {
+    "resolved/clear-yes": {
+      "accuracy": 0.9,
+      "cases": 10,
+      "strictAccuracy": 0.9,
+      "unanimousRate": 0.9
+    },
+    "injection/embedded-instruction": {
+      "accuracy": 0.6,
+      "cases": 5,
+      "strictAccuracy": 0.6,
+      "unanimousRate": 0.4
+    },
+    "vagueness/unmeasurable-threshold": {
+      "accuracy": 0.8,
+      "cases": 25,
+      "strictAccuracy": 0.72,
+      "unanimousRate": 0.6
+    }
+  }
+}
