@@ -41,6 +41,25 @@ describe("receipt quote preview", () => {
     expect(quote.maxCostUsd).toBeGreaterThan(250);
   });
 
+  it("folds the entry fee into the max cost and reports it separately", () => {
+    const base = buildReceiptQuotePreview({ budgetUsd: 250, market, side: "yes" });
+    const withFee = buildReceiptQuotePreview({
+      budgetUsd: 250,
+      entryFeeRateFraction: 0.01,
+      market,
+      side: "yes",
+    });
+
+    // The fee never changes what the escrow costs — only what the wallet
+    // must part with in total.
+    expect(withFee.shares).toBe(base.shares);
+    expect(withFee.averagePriceCents).toBe(base.averagePriceCents);
+    expect(withFee.entryFeeUsd).toBeCloseTo(withFee.budgetUsd * 0.01, 6);
+    expect(withFee.maxCostUsd).toBeCloseTo(base.maxCostUsd * 1.01, 6);
+    // Disarmed fee is exactly the old quote.
+    expect(base.entryFeeUsd).toBe(0);
+  });
+
   it("moves the selected side through an increasing side-price band", () => {
     const yesQuote = buildReceiptQuotePreview({
       budgetUsd: 100,

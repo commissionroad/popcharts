@@ -31,6 +31,7 @@ describe("useContractMarketStatus", () => {
 
     expect(result.current).toEqual({
       balance: null,
+      entryFeeRateWad: null,
       error: null,
       loading: false,
       marketExists: null,
@@ -57,16 +58,20 @@ describe("useContractMarketStatus", () => {
 
     expect(result.current).toEqual({
       balance: 5n * WAD,
+      entryFeeRateWad: 10n ** 16n,
       error: null,
       loading: false,
       marketExists: true,
     });
-    expect(reads).toHaveBeenCalledTimes(2);
+    expect(reads).toHaveBeenCalledTimes(3);
     expect(reads).toHaveBeenCalledWith(
       expect.objectContaining({ args: [WALLET], functionName: "balanceOf" })
     );
     expect(reads).toHaveBeenCalledWith(
       expect.objectContaining({ args: [7n], functionName: "marketExists" })
+    );
+    expect(reads).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "entryFeeRateWad" })
     );
   });
 
@@ -80,6 +85,7 @@ describe("useContractMarketStatus", () => {
 
     expect(result.current).toEqual({
       balance: null,
+      entryFeeRateWad: null,
       error: "formatted: rpc down",
       loading: false,
       marketExists: null,
@@ -98,7 +104,7 @@ describe("useContractMarketStatus", () => {
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(reads).toHaveBeenCalledTimes(4);
+    expect(reads).toHaveBeenCalledTimes(6);
   });
 
   it("drops in-flight failures when the inputs change mid-read", async () => {
@@ -166,7 +172,11 @@ function mockClient(readResult?: Promise<unknown>) {
       return readResult;
     }
 
-    return functionName === "balanceOf" ? 5n * WAD : true;
+    if (functionName === "balanceOf") {
+      return 5n * WAD;
+    }
+
+    return functionName === "entryFeeRateWad" ? 10n ** 16n : true;
   });
 
   return { client: { readContract: reads } as unknown as PublicClient, reads };

@@ -63,6 +63,7 @@ beforeEach(() => {
   vi.mocked(resolveTradingEnvironment).mockReturnValue(contractEnvironment);
   vi.mocked(useWalletAccount).mockReturnValue(walletState());
   vi.mocked(useContractMarketStatus).mockReturnValue({
+    entryFeeRateWad: null,
     balance: 100_000n * WAD,
     error: null,
     loading: false,
@@ -133,6 +134,7 @@ describe("useReceiptTicketState form state", () => {
 
   it("falls back to the default Max preset when the balance is unknown", () => {
     vi.mocked(useContractMarketStatus).mockReturnValue({
+      entryFeeRateWad: null,
       balance: null,
       error: null,
       loading: true,
@@ -148,6 +150,7 @@ describe("useReceiptTicketState form state", () => {
 
   it("derives the Max preset from the discounted balance", () => {
     vi.mocked(useContractMarketStatus).mockReturnValue({
+      entryFeeRateWad: null,
       balance: 1_015n * WAD,
       error: null,
       loading: false,
@@ -161,8 +164,25 @@ describe("useReceiptTicketState form state", () => {
     expect(result.current.amount).toBe("1000");
   });
 
+  it("threads the on-chain fee rate into the quote preview", () => {
+    vi.mocked(useContractMarketStatus).mockReturnValue({
+      balance: 100_000n * WAD,
+      entryFeeRateWad: 10n ** 16n,
+      error: null,
+      loading: false,
+      marketExists: true,
+    });
+
+    const { result } = renderTicket();
+
+    // Default budget 250 at a 1% rate: the fee shows and the ceiling grows.
+    expect(result.current.quote?.entryFeeUsd).toBeCloseTo(2.5, 6);
+    expect(result.current.quote?.maxCostUsd).toBeGreaterThan(250 * 1.01);
+  });
+
   it("flags budgets whose max cost exceeds the balance", () => {
     vi.mocked(useContractMarketStatus).mockReturnValue({
+      entryFeeRateWad: null,
       balance: 1n * WAD,
       error: null,
       loading: false,
@@ -178,6 +198,7 @@ describe("useReceiptTicketState form state", () => {
 
   it("reports a market missing from the current contract", () => {
     vi.mocked(useContractMarketStatus).mockReturnValue({
+      entryFeeRateWad: null,
       balance: 100n * WAD,
       error: null,
       loading: false,

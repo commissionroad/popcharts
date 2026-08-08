@@ -180,6 +180,26 @@ describe("placePregradReceipt on the contract", () => {
     });
   });
 
+  it("bounds the total debit — slippaged cost plus its entry fee — once the rate is armed", async () => {
+    const { clients, wallet } = mockWallet();
+    clients.reads.entryFeeRateWad = 10n ** 16n; // 1%
+
+    await placeWith({ wallet });
+
+    const calls = writeCalls(clients);
+    // 100 pUSD cost -> 101.5 with the 150 bps buffer, plus the 1% fee on the
+    // padded cost (fee is monotone in cost, so this covers every execution
+    // the buffer admits): 101.5 * 1.01 = 102.515 pUSD.
+    const expectedTotalDebit = (102_515n * WAD) / 1_000n;
+    expect(calls.map((call) => call.functionName)).toEqual(["approve", "placeReceipt"]);
+    expect(calls[0]?.args).toEqual([
+      contractConfig.pregradManagerAddress,
+      expectedTotalDebit,
+    ]);
+    const placeArgs = calls[1]?.args?.[0] as { maxCost: bigint };
+    expect(placeArgs.maxCost).toBe(expectedTotalDebit);
+  });
+
   it("rounds the slippage buffer up to the next base unit", async () => {
     const { clients, wallet } = mockWallet();
     clients.reads.quoteReceipt = { cost: 1n, rHigh: 1n, rLow: 0n };
@@ -319,6 +339,7 @@ type MockClients = {
   reads: {
     allowance: bigint;
     balanceOf: bigint;
+    entryFeeRateWad: bigint;
     marketExists: boolean;
     quoteReceipt: { cost: bigint; rHigh: bigint; rLow: bigint };
   };
@@ -332,6 +353,7 @@ function mockWallet() {
     reads: {
       allowance: 0n,
       balanceOf: 1_000n * WAD,
+      entryFeeRateWad: 0n,
       marketExists: true,
       quoteReceipt: { cost: 100n * WAD, rHigh: 5n, rLow: 0n },
     },
@@ -347,6 +369,8 @@ function mockWallet() {
         return clients.reads.balanceOf;
       case "marketExists":
         return clients.reads.marketExists;
+      case "entryFeeRateWad":
+        return clients.reads.entryFeeRateWad;
       case "quoteReceipt":
         return clients.reads.quoteReceipt;
       default:
@@ -454,6 +478,7 @@ function quotePreview(): ReceiptQuotePreview {
   return {
     averagePriceCents: 52,
     budgetUsd: 100,
+    entryFeeUsd: 0,
     maxCostUsd: 101.5,
     priceBand: { fromProbability: 50, toProbability: 54 },
     priceImpactCents: 4,

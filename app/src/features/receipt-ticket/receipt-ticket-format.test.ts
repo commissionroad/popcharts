@@ -125,6 +125,7 @@ function quoteWithBand(
   return {
     averagePriceCents: 50,
     budgetUsd: 100,
+    entryFeeUsd: 0,
     maxCostUsd: 101.5,
     priceBand: { fromProbability, toProbability },
     priceImpactCents: 4,

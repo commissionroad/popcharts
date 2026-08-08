@@ -52,6 +52,24 @@ describe("QuotePreview", () => {
     expect(screen.getByText("$102")).toBeInTheDocument();
   });
 
+  it("hides the entry fee row while the fee is disarmed", () => {
+    render(<QuotePreview quote={quoteFixture()} sideColor="var(--yes)" />);
+
+    expect(screen.queryByText("Entry fee")).not.toBeInTheDocument();
+  });
+
+  it("shows the entry fee row once a rate is armed", () => {
+    render(
+      <QuotePreview
+        quote={quoteFixture({ entryFeeUsd: 1.02, maxCostUsd: 102.52 })}
+        sideColor="var(--yes)"
+      />
+    );
+
+    expect(screen.getByText("Entry fee")).toBeInTheDocument();
+    expect(screen.getByText("$1.02")).toBeInTheDocument();
+  });
+
   it("tones the price impact once it reaches five points", () => {
     render(
       <QuotePreview
@@ -106,6 +124,7 @@ function quoteFixture(
   return {
     averagePriceCents: 52,
     budgetUsd: 100,
+    entryFeeUsd: 0,
     maxCostUsd: 101.5,
     priceBand: { fromProbability: 50, toProbability: 54 },
     priceImpactCents: 4,

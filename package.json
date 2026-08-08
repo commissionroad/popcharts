@@ -50,6 +50,7 @@
     "local:market-health": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:check-health",
     "local:market-smoke": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:smoke-market",
     "local:cancel-market": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:cancel-market",
+    "local:set-entry-fee-rate": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:set-entry-fee-rate",
     "local:keeper": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:keeper",
     "local:inspect-orders": "node --experimental-strip-types scripts/with-target-stack.ts -- pnpm --dir protocol run local:inspect-orders",
     "whitepaper": "pnpm --dir whitepaper build",

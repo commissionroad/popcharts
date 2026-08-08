@@ -228,6 +228,16 @@ describe("getMaxPresetAmount", () => {
     expect(getMaxPresetAmount(1_015)).toBeCloseTo(1_015 / slippageMultiplier, 10);
   });
 
+  it("also discounts the armed entry fee so Max stays placeable", () => {
+    const slippageMultiplier = 1 + DEFAULT_RECEIPT_SLIPPAGE_BPS / 10_000;
+    const amount = getMaxPresetAmount(1_015, 0.01);
+
+    expect(amount).toBeCloseTo(1_015 / (slippageMultiplier * 1.01), 10);
+    // The property the fix protects: the fee-inclusive ceiling of the Max
+    // budget never exceeds the balance it was derived from.
+    expect(amount * slippageMultiplier * 1.01).toBeLessThanOrEqual(1_015 + 1e-9);
+  });
+
   it("caps the preset at the receipt budget limit", () => {
     expect(getMaxPresetAmount(MAX_RECEIPT_BUDGET_USD * 10)).toBe(
       MAX_RECEIPT_BUDGET_USD
@@ -280,6 +290,7 @@ function quotePreview(): ReceiptQuotePreview {
   return {
     averagePriceCents: 52,
     budgetUsd: 100,
+    entryFeeUsd: 0,
     maxCostUsd: 101.5,
     priceBand: { fromProbability: 50, toProbability: 54 },
     priceImpactCents: 4,
