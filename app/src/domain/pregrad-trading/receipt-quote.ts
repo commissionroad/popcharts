@@ -14,6 +14,8 @@ export const MAX_RECEIPT_BUDGET_USD = 1_000_000;
 export type ReceiptQuotePreview = {
   averagePriceCents: number;
   budgetUsd: number;
+  /** Estimated entry fee on the quoted cost; zero while the fee is disarmed. */
+  entryFeeUsd: number;
   maxCostUsd: number;
   priceBand: PriceBand;
   priceImpactCents: number;
@@ -39,6 +41,12 @@ export type PlacedPregradReceipt = {
 
 export type ReceiptQuoteInput = {
   budgetUsd: number;
+  /**
+   * On-chain entry fee rate as a fraction (0.01 for 1%), zero when unknown
+   * or disarmed. Folded into `maxCostUsd` so balance validation describes
+   * the total debit the contract will take (protocol ADR 0014 §3).
+   */
+  entryFeeRateFraction?: number;
   market: Market;
   side: MarketSide;
   slippageBps?: number;
@@ -46,6 +54,7 @@ export type ReceiptQuoteInput = {
 
 export function buildReceiptQuotePreview({
   budgetUsd,
+  entryFeeRateFraction = 0,
   market,
   side,
   slippageBps = DEFAULT_RECEIPT_SLIPPAGE_BPS,
@@ -70,7 +79,10 @@ export function buildReceiptQuotePreview({
   return {
     averagePriceCents: shares > 0 ? (quotedCost / shares) * 100 : startingSidePrice,
     budgetUsd: normalizedBudget,
-    maxCostUsd: quotedCost * (1 + slippageBps / 10_000),
+    entryFeeUsd: quotedCost * entryFeeRateFraction,
+    // The contract bounds the TOTAL debit (cost + fee), so the preview's
+    // ceiling folds the fee over the slippage-padded cost the same way.
+    maxCostUsd: quotedCost * (1 + slippageBps / 10_000) * (1 + entryFeeRateFraction),
     priceBand: {
       fromProbability: low,
       toProbability: high,

@@ -6,6 +6,7 @@ import { formatUnits } from "viem";
 import { usePublicClient, useWalletClient } from "wagmi";
 
 import type { Market, MarketSide } from "@/domain/markets/types";
+import { entryFeeRateFraction } from "@/domain/pregrad-trading/entry-fee";
 import {
   buildReceiptQuotePreview,
   DEFAULT_RECEIPT_SLIPPAGE_BPS,
@@ -70,16 +71,21 @@ export function useReceiptTicketState(market: Market) {
   });
   const amountError = getReceiptAmountError(amount);
   const numericAmount = parseReceiptAmount(amount);
+  const feeRateFraction =
+    contractStatus.entryFeeRateWad === null
+      ? 0
+      : entryFeeRateFraction(contractStatus.entryFeeRateWad);
   const quote = useMemo(
     () =>
       amountError || numericAmount === null
         ? null
         : buildReceiptQuotePreview({
             budgetUsd: numericAmount,
+            entryFeeRateFraction: feeRateFraction,
             market,
             side,
           }),
-    [amountError, market, numericAmount, side]
+    [amountError, feeRateFraction, market, numericAmount, side]
   );
   const balanceUsd =
     contractStatus.balance === null
@@ -141,7 +147,7 @@ export function useReceiptTicketState(market: Market) {
       return;
     }
 
-    updateAmount(formatPresetAmount(getMaxPresetAmount(balanceUsd)));
+    updateAmount(formatPresetAmount(getMaxPresetAmount(balanceUsd, feeRateFraction)));
   }
 
   async function handlePlaceReceipt() {
