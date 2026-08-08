@@ -17,6 +17,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "( \"$CLAUDE_PROJECT_DIR/scripts/prune-branches\" --auto >/dev/null 2>&1 & )",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

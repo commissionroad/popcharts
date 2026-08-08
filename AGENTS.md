@@ -26,6 +26,27 @@
   under the primary checkout's ignored `.worktrees/<slug>/` directory. Keep
   legacy harness-managed `.claude/worktrees/` checkouts in place until their
   owning sessions clean them up; do not move another agent's live worktree.
+- **Clean up your own branch and worktree before you finish.** Landing a PR
+  with `/land` already deletes the head branch (local and remote) and removes
+  the feature worktree — use it, rather than `gh pr merge` or the GitHub web
+  UI, whenever you land your own work. Landing is not the only exit, and the
+  other exits are what actually accumulate:
+
+  - **Your PR is one of a stack.** Leave the branches open; that is the point
+    of a stack. Land them parent-first when the stack is ready, and say in
+    your final message which branches are still outstanding, so nobody has to
+    reconstruct the stack later.
+  - **You abandoned the work, or the PR was closed unmerged.** Delete the
+    branch and remove the worktree yourself. Nothing else will.
+  - **Your session never produced a PR at all.** This is the common case and
+    the biggest source of clutter: a harness-created `claude/<name>` branch
+    and its worktree, left behind by a session that only read code or
+    answered a question. Remove both before you finish.
+
+  When in doubt about what is safe to remove, run `scripts/prune-branches`
+  (report form, changes nothing) and act on what it lists — see
+  `skills/engineering/prune-branches/SKILL.md`. Never delete a branch that
+  carries unique commits without asking the user first.
 - **The design docs are the only source of truth.** `docs/`, `protocol/docs/`,
   `app/docs/`, and `whitepaper/` are what you read for design context, and what
   you update when a decision changes. Do not build a derived summary layer over

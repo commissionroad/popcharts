@@ -1,0 +1,462 @@
+#!/usr/bin/env bash
+#
+# prune-branches — delete branches and worktrees that no longer back live work.
+#
+# `scripts/land` already cleans up the PR it lands. This covers what landing
+# structurally cannot: session branches that never became a PR, worktree
+# scaffolding branches, and branches whose PR was closed without merging.
+# Those three classes are what actually accumulate.
+#
+# Two modes:
+#   (default)  Report what would be pruned, change nothing. `--yes` to act.
+#   --auto     Hook mode. Prunes ONLY branches provably contained in
+#              origin/main, never calls the network beyond a fetch, and always
+#              exits 0 so it cannot fail a session start.
+#
+# Auto mode deliberately does not ask GitHub about open PRs. A branch fully
+# contained in origin/main has no commits the base lacks, so an open PR on it
+# would be an empty diff. Skipping the `gh` call keeps session start fast and
+# correct offline; manual mode does consult GitHub, because it also handles
+# branches that DO carry unique commits.
+#
+# The active-session and never-diverged guards below come from the earlier
+# .claude/prune-stale-worktrees.sh reaper, which ate live worktrees until both
+# were added. They are kept verbatim in spirit: this script is allowed to be
+# useless, never destructive.
+
+set -uo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  prune-branches [--yes] [--remote] [--auto]
+
+Delete branches and worktrees that no longer back live work: branches merged
+into origin/main, and branches whose PR was closed without merging. Never
+touches a branch with an open PR, a dirty worktree, or a worktree an active
+Claude session is sitting in.
+
+Options:
+  --yes       Actually delete. Without it, only report what would happen.
+  --remote    Also delete stale remote branches on origin.
+  --auto      Hook mode: only branches contained in origin/main, always exit 0.
+  -h, --help  Show this help
+
+Branches carrying unique commits with no PR at all are never deleted. They are
+reported so you can decide; nothing else in this repo tracks them.
+
+Every unmerged tip this script does delete is first tagged
+archive/<date>/<branch>, so the commits stay reachable locally.
+USAGE
+}
+
+say() { printf '==> %s\n' "$*" >&2; }
+die() { printf 'prune-branches: %s\n' "$*" >&2; exit 1; }
+
+# Exact-line membership test, deliberately without a pipeline. Under `pipefail`
+# a `printf ... | grep -q` returns 141 when grep matches early and SIGPIPEs the
+# writer. Every caller below is a guard, so a spurious "not found" would delete
+# something it was protecting.
+list_contains() {
+  local needle="$1" haystack="$2" line
+  [ -n "$haystack" ] || return 1
+  while IFS= read -r line; do
+    [ "$line" = "$needle" ] && return 0
+  done <<< "$haystack"
+  return 1
+}
+
+ACT=0
+REMOTE=0
+AUTO=0
+
+while (($#)); do
+  case "$1" in
+    --yes) ACT=1 ;;
+    --remote) REMOTE=1 ;;
+    --auto) AUTO=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) if ((AUTO)); then exit 0; else die "unknown option: $1"; fi ;;
+  esac
+  shift
+done
+
+# Auto mode must never break a session start, however badly this goes.
+((AUTO)) && ACT=1
+fail() { if ((AUTO)); then exit 0; else die "$*"; fi; }
+
+command -v git >/dev/null 2>&1 || fail "missing required command: git"
+
+REPO="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || fail "not a git repository"
+REPO="$(dirname "$REPO")"
+INVOKED_FROM="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "not a git repository"
+cd "$REPO" 2>/dev/null || fail "cannot enter $REPO"
+
+# Resolve through symlinks. Every path comparison below decides whether to
+# delete something, and /var vs /private/var spellings of the same directory
+# must never read as two different places.
+resolve() { (cd "$1" 2>/dev/null && pwd -P); }
+REPO="$(resolve "$REPO")" || fail "cannot resolve $REPO"
+INVOKED_FROM="$(resolve "$INVOKED_FROM")" || fail "cannot resolve invoking worktree"
+cd "$REPO" 2>/dev/null || fail "cannot enter $REPO"
+
+# Everything below judges "done" by comparing against origin/main. A failed
+# fetch leaves that ref stale, and stale + automatic deletion is the wrong
+# combination: if main was force-pushed, a branch we still see as contained
+# may carry commits the real main no longer has. Manual runs warn and let the
+# operator decide; --auto simply stands down.
+if ! git fetch --prune origin >/dev/null 2>&1; then
+  ((AUTO)) && exit 0
+  say "warning: could not fetch origin — judging against a possibly stale origin/main"
+fi
+
+BASE="origin/main"
+git rev-parse --verify --quiet "$BASE" >/dev/null 2>&1 || fail "no $BASE to compare against"
+# A branch still pointing exactly here has no commits of its own: brand new and
+# probably about to be used. Keeping it costs nothing; reaping it destroyed
+# work twice before. Never prune a branch at this OID.
+BASE_OID="$(git rev-parse "$BASE")"
+TODAY="$(date +%Y-%m-%d)"
+
+# ---- Guard 1: worktrees an active Claude session is sitting in -------------
+# Read-only, from Claude's own on-disk stores. If they are missing or reshaped
+# by an app update we cannot prove any worktree is idle, so we protect them
+# all. A stale worktree beats a deleted one.
+SESSION_STORE="${PRUNE_SESSION_STORE:-$HOME/Library/Application Support/Claude/claude-code-sessions}"
+RUNNING_STORE="${PRUNE_RUNNING_STORE:-$HOME/.claude/sessions}"
+
+CAN_PROVE_IDLE=1
+protected_cwds=""
+
+# Record a session cwd under every spelling it might take. The stores are
+# written by other processes, which may have recorded /var where we resolve
+# /private/var; comparing one spelling would silently defeat the guard and
+# reap a live worktree.
+add_protected() {
+  local c="$1" r
+  [ -n "$c" ] || return 0
+  protected_cwds="$protected_cwds
+$c"
+  r="$(resolve "$c")" || return 0
+  [ -n "$r" ] && [ "$r" != "$c" ] && protected_cwds="$protected_cwds
+$r"
+  return 0
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  CAN_PROVE_IDLE=0
+elif [ -z "$(find "$SESSION_STORE" -type f -name 'local_*.json' 2>/dev/null | head -n1)" ]; then
+  CAN_PROVE_IDLE=0
+else
+  # A record we cannot parse is not an absent record: it may be the live
+  # session that is protecting a worktree right now, half-written or in a
+  # schema we do not know. Reading it as "no cwd here" is the fail-open shape
+  # that reaps live work, so one bad file disables reaping altogether.
+  while IFS= read -r -d '' f; do
+    if ! record="$(jq -r 'select(.isArchived == false) | .cwd, (.originCwd // empty)' "$f" 2>/dev/null)"; then
+      CAN_PROVE_IDLE=0
+      break
+    fi
+    while IFS= read -r c; do
+      add_protected "$c"
+    done <<< "$record"
+  done < <(find "$SESSION_STORE" -type f -name 'local_*.json' -print0 2>/dev/null)
+fi
+
+# A live CLI pid in a worktree protects it even if its desktop record lags.
+if command -v jq >/dev/null 2>&1; then
+  for f in "$RUNNING_STORE"/*.json; do
+    [ -e "$f" ] || continue
+    pid="$(basename "$f" .json)"
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    kill -0 "$pid" 2>/dev/null || continue
+    add_protected "$(jq -r '.cwd // empty' "$f" 2>/dev/null)"
+  done
+fi
+
+# ---- Guard 1b: worktrees somebody touched recently -------------------------
+# Layer 1 reads Claude's session store, which can be missing, lagging, or
+# reshaped by an app update. This needs no external state: if a file in the
+# worktree changed in the last few hours, someone is probably still working
+# there. A landed worktree waiting a few extra hours costs nothing; the twice-
+# repeated failure this repo actually hit was reaping one out from under a
+# live session.
+# PRUNE_MIN_IDLE_HOURS=0 turns this guard off; the tests need a worktree they
+# created a moment ago to be eligible.
+IDLE_HOURS="${PRUNE_MIN_IDLE_HOURS:-6}"
+IDLE_REF=""
+if [ "$IDLE_HOURS" != "0" ]; then
+  IDLE_REF="$(mktemp 2>/dev/null)" || IDLE_REF=""
+  if [ -n "$IDLE_REF" ]; then
+    trap 'rm -f "$IDLE_REF"' EXIT
+    stamp="$(date -v-"${IDLE_HOURS}"H +%Y%m%d%H%M.%S 2>/dev/null \
+      || date -d "${IDLE_HOURS} hours ago" +%Y%m%d%H%M.%S 2>/dev/null)"
+    if [ -n "$stamp" ]; then
+      touch -t "$stamp" "$IDLE_REF" 2>/dev/null || IDLE_REF=""
+    else
+      IDLE_REF=""
+    fi
+  fi
+fi
+
+worktree_touched_recently() {
+  local wt="$1" hit
+  [ "$IDLE_HOURS" = "0" ] && return 1
+  # No reference file means we cannot date anything — treat as recent.
+  [ -n "$IDLE_REF" ] || return 0
+  # Directories count too, not just files: a worktree checked out minutes ago
+  # may hold nothing modified since, but its own directory carries the date.
+  hit="$(find "$wt" \
+    \( -name node_modules -o -name .next -o -name .git -o -name dist \) -prune -o \
+    -newer "$IDLE_REF" -print 2>/dev/null | head -n 1)"
+  [ -n "$hit" ]
+}
+
+# Takes the worktree path as git spells it and as we resolved it; a match on
+# either is enough to protect.
+worktree_is_busy() {
+  local wt_raw="$1" wt_res="${2:-$1}" cwd
+  [ "$CAN_PROVE_IDLE" = "1" ] || return 0
+  { [ "$wt_raw" = "$INVOKED_FROM" ] || [ "$wt_res" = "$INVOKED_FROM" ]; } && return 0
+  while IFS= read -r cwd; do
+    [ -n "$cwd" ] || continue
+    case "$cwd" in
+      "$wt_raw"|"$wt_raw"/*) return 0 ;;
+      "$wt_res"|"$wt_res"/*) return 0 ;;
+    esac
+  done <<< "$protected_cwds"
+  return 1
+}
+
+# ---- Guard 2: branches with an open PR ------------------------------------
+open_pr_branches=""
+if ((!AUTO)) && command -v gh >/dev/null 2>&1; then
+  open_pr_branches="$(gh pr list --state open --limit 200 --json headRefName \
+    --jq '.[].headRefName' 2>/dev/null)"
+fi
+
+has_open_pr() { list_contains "$1" "$open_pr_branches"; }
+
+# PR state for a branch, or empty when there is no PR / no gh.
+pr_state() {
+  ((AUTO)) && return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  gh pr list --state all --head "$1" --limit 1 --json state --jq '.[0].state' 2>/dev/null
+}
+
+# Returns non-zero when the tag was not created. Callers must treat that as a
+# refusal to delete: "archived first" is the promise that makes deleting an
+# unmerged tip acceptable at all.
+archive_tip() {
+  local branch="$1" ref="$2"
+  git tag -f "archive/$TODAY/$branch" "$ref" >/dev/null 2>&1
+}
+
+# Delete a branch only if it still points where we judged it. `git branch -D`
+# resolves the name again at delete time, so a ref advanced by another process
+# between the check and the delete would be destroyed with its new commits.
+# `update-ref -d` with an expected old value is atomic and refuses instead.
+delete_branch_at() {
+  local branch="$1" oid="$2"
+  git update-ref -d "refs/heads/$branch" "$oid" >/dev/null 2>&1
+}
+
+removed_worktrees=0
+deleted_branches=0
+deleted_remote=0
+declare -a review_later=()
+
+# ---- 1. Worktrees whose branch is done ------------------------------------
+while IFS=$'\t' read -r wt br det lk; do
+  [ -z "$wt" ] && continue
+  wt_raw="$wt"
+  wt="$(resolve "$wt")" || continue
+  { [ "$wt" = "$REPO" ] || [ "$wt_raw" = "$REPO" ]; } && continue   # never the primary checkout
+  { [ "$wt" = "$INVOKED_FROM" ] || [ "$wt_raw" = "$INVOKED_FROM" ]; } && continue
+  [ "$lk" = "1" ] && continue                  # locked means someone claimed it
+  [ "$det" = "1" ] && continue                 # detached: no branch to judge
+  branch="${br#refs/heads/}"
+  [ -z "$branch" ] && continue
+  [ "$branch" = "main" ] && continue
+  [ "$(git rev-parse "refs/heads/$branch" 2>/dev/null)" = "$BASE_OID" ] && continue
+  has_open_pr "$branch" && continue
+  [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ] && continue
+  worktree_is_busy "$wt_raw" "$wt" && continue
+  worktree_touched_recently "$wt" && continue
+
+  contained=0
+  git merge-base --is-ancestor "refs/heads/$branch" "$BASE" 2>/dev/null && contained=1
+
+  if ((!contained)); then
+    ((AUTO)) && continue                       # auto mode never judges unique commits
+    state="$(pr_state "$branch")"
+    case "$state" in
+      CLOSED|MERGED) ;;                        # abandoned or landed elsewhere
+      *) continue ;;                           # open or unknown: leave it alone
+    esac
+    if ((ACT)) && ! archive_tip "$branch" "refs/heads/$branch"; then
+      say "skipping $branch: could not write its archive tag"
+      continue
+    fi
+  fi
+
+  if ((ACT)); then
+    # No --force: a worktree that turned dirty since the check is refused.
+    git worktree remove "$wt_raw" >/dev/null 2>&1 && ((removed_worktrees++))
+  else
+    say "would remove worktree $wt_raw (branch $branch)"
+  fi
+done < <(git worktree list --porcelain | awk '
+  /^worktree /{if(wt!="")print wt"\t"br"\t"det"\t"lk; wt=substr($0,10);br="";det=0;lk=0}
+  /^branch /{br=substr($0,8)}
+  /^detached/{det=1}
+  /^locked/{lk=1}
+  END{if(wt!="")print wt"\t"br"\t"det"\t"lk}')
+
+# ---- 2. Local branches ----------------------------------------------------
+checked_out="$(git worktree list --porcelain | awk '/^branch /{print substr($0,8)}')"
+
+while read -r branch; do
+  [ "$branch" = "main" ] && continue
+  list_contains "refs/heads/$branch" "$checked_out" && continue
+  has_open_pr "$branch" && continue
+  # Judge and delete the same commit. Every check below uses this OID, and the
+  # delete refuses if the ref has moved since.
+  oid="$(git rev-parse --verify --quiet "refs/heads/$branch")" || continue
+  [ "$oid" = "$BASE_OID" ] && continue
+
+  if git merge-base --is-ancestor "$oid" "$BASE" 2>/dev/null; then
+    # Contained in origin/main: deleting cannot lose a commit.
+    if ((ACT)); then
+      delete_branch_at "$branch" "$oid" && ((deleted_branches++))
+    else
+      say "would delete branch $branch (merged)"
+    fi
+    continue
+  fi
+
+  ((AUTO)) && continue
+
+  state="$(pr_state "$branch")"
+  case "$state" in
+    CLOSED|MERGED)
+      if ((ACT)); then
+        if archive_tip "$branch" "$oid"; then
+          delete_branch_at "$branch" "$oid" && ((deleted_branches++))
+        else
+          say "skipping $branch: could not write its archive tag"
+        fi
+      else
+        say "would delete branch $branch (PR $state, archived first)"
+      fi
+      ;;
+    OPEN) ;;
+    *) review_later+=("$branch  ($(git rev-list --count "$BASE..$oid" 2>/dev/null) unmerged commits, no PR)") ;;
+  esac
+done < <(git for-each-ref --format='%(refname:short)' refs/heads)
+
+# ---- 3. Directories git no longer tracks as worktrees ----------------------
+# This is the only step that deletes by path rather than through git, so it is
+# the only one that could bypass the guards above. Three independent checks
+# have to agree before anything here is removed.
+known_worktrees=""
+while IFS= read -r p; do
+  rp="$(resolve "$p")" || continue
+  known_worktrees="$known_worktrees
+$rp"
+done < <(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}')
+
+for parent in .worktrees .claude/worktrees; do
+  [ -d "$parent" ] || continue
+  # A symlinked parent would let the glob below enumerate, and rm -rf, a
+  # directory outside the repository. Resolve it and require containment.
+  parent_resolved="$(resolve "$parent")" || continue
+  case "$parent_resolved" in "$REPO"/*) ;; *) continue ;; esac
+
+  for d in "$parent"/*/; do
+    [ -d "$d" ] || continue
+    p="$(resolve "$d")" || continue
+    # Same containment check per entry: a symlinked child escapes too.
+    case "$p" in "$REPO"/*) ;; *) continue ;; esac
+    list_contains "$p" "$known_worktrees" && continue
+    # A registered worktree always carries a .git file. If one is here, git
+    # has simply not been told about it yet — that is a repair job, not a
+    # deletion. `git worktree prune` handles the registration side safely.
+    [ -e "$d/.git" ] && continue
+    worktree_is_busy "$p" && continue
+    # An unregistered directory with no .git is not proof of abandonment: it
+    # is also what a worktree looks like in the seconds before `git worktree
+    # add` finishes. Apply the same recency guard the worktree sweep uses.
+    worktree_touched_recently "$p" && continue
+
+    if ((ACT)); then
+      # Re-read the registration immediately before deleting: `git worktree
+      # add` may have claimed this path since the snapshot above.
+      still_unknown=1
+      while IFS= read -r q; do
+        rq="$(resolve "$q")" || continue
+        [ "$rq" = "$p" ] && still_unknown=0 && break
+      done < <(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}')
+      [ "$still_unknown" = "1" ] || continue
+      [ -e "$d/.git" ] && continue
+
+      rm -rf "$d" && ((removed_worktrees++))
+    else
+      say "would remove orphan directory $d"
+    fi
+  done
+done
+
+((ACT)) && git worktree prune >/dev/null 2>&1
+
+# ---- 4. Remote branches ---------------------------------------------------
+if ((REMOTE)) && ((!AUTO)); then
+  while read -r rb; do
+    n="${rb#origin/}"
+    [ "$n" = "main" ] && continue
+    [ "$n" = "HEAD" ] && continue
+    [ "$n" = "ci-metrics" ] && continue        # long-lived metrics branch, not a feature
+    has_open_pr "$n" && continue
+
+    if ! git merge-base --is-ancestor "$rb" "$BASE" 2>/dev/null; then
+      state="$(pr_state "$n")"
+      case "$state" in
+        CLOSED|MERGED) ;;
+        *) continue ;;
+      esac
+      # Deleting a remote branch is the one step no local reflog can undo, so
+      # the archive tag is not optional here.
+      if ((ACT)) && ! archive_tip "$n" "$rb"; then
+        say "skipping origin/$n: could not write its archive tag"
+        continue
+      fi
+    fi
+
+    if ((ACT)); then
+      git push origin --delete "$n" >/dev/null 2>&1 && ((deleted_remote++))
+    else
+      say "would delete remote branch origin/$n"
+    fi
+  done < <(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | grep -v '^origin$')
+fi
+
+# ---- Report ---------------------------------------------------------------
+if ((AUTO)); then
+  if ((removed_worktrees || deleted_branches)); then
+    say "pruned $deleted_branches branch(es), $removed_worktrees worktree(s)"
+  fi
+  exit 0
+fi
+
+if ((ACT)); then
+  say "pruned $deleted_branches local branch(es), $removed_worktrees worktree(s), $deleted_remote remote branch(es)"
+else
+  say "dry run — nothing changed. Re-run with --yes to apply."
+fi
+
+if ((${#review_later[@]})); then
+  say "carrying unmerged commits with no PR — decide these yourself:"
+  printf '      %s\n' "${review_later[@]}" >&2
+fi
+
+exit 0
