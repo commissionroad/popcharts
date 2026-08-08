@@ -1,6 +1,6 @@
 # ADR 0026: Durable Resolution Intent
 
-Status: Proposed
+Status: Accepted (implemented and landed 2026-08-07; PRs #504, #514 carrying #515–#518)
 
 Date: 2026-08-06
 
@@ -241,49 +241,49 @@ provenance-checking one-off rather than in the runner.
 
 Phase 1 — schema (generated output first, per `AGENTS.md`):
 
-- [ ] `resolution_commit_state` enum with **two** values, `pending` and
+- [x] `resolution_commit_state` enum with **two** values, `pending` and
       `confirmed`, and `market_resolutions.commit_state` defaulting to
       `confirmed` so existing rows and non-runner writers need no migration.
       `abandoned` is deliberately absent: nothing writes it unless Phase 6
       happens, and `ALTER TYPE ... ADD VALUE` is cheap when it does.
-- [ ] `resolved_at` becomes nullable — a `pending` row has no block timestamp,
+- [x] `resolved_at` becomes nullable — a `pending` row has no block timestamp,
       and inventing one is the inference the paper-trail invariant forbids.
-- [ ] Partial unique index: at most one `pending` row per market metadata
+- [x] Partial unique index: at most one `pending` row per market metadata
       version, mirroring the active-job index on `market_resolution_jobs`.
-- [ ] Drizzle snapshot + migration; this PR carries only the schema file.
+- [x] Drizzle snapshot + migration; this PR carries only the schema file.
 
 Phase 2 — the existence guard (before anything can write a `pending` row):
 
-- [ ] `noResolutionForCurrentMarket()` counts only `confirmed` rows.
-- [ ] Re-enumerate every other reader of `market_resolutions` at that commit.
+- [x] `noResolutionForCurrentMarket()` counts only `confirmed` rows.
+- [x] Re-enumerate every other reader of `market_resolutions` at that commit.
 
 Phase 3 — runner writes before it acts:
 
-- [ ] Insert the `pending` row and point `job.resolution_id` at it, in one
+- [x] Insert the `pending` row and point `job.resolution_id` at it, in one
       transaction, then call `proposeMarketResolutionOnChain`, then mark the
       job succeeded in a second transaction.
-- [ ] A retry adopts its existing `pending` row and resumes from the recorded
+- [x] A retry adopts its existing `pending` row and resumes from the recorded
       verdict. It must not call the resolution service again.
-- [ ] Delete the `already_on_chain` pre-check. Decode
+- [x] Delete the `already_on_chain` pre-check. Decode
       `InvalidStatus(actual, expected)` from the revert instead and treat it as
       "already proposed, work done" — complete the job, leave `commit_state` to
       the indexer.
-- [ ] Skip entirely when the adopted row is already `confirmed`.
-- [ ] Non-submitting verdicts (`manual_review`, `cancel_draw`) write
+- [x] Skip entirely when the adopted row is already `confirmed`.
+- [x] Non-submitting verdicts (`manual_review`, `cancel_draw`) write
       `confirmed` directly — nothing irreversible follows, so there is nothing
       to protect against.
 
 Phase 4 — indexer confirms:
 
-- [ ] The `ResolutionProposed` handler sets `commit_state = 'confirmed'` and
+- [x] The `ResolutionProposed` handler sets `commit_state = 'confirmed'` and
       `resolved_at` from the block, taking the side from the event.
-- [ ] An event with no matching `pending` row is the operator or self-resolve
+- [x] An event with no matching `pending` row is the operator or self-resolve
       path; it writes its own row as today and must not be treated as an error.
-- [ ] Confirmation is idempotent under replay, per the existing indexer rules.
+- [x] Confirmation is idempotent under replay, per the existing indexer rules.
 
 Phase 5 — visibility:
 
-- [ ] Surface `pending` rows and their age to operators. This is the cheap half
+- [x] Surface `pending` rows and their age to operators. This is the cheap half
       of the sweep question: if operators can see stuck rows, an automated
       sweep may never be needed. **Home amended at implementation time:** this
       phase originally said "in the postgrad admin CLI", but that CLI is in the
@@ -291,7 +291,7 @@ Phase 5 — visibility:
       code — pending rows are a server-DB fact. The lens is a server script
       (`server/scripts/resolution-pending-status.ts`, package script
       `resolution:pending`); the protocol CLI stays the chain-side lens.
-- [ ] Update `docs/ai-resolution-service-design.md`, which still describes the
+- [x] Update `docs/ai-resolution-service-design.md`, which still describes the
       runner writing its audit row only after a successful chain call.
 
 Phase 6 — a reconciliation pass, only if Phase 5 shows it is needed:
