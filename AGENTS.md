@@ -43,6 +43,12 @@
     and its worktree, left behind by a session that only read code or
     answered a question. Remove both before you finish.
 
+  For those last two exits, `/archive` does the cleanup and then archives the
+  session — see `skills/engineering/archive/SKILL.md`. It handles the ordering
+  that removing your own worktree requires, which is what makes cleaning up
+  the session you are sitting in different from pruning someone else's
+  leftovers.
+
   When in doubt about what is safe to remove, run `scripts/prune-branches`
   (report form, changes nothing) and act on what it lists — see
   `skills/engineering/prune-branches/SKILL.md`. Never delete a branch that
@@ -166,6 +172,12 @@
   required, one `verdict-loop`-labelled PR that ticks the box and appends
   the ledger row. The skill never merges. Drive the whole catalogue with
   `/loop /verdict-next`.
+- When the user writes `/archive` or asks to clean up and archive the session
+  (natively discoverable via the `.claude/commands/` and `.agents/skills/`
+  adapters), use `skills/engineering/archive/SKILL.md`: remove the worktrees
+  and branches this session owns, then archive the session itself. It is a
+  procedure, not a script. Use it for work that will never become a PR — when
+  a PR should merge, `/land` already does this cleanup as part of landing.
 - When the user writes `/full-review` (optionally with a PR number, URL, or
   branch — natively discoverable via the `.claude/commands/` and
   `.agents/skills/` adapters), use
