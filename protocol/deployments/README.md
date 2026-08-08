@@ -62,7 +62,7 @@ exact constructor arguments the deploy logged:
 ```bash
 pnpm hardhat verify --network arcTestnet <poolTickBounds> <ownerAddress>
 pnpm hardhat verify --network arcTestnet <orderManager> <poolManager> <transferApproval> <ownerAddress>
-pnpm hardhat verify --network arcTestnet <postgradAdapter> <pregradManager> <ownerAddress> <resolverAddress> <outcomeDecimals>
+pnpm hardhat verify --network arcTestnet <postgradAdapter> <pregradManager> <ownerAddress> <resolverAddress> <outcomeDecimals> <disputeWindow> <disputeBond>
 ```
 
 `BoundedPredictionHook` is deployed through the deterministic CREATE2 factory
