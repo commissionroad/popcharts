@@ -2,6 +2,7 @@ import {
   completeSetBinaryMarketAbi,
   completeSetPostgradAdapterAbi,
   marketSideToContractSide,
+  pregradManagerAbi,
   type MarketSide,
 } from "@popcharts/protocol";
 import { type Address } from "viem";
@@ -11,6 +12,7 @@ import { retryOnceOnNonceCollision } from "src/blockchain/nonce-collision";
 import {
   LOCAL_DEV_ACCOUNT_COUNT,
   postgradAdapterAddress,
+  pregradManagerAddress,
   publicClient,
   walletFor,
 } from "./stack";
@@ -117,6 +119,42 @@ export async function setPostgradDisputeConfig(
   );
 
   return { disputeBond, disputeWindow: BigInt(disputeWindow) };
+}
+
+/**
+ * Ensures `creator` may create markets with a zeroed authorization, the way
+ * the market factory does. Local deploys trust only the deployer (repo
+ * ADR 0022 P5 retired the ungated create path), so on a fresh chain the
+ * nightly's creator wallet starts untrusted and the first scenario registers
+ * it here with the owner key — the same keyed operator move a real operator
+ * would make. The read gate keeps replays from re-sending.
+ */
+export async function ensureTrustedCreator(creator: Address): Promise<void> {
+  const alreadyTrusted = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "isTrustedCreator",
+    args: [creator],
+  });
+  if (alreadyTrusted) {
+    return;
+  }
+
+  const owner = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "owner",
+  });
+  const ownerWallet = localWalletFor(owner as Address, "pregrad manager owner");
+
+  await sendOperatorTransaction("setTrustedCreator", () =>
+    ownerWallet.writeContract({
+      abi: pregradManagerAbi,
+      address: pregradManagerAddress,
+      functionName: "setTrustedCreator",
+      args: [creator, true],
+    }),
+  );
 }
 
 /** The local dev wallet holding a market's on-chain resolver role. */
