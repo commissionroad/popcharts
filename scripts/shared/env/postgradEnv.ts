@@ -4,6 +4,13 @@ import { type PostgradDeployment } from "../deployments/readPostgradDeployment.t
  * Server env vars documenting a locally deployed postgrad venue. The server
  * reads the LOCAL_*-prefixed venue addresses to wire graduated markets into
  * v4 pools; the unprefixed twins keep parity with generic deployment naming.
+ *
+ * `LOCAL_POSTGRAD_ADAPTER_ADDRESS` is deliberately absent from the LOCAL_ twins
+ * below, and only here. A stack with no venue still needs it (the pregrad
+ * deploy's standalone adapter serves `--no-postgrad` runs), so its value spans
+ * both deploys and the pregrad block writes it alone — see
+ * `resolvePostgradAdapterAddress`. The unprefixed `POSTGRAD_ADAPTER_ADDRESS`
+ * stays here because nothing else writes it.
  */
 export function postgradServerEnv(
   postgrad: PostgradDeployment | null,
@@ -34,7 +41,6 @@ export function postgradServerEnv(
     LOCAL_POOL_TICK_BOUNDS_ADDRESS: postgrad.poolTickBounds,
     LOCAL_ORDER_MANAGER_ADDRESS: postgrad.orderManager,
     LOCAL_BOUNDED_HOOK_ADDRESS: postgrad.boundedHook,
-    LOCAL_POSTGRAD_ADAPTER_ADDRESS: postgrad.postgradAdapter,
     LOCAL_COMPLETE_SET_MARKET_ADDRESS: postgrad.marketAddress,
     LOCAL_COMPLETE_SET_MARKET_SYMBOL: postgrad.marketSymbol,
     LOCAL_COMPLETE_SET_YES_TOKEN_ADDRESS: postgrad.yesTokenAddress,

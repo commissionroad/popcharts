@@ -1,4 +1,4 @@
-import { aiReviewConfig } from "src/ai-review/config";
+import { aiReviewConfig, type AiReviewConfig } from "src/ai-review/config";
 import { reviewMarket } from "src/ai-review/reviewer";
 import {
   REVIEW_PROVIDER_NAMES,
@@ -18,7 +18,9 @@ import {
   schema,
   sql,
 } from "src/db/client";
+import { readBoolean } from "src/shared/config-env";
 import { buildDraftReviewMetadata } from "src/draft-review/content";
+import { corroborateReview } from "src/draft-review/corroboration";
 
 const RETRY_BASE_MS = 15_000;
 const RETRY_MAX_MS = 5 * 60_000;
@@ -45,6 +47,22 @@ export function draftReviewProvider(
   return "heuristic";
 }
 
+/**
+ * Whether terminal verdicts from a model provider must be corroborated by an
+ * agreeing rerun before they commit (ADR 0019). The configured `heuristic`
+ * provider is exempt inside corroborateReview — deterministic reruns cannot
+ * disagree — so the default local path stays single-call.
+ */
+export function draftReviewCorroborationEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return readBoolean(
+    env.POPCHARTS_DRAFT_REVIEW_CORROBORATION,
+    true,
+    "POPCHARTS_DRAFT_REVIEW_CORROBORATION",
+  );
+}
+
 export type DraftReviewJobOutcome = {
   draftId: number;
   jobId: number;
@@ -56,12 +74,30 @@ export type ProcessDraftReviewJobsDependencies = {
   review: (request: MarketReviewRequest) => Promise<ReviewResult>;
 };
 
+/**
+ * The exact service config the runner's default dependency reviews with,
+ * exported as a pure function so a test can pin the wiring.
+ * `retryProviderFailures: true` is load-bearing for ADR 0019: this runner is
+ * the durable consumer the reviewer docs describe, so provider failures must
+ * throw into the job's retry/backoff path. The degraded fallback result
+ * would count as an agreeing corroboration run, letting a terminal verdict
+ * commit off a single real model run — and corroboration reads pre-stage
+ * provenance off `provider: "heuristic"`, which is only unambiguous while
+ * outages throw instead of degrading.
+ */
+export function draftReviewCallConfig(
+  env: Record<string, string | undefined> = process.env,
+): AiReviewConfig {
+  return {
+    ...aiReviewConfig,
+    provider: draftReviewProvider(env),
+    retryProviderFailures: true,
+  };
+}
+
 const defaultDependencies: ProcessDraftReviewJobsDependencies = {
   review: (request) =>
-    reviewMarket({
-      config: { ...aiReviewConfig, provider: draftReviewProvider() },
-      request,
-    }),
+    reviewMarket({ config: draftReviewCallConfig(), request }),
 };
 
 /**
@@ -180,10 +216,25 @@ async function processClaimedJob(
   }
 
   try {
-    const result = await dependencies.review({
+    const request = {
       context: {},
       metadata: buildDraftReviewMetadata(draft, job.metadataHash),
-    });
+    };
+    const corroborated = draftReviewCorroborationEnabled()
+      ? await corroborateReview({
+          callService: () => dependencies.review(request),
+          configuredProvider: draftReviewProvider(),
+          onBeforeRun: () => renewDraftReviewJobLease(job, runnerId),
+        })
+      : null;
+    const result = corroborated
+      ? corroborated.result
+      : await dependencies.review(request);
+    // Identity, not equality: a demoted deciding result is synthesized, so
+    // every actual service run stays in the supporting audit trail.
+    const supportingRuns = corroborated
+      ? corroborated.runs.filter((run) => run !== result)
+      : [];
     // The review may have outlived the lease and been reclaimed by another
     // runner. Completion is fenced: re-lock the claim row inside one
     // transaction and persist nothing if this runner no longer holds it.
@@ -203,6 +254,7 @@ async function processClaimedJob(
           draftId: draft.id,
           metadataHash: job.metadataHash,
           result,
+          supportingRuns,
         },
         tx,
       );
@@ -246,6 +298,29 @@ function claimedBy(job: ClaimedJob, runnerId: string) {
     eq(schema.marketDraftReviewJobs.status, "running"),
     eq(schema.marketDraftReviewJobs.lockedBy, runnerId),
   );
+}
+
+/**
+ * Extends the lease before each extra corroboration run — a corroborated
+ * review may legitimately outlive one lease window. Zero rows means another
+ * runner reclaimed the job; the throw routes into recordJobFailure, whose
+ * fenced update then drops this runner's outcome silently.
+ */
+async function renewDraftReviewJobLease(job: ClaimedJob, runnerId: string) {
+  const renewed = await db
+    .update(schema.marketDraftReviewJobs)
+    .set({
+      leaseUntil: new Date(Date.now() + LEASE_MS),
+      updatedAt: new Date(),
+    })
+    .where(claimedBy(job, runnerId))
+    .returning({ id: schema.marketDraftReviewJobs.id });
+
+  if (renewed.length === 0) {
+    throw new Error(
+      `Lost the lease on draft review job ${job.id} mid-corroboration.`,
+    );
+  }
 }
 
 async function recordJobFailure(

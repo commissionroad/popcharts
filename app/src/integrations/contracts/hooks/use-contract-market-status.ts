@@ -12,6 +12,14 @@ import { pregradManagerAbi } from "../pregrad-manager";
  */
 export type ContractMarketStatus = {
   balance: bigint | null;
+  /**
+   * Entry fee rate scaled by 1e18, zero when the fee is disarmed. Fetched
+   * alongside the balance and refreshed by the same refresh-key model, so it
+   * shares the balance's staleness window; the reads are separate eth_calls,
+   * not a block snapshot, and the placement path re-reads the authoritative
+   * rate on-chain before signing.
+   */
+  entryFeeRateWad: bigint | null;
   error: string | null;
   loading: boolean;
   marketExists: boolean | null;
@@ -45,6 +53,7 @@ export function useContractMarketStatus({
 }): ContractMarketStatus {
   const [readResult, setReadResult] = useState<ContractMarketReadResult>({
     balance: null,
+    entryFeeRateWad: null,
     error: null,
     marketExists: null,
     requestKey: null,
@@ -87,14 +96,20 @@ export function useContractMarketStatus({
         functionName: "marketExists",
         args: [marketId],
       }),
+      publicClient.readContract({
+        abi: pregradManagerAbi,
+        address: config.pregradManagerAddress,
+        functionName: "entryFeeRateWad",
+      }),
     ])
-      .then(([balance, marketExists]) => {
+      .then(([balance, marketExists, entryFeeRateWad]) => {
         if (!isActive) {
           return;
         }
 
         setReadResult({
           balance,
+          entryFeeRateWad,
           error: null,
           marketExists,
           requestKey,
@@ -107,6 +122,7 @@ export function useContractMarketStatus({
 
         setReadResult({
           balance: null,
+          entryFeeRateWad: null,
           error: formatError(error),
           marketExists: null,
           requestKey,
@@ -121,6 +137,7 @@ export function useContractMarketStatus({
   if (requestKey === null) {
     return {
       balance: null,
+      entryFeeRateWad: null,
       error: null,
       loading: false,
       marketExists: null,
@@ -130,12 +147,14 @@ export function useContractMarketStatus({
   return readResult.requestKey === requestKey
     ? {
         balance: readResult.balance,
+        entryFeeRateWad: readResult.entryFeeRateWad,
         error: readResult.error,
         loading: false,
         marketExists: readResult.marketExists,
       }
     : {
         balance: null,
+        entryFeeRateWad: null,
         error: null,
         loading: true,
         marketExists: null,

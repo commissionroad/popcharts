@@ -11,8 +11,8 @@ import type {
  *
  * Cases are scored against the service's OUTCOME (yes/no/draw/too_early/
  * abstain), not the derived verdict — the verdict additionally depends on the
- * confidence/evidence gates in `resolver.ts` (`deriveVerdict`), which the
- * runner records but does not grade.
+ * confidence/evidence/hard-flag gates in `resolver.ts` (`deriveVerdict`),
+ * which the runner records but does not grade.
  *
  * Label policy:
  * - clear-yes / clear-no cases are REAL 2024–2025 events with unambiguous,

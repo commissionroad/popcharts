@@ -6,7 +6,7 @@ import {
 import type { Address } from "viem";
 
 import { config } from "src/config";
-import { and, db, eq, schema } from "src/db/client";
+import { and, db, desc, eq, schema } from "src/db/client";
 
 import { assertEqual, assertTruthy } from "../asserts";
 import {
@@ -153,6 +153,9 @@ export const disputeWindowFinalize: Scenario = {
 
         // The runner's audit row is written whether or not the market settles;
         // the on-chain proposal is what the dispute window guards.
+        // The deciding row is the newest (id DESC, matching the runner's own
+        // resume reader); .limit(1) without an order reads in heap order once
+        // a market carries more than one audit row.
         const [verdict] = await db
           .select()
           .from(schema.marketResolutions)
@@ -162,6 +165,7 @@ export const disputeWindowFinalize: Scenario = {
               eq(schema.marketResolutions.marketId, market.marketId),
             ),
           )
+          .orderBy(desc(schema.marketResolutions.id))
           .limit(1);
         assertEqual("resolution outcome", verdict?.outcome, "yes");
 

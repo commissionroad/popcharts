@@ -54,6 +54,17 @@ describe("deploy-local-pregrad helper", async function () {
       getAddress((await manager.read.marketCreationAuthorizer()) as `0x${string}`),
       getAddress(deployer as `0x${string}`),
     );
+
+    // Locked local behavior (user decision, recorded in repo ADR 0024 Phase 1):
+    // local adapters deploy with zero dispute config so the legacy direct
+    // resolve() path keeps working. Changing these values is a deliberate,
+    // user-visible decision, not a refactor side effect.
+    const adapter = await viem.getContractAt(
+      "CompleteSetPostgradAdapter",
+      summary.postgradAdapterAddress,
+    );
+    assert.equal(await adapter.read.disputeWindow(), 0n);
+    assert.equal(await adapter.read.disputeBond(), 0n);
   });
 
   it("emits the summary fields the local dev orchestrators parse", async function () {

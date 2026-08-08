@@ -7,6 +7,7 @@ import { DEMO_MARKET_SYMBOL } from "./shared/deployments/demoMarket.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
+  pregradDeployOverrides,
   type PregradDeploy,
 } from "./shared/deployments/pregradDeploy.ts";
 import {
@@ -16,7 +17,10 @@ import {
 import { type PostgradDeployment } from "./shared/deployments/readPostgradDeployment.ts";
 import { ensureLocalPostgres } from "./shared/docker/ensureLocalPostgres.ts";
 import { resetLocalPostgresForFreshChain } from "./shared/docker/resetLocalPostgresForFreshChain.ts";
-import { postgradServerEnv } from "./shared/env/postgradEnv.ts";
+import {
+  postgradServerEnv,
+  postgradServerEnvLines,
+} from "./shared/env/postgradEnv.ts";
 import {
   pregradDeployServerEnv,
   pregradDeployServerEnvLines,
@@ -185,17 +189,12 @@ async function main(): Promise<void> {
   // Venue addresses ride along so the indexer runs the postgrad watcher set
   // (outcome-token transfers, pool ticks, resolution events) — without them
   // graduated-market balances never index and portfolio reads stay empty.
+  // The shared projection carries every deploy field, including the
+  // review-credit vault that activates the meter (ADR 0022 P3a) — without it
+  // the lifecycle lane runs unmetered and the funded-deposit journey has
+  // nothing to exercise. It also resolves the postgrad adapter to the venue's.
   const configuredServerEnv = {
-    ...buildServerEnv({
-      collateralAddress: deploy.collateralAddress,
-      deployBlock: deploy.deployBlock,
-      postgradAdapterAddress: deploy.postgradAdapterAddress,
-      pregradManagerAddress: deploy.pregradManagerAddress,
-      // Activates the review-credit meter (ADR 0022 P3a): without this the
-      // lifecycle lane runs unmetered and the funded-deposit journey has
-      // nothing to exercise.
-      reviewCreditVaultAddress: deploy.reviewCreditVaultAddress,
-    }),
+    ...buildServerEnv(pregradDeployOverrides(deploy, postgrad)),
     ...postgradServerEnv(postgrad),
   };
   writeLocalEnv(configuredServerEnv, deploy, postgrad);
@@ -356,6 +355,11 @@ function buildServerEnv(
     // dev endpoints; they are local-network-only and additionally gated on
     // this flag, so the smoke API opts in explicitly.
     POPCHARTS_DEV_TOOLS_ENABLED: "true",
+    // The @lifecycle draft specs (draft-review-first.spec.ts) assert the
+    // deterministic heuristic choreography. The supervisor merges
+    // process.env under this object, so without the pin a shell-exported
+    // POPCHARTS_DRAFT_REVIEW_PROVIDER would leak into the e2e API.
+    POPCHARTS_DRAFT_REVIEW_PROVIDER: "heuristic",
     RPC_HTTP_URL: rpcHttpUrl,
     RPC_WSS_URL: rpcWssUrl,
   };
@@ -376,48 +380,13 @@ function writeLocalEnv(
     "NETWORK=local",
     `RPC_HTTP_URL=${env.RPC_HTTP_URL}`,
     `RPC_WSS_URL=${env.RPC_WSS_URL}`,
-    ...pregradDeployServerEnvLines(deploy),
-    ...postgradEnvLines(postgrad),
+    ...pregradDeployServerEnvLines(deploy, postgrad),
+    ...postgradServerEnvLines(postgrad),
     `HEALTH_CHECK_FILE=${env.HEALTH_CHECK_FILE}`,
     "",
   ];
 
   writeFileSync(envFile, lines.join("\n"));
-}
-
-// The server does not consume these keys yet; they document the local postgrad
-// venue deployment for the upcoming server/app integration.
-function postgradEnvLines(postgrad: PostgradDeployment): string[] {
-  return [
-    `POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
-    `STATE_VIEW_ADDRESS=${postgrad.stateView}`,
-    `QUOTER_ADDRESS=${postgrad.quoter}`,
-    `SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
-    `POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
-    `ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
-    `BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
-    `POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
-    `COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
-    `COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
-    `COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
-    `COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
-    `COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
-    `COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
-    `LOCAL_POOL_MANAGER_ADDRESS=${postgrad.poolManager}`,
-    `LOCAL_STATE_VIEW_ADDRESS=${postgrad.stateView}`,
-    `LOCAL_QUOTER_ADDRESS=${postgrad.quoter}`,
-    `LOCAL_SWAP_ROUTER_ADDRESS=${postgrad.swapRouter}`,
-    `LOCAL_POOL_TICK_BOUNDS_ADDRESS=${postgrad.poolTickBounds}`,
-    `LOCAL_ORDER_MANAGER_ADDRESS=${postgrad.orderManager}`,
-    `LOCAL_BOUNDED_HOOK_ADDRESS=${postgrad.boundedHook}`,
-    `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${postgrad.postgradAdapter}`,
-    `LOCAL_COMPLETE_SET_MARKET_ADDRESS=${postgrad.marketAddress}`,
-    `LOCAL_COMPLETE_SET_MARKET_SYMBOL=${postgrad.marketSymbol}`,
-    `LOCAL_COMPLETE_SET_YES_TOKEN_ADDRESS=${postgrad.yesTokenAddress}`,
-    `LOCAL_COMPLETE_SET_NO_TOKEN_ADDRESS=${postgrad.noTokenAddress}`,
-    `LOCAL_COMPLETE_SET_YES_POOL_ID=${postgrad.yesPoolId}`,
-    `LOCAL_COMPLETE_SET_NO_POOL_ID=${postgrad.noPoolId}`,
-  ];
 }
 
 async function run(

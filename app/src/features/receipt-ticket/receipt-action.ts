@@ -178,16 +178,25 @@ export function getReceiptPlacementErrorMessage(error: unknown) {
 
 /**
  * Budget filled in by the "Max" preset: the wallet's pUSD balance discounted
- * by the default slippage buffer so the resulting max cost stays affordable,
- * capped at the per-receipt budget limit. Falls back to 5,000 when the
+ * by the default slippage buffer AND the armed entry fee, so the resulting
+ * fee-inclusive max cost stays affordable — without the fee term, "Max" at a
+ * 1% rate quotes a total debit above the balance and disables placement.
+ * Capped at the per-receipt budget limit; falls back to 5,000 when the
  * balance is unknown.
  */
-export function getMaxPresetAmount(balanceUsd: number | null) {
+export function getMaxPresetAmount(
+  balanceUsd: number | null,
+  entryFeeRateFraction = 0
+) {
   if (balanceUsd === null) {
     return 5_000;
   }
 
   const slippageMultiplier = 1 + DEFAULT_RECEIPT_SLIPPAGE_BPS / 10_000;
+  const totalDebitMultiplier = slippageMultiplier * (1 + entryFeeRateFraction);
 
-  return Math.max(0, Math.min(MAX_RECEIPT_BUDGET_USD, balanceUsd / slippageMultiplier));
+  return Math.max(
+    0,
+    Math.min(MAX_RECEIPT_BUDGET_USD, balanceUsd / totalDebitMultiplier)
+  );
 }

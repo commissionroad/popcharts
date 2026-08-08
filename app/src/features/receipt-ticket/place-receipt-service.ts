@@ -2,6 +2,7 @@ import type { PublicClient, WalletClient } from "viem";
 import { formatUnits, parseEventLogs, parseUnits } from "viem";
 
 import type { Market, MarketSide } from "@/domain/markets/types";
+import { totalDebitForCost } from "@/domain/pregrad-trading/entry-fee";
 import type {
   PlacedPregradReceipt,
   ReceiptQuotePreview,
@@ -186,7 +187,22 @@ async function placeContractReceipt({
     functionName: "quoteReceipt",
     args: [environment.marketId, sideIndex, shares],
   });
-  const maxCost = applySlippage(chainQuote.cost, options.slippageBps ?? 150);
+  // The authoritative rate is read here, not taken from the UI's earlier
+  // status read: the owner can change it between render and placement, and
+  // the contract charges whatever is current when the transaction lands.
+  const entryFeeRateWad = await wallet.publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: environment.config.pregradManagerAddress,
+    functionName: "entryFeeRateWad",
+  });
+  // maxCost bounds the TOTAL debit — cost plus entry fee (ADR 0014 §3). The
+  // fee is monotone in cost, so padding the cost first and adding that
+  // padded cost's fee covers every execution the slippage admits; a rate
+  // raised after this read can only revert the placement, never overcharge.
+  const maxCost = totalDebitForCost(
+    applySlippage(chainQuote.cost, options.slippageBps ?? 150),
+    entryFeeRateWad
+  );
 
   await ensureCollateralReady({
     config: environment.config,

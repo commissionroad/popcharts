@@ -61,12 +61,13 @@ export const RESOLUTION_OUTCOMES = [
 export type ResolutionOutcome = (typeof RESOLUTION_OUTCOMES)[number];
 
 /**
- * The action derived from an outcome plus the confidence/evidence/time gates.
+ * The action derived from an outcome plus the confidence/evidence/hard-flag/time gates.
  * - `resolve_yes` / `resolve_no`: submit `resolve(side)` on-chain.
  * - `cancel_draw`: recommend `cancel()` — parked for operator confirmation,
  *   never auto-submitted.
  * - `requeue_too_early`: bump `run_after` and try again later.
- * - `manual_review`: park for an operator (low confidence, abstain, error).
+ * - `manual_review`: park for an operator (low confidence, abstain, hard
+ *   flags, error).
  */
 export const RESOLUTION_VERDICTS = [
   "resolve_yes",
@@ -78,6 +79,24 @@ export const RESOLUTION_VERDICTS = [
 
 /** One of {@link RESOLUTION_VERDICTS}. */
 export type ResolutionVerdict = (typeof RESOLUTION_VERDICTS)[number];
+
+/**
+ * The verdict a market side maps to and back — the single definition of the
+ * side↔verdict pairing (ADR 0026 review: the propose path and the indexer's
+ * confirmation path each spelled it independently, and a divergence between
+ * them would either submit the wrong side or refuse every confirmation).
+ */
+export const AUTO_RESOLVE_VERDICT_BY_SIDE = {
+  no: "resolve_no",
+  yes: "resolve_yes",
+} as const satisfies Record<"yes" | "no", ResolutionVerdict>;
+
+/**
+ * A verdict the runner submits on-chain — one that appears in
+ * {@link AUTO_RESOLVE_VERDICT_BY_SIDE}. Everything else parks or re-queues.
+ */
+export type AutoResolveVerdict =
+  (typeof AUTO_RESOLVE_VERDICT_BY_SIDE)[keyof typeof AUTO_RESOLVE_VERDICT_BY_SIDE];
 
 /**
  * The submitter-authored market text plus the resolution timing the market

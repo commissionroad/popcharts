@@ -24,7 +24,9 @@ function resolutionResult(
           ? "no"
           : "abstain",
     promptVersion: "market-ai-resolution-v1",
-    provider: "heuristic",
+    // A model provider: the heuristic provider is deterministic and
+    // single-passes, which would short-circuit every escalation case below.
+    provider: "anthropic",
     reasons: [`${verdict} because of test fixtures`],
     sourceChecks: [],
     verdict,
@@ -58,6 +60,20 @@ describe("isSubmittableResolutionVerdict", () => {
 });
 
 describe("corroborateResolution", () => {
+  it("single-passes the deterministic heuristic provider", async () => {
+    const first = resolutionResult("resolve_yes", { provider: "heuristic" });
+    const service = scriptedService([]);
+    const corroborated = await corroborateResolution({
+      ...service,
+      first,
+    });
+
+    expect(corroborated.outcome).toBe("confirmed");
+    expect(corroborated.result).toBe(first);
+    expect(corroborated.runs).toEqual([first]);
+    expect(service.calls()).toBe(0);
+  });
+
   it("confirms a YES with one agreeing second run", async () => {
     const first = resolutionResult("resolve_yes");
     const second = resolutionResult("resolve_yes", {

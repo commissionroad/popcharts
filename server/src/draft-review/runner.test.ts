@@ -1,5 +1,6 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -9,9 +10,12 @@ import {
 
 import { newDraftPublicId } from "src/drafts/public-id";
 import type { MarketReviewRequest, ReviewResult } from "src/ai-review/types";
+import { getMarketDraft } from "src/api/services/market-drafts";
 import type { db as productionDb } from "src/db/client";
 import { eq, schema, setDbForTesting } from "src/db/client";
 import {
+  draftReviewCallConfig,
+  draftReviewCorroborationEnabled,
   draftReviewProvider,
   processDraftReviewJobsOnce,
   startDraftReviewRunner,
@@ -157,6 +161,30 @@ describe("draftReviewProvider", () => {
 
   it("defaults to heuristic when unset", () => {
     expect(draftReviewProvider({})).toBe("heuristic");
+  });
+});
+
+// Pins the production wiring of the default review dependency: ADR 0019's
+// corroboration is only sound while provider outages throw into the retry
+// path instead of degrading to heuristic-provider results.
+describe("draftReviewCallConfig", () => {
+  it("always retries provider failures", () => {
+    expect(draftReviewCallConfig({}).retryProviderFailures).toBe(true);
+    expect(
+      draftReviewCallConfig({ POPCHARTS_DRAFT_REVIEW_PROVIDER: "anthropic" })
+        .retryProviderFailures,
+    ).toBe(true);
+  });
+
+  it("follows draftReviewProvider for the provider", () => {
+    const modelEnv = { POPCHARTS_DRAFT_REVIEW_PROVIDER: "anthropic" };
+
+    expect(draftReviewCallConfig(modelEnv).provider).toBe(
+      draftReviewProvider(modelEnv),
+    );
+    expect(draftReviewCallConfig(modelEnv).provider).toBe("anthropic");
+    expect(draftReviewCallConfig({}).provider).toBe(draftReviewProvider({}));
+    expect(draftReviewCallConfig({}).provider).toBe("heuristic");
   });
 });
 
@@ -311,6 +339,195 @@ describe("processDraftReviewJobsOnce", () => {
 
     expect(jobRow.status).toBe("queued");
     expect(jobRow.attemptCount).toBe(0);
+  });
+});
+
+describe("draftReviewCorroborationEnabled", () => {
+  it("defaults to true and honors an explicit false", () => {
+    expect(draftReviewCorroborationEnabled({})).toBe(true);
+    expect(
+      draftReviewCorroborationEnabled({
+        POPCHARTS_DRAFT_REVIEW_CORROBORATION: "false",
+      }),
+    ).toBe(false);
+  });
+});
+
+// Corroboration only fires for a configured model provider; the stubbed
+// dependency means no real provider is ever invoked.
+describe("processDraftReviewJobsOnce corroboration", () => {
+  beforeEach(() => {
+    process.env.POPCHARTS_DRAFT_REVIEW_PROVIDER = "ollama";
+  });
+
+  afterEach(() => {
+    delete process.env.POPCHARTS_DRAFT_REVIEW_PROVIDER;
+    delete process.env.POPCHARTS_DRAFT_REVIEW_CORROBORATION;
+  });
+
+  /** Scripted review dependency: replays results in order, counts calls. */
+  function scriptedReview(script: (() => Promise<ReviewResult>)[]) {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      review: async () => {
+        const step = script[calls];
+        calls += 1;
+        if (!step) {
+          throw new Error(`Unexpected review call #${calls}.`);
+        }
+        return step();
+      },
+    };
+  }
+
+  async function readReviewsById(draftId: number) {
+    const rows = await readReviews(draftId);
+    return rows.sort((a, b) => a.id - b.id);
+  }
+
+  it("confirms a model approve with a second run before committing", async () => {
+    const { draft, job } = await seedDraftAndJob();
+    const approve = async () =>
+      makeReviewResult({ provider: "ollama", verdict: "approve" });
+    const dependency = scriptedReview([approve, approve]);
+    const outcomes = await processDraftReviewJobsOnce({}, dependency);
+
+    expect(outcomes).toEqual([
+      {
+        draftId: draft.id,
+        jobId: job.id,
+        outcome: "succeeded",
+        verdict: "approve",
+      },
+    ]);
+    expect(dependency.calls()).toBe(2);
+
+    // Both runs persist; the deciding row is the newest so the latest-review
+    // readers surface it without a marker column.
+    const reviews = await readReviewsById(draft.id);
+
+    expect(reviews).toHaveLength(2);
+    const deciding = reviews[reviews.length - 1]!;
+
+    expect(deciding.verdict).toBe("approve");
+    expect((await readJob(job.id)).reviewId).toBe(deciding.id);
+    expect((await readDraft(draft.id)).status).toBe("approved");
+
+    const found = await getMarketDraft({
+      draftId: draft.publicId,
+      owner: OWNER,
+    });
+
+    expect(found.kind === "found" && found.draft.latestReview?.id).toBe(
+      deciding.id,
+    );
+  });
+
+  it("demotes a three-way disagreement and persists every run", async () => {
+    const { draft, job } = await seedDraftAndJob();
+    const dependency = scriptedReview([
+      async () => makeReviewResult({ provider: "ollama", verdict: "approve" }),
+      async () => makeReviewResult({ provider: "ollama", verdict: "reject" }),
+      async () =>
+        makeReviewResult({ provider: "ollama", verdict: "manual_review" }),
+    ]);
+    const outcomes = await processDraftReviewJobsOnce({}, dependency);
+
+    expect(outcomes).toEqual([
+      {
+        draftId: draft.id,
+        jobId: job.id,
+        outcome: "succeeded",
+        verdict: "manual_review",
+      },
+    ]);
+    expect(dependency.calls()).toBe(3);
+
+    // Three supporting rows (the actual runs) plus the synthesized deciding
+    // row: demotion never overwrites a run's own verdict.
+    const reviews = await readReviewsById(draft.id);
+
+    expect(reviews).toHaveLength(4);
+    expect(reviews.slice(0, 3).map((row) => row.verdict)).toEqual([
+      "approve",
+      "reject",
+      "manual_review",
+    ]);
+    const deciding = reviews[reviews.length - 1]!;
+
+    expect(deciding.verdict).toBe("manual_review");
+    expect(deciding.reasons[0]).toContain("runs disagreed");
+    expect((await readJob(job.id)).reviewId).toBe(deciding.id);
+    expect((await readDraft(draft.id)).status).toBe("changes_requested");
+  });
+
+  it("makes one plain call when the knob disables corroboration", async () => {
+    process.env.POPCHARTS_DRAFT_REVIEW_CORROBORATION = "false";
+    const { draft } = await seedDraftAndJob();
+    const dependency = scriptedReview([
+      async () => makeReviewResult({ provider: "ollama", verdict: "approve" }),
+    ]);
+    await processDraftReviewJobsOnce({}, dependency);
+
+    expect(dependency.calls()).toBe(1);
+    expect(await readReviews(draft.id)).toHaveLength(1);
+    expect((await readDraft(draft.id)).status).toBe("approved");
+  });
+
+  it("fails the attempt with no rows when run 2 throws", async () => {
+    const { draft, job } = await seedDraftAndJob();
+    const dependency = scriptedReview([
+      async () => makeReviewResult({ provider: "ollama", verdict: "approve" }),
+      async () => {
+        throw new Error("provider exploded on rerun");
+      },
+    ]);
+    const outcomes = await processDraftReviewJobsOnce({}, dependency);
+
+    expect(outcomes).toEqual([
+      { draftId: draft.id, jobId: job.id, outcome: "failed" },
+    ]);
+
+    const jobRow = await readJob(job.id);
+
+    expect(jobRow.status).toBe("retryable_failed");
+    expect(jobRow.lastError).toBe("provider exploded on rerun");
+
+    // Run 1's approve must not survive a failed corroboration: no review
+    // rows, and the draft stays locked in review awaiting the retry.
+    expect(await readReviews(draft.id)).toHaveLength(0);
+    expect((await readDraft(draft.id)).status).toBe("in_review");
+  });
+
+  it("drops the outcome when the lease is stolen mid-corroboration", async () => {
+    const { draft, job } = await seedDraftAndJob();
+    const dependency = scriptedReview([
+      async () => {
+        // Another runner reclaims the job while run 1 is in flight; the
+        // pre-run-2 lease renewal must then abandon this runner's work.
+        await dbc
+          .update(schema.marketDraftReviewJobs)
+          .set({ lockedBy: "thief" })
+          .where(eq(schema.marketDraftReviewJobs.id, job.id));
+        return makeReviewResult({ provider: "ollama", verdict: "approve" });
+      },
+    ]);
+    const outcomes = await processDraftReviewJobsOnce({}, dependency);
+
+    expect(outcomes).toEqual([
+      { draftId: draft.id, jobId: job.id, outcome: "failed" },
+    ]);
+    expect(dependency.calls()).toBe(1);
+
+    // The fenced failure update matches nothing, so the thief's claim is
+    // untouched and nothing was persisted by this runner.
+    const jobRow = await readJob(job.id);
+
+    expect(jobRow.status).toBe("running");
+    expect(jobRow.lockedBy).toBe("thief");
+    expect(await readReviews(draft.id)).toHaveLength(0);
+    expect((await readDraft(draft.id)).status).toBe("in_review");
   });
 });
 

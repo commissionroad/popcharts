@@ -200,10 +200,11 @@ async function main(): Promise<void> {
     // reject path works" when nothing tested it.
     console.warn(
       `[${logLabel}] NOTE: review APPROVED the intentionally incoherent ` +
-        `market, so this run did not exercise the reject path. The ` +
-        `contradiction is semantic and the deterministic heuristic does not ` +
-        `read for it; point POPCHARTS_DRAFT_REVIEW_PROVIDER at a model ` +
-        `provider to see it rejected.`,
+        `market, so this run did not exercise the reject path. Local stacks ` +
+        `gate drafts with the claude-cli model by default, so either this ` +
+        `stack was dialed to LOCAL_DRAFT_REVIEW_PROVIDER=heuristic (which ` +
+        `matches patterns, not meaning) or the model missed the ` +
+        `contradiction.`,
     );
   }
 

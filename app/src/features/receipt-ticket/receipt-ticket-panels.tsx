@@ -73,6 +73,9 @@ export function QuotePreview({
         }
         value={quote ? `+${quote.priceImpactCents.toFixed(2)} pts` : "--"}
       />
+      {quote && quote.entryFeeUsd > 0 ? (
+        <TicketRow label="Entry fee" value={formatUsd(quote.entryFeeUsd)} />
+      ) : null}
       <TicketRow label="Max cost" value={quote ? formatUsd(quote.maxCostUsd) : "--"} />
     </div>
   );

@@ -13,6 +13,7 @@ import { deployCompleteSetPostgradContracts } from "./shared/deployment/deployCo
 import { hasBytecode } from "./shared/deployment/deterministicFactory.js";
 import { readManifestAddresses } from "./shared/deployment/readManifestAddresses.js";
 import { resolveDeploymentManifestFile } from "./shared/deployment/resolveDeploymentManifestFile.js";
+import { resolveDisputeConfig } from "./shared/deployment/resolveDisputeConfig.js";
 import {
   formatVenueContractEntry,
   normalizeVenueContractEntries,
@@ -32,6 +33,8 @@ type PostgradVenueManifest = {
   readonly chainId: number;
   readonly contracts: Record<string, VenueManifestContractEntry>;
   readonly deployer: Address;
+  readonly disputeBond: string;
+  readonly disputeWindow: string;
   readonly generatedAt: string;
   readonly hookSalt: Hex;
   readonly rpcUrl: string;
@@ -105,9 +108,12 @@ async function main() {
     poolTickBoundsAddress,
     postgradAdapterAddress,
   } = await deployCompleteSetPostgradContracts({
+    allowZeroDisputeConfig: config.disputeConfig.allowZeroDisputeConfig,
     connection,
     deployerAddress,
     deterministicFactory: venueAddresses.deterministicFactory,
+    disputeBond: config.disputeConfig.disputeBond,
+    disputeWindow: config.disputeConfig.disputeWindow,
     outcomeDecimals: config.outcomeDecimals,
     poolManager: venueAddresses.poolManager,
     pregradManagerAddress,
@@ -138,6 +144,8 @@ async function main() {
       contracts.map((contract) => [contract.name, formatVenueContractEntry(contract)]),
     ),
     deployer: deployerAddress,
+    disputeBond: config.disputeConfig.disputeBond.toString(),
+    disputeWindow: config.disputeConfig.disputeWindow.toString(),
     generatedAt: new Date().toISOString(),
     hookSalt,
     rpcUrl: config.rpcUrl,
@@ -161,6 +169,9 @@ function loadConfig(env: NodeJS.ProcessEnv, profile: DeploymentChainProfile) {
       env,
       protocolRoot: hre.config.paths.root,
     }),
+    // Resolved in loadConfig so a missing dispute config fails before any
+    // wallet or chain interaction, like every other env-config error here.
+    disputeConfig: resolveDisputeConfig({ chainEnv: profile.chainEnv, env }),
     outcomeDecimals: requireNonNegativeInteger(
       env.POPCHARTS_OUTCOME_DECIMALS ?? DEFAULT_OUTCOME_DECIMALS,
       "POPCHARTS_OUTCOME_DECIMALS",

@@ -25,12 +25,37 @@ const DEPLOY: PregradDeploy = {
   pregradManagerAddress: "0x0000000000000000000000000000000000000b01",
 };
 
+const VENUE: PostgradDeployment = {
+  boundedHook: "0x00000000000000000000000000000000000000a1",
+  marketAddress: "0x00000000000000000000000000000000000000a2",
+  marketSymbol: "DEMO",
+  noPoolId: "0x00000000000000000000000000000000000000b1",
+  noTokenAddress: "0x00000000000000000000000000000000000000a3",
+  orderManager: "0x00000000000000000000000000000000000000a4",
+  poolManager: "0x00000000000000000000000000000000000000a5",
+  poolTickBounds: "0x00000000000000000000000000000000000000a6",
+  // Deliberately NOT DEPLOY.postgradAdapterAddress. The venue deploy and the
+  // pregrad deploy each produce their own CompleteSetPostgradAdapter, and a
+  // fixture that reused one address for both could not tell which writer won.
+  postgradAdapter: "0x000000000000000000000000000000000000ada2",
+  quoter: "0x00000000000000000000000000000000000000a7",
+  stateView: "0x00000000000000000000000000000000000000a8",
+  swapRouter: "0x00000000000000000000000000000000000000a9",
+  yesPoolId: "0x00000000000000000000000000000000000000b2",
+  yesTokenAddress: "0x00000000000000000000000000000000000000aa",
+};
+
 const ENV: NodeJS.ProcessEnv = {
   DATABASE_URL: "postgres://db",
   PORT: "3001",
   POPCHARTS_DEV_TOOLS_ENABLED: "true",
   AI_REVIEW_SERVICE_URL: "http://127.0.0.1:4001",
   AI_REVIEW_RUNNER_POLL_MS: "1000",
+  AI_REVIEW_EVIDENCE_MODE: "native",
+  AI_REVIEW_SEARCH_PROVIDER: "duckduckgo",
+  AI_REVIEW_RETRY_PROVIDER_FAILURES: "true",
+  AI_REVIEW_TIMEOUT_MS: "300000",
+  POPCHARTS_DRAFT_REVIEW_PROVIDER: "claude-cli",
   RPC_HTTP_URL: "http://127.0.0.1:8545",
   RPC_WSS_URL: "ws://127.0.0.1:8545",
   HEALTH_CHECK_FILE: "/tmp/health",
@@ -64,6 +89,14 @@ describe("writeLocalChainServerEnv", function () {
         "POPCHARTS_DEV_TOOLS_ENABLED=true",
         "AI_REVIEW_SERVICE_URL=http://127.0.0.1:4001",
         "AI_REVIEW_RUNNER_POLL_MS=1000",
+        // The control-plane API boots from this file alone, so dropping the
+        // draft-gate lines silently reverts it to the heuristic gate over
+        // the deployed evidence defaults.
+        "AI_REVIEW_EVIDENCE_MODE=native",
+        "AI_REVIEW_SEARCH_PROVIDER=duckduckgo",
+        "AI_REVIEW_RETRY_PROVIDER_FAILURES=true",
+        "AI_REVIEW_TIMEOUT_MS=300000",
+        "POPCHARTS_DRAFT_REVIEW_PROVIDER=claude-cli",
         "RPC_HTTP_URL=http://127.0.0.1:8545",
         "RPC_WSS_URL=ws://127.0.0.1:8545",
         "PREGRAD_MANAGER_ADDRESS=0x0000000000000000000000000000000000000b01",
@@ -97,29 +130,13 @@ describe("writeLocalChainServerEnv", function () {
 
   it("injects the venue lines ahead of HEALTH_CHECK_FILE when a venue is deployed", function () {
     const envFilePath = tempEnvFile();
-    const postgrad: PostgradDeployment = {
-      boundedHook: "0x00000000000000000000000000000000000000a1",
-      marketAddress: "0x00000000000000000000000000000000000000a2",
-      marketSymbol: "DEMO",
-      noPoolId: "0x00000000000000000000000000000000000000b1",
-      noTokenAddress: "0x00000000000000000000000000000000000000a3",
-      orderManager: "0x00000000000000000000000000000000000000a4",
-      poolManager: "0x00000000000000000000000000000000000000a5",
-      poolTickBounds: "0x00000000000000000000000000000000000000a6",
-      postgradAdapter: "0x0000000000000000000000000000000000000ada",
-      quoter: "0x00000000000000000000000000000000000000a7",
-      stateView: "0x00000000000000000000000000000000000000a8",
-      swapRouter: "0x00000000000000000000000000000000000000a9",
-      yesPoolId: "0x00000000000000000000000000000000000000b2",
-      yesTokenAddress: "0x00000000000000000000000000000000000000aa",
-    };
 
     writeLocalChainServerEnv({
       deploy: DEPLOY,
       env: ENV,
       envFilePath,
       generatedBy: "scripts/local-dev.ts",
-      postgrad,
+      postgrad: VENUE,
     });
 
     const lines = readFileSync(envFilePath, "utf8").split("\n");
@@ -128,5 +145,59 @@ describe("writeLocalChainServerEnv", function () {
     assert.notEqual(venueIndex, -1);
     assert.notEqual(healthIndex, -1);
     assert.ok(venueIndex < healthIndex);
+  });
+
+  // `readEnvFile` is last-wins, so a key written twice is not a parse error —
+  // it is a silent precedence rule that lives in whichever order two spreads
+  // happen to sit in. LOCAL_POSTGRAD_ADAPTER_ADDRESS was written by both the
+  // pregrad and the postgrad block for exactly that reason. This guard fails on
+  // the next collision instead of leaving it to be noticed by hand.
+  it("writes every key exactly once", function () {
+    const envFilePath = tempEnvFile();
+
+    writeLocalChainServerEnv({
+      deploy: DEPLOY,
+      env: ENV,
+      envFilePath,
+      generatedBy: "scripts/local-dev.ts",
+      postgrad: VENUE,
+    });
+
+    const keys = readFileSync(envFilePath, "utf8")
+      .split("\n")
+      .filter((line) => line.trim() && !line.startsWith("#"))
+      .map((line) => line.slice(0, line.indexOf("=")));
+    const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index);
+
+    assert.deepEqual(
+      duplicates,
+      [],
+      `these keys have more than one writer: ${duplicates.join(", ")}`,
+    );
+  });
+
+  it("points the adapter at the venue's, not the pregrad deploy's", function () {
+    const envFilePath = tempEnvFile();
+
+    writeLocalChainServerEnv({
+      deploy: DEPLOY,
+      env: ENV,
+      envFilePath,
+      generatedBy: "scripts/local-dev.ts",
+      postgrad: VENUE,
+    });
+
+    const contents = readFileSync(envFilePath, "utf8");
+    assert.ok(
+      contents.includes(
+        `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${VENUE.postgradAdapter}`,
+      ),
+      "graduated markets settle through the venue's adapter, so it must win",
+    );
+    assert.ok(
+      !contents.includes(
+        `LOCAL_POSTGRAD_ADAPTER_ADDRESS=${DEPLOY.postgradAdapterAddress}`,
+      ),
+    );
   });
 });

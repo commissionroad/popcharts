@@ -230,6 +230,7 @@ function quoteFixture(): ReceiptQuotePreview {
   return {
     averagePriceCents: 52,
     budgetUsd: 100,
+    entryFeeUsd: 0,
     maxCostUsd: 101.5,
     priceBand: { fromProbability: 50, toProbability: 54 },
     priceImpactCents: 4,

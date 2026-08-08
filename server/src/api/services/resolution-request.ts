@@ -118,6 +118,12 @@ export async function requestMarketResolutionCheck(
     };
   }
 
+  // Confirmed rows only (ADR 0026). The runner writes its judgment `pending`
+  // before proposing, and a pending row is not an evaluation anyone should be
+  // told about: if the proposal is in flight the job below reports
+  // `already_queued`, and if it never landed the market genuinely does need
+  // re-checking. Counting pending here would answer "already evaluated" for a
+  // verdict that may never reach the chain.
   const [resolution] = await db
     .select({ id: schema.marketResolutions.id })
     .from(schema.marketResolutions)
@@ -125,6 +131,7 @@ export async function requestMarketResolutionCheck(
       and(
         eq(schema.marketResolutions.chainId, chainId),
         eq(schema.marketResolutions.marketId, parsedMarketId),
+        eq(schema.marketResolutions.commitState, "confirmed"),
       ),
     )
     .limit(1);

@@ -555,16 +555,23 @@ export type DraftReviewWriter =
  * snapshot, so a late result for edited content is recorded but changes
  * nothing. Callers that must couple this to other writes (the runner's job
  * completion) pass their transaction as `writer`.
+ *
+ * `supportingRuns` are the extra corroboration runs (ADR 0019) behind the
+ * deciding `result`: each persists as an audit row with its own verdict, and
+ * the deciding row is inserted last so both latest-review readers — which
+ * order by `reviewedAt DESC, id DESC` — surface it without a marker column.
  */
 export async function applyDraftReviewResult(
   {
     draftId,
     metadataHash,
     result,
+    supportingRuns = [],
   }: {
     draftId: number;
     metadataHash: string;
     result: ReviewResult;
+    supportingRuns?: ReviewResult[];
   },
   writer: DraftReviewWriter = db,
 ): Promise<{ reviewId: number }> {
@@ -572,11 +579,13 @@ export async function applyDraftReviewResult(
   // must land together, so without an enclosing transaction we open one.
   if (writer === db) {
     return db.transaction((tx) =>
-      applyDraftReviewResult({ draftId, metadataHash, result }, tx),
+      applyDraftReviewResult(
+        { draftId, metadataHash, result, supportingRuns },
+        tx,
+      ),
     );
   }
 
-  const feedback = buildDraftReviewFeedback(result);
   const now = new Date();
   const nextStatus: MarketDraftStatus =
     result.verdict === "approve"
@@ -585,24 +594,16 @@ export async function applyDraftReviewResult(
         ? "rejected"
         : "changes_requested";
 
+  for (const run of supportingRuns) {
+    await writer
+      .insert(schema.marketDraftReviews)
+      .values(
+        draftReviewRow({ draftId, metadataHash, result: run, reviewedAt: now }),
+      );
+  }
   const [review] = await writer
     .insert(schema.marketDraftReviews)
-    .values({
-      draftId,
-      evidence: result.evidence,
-      feedback,
-      hardFlags: result.hardFlags,
-      metadataHash,
-      ...(result.modelId ? { modelId: result.modelId } : {}),
-      promptVersion: result.promptVersion,
-      provider: result.provider,
-      reasons: result.reasons,
-      reviewedAt: now,
-      scoreRationales: result.scoreRationales,
-      scores: result.scores,
-      sourceChecks: result.sourceChecks,
-      verdict: result.verdict,
-    })
+    .values(draftReviewRow({ draftId, metadataHash, result, reviewedAt: now }))
     .returning();
   await writer
     .update(schema.marketDrafts)
@@ -616,6 +617,36 @@ export async function applyDraftReviewResult(
     );
 
   return { reviewId: assertRow(review).id };
+}
+
+/** One `market_draft_reviews` insert payload for a review result. */
+function draftReviewRow({
+  draftId,
+  metadataHash,
+  result,
+  reviewedAt,
+}: {
+  draftId: number;
+  metadataHash: string;
+  result: ReviewResult;
+  reviewedAt: Date;
+}) {
+  return {
+    draftId,
+    evidence: result.evidence,
+    feedback: buildDraftReviewFeedback(result),
+    hardFlags: result.hardFlags,
+    metadataHash,
+    ...(result.modelId ? { modelId: result.modelId } : {}),
+    promptVersion: result.promptVersion,
+    provider: result.provider,
+    reasons: result.reasons,
+    reviewedAt,
+    scoreRationales: result.scoreRationales,
+    scores: result.scores,
+    sourceChecks: result.sourceChecks,
+    verdict: result.verdict,
+  };
 }
 
 /** The publish payload: wire-serialized createMarket params minus collateral,
