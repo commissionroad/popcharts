@@ -131,7 +131,7 @@ item:
       test) with the same tolerance and guarded-class semantics as the
       review-side checker. Acceptance: a deliberately degraded fixture
       report fails the check; a baseline-equal report passes.
-- [ ] **A2 [measurement]** Review-side evals README + measured-iteration
+- [x] **A2 [measurement]** Review-side evals README + measured-iteration
       ledger, mirroring `server/src/ai-resolution/evals/README.md`: runner
       instructions, env knobs, scoring semantics, and a "Measured
       iterations" section seeded from recoverable history (including the
@@ -247,6 +247,15 @@ is add a `NEEDS-DECISION:` question edit for the user to answer.
       the same commit that precedes PR creation, so the number cannot be
       known; specify the two-step (commit with #TBD, amend after
       `gh pr create` returns the number) in the skill's Ship section.
+- [ ] **M2 [meta]** `server/src/ai-resolution/evals/README.md` tells a pass
+      to start the resolution service on `AI_RESOLUTION_PORT=3004` — the
+      slot-0 user-stack port this ADR and the skill forbid. The skill sends
+      every measured pass to that README as "the single source for env knobs
+      and provider facts", so the two load-bearing instructions contradict
+      each other and the README is the one a reader is holding when they
+      type the command. Point it at the off-grid 3999 with the same
+      silent-bind warning the review-side README now carries (A2), and
+      re-check every other port literal in both evals READMEs.
 
 ## Guardrails
 
@@ -354,3 +363,4 @@ where the pass measured, `—` where it did not.
 | date       | item | type        | metric-before | metric-after | PR   | notes                                                                    |
 | ---------- | ---- | ----------- | ------------- | ------------ | ---- | ------------------------------------------------------------------------ |
 | 2026-08-08 | A1   | measurement | —             | —            | #533 | shipped: resolution regression checker + fixtures; proof runs in PR body |
+| 2026-08-09 | A2   | measurement | —             | —            | #537 | shipped: review evals README + measured-iteration ledger (v3–v6); bounded claude-cli proof run in PR body; appended M2 |
