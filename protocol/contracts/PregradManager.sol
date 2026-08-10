@@ -11,6 +11,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPostgradAdapter} from "./postgrad/IPostgradAdapter.sol";
 import {LmsrMath} from "./libraries/LmsrMath.sol";
+import {ReceiptWithdrawals} from "./libraries/ReceiptWithdrawals.sol";
 import {CreationFeeVault} from "./CreationFeeVault.sol";
 import {ReceiptBook} from "./ReceiptBook.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
@@ -36,6 +37,14 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
 
   /// @notice Hard cap on the owner-configurable entry fee rate (10%), scaled by 1e18.
   uint256 public constant MAX_ENTRY_FEE_RATE_WAD = 1e17;
+  /// @notice Hard cap on the owner-configurable withdrawal fee rate (10%), scaled by 1e18.
+  /// @dev The entry fee's cap, deliberately: ADR 0014 §3 sets the operating
+  ///      rate at 5% and defers calibration, so the cap leaves the same
+  ///      headroom without a redeploy while bounding what a compromised owner
+  ///      key can charge.
+  uint256 public constant MAX_WITHDRAWAL_FEE_RATE_WAD = 1e17;
+  /// @notice Longest withdrawal challenge window the owner may configure.
+  uint64 public constant MAX_WITHDRAWAL_CHALLENGE_PERIOD = 7 days;
   /// @notice Maximum bytes allowed for the canonical metadata payload emitted at creation.
   uint256 public constant MAX_METADATA_BYTES = 8192;
   /// @notice Domain hash for the locked graduation snapshot committed by clearing roots.
@@ -99,6 +108,59 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   /// @param available Earned entry fees available for the market.
   /// @param requested Amount requested by the owner.
   error EntryFeeWithdrawalExceedsEarned(uint256 available, uint256 requested);
+  /// @notice Reverts when the owner sets a withdrawal fee rate above the hard cap.
+  /// @param rateWad Requested rate, scaled by 1e18.
+  /// @param maximumRateWad Hard cap on the rate, scaled by 1e18.
+  error WithdrawalFeeRateExceedsMaximum(uint256 rateWad, uint256 maximumRateWad);
+  /// @notice Reverts when the owner configures a withdrawal challenge window beyond the maximum.
+  /// @param period Challenge period supplied by the owner.
+  /// @param maximum Longest supported challenge period.
+  error InvalidWithdrawalChallengePeriod(uint64 period, uint64 maximum);
+  /// @notice Reverts when a withdrawal request names an owner the receipt does not have.
+  /// @param receiptId Receipt being withdrawn from.
+  /// @param named Owner named by the request.
+  /// @param actual Owner stored on the receipt.
+  error InvalidWithdrawalOwner(uint256 receiptId, address named, address actual);
+  /// @notice Reverts when a receipt already has a pending withdrawal request.
+  /// @param receiptId Receipt with the pending request.
+  /// @param requestId The pending request.
+  error WithdrawalRequestAlreadyPending(uint256 receiptId, uint256 requestId);
+  /// @notice Reverts when a withdrawal request claims no segments.
+  /// @param receiptId Receipt the empty claim targeted.
+  error NoWithdrawalSegments(uint256 receiptId);
+  /// @notice Reverts when claimed segments are not ascending and disjoint.
+  /// @param previousHigh Upper bound of the preceding claimed segment.
+  /// @param rLow Lower bound of the out-of-order claimed segment.
+  error UnorderedWithdrawalSegments(int256 previousHigh, int256 rLow);
+  /// @notice Reverts when a withdrawal-request operation references an unknown request.
+  /// @param requestId Request ID that does not exist.
+  error WithdrawalRequestDoesNotExist(uint256 requestId);
+  /// @notice Reverts when a withdrawal request has already been refuted or finalized.
+  /// @param requestId Request that is no longer pending.
+  /// @param status Current request status.
+  error WithdrawalRequestNotPending(uint256 requestId, MarketTypes.WithdrawalRequestStatus status);
+  /// @notice Reverts when a refutation arrives at or after the challenge deadline.
+  /// @param requestId Request whose window has closed.
+  /// @param challengeDeadline Timestamp the window closed at.
+  error WithdrawalChallengeWindowClosed(uint256 requestId, uint64 challengeDeadline);
+  /// @notice Reverts when finalization is attempted before the challenge deadline.
+  /// @param requestId Request that is still challengeable.
+  /// @param challengeDeadline Timestamp when finalization becomes available.
+  error WithdrawalChallengeActive(uint256 requestId, uint64 challengeDeadline);
+  /// @notice Reverts when a named receipt fails to refute a withdrawal claim.
+  /// @param requestId Request the refutation targeted.
+  /// @param refutingReceiptId Receipt that proved no claimed segment opposed.
+  error WithdrawalClaimNotRefuted(uint256 requestId, uint256 refutingReceiptId);
+  /// @notice Reverts when graduation starts while withdrawal requests are pending.
+  /// @param marketId Market with pending withdrawal requests.
+  /// @param pendingRequests Number of requests still pending.
+  error PendingWithdrawalsBlockGraduation(uint256 marketId, uint256 pendingRequests);
+  /// @notice Reverts when earned withdrawal fee withdrawal targets the zero account.
+  error InvalidWithdrawalFeeRecipient();
+  /// @notice Reverts when earned withdrawal fee withdrawal exceeds the earned balance.
+  /// @param available Earned withdrawal fees available for the market.
+  /// @param requested Amount requested by the owner.
+  error WithdrawalFeeWithdrawalExceedsEarned(uint256 available, uint256 requested);
   /// @notice Reverts when an ERC20 transfer delivers less or more collateral than expected.
   /// @param expected Exact collateral amount that should have reached escrow.
   /// @param received Actual collateral amount observed by balance delta.
@@ -383,6 +445,89 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     uint256 amount
   );
 
+  /// @notice Emitted when the owner changes the withdrawal challenge window.
+  /// @param previousPeriod Challenge period replaced by this update.
+  /// @param newPeriod Challenge period applied to future withdrawal requests.
+  event WithdrawalChallengePeriodUpdated(uint64 previousPeriod, uint64 newPeriod);
+
+  /// @notice Emitted when the owner changes the withdrawal fee rate.
+  /// @param previousRateWad Rate before the change, scaled by 1e18.
+  /// @param newRateWad Rate after the change, scaled by 1e18.
+  event WithdrawalFeeRateUpdated(uint256 previousRateWad, uint256 newRateWad);
+
+  /// @notice Emitted when a withdrawal request removes claimed segments from live support.
+  /// @dev Carries everything the indexer needs to replay the receipt mutation:
+  ///      the claimed segments, the contract-priced amounts, and the stamped
+  ///      window and snapshot (ADR 0014 P3).
+  /// @param requestId Canonical withdrawal request ID.
+  /// @param receiptId Receipt whose live support the claimed segments left.
+  /// @param marketId Market that owns the receipt.
+  /// @param owner Receipt owner the finalized refund will pay.
+  /// @param segments Claimed segments, ascending and disjoint.
+  /// @param grossRefund Recorded path cost of the claimed segments.
+  /// @param withdrawalFee Fee at the request-time rate, kept at finalization.
+  /// @param entryFeeRefund Pro-rated held entry fee returned at finalization.
+  /// @param challengeDeadline Timestamp at or after which the request finalizes.
+  /// @param nextReceiptIdSnapshot Refutation-set bound stamped at request time.
+  event ReceiptWithdrawalRequested(
+    uint256 indexed requestId,
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address owner,
+    MarketTypes.PathSegment[] segments,
+    uint256 grossRefund,
+    uint256 withdrawalFee,
+    uint256 entryFeeRefund,
+    uint64 challengeDeadline,
+    uint256 nextReceiptIdSnapshot
+  );
+
+  /// @notice Emitted when a challenger refutes a pending withdrawal request.
+  /// @param requestId Request that was refuted and cancelled.
+  /// @param receiptId Receipt whose claimed segments were restored to live support.
+  /// @param marketId Market that owns the receipt.
+  /// @param challenger Account that submitted the refutation.
+  /// @param refutingReceiptId Opposite-side receipt whose recorded coverage proved opposition.
+  event ReceiptWithdrawalRefuted(
+    uint256 indexed requestId,
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address challenger,
+    uint256 refutingReceiptId
+  );
+
+  /// @notice Emitted when an unchallenged withdrawal request pays out.
+  /// @dev The amounts split the money movement exactly: `escrowRefund` plus
+  ///      `withdrawalFee` leaves `totalEscrowed`, the fee stays as earned
+  ///      protocol money, and `entryFeeRefund` leaves the held fee escrow.
+  ///      The owner receives `escrowRefund + entryFeeRefund` in one transfer.
+  /// @param requestId Request that finalized.
+  /// @param receiptId Receipt the withdrawal settled against.
+  /// @param marketId Market that owns the receipt.
+  /// @param owner Account paid by the withdrawal.
+  /// @param escrowRefund Escrowed cost returned to the owner, net of the fee.
+  /// @param entryFeeRefund Held entry fee returned to the owner.
+  /// @param withdrawalFee Fee earned by the protocol on the act.
+  event ReceiptWithdrawalFinalized(
+    uint256 indexed requestId,
+    uint256 indexed receiptId,
+    uint256 indexed marketId,
+    address owner,
+    uint256 escrowRefund,
+    uint256 entryFeeRefund,
+    uint256 withdrawalFee
+  );
+
+  /// @notice Emitted when the owner withdraws a market's earned withdrawal fees.
+  /// @param marketId Market whose earned fees were withdrawn.
+  /// @param recipient Account receiving the fees.
+  /// @param amount Fee amount withdrawn.
+  event EarnedWithdrawalFeesWithdrawn(
+    uint256 indexed marketId,
+    address indexed recipient,
+    uint256 amount
+  );
+
   uint256 private _nextMarketId = 1;
   mapping(uint256 marketId => MarketTypes.MarketRecord) private _markets;
   mapping(uint256 marketId => MarketTypes.ClearingRoot) private _clearingRoots;
@@ -422,6 +567,21 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   /// @dev The per-market fee pot destined for post-graduation pool seeding
   ///      (ADR 0014 P5); owner-withdrawable until that path exists.
   mapping(uint256 marketId => uint256) public marketEntryFeesEarned;
+
+  /// @notice The withdrawal mechanism's storage, operated by the
+  ///   `ReceiptWithdrawals` external library (ADR 0014 P3).
+  /// @dev The window and rate default to zero: the window stays disabled
+  ///      while the graduation manager attests withdrawal claims off-chain
+  ///      and relays them (mirroring the clearing window's ADR 0010 posture),
+  ///      and the fee ships disarmed until the owner arms it. One pending
+  ///      request per receipt at a time — the serialization is load-bearing
+  ///      for the challenge path, whose restore then returns the receipt's
+  ///      live support toward the shape the request removed from, never
+  ///      exceeding the segment cap the removals enforced. Per-market
+  ///      deadlines are monotone by construction: new deadlines clamp to the
+  ///      market's latest, so a dependent claim can never finalize while the
+  ///      claim that enabled it is still challengeable.
+  ReceiptWithdrawals.Store private _withdrawals;
 
   /// @notice Initializes the contract owner as the first review and graduation manager.
   constructor() Ownable(msg.sender) EIP712("PregradManager", "1") {}
@@ -701,6 +861,119 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     emit EarnedEntryFeesWithdrawn(marketId, recipient, withdrawal);
   }
 
+  /// @notice Sets the challenge window applied to future withdrawal requests.
+  /// @dev In-flight requests keep the deadline stamped at request time
+  ///      (ADR 0010's pattern); a shortened period never reopens or shortens
+  ///      an existing window, and the per-market monotone clamp keeps a later
+  ///      request's deadline at or after every earlier one's.
+  /// @param newPeriod Seconds between request and earliest finalization; zero disables the window.
+  function setWithdrawalChallengePeriod(uint64 newPeriod) external onlyOwner {
+    if (newPeriod > MAX_WITHDRAWAL_CHALLENGE_PERIOD) {
+      revert InvalidWithdrawalChallengePeriod(newPeriod, MAX_WITHDRAWAL_CHALLENGE_PERIOD);
+    }
+
+    uint64 previousPeriod = _withdrawals.challengePeriod;
+    _withdrawals.challengePeriod = newPeriod;
+
+    emit WithdrawalChallengePeriodUpdated(previousPeriod, newPeriod);
+  }
+
+  /// @notice Sets the withdrawal fee rate charged on future withdrawal requests.
+  /// @dev Requests store the fee stamped at request time, so a rate change
+  ///      never alters what a pending request pays at finalization.
+  /// @param newRateWad Fee rate scaled by 1e18; zero disables the fee.
+  function setWithdrawalFeeRate(uint256 newRateWad) external onlyOwner {
+    if (newRateWad > MAX_WITHDRAWAL_FEE_RATE_WAD) {
+      revert WithdrawalFeeRateExceedsMaximum(newRateWad, MAX_WITHDRAWAL_FEE_RATE_WAD);
+    }
+
+    uint256 previousRateWad = _withdrawals.feeRateWad;
+    _withdrawals.feeRateWad = newRateWad;
+
+    emit WithdrawalFeeRateUpdated(previousRateWad, newRateWad);
+  }
+
+  /// @notice Returns the withdrawal fee due on a gross refund at the current rate.
+  /// @dev The convention lives in `ReceiptWithdrawals.feeFor`, shared with the
+  ///      request stamp: one full-precision mulDiv floored on the request's
+  ///      whole gross — never per segment — so the payout cannot depend on
+  ///      fragmentation and the on-chain fee always equals the P2 quote's
+  ///      (`withdrawal-quote.ts` fixes the convention; ADR 0014 P4b).
+  /// @param grossRefund Recorded cost the fee is charged on.
+  /// @return Fee amount, rounded down.
+  function withdrawalFeeFor(uint256 grossRefund) public view returns (uint256) {
+    return ReceiptWithdrawals.feeFor(_withdrawals, grossRefund);
+  }
+
+  /// @notice Returns the challenge window applied to future withdrawal requests.
+  /// @return Seconds between request and earliest finalization; zero disables the window.
+  function withdrawalChallengePeriod() external view returns (uint64) {
+    return _withdrawals.challengePeriod;
+  }
+
+  /// @notice Returns the withdrawal fee rate charged on future requests, scaled by 1e18.
+  /// @return Fee rate; zero means the fee is disarmed.
+  function withdrawalFeeRateWad() external view returns (uint256) {
+    return _withdrawals.feeRateWad;
+  }
+
+  /// @notice Returns a receipt's pending withdrawal request, or zero when none.
+  /// @param receiptId Receipt ID to read.
+  /// @return Pending request ID, or zero.
+  function pendingWithdrawalRequestOf(uint256 receiptId) external view returns (uint256) {
+    return _withdrawals.pendingRequestOf[receiptId];
+  }
+
+  /// @notice Returns the number of withdrawal requests still pending for a market.
+  /// @param marketId Market ID to read.
+  /// @return Pending request count.
+  function marketPendingWithdrawals(uint256 marketId) external view returns (uint256) {
+    return _withdrawals.marketPendingRequests[marketId];
+  }
+
+  /// @notice Returns the withdrawal fees a market's finalized withdrawals earned.
+  /// @dev Sibling of `marketEntryFeesEarned`, kept separate on purpose: entry
+  ///      fees earn only at clearing while withdrawal fees earn on the act, so
+  ///      merging the pots would hide that a cancelled market owes every entry
+  ///      fee back while keeping every withdrawal fee. Also destined for
+  ///      post-graduation pool seeding (ADR 0014 P5); owner-withdrawable until
+  ///      that path exists.
+  /// @param marketId Market ID to read.
+  /// @return Earned withdrawal fees available for the market.
+  function marketWithdrawalFeesEarned(uint256 marketId) public view returns (uint256) {
+    return _withdrawals.marketFeesEarned[marketId];
+  }
+
+  /// @notice Withdraws a market's earned withdrawal fees without touching held fees or escrow.
+  /// @dev Earned withdrawal fees are protocol money from the moment a request
+  ///      finalizes — never refundable, on any market outcome (protocol
+  ///      ADR 0014 §3) — and are destined for post-graduation pool seeding
+  ///      (P5); this is the interim disposition path.
+  /// @param marketId Market whose earned fees to withdraw.
+  /// @param recipient Account receiving the fees.
+  /// @param amount Fee amount to withdraw; zero withdraws the full earned balance.
+  function withdrawEarnedWithdrawalFees(
+    uint256 marketId,
+    address recipient,
+    uint256 amount
+  ) external onlyOwner nonReentrant {
+    _requireMarketExists(marketId);
+    if (recipient == address(0)) {
+      revert InvalidWithdrawalFeeRecipient();
+    }
+
+    uint256 available = _withdrawals.marketFeesEarned[marketId];
+    uint256 withdrawal = amount == 0 ? available : amount;
+    if (withdrawal > available) {
+      revert WithdrawalFeeWithdrawalExceedsEarned(available, withdrawal);
+    }
+
+    _withdrawals.marketFeesEarned[marketId] = available - withdrawal;
+    IERC20(_markets[marketId].config.collateral).safeTransfer(recipient, withdrawal);
+
+    emit EarnedWithdrawalFeesWithdrawn(marketId, recipient, withdrawal);
+  }
+
   /// @notice Returns the next market ID that will be assigned.
   /// @return Next market ID.
   function nextMarketId() external view returns (uint256) {
@@ -882,7 +1155,257 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     );
   }
 
+  /// @notice Requests withdrawal of a receipt's unopposed segments, removing
+  ///   them from live support now and paying after the challenge window
+  ///   (ADR 0014 P3, the ADR 0006 optimistic shape).
+  /// @dev Manager-only in v1, mirroring clearing's trust model exactly
+  ///      (ADR 0006/0010): the receipt owner asks the API off-chain, the
+  ///      manager verifies the claim with the P2 quote code and relays it, and
+  ///      the challenge window is zero while the same party attests every
+  ///      claim. At a zero window a request finalizes immediately with only
+  ///      structural checks, so an owner-submitted false claim of an opposed
+  ///      band would steal from escrow — the attester refusing to sign is the
+  ///      zero-window defense, exactly as clearing's manager-submitted roots.
+  ///      Funds always pay to the receipt owner, never the manager. Opening
+  ///      submission to receipt owners needs the window on and challenge
+  ///      bonds, both deferred as clearing's are; the surface already carries
+  ///      the owner and stamps every trust-critical field itself so that
+  ///      change is a gate change, not a reshape.
+  ///
+  ///      The contract verifies everything checkable from the receipt alone:
+  ///      liveness, the owner cross-check, segment ordering, containment in
+  ///      live support, and the refund — each segment priced by the same
+  ///      closed-form band cost placement locked, so the refund is exactly
+  ///      the claimed segments' recorded cost. The claim's one unverifiable
+  ///      statement — no live opposite-side receipt covers these segments —
+  ///      is deliberately not checked: it is an absence over an unenumerable
+  ///      mapping, asserted optimistically and refutable in O(1) by
+  ///      `refuteWithdrawalRequest`. Nothing moves money here; escrow, path,
+  ///      and fee accounting all settle at `finalizeReceiptWithdrawal`.
+  /// @param receiptId Receipt whose segments are withdrawn.
+  /// @param owner Receipt owner the relayed claim names; must match storage.
+  /// @param segments Segments asserted unopposed, ascending and disjoint.
+  /// @return requestId Canonical withdrawal request ID.
+  function requestReceiptWithdrawal(
+    uint256 receiptId,
+    address owner,
+    MarketTypes.PathSegment[] calldata segments
+  ) external onlyGraduationManager returns (uint256 requestId) {
+    _requireReceiptExists(receiptId);
+    MarketTypes.Receipt storage receipt = _receiptAt(receiptId);
+    _requireActiveReceipt(receiptId, receipt);
+    if (owner != receipt.owner) {
+      revert InvalidWithdrawalOwner(receiptId, owner, receipt.owner);
+    }
+
+    MarketTypes.MarketRecord storage market = _markets[receipt.marketId];
+    _requireActiveMarket(receipt.marketId, market);
+    _requireBeforeGraduationDeadline(receipt.marketId, market.config.graduationDeadline);
+
+    uint256 pendingRequestId = _withdrawals.pendingRequestOf[receiptId];
+    if (pendingRequestId != 0) {
+      revert WithdrawalRequestAlreadyPending(receiptId, pendingRequestId);
+    }
+    _requireOrderedWithdrawalSegments(receiptId, segments);
+
+    requestId = ReceiptWithdrawals.request(
+      _withdrawals,
+      _receiptSupportAt(receiptId),
+      receipt,
+      receiptId,
+      market.config.liquidityParameter,
+      _nextReceiptIdSnapshot(),
+      MAX_RECEIPT_SEGMENTS,
+      segments
+    );
+    _emitWithdrawalRequested(requestId, segments);
+  }
+
+  /// @notice Refutes a pending withdrawal request by naming one opposite-side
+  ///   receipt whose recorded coverage overlaps a claimed segment.
+  /// @dev Permissionless from day one, strictly inside the window, and O(1)
+  ///      in the book's size: the contract loads the named receipt and checks
+  ///      market, side, liveness, and the snapshot bound, then intersects the
+  ///      claim with the receipt's recorded coverage — live support plus its
+  ///      own still-pending claimed segments, which stay recorded until
+  ///      finalization exactly so a colluding opposer's withdrawal cannot
+  ///      outrun refutation (ADR 0014 P3). The colluding-pair attack —
+  ///      requesting both sides of an opposed band — therefore dies in order:
+  ///      the first claim by the second's pending-recorded coverage, the
+  ///      second by the restored first; the residual is clearing's
+  ///      honest-watcher assumption, discharged at the v1 zero window by the
+  ///      attesting manager refusing the false claim. Challenge bonds are
+  ///      deferred exactly as clearing's are. A failed refutation reverts —
+  ///      on-chain, an answer with no state change is a wasted transaction.
+  /// @param requestId Pending request being refuted.
+  /// @param refutingReceiptId Opposite-side receipt named as the counterexample.
+  function refuteWithdrawalRequest(uint256 requestId, uint256 refutingReceiptId) external {
+    MarketTypes.WithdrawalRequest storage request = _requireWithdrawalRequest(requestId);
+    _requirePendingWithdrawalRequest(requestId, request);
+    _requireActiveMarket(request.marketId, _markets[request.marketId]);
+    if (block.timestamp >= request.challengeDeadline) {
+      revert WithdrawalChallengeWindowClosed(requestId, request.challengeDeadline);
+    }
+
+    _requireReceiptExists(refutingReceiptId);
+    bool refuted = ReceiptWithdrawals.refute(
+      _withdrawals,
+      requestId,
+      refutingReceiptId,
+      _receiptAt(refutingReceiptId),
+      _receiptAt(request.receiptId).side,
+      _receiptSupportAt(request.receiptId),
+      _liveReceiptSegments(refutingReceiptId)
+    );
+    if (!refuted) {
+      revert WithdrawalClaimNotRefuted(requestId, refutingReceiptId);
+    }
+
+    emit ReceiptWithdrawalRefuted(
+      requestId,
+      request.receiptId,
+      request.marketId,
+      msg.sender,
+      refutingReceiptId
+    );
+  }
+
+  /// @notice Finalizes an unchallenged withdrawal request at or after its
+  ///   deadline, paying the owner and settling all accounting.
+  /// @dev Permissionless. Pays `grossRefund - withdrawalFee + entryFeeRefund`
+  ///      to the stamped owner: the fee is earned on the act (ADR 0014 §3),
+  ///      and the withdrawn segments' prepaid entry fee returns because an
+  ///      unopposed band never matched, so the fee on it was never earned.
+  ///      Requires the market still Active: a pending request on a market
+  ///      that reached Refunded or Cancelled is void — the full receipt, cost
+  ///      and held entry fee alike, refunds through `claimRefundedReceipt`
+  ///      instead, and the never-finalized withdrawal charges no fee.
+  ///      Graduation can never strand a request the other way, because
+  ///      `startGraduation` reverts while any request is pending.
+  /// @param requestId Pending request being finalized.
+  function finalizeReceiptWithdrawal(uint256 requestId) external nonReentrant {
+    MarketTypes.WithdrawalRequest storage request = _requireWithdrawalRequest(requestId);
+    _requirePendingWithdrawalRequest(requestId, request);
+    MarketTypes.MarketRecord storage market = _markets[request.marketId];
+    _requireActiveMarket(request.marketId, market);
+    if (block.timestamp < request.challengeDeadline) {
+      revert WithdrawalChallengeActive(requestId, request.challengeDeadline);
+    }
+
+    uint256 escrowRefund = ReceiptWithdrawals.finalize(
+      _withdrawals,
+      requestId,
+      _receiptAt(request.receiptId),
+      market.state,
+      marketEntryFeeEscrow
+    );
+
+    uint256 payout = escrowRefund + request.entryFeeRefund;
+    if (payout != 0) {
+      IERC20(market.config.collateral).safeTransfer(request.owner, payout);
+    }
+
+    emit ReceiptWithdrawalFinalized(
+      requestId,
+      request.receiptId,
+      request.marketId,
+      request.owner,
+      escrowRefund,
+      request.entryFeeRefund,
+      request.withdrawalFee
+    );
+  }
+
+  /// @notice Returns the next withdrawal request ID that will be assigned.
+  /// @return Next withdrawal request ID.
+  function nextWithdrawalRequestId() external view returns (uint256) {
+    return _withdrawals.requestCount + 1;
+  }
+
+  /// @notice Returns a stored withdrawal request by ID.
+  /// @param requestId Withdrawal request ID to read.
+  /// @return Stored withdrawal request, claimed segments included.
+  function getWithdrawalRequest(
+    uint256 requestId
+  ) external view returns (MarketTypes.WithdrawalRequest memory) {
+    return _requireWithdrawalRequest(requestId);
+  }
+
+  /// @notice Requires a withdrawal claim to be nonempty, ascending, and disjoint.
+  /// @param receiptId Receipt the claim targets, for the empty-claim error.
+  /// @param segments Claimed segments being validated.
+  function _requireOrderedWithdrawalSegments(
+    uint256 receiptId,
+    MarketTypes.PathSegment[] calldata segments
+  ) private pure {
+    if (segments.length == 0) {
+      revert NoWithdrawalSegments(receiptId);
+    }
+
+    int256 previousHigh = type(int256).min;
+    for (uint256 i = 0; i < segments.length; ++i) {
+      if (segments[i].rLow < previousHigh) {
+        revert UnorderedWithdrawalSegments(previousHigh, segments[i].rLow);
+      }
+      previousHigh = segments[i].rHigh;
+    }
+  }
+
+  /// @notice Emits ReceiptWithdrawalRequested in a separate frame to keep
+  ///   requestReceiptWithdrawal within the EVM stack limit.
+  /// @param requestId Stored request to announce.
+  /// @param segments Claimed segments as submitted.
+  function _emitWithdrawalRequested(
+    uint256 requestId,
+    MarketTypes.PathSegment[] calldata segments
+  ) private {
+    MarketTypes.WithdrawalRequest storage request = _withdrawals.requests[requestId];
+    emit ReceiptWithdrawalRequested(
+      requestId,
+      request.receiptId,
+      request.marketId,
+      request.owner,
+      segments,
+      request.grossRefund,
+      request.withdrawalFee,
+      request.entryFeeRefund,
+      request.challengeDeadline,
+      request.nextReceiptIdSnapshot
+    );
+  }
+
+  /// @notice Requires a withdrawal request ID to exist.
+  /// @param requestId Withdrawal request ID to check.
+  /// @return request Stored withdrawal request.
+  function _requireWithdrawalRequest(
+    uint256 requestId
+  ) private view returns (MarketTypes.WithdrawalRequest storage request) {
+    request = _withdrawals.requests[requestId];
+    if (request.status == MarketTypes.WithdrawalRequestStatus.None) {
+      revert WithdrawalRequestDoesNotExist(requestId);
+    }
+  }
+
+  /// @notice Requires a withdrawal request to still be pending.
+  /// @param requestId Withdrawal request ID being guarded.
+  /// @param request Stored withdrawal request being guarded.
+  function _requirePendingWithdrawalRequest(
+    uint256 requestId,
+    MarketTypes.WithdrawalRequest storage request
+  ) private view {
+    if (request.status != MarketTypes.WithdrawalRequestStatus.Pending) {
+      revert WithdrawalRequestNotPending(requestId, request.status);
+    }
+  }
+
   /// @notice Locks an active market's receipt book while the offchain service computes clearing.
+  /// @dev Reverts while any withdrawal request is pending: the frozen book
+  ///      must be deterministic, and a pending request holds segments out of
+  ///      live support with their money still in escrow (ADR 0014 P3's
+  ///      freeze rule). At the v1 zero window this is trivial — the manager
+  ///      finalizes matured requests and starts graduation in the next
+  ///      transaction — and requests are manager-only, so no third party can
+  ///      hold graduation open. Revisit alongside owner-submitted requests.
   /// @param marketId Market entering the Graduating lifecycle state.
   /// @return snapshotHash Hash of the locked market state.
   function startGraduation(
@@ -893,6 +1416,11 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     MarketTypes.MarketRecord storage market = _markets[marketId];
     _requireActiveMarket(marketId, market);
     _requireBeforeGraduationDeadline(marketId, market.config.graduationDeadline);
+
+    uint256 pendingWithdrawals = _withdrawals.marketPendingRequests[marketId];
+    if (pendingWithdrawals != 0) {
+      revert PendingWithdrawalsBlockGraduation(marketId, pendingWithdrawals);
+    }
 
     market.state.status = MarketTypes.MarketStatus.Graduating;
     market.state.graduationStartedAt = uint64(block.timestamp);

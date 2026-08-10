@@ -68,6 +68,7 @@
     "local:cancel-market": "hardhat run scripts/cancel-market.ts --network localhost",
     "local:arm-pool-protocol-fee": "hardhat run scripts/arm-pool-protocol-fee.ts --network localhost",
     "local:set-entry-fee-rate": "hardhat run scripts/set-entry-fee-rate.ts --network localhost",
+    "local:set-withdrawal-fee-rate": "hardhat run scripts/set-withdrawal-fee-rate.ts --network localhost",
     "local:inspect-orders": "hardhat run scripts/inspect-bounded-orders.ts --network localhost",
     "local:check-health": "hardhat run scripts/check-market-health.ts --network localhost",
     "metadata:check": "hardhat build && node --experimental-strip-types scripts/export-contract-metadata.ts --check",

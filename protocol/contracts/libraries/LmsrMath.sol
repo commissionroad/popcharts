@@ -86,6 +86,41 @@ library LmsrMath {
     quote.cost = _toPositiveUint(receiptCost);
   }
 
+  /// @notice Returns the recorded path cost of one live-support segment for a side.
+  /// @dev The same closed-form band cost `quoteBinaryReceipt` locks at placement,
+  ///      as a pure function of the segment endpoints: YES over `[rLow, rHigh)`
+  ///      costs `C(rHigh) - C(rLow)`; NO costs the segment width minus that. The
+  ///      live path position only ever chose the endpoints — it never enters the
+  ///      cost — and `C` rounds once per coordinate, so segment costs telescope:
+  ///      splitting a band at any coordinate conserves its recorded cost to the
+  ///      wei (whitepaper v0.6 §4, ADR 0014 P3). Clamped at zero rather than
+  ///      reverting: a deep-tail segment's true cost can round to zero, and
+  ///      per-coordinate rounding (up to ~`b`/1e18 wei per `C` value) can even
+  ///      push a dust-width segment's computed cost a hair negative. The clamp
+  ///      floors that artifact, which is the one break in exact telescoping —
+  ///      clamped pieces can sum above their whole — and it always errs toward
+  ///      escrow: a claim can under-refund by the artifact, never
+  ///      under-collateralize. Callers validate positive width; degenerate
+  ///      bounds price zero.
+  /// @param rLow Lower bound of the segment on the LMSR path coordinate.
+  /// @param rHigh Upper bound of the segment on the LMSR path coordinate.
+  /// @param side YES or NO side the segment was purchased on.
+  /// @param liquidityParameter Virtual LMSR smoothness parameter.
+  /// @return Recorded segment cost in collateral units, rounded toward escrow.
+  function segmentPathCost(
+    int256 rLow,
+    int256 rHigh,
+    MarketTypes.Side side,
+    uint256 liquidityParameter
+  ) internal pure returns (uint256) {
+    validateLiquidityParameter(liquidityParameter);
+
+    int256 yesCost = (_lmsrCost(rHigh, liquidityParameter) - _lmsrCost(rLow, liquidityParameter))
+      .unwrap();
+    int256 sideCost = side == MarketTypes.Side.Yes ? yesCost : (rHigh - rLow) - yesCost;
+    return sideCost <= 0 ? 0 : uint256(sideCost);
+  }
+
   /// @notice Computes the binary LMSR cost function at a path coordinate.
   /// @param path One-dimensional LMSR path coordinate.
   /// @param liquidityParameter Virtual LMSR smoothness parameter.

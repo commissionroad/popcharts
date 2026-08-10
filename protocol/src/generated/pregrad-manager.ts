@@ -405,6 +405,48 @@ export const pregradManagerAbi = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "period",
+        type: "uint64",
+      },
+      {
+        internalType: "uint64",
+        name: "maximum",
+        type: "uint64",
+      },
+    ],
+    name: "InvalidWithdrawalChallengePeriod",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidWithdrawalFeeRecipient",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "named",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "actual",
+        type: "address",
+      },
+    ],
+    name: "InvalidWithdrawalOwner",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "InvalidYesNotBefore",
     type: "error",
@@ -514,6 +556,17 @@ export const pregradManagerAbi = [
       },
     ],
     name: "MetadataTooLong",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "NoWithdrawalSegments",
     type: "error",
   },
   {
@@ -648,6 +701,22 @@ export const pregradManagerAbi = [
       },
     ],
     name: "PRBMath_SD59x18_Mul_Overflow",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingRequests",
+        type: "uint256",
+      },
+    ],
+    name: "PendingWithdrawalsBlockGraduation",
     type: "error",
   },
   {
@@ -794,12 +863,151 @@ export const pregradManagerAbi = [
   {
     inputs: [
       {
+        internalType: "int256",
+        name: "previousHigh",
+        type: "int256",
+      },
+      {
+        internalType: "int256",
+        name: "rLow",
+        type: "int256",
+      },
+    ],
+    name: "UnorderedWithdrawalSegments",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "value",
         type: "uint256",
       },
     ],
     name: "ValueTooLarge",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint64",
+        name: "challengeDeadline",
+        type: "uint64",
+      },
+    ],
+    name: "WithdrawalChallengeActive",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint64",
+        name: "challengeDeadline",
+        type: "uint64",
+      },
+    ],
+    name: "WithdrawalChallengeWindowClosed",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "refutingReceiptId",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalClaimNotRefuted",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "rateWad",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "maximumRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalFeeRateExceedsMaximum",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "available",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "requested",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalFeeWithdrawalExceedsEarned",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalRequestAlreadyPending",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalRequestDoesNotExist",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        internalType: "enum MarketTypes.WithdrawalRequestStatus",
+        name: "status",
+        type: "uint8",
+      },
+    ],
+    name: "WithdrawalRequestNotPending",
     type: "error",
   },
   {
@@ -936,6 +1144,31 @@ export const pregradManagerAbi = [
       },
     ],
     name: "EarnedEntryFeesWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "EarnedWithdrawalFeesWithdrawn",
     type: "event",
   },
   {
@@ -1457,6 +1690,171 @@ export const pregradManagerAbi = [
       {
         indexed: true,
         internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "escrowRefund",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "entryFeeRefund",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "withdrawalFee",
+        type: "uint256",
+      },
+    ],
+    name: "ReceiptWithdrawalFinalized",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "challenger",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "refutingReceiptId",
+        type: "uint256",
+      },
+    ],
+    name: "ReceiptWithdrawalRefuted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "int256",
+            name: "rLow",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "rHigh",
+            type: "int256",
+          },
+        ],
+        indexed: false,
+        internalType: "struct MarketTypes.PathSegment[]",
+        name: "segments",
+        type: "tuple[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "grossRefund",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "withdrawalFee",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "entryFeeRefund",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "challengeDeadline",
+        type: "uint64",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "nextReceiptIdSnapshot",
+        type: "uint256",
+      },
+    ],
+    name: "ReceiptWithdrawalRequested",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
         name: "receiptId",
         type: "uint256",
       },
@@ -1499,6 +1897,44 @@ export const pregradManagerAbi = [
       },
     ],
     name: "TrustedCreatorUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "previousPeriod",
+        type: "uint64",
+      },
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "newPeriod",
+        type: "uint64",
+      },
+    ],
+    name: "WithdrawalChallengePeriodUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "previousRateWad",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawalFeeRateUpdated",
     type: "event",
   },
   {
@@ -1595,6 +2031,32 @@ export const pregradManagerAbi = [
   {
     inputs: [],
     name: "MAX_RECEIPT_SEGMENTS",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MAX_WITHDRAWAL_CHALLENGE_PERIOD",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MAX_WITHDRAWAL_FEE_RATE_WAD",
     outputs: [
       {
         internalType: "uint256",
@@ -1941,6 +2403,19 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
+    name: "finalizeReceiptWithdrawal",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "marketId",
         type: "uint256",
       },
@@ -2255,6 +2730,89 @@ export const pregradManagerAbi = [
     inputs: [
       {
         internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
+    name: "getWithdrawalRequest",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "receiptId",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "marketId",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            internalType: "uint64",
+            name: "challengeDeadline",
+            type: "uint64",
+          },
+          {
+            internalType: "enum MarketTypes.WithdrawalRequestStatus",
+            name: "status",
+            type: "uint8",
+          },
+          {
+            internalType: "uint256",
+            name: "grossRefund",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "withdrawalFee",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "entryFeeRefund",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "nextReceiptIdSnapshot",
+            type: "uint256",
+          },
+          {
+            components: [
+              {
+                internalType: "int256",
+                name: "rLow",
+                type: "int256",
+              },
+              {
+                internalType: "int256",
+                name: "rHigh",
+                type: "int256",
+              },
+            ],
+            internalType: "struct MarketTypes.PathSegment[]",
+            name: "segments",
+            type: "tuple[]",
+          },
+        ],
+        internalType: "struct MarketTypes.WithdrawalRequest",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
         name: "marketId",
         type: "uint256",
       },
@@ -2531,6 +3089,44 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "marketPendingWithdrawals",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "marketWithdrawalFeesEarned",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "nextMarketId",
     outputs: [
@@ -2558,12 +3154,44 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "nextWithdrawalRequestId",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "owner",
     outputs: [
       {
         internalType: "address",
         name: "",
         type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "pendingWithdrawalRequestOf",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -2676,9 +3304,68 @@ export const pregradManagerAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "refutingReceiptId",
+        type: "uint256",
+      },
+    ],
+    name: "refuteWithdrawalRequest",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "renounceOwnership",
     outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "int256",
+            name: "rLow",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "rHigh",
+            type: "int256",
+          },
+        ],
+        internalType: "struct MarketTypes.PathSegment[]",
+        name: "segments",
+        type: "tuple[]",
+      },
+    ],
+    name: "requestReceiptWithdrawal",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -2748,6 +3435,32 @@ export const pregradManagerAbi = [
       },
     ],
     name: "setTrustedCreator",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint64",
+        name: "newPeriod",
+        type: "uint64",
+      },
+    ],
+    name: "setWithdrawalChallengePeriod",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "newRateWad",
+        type: "uint256",
+      },
+    ],
+    name: "setWithdrawalFeeRate",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -2887,6 +3600,74 @@ export const pregradManagerAbi = [
     name: "withdrawEarnedEntryFees",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawEarnedWithdrawalFees",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "withdrawalChallengePeriod",
+    outputs: [
+      {
+        internalType: "uint64",
+        name: "",
+        type: "uint64",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "grossRefund",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawalFeeFor",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "withdrawalFeeRateWad",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
 ] as const satisfies Abi;

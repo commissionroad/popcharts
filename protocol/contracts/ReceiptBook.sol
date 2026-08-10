@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ReceiptBands} from "./libraries/ReceiptBands.sol";
+import {ReceiptWithdrawals} from "./libraries/ReceiptWithdrawals.sol";
 import {MarketTypes} from "./types/MarketTypes.sol";
 
 /// @title ReceiptBook
@@ -46,18 +46,6 @@ abstract contract ReceiptBook {
     uint64 sequence
   );
 
-  /// @notice Segment-list overlay for one receipt's live support.
-  struct ReceiptSupport {
-    /// @notice True once a band has been removed; `segments` is then the
-    ///   receipt's live support, including when it is empty. While false the
-    ///   live support is the placement interval `[rLow, rHigh]` and nothing
-    ///   is stored here.
-    bool segmented;
-    /// @notice Live-support segments: ascending, disjoint, non-touching,
-    ///   positive-width.
-    MarketTypes.PathSegment[] segments;
-  }
-
   /// @notice Maximum stored live-support segments per receipt (ADR 0014 P1).
   /// @dev Only the owner can fragment a receipt: a withdrawal (P3) removes a
   ///      band from the owner's own live support, and each interior removal
@@ -77,7 +65,7 @@ abstract contract ReceiptBook {
 
   mapping(uint256 receiptId => MarketTypes.Receipt) private _receipts;
 
-  mapping(uint256 receiptId => ReceiptSupport) private _receiptSupport;
+  mapping(uint256 receiptId => MarketTypes.ReceiptSupport) private _receiptSupport;
 
   /// @notice Returns the next receipt ID that will be assigned.
   /// @return Next receipt ID.
@@ -107,6 +95,15 @@ abstract contract ReceiptBook {
   }
 
   /// @notice Returns a receipt's live support as an ordered segment list.
+  /// @param receiptId Receipt ID to read.
+  /// @return Live-support segments: ascending, disjoint, non-touching.
+  function getReceiptSegments(
+    uint256 receiptId
+  ) external view returns (MarketTypes.PathSegment[] memory) {
+    return _liveReceiptSegments(receiptId);
+  }
+
+  /// @notice Returns a receipt's live support as an ordered segment list.
   /// @dev The single place the overlay resolves: until a band is removed the
   ///      receipt stores no segments and its live support is the placement
   ///      interval `[rLow, rHigh]`; afterwards the stored list is
@@ -114,18 +111,19 @@ abstract contract ReceiptBook {
   ///      receipt, which never resurrects the placement interval.
   /// @param receiptId Receipt ID to read.
   /// @return Live-support segments: ascending, disjoint, non-touching.
-  function getReceiptSegments(
+  function _liveReceiptSegments(
     uint256 receiptId
-  ) external view returns (MarketTypes.PathSegment[] memory) {
+  ) internal view returns (MarketTypes.PathSegment[] memory) {
     _requireReceiptExists(receiptId);
 
-    ReceiptSupport storage support = _receiptSupport[receiptId];
+    MarketTypes.ReceiptSupport storage support = _receiptSupport[receiptId];
     if (support.segmented) {
       return support.segments;
     }
 
+    MarketTypes.Receipt storage receipt = _receipts[receiptId];
     MarketTypes.PathSegment[] memory placementInterval = new MarketTypes.PathSegment[](1);
-    placementInterval[0] = _placementSegment(receiptId);
+    placementInterval[0] = MarketTypes.PathSegment({rLow: receipt.rLow, rHigh: receipt.rHigh});
     return placementInterval;
   }
 
@@ -174,9 +172,9 @@ abstract contract ReceiptBook {
 
   /// @notice Removes the band `[lower, upper]` from a receipt's live support,
   ///   splitting the containing segment when the band is interior.
-  /// @dev Unused in P1 by design: the caller is ADR 0014 P3's
-  ///      `withdrawReceiptBands` request path, which removes each claimed
-  ///      segment from live support at request time. The first removal
+  /// @dev The ADR 0014 P3 request path runs this removal through
+  ///      `ReceiptWithdrawals.request`; this wrapper is the same library code
+  ///      for harness tests and any future internal caller. The first removal
   ///      materializes the placement interval into the stored list; a removal
   ///      that empties the list leaves the receipt with genuinely empty live
   ///      support. Reverts with `ReceiptBands.EmptyBand`,
@@ -188,24 +186,51 @@ abstract contract ReceiptBook {
   function _removeReceiptSupportBand(uint256 receiptId, int256 lower, int256 upper) internal {
     _requireReceiptExists(receiptId);
 
-    ReceiptSupport storage support = _receiptSupport[receiptId];
-    if (!support.segmented) {
-      support.segmented = true;
-      support.segments.push(_placementSegment(receiptId));
-    }
-
-    ReceiptBands.removeBand(support.segments, lower, upper, MAX_RECEIPT_SEGMENTS);
+    ReceiptWithdrawals.removeSupportBand(
+      _receiptSupport[receiptId],
+      _receipts[receiptId],
+      lower,
+      upper,
+      MAX_RECEIPT_SEGMENTS
+    );
   }
 
-  /// @notice Returns the placement interval `[rLow, rHigh]` as a segment —
-  ///   the live support of a receipt no band was ever removed from.
+  /// @notice Restores the band `[lower, upper]` to a receipt's live support,
+  ///   merging with touching neighbors — the inverse of
+  ///   `_removeReceiptSupportBand`.
+  /// @dev The ADR 0014 P3 challenge path runs this restore through
+  ///      `ReceiptWithdrawals.refute`; this wrapper is the same library code
+  ///      for harness tests and any future internal caller. Only bands a
+  ///      prior removal took may be restored, so the
+  ///      support is always segmented here; a restore that overlaps live
+  ///      support reverts with `ReceiptBands.BandOverlapsLiveSupport`.
+  /// @param receiptId Receipt whose live support regains the band.
+  /// @param lower Lower path endpoint of the restored band.
+  /// @param upper Upper path endpoint of the restored band.
+  function _restoreReceiptSupportBand(uint256 receiptId, int256 lower, int256 upper) internal {
+    _requireReceiptExists(receiptId);
+
+    ReceiptWithdrawals.restoreSupportBand(_receiptSupport[receiptId], lower, upper);
+  }
+
+  /// @notice Returns a storage pointer to a receipt's support overlay for the
+  ///   withdrawal machinery.
   /// @param receiptId Receipt ID to read.
-  /// @return Placement-interval segment.
-  function _placementSegment(
+  /// @return Receipt support storage record.
+  function _receiptSupportAt(
     uint256 receiptId
-  ) private view returns (MarketTypes.PathSegment memory) {
-    MarketTypes.Receipt storage receipt = _receipts[receiptId];
-    return MarketTypes.PathSegment({rLow: receipt.rLow, rHigh: receipt.rHigh});
+  ) internal view returns (MarketTypes.ReceiptSupport storage) {
+    return _receiptSupport[receiptId];
+  }
+
+  /// @notice Returns the receipt-ID snapshot a withdrawal request stamps at
+  ///   request time (ADR 0014 P3): the current next receipt ID.
+  /// @dev Receipts allocated at or above the snapshot were placed after the
+  ///      request's segments left the live book and cannot refute its claim.
+  ///      Stamped by the contract, never taken from the requester.
+  /// @return The next receipt ID that will be assigned.
+  function _nextReceiptIdSnapshot() internal view returns (uint256) {
+    return _nextReceiptId;
   }
 
   /// @notice Requires a receipt ID to have been assigned.

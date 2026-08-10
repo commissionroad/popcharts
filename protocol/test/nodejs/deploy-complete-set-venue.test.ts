@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+
+import { deployPregradManager } from "../../scripts/shared/deployment/deployPregradManager.js";
 import { getAddress, type Address } from "viem";
 
 import VenueStackModule from "../../ignition/modules/VenueStack.js";
@@ -127,7 +129,7 @@ describe("complete-set venue deployment chain", async function () {
   });
 
   it("deploys the postgrad venue contracts and wires the bounded hook", async function () {
-    const pregradManager = await viem.deployContract("PregradManager");
+    const pregradManager = await deployPregradManager(viem);
 
     postgrad = await deployCompleteSetPostgradContracts({
       connection,

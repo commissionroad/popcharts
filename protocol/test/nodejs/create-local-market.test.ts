@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+
+import { deployPregradManager } from "../../scripts/shared/deployment/deployPregradManager.js";
 import { getAddress, keccak256, stringToBytes, toFunctionSelector } from "viem";
 
 import { createLocalMarket } from "../../scripts/shared/market/createLocalMarket.js";
@@ -55,7 +57,7 @@ describe("create-local-market helper", async function () {
 
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
-    const manager = await viem.deployContract("PregradManager");
+    const manager = await deployPregradManager(viem);
     // Mirror deployLocalPregrad: the deployer is a trusted creator, so the
     // helper's zeroed authorization is accepted (repo ADR 0022 P5).
     const [deployer] = await viem.getWalletClients();

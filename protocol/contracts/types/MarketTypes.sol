@@ -210,6 +210,65 @@ library MarketTypes {
     bool active;
   }
 
+  /// @notice Segment-list overlay for one receipt's live support (ADR 0014 P1).
+  struct ReceiptSupport {
+    /// @notice True once a band has been removed; `segments` is then the
+    ///   receipt's live support, including when it is empty. While false the
+    ///   live support is the placement interval `[rLow, rHigh]` and nothing
+    ///   is stored here.
+    bool segmented;
+    /// @notice Live-support segments: ascending, disjoint, non-touching,
+    ///   positive-width.
+    PathSegment[] segments;
+  }
+
+  /// @notice Lifecycle of one optimistic receipt-withdrawal request (ADR 0014 P3).
+  /// @dev A request on a market that leaves Active before finalization keeps
+  ///      its Pending status but is void: finalization and refutation both
+  ///      require the market Active, and the full receipt — cost and held
+  ///      entry fee — refunds through `claimRefundedReceipt` instead.
+  enum WithdrawalRequestStatus {
+    /// @notice No request exists under this ID.
+    None,
+    /// @notice Claimed segments left live support; refutable until the deadline, payable after it.
+    Pending,
+    /// @notice Terminal. A challenger proved opposition and the claimed segments were restored.
+    Refuted,
+    /// @notice Terminal. The window elapsed unchallenged and the refund was paid.
+    Finalized
+  }
+
+  /// @notice One stored optimistic withdrawal request (ADR 0014 P3).
+  /// @dev Every field is contract-stamped at request time — the requester
+  ///      supplies only the receipt, the owner cross-check, and the claimed
+  ///      segments. Amounts are stored, never re-derived at finalization, so
+  ///      an owner rate change mid-window cannot alter what a request pays
+  ///      (the entry fee's store-don't-derive rule, ADR 0014 §3).
+  struct WithdrawalRequest {
+    /// @notice Receipt whose live support the claimed segments left.
+    uint256 receiptId;
+    /// @notice Market that owns the receipt.
+    uint256 marketId;
+    /// @notice Receipt owner at request time; the only account ever paid.
+    address owner;
+    /// @notice Timestamp at or after which an unchallenged request finalizes.
+    uint64 challengeDeadline;
+    /// @notice Current request lifecycle status.
+    WithdrawalRequestStatus status;
+    /// @notice Recorded path cost of the claimed segments.
+    uint256 grossRefund;
+    /// @notice Withdrawal fee at the request-time rate, kept at finalization.
+    uint256 withdrawalFee;
+    /// @notice Pro-rated share of the receipt's held entry fee returned at finalization.
+    uint256 entryFeeRefund;
+    /// @notice `nextReceiptId` read at request time. Receipts allocated at or
+    ///   after it were placed after the claimed segments left the live book
+    ///   and cannot refute the claim.
+    uint256 nextReceiptIdSnapshot;
+    /// @notice The claimed segments, recorded here until the request settles.
+    PathSegment[] segments;
+  }
+
   /// @notice Inputs required to submit an optimistic offchain clearing root.
   struct SubmitClearingRootParams {
     /// @notice Market whose locked receipt book was cleared offchain.
