@@ -279,12 +279,19 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       external path: its caller is P3's `withdrawReceiptBands` request path.
       Per the P3 decision's P1 consequence, the `ReceiptPlaced` event, the
       indexer projection, and every existing reader are unchanged.
-- [ ] **P2 — Off-chain opposition + withdrawal quote.** Extend
-      `band-pass-clearing.ts` with the opposed/free split and a
-      `quoteWithdrawal` helper, with golden tests against whitepaper v0.6
-      Example A (Alice: 44.18 locked, 53.90 free, 13.35 of 28.77 recoverable;
-      Noah and Bea fully locked). Property test: withdrawing every free band of
-      every receipt leaves `F` bit-identical.
+- [x] **P2 — Off-chain opposition + withdrawal quote (delivered 2026-08-10).**
+      The opposed/free split (`opposed-set.ts`, landed with the P3 spike) and
+      `quoteWithdrawal` (`withdrawal-quote.ts`) are exported from the package
+      surface: free segments, recorded path cost per segment, gross refund,
+      fee, and net payout. Golden tests pin whitepaper v0.6 Example A — Alice
+      44.18 locked / 53.90 free, 13.35 of 28.77 recoverable, quoting 12.6825
+      net with a 0.6675 penalty at `φ_out` = 5%; Noah and Bea fully locked,
+      zero quote. The property test (withdrawing every free band of every
+      receipt leaves `F` bit-identical, 398 walk books) runs through the
+      exported surface and asserts the quote's free set is the split's free
+      set exactly. Rounding: the fee is one full-precision multiply, floor
+      divide on the gross refund — `entryFeeFor`'s mulDiv convention — decided
+      in `withdrawal-quote.ts`; P3/P4b enforce the same formula on chain.
 - [ ] **P3 — On-chain `withdrawReceiptBands`.** Refund the free bands' path
       cost net of `φ_out`, decrement `totalEscrowed` and `state.path`, and emit
       a receipt-mutation event the indexer can replay.
@@ -352,7 +359,7 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
          and turning the window on later inherits clearing's honest-watcher
          assumption on a per-user path.
 
-      **Decision (2026-08-08): route 2.** Route 1 taxes the high-frequency
+      **Decision (2026-08-10): route 2.** Route 1 taxes the high-frequency
       operation — placement — with unbounded shared state to subsidize the
       rare one, and every escape from its adversarial cases either blocks
       trades or reintroduces over-locking; route 2 leaves placement untouched,
@@ -397,7 +404,7 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       without P6** — seeding without an unwind path donates the pot to
       arbitrageurs, and the unwind is also what makes any third-party
       subsidy investable.
-- [x] **P7 — Post-graduation fee controller (delivered 2026-08-08).**
+- [x] **P7 — Post-graduation fee controller (delivered 2026-08-10).**
       Mechanics in [docs/fee-model.md](../../../docs/fee-model.md).
       `PostgradFeeController` (a contract, not an operator EOA —
       `collectProtocolFees` emits no event, and the paper-trail rule needs

@@ -1,40 +1,37 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+// Everything under test is imported from the package surface (src/index.js)
+// deliberately: P2's deliverable is the exported surface, so removing one of
+// these exports fails this suite instead of silently narrowing the SDK.
 import {
   computeBandPassClearing,
   computeMatchedMarketCap,
-  yesBandCost,
-  type ClearingReceipt,
-} from "../../src/clearing/band-pass-clearing.js";
-import {
   normalizePathSegments,
+  quoteWithdrawal,
   segmentSidePathCost,
   segmentsSidePathCost,
   segmentsWidth,
   splitOpposedFree,
+  yesBandCost,
+  SIDE_NO,
+  SIDE_YES,
+  type ClearingReceipt,
   type PathSegment,
-} from "../../src/clearing/opposed-set.js";
-import { SIDE_NO, SIDE_YES } from "../../src/market-side.js";
+  type SegmentedReceipt,
+} from "../../src/index.js";
 import {
+  absDiff,
+  CENT,
   makeRng,
   randomWalkBook,
+  rOfPercent,
   WAD,
   WALK_LIQUIDITY_PARAMETER,
+  WITHDRAWAL_FEE_RATE_WAD,
 } from "./opposed-set-walk-fixtures.js";
 
 const B = WALK_LIQUIDITY_PARAMETER;
-const CENT = WAD / 100n; // tolerance for the whitepaper's 4-decimal figures
-
-/** r(P) = b·ln(P/(1−P)) in WAD, for P given as a percent (20 => 20%). */
-function rOfPercent(percent: number): bigint {
-  const p = percent / 100;
-  return BigInt(Math.round(Number(B) * Math.log(p / (1 - p))));
-}
-
-function absDiff(a: bigint, b: bigint): bigint {
-  return a > b ? a - b : b - a;
-}
 
 describe("splitOpposedFree — whitepaper Example A (ADR 0014 P2 golden)", () => {
   // b=100, open 20%. Alice YES 20→40, Noah NO 40→30, Bea YES 30→35.
@@ -126,7 +123,7 @@ describe("splitOpposedFree — interval mechanics", () => {
   });
 });
 
-describe("splitOpposedFree — Lemma 3 over 398 random walk books", () => {
+describe("splitOpposedFree + quoteWithdrawal — Lemma 3 over 398 random walk books", () => {
   it("withdrawing every free band of every receipt leaves F bit-identical", () => {
     const rng = makeRng(0x0014_03);
     let booksWithOverlap = 0;
@@ -147,6 +144,13 @@ describe("splitOpposedFree — Lemma 3 over 398 random walk books", () => {
             .map((receipt) => ({ rHigh: receipt.rHigh, rLow: receipt.rLow })),
         );
       const unions = [coverage(SIDE_YES), coverage(SIDE_NO)] as const;
+      const liveBook: SegmentedReceipt[] = book.map((receipt) => ({
+        active: true,
+        marketId: receipt.marketId,
+        receiptId: receipt.receiptId,
+        segments: [{ rHigh: receipt.rHigh, rLow: receipt.rLow }],
+        side: receipt.side,
+      }));
 
       // The frozen book minus every free band: each receipt keeps only its
       // opposed fragments, each fragment a row at its own recorded path cost.
@@ -157,6 +161,22 @@ describe("splitOpposedFree — Lemma 3 over 398 random walk books", () => {
         for (const free of split.free) {
           assert.deepEqual(splitOpposedFree([free], opposite).opposed, []);
         }
+
+        // P2 quote identity: the quote selects exactly the split's free set,
+        // so withdrawing everything quoted is the reduction below and the
+        // bit-identical-F assertions cover the quote path too.
+        const quote = quoteWithdrawal({
+          book: liveBook,
+          feeRateWad: WITHDRAWAL_FEE_RATE_WAD,
+          liquidityParameter: B,
+          receiptId: receipt.receiptId,
+        });
+        assert.deepEqual(
+          quote.freeSegments.map(({ rHigh, rLow }) => ({ rHigh, rLow })),
+          split.free,
+        );
+        assert.equal(quote.grossRefund, segmentsSidePathCost(split.free, receipt.side, B));
+        assert.equal(quote.netPayout + quote.fee, quote.grossRefund);
         maxOpposedFragments = Math.max(maxOpposedFragments, split.opposed.length);
         for (const fragment of split.opposed) {
           const id = BigInt(reduced.length + 1);
