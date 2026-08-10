@@ -18,6 +18,7 @@ import {
   configureOutcomePool,
   deployCompleteSetBinaryMarket,
 } from "../../scripts/shared/market/deployCompleteSetMarketContracts.js";
+import { stateViewAbi } from "../../src/generated/third-party/venue.js";
 
 const WAD = 10n ** 18n;
 const HOOK_ADDRESS_FLAG_MASK = (1n << 14n) - 1n;
@@ -40,6 +41,7 @@ describe("complete-set venue deployment chain", async function () {
   const publicClient = await viem.getPublicClient();
 
   let venueAddresses: {
+    feeController: Address;
     poolManager: Address;
     quoter: Address;
     stateView: Address;
@@ -67,11 +69,35 @@ describe("complete-set venue deployment chain", async function () {
     }
 
     venueAddresses = {
+      feeController: deployed.feeController.address,
       poolManager: deployed.poolManager.address,
       quoter: deployed.quoter.address,
       stateView: deployed.stateView.address,
       swapRouter: deployed.swapRouter.address,
     };
+  });
+
+  it("installs the fee controller on the pool manager without arming fees", async function () {
+    // setProtocolFeeController must run from the pool manager's owner inside
+    // the module; the deployed venue is unusable for fee ops if this drifted.
+    const poolManager = await viem.getContractAt(
+      "@uniswap/v4-periphery/lib/v4-core/src/PoolManager.sol:PoolManager",
+      venueAddresses.poolManager,
+    );
+    assert.equal(
+      getAddress((await poolManager.read.protocolFeeController()) as Address),
+      getAddress(venueAddresses.feeController),
+    );
+
+    const feeController = await viem.getContractAt(
+      "PostgradFeeController",
+      venueAddresses.feeController,
+    );
+    assert.equal(getAddress((await feeController.read.owner()) as Address), deployerAddress);
+    assert.equal(
+      getAddress((await feeController.read.poolManager()) as Address),
+      getAddress(venueAddresses.poolManager),
+    );
   });
 
   it("keeps the manifest keys the local dev stack reads back", function () {
@@ -81,7 +107,7 @@ describe("complete-set venue deployment chain", async function () {
       (descriptor) => descriptor.manifestKey,
     );
 
-    for (const required of ["poolManager", "quoter", "stateView", "swapRouter"]) {
+    for (const required of ["feeController", "poolManager", "quoter", "stateView", "swapRouter"]) {
       assert.equal(manifestKeys.includes(required), true, `venue manifest lost ${required}`);
     }
   });
@@ -220,5 +246,28 @@ describe("complete-set venue deployment chain", async function () {
     );
     assert.equal(await orderManager.read.poolWhitelisted([yesPool.poolId]), true);
     assert.equal(await orderManager.read.poolWhitelisted([noPool.poolId]), true);
+
+    // Arm both pools through the controller with the exact call shape
+    // local:arm-pool-protocol-fee uses (manifest-shaped pool keys through
+    // viem), then read the packed fee back from pool state.
+    const feeController = await viem.getContractAt(
+      "PostgradFeeController",
+      venueAddresses.feeController,
+    );
+    const symmetricFee = await feeController.read.SYMMETRIC_PROTOCOL_FEE();
+    const armHash = await feeController.write.armPoolProtocolFeeBatch([
+      [yesPool.poolKey, noPool.poolKey],
+      symmetricFee,
+    ]);
+    await publicClient.waitForTransactionReceipt({ hash: armHash });
+    for (const pool of [yesPool, noPool]) {
+      const [, , armedProtocolFee] = await publicClient.readContract({
+        abi: stateViewAbi,
+        address: venueAddresses.stateView,
+        args: [pool.poolId],
+        functionName: "getSlot0",
+      });
+      assert.equal(armedProtocolFee, symmetricFee);
+    }
   });
 });

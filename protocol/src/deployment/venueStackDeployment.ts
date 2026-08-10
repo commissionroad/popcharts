@@ -37,6 +37,12 @@ export const VENUE_STACK_DEPLOYMENT = {
       manifestKey: "swapRouter",
       resultKey: "swapRouter",
     },
+    {
+      contractName: "PostgradFeeController",
+      futureId: "VenueStack#PostgradFeeController",
+      manifestKey: "feeController",
+      resultKey: "feeController",
+    },
   ],
   defaultDeploymentFile: (chainEnv: string): string =>
     `deployments/${chainEnv}.venue-stack.local.json`,

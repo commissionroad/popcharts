@@ -15,16 +15,20 @@ reference an implementer reads first.
 > (#494), event tables (#497), indexer ingestion (#519), app quoting/approval/
 > display (#526) — and ships with the rate at zero. Arming it is an ops
 > action: `local:set-entry-fee-rate` on a local stack, `setEntryFeeRate` as
-> the owner in production. The withdrawal fee waits on the withdrawal
-> mechanism (ADR 0014 P1–P3); the post-graduation 0.1% waits on the
-> controller (P7).
+> the owner in production. The post-graduation 0.1% controller (P7) is built
+> and installed with the venue stack — `PostgradFeeController` arms per-pool
+> fees, sweeps with a paper-trail event, and merges outcome-token fees — and
+> also ships disarmed: arming is an ops action (`local:arm-pool-protocol-fee`
+> on a local stack, `armPoolProtocolFee` as the owner in production), and
+> indexer ingestion of its events is deferred. The withdrawal fee waits on
+> the withdrawal mechanism (ADR 0014 P1–P3).
 
 | Fee | Rate | Charged | Earned | Refundable |
 | --- | --- | --- | --- | --- |
 | Market creation | fixed, native | at market creation | on collection | no |
 | Entry `φ_in` | 1% of receipt cost — **built, ships disarmed** | at `placeReceipt` | at clearing, on **matched** cost only | **yes — in full if the market never graduates** |
 | Withdrawal `φ_out` | 5% of withdrawn cost | on withdrawing an unopposed band | immediately | never |
-| Post-graduation trading | 0.1% (v4 native cap) | every swap | immediately | no |
+| Post-graduation trading | 0.1% (v4 native cap) — **built, ships disarmed** | every swap | immediately | no |
 
 The LP fee is deliberately not in that table. **It goes entirely to liquidity
 providers.** They are the only reason the venue has depth once the protocol's

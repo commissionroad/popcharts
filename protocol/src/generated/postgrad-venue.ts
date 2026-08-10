@@ -19,6 +19,7 @@ export const postgradVenueContractNames = [
   "MinimalV4SwapRouter",
   "OutcomeToken",
   "PoolTickBounds",
+  "PostgradFeeController",
 ] as const;
 export type PostgradVenueContractName = (typeof postgradVenueContractNames)[number];
 
@@ -36,6 +37,7 @@ export type PostgradVenueManifestId = (typeof postgradVenueManifestIds)[number];
  */
 export const postgradVenueSingletonKeys = [
   "boundedHook",
+  "feeController",
   "orderManager",
   "poolTickBounds",
   "postgradAdapter",
@@ -89,6 +91,11 @@ export const postgradVenueAddressSources = {
   PoolTickBounds: {
     manifest: "postgrad",
     manifestKeys: ["poolTickBounds"],
+    perMarket: false,
+  },
+  PostgradFeeController: {
+    manifest: "venueStack",
+    manifestKeys: ["feeController"],
     perMarket: false,
   },
 } as const satisfies Record<PostgradVenueContractName, PostgradVenueAddressSource>;
@@ -4438,6 +4445,468 @@ export const poolTickBoundsAbi = [
   },
 ] as const satisfies Abi;
 
+/** ABI for PostgradFeeController. */
+export const postgradFeeControllerAbi = [
+  {
+    inputs: [
+      {
+        internalType: "contract IProtocolFees",
+        name: "poolManager_",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "initialOwner",
+        type: "address",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "constructor",
+  },
+  {
+    inputs: [],
+    name: "EmptyPoolKeyBatch",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidFeeRecipient",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidPoolManager",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidWithdrawalAmount",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "Currency",
+        name: "currency",
+        type: "address",
+      },
+    ],
+    name: "NoFeesToSweep",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "market",
+        type: "address",
+      },
+    ],
+    name: "NoOutcomeFeesToMerge",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+    ],
+    name: "OwnableInvalidOwner",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+    ],
+    name: "OwnableUnauthorizedAccount",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint24",
+        name: "protocolFee",
+        type: "uint24",
+      },
+      {
+        internalType: "uint16",
+        name: "directionCap",
+        type: "uint16",
+      },
+    ],
+    name: "ProtocolFeeExceedsDirectionCap",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ReentrancyGuardReentrantCall",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+    ],
+    name: "SafeERC20FailedOperation",
+    type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "FeeTokensWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "market",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "outcomeAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "collateralAmount",
+        type: "uint256",
+      },
+    ],
+    name: "OutcomeFeesMerged",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "PoolId",
+        name: "poolId",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "uint24",
+        name: "protocolFee",
+        type: "uint24",
+      },
+    ],
+    name: "PoolProtocolFeeArmed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "Currency",
+        name: "currency",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "ProtocolFeesSwept",
+    type: "event",
+  },
+  {
+    inputs: [],
+    name: "MAX_PROTOCOL_FEE_PIPS",
+    outputs: [
+      {
+        internalType: "uint16",
+        name: "",
+        type: "uint16",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "SYMMETRIC_PROTOCOL_FEE",
+    outputs: [
+      {
+        internalType: "uint24",
+        name: "",
+        type: "uint24",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "Currency",
+            name: "currency0",
+            type: "address",
+          },
+          {
+            internalType: "Currency",
+            name: "currency1",
+            type: "address",
+          },
+          {
+            internalType: "uint24",
+            name: "fee",
+            type: "uint24",
+          },
+          {
+            internalType: "int24",
+            name: "tickSpacing",
+            type: "int24",
+          },
+          {
+            internalType: "contract IHooks",
+            name: "hooks",
+            type: "address",
+          },
+        ],
+        internalType: "struct PoolKey",
+        name: "key",
+        type: "tuple",
+      },
+      {
+        internalType: "uint24",
+        name: "protocolFee",
+        type: "uint24",
+      },
+    ],
+    name: "armPoolProtocolFee",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "Currency",
+            name: "currency0",
+            type: "address",
+          },
+          {
+            internalType: "Currency",
+            name: "currency1",
+            type: "address",
+          },
+          {
+            internalType: "uint24",
+            name: "fee",
+            type: "uint24",
+          },
+          {
+            internalType: "int24",
+            name: "tickSpacing",
+            type: "int24",
+          },
+          {
+            internalType: "contract IHooks",
+            name: "hooks",
+            type: "address",
+          },
+        ],
+        internalType: "struct PoolKey[]",
+        name: "keys",
+        type: "tuple[]",
+      },
+      {
+        internalType: "uint24",
+        name: "protocolFee",
+        type: "uint24",
+      },
+    ],
+    name: "armPoolProtocolFeeBatch",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "contract ICompleteSetMergeMarket",
+        name: "market",
+        type: "address",
+      },
+    ],
+    name: "mergeOutcomeFees",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "outcomeAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "collateralAmount",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "owner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "poolManager",
+    outputs: [
+      {
+        internalType: "contract IProtocolFees",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "renounceOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "Currency",
+        name: "currency",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+    ],
+    name: "sweepProtocolFees",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "contract IERC20",
+        name: "token",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "recipient",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawFeeTokens",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const satisfies Abi;
+
 /**
  * Event names each contract can emit, sorted for stable subscription lists.
  * Per-market OutcomeToken instances only emit the standard ERC20 events.
@@ -4484,6 +4953,13 @@ export const postgradVenueEventNames = {
   MinimalV4SwapRouter: [],
   OutcomeToken: ["Approval", "Transfer"],
   PoolTickBounds: ["OwnershipTransferred", "PoolTickBoundsSet"],
+  PostgradFeeController: [
+    "FeeTokensWithdrawn",
+    "OutcomeFeesMerged",
+    "OwnershipTransferred",
+    "PoolProtocolFeeArmed",
+    "ProtocolFeesSwept",
+  ],
 } as const satisfies Record<PostgradVenueContractName, readonly string[]>;
 export type PostgradVenueEventName =
   (typeof postgradVenueEventNames)[PostgradVenueContractName][number];
@@ -4556,5 +5032,11 @@ export const postgradVenueContracts = {
     abi: poolTickBoundsAbi,
     addressSource: postgradVenueAddressSources.PoolTickBounds,
     eventNames: postgradVenueEventNames.PoolTickBounds,
+  },
+  PostgradFeeController: {
+    name: "PostgradFeeController",
+    abi: postgradFeeControllerAbi,
+    addressSource: postgradVenueAddressSources.PostgradFeeController,
+    eventNames: postgradVenueEventNames.PostgradFeeController,
   },
 } as const;
