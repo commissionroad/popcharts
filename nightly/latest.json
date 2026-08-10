@@ -1,10 +1,10 @@
 {
   "version": 1,
   "run": {
-    "runId": "31306249741",
-    "ts": "2026-08-09T09:45:01Z",
-    "commit": "f1417883b070a61d2d9c458efb123a385d9c7f45",
-    "runUrl": "https://github.com/commissionroad/popcharts/actions/runs/31306249741",
+    "runId": "31378150567",
+    "ts": "2026-08-10T10:23:11Z",
+    "commit": "b67797d70905a654e89a6f2b52a54c72467f7fb8",
+    "runUrl": "https://github.com/commissionroad/popcharts/actions/runs/31378150567",
     "conclusion": "failed",
     "suites": {
       "smoke": "failure",
