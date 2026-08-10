@@ -352,7 +352,7 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
          and turning the window on later inherits clearing's honest-watcher
          assumption on a per-user path.
 
-      **Decision (2026-08-08): route 2.** Route 1 taxes the high-frequency
+      **Decision (2026-08-10): route 2.** Route 1 taxes the high-frequency
       operation — placement — with unbounded shared state to subsidize the
       rare one, and every escape from its adversarial cases either blocks
       trades or reintroduces over-locking; route 2 leaves placement untouched,
@@ -397,7 +397,7 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       without P6** — seeding without an unwind path donates the pot to
       arbitrageurs, and the unwind is also what makes any third-party
       subsidy investable.
-- [x] **P7 — Post-graduation fee controller (delivered 2026-08-08).**
+- [x] **P7 — Post-graduation fee controller (delivered 2026-08-10).**
       Mechanics in [docs/fee-model.md](../../../docs/fee-model.md).
       `PostgradFeeController` (a contract, not an operator EOA —
       `collectProtocolFees` emits no event, and the paper-trail rule needs
