@@ -29,4 +29,12 @@ contract ReceiptBookHarness is ReceiptBook {
   function removeSupportBand(uint256 receiptId, int256 lower, int256 upper) external {
     _removeReceiptSupportBand(receiptId, lower, upper);
   }
+
+  /// @notice Exposes live-support band restoration.
+  /// @param receiptId Receipt whose live support regains the band.
+  /// @param lower Lower path endpoint of the restored band.
+  /// @param upper Upper path endpoint of the restored band.
+  function restoreSupportBand(uint256 receiptId, int256 lower, int256 upper) external {
+    _restoreReceiptSupportBand(receiptId, lower, upper);
+  }
 }
