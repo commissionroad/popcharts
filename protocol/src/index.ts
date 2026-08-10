@@ -106,6 +106,17 @@ export {
 } from "./clearing/band-pass-clearing.js";
 export type { BandPassClearingResult, ClearingReceipt } from "./clearing/band-pass-clearing.js";
 export {
+  normalizePathSegments,
+  segmentSidePathCost,
+  segmentsSidePathCost,
+  segmentsWidth,
+  splitOpposedFree,
+} from "./clearing/opposed-set.js";
+export type { OpposedFreeSplit, PathSegment } from "./clearing/opposed-set.js";
+export { quoteWithdrawal } from "./clearing/withdrawal-quote.js";
+export type { QuotedFreeSegment, WithdrawalQuote } from "./clearing/withdrawal-quote.js";
+export type { SegmentedReceipt } from "./clearing/withdrawal-claim.js";
+export {
   contractSideToMarketSide,
   MARKET_SIDES,
   marketSideToContractSide,
