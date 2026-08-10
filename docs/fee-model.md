@@ -11,7 +11,7 @@ reference an implementer reads first.
 
 ## The four fees
 
-> **Status (2026-08-08).** The entry fee is implemented end to end — contract
+> **Status (2026-08-10).** The entry fee is implemented end to end — contract
 > (#494), event tables (#497), indexer ingestion (#519), app quoting/approval/
 > display (#526) — and ships with the rate at zero. Arming it is an ops
 > action: `local:set-entry-fee-rate` on a local stack, `setEntryFeeRate` as
@@ -20,14 +20,18 @@ reference an implementer reads first.
 > fees, sweeps with a paper-trail event, and merges outcome-token fees — and
 > also ships disarmed: arming is an ops action (`local:arm-pool-protocol-fee`
 > on a local stack, `armPoolProtocolFee` as the owner in production), and
-> indexer ingestion of its events is deferred. The withdrawal fee waits on
-> the withdrawal mechanism (ADR 0014 P1–P3).
+> indexer ingestion of its events is deferred. The withdrawal fee (P3/P4b)
+> is built contract-side and also ships disarmed: withdrawal is an optimistic
+> request/refute/finalize on the manager, arming is an ops action
+> (`local:set-withdrawal-fee-rate` on a local stack, `setWithdrawalFeeRate`
+> as the owner in production), and indexer ingestion of its paper-trail
+> events is the next PR in the stack.
 
 | Fee | Rate | Charged | Earned | Refundable |
 | --- | --- | --- | --- | --- |
 | Market creation | fixed, native | at market creation | on collection | no |
 | Entry `φ_in` | 1% of receipt cost — **built, ships disarmed** | at `placeReceipt` | at clearing, on **matched** cost only | **yes — in full if the market never graduates** |
-| Withdrawal `φ_out` | 5% of withdrawn cost | on withdrawing an unopposed band | immediately | never |
+| Withdrawal `φ_out` | 5% of withdrawn cost — **built, ships disarmed** | on withdrawing an unopposed band | at finalization, on the act | never |
 | Post-graduation trading | 0.1% (v4 native cap) — **built, ships disarmed** | every swap | immediately | no |
 
 The LP fee is deliberately not in that table. **It goes entirely to liquidity
@@ -87,6 +91,13 @@ It prices one narrow thing: moving the displayed odds and retracting them while
 nobody responds. It is not buying solvency (Lemma 3 covers that) or
 pump-and-withdraw protection (the lock rule forecloses it). Nothing inside the
 mechanism calibrates the rate.
+
+Mechanics (ADR 0014 P3): withdrawal is request-then-finalize, not instant. The
+fee is one floored mulDiv on the request's whole gross — never per segment —
+stamped at the request-time rate and never re-derived, and it lands in
+`marketWithdrawalFeesEarned` when the request finalizes. A request voided
+because its market was cancelled or missed graduation charges nothing: the
+full receipt refunds instead, entry fee included.
 
 ## At graduation
 

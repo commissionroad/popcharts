@@ -292,9 +292,48 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       set exactly. Rounding: the fee is one full-precision multiply, floor
       divide on the gross refund — `entryFeeFor`'s mulDiv convention — decided
       in `withdrawal-quote.ts`; P3/P4b enforce the same formula on chain.
-- [ ] **P3 — On-chain `withdrawReceiptBands`.** Refund the free bands' path
-      cost net of `φ_out`, decrement `totalEscrowed` and `state.path`, and emit
-      a receipt-mutation event the indexer can replay.
+- [x] **P3 — On-chain withdrawal requests (delivered 2026-08-10).** Route 2
+      as decided, shipped as a request/refute/finalize surface on
+      `PregradManager` in place of the single-call `withdrawReceiptBands`
+      name: `requestReceiptWithdrawal` (graduation-manager-only in v1,
+      exactly clearing's trust model — the API verifies the claim with the
+      P2 quote code and relays it, and funds only ever pay the receipt
+      owner), `refuteWithdrawalRequest` (permissionless from day one: one
+      named opposite-side receipt, O(1) in the book), and
+      `finalizeReceiptWithdrawal` (permissionless at or after the deadline).
+      The window is `withdrawalChallengePeriod` — owner-configurable, capped
+      at 7 days, default zero per ADR 0010's posture, evented as
+      `WithdrawalChallengePeriodUpdated`. All three race rules are enforced:
+      claimed segments stay recorded on the pending request and refute until
+      settlement; deadlines stamp at request time and clamp to the market's
+      latest stamped deadline, so none precedes an earlier request's
+      (same-block equality included); and the `nextReceiptId` snapshot is
+      contract-stamped. One pending request per receipt at a time — the
+      serialization that makes the challenge restore provably cap-safe
+      (`ReceiptBands.restoreBand`, the new inverse of P1's `removeBand`).
+      Request removes the claimed segments from live support via P1's
+      removal and stores gross, `φ_out`, and the entry-fee share;
+      finalization decrements `totalEscrowed` and `receipt.cost` by the
+      gross, `receipt.shares` and the side's share tally by the withdrawn
+      width, and moves `state.path` back by that width — down for YES, up
+      for NO, the side-aware reading of this checkbox's "decrement
+      `state.path`", preserving `path = openingPath + yesShares − noShares`
+      — then pays `gross − φ_out` plus the entry-fee share and emits
+      `ReceiptWithdrawalRequested`/`Refuted`/`Finalized` with receipt-linked
+      ids and the amounts split. The freeze rule: `startGraduation` reverts
+      while any request is pending — trivial at the zero window, and
+      requests are manager-only so no third party can hold graduation open —
+      while a market that reaches Refunded or Cancelled voids its pending
+      requests: the full receipt, cost and held entry fee alike, refunds
+      through `claimRefundedReceipt` and the never-finalized withdrawal
+      charges no fee. Mechanically the state machine lives in the external
+      `ReceiptWithdrawals` library and the manager alone compiles via IR:
+      the manager sat within 2% of the EIP-170 size limit before P3, the
+      split plus per-contract IR is what keeps it deployable, and events
+      and withdrawal errors stay on the manager so its generated ABI remains
+      the complete indexer surface. Deferred exactly as clearing defers
+      them: challenge bonds, owner-submitted requests (needs the window on),
+      and indexer ingestion of the three events — the next PR in this stack.
 
       **The opposed set cannot simply be computed on chain.** `ReceiptBook`
       stores receipts in `mapping(uint256 receiptId => Receipt)` keyed
@@ -392,9 +431,24 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       Verified live end-to-end: 1% armed on a worktree stack, a browser
       placement debited cost + fee, and the indexer recorded the `collected`
       row at the exact floor-division amount.
-- [ ] **P4b — Withdrawal fee.** Charged at P3's `withdrawReceiptBands`;
-      blocked on P3's implementation like the rest of the withdrawal
-      mechanism.
+- [x] **P4b — Withdrawal fee (delivered 2026-08-10).** `withdrawalFeeRateWad`,
+      owner-set via `setWithdrawalFeeRate` under a 10% hard cap
+      (`MAX_WITHDRAWAL_FEE_RATE_WAD` — the entry fee's cap; §3's 5% is the
+      operating rate, armed post-deploy), evented as
+      `WithdrawalFeeRateUpdated`, default **disarmed** (0) like the entry
+      fee. Charged exactly as P2's convention fixes: one full-precision
+      mulDiv floored on the request's whole gross, never per segment
+      (`ReceiptWithdrawals.feeFor`, shared by the `withdrawalFeeFor` view
+      and the request stamp), stamped on the request at the request-time
+      rate and never re-derived at finalization — the entry fee's
+      store-don't-derive rule. Earned on the act at finalization into
+      `marketWithdrawalFeesEarned`, a sibling pot to the entry fee's on
+      purpose: entry fees earn only at clearing and refund in full on the
+      non-graduation paths, withdrawal fees are kept in every case (§3),
+      and one merged pot would hide that difference. Owner-withdrawable via
+      `withdrawEarnedWithdrawalFees` until P5 deploys the pots as pool
+      seed. Arming is an ops action: `local:set-withdrawal-fee-rate` on a
+      local stack, `setWithdrawalFeeRate` as the owner in production.
 - [ ] **P5 — Graduation seeding.** At handoff, top the fee pot up to 10% of the
       graduation threshold from protocol capital, mint half the total as
       complete sets, and seed both pools per the `p*` split — through the
