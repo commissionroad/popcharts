@@ -267,11 +267,18 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
 
 ## Phases
 
-- [ ] **P1 — Segmented receipts.** `MarketTypes.Receipt` carries a segment
-      list; `ReceiptBook` insert/read paths, the `ReceiptPlaced` event, and the
-      indexer projection follow. Enforce a per-receipt segment cap. No
-      withdrawal yet; a never-withdrawn receipt stays a single segment, so this
-      phase is behaviour-preserving and separately reviewable.
+- [x] **P1 — Segmented receipts (delivered 2026-08-10).** Contract-side only
+      and behaviour-preserving: `MarketTypes.PathSegment` plus a lazy
+      segment-list overlay in `ReceiptBook` — placement writes nothing new,
+      and `getReceiptSegments` resolves a never-withdrawn receipt to its
+      `[rLow, rHigh]` placement interval while the stored list (including an
+      emptied one) is authoritative after the first removal. Per-receipt
+      segment cap `MAX_RECEIPT_SEGMENTS = 8` (derivation on the constant).
+      The internal band-removal helper `_removeReceiptSupportBand`
+      (split/trim/delete via `ReceiptBands.removeBand`) ships unused by any
+      external path: its caller is P3's `withdrawReceiptBands` request path.
+      Per the P3 decision's P1 consequence, the `ReceiptPlaced` event, the
+      indexer projection, and every existing reader are unchanged.
 - [ ] **P2 — Off-chain opposition + withdrawal quote.** Extend
       `band-pass-clearing.ts` with the opposed/free split and a
       `quoteWithdrawal` helper, with golden tests against whitepaper v0.6
@@ -415,9 +422,13 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
 
 - **Fee charged on width rather than cost.** Better targeted at display
   manipulation; revisit if manipulation is observed.
-- **Hard fragmentation bound.** The 2-segment measurement is empirical over one
-  trade-generation model. The contract needs a cap; choosing it needs a
-  worst-case analysis rather than a simulation average.
+- **Fragmentation cap calibration.** P1 set `MAX_RECEIPT_SEGMENTS = 8` from
+  the worst case: only the owner fragments a receipt (+1 segment per interior
+  withdrawal, opposition never mutates stored segments), edge and full-segment
+  removals always pass at the cap, and a band the cap blocks still refunds in
+  full at clearing — so the cap delays early exit, never principal. The
+  2-segment measurement is empirical over one trade-generation model;
+  recalibrate from observed withdrawal patterns once P3 is live.
 - **Transferability.** Blocked on refund ownership for fragmented receipts.
 - **Seeding range selection.** Whether to seed full-range or inside
   `PoolTickBounds`, and how tight, is unmodelled here.
