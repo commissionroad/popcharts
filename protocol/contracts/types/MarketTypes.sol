@@ -168,7 +168,21 @@ library MarketTypes {
     int256 rHigh;
   }
 
+  /// @notice One closed interval of a receipt's live support on the LMSR path
+  ///   coordinate (whitepaper v0.6 §4: a receipt's live support is a finite
+  ///   union of disjoint intervals once bands are withdrawn).
+  struct PathSegment {
+    /// @notice Lower bound of the segment on the LMSR path coordinate.
+    int256 rLow;
+    /// @notice Upper bound of the segment on the LMSR path coordinate.
+    int256 rHigh;
+  }
+
   /// @notice Stored record for one locked pre-graduation priced intent.
+  /// @dev `rLow`/`rHigh` record the placement-time path interval and never
+  ///      change. The receipt's live support starts as that single interval
+  ///      and can only shrink; `ReceiptBook` tracks it as a segment list
+  ///      (protocol ADR 0014 P1).
   struct Receipt {
     /// @notice Market that owns the receipt.
     uint256 marketId;
