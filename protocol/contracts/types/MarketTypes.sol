@@ -168,9 +168,11 @@ library MarketTypes {
     int256 rHigh;
   }
 
-  /// @notice One closed interval of a receipt's live support on the LMSR path
-  ///   coordinate (whitepaper v0.6 §4: a receipt's live support is a finite
-  ///   union of disjoint intervals once bands are withdrawn).
+  /// @notice One half-open interval `[rLow, rHigh)` of a receipt's live
+  ///   support on the LMSR path coordinate (whitepaper v0.6 §4: a receipt's
+  ///   live support is a finite union of disjoint intervals once bands are
+  ///   withdrawn). Touching endpoints do not overlap — `ReceiptBands.overlaps`
+  ///   and the off-chain split in `opposed-set.ts` share this convention.
   struct PathSegment {
     /// @notice Lower bound of the segment on the LMSR path coordinate.
     int256 rLow;
