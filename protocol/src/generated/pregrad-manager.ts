@@ -1594,6 +1594,19 @@ export const pregradManagerAbi = [
   },
   {
     inputs: [],
+    name: "MAX_RECEIPT_SEGMENTS",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MIN_PUBLIC_LIQUIDITY_PARAMETER",
     outputs: [
       {
@@ -2202,6 +2215,37 @@ export const pregradManagerAbi = [
         internalType: "struct MarketTypes.Receipt",
         name: "",
         type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+    ],
+    name: "getReceiptSegments",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "int256",
+            name: "rLow",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "rHigh",
+            type: "int256",
+          },
+        ],
+        internalType: "struct MarketTypes.PathSegment[]",
+        name: "",
+        type: "tuple[]",
       },
     ],
     stateMutability: "view",
