@@ -22,6 +22,25 @@ export const WAD = 10n ** 18n;
 /** Liquidity parameter shared by every generated book (b = 100, in WAD). */
 export const WALK_LIQUIDITY_PARAMETER = 100n * WAD;
 
+/** Tolerance for the whitepaper's 4-decimal figures: 0.01 in WAD. */
+export const CENT = WAD / 100n;
+
+/**
+ * φ_out = 5% in WAD (ADR 0014 §3). A test parameter until P4b stores the
+ * rate on chain — there is no production constant to mirror yet.
+ */
+export const WITHDRAWAL_FEE_RATE_WAD = WAD / 20n;
+
+/** r(P) = b·ln(P/(1−P)) in WAD, for P given as a percent (20 => 20%). */
+export function rOfPercent(percent: number): bigint {
+  const p = percent / 100;
+  return BigInt(Math.round(Number(WALK_LIQUIDITY_PARAMETER) * Math.log(p / (1 - p))));
+}
+
+export function absDiff(a: bigint, b: bigint): bigint {
+  return a > b ? a - b : b - a;
+}
+
 const MICRO_B = WALK_LIQUIDITY_PARAMETER / 1_000_000n;
 
 /**
