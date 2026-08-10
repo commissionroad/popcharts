@@ -1,3 +1,5 @@
+import { logVerdictRun } from "src/shared/verdict-run-log";
+
 import { AI_REVIEW_PROMPT_VERSION, type AiReviewConfig } from "./config";
 import { collectEvidence } from "./evidence";
 import { runHeuristicPolicy } from "./heuristics";
@@ -24,14 +26,29 @@ export async function reviewMarket({
   config: AiReviewConfig;
   request: MarketReviewRequest;
 }): Promise<ReviewResult> {
+  const startedAtMs = performance.now();
+  const requestedModel = request.options?.model ?? undefined;
   const heuristic = runHeuristicPolicy(request.metadata);
 
   if (heuristic.verdict === "reject") {
-    return mergeReviewFindings({
+    const rejected = mergeReviewFindings({
       evidence: [],
       heuristic,
       promptVersion: AI_REVIEW_PROMPT_VERSION,
     });
+
+    // A hard-flag reject never reaches a model, but it is still a run the
+    // service performed and still the denominator of any per-provider rate —
+    // omitting it would make heuristic rejects invisible in an aggregate.
+    logRun({
+      model: undefined,
+      ok: true,
+      outcome: rejected.verdict,
+      provider: "heuristic",
+      startedAtMs,
+    });
+
+    return rejected;
   }
 
   const providerName = request.options?.provider ?? config.provider;
@@ -63,12 +80,33 @@ export async function reviewMarket({
       request,
     });
 
-    return buildReviewResult({
+    const reviewed = buildReviewResult({
       heuristic,
       providerName,
       providerReview,
     });
+
+    logRun({
+      model: providerReview.modelId ?? requestedModel,
+      ok: true,
+      outcome: reviewed.verdict,
+      provider: providerName,
+      startedAtMs,
+      usage: providerReview.usage,
+    });
+
+    return reviewed;
   } catch (error) {
+    // Both exits are the same fact for telemetry — the provider did not answer
+    // — so the line is emitted once, before they diverge.
+    logRun({
+      model: requestedModel,
+      ok: false,
+      outcome: config.retryProviderFailures ? "retry" : "manual_review",
+      provider: providerName,
+      startedAtMs,
+    });
+
     if (config.retryProviderFailures) {
       throw new ReviewUnavailableError(providerName, error);
     }
@@ -81,6 +119,33 @@ export async function reviewMarket({
       providerName,
     });
   }
+}
+
+/**
+ * Emits the per-run telemetry line for this service, binding the two constants
+ * every review run shares so no call site can get them wrong.
+ */
+function logRun({
+  model,
+  ok,
+  outcome,
+  provider,
+  startedAtMs,
+  usage,
+}: Omit<
+  Parameters<typeof logVerdictRun>[0],
+  "latencyMs" | "promptVersion" | "service"
+> & { startedAtMs: number }) {
+  logVerdictRun({
+    latencyMs: performance.now() - startedAtMs,
+    model,
+    ok,
+    outcome,
+    promptVersion: AI_REVIEW_PROMPT_VERSION,
+    provider,
+    service: "review",
+    usage,
+  });
 }
 
 /** Signals a transient provider failure that the durable runner should retry. */
