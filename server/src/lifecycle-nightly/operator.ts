@@ -2,6 +2,7 @@ import {
   completeSetBinaryMarketAbi,
   completeSetPostgradAdapterAbi,
   marketSideToContractSide,
+  pregradManagerAbi,
   type MarketSide,
 } from "@popcharts/protocol";
 import { type Address } from "viem";
@@ -11,6 +12,7 @@ import { retryOnceOnNonceCollision } from "src/blockchain/nonce-collision";
 import {
   LOCAL_DEV_ACCOUNT_COUNT,
   postgradAdapterAddress,
+  pregradManagerAddress,
   publicClient,
   walletFor,
 } from "./stack";
@@ -117,6 +119,83 @@ export async function setPostgradDisputeConfig(
   );
 
   return { disputeBond, disputeWindow: BigInt(disputeWindow) };
+}
+
+/**
+ * Ensures `creator` may create markets with a zeroed authorization, the way
+ * the market factory does. Local deploys trust only the deployer (repo
+ * ADR 0022 P5 retired the ungated create path), so on a fresh chain the
+ * nightly's creator wallet starts untrusted and the first scenario registers
+ * it here with the owner key — the same keyed operator move a real operator
+ * would make. The read gate keeps replays from re-sending.
+ */
+export async function ensureTrustedCreator(creator: Address): Promise<void> {
+  const alreadyTrusted = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "isTrustedCreator",
+    args: [creator],
+  });
+  if (alreadyTrusted) {
+    return;
+  }
+
+  const owner = await publicClient.readContract({
+    abi: pregradManagerAbi,
+    address: pregradManagerAddress,
+    functionName: "owner",
+  });
+  const ownerWallet = localWalletFor(owner as Address, "pregrad manager owner");
+
+  await sendOperatorTransaction("setTrustedCreator", () =>
+    ownerWallet.writeContract({
+      abi: pregradManagerAbi,
+      address: pregradManagerAddress,
+      functionName: "setTrustedCreator",
+      args: [creator, true],
+    }),
+  );
+}
+
+/**
+ * Sets the pre-graduation entry fee rate on the PregradManager as its owner
+ * and returns the rate it replaced, so a scenario can restore it.
+ *
+ * This is the same `setEntryFeeRate` call the production arming path makes
+ * (protocol ADR 0014 P4a; `local:set-entry-fee-rate` wraps it for a shell).
+ * Local stacks deploy with the rate at zero — the fee ships disarmed — and
+ * the rate is global to the manager, so a scenario that needs the fee armed
+ * brackets its own placements with this rather than changing that deploy
+ * default. The fee actually charged is stamped per receipt at placeReceipt,
+ * so receipts already placed keep theirs across a rate change.
+ */
+export async function setEntryFeeRateAsOwner(
+  newRateWad: bigint,
+): Promise<bigint> {
+  const [owner, previousRateWad] = await Promise.all([
+    publicClient.readContract({
+      abi: pregradManagerAbi,
+      address: pregradManagerAddress,
+      functionName: "owner",
+    }),
+    publicClient.readContract({
+      abi: pregradManagerAbi,
+      address: pregradManagerAddress,
+      functionName: "entryFeeRateWad",
+    }),
+  ]);
+  const ownerWallet = localWalletFor(owner as Address, "pregrad manager owner");
+
+  await sendOperatorTransaction("setEntryFeeRate", () =>
+    ownerWallet.writeContract({
+      abi: pregradManagerAbi,
+      address: pregradManagerAddress,
+      functionName: "setEntryFeeRate",
+      args: [newRateWad],
+    }),
+  );
+
+  return previousRateWad as bigint;
 }
 
 /** The local dev wallet holding a market's on-chain resolver role. */

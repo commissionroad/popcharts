@@ -171,6 +171,63 @@ export async function assertMarketPaperTrail({
       }),
     ),
   );
+  // The entry fee's own ledger (protocol ADR 0014 P4a): one row per fee
+  // movement, keyed by kind and pinned to its receipt — a row attributed to
+  // a different receipt in the same market is a mismatch, not a pass.
+  // `account` is the payer for `collected`, the refund recipient for
+  // `refunded`, and null for `earned` (the protocol is the counterparty and
+  // the contract emits no address). Rates default to zero, so on a disarmed
+  // stack both sides reconcile empty.
+  reconcile(
+    failures,
+    "receipt_entry_fee_events",
+    [
+      ...byName("EntryFeeCollected").map((log) => ({
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
+        fields: {
+          account: (log.args as { payer: string }).payer.toLowerCase(),
+          kind: "collected",
+        },
+        key: logKey(log),
+      })),
+      ...byName("EntryFeeRefunded").map((log) => ({
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
+        fields: {
+          account: (log.args as { recipient: string }).recipient.toLowerCase(),
+          kind: "refunded",
+        },
+        key: logKey(log),
+      })),
+      ...byName("EntryFeeEarned").map((log) => ({
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
+        fields: { account: null, kind: "earned" },
+        key: logKey(log),
+      })),
+    ],
+    (await selectRows(schema.receiptEntryFeeEvents, marketId)).map((row) => ({
+      amounts: { amount: row.amount, receiptId: row.receiptId },
+      fields: { account: row.account, kind: row.kind },
+      key: rowKey(row),
+    })),
+  );
+  reconcile(
+    failures,
+    "entry_fee_withdrawal_events",
+    byName("EarnedEntryFeesWithdrawn").map((log) => ({
+      amounts: pickAmounts(log, ["amount"]),
+      fields: {
+        recipient: (log.args as { recipient: string }).recipient.toLowerCase(),
+      },
+      key: logKey(log),
+    })),
+    (await selectRows(schema.entryFeeWithdrawalEvents, marketId)).map(
+      (row) => ({
+        amounts: { amount: row.amount },
+        fields: { recipient: row.recipient.toLowerCase() },
+        key: rowKey(row),
+      }),
+    ),
+  );
   reconcile(
     failures,
     "market_refunds_available_events",
@@ -617,11 +674,13 @@ function rowKey(row: { logIndex: number; transactionHash: string }): string {
 
 type MarketScopedEventTable =
   | typeof schema.clearingRootSubmittedEvents
+  | typeof schema.entryFeeWithdrawalEvents
   | typeof schema.graduatedReceiptClaimedEvents
   | typeof schema.graduationFinalizedEvents
   | typeof schema.graduationStartedEvents
   | typeof schema.marketCancelledEvents
   | typeof schema.marketRefundsAvailableEvents
+  | typeof schema.receiptEntryFeeEvents
   | typeof schema.receiptPlacedEvents
   | typeof schema.refundedReceiptClaimedEvents;
 
