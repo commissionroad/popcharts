@@ -172,16 +172,18 @@ export async function assertMarketPaperTrail({
     ),
   );
   // The entry fee's own ledger (protocol ADR 0014 P4a): one row per fee
-  // movement, keyed by kind. `account` is the payer for `collected`, the
-  // refund recipient for `refunded`, and null for `earned` (the protocol is
-  // the counterparty and the contract emits no address). Rates default to
-  // zero, so on a disarmed stack both sides reconcile empty.
+  // movement, keyed by kind and pinned to its receipt — a row attributed to
+  // a different receipt in the same market is a mismatch, not a pass.
+  // `account` is the payer for `collected`, the refund recipient for
+  // `refunded`, and null for `earned` (the protocol is the counterparty and
+  // the contract emits no address). Rates default to zero, so on a disarmed
+  // stack both sides reconcile empty.
   reconcile(
     failures,
     "receipt_entry_fee_events",
     [
       ...byName("EntryFeeCollected").map((log) => ({
-        amounts: pickAmounts(log, ["amount"]),
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
         fields: {
           account: (log.args as { payer: string }).payer.toLowerCase(),
           kind: "collected",
@@ -189,7 +191,7 @@ export async function assertMarketPaperTrail({
         key: logKey(log),
       })),
       ...byName("EntryFeeRefunded").map((log) => ({
-        amounts: pickAmounts(log, ["amount"]),
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
         fields: {
           account: (log.args as { recipient: string }).recipient.toLowerCase(),
           kind: "refunded",
@@ -197,13 +199,13 @@ export async function assertMarketPaperTrail({
         key: logKey(log),
       })),
       ...byName("EntryFeeEarned").map((log) => ({
-        amounts: pickAmounts(log, ["amount"]),
+        amounts: pickAmounts(log, ["amount", "receiptId"]),
         fields: { account: null, kind: "earned" },
         key: logKey(log),
       })),
     ],
     (await selectRows(schema.receiptEntryFeeEvents, marketId)).map((row) => ({
-      amounts: { amount: row.amount },
+      amounts: { amount: row.amount, receiptId: row.receiptId },
       fields: { account: row.account, kind: row.kind },
       key: rowKey(row),
     })),
