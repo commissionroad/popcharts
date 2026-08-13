@@ -324,9 +324,13 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       while any request is pending — trivial at the zero window, and
       requests are manager-only so no third party can hold graduation open —
       while a market that reaches Refunded or Cancelled voids its pending
-      requests: the full receipt, cost and held entry fee alike, refunds
-      through `claimRefundedReceipt` and the never-finalized withdrawal
-      charges no fee. Mechanically the state machine lives in the external
+      requests for real: `claimRefundedReceipt` auto-voids its receipt's
+      request and a permissionless `voidWithdrawalRequest` sweeps stragglers,
+      each flipping the request to `Voided`, clearing the pending trackers,
+      restoring the claimed segments to live support, and emitting
+      `ReceiptWithdrawalVoided` — then the full receipt, cost and held entry
+      fee alike, refunds through `claimRefundedReceipt` and the
+      never-finalized withdrawal charges no fee. Mechanically the state machine lives in the external
       `ReceiptWithdrawals` library and the manager alone compiles via IR:
       the manager sat within 2% of the EIP-170 size limit before P3, the
       split plus per-contract IR is what keeps it deployable, and events

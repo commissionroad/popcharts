@@ -1855,6 +1855,31 @@ export const pregradManagerAbi = [
       {
         indexed: true,
         internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "receiptId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "marketId",
+        type: "uint256",
+      },
+    ],
+    name: "ReceiptWithdrawalVoided",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
         name: "receiptId",
         type: "uint256",
       },
@@ -3557,6 +3582,19 @@ export const pregradManagerAbi = [
       },
     ],
     name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+    ],
+    name: "voidWithdrawalRequest",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

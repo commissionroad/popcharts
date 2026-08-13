@@ -228,7 +228,52 @@ library ReceiptWithdrawals {
       }
     }
 
-    stored.status = MarketTypes.WithdrawalRequestStatus.Refuted;
+    _cancelPendingRequest(
+      store,
+      stored,
+      claimantSupport,
+      MarketTypes.WithdrawalRequestStatus.Refuted
+    );
+    return true;
+  }
+
+  /// @notice Voids a pending request whose market left Active before
+  ///   finalization: flips it Voided, clears the pending trackers, and
+  ///   restores the claimed segments to live support.
+  /// @dev The refund path pays the receipt's full remaining cost and held
+  ///      entry fee without reading live support, so the restore is cosmetic
+  ///      for the money — it keeps `getReceiptSegments` truthful — and no
+  ///      withdrawal fee is charged: the never-finalized act earned nothing
+  ///      (ADR 0014 §3). The manager guards status and market and emits.
+  /// @param store Withdrawal storage being written.
+  /// @param requestId Pending request being voided.
+  /// @param claimantSupport Claimant receipt's support overlay, for restore.
+  function voidRequest(
+    Store storage store,
+    uint256 requestId,
+    MarketTypes.ReceiptSupport storage claimantSupport
+  ) external {
+    _cancelPendingRequest(
+      store,
+      store.requests[requestId],
+      claimantSupport,
+      MarketTypes.WithdrawalRequestStatus.Voided
+    );
+  }
+
+  /// @notice Cancels a pending request into a terminal status and restores
+  ///   its claimed segments — the shared tail of refutation and voiding.
+  /// @param store Withdrawal storage being written.
+  /// @param stored Pending request being cancelled.
+  /// @param claimantSupport Claimant receipt's support overlay, for restore.
+  /// @param terminalStatus Refuted or Voided.
+  function _cancelPendingRequest(
+    Store storage store,
+    MarketTypes.WithdrawalRequest storage stored,
+    MarketTypes.ReceiptSupport storage claimantSupport,
+    MarketTypes.WithdrawalRequestStatus terminalStatus
+  ) private {
+    stored.status = terminalStatus;
     store.pendingRequestOf[stored.receiptId] = 0;
     --store.marketPendingRequests[stored.marketId];
 
@@ -237,7 +282,6 @@ library ReceiptWithdrawals {
       MarketTypes.PathSegment storage segment = stored.segments[i];
       restoreSupportBand(claimantSupport, segment.rLow, segment.rHigh);
     }
-    return true;
   }
 
   /// @notice Settles a matured request: flips it Finalized and reverses

@@ -518,6 +518,21 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     uint256 withdrawalFee
   );
 
+  /// @notice Emitted when a pending withdrawal request is voided because its
+  ///   market left Active before finalization.
+  /// @dev The claimed segments return to live support, the pending trackers
+  ///      clear, and no fee is charged; the receipt's full cost and held
+  ///      entry fee refund through `claimRefundedReceipt` instead
+  ///      (ADR 0014 §3).
+  /// @param requestId Request that was voided.
+  /// @param receiptId Receipt whose claimed segments were restored.
+  /// @param marketId Market that owns the receipt.
+  event ReceiptWithdrawalVoided(
+    uint256 indexed requestId,
+    uint256 indexed receiptId,
+    uint256 indexed marketId
+  );
+
   /// @notice Emitted when the owner withdraws a market's earned withdrawal fees.
   /// @param marketId Market whose earned fees were withdrawn.
   /// @param recipient Account receiving the fees.
@@ -1277,9 +1292,10 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   ///      and the withdrawn segments' prepaid entry fee returns because an
   ///      unopposed band never matched, so the fee on it was never earned.
   ///      Requires the market still Active: a pending request on a market
-  ///      that reached Refunded or Cancelled is void — the full receipt, cost
-  ///      and held entry fee alike, refunds through `claimRefundedReceipt`
-  ///      instead, and the never-finalized withdrawal charges no fee.
+  ///      that reached Refunded or Cancelled is voided instead —
+  ///      automatically by `claimRefundedReceipt`, or by anyone through
+  ///      `voidWithdrawalRequest` — and the full receipt, cost and held
+  ///      entry fee alike, refunds with no withdrawal fee charged.
   ///      Graduation can never strand a request the other way, because
   ///      `startGraduation` reverts while any request is pending.
   /// @param requestId Pending request being finalized.
@@ -1314,6 +1330,35 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
       request.entryFeeRefund,
       request.withdrawalFee
     );
+  }
+
+  /// @notice Voids a pending withdrawal request whose market left Active
+  ///   before finalization.
+  /// @dev Permissionless: once the market is Refunded or Cancelled the
+  ///      request can never finalize or be refuted, so anyone may sweep it —
+  ///      restoring the claimed segments, clearing the pending trackers, and
+  ///      emitting `ReceiptWithdrawalVoided`. `claimRefundedReceipt` runs the
+  ///      same void automatically, so this entry point only mops up requests
+  ///      whose owners never claim.
+  /// @param requestId Pending request being voided.
+  function voidWithdrawalRequest(uint256 requestId) external {
+    MarketTypes.WithdrawalRequest storage request = _requireWithdrawalRequest(requestId);
+    _requirePendingWithdrawalRequest(requestId, request);
+    _requireRefundClaimableMarket(request.marketId, _markets[request.marketId]);
+
+    _voidWithdrawalRequest(requestId, request);
+  }
+
+  /// @notice Voids a pending request through the library and emits.
+  /// @param requestId Pending request being voided.
+  /// @param request Stored request being voided.
+  function _voidWithdrawalRequest(
+    uint256 requestId,
+    MarketTypes.WithdrawalRequest storage request
+  ) private {
+    ReceiptWithdrawals.voidRequest(_withdrawals, requestId, _receiptSupportAt(request.receiptId));
+
+    emit ReceiptWithdrawalVoided(requestId, request.receiptId, request.marketId);
   }
 
   /// @notice Returns the next withdrawal request ID that will be assigned.
@@ -1635,7 +1680,9 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
   /// @notice Refunds a receipt from a market that missed graduation or was cancelled.
   /// @dev The entry fee returns in full alongside the cost: it is a success fee,
   ///      earned only at clearing on matched cost, and this market never cleared
-  ///      (protocol ADR 0014 §3).
+  ///      (protocol ADR 0014 §3). A pending withdrawal request is voided first
+  ///      — its claimed segments restore and no fee is charged — so the refund
+  ///      always pays the receipt's full remaining cost and held entry fee.
   /// @param receiptId Receipt whose full escrowed cost should be returned.
   function claimRefundedReceipt(uint256 receiptId) external nonReentrant {
     _requireReceiptExists(receiptId);
@@ -1644,6 +1691,11 @@ contract PregradManager is Ownable, ReentrancyGuard, EIP712, CreationFeeVault, R
     MarketTypes.MarketRecord storage market = _markets[receipt.marketId];
     _requireRefundClaimableMarket(receipt.marketId, market);
     _requireActiveReceipt(receiptId, receipt);
+
+    uint256 pendingRequestId = _withdrawals.pendingRequestOf[receiptId];
+    if (pendingRequestId != 0) {
+      _voidWithdrawalRequest(pendingRequestId, _withdrawals.requests[pendingRequestId]);
+    }
 
     receipt.active = false;
     market.state.totalEscrowed -= receipt.cost;

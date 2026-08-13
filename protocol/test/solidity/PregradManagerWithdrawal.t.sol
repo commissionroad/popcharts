@@ -823,7 +823,7 @@ contract PregradManagerWithdrawalTest is BaseTest {
     );
   }
 
-  function test_PendingRequestIsVoidOnceTheMarketLeavesActive() public {
+  function test_ClaimRefundedReceiptAutoVoidsThePendingRequest() public {
     manager.setEntryFeeRate(ONE_PERCENT_WAD);
     manager.setWithdrawalFeeRate(FIVE_PERCENT_WAD);
     manager.setWithdrawalChallengePeriod(1 hours);
@@ -848,6 +848,7 @@ contract PregradManagerWithdrawalTest is BaseTest {
     vm.warp(manager.getMarketConfig(marketId).graduationDeadline);
     manager.markRefundable(marketId);
 
+    // Still Pending until someone voids it; finalize and refute are dead.
     vm.expectRevert(
       abi.encodeWithSelector(
         PregradManager.InvalidMarketStatus.selector,
@@ -858,14 +859,196 @@ contract PregradManagerWithdrawalTest is BaseTest {
     );
     manager.finalizeReceiptWithdrawal(requestId);
 
-    // The full receipt refunds instead — cost and entry fee whole, no
-    // withdrawal fee: the never-finalized withdrawal earned nothing
-    // (ADR 0014 §3's success-fee rule).
+    // The refund claim voids the request automatically, then pays the full
+    // receipt — cost and entry fee whole, no withdrawal fee: the
+    // never-finalized withdrawal earned nothing (ADR 0014 §3).
     uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.ReceiptWithdrawalVoided(requestId, receiptId, marketId);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.EntryFeeRefunded(receiptId, marketId, buyer, entryFeePaid);
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.RefundedReceiptClaimed(receiptId, marketId, buyer, quote.cost);
     manager.claimRefundedReceipt(receiptId);
+
     assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost + entryFeePaid);
     assertEq(manager.marketWithdrawalFeesEarned(marketId), 0);
     assertEq(collateral.balanceOf(address(manager)), 0);
+    _assertRequestVoided(requestId, receiptId, marketId);
+
+    // Claim-then-void ordering: the auto-void already settled the request.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.WithdrawalRequestNotPending.selector,
+        requestId,
+        MarketTypes.WithdrawalRequestStatus.Voided
+      )
+    );
+    manager.voidWithdrawalRequest(requestId);
+  }
+
+  function test_VoidWithdrawalRequestSweepsStragglersPermissionlessly() public {
+    manager.setEntryFeeRate(ONE_PERCENT_WAD);
+    manager.setWithdrawalChallengePeriod(1 hours);
+    address buyer = makeAddr("straggler-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, MarketTypes.ReceiptQuote memory quote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      100 * WAD
+    );
+    uint256 entryFeePaid = manager.getReceipt(receiptId).entryFeePaid;
+
+    // An interior claim, so the void's restore visibly re-merges the split.
+    uint256 requestId = manager.requestReceiptWithdrawal(
+      receiptId,
+      buyer,
+      _segment(10 * int256(WAD), 20 * int256(WAD))
+    );
+    assertEq(manager.getReceiptSegments(receiptId).length, 2);
+
+    vm.warp(manager.getMarketConfig(marketId).graduationDeadline);
+    manager.markRefundable(marketId);
+
+    // Anyone sweeps; the owner never has to think about the request.
+    address sweeper = makeAddr("void-sweeper");
+    vm.expectEmit(true, true, true, true, address(manager));
+    emit PregradManager.ReceiptWithdrawalVoided(requestId, receiptId, marketId);
+    vm.prank(sweeper);
+    manager.voidWithdrawalRequest(requestId);
+
+    _assertRequestVoided(requestId, receiptId, marketId);
+
+    // Void-then-claim: the refund still pays the undiminished receipt.
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+    manager.claimRefundedReceipt(receiptId);
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + quote.cost + entryFeePaid);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+  }
+
+  function test_CancelledMarketVoidsPendingRequestsBothWays() public {
+    manager.setWithdrawalChallengePeriod(1 hours);
+    address buyer = makeAddr("cancel-void-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 firstReceipt, MarketTypes.ReceiptQuote memory firstQuote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      50 * WAD
+    );
+    (uint256 secondReceipt, MarketTypes.ReceiptQuote memory secondQuote) = _placeReceiptAs(
+      buyer,
+      marketId,
+      MarketTypes.Side.Yes,
+      50 * WAD
+    );
+    uint256 firstRequest = manager.requestReceiptWithdrawal(
+      firstReceipt,
+      buyer,
+      manager.getReceiptSegments(firstReceipt)
+    );
+    uint256 secondRequest = manager.requestReceiptWithdrawal(
+      secondReceipt,
+      buyer,
+      manager.getReceiptSegments(secondReceipt)
+    );
+    assertEq(manager.marketPendingWithdrawals(marketId), 2);
+
+    manager.cancelMarket(marketId);
+
+    // Route one: the refund claim auto-voids its own receipt's request.
+    uint256 buyerBalanceBefore = collateral.balanceOf(buyer);
+    manager.claimRefundedReceipt(firstReceipt);
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + firstQuote.cost);
+    _assertRequestVoided(firstRequest, firstReceipt, marketId);
+    assertEq(manager.marketPendingWithdrawals(marketId), 1);
+
+    // Route two: the permissionless sweep clears the straggler, and the
+    // later refund claim finds nothing left to void.
+    manager.voidWithdrawalRequest(secondRequest);
+    _assertRequestVoided(secondRequest, secondReceipt, marketId);
+
+    buyerBalanceBefore = collateral.balanceOf(buyer);
+    manager.claimRefundedReceipt(secondReceipt);
+    assertEq(collateral.balanceOf(buyer), buyerBalanceBefore + secondQuote.cost);
+    assertEq(collateral.balanceOf(address(manager)), 0);
+  }
+
+  function test_VoidWithdrawalRequestGates() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(PregradManager.WithdrawalRequestDoesNotExist.selector, 1)
+    );
+    manager.voidWithdrawalRequest(1);
+
+    address buyer = makeAddr("void-gate-buyer");
+    uint256 marketId = _createDefaultMarket();
+    _fundAndApprove(buyer, 1_000 * WAD);
+    (uint256 receiptId, ) = _placeReceiptAs(buyer, marketId, MarketTypes.Side.Yes, 100 * WAD);
+    uint256 requestId = manager.requestReceiptWithdrawal(
+      receiptId,
+      buyer,
+      _segment(0, 10 * int256(WAD))
+    );
+
+    // A live market's request is not voidable — it settles by the mechanism.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.InvalidMarketStatus.selector,
+        marketId,
+        MarketTypes.MarketStatus.Active,
+        MarketTypes.MarketStatus.Refunded
+      )
+    );
+    manager.voidWithdrawalRequest(requestId);
+
+    // A settled request is not voidable either.
+    manager.finalizeReceiptWithdrawal(requestId);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.WithdrawalRequestNotPending.selector,
+        requestId,
+        MarketTypes.WithdrawalRequestStatus.Finalized
+      )
+    );
+    manager.voidWithdrawalRequest(requestId);
+  }
+
+  /// Full post-void state: terminal status, cleared trackers, restored
+  /// support, and dead finalize/refute paths.
+  function _assertRequestVoided(uint256 requestId, uint256 receiptId, uint256 marketId) private {
+    assertEq(
+      uint8(manager.getWithdrawalRequest(requestId).status),
+      uint8(MarketTypes.WithdrawalRequestStatus.Voided)
+    );
+    assertEq(manager.pendingWithdrawalRequestOf(receiptId), 0);
+
+    // The restore re-merged the claimed segments: live support reads as the
+    // receipt's whole placement interval again.
+    MarketTypes.Receipt memory receipt = manager.getReceipt(receiptId);
+    MarketTypes.PathSegment[] memory segments = manager.getReceiptSegments(receiptId);
+    assertEq(segments.length, 1);
+    assertEq(segments[0].rLow, receipt.rLow);
+    assertEq(segments[0].rHigh, receipt.rHigh);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.WithdrawalRequestNotPending.selector,
+        requestId,
+        MarketTypes.WithdrawalRequestStatus.Voided
+      )
+    );
+    manager.finalizeReceiptWithdrawal(requestId);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PregradManager.WithdrawalRequestNotPending.selector,
+        requestId,
+        MarketTypes.WithdrawalRequestStatus.Voided
+      )
+    );
+    manager.refuteWithdrawalRequest(requestId, receiptId);
   }
 
   // ------------------------------------------------------------------- sweeps

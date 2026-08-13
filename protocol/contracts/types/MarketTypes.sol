@@ -223,10 +223,11 @@ library MarketTypes {
   }
 
   /// @notice Lifecycle of one optimistic receipt-withdrawal request (ADR 0014 P3).
-  /// @dev A request on a market that leaves Active before finalization keeps
-  ///      its Pending status but is void: finalization and refutation both
-  ///      require the market Active, and the full receipt — cost and held
-  ///      entry fee — refunds through `claimRefundedReceipt` instead.
+  /// @dev A pending request on a market that leaves Active before
+  ///      finalization is voided — automatically by `claimRefundedReceipt`,
+  ///      or by anyone through `voidWithdrawalRequest` — and the full
+  ///      receipt, cost and held entry fee alike, refunds through
+  ///      `claimRefundedReceipt` with no withdrawal fee charged.
   enum WithdrawalRequestStatus {
     /// @notice No request exists under this ID.
     None,
@@ -235,7 +236,10 @@ library MarketTypes {
     /// @notice Terminal. A challenger proved opposition and the claimed segments were restored.
     Refuted,
     /// @notice Terminal. The window elapsed unchallenged and the refund was paid.
-    Finalized
+    Finalized,
+    /// @notice Terminal. The market left Active before finalization; the
+    ///   claimed segments were restored and the receipt refunds in full.
+    Voided
   }
 
   /// @notice One stored optimistic withdrawal request (ADR 0014 P3).
