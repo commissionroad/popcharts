@@ -343,13 +343,13 @@ describe("processDraftReviewJobsOnce", () => {
 });
 
 describe("draftReviewCorroborationEnabled", () => {
-  it("defaults to true and honors an explicit false", () => {
-    expect(draftReviewCorroborationEnabled({})).toBe(true);
+  it("defaults to false and honors an explicit true", () => {
+    expect(draftReviewCorroborationEnabled({})).toBe(false);
     expect(
       draftReviewCorroborationEnabled({
-        POPCHARTS_DRAFT_REVIEW_CORROBORATION: "false",
+        POPCHARTS_DRAFT_REVIEW_CORROBORATION: "true",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -358,6 +358,9 @@ describe("draftReviewCorroborationEnabled", () => {
 describe("processDraftReviewJobsOnce corroboration", () => {
   beforeEach(() => {
     process.env.POPCHARTS_DRAFT_REVIEW_PROVIDER = "ollama";
+    // Corroboration defaults to off, so these cases opt in explicitly. The
+    // one case that asserts the disabled path overrides this to "false".
+    process.env.POPCHARTS_DRAFT_REVIEW_CORROBORATION = "true";
   });
 
   afterEach(() => {

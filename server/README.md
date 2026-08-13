@@ -171,7 +171,7 @@ The local stack orchestrators set it to `claude-cli` at the stack seam
 with the host's logged-in CLI; `LOCAL_DRAFT_REVIEW_PROVIDER=heuristic` dials
 that back.
 
-With a model provider, terminal verdicts need an agreeing rerun before they commit (ADR 0019); `POPCHARTS_DRAFT_REVIEW_CORROBORATION=false` opts out.
+With a model provider, `POPCHARTS_DRAFT_REVIEW_CORROBORATION=true` makes terminal verdicts need an agreeing rerun before they commit (ADR 0019). It is off by default because it costs 2-3 model calls per terminal verdict; the same applies to the resolution runner's `AI_RESOLUTION_RUNNER_CORROBORATION`.
 
 ## Local Chain Smoke
 

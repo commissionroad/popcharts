@@ -13,9 +13,15 @@ export type AiResolutionRunnerConfig = {
   backoffMs: number;
   batchSize: number;
   /**
-   * When true (default), resolve_yes / resolve_no must be corroborated by
-   * agreeing service runs before submitting resolve() on-chain (ADR 0019).
-   * Disable only for smoke tests and deterministic-provider setups.
+   * When true, resolve_yes / resolve_no must be corroborated by agreeing
+   * service runs before submitting resolve() on-chain (ADR 0019).
+   *
+   * Defaults to OFF (2026-08-13 decision): corroboration costs 2-3 model calls
+   * per submitting verdict, and it was restored on 2026-08-08 without the cost
+   * being an explicit choice. Turn it on per deployment with
+   * `AI_RESOLUTION_RUNNER_CORROBORATION=true`. ADR 0019's exit criteria still
+   * want it on before a lone model verdict can move money — this default is a
+   * cost decision, not a repeal.
    */
   corroborationEnabled: boolean;
   leaseMs: number;
@@ -61,7 +67,7 @@ export function getAiResolutionRunnerConfig(
     ),
     corroborationEnabled: readBoolean(
       env.AI_RESOLUTION_RUNNER_CORROBORATION,
-      true,
+      false,
       "AI_RESOLUTION_RUNNER_CORROBORATION",
     ),
     leaseMs: readPositiveInteger(
