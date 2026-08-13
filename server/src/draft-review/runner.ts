@@ -52,13 +52,20 @@ export function draftReviewProvider(
  * agreeing rerun before they commit (ADR 0019). The configured `heuristic`
  * provider is exempt inside corroborateReview — deterministic reruns cannot
  * disagree — so the default local path stays single-call.
+ *
+ * Defaults to OFF (2026-08-13 decision): corroboration costs 2-3 model calls
+ * per terminal verdict, and it was restored on 2026-08-08 without the cost
+ * being an explicit choice. Opt in per deployment with
+ * `POPCHARTS_DRAFT_REVIEW_CORROBORATION=true`. ADR 0019's exit criteria still
+ * want it on before a model verdict can commit unattended — this default is a
+ * cost decision, not a repeal.
  */
 export function draftReviewCorroborationEnabled(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   return readBoolean(
     env.POPCHARTS_DRAFT_REVIEW_CORROBORATION,
-    true,
+    false,
     "POPCHARTS_DRAFT_REVIEW_CORROBORATION",
   );
 }
