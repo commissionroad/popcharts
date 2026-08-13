@@ -23,3 +23,4 @@ export * from "./review-credit-events";
 export * from "./venue-order-events";
 export * from "./venue-orders";
 export * from "./venue-pools";
+export * from "./withdrawal-events";
