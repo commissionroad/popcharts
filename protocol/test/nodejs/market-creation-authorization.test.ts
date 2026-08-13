@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+
+import { deployPregradManager } from "../../scripts/shared/deployment/deployPregradManager.js";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
 import { MARKET_STATUS } from "../../src/generated/contract-enums.js";
@@ -26,7 +28,7 @@ describe("market creation authorization against the real contract", async functi
 
   async function deployGatedManager() {
     const collateral = await viem.deployContract("MockCollateral");
-    const manager = await viem.deployContract("PregradManager");
+    const manager = await deployPregradManager(viem);
     const [, authorizer] = await viem.getWalletClients();
     await manager.write.setMarketCreationAuthorizer([getAddress(authorizer.account.address)]);
     return { collateral, manager };

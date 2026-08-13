@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+
+import { deployPregradManager } from "../../scripts/shared/deployment/deployPregradManager.js";
 import { getAddress, keccak256, stringToBytes } from "viem";
 
 import {
@@ -75,7 +77,7 @@ onchainDescribe("band-pass clearing on-chain", async function () {
 
   async function deployProtocol() {
     const collateral = await viem.deployContract("MockCollateral");
-    const manager = await viem.deployContract("PregradManager");
+    const manager = await deployPregradManager(viem);
     const [owner] = await viem.getWalletClients();
     await manager.write.setTrustedCreator([getAddress(owner.account.address), true]);
     return { collateral, manager };

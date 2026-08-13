@@ -18,6 +18,23 @@ const soliditySettings = {
   },
 };
 
+// PregradManager sat within 2% of the EIP-170 code-size limit before the
+// ADR 0014 P3 withdrawal mechanism landed. The mechanism's state machine is
+// split into the external ReceiptWithdrawals library, and the manager alone
+// compiles via IR, which packs its remaining code under the limit; both are
+// size measures, not behaviour changes. Every artifact-based deploy path —
+// production, local stacks, and the nodejs suite — ships the viaIR bytecode.
+// Solidity test units recompile the imported source under the default
+// pipeline (their in-test deploys are size-exempt and still warn), so the
+// suite exercises both pipelines. Applied identically in every profile so
+// local and production bytecode agree.
+const pregradManagerSettingsOverride = {
+  "contracts/PregradManager.sol": {
+    version: "0.8.28",
+    settings: { ...soliditySettings, viaIR: true },
+  },
+};
+
 export default defineConfig({
   plugins: [hardhatToolboxViem],
   tasks: [...venueDeploymentTasks, ...postgradAdminTasks],
@@ -83,6 +100,7 @@ export default defineConfig({
             settings: soliditySettings,
           },
         ],
+        overrides: pregradManagerSettingsOverride,
       },
       production: {
         compilers: [
@@ -95,6 +113,7 @@ export default defineConfig({
             settings: soliditySettings,
           },
         ],
+        overrides: pregradManagerSettingsOverride,
       },
     },
   },

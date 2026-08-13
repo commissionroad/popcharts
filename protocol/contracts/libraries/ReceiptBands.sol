@@ -15,6 +15,10 @@ library ReceiptBands {
   /// @param lower Lower path endpoint of the rejected band.
   /// @param upper Upper path endpoint of the rejected band.
   error BandOutsideLiveSupport(int256 lower, int256 upper);
+  /// @notice Reverts when a restored band overlaps a live segment.
+  /// @param lower Lower path endpoint of the rejected band.
+  /// @param upper Upper path endpoint of the rejected band.
+  error BandOverlapsLiveSupport(int256 lower, int256 upper);
   /// @notice Reverts when splitting a segment would exceed the segment cap.
   /// @param lower Lower path endpoint of the rejected band.
   /// @param upper Upper path endpoint of the rejected band.
@@ -104,5 +108,63 @@ library ReceiptBands {
     }
 
     revert BandOutsideLiveSupport(lower, upper);
+  }
+
+  /// @notice Restores the band `[lower, upper]` into a live-support segment
+  ///   list, merging with a touching neighbor on either side — the inverse of
+  ///   `removeBand`.
+  /// @dev The list must be — and stays — ascending, disjoint, non-touching,
+  ///      and positive-width; a band that overlaps a live segment reverts.
+  ///      Deliberately no segment cap: a restore reinstates a band a prior
+  ///      `removeBand` took (ADR 0014 P3's challenge path), and a valid
+  ///      refutation must never fail on capacity. With withdrawal requests
+  ///      serialized per receipt, restoring the pending request's bands
+  ///      returns the list toward its pre-request shape, whose length the
+  ///      removals already capped.
+  /// @param segments Live-support segment list to mutate.
+  /// @param lower Lower path endpoint of the restored band.
+  /// @param upper Upper path endpoint of the restored band.
+  function restoreBand(
+    MarketTypes.PathSegment[] storage segments,
+    int256 lower,
+    int256 upper
+  ) internal {
+    // Validation only: an empty or inverted band reverts with EmptyBand.
+    width(lower, upper);
+
+    uint256 count = segments.length;
+    uint256 insertAt = count;
+    for (uint256 i = 0; i < count; ++i) {
+      MarketTypes.PathSegment storage segment = segments[i];
+      if (overlaps(segment.rLow, segment.rHigh, lower, upper)) {
+        revert BandOverlapsLiveSupport(lower, upper);
+      }
+      // First segment at or right of the band; everything after it is
+      // further right in an ascending list, so no later overlap is possible.
+      if (segment.rLow >= upper) {
+        insertAt = i;
+        break;
+      }
+    }
+
+    bool mergesLeft = insertAt > 0 && segments[insertAt - 1].rHigh == lower;
+    bool mergesRight = insertAt < count && segments[insertAt].rLow == upper;
+    if (mergesLeft && mergesRight) {
+      segments[insertAt - 1].rHigh = segments[insertAt].rHigh;
+      for (uint256 j = insertAt + 1; j < count; ++j) {
+        segments[j - 1] = segments[j];
+      }
+      segments.pop();
+    } else if (mergesLeft) {
+      segments[insertAt - 1].rHigh = upper;
+    } else if (mergesRight) {
+      segments[insertAt].rLow = lower;
+    } else {
+      segments.push();
+      for (uint256 j = count; j > insertAt; --j) {
+        segments[j] = segments[j - 1];
+      }
+      segments[insertAt] = MarketTypes.PathSegment({rLow: lower, rHigh: upper});
+    }
   }
 }

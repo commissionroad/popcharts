@@ -176,4 +176,111 @@ contract LmsrMathTest is Test {
     assertEq(noQuote.rLow, path - int256(shares));
     assertEq(noQuote.rHigh, path);
   }
+
+  // --------------------------------------------------- segment path cost (P3)
+
+  function testFuzz_SegmentPathCostMatchesPlacementQuoteExactly(
+    uint256 pathRaw,
+    uint256 sharesRaw,
+    uint256 bRaw
+  ) public view {
+    int256 path = int256(bound(pathRaw, 0, 2_000 * WAD)) - int256(1_000 * WAD);
+    uint256 shares = bound(sharesRaw, WAD / 1_000, 1_000 * WAD);
+    uint256 liquidityParameter = bound(bRaw, 100 * WAD, 100_000 * WAD);
+
+    MarketTypes.ReceiptQuote memory yesQuote = harness.quoteBinaryReceipt(
+      path,
+      MarketTypes.Side.Yes,
+      shares,
+      liquidityParameter
+    );
+    MarketTypes.ReceiptQuote memory noQuote = harness.quoteBinaryReceipt(
+      path,
+      MarketTypes.Side.No,
+      shares,
+      liquidityParameter
+    );
+
+    // The withdrawal path must price a full placement interval at exactly the
+    // cost placement locked — wei-equal, not approximately.
+    assertEq(
+      harness.segmentPathCost(
+        yesQuote.rLow,
+        yesQuote.rHigh,
+        MarketTypes.Side.Yes,
+        liquidityParameter
+      ),
+      yesQuote.cost
+    );
+    assertEq(
+      harness.segmentPathCost(noQuote.rLow, noQuote.rHigh, MarketTypes.Side.No, liquidityParameter),
+      noQuote.cost
+    );
+  }
+
+  function testFuzz_SegmentPathCostTelescopesAcrossAnySplitPoint(
+    uint256 pathRaw,
+    uint256 sharesRaw,
+    uint256 cutRaw,
+    uint256 bRaw
+  ) public view {
+    int256 low = int256(bound(pathRaw, 0, 2_000 * WAD)) - int256(1_000 * WAD);
+    uint256 width = bound(sharesRaw, 2, 1_000 * WAD);
+    int256 high = low + int256(width);
+    int256 cut = low + int256(bound(cutRaw, 1, width - 1));
+    uint256 liquidityParameter = bound(bRaw, 100 * WAD, 100_000 * WAD);
+
+    // C rounds once per coordinate, so a shared split point cancels exactly:
+    // withdrawing a YES band in two claims can never pay a different total
+    // than withdrawing it in one.
+    uint256 yesLowPiece = harness.segmentPathCost(
+      low,
+      cut,
+      MarketTypes.Side.Yes,
+      liquidityParameter
+    );
+    uint256 yesHighPiece = harness.segmentPathCost(
+      cut,
+      high,
+      MarketTypes.Side.Yes,
+      liquidityParameter
+    );
+    uint256 yesWhole = harness.segmentPathCost(low, high, MarketTypes.Side.Yes, liquidityParameter);
+    assertEq(yesLowPiece + yesHighPiece, yesWhole);
+
+    // NO telescopes exactly too — unless the zero clamp fires. On dust-width
+    // deep-tail bands the per-coordinate rounding (up to ~b/1e18 wei per C)
+    // can push a piece's YES component past its width; the clamp then floors
+    // the negative artifact at zero, so split pieces may only ever sum ABOVE
+    // the whole — the sub-economic residue stays with escrow, never leaves it.
+    uint256 noLowPiece = harness.segmentPathCost(low, cut, MarketTypes.Side.No, liquidityParameter);
+    uint256 noHighPiece = harness.segmentPathCost(
+      cut,
+      high,
+      MarketTypes.Side.No,
+      liquidityParameter
+    );
+    uint256 noWhole = harness.segmentPathCost(low, high, MarketTypes.Side.No, liquidityParameter);
+    bool clampFree =
+      yesLowPiece <= uint256(cut - low) && yesHighPiece <= uint256(high - cut) && yesWhole <= width;
+    if (clampFree) {
+      assertEq(noLowPiece + noHighPiece, noWhole);
+    } else {
+      assertGe(noLowPiece + noHighPiece, noWhole);
+    }
+  }
+
+  function test_SegmentPathCostDeepTailRoundsToZeroNotNegative() public view {
+    // A sliver deep in the NO tail: YES cost of the band rounds to zero and
+    // the clamp keeps it at zero rather than underflowing.
+    assertEq(
+      harness.segmentPathCost(
+        -60_000 * int256(WAD),
+        -59_999 * int256(WAD),
+        MarketTypes.Side.Yes,
+        500 * WAD
+      ),
+      0
+    );
+  }
 }

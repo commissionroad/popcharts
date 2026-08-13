@@ -6,6 +6,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {ReceiptBook} from "../../contracts/ReceiptBook.sol";
 import {ReceiptBands} from "../../contracts/libraries/ReceiptBands.sol";
+import {SupportNotSegmented} from "../../contracts/libraries/ReceiptWithdrawals.sol";
 import {MarketTypes} from "../../contracts/types/MarketTypes.sol";
 import {ReceiptBookHarness} from "./harnesses/ReceiptBookHarness.sol";
 
@@ -209,6 +210,119 @@ contract ReceiptSegmentsTest is Test {
 
     harness.removeSupportBand(receiptId, 80 * WAD, 81 * WAD);
     assertEq(harness.getReceiptSegments(receiptId).length, 8);
+  }
+
+  // ------------------------------------------------------------------ restore
+
+  function test_RestoreOfInteriorRemovalMergesBackToOneSegment() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 2 * WAD, 5 * WAD);
+
+    harness.restoreSupportBand(receiptId, 2 * WAD, 5 * WAD);
+
+    _assertSegments(receiptId, _segments1(0, 10 * WAD));
+  }
+
+  function test_RestoreMergesWithOneTouchingNeighborOnly() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 0, 2 * WAD);
+    harness.removeSupportBand(receiptId, 8 * WAD, 10 * WAD);
+
+    // Left edge restore touches only the right neighbor.
+    harness.restoreSupportBand(receiptId, 0, 2 * WAD);
+    _assertSegments(receiptId, _segments1(0, 8 * WAD));
+
+    // Right edge restore touches only the left neighbor.
+    harness.restoreSupportBand(receiptId, 8 * WAD, 10 * WAD);
+    _assertSegments(receiptId, _segments1(0, 10 * WAD));
+  }
+
+  function test_RestoreWithoutTouchingNeighborsStandsAlone() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 2 * WAD, 8 * WAD);
+
+    // Restore strictly inside the gap: touches neither remainder.
+    harness.restoreSupportBand(receiptId, 4 * WAD, 6 * WAD);
+
+    MarketTypes.PathSegment[] memory segments = harness.getReceiptSegments(receiptId);
+    assertEq(segments.length, 3);
+    assertEq(segments[1].rLow, 4 * WAD);
+    assertEq(segments[1].rHigh, 6 * WAD);
+  }
+
+  function test_RestoreIntoEmptiedSupportRevives() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 0, 10 * WAD);
+    assertEq(harness.getReceiptSegments(receiptId).length, 0);
+
+    harness.restoreSupportBand(receiptId, 0, 10 * WAD);
+
+    _assertSegments(receiptId, _segments1(0, 10 * WAD));
+  }
+
+  function test_RestoreOverlappingLiveSupportReverts() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 2 * WAD, 5 * WAD);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(ReceiptBands.BandOverlapsLiveSupport.selector, WAD, 3 * WAD)
+    );
+    harness.restoreSupportBand(receiptId, WAD, 3 * WAD);
+  }
+
+  function test_RestoreEmptyOrInvertedBandReverts() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+    harness.removeSupportBand(receiptId, 2 * WAD, 5 * WAD);
+
+    vm.expectRevert(abi.encodeWithSelector(ReceiptBands.EmptyBand.selector, 3 * WAD, 3 * WAD));
+    harness.restoreSupportBand(receiptId, 3 * WAD, 3 * WAD);
+  }
+
+  function test_RestoreBeforeAnyRemovalReverts() public {
+    uint256 receiptId = _place(0, 10 * WAD);
+
+    vm.expectRevert(SupportNotSegmented.selector);
+    harness.restoreSupportBand(receiptId, 2 * WAD, 5 * WAD);
+  }
+
+  /// Removes a random sequence of legal bands, then restores them in a
+  /// rotated order: the support must return exactly to the placement
+  /// interval, whatever the interleaving — restore is removal's inverse.
+  function testFuzz_RemoveThenRestoreRoundTripsToPlacementInterval(
+    int256 lowerSeed,
+    uint256 widthSeed,
+    uint256 opSeed
+  ) public {
+    int256 rLow = bound(lowerSeed, -PATH_BOUND, PATH_BOUND - 100);
+    int256 rHigh = rLow + int256(bound(widthSeed, 16, uint256(PATH_BOUND - rLow)));
+    uint256 receiptId = _place(rLow, rHigh);
+
+    int256[2][] memory removed = new int256[2][](FUZZ_REMOVALS);
+    uint256 removedCount = 0;
+    for (uint256 op = 0; op < FUZZ_REMOVALS; ++op) {
+      MarketTypes.PathSegment[] memory segments = harness.getReceiptSegments(receiptId);
+      if (segments.length == 0) break;
+
+      opSeed = uint256(keccak256(abi.encode(opSeed)));
+      MarketTypes.PathSegment memory segment = segments[opSeed % segments.length];
+      (int256 bandLow, int256 bandHigh) = _pickLegalBand(
+        segment,
+        opSeed,
+        segments.length >= harness.MAX_RECEIPT_SEGMENTS()
+      );
+
+      harness.removeSupportBand(receiptId, bandLow, bandHigh);
+      removed[removedCount] = [bandLow, bandHigh];
+      ++removedCount;
+    }
+
+    uint256 rotation = uint256(keccak256(abi.encode(opSeed, "rotate"))) % (removedCount + 1);
+    for (uint256 i = 0; i < removedCount; ++i) {
+      int256[2] memory band = removed[(i + rotation) % removedCount];
+      harness.restoreSupportBand(receiptId, band[0], band[1]);
+    }
+
+    _assertSegments(receiptId, _segments1(rLow, rHigh));
   }
 
   /// Drives a random sequence of legal removals (full, edge, or interior when

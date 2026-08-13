@@ -4,6 +4,7 @@ import type { Address } from "viem";
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";
 import { LOCAL_DEVCHAIN } from "../chain/localDevchain.js";
 import { localDisputeConfigArgs } from "./localDisputeConfig.js";
+import { deployPregradManager } from "./deployPregradManager.js";
 
 type LocalNetworkViem = Awaited<ReturnType<typeof network.create>>["viem"];
 
@@ -49,7 +50,7 @@ export async function deployLocalPregrad(viem: LocalNetworkViem): Promise<Deploy
   });
 
   const collateral = await viem.deployContract("MockCollateral");
-  const manager = await viem.deployContract("PregradManager");
+  const manager = await deployPregradManager(viem);
   const postgradAdapter = await viem.deployContract("CompleteSetPostgradAdapter", [
     manager.address,
     deployerAddress,

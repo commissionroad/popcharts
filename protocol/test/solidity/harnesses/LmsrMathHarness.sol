@@ -45,4 +45,19 @@ contract LmsrMathHarness {
   ) external pure returns (MarketTypes.ReceiptQuote memory) {
     return LmsrMath.quoteBinaryReceipt(currentPath, side, shares, liquidityParameter);
   }
+
+  /// @notice Exposes recorded segment cost computation.
+  /// @param rLow Lower bound of the segment on the LMSR path coordinate.
+  /// @param rHigh Upper bound of the segment on the LMSR path coordinate.
+  /// @param side YES or NO side the segment was purchased on.
+  /// @param liquidityParameter Virtual LMSR smoothness parameter.
+  /// @return Recorded segment cost in collateral units.
+  function segmentPathCost(
+    int256 rLow,
+    int256 rHigh,
+    MarketTypes.Side side,
+    uint256 liquidityParameter
+  ) external pure returns (uint256) {
+    return LmsrMath.segmentPathCost(rLow, rHigh, side, liquidityParameter);
+  }
 }
