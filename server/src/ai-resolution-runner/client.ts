@@ -1,3 +1,7 @@
+import {
+  parseResolutionResult,
+  ResolutionResultSchemaError,
+} from "src/ai-resolution/result-schema";
 import type {
   MarketResolutionRequest,
   ResolutionResult,
@@ -63,10 +67,22 @@ export async function resolveMarketWithService({
       );
     }
 
-    return (await response.json()) as ResolutionResult;
+    // Validated, never cast: this body crossed a process boundary and is
+    // untrusted until it matches the service's own declared schema. A cast
+    // here is erased at compile time, so a truncated body, an error page, or
+    // a different service answering the port would reach the verdict switch
+    // shaped like a resolution.
+    return parseResolutionResult(await response.json());
   } catch (error) {
     if (error instanceof AiResolutionServiceError) {
       throw error;
+    }
+
+    // A malformed body is a service fault, not a model judgment: normalizing
+    // it to the same error type routes it into the runner's retry/backoff
+    // path instead of persisting a resolution row for it.
+    if (error instanceof ResolutionResultSchemaError) {
+      throw new AiResolutionServiceError(error.message);
     }
 
     if (error instanceof Error && error.name === "AbortError") {

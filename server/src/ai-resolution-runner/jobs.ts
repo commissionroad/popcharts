@@ -1,3 +1,4 @@
+import { assertAutoResolvable } from "src/ai-resolution/auto-resolvable";
 import type {
   MarketResolutionOptions,
   MarketResolutionRequest,
@@ -495,6 +496,15 @@ export async function processResolutionJob({
         verdict: decision.verdict,
       };
     }
+
+    // The last check before the key is used. The service already applied this
+    // rule to derive the verdict; this runner applies it again to the verdict
+    // it was handed, because the process that owns the signer must not take
+    // "this is safe to resolve" on trust from across an HTTP hop. Throws
+    // rather than parking: an unsafe response means a broken or hostile
+    // service, and a park would write a confirmed row that removes the market
+    // from enqueue for good.
+    assertAutoResolvable(result, config.abstentionThreshold);
 
     const resolution = await persistPendingResolution({
       job: claimed.job,

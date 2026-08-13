@@ -7,6 +7,7 @@ import {
 
 import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
 import type { InternetAccessMode } from "src/ai-review/types";
+import { DEFAULT_ABSTENTION_THRESHOLD } from "./auto-resolvable";
 import { RESOLUTION_MODEL_PROVIDER_NAMES } from "./types";
 import type { ResolutionModelProviderName } from "./types";
 
@@ -56,7 +57,7 @@ export type AiResolutionConfig = {
 export const aiResolutionConfig: AiResolutionConfig = {
   abstentionThreshold: readUnitInterval(
     "RESOLUTION_ABSTENTION_THRESHOLD",
-    0.85,
+    DEFAULT_ABSTENTION_THRESHOLD,
   ),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   anthropicBaseUrl:
