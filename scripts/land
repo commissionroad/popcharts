@@ -43,8 +43,30 @@ worktree_for_branch() {
   '
 }
 
-remote_branch_exists() {
-  git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1
+# This repo enables `deleteBranchOnMerge`, so GitHub deletes the head branch
+# itself, asynchronously, once the merge API call returns. A "does it still
+# exist?" pre-check cannot close that window — it usually loses it, because the
+# stacked-PR lookup runs inside the window — and the failed push then aborted
+# the whole script before any local cleanup. So attempt the delete
+# unconditionally, and when it fails, judge it on the postcondition: the branch
+# being gone is the goal, and whoever removed it achieved that. Asking the
+# remote beats matching git's error text, which is version- and locale-
+# dependent. `ls-remote --exit-code` reports 2 for "no such ref" and 128 for a
+# remote it could not reach, so a genuine transport or auth failure stays fatal.
+delete_remote_branch() {
+  local branch="$1" output probe=0
+  say "Deleting remote branch origin/$branch"
+  if output="$(git push origin --delete "$branch" 2>&1)"; then
+    [[ -z "$output" ]] || printf '%s\n' "$output" >&2
+    return 0
+  fi
+  git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 || probe=$?
+  if ((probe == 2)); then
+    say "Remote branch origin/$branch was already deleted on merge"
+    return 0
+  fi
+  printf '%s\n' "$output" >&2
+  die "failed to delete remote branch origin/$branch"
 }
 
 # GitHub closes any open PR whose base branch is deleted, and then refuses to
@@ -145,12 +167,9 @@ say "Merged $url at ${merge_oid:0:7}"
 
 if [[ "$is_cross_repo" == "true" ]]; then
   say "Skipping remote branch deletion for cross-repository PR head: $head_branch"
-elif remote_branch_exists "$head_branch"; then
-  retarget_stacked_prs "$head_branch" "$base_branch"
-  say "Deleting remote branch origin/$head_branch"
-  git push origin --delete "$head_branch"
 else
-  say "Remote branch origin/$head_branch is already gone"
+  retarget_stacked_prs "$head_branch" "$base_branch"
+  delete_remote_branch "$head_branch"
 fi
 
 base_worktree="$(worktree_for_branch "$base_branch")"
