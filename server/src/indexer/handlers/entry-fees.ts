@@ -20,12 +20,24 @@ const requireValue = logValueRequirer("Entry fee log");
  * the data. ParkSweepError base for the same reason as MarketNotIndexedError:
  * the watcher parks this address below the log and the next sweep retries,
  * instead of the raw foreign-key violation aborting the whole pass.
+ *
+ * Also raised by the withdrawal handler (receipt-withdrawals.ts), whose rows
+ * foreign-key to the same parent; `action` names the write being held so the
+ * park log says which stream is waiting.
  */
 export class ReceiptNotIndexedError extends ParkSweepError {
-  constructor({ chainId, receiptId }: { chainId: number; receiptId: bigint }) {
+  constructor({
+    action = "recording an entry fee against it",
+    chainId,
+    receiptId,
+  }: {
+    action?: string;
+    chainId: number;
+    receiptId: bigint;
+  }) {
     super(
       `Receipt ${receiptId} on chain ${chainId} is not indexed yet; ` +
-        `waiting for its ReceiptPlaced row before recording an entry fee against it.`,
+        `waiting for its ReceiptPlaced row before ${action}.`,
     );
     this.name = "ReceiptNotIndexedError";
   }
@@ -229,7 +241,8 @@ export async function persistEntryFeeWithdrawalRecord(
  * for both parent kinds: EntryFeeCollected races ReceiptPlaced in the same
  * transaction, and every fee event races MarketCreated on a cold backfill.
  * Exhausted retries rethrow the ParkSweepError so the sweep parks and the
- * next pass replays the log.
+ * next pass replays the log. The withdrawal watcher shares it — its rows wait
+ * on exactly the same parent pair.
  */
 export async function retryUntilFeeParentsIndexed<T>(
   operation: () => Promise<T>,

@@ -7,6 +7,7 @@ import {
 import type { Address } from "viem";
 
 import { and, db, eq, inArray, schema } from "src/db/client";
+import { serializeWithdrawalSegments } from "src/db/schema/withdrawal-events";
 
 import { chainId, pregradManagerAddress, publicClient } from "./stack";
 import { waitForCondition } from "./wait";
@@ -203,6 +204,30 @@ export async function assertMarketPaperTrail({
         fields: { account: null, kind: "earned" },
         key: logKey(log),
       })),
+      // A finalized withdrawal returns the withdrawn segments' prepaid entry
+      // fee in the same transfer as the escrow refund, and the contract
+      // deliberately emits ONLY ReceiptWithdrawalFinalized for it (one
+      // transfer, one event — no EntryFeeRefunded). The indexer keeps the
+      // entry-fee ledger conservative (collected == earned + refunded per
+      // receipt) by writing that movement as a `refunded` row keyed by the
+      // finalized log, so that log is expected here too. Zero refunds write
+      // no row, matching the entry-fee convention.
+      ...byName("ReceiptWithdrawalFinalized")
+        .filter(
+          (log) =>
+            (log.args as { entryFeeRefund: bigint }).entryFeeRefund !== 0n,
+        )
+        .map((log) => ({
+          amounts: {
+            amount: (log.args as { entryFeeRefund: bigint }).entryFeeRefund,
+            receiptId: (log.args as { receiptId: bigint }).receiptId,
+          },
+          fields: {
+            account: (log.args as { owner: string }).owner.toLowerCase(),
+            kind: "refunded",
+          },
+          key: logKey(log),
+        })),
     ],
     (await selectRows(schema.receiptEntryFeeEvents, marketId)).map((row) => ({
       amounts: { amount: row.amount, receiptId: row.receiptId },
@@ -221,6 +246,126 @@ export async function assertMarketPaperTrail({
       key: logKey(log),
     })),
     (await selectRows(schema.entryFeeWithdrawalEvents, marketId)).map(
+      (row) => ({
+        amounts: { amount: row.amount },
+        fields: { recipient: row.recipient.toLowerCase() },
+        key: rowKey(row),
+      }),
+    ),
+  );
+  // The withdrawal request lifecycle (protocol ADR 0014 P3): every row is
+  // pinned to its request and receipt, `account` is the owner for
+  // requested/finalized and the challenger for refuted (null for voided), and
+  // only `finalized` moves money — escrowRefund + entryFeeRefund out,
+  // withdrawalFee kept. On a stack where nothing withdraws both sides
+  // reconcile empty.
+  reconcile(
+    failures,
+    "receipt_withdrawal_events",
+    [
+      ...byName("ReceiptWithdrawalRequested").map((log) => ({
+        amounts: {
+          ...pickAmounts(log, [
+            "requestId",
+            "receiptId",
+            "grossRefund",
+            "withdrawalFee",
+            "entryFeeRefund",
+            "nextReceiptIdSnapshot",
+          ]),
+          challengeDeadlineUnix: (log.args as { challengeDeadline: bigint })
+            .challengeDeadline,
+        },
+        fields: {
+          account: (log.args as { owner: string }).owner.toLowerCase(),
+          kind: "requested",
+          segments: serializeWithdrawalSegments(
+            (
+              log.args as {
+                segments: readonly { rHigh: bigint; rLow: bigint }[];
+              }
+            ).segments,
+          ),
+        },
+        key: logKey(log),
+      })),
+      ...byName("ReceiptWithdrawalRefuted").map((log) => ({
+        amounts: pickAmounts(log, [
+          "requestId",
+          "receiptId",
+          "refutingReceiptId",
+        ]),
+        fields: {
+          account: (
+            log.args as { challenger: string }
+          ).challenger.toLowerCase(),
+          kind: "refuted",
+        },
+        key: logKey(log),
+      })),
+      ...byName("ReceiptWithdrawalFinalized").map((log) => ({
+        amounts: pickAmounts(log, [
+          "requestId",
+          "receiptId",
+          "escrowRefund",
+          "entryFeeRefund",
+          "withdrawalFee",
+        ]),
+        fields: {
+          account: (log.args as { owner: string }).owner.toLowerCase(),
+          kind: "finalized",
+        },
+        key: logKey(log),
+      })),
+      ...byName("ReceiptWithdrawalVoided").map((log) => ({
+        amounts: pickAmounts(log, ["requestId", "receiptId"]),
+        fields: { account: null, kind: "voided" },
+        key: logKey(log),
+      })),
+    ],
+    (await selectRows(schema.receiptWithdrawalEvents, marketId)).map((row) => ({
+      amounts: {
+        receiptId: row.receiptId,
+        requestId: row.requestId,
+        ...(row.grossRefund === null ? {} : { grossRefund: row.grossRefund }),
+        ...(row.withdrawalFee === null
+          ? {}
+          : { withdrawalFee: row.withdrawalFee }),
+        ...(row.entryFeeRefund === null
+          ? {}
+          : { entryFeeRefund: row.entryFeeRefund }),
+        ...(row.escrowRefund === null
+          ? {}
+          : { escrowRefund: row.escrowRefund }),
+        ...(row.challengeDeadlineUnix === null
+          ? {}
+          : { challengeDeadlineUnix: row.challengeDeadlineUnix }),
+        ...(row.nextReceiptIdSnapshot === null
+          ? {}
+          : { nextReceiptIdSnapshot: row.nextReceiptIdSnapshot }),
+        ...(row.refutingReceiptId === null
+          ? {}
+          : { refutingReceiptId: row.refutingReceiptId }),
+      },
+      fields: {
+        account: row.account,
+        kind: row.kind,
+        ...(row.segments === null ? {} : { segments: row.segments }),
+      },
+      key: rowKey(row),
+    })),
+  );
+  reconcile(
+    failures,
+    "withdrawal_fee_withdrawal_events",
+    byName("EarnedWithdrawalFeesWithdrawn").map((log) => ({
+      amounts: pickAmounts(log, ["amount"]),
+      fields: {
+        recipient: (log.args as { recipient: string }).recipient.toLowerCase(),
+      },
+      key: logKey(log),
+    })),
+    (await selectRows(schema.withdrawalFeeWithdrawalEvents, marketId)).map(
       (row) => ({
         amounts: { amount: row.amount },
         fields: { recipient: row.recipient.toLowerCase() },
@@ -682,7 +827,9 @@ type MarketScopedEventTable =
   | typeof schema.marketRefundsAvailableEvents
   | typeof schema.receiptEntryFeeEvents
   | typeof schema.receiptPlacedEvents
-  | typeof schema.refundedReceiptClaimedEvents;
+  | typeof schema.receiptWithdrawalEvents
+  | typeof schema.refundedReceiptClaimedEvents
+  | typeof schema.withdrawalFeeWithdrawalEvents;
 
 async function selectRows<Table extends MarketScopedEventTable>(
   table: Table,
