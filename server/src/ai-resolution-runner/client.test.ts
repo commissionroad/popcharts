@@ -9,23 +9,78 @@ const request: MarketResolutionRequest = {
   metadata: { question: "?", resolutionCriteria: "criteria" },
 };
 
+/** A schema-valid parked result — the minimum the client will now accept. */
+const parkedResult = {
+  confidence: null,
+  evidence: [],
+  hardFlags: [],
+  outcome: "abstain",
+  promptVersion: "v1",
+  provider: "ollama",
+  reasons: [],
+  sourceChecks: [],
+  verdict: "manual_review",
+};
+
+/** A fetch stub that returns `body` with HTTP 200. */
+function respondWith(body: unknown, capture?: (url: string) => void) {
+  return (async (url: string | URL | Request) => {
+    capture?.(String(url));
+    return {
+      json: async () => body,
+      ok: true,
+      status: 200,
+    } as Response;
+  }) as typeof fetch;
+}
+
 describe("resolveMarketWithService", () => {
   it("posts to /resolutions/market and returns the result", async () => {
     let capturedUrl = "";
-    const result = { verdict: "manual_review" };
-    const fetchImpl = (async (url: string | URL | Request) => {
-      capturedUrl = String(url);
-      return {
-        json: async () => result,
-        ok: true,
-        status: 200,
-      } as Response;
-    }) as typeof fetch;
+    const fetchImpl = respondWith(parkedResult, (url) => {
+      capturedUrl = url;
+    });
 
     const out = await resolveMarketWithService({ config, fetchImpl, request });
 
     expect(capturedUrl).toBe("http://svc/resolutions/market");
-    expect(out).toEqual(result as never);
+    expect(out).toEqual(parkedResult as never);
+  });
+
+  // The cast this replaced accepted any of these bodies as a ResolutionResult.
+  it("rejects a body that is not a resolution result", async () => {
+    const fetchImpl = respondWith({ verdict: "manual_review" });
+
+    await expect(
+      resolveMarketWithService({ config, fetchImpl, request }),
+    ).rejects.toBeInstanceOf(AiResolutionServiceError);
+  });
+
+  it("rejects an unknown verdict rather than passing it to the caller", async () => {
+    const fetchImpl = respondWith({
+      ...parkedResult,
+      verdict: "resolve_everything",
+    });
+
+    await expect(
+      resolveMarketWithService({ config, fetchImpl, request }),
+    ).rejects.toThrow(/malformed result/);
+  });
+
+  it("rejects an HTML error page served with HTTP 200", async () => {
+    const fetchImpl = respondWith("<!doctype html><title>502</title>");
+
+    await expect(
+      resolveMarketWithService({ config, fetchImpl, request }),
+    ).rejects.toBeInstanceOf(AiResolutionServiceError);
+  });
+
+  it("names the offending field so an operator can see what was wrong", async () => {
+    const fetchImpl = respondWith({ ...parkedResult, confidence: "high" });
+
+    await expect(
+      resolveMarketWithService({ config, fetchImpl, request }),
+    ).rejects.toThrow(/confidence/);
   });
 
   it("throws AiResolutionServiceError with the status on a non-ok response", async () => {

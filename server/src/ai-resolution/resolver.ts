@@ -1,5 +1,6 @@
 import { unique } from "src/ai-review/response-parsing";
 
+import { autoResolveBlockers } from "./auto-resolvable";
 import {
   AI_RESOLUTION_PROMPT_VERSION,
   type AiResolutionConfig,
@@ -8,13 +9,14 @@ import { collectEvidence } from "./evidence";
 import { runHeuristicResolution } from "./heuristics";
 import { getResolutionProvider } from "./providers/registry";
 import { filterSourceChecksByEvidence } from "./resolution-parsing";
-import type {
-  MarketResolutionRequest,
-  ResolutionFindingWithEvidence,
-  ResolutionModelProviderName,
-  ResolutionOutcome,
-  ResolutionResult,
-  ResolutionVerdict,
+import {
+  AUTO_RESOLVE_VERDICT_BY_SIDE,
+  type MarketResolutionRequest,
+  type ResolutionFindingWithEvidence,
+  type ResolutionModelProviderName,
+  type ResolutionOutcome,
+  type ResolutionResult,
+  type ResolutionVerdict,
 } from "./types";
 
 export type ResolveMarketInput = {
@@ -103,10 +105,17 @@ export function deriveVerdict(
   }
 
   if (outcome === "yes" || outcome === "no") {
-    const confident =
-      typeof confidence === "number" && confidence >= abstentionThreshold;
-    if (confident && evidenceCount >= 1 && hardFlags.length === 0) {
-      return outcome === "yes" ? "resolve_yes" : "resolve_no";
+    // One definition of the rule, shared with the runner's pre-signing check
+    // (see auto-resolvable.ts). Deriving and re-checking from the same function
+    // is what stops the two sides of the HTTP boundary from drifting apart.
+    const blockers = autoResolveBlockers({
+      abstentionThreshold,
+      confidence,
+      evidenceCount,
+      hardFlags,
+    });
+    if (blockers.length === 0) {
+      return AUTO_RESOLVE_VERDICT_BY_SIDE[outcome];
     }
 
     return "manual_review";

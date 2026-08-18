@@ -2,7 +2,10 @@ import {
   normalizeServiceUrl,
   readBoolean,
   readPositiveInteger,
+  readUnitInterval,
 } from "src/shared/config-env";
+
+import { DEFAULT_ABSTENTION_THRESHOLD } from "src/ai-resolution/auto-resolvable";
 
 /**
  * Tuning knobs for the resolution job runner: queue timing (poll, lease,
@@ -10,6 +13,17 @@ import {
  * runner identity stamped into locked_by for lease debugging.
  */
 export type AiResolutionRunnerConfig = {
+  /**
+   * The confidence floor this runner enforces itself before signing, read from
+   * the same `RESOLUTION_ABSTENTION_THRESHOLD` variable the service reads and
+   * falling back to the same shared default.
+   *
+   * Deliberately not taken from the service response: a threshold reported by
+   * the party being checked is not a check. If the two ever disagree, both must
+   * pass, so the stricter number wins — which is the point of enforcing it
+   * twice.
+   */
+  abstentionThreshold: number;
   backoffMs: number;
   batchSize: number;
   /**
@@ -55,6 +69,11 @@ export function getAiResolutionRunnerConfig(
   env: Record<string, string | undefined> = Bun.env,
 ): AiResolutionRunnerConfig {
   return {
+    abstentionThreshold: readUnitInterval(
+      env.RESOLUTION_ABSTENTION_THRESHOLD,
+      DEFAULT_ABSTENTION_THRESHOLD,
+      "RESOLUTION_ABSTENTION_THRESHOLD",
+    ),
     backoffMs: readPositiveInteger(
       env.AI_RESOLUTION_RUNNER_BACKOFF_MS,
       DEFAULT_BACKOFF_MS,

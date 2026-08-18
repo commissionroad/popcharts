@@ -34,6 +34,32 @@ export function readPositiveInteger(
 }
 
 /**
+ * Strict unit-interval knob: unset/blank returns the fallback; otherwise the
+ * value must parse as a number within [0, 1] or startup fails.
+ *
+ * Throwing matters for a safety threshold. A lenient reader turns the common
+ * `=85` typo (meaning 85%) into a silent fall back to the default, which looks
+ * correct until the default moves and the deployment quietly changes its own
+ * gate.
+ */
+export function readUnitInterval(
+  value: string | undefined,
+  fallback: number,
+  name: string,
+): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`${name} must be a number between 0 and 1.`);
+  }
+
+  return parsed;
+}
+
+/**
  * Strict boolean knob: unset/blank returns the fallback; otherwise accepts
  * only true/1/false/0 (case-insensitive, trimmed) and throws an error naming
  * the offending variable for anything else.

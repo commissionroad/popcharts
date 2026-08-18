@@ -10,16 +10,8 @@ import {
 } from "./config";
 import { getResolutionProviderStatus } from "./providers/registry";
 import { resolveMarket } from "./resolver";
-import {
-  RESOLUTION_MODEL_PROVIDER_NAMES,
-  RESOLUTION_OUTCOMES,
-  RESOLUTION_PROVIDER_NAMES,
-  RESOLUTION_VERDICTS,
-} from "./types";
-import {
-  EvidenceSchema,
-  SourceCheckSchema,
-} from "src/ai-review/evidence-schemas";
+import { ResolutionResultSchema } from "./result-schema";
+import { RESOLUTION_MODEL_PROVIDER_NAMES } from "./types";
 import { INTERNET_ACCESS_MODES } from "src/ai-review/types";
 import { literalUnion } from "src/shared/typebox-literals";
 
@@ -45,19 +37,6 @@ const KNOWN_OUTCOME_RESOLUTION_EXAMPLE = {
     provider: "heuristic",
   },
 } as const;
-
-const ResolutionResultSchema = t.Object({
-  confidence: t.Union([t.Number(), t.Null()]),
-  evidence: t.Array(EvidenceSchema),
-  hardFlags: t.Array(t.String()),
-  modelId: t.Optional(t.String()),
-  outcome: literalUnion(RESOLUTION_OUTCOMES),
-  promptVersion: t.String(),
-  provider: literalUnion(RESOLUTION_PROVIDER_NAMES),
-  reasons: t.Array(t.String()),
-  sourceChecks: t.Array(SourceCheckSchema),
-  verdict: literalUnion(RESOLUTION_VERDICTS),
-});
 
 const MarketResolutionRequestSchema = t.Object(
   {
