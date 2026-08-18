@@ -7,6 +7,7 @@ import {
   type CliRunner,
 } from "src/shared/cli-runner";
 import type { AiReviewConfig } from "./config";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /** Command runner seam so tests can fake the CLI without spawning processes. */
@@ -32,7 +33,13 @@ export async function reviewWithClaudeCli({
   model?: string;
   request: MarketReviewRequest;
   runCommand?: ClaudeCliRunner;
-}): Promise<PolicyFinding & { evidence: EvidenceItem[]; modelId: string }> {
+}): Promise<
+  PolicyFinding & {
+    evidence: EvidenceItem[];
+    modelId: string;
+    usage?: ProviderRunUsage;
+  }
+> {
   const modelId = model ?? config.claudeCliModel;
   const argv = [
     config.claudeCliCommand,
@@ -78,5 +85,6 @@ export async function reviewWithClaudeCli({
       source: "claude CLI",
     }),
     evidence,
+    usage: stream.usage,
   };
 }
