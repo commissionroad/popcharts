@@ -9,6 +9,7 @@ Scheduled full-stack lifecycle run (ADR 0017 Track C). Newest first; the result 
 
 | Date | Commit | Result | Chain smoke | Lifecycle scenarios | Chain-backed e2e | UI journeys |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-25 | `87d959f` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/32832336843) | ✗ | ✗ | ✗ | ✗ |
 | 2026-08-24 | `87d959f` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/32712919923) | ✗ | ✓ | ✗ | ✗ |
 | 2026-08-23 | `87d959f` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/32630850090) | ✗ | ✓ | ✗ | ✗ |
 | 2026-08-22 | `87d959f` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/32564767122) | ✗ | ✓ | ✗ | ✗ |
@@ -38,7 +39,6 @@ Scheduled full-stack lifecycle run (ADR 0017 Track C). Newest first; the result 
 | 2026-07-30 | `d02aa20` | [✗ fail](https://github.com/commissionroad/popcharts/actions/runs/30537108548) | ✗ | ✗ | ✓ | ✓ |
 | 2026-07-29 | `a56a6d0` | [✓ pass](https://github.com/commissionroad/popcharts/actions/runs/30447302072) | ✓ | ✓ | ✓ | ✓ |
 | 2026-07-28 | `3007255` | [✓ pass](https://github.com/commissionroad/popcharts/actions/runs/30353948361) | ✓ | ✓ | ✓ | ✓ |
-| 2026-07-27 | `4272340` | [✓ pass](https://github.com/commissionroad/popcharts/actions/runs/30265344970) | ✓ | ✓ | ✓ | ✓ |
 
 ## App
 
