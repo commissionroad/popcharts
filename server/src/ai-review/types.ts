@@ -1,3 +1,5 @@
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
+
 /**
  * How much of the web a review may touch: nothing, only the submitter's
  * resolution URLs, or full web search. Each step widens the attack surface,
@@ -231,10 +233,13 @@ export type PolicyFinding = {
 
 /**
  * What a provider hands back to the pipeline: its finding plus the evidence
- * it used (native tool results, or the pre-collected set passed in) and the
- * model that produced it.
+ * it used (native tool results, or the pre-collected set passed in), the model
+ * that produced it, and whatever the backend reported about the run's own
+ * cost and token spend. `usage` is read at the service seam for the
+ * per-run telemetry line and never copied into `ReviewResult`.
  */
 export type PolicyFindingWithEvidence = PolicyFinding & {
   evidence: EvidenceItem[];
   modelId?: string;
+  usage?: ProviderRunUsage;
 };

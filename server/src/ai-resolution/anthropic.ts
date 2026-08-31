@@ -21,6 +21,8 @@ import {
   parseOutcome,
   parseSourceChecks,
 } from "./resolution-parsing";
+import { usageFromMessagesApiResponse } from "src/shared/verdict-provider-usage";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 import type {
   InternetAccessMode,
   MarketResolutionRequest,
@@ -32,6 +34,7 @@ import type {
 export type AnthropicResolution = ResolutionFinding & {
   evidence: EvidenceItem[];
   modelId: string;
+  usage?: ProviderRunUsage;
 };
 
 /**
@@ -91,6 +94,7 @@ export async function resolveWithAnthropic({
       parseSourceChecks(parsed.sourceChecks),
       evidence,
     ),
+    usage: usageFromMessagesApiResponse(response),
   };
 }
 
@@ -208,6 +212,8 @@ async function callAnthropicMessages({
     return (await response.json()) as {
       content?: AnthropicContentBlock[];
       model?: string;
+      /** Left untyped; `usageFromMessagesApiResponse` owns the wire shape. */
+      usage?: unknown;
     };
   } finally {
     clearTimeout(timeout);

@@ -136,7 +136,7 @@ item:
       instructions, env knobs, scoring semantics, and a "Measured
       iterations" section seeded from recoverable history (including the
       status of `proposed-policy-v3.md`).
-- [ ] **A3 [measurement]** Per-run cost/latency/token structured logging in
+- [x] **A3 [measurement]** Per-run cost/latency/token structured logging in
       both services: provider, model, promptVersion, latencyMs, tokens
       where reported, derived cost where a price table exists. In-repo, no
       vendor. Acceptance: a unit test asserts the line shape; a full eval
@@ -364,3 +364,4 @@ where the pass measured, `—` where it did not.
 | ---------- | ---- | ----------- | ------------- | ------------ | ---- | ------------------------------------------------------------------------ |
 | 2026-08-08 | A1   | measurement | —             | —            | #533 | shipped: resolution regression checker + fixtures; proof runs in PR body |
 | 2026-08-09 | A2   | measurement | —             | —            | #537 | shipped: review evals README + measured-iteration ledger (v3–v6); bounded claude-cli proof run in PR body; appended M2 |
+| 2026-08-10 | A3   | measurement | —             | —            | #538 | shipped: per-run verdict telemetry line + aggregator script; bounded proof run (2 cases x 3 runs, claude-cli) aggregated from the service log alone: 6 runs, 0 errors, p50 66545ms, $0.1480/run |

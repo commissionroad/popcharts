@@ -1,4 +1,6 @@
 import { truncate } from "src/shared/cli-runner";
+import { usageFromClaudeCliResult } from "src/shared/verdict-provider-usage";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 
 /**
  * Parsing for the Claude Code CLI's `--output-format stream-json` transcript.
@@ -34,17 +36,26 @@ export type ClaudeCliToolResult = {
   toolUseId: string;
 };
 
-/** The final reply plus the tool records that produced it. */
+/**
+ * The final reply, the tool records that produced it, and whatever token and
+ * cost accounting the CLI reported for the run (absent on a CLI build that
+ * does not report it).
+ */
 export type ClaudeCliStream = {
   result: string;
   toolResults: ClaudeCliToolResult[];
   toolUses: ClaudeCliToolUse[];
+  usage?: ProviderRunUsage;
 };
 
 export function parseClaudeCliStream(stdout: string): ClaudeCliStream {
   const toolResults: ClaudeCliToolResult[] = [];
   const toolUses: ClaudeCliToolUse[] = [];
-  let resultEvent: { isError: boolean; result: string } | null = null;
+  let resultEvent: {
+    isError: boolean;
+    result: string;
+    usage?: ProviderRunUsage;
+  } | null = null;
 
   for (const line of stdout.split("\n")) {
     const event = parseLine(line);
@@ -56,6 +67,7 @@ export function parseClaudeCliStream(stdout: string): ClaudeCliStream {
       resultEvent = {
         isError: event.is_error === true,
         result: typeof event.result === "string" ? event.result : "",
+        usage: usageFromClaudeCliResult(event),
       };
       continue;
     }
@@ -77,7 +89,12 @@ export function parseClaudeCliStream(stdout: string): ClaudeCliStream {
     );
   }
 
-  return { result: resultEvent.result, toolResults, toolUses };
+  return {
+    result: resultEvent.result,
+    toolResults,
+    toolUses,
+    usage: resultEvent.usage,
+  };
 }
 
 type StreamEvent = {

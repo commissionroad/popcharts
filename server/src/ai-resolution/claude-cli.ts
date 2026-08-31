@@ -10,6 +10,8 @@ import {
   parseCliResolutionFinding,
 } from "./cli-support";
 import type { AiResolutionConfig } from "./config";
+import { usageFromClaudeCliResult } from "src/shared/verdict-provider-usage";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 import type { MarketResolutionRequest, ResolutionFinding } from "./types";
 
 /**
@@ -49,7 +51,7 @@ export async function resolveWithClaudeCli({
   nowMs: number;
   request: MarketResolutionRequest;
   runCommand?: ClaudeCliRunner;
-}): Promise<ResolutionFinding & { modelId: string }> {
+}): Promise<ResolutionFinding & { modelId: string; usage?: ProviderRunUsage }> {
   const modelId = model ?? config.claudeCliModel;
   const argv = [
     config.claudeCliCommand,
@@ -88,11 +90,14 @@ export async function resolveWithClaudeCli({
     );
   }
 
-  return parseCliResolutionFinding({
-    modelId,
-    raw: envelope.result ?? "",
-    source: "claude CLI",
-  });
+  return {
+    ...parseCliResolutionFinding({
+      modelId,
+      raw: envelope.result ?? "",
+      source: "claude CLI",
+    }),
+    usage: usageFromClaudeCliResult(envelope),
+  };
 }
 
 function parseEnvelope(stdout: string): ClaudeCliEnvelope {
