@@ -64,7 +64,7 @@ Track C review requirement.
   open without a redeploy. Disabling is the expected end state as the demo
   widens.
 - **Owner exemption.** The owner is subject to neither the cap nor the
-  allowlist, so seeding agent accounts (repo ADR 0029) and lifecycle fixtures
+  allowlist, so seeding agent accounts (repo ADR 0030) and lifecycle fixtures
   does not require raising limits everyone else is held to.
 
 Each control emits an event on change. The allowlist is a mapping with the same
@@ -142,6 +142,6 @@ Tradeoffs:
 - Protocol ADR 0008 — the complete-set market design that consumes collateral
   and converts precision.
 - Repo ADR 0022 — the review bond and creation fee, both native USDC today.
-- Repo ADR 0029 — the market-maker agents the owner exemption exists to seed.
+- Repo ADR 0030 — the market-maker agents the owner exemption exists to seed.
 - Repo ADR 0015 — deployment, where the collateral-choice box this answers
   lives.
