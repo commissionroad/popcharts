@@ -1,4 +1,4 @@
-# ADR 0029: Market-Maker Agents For Testnet
+# ADR 0030: Market-Maker Agents For Testnet
 
 Status: Proposed
 
@@ -10,7 +10,7 @@ A prediction market with no liquidity is not a slow version of a working
 product; it is a different, broken one. A visitor who opens a market and finds
 no depth cannot form a price, cannot test a trade, and has no way to tell
 whether the venue works. The same emptiness stops
-[ADR 0028](0028-recurring-price-markets.md)'s recurring markets from working at
+[ADR 0029](0029-recurring-price-markets.md)'s recurring markets from working at
 all: a market that does not reach `graduationThreshold` in matched cap by its
 deadline refunds instead of graduating, so without someone reliably taking both
 sides, a five-minute cadence produces a board of refunds.
@@ -86,7 +86,7 @@ subjects other prediction venues cover. Two rules:
 ### 5. What the agents do
 
 - **Pregrad fill.** Take both sides of new markets so they reach
-  `graduationThreshold` before their deadline. This is the duty ADR 0028
+  `graduationThreshold` before their deadline. This is the duty ADR 0029
   depends on, and its reliability requirement comes from there, not from here.
 - **Postgrad liquidity.** Supply v4 positions on graduated markets. Note this
   is the *third-party* liquidity that
@@ -98,7 +98,7 @@ subjects other prediction venues cover. Two rules:
 - **Position taking.** Small, bounded trades so order flow exists and prices
   move.
 - **Market creation.** A modest, scheduled stream of markets on a versioned
-  topic list, distinct from ADR 0028's price markets.
+  topic list, distinct from ADR 0029's price markets.
 
 ### 6. Funding and keys
 
@@ -144,7 +144,7 @@ testnet.
       built from the shapes proven in `bot-trade.ts` / `bot-trade-postgrad.ts`
       but not their interactive form.
 - [ ] **P5 — Pregrad fill duty.** Both-sides filling to graduation threshold.
-      DEPENDS: ADR 0028 P4 for the markets to fill.
+      DEPENDS: ADR 0029 P4 for the markets to fill.
 - [ ] **P6 — Postgrad liquidity duty**, including the pre-resolution exit that
       protocol ADR 0014 §4a's divergence analysis requires.
 - [ ] **P7 — Position-taking duty**, bounded per §7.
@@ -164,7 +164,7 @@ aggregate on the site is stated on a basis that says whether agents are in it.
 Positive:
 
 - The product becomes evaluable by someone who is not us.
-- ADR 0028's recurring markets become viable, since their graduation depends on
+- ADR 0029's recurring markets become viable, since their graduation depends on
   exactly this.
 - The postgrad venue gets exercised under continuous load before real
   participants arrive.
@@ -184,7 +184,7 @@ Tradeoffs:
 
 ## Related
 
-- ADR 0028 — the recurring price markets whose graduation depends on P5.
+- ADR 0029 — the recurring price markets whose graduation depends on P5.
 - Protocol ADR 0016 — popUSD, which funds the agents.
 - Protocol ADR 0014 §4a — why third-party liquidity is the only postgrad depth,
   and the divergence warning P6 must respect.

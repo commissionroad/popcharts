@@ -1,4 +1,4 @@
-# ADR 0028: Recurring Crypto Price Markets
+# ADR 0029: Recurring Crypto Price Markets
 
 Status: Proposed
 
@@ -130,9 +130,9 @@ Inside a five-minute budget that is tight in two independent ways:
 - **Graduation is not guaranteed.** A market that does not reach
   `graduationThreshold` in matched cap by its deadline refunds instead of
   graduating. For a market created every five minutes, that means the
-  market-maker agents of [ADR 0029](0029-market-maker-agents.md) must fill both
+  market-maker agents of [ADR 0030](0030-market-maker-agents.md) must fill both
   sides reliably, every time, or the board fills with refunded markets — which
-  looks worse than an empty board. **ADR 0028 therefore depends on ADR 0029
+  looks worse than an empty board. **ADR 0029 therefore depends on ADR 0030
   being reliable, not merely present**, and that dependency runs the opposite
   way to the order they were written.
 
@@ -195,13 +195,13 @@ Tradeoffs:
   and it is why §2's re-derivability requirement is a constraint rather than a
   nicety.
 - These markets will dominate board volume, and their volume is synthetic
-  (ADR 0029). Every aggregate statistic on the site becomes a statement about
+  (ADR 0030). Every aggregate statistic on the site becomes a statement about
   our own agents unless it separates them out.
 
 ## Related
 
 - Protocol ADR 0015 — per-market dispute windows; strictly required by §3.
-- ADR 0029 — the market-maker agents §5 depends on for graduation.
+- ADR 0030 — the market-maker agents §5 depends on for graduation.
 - ADR 0024 — the dispute mechanism these markets opt out of.
 - ADR 0026 — the durable resolution intent the runner keeps for them.
 - ADR 0012 — the resolution service whose provider registry §1 extends.
