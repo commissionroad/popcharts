@@ -7,6 +7,7 @@ import type { Address, Hash, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { normalizePrivateKey } from "./shared/account/normalizePrivateKey.js";
+import { linkArtifactLibraries } from "./shared/artifact/linkArtifactLibraries.js";
 import { loadHardhatDeployableArtifact } from "./shared/artifact/loadHardhatDeployableArtifact.js";
 import { defineEvmChain } from "./shared/chain/defineEvmChain.js";
 import { runScript } from "./shared/cli/runScript.js";
@@ -80,13 +81,35 @@ async function main(): Promise<void> {
     ),
     contractName: "PregradManager",
   });
+  // The withdrawal state machine (ADR 0014 P3) is a delegatecalled external
+  // library because the manager sits near the EIP-170 code-size limit, so the
+  // manager cannot be deployed until the library has an address. See
+  // scripts/shared/deployment/deployPregradManager.ts for the hardhat-viem
+  // equivalent of this two-step deploy.
+  const receiptWithdrawalsArtifact = await loadHardhatDeployableArtifact({
+    artifactPath: resolve(
+      protocolRoot,
+      "artifacts/contracts/libraries/ReceiptWithdrawals.sol/ReceiptWithdrawals.json",
+    ),
+    contractName: "ReceiptWithdrawals",
+  });
 
   console.log(`Deploying Pop Charts devchain contracts to chain ${chainId}`);
   console.log(`RPC: ${rpcUrl}`);
   console.log(`Deployer: ${getAddress(account.address)}`);
 
   const collateral = await deployDevchainContract("MockCollateral", mockCollateralArtifact);
-  const pregradManager = await deployDevchainContract("PregradManager", pregradManagerArtifact);
+  const receiptWithdrawals = await deployDevchainContract(
+    "ReceiptWithdrawals",
+    receiptWithdrawalsArtifact,
+  );
+  const pregradManager = await deployDevchainContract(
+    "PregradManager",
+    linkArtifactLibraries({
+      artifact: pregradManagerArtifact,
+      libraries: { ReceiptWithdrawals: receiptWithdrawals.address },
+    }),
+  );
 
   const manifest: DevchainManifest = {
     chainEnv: process.env.NEXT_PUBLIC_POPCHARTS_CHAIN_ENV ?? "local",
