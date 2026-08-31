@@ -1,8 +1,5 @@
 import type { network } from "hardhat";
-import {
-  describeLocalDevChainIds,
-  isLocalDevChainId,
-} from "../chain/localDevChainIds.js";
+import { describeLocalDevChainIds, isLocalDevChainId } from "../chain/localDevChainIds.js";
 import type { Address } from "viem";
 
 import { getWalletClientAddress } from "../account/getWalletClientAddress.js";

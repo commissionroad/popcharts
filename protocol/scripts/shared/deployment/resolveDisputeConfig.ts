@@ -1,7 +1,4 @@
-import {
-  isLocalDevChainEnv,
-  isLocalDevChainId,
-} from "../chain/localDevChainIds.js";
+import { isLocalDevChainEnv, isLocalDevChainId } from "../chain/localDevChainIds.js";
 import { LOCAL_DISPUTE_CONFIG } from "./localDisputeConfig.js";
 
 // A hard-coded bypass of the real-chain guard must embed this grep-able,
