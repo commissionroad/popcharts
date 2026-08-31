@@ -2,12 +2,14 @@ import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 import { parseGwei } from "viem";
 
+import { ARC_LOCAL } from "./scripts/shared/chain/arcLocal.js";
 import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.js";
 import { ARCSCAN } from "./scripts/shared/explorer/arcscan.js";
 import postgradAdminTasks from "./scripts/tasks/postgradAdmin.js";
 import venueDeploymentTasks from "./scripts/tasks/venueDeployment.js";
 
 const ARC_TESTNET_RPC_URL = process.env.POPCHARTS_RPC_URL ?? ARC_TESTNET.rpcUrl;
+const ARC_LOCAL_RPC_URL = process.env.POPCHARTS_LOCAL_RPC_URL ?? ARC_LOCAL.rpcUrl;
 const ARCSCAN_BROWSER_URL = process.env.POPCHARTS_ARCSCAN_BROWSER_URL ?? ARCSCAN.browserUrl;
 const ARCSCAN_API_URL = process.env.POPCHARTS_ARCSCAN_API_URL ?? ARCSCAN.apiUrl;
 
@@ -39,6 +41,10 @@ export default defineConfig({
   plugins: [hardhatToolboxViem],
   tasks: [...venueDeploymentTasks, ...postgradAdminTasks],
   chainDescriptors: {
+    [ARC_LOCAL.chainId]: {
+      chainType: "l1",
+      name: ARC_LOCAL.name,
+    },
     [ARC_TESTNET.chainId]: {
       blockExplorers: {
         blockscout: {
@@ -59,6 +65,18 @@ export default defineConfig({
       chainType: "l1",
       type: "http",
       url: process.env.POPCHARTS_LOCAL_RPC_URL ?? "http://127.0.0.1:8545",
+    },
+    // The single-node Arc devchain started by `scripts/arc-node.ts`. It runs
+    // the real Arc EVM, fee market, denylist, and predeploys, so a deploy that
+    // succeeds here has cleared constraints `hardhat node` cannot express
+    // (EIP-170 under Arc's EVM, the 20 gwei base-fee floor, the 30M block gas
+    // limit). Accounts are omitted on purpose: the chain prefunds the standard
+    // development accounts, so Hardhat's own defaults already hold value here.
+    arcLocal: {
+      chainId: ARC_LOCAL.chainId,
+      chainType: "l1",
+      type: "http",
+      url: ARC_LOCAL_RPC_URL,
     },
     arcTestnet: {
       accounts: [configVariable("POPCHARTS_DEPLOYER_PRIVATE_KEY")],
