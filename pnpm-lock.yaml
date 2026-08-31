@@ -188,8 +188,8 @@ importers:
         specifier: 12.0.0
         version: 12.0.0
       forge-std:
-        specifier: github:foundry-rs/forge-std#v1.9.7
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505
+        specifier: git+https://github.com/foundry-rs/forge-std.git#v1.9.7
+        version: git+https://git@github.com:foundry-rs/forge-std.git#77041d2ce690e692d6e03cc812b57d1ddaa4d505
       hardhat:
         specifier: 3.9.0
         version: 3.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -5489,8 +5489,8 @@ packages:
     resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505}
+  forge-std@git+https://git@github.com:foundry-rs/forge-std.git#77041d2ce690e692d6e03cc812b57d1ddaa4d505:
+    resolution: {commit: 77041d2ce690e692d6e03cc812b57d1ddaa4d505, repo: git@github.com:foundry-rs/forge-std.git, type: git}
     version: 1.9.7
 
   fork-ts-checker-webpack-plugin@9.1.0:
@@ -10737,7 +10737,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.13
-      debug: 4.3.4
+      debug: 4.4.3
       pony-cause: 2.1.11
       semver: 7.8.5
       uuid: 9.0.1
@@ -12166,7 +12166,7 @@ snapshots:
   '@scure/bip32@1.6.2':
     dependencies:
       '@noble/curves': 1.8.1
-      '@noble/hashes': 1.7.1
+      '@noble/hashes': 1.7.2
       '@scure/base': 1.2.6
 
   '@scure/bip32@1.7.0':
@@ -12182,7 +12182,7 @@ snapshots:
 
   '@scure/bip39@1.5.4':
     dependencies:
-      '@noble/hashes': 1.7.1
+      '@noble/hashes': 1.7.2
       '@scure/base': 1.2.6
 
   '@scure/bip39@1.6.0':
@@ -16214,7 +16214,7 @@ snapshots:
 
   extension-port-stream@3.0.0:
     dependencies:
-      readable-stream: 3.6.2
+      readable-stream: 4.7.0
       webextension-polyfill: 0.10.0
 
   fast-check@4.8.0:
@@ -16333,7 +16333,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505: {}
+  forge-std@git+https://git@github.com:foundry-rs/forge-std.git#77041d2ce690e692d6e03cc812b57d1ddaa4d505: {}
 
   fork-ts-checker-webpack-plugin@9.1.0(typescript@5.9.3)(webpack@5.108.4(esbuild@0.28.1)(postcss@8.5.16)):
     dependencies:
@@ -17748,7 +17748,7 @@ snapshots:
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/curves': 1.8.1
-      '@noble/hashes': 1.7.1
+      '@noble/hashes': 1.8.0
       '@scure/bip32': 1.6.2
       '@scure/bip39': 1.5.4
       abitype: 1.0.8(typescript@5.9.3)(zod@3.25.76)

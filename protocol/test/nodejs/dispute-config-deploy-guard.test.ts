@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ARC_LOCAL } from "../../scripts/shared/chain/arcLocal.js";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
 import { getAddress } from "viem";
@@ -53,6 +54,18 @@ describe("assertDeployableDisputeConfig", function () {
     );
   });
 
+  it("accepts zeros on the Arc local devchain too", function () {
+    // The Arc chain is as disposable as the Hardhat one, so the gate must let
+    // it through; the safety property is that a REAL chain still cannot.
+    assert.doesNotThrow(function () {
+      assertDeployableDisputeConfig({
+        chainId: ARC_LOCAL.chainId,
+        disputeBond: 0n,
+        disputeWindow: 0n,
+      });
+    });
+  });
+
   it("accepts zeros on the local devchain", function () {
     assert.doesNotThrow(() =>
       assertDeployableDisputeConfig({
@@ -93,6 +106,23 @@ describe("resolveDisputeConfig", function () {
     const config = resolveDisputeConfig({ chainEnv: "local", env: {} });
 
     assert.deepEqual(config, { disputeBond: 0n, disputeWindow: 0n });
+  });
+
+  it("returns the locked zero config for the Arc local chain env", function () {
+    const config = resolveDisputeConfig({ chainEnv: ARC_LOCAL.chainEnv, env: {} });
+
+    assert.equal(config.disputeWindow, 0n);
+    assert.equal(config.disputeBond, 0n);
+  });
+
+  it("still treats Arc Testnet as a real chain", function () {
+    // Widening the local set must never reach the network we actually deploy
+    // to; "arc-local" and "arc-testnet" share a prefix, so this is the case a
+    // sloppy `startsWith` check would silently let through.
+    assert.throws(
+      () => resolveDisputeConfig({ chainEnv: ARC_TESTNET.chainEnv, env: {} }),
+      /Non-local deploys require/,
+    );
   });
 
   it("requires both env vars on non-local chains, naming them", function () {

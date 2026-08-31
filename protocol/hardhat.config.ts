@@ -3,6 +3,7 @@ import { configVariable, defineConfig } from "hardhat/config";
 import { parseGwei } from "viem";
 
 import { ARC_LOCAL } from "./scripts/shared/chain/arcLocal.js";
+import { LOCAL_DEV_PRIVATE_KEYS } from "./scripts/shared/chain/localDevAccounts.js";
 import { ARC_TESTNET } from "./scripts/shared/chain/arcTestnet.js";
 import { ARCSCAN } from "./scripts/shared/explorer/arcscan.js";
 import postgradAdminTasks from "./scripts/tasks/postgradAdmin.js";
@@ -70,9 +71,11 @@ export default defineConfig({
     // the real Arc EVM, fee market, denylist, and predeploys, so a deploy that
     // succeeds here has cleared constraints `hardhat node` cannot express
     // (EIP-170 under Arc's EVM, the 20 gwei base-fee floor, the 30M block gas
-    // limit). Accounts are omitted on purpose: the chain prefunds the standard
-    // development accounts, so Hardhat's own defaults already hold value here.
+    // limit). The accounts are listed explicitly because an http network cannot
+    // sign for an address just because the chain funds it — the chain holding a
+    // balance says nothing about Hardhat knowing the key.
     arcLocal: {
+      accounts: [...LOCAL_DEV_PRIVATE_KEYS],
       chainId: ARC_LOCAL.chainId,
       chainType: "l1",
       type: "http",

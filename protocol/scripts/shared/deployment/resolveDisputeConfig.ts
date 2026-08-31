@@ -1,4 +1,7 @@
-import { LOCAL_DEVCHAIN } from "../chain/localDevchain.js";
+import {
+  isLocalDevChainEnv,
+  isLocalDevChainId,
+} from "../chain/localDevChainIds.js";
 import { LOCAL_DISPUTE_CONFIG } from "./localDisputeConfig.js";
 
 // A hard-coded bypass of the real-chain guard must embed this grep-able,
@@ -33,7 +36,7 @@ export function assertDeployableDisputeConfig({
   disputeBond,
   disputeWindow,
 }: ResolvedDisputeConfig & { chainId: number }): void {
-  if (chainId === LOCAL_DEVCHAIN.chainId) {
+  if (isLocalDevChainId(chainId)) {
     return;
   }
   if (disputeWindow > 0n && disputeBond > 0n) {
@@ -66,7 +69,7 @@ export function resolveDisputeConfig({
   chainEnv: string;
   env: NodeJS.ProcessEnv;
 }): ResolvedDisputeConfig {
-  if (chainEnv === LOCAL_DEVCHAIN.chainEnv) {
+  if (isLocalDevChainEnv(chainEnv)) {
     return { ...LOCAL_DISPUTE_CONFIG };
   }
 
