@@ -4,6 +4,7 @@ import type {
   InternetAccessMode,
   SourceCheck,
 } from "src/ai-review/types";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 
 export type { ConfigValidationResult, InternetAccessMode };
 
@@ -178,6 +179,7 @@ export type ResolutionFinding = {
 export type ResolutionFindingWithEvidence = ResolutionFinding & {
   evidence: EvidenceItem[];
   modelId?: string;
+  usage?: ProviderRunUsage;
 };
 
 /**

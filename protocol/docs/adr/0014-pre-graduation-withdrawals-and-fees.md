@@ -336,8 +336,11 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       split plus per-contract IR is what keeps it deployable, and events
       and withdrawal errors stay on the manager so its generated ABI remains
       the complete indexer surface. Deferred exactly as clearing defers
-      them: challenge bonds, owner-submitted requests (needs the window on),
-      and indexer ingestion of the three events — the next PR in this stack.
+      them: challenge bonds and owner-submitted requests (needs the window
+      on). Indexer ingestion landed 2026-08-13: all seven withdrawal events
+      into receipt-linked lifecycle, config, and earned-fee tables, with the
+      finalized entry-fee refund mirrored into the entry-fee ledger so
+      collected == earned + refunded holds across every path.
 
       **The opposed set cannot simply be computed on chain.** `ReceiptBook`
       stores receipts in `mapping(uint256 receiptId => Receipt)` keyed

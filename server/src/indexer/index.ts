@@ -13,6 +13,7 @@ import {
   recoverPoolPriceTickEvents,
   recoverPostgradMarketEvents,
   recoverReceiptPlacedEvents,
+  recoverReceiptWithdrawalEvents,
   recoverReviewCreditEvents,
   recoverSettlementEvents,
   recoverVenueOrderEvents,
@@ -23,6 +24,7 @@ import {
   watchPoolPriceTickEvents,
   watchPostgradMarketEvents,
   watchReceiptPlacedEvents,
+  watchReceiptWithdrawalEvents,
   watchReviewCreditEvents,
   watchSettlementEvents,
   watchVenueOrderEvents,
@@ -70,6 +72,7 @@ async function main() {
   const unwatchMarketCreated = watchMarketCreatedEvents(client);
   const unwatchMarketCreationFee = watchMarketCreationFeeEvents(client);
   const unwatchEntryFees = watchEntryFeeEvents(client);
+  const unwatchReceiptWithdrawals = watchReceiptWithdrawalEvents(client);
   const unwatchReviewBond = watchReviewCreditEvents(client);
   const unwatchReceiptPlaced = watchReceiptPlacedEvents(client);
   const unwatchSettlement = watchSettlementEvents(client);
@@ -101,6 +104,7 @@ async function main() {
     unwatchMarketCreated();
     unwatchMarketCreationFee();
     unwatchEntryFees();
+    unwatchReceiptWithdrawals();
     unwatchReviewBond();
     unwatchReceiptPlaced();
     unwatchSettlement();
@@ -132,6 +136,9 @@ async function recoverMissedEvents(
   // receipt_placed_events, so a cold backfill that recovered fees first would
   // park every collected log for the length of its retry budget.
   await recoverEntryFeeEvents(client, currentBlock, { quiet });
+  // Same dependency, same ordering: withdrawal rows foreign-key to
+  // receipt_placed_events (twice, for the refuted kind's counterexample).
+  await recoverReceiptWithdrawalEvents(client, currentBlock, { quiet });
   await recoverSettlementEvents(client, currentBlock, { quiet });
   await recoverVenueOrderEvents(client, currentBlock, { quiet });
   await recoverPoolPriceTickEvents(client, currentBlock, { quiet });

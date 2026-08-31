@@ -1,4 +1,5 @@
 import { unique } from "src/ai-review/response-parsing";
+import { logVerdictRun } from "src/shared/verdict-run-log";
 
 import { autoResolveBlockers } from "./auto-resolvable";
 import {
@@ -45,6 +46,8 @@ export async function resolveMarket({
 }: ResolveMarketInput): Promise<ResolutionResult> {
   const providerName: ResolutionModelProviderName =
     request.options?.provider ?? config.provider;
+  const requestedModel = request.options?.model ?? undefined;
+  const startedAtMs = performance.now();
   const heuristic = runHeuristicResolution(request.metadata);
 
   let finding: ResolutionFindingWithEvidence;
@@ -64,6 +67,19 @@ export async function resolveMarket({
       request,
     });
   } catch (error) {
+    // A failed provider call is still a run: it consumed wall clock and it is
+    // the denominator of any error rate, so it gets a telemetry line too — with
+    // ok:false so an aggregate can separate outages from judgments.
+    logVerdictRun({
+      latencyMs: performance.now() - startedAtMs,
+      model: requestedModel,
+      ok: false,
+      outcome: "manual_review",
+      promptVersion: AI_RESOLUTION_PROMPT_VERSION,
+      provider: providerName,
+      service: "resolution",
+    });
+
     return {
       confidence: null,
       evidence: [],
@@ -78,7 +94,20 @@ export async function resolveMarket({
     };
   }
 
-  return buildResult(finding, providerName, config.abstentionThreshold);
+  const result = buildResult(finding, providerName, config.abstentionThreshold);
+
+  logVerdictRun({
+    latencyMs: performance.now() - startedAtMs,
+    model: finding.modelId ?? requestedModel,
+    ok: true,
+    outcome: result.verdict,
+    promptVersion: AI_RESOLUTION_PROMPT_VERSION,
+    provider: providerName,
+    service: "resolution",
+    usage: finding.usage,
+  });
+
+  return result;
 }
 
 /**

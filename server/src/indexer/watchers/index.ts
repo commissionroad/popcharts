@@ -24,6 +24,10 @@ export {
   watchReceiptPlacedEvents,
 } from "./receipt-placed";
 export {
+  recoverReceiptWithdrawalEvents,
+  watchReceiptWithdrawalEvents,
+} from "./receipt-withdrawals";
+export {
   recoverReviewCreditEvents,
   watchReviewCreditEvents,
 } from "./review-credit";

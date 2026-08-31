@@ -17,6 +17,8 @@ import {
   buildSuppliedEvidenceSystemPrompt,
   buildSuppliedEvidenceUserMessage,
 } from "./supplied-evidence";
+import { usageFromMessagesApiResponse } from "src/shared/verdict-provider-usage";
+import type { ProviderRunUsage } from "src/shared/verdict-run-log";
 import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 
 /**
@@ -27,6 +29,7 @@ import type { EvidenceItem, MarketReviewRequest, PolicyFinding } from "./types";
 export type AnthropicReview = PolicyFinding & {
   evidence: EvidenceItem[];
   modelId: string;
+  usage?: ProviderRunUsage;
 };
 
 /**
@@ -120,6 +123,7 @@ export async function reviewWithAnthropic({
     scoreRationales,
     scores,
     sourceChecks,
+    usage: usageFromMessagesApiResponse(response),
     verdict: parseVerdict(parsed.verdict),
   };
 }

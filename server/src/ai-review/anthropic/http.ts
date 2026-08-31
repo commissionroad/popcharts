@@ -5,6 +5,8 @@ import { buildSystemPrompt, type AnthropicTool } from "./tools";
 type AnthropicMessageResponse = {
   content?: AnthropicContentBlock[];
   model?: string;
+  /** Left untyped here; `usageFromMessagesApiResponse` owns the wire shape. */
+  usage?: unknown;
 };
 
 export type AnthropicContentBlock =
