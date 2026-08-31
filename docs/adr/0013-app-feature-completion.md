@@ -35,11 +35,19 @@ Auth:
 
 Graduation:
 
-- [ ] Wire the graduation page's "Graduate market" button (the market-detail
+- [x] Wire the graduation page's "Graduate market" button (the market-detail
       button already calls `graduateMarketAction`; both paths should share
       one flow with pending/success/error states reflecting chain state).
-- [ ] Graduation outcome view driven by real clearing results (matched
+      *(`features/market-detail/graduate-market-button.tsx`, rendered by
+      `market-detail-page.tsx`, over the shared `graduation-actions.ts` flow;
+      it drives the public `POST /markets/:chainId/:marketId/graduate`
+      failsafe from ADR 0009, and the clearing keeper graduates automatically
+      without it.)*
+- [x] Graduation outcome view driven by real clearing results (matched
       bands, refunds) once the clearing keeper (ADR 0008) emits them.
+      *(`features/graduation-clearing/graduation-page.tsx` renders the
+      matched/refunded split and the crossed price bands from indexed clearing
+      results via `components/charts/band-strip`.)*
 
 Postgrad trading:
 
@@ -47,13 +55,26 @@ Postgrad trading:
       prices from the v4 venue, trade ticket for outcome tokens
       (approve/buy/sell against `BoundedPoolOrderManager`).
 - [ ] Portfolio shows postgrad positions and P&L alongside pregrad receipts.
-- [ ] Redemption/claims UX: claim graduated receipts, redeem winning tokens
-      after resolution, claim refunds on refunded markets.
+      *(Partial: the portfolio page carries Receipts, Backed positions, Open
+      orders and Claimed payouts sections over `/portfolio`. P&L — cost
+      basis, average entry, unrealised gain — is not computed anywhere in the
+      app or the API, and remains the open half.)*
+- [x] Redemption/claims UX: claim graduated receipts, redeem winning tokens
+      after resolution, claim refunds on refunded markets. *(Delivered by ADR
+      0018: `market-detail/claim-winnings-panel.tsx`,
+      `integrations/contracts/redemption-service.ts` and
+      `hooks/use-redemption.ts` for `redeem`/`redeemCancelled`, plus
+      `portfolio/position-claim.tsx` — PRs #219 and #234.)*
 
 Unhappy paths:
 
-- [ ] Rejected-market view showing user-appropriate AI rejection reasons
+- [x] Rejected-market view showing user-appropriate AI rejection reasons
       (from ADR 0011) and what the creator can change before resubmitting.
+      *(Reshaped by ADR 0022 — review happens on drafts before anything
+      reaches the chain, so there is no rejected *market* to view. The surface
+      is `features/creator-studio/draft-card.tsx` and the create flow's
+      `draft-panels/review-progress-panel.tsx`, rendering the
+      `issue`/`howToFix` feedback from `draft-review/feedback.ts`.)*
 - [ ] Refund flows surfaced wherever a market lands in `refunded`/closed
       states, not only behind dev tools.
 - [x] Receipt states communicate the full range of outcomes (matched,
@@ -62,8 +83,14 @@ Unhappy paths:
 Small features:
 
 - [ ] Market search and richer category/status filtering against the API
-      (ADR 0009), replacing client-side-only filtering.
-- [ ] Resolved-market view: outcome, evidence summary, redemption state.
+      (ADR 0009), replacing client-side-only filtering. *(Partial: status
+      filtering is server-side as of ADR 0022 P8, with board chips (#491)
+      driving a `status` query against `GET /markets`. Free-text search and
+      category filtering are still open on both sides.)*
+- [x] Resolved-market view: outcome, evidence summary, redemption state.
+      *(Delivered by ADR 0018 (#219): the resolved surface shows the winning
+      side and redemption state, and the cancelled-draw surface its
+      `redeemCancelled` counterpart.)*
 - [ ] Loading skeletons and granular error states on data-driven pages.
 - [ ] Notification affordance for market status changes (in-app is enough
       for testnet; push/email deferred).

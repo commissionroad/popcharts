@@ -56,7 +56,7 @@ Security and auth:
 
 Product surface:
 
-- [ ] Make the graduation trigger real. `POST /markets/:chainId/:marketId/graduate`
+- [x] Make the graduation trigger real. `POST /markets/:chainId/:marketId/graduate`
       currently only reports status. It must kick off the server's graduation
       process — start graduation, off-chain band-pass clearing, Merkle-root
       submission, finalize — for a market that has genuinely reached threshold.
@@ -64,21 +64,42 @@ Product surface:
       server re-checking eligibility plus the on-chain conservation checks, not
       from a gate, because on-chain `startGraduation` is manager-only and the
       band sweep cannot fit in one transaction (protocol ADR 0006). It exists
-      as a safeguard for markets the keeper misses.
+      as a safeguard for markets the keeper misses. *(Delivered: the route in
+      `server/src/api/routes/markets.ts` calls `requestMarketGraduation`, which
+      runs band-pass clearing, Merkle-root submission and finalize with the
+      manager key, re-checks eligibility from real receipts, and answers 409
+      `GraduationIneligible` for a below-threshold or wrong-status market. The
+      `/dev/.../graduate` route still exists alongside it and is local-only.)*
 - [ ] Cursor pagination that removes the hardcoded `MARKET_LIST_LIMIT = 200`.
-- [ ] Market search and category/status filtering.
+- [ ] Market search and category/status filtering. *(Partial: status filtering
+      shipped with ADR 0022 P8 — `GET /markets` takes a comma-separated
+      `status` list, 400 on unknown values, served by the
+      `(status, created_block_timestamp)` index. Free-text search and category
+      filtering are still open.)*
 - [x] Portfolio endpoints: receipts, claims, and postgrad positions by owner
       address.
 - [x] Postgrad market surface (markets, trades, positions) once indexing
       lands (ADR 0010).
-- [ ] Resolution status surface once resolution lands (ADR 0012).
+- [x] Resolution status surface once resolution lands (ADR 0012).
+      *(`MarketResolutionSchema` — kind, `winningSide`, `resolvedAt`,
+      `transactionHash` — is joined onto market and portfolio reads by
+      `getResolutions`, and `MarketStatusSchema` carries `resolution_pending`
+      and `disputed` from ADR 0024. `proposedSide` and the dispute deadline are
+      not exposed yet; that half is tracked in ADR 0024.)*
 
 Quality:
 
-- [ ] Integration tests that exercise the running API against a real
-      Postgres (today only unit tests exist).
-- [ ] Server CI runs on every PR (workflow file itself belongs to ADR 0015;
+- [x] Integration tests that exercise the running API against a real
+      Postgres (today only unit tests exist). *(`*.route.test.ts` drive the
+      built Elysia app against a PGlite database via
+      `src/test-support/pglite-db.ts`; `*.int.test.ts` run against the real
+      `postgres:16-alpine` service provisioned by `server-ci.yml`, gated by
+      `src/test-support/require-int-db-url.ts`.)*
+- [x] Server CI runs on every PR (workflow file itself belongs to ADR 0015;
       making the suite runnable headlessly belongs here).
+      *(`.github/workflows/server-ci.yml`, `on: pull_request: branches:
+      [main]` — format, lint, typecheck, OpenAPI check, Drizzle schema check
+      and the test suite.)*
 
 ## Exit Criteria
 

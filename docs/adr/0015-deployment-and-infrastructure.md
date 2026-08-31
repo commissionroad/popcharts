@@ -28,11 +28,16 @@ Testnet.
 
 Continuous integration (unblocks early, cheap to do first):
 
-- [ ] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
-      service container.
+- [x] Server CI workflow: typecheck, OpenAPI check, tests against a Postgres
+      service container. *(`.github/workflows/server-ci.yml` on
+      `pull_request` and `push` to main — format check, lint, typecheck,
+      OpenAPI check, Drizzle schema check and the suite against a
+      `postgres:16-alpine` service.)*
 - [x] Protocol CI workflow: format, lint, typecheck, Solidity + node tests.
-- [ ] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with
-      the heuristic provider.
+- [x] Scheduled/full-suite job running the lifecycle E2E (ADR 0014) with
+      the heuristic provider. *(`.github/workflows/nightly-lifecycle.yml`,
+      cron `0 9 * * *`, standing up devchain, Postgres, API, indexer, keeper
+      and the heuristic review and resolution services.)*
 
 Cloud stack (Arc Testnet staging):
 
