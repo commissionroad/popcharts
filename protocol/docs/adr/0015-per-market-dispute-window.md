@@ -83,6 +83,15 @@ if (params.bypassAiResolution && !trustedCreator) {
 mechanism. A zero dispute window is the same shape of decision about the same
 pipeline, and belongs under the same privilege rather than a second one.
 
+The privilege model this keeps is worth naming, because it is what makes one
+grant safe enough to carry two abilities: **trusted-creator status is
+permission to ask, not a default that applies.** Neither ability switches on
+for every market the account touches — each is a field in `CreateMarketParams`,
+opted into per market, signed into the authorization, and validated at
+creation. A trusted creator making an ordinary market gets ordinary behaviour.
+That is why the answer to "this grant is broad" is per-market opt-in rather
+than a second privilege tier.
+
 The floor is settable rather than constant because it is explicitly expected to
 change: 24 hours is a starting posture for testnet, not a derived number. Making
 it storage means revisiting it is an owner transaction, not a redeploy of the
