@@ -22,7 +22,7 @@ per market, the value every market receives comes from one adapter-wide field:
 market prepared by one adapter therefore carries the same window. Changing it
 between two `prepareMarket` calls is an ops race, not a parameter.
 
-**A class of market wants no window at all.** Repo ADR 0028 introduces
+**A class of market wants no window at all.** Repo ADR 0029 introduces
 recurring five-minute crypto price markets whose outcome is a deterministic
 comparison of two timestamped prices. Their whole point is to have nothing to
 dispute. A 24-hour adjudication window on a five-minute market is not caution;
@@ -143,6 +143,6 @@ Tradeoffs:
 - Protocol ADR 0012 — the singleton position book. `disputeWindow` remains
   per-market state and transfers onto `marketId`-keyed book state unchanged.
 - Repo ADR 0024 — the cross-stack program that landed ADR 0013.
-- Repo ADR 0028 — the recurring price markets that motivate a zero window.
+- Repo ADR 0029 — the recurring price markets that motivate a zero window.
 - Repo ADR 0022 — authorized creation, whose signed parameter struct this
   extends.
