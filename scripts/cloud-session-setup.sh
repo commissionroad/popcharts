@@ -193,3 +193,12 @@ git status --porcelain || true
 echo
 echo "Setup complete. Per session, still run:"
 echo "  dockerd (background), then: docker compose up -d postgres"
+echo
+echo "For the Playwright lanes, also export:"
+echo "  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium"
+echo "  PLAYWRIGHT_EXPECT_TIMEOUT_MS=60000"
+echo
+echo "The first points Playwright at the preinstalled browser, since the"
+echo "version this repo pins expects a build number the image does not carry"
+echo "and the Playwright CDN is off the allowlist. The second covers route"
+echo "compilation in \`next dev\`, which outruns the 5s default on a small box."
