@@ -8,8 +8,15 @@
 # This script starts the two that have to come back each session: the Docker
 # daemon, and the shared Postgres container the local orchestrators expect.
 #
-# Wired as a SessionStart hook in .claude/settings.json, backgrounded so it
-# never delays a session. Progress goes to .local-dev/logs/session-start.log.
+# Wired as a SessionStart hook in .claude/settings.json. The `async` line below
+# is what keeps it off the session's critical path: the hook runner reads that
+# object from stdout, returns immediately, and lets the rest of the script run
+# in the background under `asyncTimeout` instead of the hook's own short one.
+# Backgrounding the work by hand instead loses that race -- the runner reaps the
+# process group when the hook times out, and a container where the daemon is
+# slow to accept connections gets a truncated run: `starting dockerd` logged,
+# the daemon eventually up because it is detached, and Postgres never started.
+# Progress goes to .local-dev/logs/session-start.log.
 #
 # This is a no-op unless it is actually running in a cloud session. On a
 # contributor's machine Docker is already running (or is Docker Desktop, which
@@ -18,6 +25,10 @@
 # or =0 to force it off.
 
 set -uo pipefail
+
+# Must be the first thing on stdout, before any work. Everything else this
+# script emits goes to the log file, so stdout carries only this object.
+echo '{"async": true, "asyncTimeout": 300000}'
 
 cd "$(dirname "$0")/.."
 
@@ -32,9 +43,13 @@ should_run() {
     1) return 0 ;;
     0) return 1 ;;
   esac
-  # Two independent markers, so a rename of either one does not silently
-  # disable the hook.
-  [ -n "${CLAUDE_CODE_CONTAINER_ID:-}" ] || [ "${CCR_AGENT_PROXY_ENABLED:-}" = "1" ]
+  # CLAUDE_CODE_REMOTE is the documented marker for a session running on
+  # Claude Code's remote infrastructure. The other two are container-level
+  # details of the same environment, kept only so a rename of the documented
+  # one degrades to a still-working hook rather than a silent no-op.
+  [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] ||
+    [ -n "${CLAUDE_CODE_CONTAINER_ID:-}" ] ||
+    [ "${CCR_AGENT_PROXY_ENABLED:-}" = "1" ]
 }
 
 if ! should_run; then
@@ -95,3 +110,5 @@ else
   log "postgres did not become healthy in time"
   exit 1
 fi
+
+log "done"
