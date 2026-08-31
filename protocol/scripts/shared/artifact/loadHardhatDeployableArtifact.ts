@@ -12,8 +12,25 @@ export type HardhatDeployableArtifact = {
   readonly buildInfoId: string;
   readonly bytecode: Hex;
   readonly contractName: string;
+  /**
+   * Where each external library's address has to be written into `bytecode`
+   * before it can be deployed, keyed by source file and then library name.
+   * Empty for contracts that link nothing, which is most of them.
+   */
+  readonly linkReferences: ArtifactLinkReferences;
   readonly sourceName: string;
 };
+
+/** Byte offsets of one unlinked library placeholder inside the bytecode. */
+export type ArtifactLinkPlaceholder = {
+  readonly length: number;
+  readonly start: number;
+};
+
+/** Hardhat's `linkReferences`: source file -> library name -> placeholders. */
+export type ArtifactLinkReferences = Readonly<
+  Record<string, Readonly<Record<string, readonly ArtifactLinkPlaceholder[]>>>
+>;
 
 /**
  * Loads a Hardhat artifact and verifies it has deployable bytecode and metadata.
@@ -55,6 +72,10 @@ export async function loadHardhatDeployableArtifact({
     buildInfoId,
     bytecode: artifact.bytecode as Hex,
     contractName: artifactContractName,
+    // Hardhat omits the key entirely when a contract links nothing.
+    linkReferences: isPlainJsonObject(artifact.linkReferences)
+      ? (artifact.linkReferences as ArtifactLinkReferences)
+      : {},
     sourceName,
   };
 }
