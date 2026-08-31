@@ -191,8 +191,10 @@ echo "==> working tree clean:"
 git status --porcelain || true
 
 echo
-echo "Setup complete. Per session, still run:"
-echo "  dockerd (background), then: docker compose up -d postgres"
+echo "Setup complete. The snapshot keeps files only, so the Docker daemon and"
+echo "the Postgres container still have to be started per session -- the"
+echo "SessionStart hook in .claude/settings.json runs scripts/cloud-session-start.sh"
+echo "to do exactly that. Run it by hand if you need it before the next session."
 echo
 echo "For the Playwright lanes, also export:"
 echo "  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium"
