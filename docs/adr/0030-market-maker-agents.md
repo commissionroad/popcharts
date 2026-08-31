@@ -9,11 +9,16 @@ Date: 2026-08-31
 A prediction market with no liquidity is not a slow version of a working
 product; it is a different, broken one. A visitor who opens a market and finds
 no depth cannot form a price, cannot test a trade, and has no way to tell
-whether the venue works. The same emptiness stops
-[ADR 0029](0029-recurring-price-markets.md)'s recurring markets from working at
-all: a market that does not reach `graduationThreshold` in matched cap by its
-deadline refunds instead of graduating, so without someone reliably taking both
-sides, a five-minute cadence produces a board of refunds.
+whether the venue works.
+
+Two things sharpen this. [Protocol ADR 0014 §4a](../../protocol/docs/adr/0014-pre-graduation-withdrawals-and-fees.md)
+now funds post-graduation seeding from the fee pot alone, with no
+protocol-capital top-up — and §4 computes that fee-only depth is `φ_in / 2` of
+matched cap, around 0.5%, which it calls unusable on its own. Third-party
+liquidity is therefore the load-bearing source of depth, not a supplement to
+ours. And [ADR 0029](0029-recurring-price-markets.md)'s recurring markets, while
+no longer dependent on agents to *exist*, are the most visible markets on the
+board and the least forgiving of having none.
 
 Two starting points already exist. `server/scripts/bot-trade.ts` and
 `bot-trade-postgrad.ts` drive pregrad receipts and postgrad venue swaps against
@@ -86,8 +91,10 @@ subjects other prediction venues cover. Two rules:
 ### 5. What the agents do
 
 - **Pregrad fill.** Take both sides of new markets so they reach
-  `graduationThreshold` before their deadline. This is the duty ADR 0029
-  depends on, and its reliability requirement comes from there, not from here.
+  `graduationThreshold` before their deadline. This serves organic markets that
+  would otherwise refund for want of a counterparty. It is **no longer
+  load-bearing for ADR 0029**, whose price markets are created directly as
+  postgrad markets and so cannot refund for missing a threshold.
 - **Postgrad liquidity.** Supply v4 positions on graduated markets. Note this
   is the *third-party* liquidity that
   [protocol ADR 0014 §4a](../../protocol/docs/adr/0014-pre-graduation-withdrawals-and-fees.md)
@@ -114,13 +121,22 @@ deployment secrets ([ADR 0015](0015-deployment-and-infrastructure.md)) and
 individually revocable. An agent key is the least trusted key in the system and
 should be able to lose everything it holds without that mattering.
 
-Note the one place this is not merely cosmetic: agents creating markets need
-**trusted-creator** status or authorized-creation signatures, and
-trusted-creator status also carries the `bypassAiResolution` privilege and,
-under protocol ADR 0015, the zero-dispute-window privilege. **Do not grant
-trusted-creator status to a trading agent.** Market-creating agents should hold
-the narrowest credential that works, and if that is not narrow enough, that is
-an argument for splitting the privilege rather than for widening the grant.
+On trusted-creator status: the extra abilities it carries —
+`bypassAiResolution`, and the zero dispute window under protocol ADR 0015 —
+are **per-market opt-ins chosen at creation**, not properties that switch on
+for every market the account touches. Both are fields in `CreateMarketParams`,
+signed into the authorization and validated at creation, so holding the status
+is permission to *ask*, not a default that applies retroactively. That is the
+right granularity and this ADR does not ask for more.
+
+What follows for agents is simply scoping: **a trading agent has no reason to
+hold creator status at all**, because it never creates a market. Give each
+agent the narrowest credential its duty needs — trading agents none,
+market-creating agents the status, and the price-market factory
+(ADR 0029) its own account rather than sharing one. The residual risk is that
+a market-creating agent's key can opt in to those abilities on markets it
+creates; on testnet, with free popUSD collateral and §7's caps, that is
+acceptable, and §3's sunset bounds how long it stays acceptable.
 
 ### 7. Bounded by construction
 
@@ -143,8 +159,9 @@ testnet.
 - [ ] **P4 — Runner harness.** An unattended agent process with the §7 caps,
       built from the shapes proven in `bot-trade.ts` / `bot-trade-postgrad.ts`
       but not their interactive form.
-- [ ] **P5 — Pregrad fill duty.** Both-sides filling to graduation threshold.
-      DEPENDS: ADR 0029 P4 for the markets to fill.
+- [ ] **P5 — Pregrad fill duty.** Both-sides filling to graduation threshold,
+      for organic markets that would otherwise refund. Independent of ADR 0029
+      since its markets are born postgrad.
 - [ ] **P6 — Postgrad liquidity duty**, including the pre-resolution exit that
       protocol ADR 0014 §4a's divergence analysis requires.
 - [ ] **P7 — Position-taking duty**, bounded per §7.
@@ -164,8 +181,9 @@ aggregate on the site is stated on a basis that says whether agents are in it.
 Positive:
 
 - The product becomes evaluable by someone who is not us.
-- ADR 0029's recurring markets become viable, since their graduation depends on
-  exactly this.
+- ADR 0029's recurring markets get depth. They no longer need the agents to
+  *exist* — the direct-postgrad path removed that dependency — so a bad fill
+  window now costs liquidity rather than the market.
 - The postgrad venue gets exercised under continuous load before real
   participants arrive.
 
@@ -184,10 +202,10 @@ Tradeoffs:
 
 ## Related
 
-- ADR 0029 — the recurring price markets whose graduation depends on P5.
+- ADR 0029 — the recurring price markets these agents give depth to.
 - Protocol ADR 0016 — popUSD, which funds the agents.
 - Protocol ADR 0014 §4a — why third-party liquidity is the only postgrad depth,
   and the divergence warning P6 must respect.
-- Protocol ADR 0015 — the zero-window privilege that rides on trusted-creator
-  status, which §6 says not to grant a trading agent.
+- Protocol ADR 0015 — the zero-window privilege, a per-market opt-in that
+  trusted-creator status permits an account to request (§6).
 - ADR 0015 — deployment, where P9 lives.
