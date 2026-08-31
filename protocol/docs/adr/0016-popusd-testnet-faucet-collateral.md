@@ -71,19 +71,39 @@ Each control emits an event on change. The allowlist is a mapping with the same
 shape as `PregradManager`'s `_trustedCreators`, deliberately — it is the same
 kind of decision and should read the same way.
 
-### 3. Six decimals
+### 3. Eighteen decimals
 
-popUSD uses **6 decimals**, matching Arc USDC rather than `MockCollateral`'s
-inherited 18.
+popUSD uses **18 decimals**, matching Arc's native USDC and
+`MockCollateral`'s inherited precision.
 
-This is not cosmetic. `CompleteSetBinaryMarket` converts between collateral and
-outcome precision explicitly and rejects conversion dust, and
-`LocalV4StackSmoke.t.sol` already exercises 18-decimal outcome tokens against
-6-decimal collateral. Choosing 6 means the testnet exercises the same
-conversion arithmetic the eventual USDC path will, so popUSD is a drop-in
-rehearsal rather than a different code path wearing the same interface. An
-18-decimal popUSD would make every testnet run evidence about a path we do not
-intend to ship.
+"Matching USDC" is ambiguous on Arc and the ambiguity is worth writing down,
+because both answers are documented in this repo and they disagree. From
+`protocol/docs/complete-set-v4-hook-order-manager-plan.md`: "Arc has an unusual
+native USDC model. **Native USDC uses 18 decimals** for gas and native-value
+accounting, while the **ERC20 USDC interface uses 6 decimals** for balances and
+transfers." `server/src/config/arc-testnet.ts` carries the native side —
+`ARC_TESTNET_NATIVE_CURRENCY` is 18 — and `complete-set-postgrad-plan.md`
+carries the ERC20 side, warning to "handle its 6-decimal ERC20 interface and
+the separate 18-decimal native gas accounting carefully."
+
+So there is a real tradeoff rather than a right answer:
+
+- **18 keeps testnet on one precision.** Outcome tokens are 18,
+  `MockCollateral` is 18, and the native-USDC vaults
+  (`CreationFeeVault`, `ReviewCreditVault`) account in 18. Collateral at 18
+  means no conversion dust anywhere in the testnet stack, and popUSD is a
+  drop-in swap for `MockCollateral` in every existing test and script.
+- **6 would have rehearsed the ERC20 path.** `CompleteSetBinaryMarket` converts
+  between collateral and outcome precision explicitly and rejects dust, and
+  `LocalV4StackSmoke.t.sol` already runs 18-decimal outcome tokens against
+  6-decimal collateral.
+
+**We choose 18**, and accept the consequence: **the 6-decimal collateral
+conversion path is not exercised by testnet activity.** If mainnet collateral is
+the Arc ERC20 USDC interface, that path is unrehearsed and must earn its slot
+through the dedicated smoke run ADR 0009 §1 already demands — for its decimals
+specifically, not only its transfer behavior. That requirement is now doing more
+work than it was, and this ADR does not weaken it.
 
 ### 4. What it does not replace
 
@@ -120,15 +140,17 @@ Positive:
   else's.
 - Access to an unaudited protocol is gated by a control we own, and ungating is
   one transaction when we are ready.
-- The 6-decimal choice makes testnet activity evidence about the conversion path
-  mainnet will actually use.
+- One precision across collateral, outcome tokens and the native-USDC vaults
+  means no conversion dust anywhere in the testnet stack, and popUSD drops into
+  every existing `MockCollateral` test and script unchanged.
 
 Tradeoffs:
 
-- Testnet stops exercising the one thing ADR 0009 wanted from real USDC: its
-  native/ERC20 duality and its restricted transfer behavior. Those smoke tests
-  are deferred, not cancelled, and they must run before any collateral decision
-  for mainnet.
+- Testnet stops exercising the things ADR 0009 wanted from real USDC: its
+  native/ERC20 duality, its restricted transfer behavior, and — because of §3's
+  18-decimal choice — its 6-decimal ERC20 conversion arithmetic. Those smoke
+  tests are deferred, not cancelled, and they must run before any collateral
+  decision for mainnet.
 - Free collateral makes every economic signal on testnet fictional. Volume,
   liquidity depth and price quality are product-shaped noise, not evidence about
   market design. Do not read them as validation.
