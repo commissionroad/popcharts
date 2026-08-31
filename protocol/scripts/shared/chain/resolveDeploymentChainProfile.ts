@@ -1,3 +1,4 @@
+import { ARC_LOCAL } from "./arcLocal.js";
 import { ARC_TESTNET } from "./arcTestnet.js";
 import { LOCAL_DEVCHAIN } from "./localDevchain.js";
 
@@ -31,6 +32,19 @@ export function resolveDeploymentChainProfile(networkName: string): DeploymentCh
       supportsExplorerVerification: true,
     };
   }
+  if (networkName === "arcLocal") {
+    return {
+      chainEnv: ARC_LOCAL.chainEnv,
+      chainId: ARC_LOCAL.chainId,
+      chainName: ARC_LOCAL.name,
+      defaultRpcUrl: ARC_LOCAL.rpcUrl,
+      nativeCurrency: ARC_LOCAL.nativeCurrency,
+      networkName,
+      // The single-node dev chain runs no explorer, so verification has
+      // nowhere to publish even though the chain is a real Arc node.
+      supportsExplorerVerification: false,
+    };
+  }
   if (networkName === "localhost") {
     return {
       chainEnv: LOCAL_DEVCHAIN.chainEnv,
@@ -45,6 +59,6 @@ export function resolveDeploymentChainProfile(networkName: string): DeploymentCh
 
   throw new Error(
     `Unsupported Hardhat network for venue deployment scripts: ${networkName}. ` +
-      "Use --network arcTestnet or --network localhost.",
+      "Use --network arcTestnet, --network arcLocal, or --network localhost.",
   );
 }
