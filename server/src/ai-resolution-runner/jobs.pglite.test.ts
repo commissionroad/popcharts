@@ -25,6 +25,8 @@ import {
   seedResolutionMarket,
 } from "src/test-support/resolution-fixtures";
 
+import { DEFAULT_ABSTENTION_THRESHOLD } from "src/ai-resolution/auto-resolvable";
+
 import type { AiResolutionRunnerConfig } from "./config";
 import {
   enqueueEligibleMarketResolutionJobs,
@@ -141,6 +143,7 @@ describe("enqueueEligibleMarketResolutionJobs", () => {
 const POSTGRAD_MARKET = RESOLUTION_FIXTURE.postgradMarketAddress;
 
 const CONFIG: AiResolutionRunnerConfig = {
+  abstentionThreshold: DEFAULT_ABSTENTION_THRESHOLD,
   backoffMs: 30_000,
   batchSize: 5,
   corroborationEnabled: false,
@@ -152,12 +155,27 @@ const CONFIG: AiResolutionRunnerConfig = {
   serviceUrl: "http://127.0.0.1:3004",
 };
 
+/**
+ * A service response that a healthy service could actually have produced: a
+ * submitting verdict always carries confidence above the threshold and at
+ * least one evidence item, because the service's own gate requires both. The
+ * runner re-checks that invariant before signing, so an unrealistic fixture
+ * would not survive the path it is meant to exercise.
+ */
 function modelResult(
   overrides: Partial<ResolutionResult> = {},
 ): ResolutionResult {
   return {
     confidence: 0.95,
-    evidence: [],
+    evidence: [
+      {
+        domain: "example.org",
+        kind: "search_result",
+        sourceTier: "primary",
+        summary: "Official result page reports the YES outcome.",
+        url: "https://example.org/result",
+      },
+    ],
     hardFlags: [],
     outcome: "yes",
     promptVersion: "v1",
@@ -697,6 +715,104 @@ describe("processResolutionJob corroborates terminal verdicts (ADR 0019)", () =>
     expect(job).toMatchObject({
       runAfter: futureDeadline,
       status: "queued",
+    });
+  });
+
+  // The signer-boundary gate. These four cases all describe a service that
+  // returned a submitting verdict it had no right to return. Delete the
+  // assertAutoResolvable() call in processResolutionJob and every one of them
+  // fails: the runner would persist a pending row and sign a proposal.
+  describe("refuses a submitting verdict that fails the auto-resolve rule", () => {
+    const unsafeCases = [
+      {
+        name: "confidence below the threshold",
+        overrides: { confidence: 0.2 },
+      },
+      { name: "no evidence", overrides: { evidence: [] } },
+      {
+        name: "a blocking hard flag",
+        overrides: { hardFlags: ["prompt_injection"] },
+      },
+      {
+        name: "a verdict that contradicts its outcome",
+        overrides: { outcome: "no" as const },
+      },
+    ];
+
+    for (const { name, overrides } of unsafeCases) {
+      it(`does not propose on ${name}`, async () => {
+        const claimed = await claimJob();
+        const scripted = scriptedDependencies([]);
+        const dependencies: ResolutionJobDependencies = {
+          ...scripted.dependencies,
+          resolveMarketWithService: async () => modelResult(overrides),
+        };
+
+        const outcome = await processResolutionJob({
+          claimed,
+          config: CONFIG,
+          dependencies,
+          now: NOW,
+        });
+
+        // Nothing signed, nothing persisted, and the market stays eligible:
+        // no confirmed row means the enqueue guard will pick it up again.
+        expect(scripted.proposedVerdicts).toEqual([]);
+        expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(
+          0,
+        );
+        expect(outcome.status).not.toBe("succeeded");
+      });
+    }
+
+    it("records the reason on the job so an operator can see it", async () => {
+      const claimed = await claimJob();
+      const scripted = scriptedDependencies([]);
+      const dependencies: ResolutionJobDependencies = {
+        ...scripted.dependencies,
+        resolveMarketWithService: async () =>
+          modelResult({ confidence: 0.2, hardFlags: ["prompt_injection"] }),
+      };
+
+      await processResolutionJob({
+        claimed,
+        config: CONFIG,
+        dependencies,
+        now: NOW,
+      });
+
+      const [job] = await dbc.select().from(schema.marketResolutionJobs);
+      expect(job?.lastError).toContain("Refusing to submit");
+      expect(job?.lastError).toContain("prompt_injection");
+    });
+
+    // The gate must not fire on states that move no money, or every parked
+    // market would become a retry loop instead of an operator's inbox item.
+    it("still parks a manual_review carrying no confidence or evidence", async () => {
+      const claimed = await claimJob();
+      const scripted = scriptedDependencies([]);
+      const dependencies: ResolutionJobDependencies = {
+        ...scripted.dependencies,
+        resolveMarketWithService: async () =>
+          modelResult({
+            confidence: null,
+            evidence: [],
+            hardFlags: ["service_error"],
+            outcome: "abstain",
+            verdict: "manual_review",
+          }),
+      };
+
+      const outcome = await processResolutionJob({
+        claimed,
+        config: CONFIG,
+        dependencies,
+        now: NOW,
+      });
+
+      expect(outcome.status).toBe("succeeded");
+      expect(scripted.proposedVerdicts).toEqual([]);
+      expect(await dbc.select().from(schema.marketResolutions)).toHaveLength(1);
     });
   });
 
