@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 #
-# Setup script for Claude Code cloud environments.
+# In-session bootstrap for a cloud session that is not already provisioned.
 #
-# Paste the contents of this file into the environment's "Setup script" field
-# (Claude Code -> environment -> Setup script). It runs once; Anthropic then
-# snapshots the filesystem, so every later session starts with node_modules,
-# the Postgres image, and the solc compilers already on disk.
+# Run it from a checkout, by hand or by asking Claude, when a session comes up
+# without node_modules, without the Postgres image, or without the solc
+# compilers -- for example the first session in a new environment, or one
+# whose environment has no Setup script configured.
 #
-# The snapshot keeps FILES ONLY, not running processes. Starting dockerd and
-# the Postgres container still has to happen per session -- do that from a
-# SessionStart hook or by asking Claude.
+# It is NOT the environment's "Setup script" field. That field takes script
+# text and runs before Claude Code launches, so a script pasted there cannot
+# rely on the repository being present, and anything it does relies on
+# `$(dirname "$0")` resolving inside the checkout, which this one does. A
+# non-zero exit there also stops the session from starting at all, while this
+# script deliberately fails loudly. Put only VM-level provisioning that needs
+# no repository -- the image pull and the compiler seeding below -- in that
+# field, and let it exit zero whatever happens.
+#
+# The environment cache snapshots the filesystem after that field's script
+# runs, and keeps FILES ONLY, not running processes. Starting dockerd and the
+# Postgres container happens per session, in the SessionStart hook that runs
+# scripts/cloud-session-start.sh.
 #
 # Four network limitations are worked around below. All four disappear if the
 # environment's network access is set to Custom with these hosts added to the
@@ -191,10 +201,10 @@ echo "==> working tree clean:"
 git status --porcelain || true
 
 echo
-echo "Setup complete. The snapshot keeps files only, so the Docker daemon and"
-echo "the Postgres container still have to be started per session -- the"
-echo "SessionStart hook in .claude/settings.json runs scripts/cloud-session-start.sh"
-echo "to do exactly that. Run it by hand if you need it before the next session."
+echo "Setup complete. The Docker daemon and the Postgres container are started"
+echo "per session by the SessionStart hook in .claude/settings.json, which runs"
+echo "scripts/cloud-session-start.sh. Run that now if you need them before the"
+echo "next session starts."
 echo
 echo "For the Playwright lanes, also export:"
 echo "  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium"
