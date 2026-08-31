@@ -133,10 +133,28 @@ chainId from network config, not a CLI flag." arc-node takes
 `--chain=<built-in|genesis path>`, so that constraint lifts — ADR 0020's
 deferred item is now reachable.
 
-The flip side is enforced: arc-node takes an exclusive lock on its datadir
-(observed — a second process died with `storage directory is currently in
-use as read-write by another process: PID …`). Every slot needs its own
-`--datadir`, or slot N silently refuses to start.
+The flip side is enforced, and it is wider than the datadir. A single
+arc-node instance binds **four** things a second instance will collide on,
+each discovered only by hitting it:
+
+| Resource | Flag | Default |
+| --- | --- | --- |
+| Datadir (exclusive MDBX lock) | `--datadir` | — |
+| P2P listener | `--port` | 30303 |
+| Engine AUTH RPC | `--authrpc.port` | 8551 |
+| Metrics | `--metrics` | — |
+| HTTP RPC | `--http.port` | 8545 |
+
+`--disable-discovery` does **not** release the P2P listener. Striding only
+the HTTP port (the one `ports.ts` currently models) gets slot N as far as
+`address 0.0.0.0:30303 (listener service) is already in use`, then
+`address 127.0.0.1:8551 (AUTH server) is already in use`. `deriveStackResources`
+must own all five.
+
+With all of them strided, two independent chains were **observed running
+concurrently** (slot A at block `0xa53`, slot B at `0x62`, same chain id,
+neither disturbing the other), so ADR 0020's slot model survives the
+migration intact.
 
 ### G8 — The chain is disk-backed, which invalidates the control-plane comment
 
@@ -179,8 +197,23 @@ v0.8.0 — still lists **Arc Testnet as running v0.6.0**. Running v0.8.0
 locally puts local *ahead* of the target network (zero7/zero8 hardforks and
 their `CallFrom` / `Multicall3From` precompiles active locally but not on
 testnet; a reth 2.2 upgrade that changed insufficient-balance errors to
-`OutOfFunds`). **Pin the local version to whatever Arc Testnet runs**, and
-treat the pin as a tracked dependency, not a default.
+`OutOfFunds`).
+
+We cannot close that gap, because **v0.6.0 publishes no binaries**. Probed
+release assets: v0.6.0 → 404 for every target (a plain `curl -L` without
+`-f` happily writes the 9-byte `Not Found` body to `arc-node-….tar.gz`,
+which is a trap worth knowing); v0.7.1, v0.7.2, v0.7.3, v0.8.0 → 200.
+Matching testnet exactly would mean building v0.6.0 from source — a full
+reth compile — on every developer machine and CI runner.
+
+So the rule is the achievable one: **pin to the lowest published release,
+and treat the pin as a tracked dependency that follows testnet upward.**
+That is v0.7.1 today, one minor ahead of testnet instead of two. v0.7.1 was
+verified to boot with the same chain id, the same prefunded accounts, and
+the same absent `evm_*` methods as v0.8.0. Accept the residual skew
+knowingly rather than pretending it is zero: local carries zero7 but not
+zero8, so a v0.8.0-only behaviour (mandatory denylist, `OutOfFunds` error
+text) will not reproduce locally either way.
 
 ### G13 — Binary acquisition is a new CI and onboarding cost
 
@@ -194,9 +227,14 @@ Published targets (probed at v0.8.0): `x86_64-unknown-linux-gnu`,
 `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin` — all `200`.
 `x86_64-apple-darwin` is **404**: Intel Macs have no published binary and
 would have to build from source. Every archive ships a sibling `.sha256`, so
-the pinned fetch verifies rather than trusts; the binary exercised for this
-ADR matched its published digest
-(`265441e478a91773ecabc293b9824bff27d20afd125d4413481c65613336c933`).
+the pinned fetch verifies rather than trusts; both binaries exercised for
+this ADR matched their published digests (v0.8.0 `265441e4…c933`, v0.7.1
+`0e1081e1…d432`).
+
+The fetch must use `curl -f` (or equivalent). Without it a missing asset is
+written to disk as a 9-byte `Not Found` file named `.tar.gz`, which then
+fails at `tar` time with a misleading error — see G12, where exactly this
+disguised the fact that v0.6.0 has no binaries at all.
 
 ### G14 — Startup is slower and no longer free
 
@@ -239,9 +277,12 @@ for the v4 venue stack, and deploy gas against the real 30M limit.
 
 ### Phase 2 — Slot-aware chain resources
 
-Per-slot datadirs (G7), per-slot chain ids now that they are reachable (G7),
-`BASE_CHAIN_ID` retired or parameterised (G6). Update the `ports.ts:61`
-comment, which becomes false.
+Extend `deriveStackResources` to own all five per-instance resources — HTTP
+port, P2P port, authrpc port, metrics port, datadir — since striding only
+the HTTP port leaves slot N failing on 30303 and then 8551 (G7). Per-slot
+chain ids become reachable (G7), and `BASE_CHAIN_ID` is retired or
+parameterised (G6). The `ports.ts:61` comment becomes false and must be
+rewritten rather than left to rot.
 
 ### Phase 3 — Server and app network identity
 
@@ -273,8 +314,9 @@ is a rename, not a key rotation).
   a Hardhat fallback; otherwise close this.
 - **D2 — Native fiat token as collateral.** Fidelity win, separate program
   (G16). Not part of this migration.
-- **D3 — Which version to pin.** Follows Arc Testnet (G12), so this ADR does
-  not name a number; the pin lives in one place and is bumped deliberately.
+- **D3 — Which version to pin.** *Resolved:* **v0.7.1**, the lowest release
+  with published binaries, since testnet's v0.6.0 publishes none (G12). The
+  pin lives in one place and follows testnet upward as new releases land.
 - **D4 — Do the nightly lifecycle budgets survive real-time windows?**
   Phase 4 turns instant warps into real waits; whether
   `.github/workflows/nightly-lifecycle.yml` still fits its budget is a
