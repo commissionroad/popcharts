@@ -236,6 +236,34 @@ written to disk as a 9-byte `Not Found` file named `.tar.gz`, which then
 fails at `tar` time with a misleading error — see G12, where exactly this
 disguised the fact that v0.6.0 has no binaries at all.
 
+### G13a — Cloud sessions need a setup script, not a dependency change
+
+Two things break `pnpm install` / `hardhat build` inside a Claude cloud
+session, and neither is a repo defect:
+
+- `forge-std` resolves through a **codeload.github.com** tarball, and the
+  session's GitHub proxy serves codeload only for *attached* repositories, so
+  a third-party repo returns 403.
+- Hardhat's solc downloader builds its own undici `Agent` and never passes a
+  proxy (`getBasicDispatcher` in `@nomicfoundation/hardhat-utils`), so it
+  connects directly and is refused with `x-deny-reason: host_not_allowed`
+  even though the compiler host is reachable through the proxy.
+  `NODE_USE_ENV_PROXY` does not help: it sets undici's *global* dispatcher,
+  which hardhat-utils does not use.
+
+Resolving `forge-std` over git fixes the first — but **only inside a cloud
+session**, which rewrites SSH-form GitHub remotes to HTTPS. pnpm records a git
+dependency's identity in SSH form, and GitHub Actions has neither that rewrite
+nor a deploy key, so committing the git spec turns CI red with
+`git@github.com: Permission denied (publickey)`. That was tried and reverted;
+a sandbox test appeared to pass only because the harness rewrite silently
+made it work.
+
+So the fix belongs in the environment, not the dependency:
+`scripts/ci/cloud-setup.sh` swaps the spec, installs, and swaps it back, and
+`scripts/ci/seed-solc-cache.sh` fills the compiler cache over the lane that
+does honour the proxy. The checkout ends byte-identical to what was cloned.
+
 ### G14 — Startup is slower and no longer free
 
 `hardhat node` is ready in well under a second with nothing on disk.
