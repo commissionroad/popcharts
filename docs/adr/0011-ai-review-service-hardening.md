@@ -54,10 +54,18 @@ Robustness:
       (`manual_review`) on malformed responses.
 - [ ] Decide and implement the prompt-version policy: what happens to
       already-reviewed and in-flight markets when
-      `AI_REVIEW_PROMPT_VERSION` changes.
+      `AI_REVIEW_PROMPT_VERSION` changes. *(Now owned by ADR 0019's
+      prompt-version box and executed through ADR 0027's loop. The version is
+      recorded on every verdict row and on every `POPCHARTS_VERDICT_RUN`
+      record; what is missing is the written policy, not the plumbing.)*
 - [ ] Stuck-job recovery: expired leases are reclaimed and a terminal-failure
       path notifies operators (surface in the local admin panel, not the
-      deployed API).
+      deployed API). *(Partial: lease fencing and reclaim are implemented on
+      the resolution side — `ai-resolution-runner/jobs.ts` and `failures.ts`
+      treat a lost fence as `lease_lost` rather than overwriting another
+      runner's row — and `shared/operator-alert-log.ts` is the notification
+      channel. The review runner's equivalent, and a terminal-failure alert
+      tag for either runner, are still open.)*
 - [x] Transient provider failures remain retryable jobs instead of becoming
       completed heuristic approvals. The local model gets a five-minute
       bounded call budget with runner timeout and lease margins above it.
@@ -66,13 +74,24 @@ Observability:
 
 - [ ] Emit metrics from service and runner: review latency, verdict
       distribution, provider errors, retry counts, queue depth. (Dashboards
-      and alarms belong to ADR 0015.)
+      and alarms belong to ADR 0015.) *(Partial, delivered by ADR 0027 A3 in
+      #538: `shared/verdict-run-log.ts` emits one `POPCHARTS_VERDICT_RUN`
+      record per run of both services carrying latency, outcome, ok/error,
+      provider, model, prompt version and token/cost accounting, and
+      `server/scripts/verdict-run-aggregate.ts` turns a captured log into
+      per-provider aggregates. Retry counts and queue depth are not emitted.)*
 
 Product feedback:
 
-- [ ] Rejection reasons are servable to the app in a user-appropriate form
+- [x] Rejection reasons are servable to the app in a user-appropriate form
       (distinct from the full audit record), so creators learn why a market
-      was rejected (consumed by ADR 0013).
+      was rejected (consumed by ADR 0013). *(Reshaped by ADR 0022: review now
+      runs on drafts before anything reaches the chain, so the surface is
+      draft-level. `draft-review/feedback.ts` maps each hard flag to
+      creator-facing `issue`/`howToFix` copy — deliberately hand-written, not
+      model-generated — persisted as `DraftReviewFeedback` on
+      `market_draft_reviews` and rendered by the creator studio's draft card
+      and the create flow's review progress panel.)*
 - [x] Market reads expose sanitized review progress; the detail page shows and
       refreshes a pending state until an immutable review exists, and completed
       scorecards include one persisted rationale per metric.

@@ -23,10 +23,10 @@ to the frontend app or the Solidity protocol.
 | [0019](0019-ai-verdict-quality-program.md) | Accepted | Measure and harden AI review/resolution verdicts: offline eval harness, labeled failure-taxonomy dataset, deterministic pre-stages, reject-corroboration policy, and a CI consistency lane. |
 | [0020](0020-concurrent-local-dev-stacks.md) | Accepted | Run concurrent local dev stacks as slot-addressed instances (slot 0 human, 1..n agents) with a home-dir registry, per-slot chain/DB/env/ports, identity-scoped chain reuse, and stack-aware create-market. |
 | [0021](0021-live-market-updates.md) | Proposed | Make the app feel live: server-signalled, client-refetched updates over SSE, fed by a durable `change_feed` outbox written atomically with each indexed event. DB/REST stays the single source of truth; no message broker. |
-| [0022](0022-review-first-market-creation.md) | Proposed | Invert market creation to review-first: questions live as off-chain editable Drafts, on-chain `createMarket` is gated by an authorizer signature (trusted-creator bypass) so markets are born Active, the creation fee is paid at publish (not submit), anti-spam is a prepaid refundable review bond in a separate native-USDC escrow, and creators get drafts/templates + a creator surface while the public board shows real markets only. |
+| [0022](0022-review-first-market-creation.md) | Accepted | Invert market creation to review-first: questions live as off-chain editable Drafts, on-chain `createMarket` is gated by an authorizer signature (trusted-creator bypass) so markets are born Active, the creation fee is paid at publish (not submit), anti-spam is a prepaid refundable review bond in a separate native-USDC escrow, and creators get drafts/templates + a creator surface while the public board shows real markets only. |
 | [0023](0023-protocol-security-audit-program.md) | Proposed | Run a tracked, one-item-per-pass security audit of the Solidity protocol against a fixed catalogue — Trail of Bits building-secure-contracts skills, root-cause classes from the 20 largest EVM exploits, and peer AMM/prediction-market audit categories — driven by a loop, producing a committed finding note per item. |
 | [0024](0024-resolution-dispute-program.md) | Accepted | Land the on-chain resolution dispute window (protocol ADR 0013) across the stack: propose → 24h bonded public dispute → permissionless finalize, indexer/runner/keeper/UI slices, superseding ADR 0012's off-chain operator delay. |
-| [0025](0025-unified-price-stream.md) | Proposed | Collapse the pre- and post-graduation price paths into one stream: a per-pool sequence emitted by the bounded hook (free before deploy), server-side derivation for both halves, one read endpoint and one point shape, and a chart that cannot tell the phases apart. |
+| [0025](0025-unified-price-stream.md) | Accepted | Collapse the pre- and post-graduation price paths into one stream: a per-pool sequence emitted by the bounded hook (free before deploy), server-side derivation for both halves, one read endpoint and one point shape, and a chart that cannot tell the phases apart. |
 | [0026](0026-durable-resolution-intent.md) | Proposed | Fix the resolution runner's write ordering with a transactional outbox: record the intent in `market_resolutions` as `pending`, propose on-chain, and let the indexer confirm from the `ResolutionProposed` event. Removes the retry's model re-run and everything downstream of it. Correctness rests on the enqueue predicate counting only confirmed rows; whether a reconciliation sweep is worth building is left open. |
 | [0027](0027-verdict-quality-loop.md) | Proposed | Run a standing, catalogue-driven verdict-quality improvement loop over the AI review and resolution services — one bounded item per pass (measurement, dataset growth, red-team, eval-gated prompt work, hygiene), driven attended via /loop first and then nightly, PRs only, guarded by frozen holdouts, `--runs 3` baselines, and a two-gate-failed stop rule recorded in the ADR's own ledger. |
 | [0028](0028-arc-node-local-chain.md) | Proposed | Replace the `hardhat node` devchain with a single-process Arc node local chain (chain 1337) so local runs exercise the real Arc EVM, fee market, denylist, and predeploys. Hardhat stays the build/test/deploy toolchain. Phased: runnable chain, slot-aware resources, network identity, time-gated flows (no `evm_*` on Arc — short real windows replace warps), then control plane/CI and removal. |
@@ -40,6 +40,20 @@ market creation), 0023 (protocol security audit), 0024 (resolution dispute
 window), 0025 (unified price stream), and 0026 (durable resolution intent,
 which extends 0024's runner), 0027 (verdict-quality loop), and 0028 (Arc node local
 chain) are likewise standalone tracked programs.
+
+## Checklist accuracy
+
+Checklists were last reconciled against the tree on **2026-08-31** (at
+`e4858ff`), under ADR 0027's E1 item. Every box ticked in that pass carries an
+italic evidence anchor — a file path, a workflow, or a PR number — and a box
+whose work is only partly done was annotated rather than ticked, so an
+unchecked box with a note is real remaining work, not bookkeeping.
+
+Boxes drift when a PR lands the work described by *another* ADR's checklist and
+only ticks its own. That is how ADR 0012 came to read 1/10 with the service,
+runner and on-chain submission all built, and how ADR 0018 closed three of ADR
+0013's boxes without touching them. When a PR satisfies a box in an ADR it does
+not otherwise change, tick that box too.
 
 ## Related ADRs
 

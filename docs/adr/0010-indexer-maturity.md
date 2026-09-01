@@ -39,14 +39,25 @@ Scaling:
 
 Postgrad coverage:
 
-- [ ] Watchers and schema for `CompleteSetPostgradAdapter` and
+- [x] Watchers and schema for `CompleteSetPostgradAdapter` and
       `CompleteSetBinaryMarket` events (market creation, mint/merge/redeem,
-      resolution, cancellation).
+      resolution, cancellation). *(`indexer/watchers/postgrad-market.ts`
+      subscribes to `MarketResolved`, `MarketCancelled`, `Redeemed`,
+      `CancelledRedeemed`, `CompleteSetsMinted`, `CompleteSetsMerged` and the
+      five ADR 0024 dispute events, dispatched to
+      `handlers/complete-set-events.ts`, `postgrad-resolution.ts`,
+      `postgrad-redemption.ts`, `postgrad-dispute.ts` and
+      `postgrad-dispute-bond.ts`.)*
 - [x] Watchers and schema for v4 venue trading events
       (`BoundedPoolOrderManager` order placement and fills) so postgrad
       prices and volume are servable.
-- [ ] Resolution events feed the `markets` projection so status reaches
+- [x] Resolution events feed the `markets` projection so status reaches
       `resolved` without manual intervention.
+      *(`indexer/handlers/market-projection.ts` advances the status, including
+      the ADR 0024 `resolution_pending` and `disputed` states declared in
+      `db/schema/markets.ts`; an out-of-order transition raises the
+      `market_status_out_of_order` operator alert rather than projecting a
+      wrong status.)*
 
 ## Exit Criteria
 

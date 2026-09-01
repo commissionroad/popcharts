@@ -219,10 +219,14 @@ together with dataset changes.
 
 ### Section E — Hygiene
 
-- [ ] **E1 [meta]** Reconcile stale ADR checkboxes against reality — ADR
+- [x] **E1 [meta]** Reconcile stale ADR checkboxes against reality — ADR
       0019 (11 unchecked boxes, most work exists), ADR 0012 and ADR 0024
       residue. Tick with evidence anchors (file paths, PR numbers); do not
-      rewrite history or scope.
+      rewrite history or scope. *(Done across ADRs 0009–0015, 0019, 0022,
+      0024 and 0025. The drift was wider than this item assumed: ADR 0010's
+      postgrad coverage, ADR 0013's redemption and graduation surfaces, and
+      both CI boxes in ADR 0015 were also stale. Partially-done boxes were
+      annotated rather than ticked.)*
 - [ ] **E2 [meta]** Doc drift sweep — known stale after the runner
       consolidation: `docs/ai-review-runner-design.md`, backend runtime
       architecture notes. Align docs with code or delete them; the wiki
@@ -365,3 +369,4 @@ where the pass measured, `—` where it did not.
 | 2026-08-08 | A1   | measurement | —             | —            | #533 | shipped: resolution regression checker + fixtures; proof runs in PR body |
 | 2026-08-09 | A2   | measurement | —             | —            | #537 | shipped: review evals README + measured-iteration ledger (v3–v6); bounded claude-cli proof run in PR body; appended M2 |
 | 2026-08-10 | A3   | measurement | —             | —            | #538 | shipped: per-run verdict telemetry line + aggregator script; bounded proof run (2 cases x 3 runs, claude-cli) aggregated from the service log alone: 6 runs, 0 errors, p50 66545ms, $0.1480/run |
+| 2026-08-31 | E1   | meta        | —             | —            | TBD  | docs only: reconciled stale checkboxes across ADRs 0009–0015, 0019, 0022, 0024, 0025 against the tree at `e4858ff`, with a file-path or PR anchor per tick; partial items annotated, not ticked |
