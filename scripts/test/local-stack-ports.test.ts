@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  arcChainDataDir,
+  arcChainInstanceDir,
+} from "../shared/chain/arcNodePaths.ts";
+import { deriveArcNodePorts } from "../shared/chain/arcNodePorts.ts";
+import {
   localChainEnvFile,
   localChainEnvFileForSlot,
   localDevIndexerHealthFile,
@@ -27,6 +32,10 @@ test("slot 0 reproduces every legacy local stack resource", function () {
   assert.deepEqual(deriveStackResources(0), {
     slot: 0,
     chainPort: 8545,
+    chainAuthRpcPort: 8551,
+    chainMetricsPort: 9001,
+    chainP2pPort: 30303,
+    chainDataDir: arcChainDataDir(0),
     chainId: 31337,
     apiPort: 3001,
     appPort: 3000,
@@ -45,6 +54,10 @@ test("slots 1 and 2 apply the documented offsets", function () {
   assert.deepEqual(deriveStackResources(1), {
     slot: 1,
     chainPort: 8555,
+    chainAuthRpcPort: 8561,
+    chainMetricsPort: 9011,
+    chainP2pPort: 30313,
+    chainDataDir: arcChainDataDir(1),
     chainId: 31337,
     apiPort: 3011,
     appPort: 3010,
@@ -60,6 +73,10 @@ test("slots 1 and 2 apply the documented offsets", function () {
   assert.deepEqual(deriveStackResources(2), {
     slot: 2,
     chainPort: 8565,
+    chainAuthRpcPort: 8571,
+    chainMetricsPort: 9021,
+    chainP2pPort: 30323,
+    chainDataDir: arcChainDataDir(2),
     chainId: 31337,
     apiPort: 3021,
     appPort: 3020,
@@ -168,4 +185,90 @@ test("slot-aware env paths preserve the legacy slot-0 filename", function () {
     () => localDevIndexerHealthFileForSlot(-1),
     /non-negative integer/,
   );
+});
+
+test("no two slots bind the same port, across every resource", function () {
+  // The essential guard on the slot model. A collision here is not an abstract
+  // failed assertion: it is slot N's chain dying on
+  // `address 0.0.0.0:30303 (listener service) is already in use` while slot 0
+  // keeps running, which reads as "my stack is broken" rather than "these two
+  // stacks overlap". Adjacent slots are the case that actually happens — a
+  // human on 0, an agent worktree on 1 — so the range starts there.
+  //
+  // The range ends at 44 because that is the truth, not because 45 slots is
+  // enough. The stride is 10 and two families sit on the same last digit —
+  // authrpc (…1) and metrics (…1) — so they cross exactly 45 slots apart:
+  // slot 45's authrpc is slot 0's metrics port. Reaching it needs 45 stacks
+  // live at once, each with its own database, app, and API, and `resolveSlot`
+  // probes every port in this list before claiming a slot, so the crossing is
+  // detected and skipped rather than hit. Widening this loop past 44 without
+  // moving a base is therefore expected to fail, and the failure would be
+  // real.
+  const bound = new Map<number, string>();
+
+  for (let slot = 0; slot <= 44; slot += 1) {
+    const resources = deriveStackResources(slot);
+    const ports: ReadonlyArray<readonly [string, number]> = [
+      ["chainPort", resources.chainPort],
+      ["chainAuthRpcPort", resources.chainAuthRpcPort],
+      ["chainMetricsPort", resources.chainMetricsPort],
+      ["chainP2pPort", resources.chainP2pPort],
+      ["apiPort", resources.apiPort],
+      ["appPort", resources.appPort],
+      ["reviewPort", resources.reviewPort],
+      ["resolutionPort", resources.resolutionPort],
+      ["pcAdminPort", resources.pcAdminPort],
+    ];
+
+    for (const [name, port] of ports) {
+      const owner = bound.get(port);
+      assert.equal(
+        owner,
+        undefined,
+        `port ${port} is both slot ${slot}'s ${name} and ${owner}`,
+      );
+      bound.set(port, `slot ${slot}'s ${name}`);
+    }
+  }
+});
+
+test("the chain's four ports come from the arc-node derivation", function () {
+  // Not a restatement of the numbers above: this asserts there is one source
+  // of truth for the offsets. If `deriveStackResources` grew its own copy of
+  // "authrpc sits six above http", the two would agree today and drift the
+  // first time reth's defaults move.
+  for (const slot of [0, 1, 5]) {
+    const resources = deriveStackResources(slot);
+
+    assert.deepEqual(deriveArcNodePorts(resources.chainPort), {
+      authrpc: resources.chainAuthRpcPort,
+      http: resources.chainPort,
+      metrics: resources.chainMetricsPort,
+      p2p: resources.chainP2pPort,
+    });
+  }
+});
+
+test("each slot owns a distinct chain datadir inside the repo", function () {
+  // The datadir is bound as exclusively as a port — arc-node holds an MDBX
+  // lock on it for the life of the process — so two slots sharing one is the
+  // same failure as two slots sharing 8545, with a worse error message
+  // (ADR 0028 G7).
+  const slots = [0, 1, 2, 7];
+  const dataDirs = slots.map((slot) => deriveStackResources(slot).chainDataDir);
+
+  assert.equal(new Set(dataDirs).size, dataDirs.length);
+
+  for (const slot of slots) {
+    const { chainDataDir } = deriveStackResources(slot);
+    assert.ok(
+      chainDataDir.startsWith(`${arcChainInstanceDir(slot)}/`),
+      `slot ${slot} datadir ${chainDataDir} escapes its instance directory`,
+    );
+    // Anywhere but `.local-dev/` is outside the repository's ignored tree,
+    // which AGENTS.md forbids writing to without approval (ADR 0028 G9).
+    assert.ok(chainDataDir.includes("/.local-dev/arc-chain/"));
+  }
+
+  assert.throws(() => arcChainInstanceDir(-1), /non-negative integer/);
 });
