@@ -108,6 +108,50 @@ describe("getPopChartsContractConfig", () => {
     });
   });
 
+  it("targets the Arc local chain, with USDC gas, on chain id 1337", async () => {
+    const config = await loadConfig({
+      NEXT_PUBLIC_POPCHARTS_CHAIN_ID: "1337",
+      NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: COLLATERAL,
+      NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
+      NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
+    });
+
+    // Still chainEnv "local": both devchains share the environment, and only
+    // the chain id says which one — the gas currency follows the id, not the
+    // env name.
+    expect(config.getPopChartsContractConfig()).toMatchObject({
+      chainEnv: "local",
+      chainId: 1337,
+      nativeCurrency: { decimals: 18, name: "USDC", symbol: "USDC" },
+    });
+  });
+
+  it("prices the mock environment in ETH regardless of chain id", async () => {
+    // "mock" stands in for a chain rather than naming one, so its currency
+    // cannot come from the chain id the way a real local chain's does.
+    const config = await loadConfig({
+      NEXT_PUBLIC_POPCHARTS_CHAIN_ENV: "mock",
+      NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: COLLATERAL,
+      NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
+    });
+
+    expect(config.getPopChartsContractConfig()).toMatchObject({
+      chainEnv: "mock",
+      nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
+    });
+  });
+
+  it("keeps ETH gas for a local chain id it does not recognise", async () => {
+    const config = await loadConfig({
+      NEXT_PUBLIC_POPCHARTS_CHAIN_ID: "424242",
+      NEXT_PUBLIC_POPCHARTS_COLLATERAL_ADDRESS: COLLATERAL,
+      NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
+      NEXT_PUBLIC_POPCHARTS_PREGRAD_MANAGER_ADDRESS: MANAGER,
+    });
+
+    expect(config.getPopChartsContractConfig()?.nativeCurrency.symbol).toBe("ETH");
+  });
+
   it("honours a custom local chain id and RPC URL", async () => {
     const config = await loadConfig({
       NEXT_PUBLIC_POPCHARTS_CHAIN_ID: "1337",
@@ -138,6 +182,28 @@ describe("getPopChartsContractConfig", () => {
     });
 
     expect(config.configuredPopChartsRpcUrl).toBe("http://127.0.0.1:8545");
+  });
+});
+
+describe("getLocalChainProfile", () => {
+  it("knows both disposable devchains by exact id", async () => {
+    const { getLocalChainProfile } = await loadConfig({});
+
+    expect(getLocalChainProfile(31337).name).toBe("Hardhat Local");
+    expect(getLocalChainProfile(31337).nativeCurrency.symbol).toBe("ETH");
+    expect(getLocalChainProfile(1337).name).toBe("Arc Local");
+    expect(getLocalChainProfile(1337).nativeCurrency.symbol).toBe("USDC");
+  });
+
+  it("never claims Arc Testnet as a local devchain", async () => {
+    // arc-local (1337) and arc-testnet (5042002) share a name prefix, so a
+    // prefix or substring test would quietly hand a shared network the
+    // treatment reserved for a chain you can throw away. Matching on the exact
+    // id is what stops that, and this is the case that proves it.
+    const { getLocalChainProfile } = await loadConfig({});
+
+    expect(getLocalChainProfile(5042002).name).toBe("Local Devchain 5042002");
+    expect(getLocalChainProfile(5042002).name).not.toBe("Arc Local");
   });
 });
 

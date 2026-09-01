@@ -16,9 +16,21 @@ type ResolveSlotOptions = {
   isPortFree: (port: number) => Promise<boolean>;
 };
 
+/**
+ * Every port a stack on this slot will try to bind — including the three the
+ * chain process binds without anyone asking it to (P2P, engine AUTH RPC,
+ * metrics). Those three are the reason a slot can look free and still fail to
+ * start: the HTTP port answers nothing, so the old probe passed, and then reth
+ * died on `address 0.0.0.0:30303 (listener service) is already in use`. Probing
+ * what the process actually binds is what makes "this slot is free" true
+ * (ADR 0028 G7).
+ */
 function bindablePorts(resources: StackPorts): number[] {
   return [
     resources.chainPort,
+    resources.chainP2pPort,
+    resources.chainAuthRpcPort,
+    resources.chainMetricsPort,
     resources.apiPort,
     resources.appPort,
     resources.reviewPort,
