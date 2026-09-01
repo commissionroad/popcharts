@@ -8,6 +8,12 @@ Supersedes the non-withdrawable half of
 [ADR 0003](0003-keep-v1-receipts-locked-and-non-transferable.md). Receipts stay
 non-transferable; they stop being unconditionally non-withdrawable.
 
+**Amended 2026-08-31 — the protocol-capital top-up is dropped.** Section 4's
+seeding mechanism stands: the fee pot is still deployed as protocol-owned
+liquidity at graduation. What is withdrawn is the top-up to 10% of the
+graduation threshold from protocol capital. See
+[§4a](#4a-amendment-2026-08-31--fees-only-no-protocol-capital-top-up).
+
 ## Context
 
 `PregradManager` receipts are append-only. `MarketTypes.Receipt` stores a single
@@ -188,6 +194,53 @@ cap, at 10× only 1%. Sizing off `F` — known at the moment of seeding — woul
 hold depth constant, and is left open below. Second, this is protocol capital
 at risk in a position that resolution destroys, which is what makes the
 pre-resolution unwind load-bearing rather than tidy.
+
+### 4a. Amendment 2026-08-31 — fees only, no protocol-capital top-up
+
+**The fee pot is still deployed as post-graduation liquidity exactly as
+section 4 specifies. The top-up to 10% of the graduation threshold from
+protocol capital is withdrawn.** Seeding is funded by the fees those traders
+paid, and by nothing else.
+
+Section 4 called seeding "a service to traders during the market's life, funded
+by the fees those traders paid — never as a treasury asset." The top-up broke
+that rule the moment it was added: it is not trader-funded, and unlike the fee
+pot it has no revenue behind it. Every graduation would draw on capital, every
+market's depth would be a standing cost, and nothing about that scales with
+adoption — it scales *against* it. That is the sustainability objection, and it
+holds regardless of how the number is sized.
+
+The consequence has to be stated plainly, because section 4 already computed
+it. Pool depth per side is `Φ/2`, exactly `φ_in / 2` as a fraction of matched
+cap. At `φ_in` = 1% the pool holds **0.5% of market cap**: on section 4's
+Example A that is 0.221 tokens against 44.2 outstanding, and a holder selling
+1% of their position moves the price **35% → 3.9%**. The top-up was doing 9× what
+the fees do, and removing it removes that. Section 4's own verdict on
+fee-funded depth alone — "fees alone cannot seed a usable pool, and no rate
+fixes that" — stands as written and is now the accepted position.
+
+**Third-party liquidity is therefore the load-bearing source of depth**, not a
+supplement to ours. The protocol's seed is a floor that keeps a graduated market
+from opening completely empty; real depth arrives when someone else supplies it.
+Repo ADR 0030's agents are the testnet stand-in for LPs who do not exist yet.
+
+Unchanged by this amendment:
+
+- **P5 ships, without the top-up.** Mint `Φ/2` complete sets, seed both pools
+  per the `p*` split, through the postgrad adapter, never the retained-side
+  path. `Φ` is the fee pot as accrued.
+- **P6 remains load-bearing and still gates P5.** A full-range position seeded
+  at 35% is worth ~88% of hold if YES wins and **~5% if YES loses**. That
+  asymmetry is a property of the position, not of its size, so a smaller seed is
+  destroyed by resolution just as completely. Section 4's "protocol liquidity
+  must be withdrawn before resolution" is unaffected.
+- **The fee pots' interim owner-withdrawable path stays interim.** P5 is still
+  what replaces it, so the `PregradManager` NatSpec pointing at P5 remains
+  correct.
+
+Left open: whether to size the seed off `F` rather than the fee pot, which
+section 4 already lists as an open question. Removing the top-up does not
+settle it.
 
 ### 5. Post-graduation trading fees
 
@@ -456,10 +509,12 @@ not: on Example A the creator's combined take is roughly 0.15% of matched cap.
       `withdrawEarnedWithdrawalFees` until P5 deploys the pots as pool
       seed. Arming is an ops action: `local:set-withdrawal-fee-rate` on a
       local stack, `setWithdrawalFeeRate` as the owner in production.
-- [ ] **P5 — Graduation seeding.** At handoff, top the fee pot up to 10% of the
-      graduation threshold from protocol capital, mint half the total as
-      complete sets, and seed both pools per the `p*` split — through the
+- [ ] **P5 — Graduation seeding.** At handoff, mint half the fee pot as
+      complete sets and seed both pools per the `p*` split — through the
       existing postgrad adapter, never through the retained-side path.
+      **Amended 2026-08-31 (§4a):** the top-up to 10% of the graduation
+      threshold from protocol capital is dropped; `Φ` is the fee pot as
+      accrued and nothing more.
 - [ ] **P6 — Pre-resolution unwind.** Operator (or keeper) withdraws protocol
       liquidity before resolution and returns the proceeds. **P5 must not ship
       without P6** — seeding without an unwind path donates the pot to
