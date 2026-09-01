@@ -134,3 +134,51 @@ input[type="range"]::-webkit-slider-thumb {
     transition-duration: 1ms !important;
   }
 }
+
+@keyframes pc-skeleton-sweep {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -150% 0;
+  }
+}
+
+/**
+ * The one shimmer treatment every skeleton shares. The two custom properties
+ * are the ground knobs: a skeleton sitting directly on the page ink stands in
+ * for a card and tints one step up, while a skeleton inside a card tints one
+ * step up from *that*. Callers override them rather than restyling the class,
+ * so the sweep timing stays identical everywhere.
+ */
+.pc-skeleton {
+  --pc-skeleton-tint: var(--surface-raised);
+  --pc-skeleton-sheen: var(--surface-hover);
+
+  background-color: var(--pc-skeleton-tint);
+  background-image: linear-gradient(
+    90deg,
+    transparent 20%,
+    var(--pc-skeleton-sheen) 50%,
+    transparent 80%
+  );
+  background-repeat: no-repeat;
+  background-size: 200% 100%;
+  animation: pc-skeleton-sweep 1.6s var(--ease-default) infinite;
+}
+
+/**
+ * Reduced motion gets a static tint, not a stalled sweep. This has to say more
+ * than the blanket rule above it: that one only clamps `animation-duration` and
+ * `animation-iteration-count`, which leaves the gradient frozen at whatever
+ * offset 1ms lands on — a permanent bright band across one edge of every
+ * placeholder. Dropping the gradient and the animation name is what actually
+ * makes it flat.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pc-skeleton {
+    background-image: none;
+    animation-name: none;
+  }
+}
