@@ -164,7 +164,7 @@ chainId from network config, not a CLI flag." arc-node takes
 deferred item is now reachable.
 
 The flip side is enforced, and it is wider than the datadir. A single
-arc-node instance binds **four** things a second instance will collide on,
+arc-node instance binds **five** things a second instance will collide on,
 each discovered only by hitting it:
 
 | Resource | Flag | Default |
@@ -337,10 +337,21 @@ for the v4 venue stack, and deploy gas against the real 30M limit.
 
 Extend `deriveStackResources` to own all five per-instance resources — HTTP
 port, P2P port, authrpc port, metrics port, datadir — since striding only
-the HTTP port leaves slot N failing on 30303 and then 8551 (G7). Per-slot
-chain ids become reachable (G7), and `BASE_CHAIN_ID` is retired or
-parameterised (G6). The `ports.ts:61` comment becomes false and must be
-rewritten rather than left to rot.
+the HTTP port leaves slot N failing on 30303 and then 8551 (G7). The
+`ports.ts:61` comment becomes false and must be rewritten rather than left to
+rot.
+
+*Resolved on implementation:* per-slot chain ids are **reachable but
+declined**. `--chain=arc-localdev` names a spec compiled into the binary, so a
+per-slot id means passing `--chain` a genesis file and hand-maintaining a fork
+of that genesis — the prefunded accounts and the four predeploys — through
+every version bump. Isolation is already complete without it: the five
+resources above plus the per-slot database are what keep two slots apart, and
+a chain id is an identity, not a lock. `BASE_CHAIN_ID` therefore stays a
+single value; moving that value from Hardhat's 31337 to arc-localdev's 1337 is
+Phase 3's network-identity change (G6), not a slot-model change, since flipping
+it while the stack still runs `hardhat node` would only make the registry lie
+about the chain that is answering.
 
 ### Phase 3 — Server and app network identity
 

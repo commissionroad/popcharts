@@ -12,14 +12,15 @@ CREATE2 predeploys — so a deploy that succeeds here has cleared constraints
 no consensus node, no Docker.
 
 ```bash
-pnpm run arc:node:fetch   # download + checksum-verify the pinned release
-pnpm run arc:node         # run it on 127.0.0.1:8545
+pnpm run arc:node:fetch          # download + checksum-verify the pinned release
+pnpm run arc:node                # run the inherited slot's chain (slot 0: 8545)
+pnpm run arc:node -- --slot=1    # run slot 1's chain instead (8555)
 ```
 
 The binary is pinned in `scripts/shared/chain/arcNodeRelease.ts` and installed
-under the ignored `.local-dev/arc-node/<version>/`; the chain's datadir and
-logs live under `.local-dev/arc-chain/<port>/`. Nothing is written outside the
-repository — `arcup` and arc-node's own defaults would use `$HOME/.arc` and
+under the ignored `.local-dev/arc-node/<version>/`; each slot's datadir and
+logs live under `.local-dev/arc-chain/slot-<n>/`. Nothing is written outside
+the repository — `arcup` and arc-node's own defaults would use `$HOME/.arc` and
 `~/.cache/reth`, so both are overridden.
 
 Deploy to it with the `arcLocal` Hardhat network:
@@ -39,8 +40,15 @@ Two differences from the Hardhat devchain will bite before anything else:
   `POPCHARTS_DISPUTE_WINDOW_SECONDS`).
 
 A second instance needs every port moved, not just the HTTP one — the P2P
-listener (30303) and engine AUTH RPC (8551) collide otherwise.
-`deriveArcNodePorts` in `scripts/shared/chain/arcNodePorts.ts` derives the set.
+listener (30303) and engine AUTH RPC (8551) collide otherwise, and so does the
+datadir, which arc-node locks exclusively. All five are per-slot resources:
+`deriveStackResources` in `scripts/shared/localStack/ports.ts` publishes them,
+taking the port offsets from `deriveArcNodePorts`
+(`scripts/shared/chain/arcNodePorts.ts`) and the directory layout from
+`arcNodePaths.ts`. That is why the launcher takes a slot rather than a bare
+port: a port on its own moves one of the five and silently leaves the other
+four on slot 0's. `--port` is still accepted, but only as a name for the slot
+that owns it.
 
 See ADR 0028 for the full migration plan and the gotchas behind each of these.
 
