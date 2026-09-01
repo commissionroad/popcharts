@@ -43,6 +43,15 @@ yarn-error.log*
 # Agent worktrees
 /.worktrees/
 
+# Worktrees the Claude Code harness creates for isolated subagents. Same
+# reasoning as the harness-written files below: untracked, they surface as
+# stray entries in `git status`, which makes `scripts/land` refuse to update
+# the base worktree and trips the stop-hook cleanliness check. AGENTS.md says
+# to leave these checkouts in place until their owning sessions remove them,
+# so ignoring them is the only correct resolution — they must never be
+# committed. Scoped to the subdirectory: `.claude/commands/` is tracked.
+/.claude/worktrees/
+
 # Personal local worktree/branch auto-prune (referenced by .claude/settings.local.json)
 /.claude/prune-stale-worktrees.sh
 
