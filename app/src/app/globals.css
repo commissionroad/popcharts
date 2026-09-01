@@ -124,6 +124,44 @@ input[type="range"]::-webkit-slider-thumb {
   }
 }
 
+/*
+ * Notification affordance (repo ADR 0013). Both animations are opt-in from the
+ * component, which drops the class entirely when the viewer prefers reduced
+ * motion -- see `features/notifications/use-reduced-motion.ts`. The blanket
+ * reset below is not enough on its own for the dismiss rail: clamping its
+ * duration to 1ms would run the countdown to empty at once and read as
+ * "already expired", so that one is swapped for a static rail instead.
+ */
+@keyframes pc-notification-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pc-notification-timer {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.pc-notification-enter {
+  animation: pc-notification-enter var(--duration-normal) var(--ease-default) both;
+}
+
+.pc-notification-timer {
+  animation: pc-notification-timer var(--pc-notification-dismiss) linear forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
