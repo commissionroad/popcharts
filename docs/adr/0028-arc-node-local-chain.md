@@ -32,6 +32,7 @@ repository's remote dev container on 2026-08-31, not read from docs:
 | `evm_setNextBlockTimestamp` | `-32601 Method not found` |
 | `anvil_setBalance` | `-32601 Method not found` |
 | `arc_getVersion` | `-32601 Method not found` |
+| `testing_buildBlockV1` | `-32601` — though `rpc_modules` advertises `"testing":"1.0"` |
 | `eth_getCode` `0x3600…0000` (native fiat token) | 1799 bytes |
 | `eth_getCode` `0xcA11bde05…` (Multicall3) | 3809 bytes |
 | `eth_getCode` `0x0000…78BA3` (Permit2) | 9153 bytes |
@@ -59,15 +60,44 @@ These are the reasons this is a program and not a one-line URL change.
 
 ### G1 — No `evm_*`, `anvil_*`, or `hardhat_*` methods. At all.
 
-Observed as `-32601` above, and structural rather than incidental: arc-node
-contains **no `--dev` / `DevArgs` handling in its own crates**. Dev mode is
-stock reth v2.2.0, passed straight through, and reth has never shipped
-anvil's dev namespace. arc-node is a production node client with a
-single-node mode, not a testing chain. This will not arrive in a patch
-release.
+Observed as `-32601`, re-verified across twelve method names on a running
+node: `evm_mine`, `evm_setNextBlockTimestamp`, `evm_increaseTime`,
+`evm_setAutomine`, `evm_snapshot`, `evm_revert`, `anvil_mine`,
+`anvil_setBalance`, `anvil_setNextBlockTimestamp`, `anvil_impersonateAccount`,
+`hardhat_mine`, `hardhat_setBalance` — every one absent. arc-node contains no
+`--dev` / `DevArgs` handling in its own crates; dev mode is stock reth v2.2.0
+passed straight through, and reth does not implement anvil's namespace.
 
 Confirmed identical at tag v0.6.0 (same launch flags, same chain id, same 16
 prefunded accounts, same absence), so it is not a v0.8.0 regression.
+
+**This is a wiring gap in arc-node, not a law of nature.** An earlier draft of
+this ADR called it structural and said it would never arrive in a patch
+release. That was wrong, and the correction matters because it changes who can
+fix it.
+
+reth v2.2.0 ships a `testing_` namespace — `RethRpcModule::Testing` — with one
+method, `testing_buildBlockV1`. It takes a parent block hash, a
+`PayloadAttributesV3` (which carries a **timestamp**), and a list of
+transactions to force into the block. That single primitive covers both things
+we currently need: mine on demand, and choose the block's timestamp. reth
+disables the namespace by default and documents enabling it with
+`--http.api testing`.
+
+arc-node never registers an implementation. Grepping its crates for
+`TestingApi`, `buildBlock`, or `build_block_v1` returns nothing, so although
+`--http.api=all` makes `rpc_modules` advertise `"testing":"1.0"`, calling
+`testing_buildBlockV1` still returns `-32601`. The namespace name is selected;
+no handler is behind it. The advertised-but-absent module is itself a trap:
+`rpc_modules` cannot be used to decide whether the capability is there.
+
+So there is a real upstream ask — have Circle register reth's `TestingApi` in
+arc-node's node builder, behind the operator flag reth already intends for it.
+Until that exists in a pinned release we design as though it does not, which
+is what Phase 4 does. If it lands, Phase 4's short-window approach can be
+revisited; it would not be a drop-in replacement for `evm_setNextBlockTimestamp`
+either way, since it builds one specific block rather than setting the next
+block's timestamp.
 
 Affected call sites:
 
