@@ -12,20 +12,34 @@ describe("with the local chain enabled", () => {
 
     expect(chains.defaultEvmChain.id).toBe(31337);
     expect(chains.defaultEvmChain.name).toBe("Hardhat Local");
+    expect(chains.defaultEvmChain.nativeCurrency.symbol).toBe("ETH");
     expect(chains.supportedWalletChains.map((chain) => chain.id)).toEqual([
       31337,
       chains.arcTestnet.id,
     ]);
   });
 
-  it("names a non-default local chain by its id", async () => {
+  it("names the Arc local chain and charges its gas in USDC", async () => {
     const chains = await loadChains({
       NEXT_PUBLIC_POPCHARTS_CHAIN_ID: "1337",
       NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
     });
 
     expect(chains.defaultEvmChain.id).toBe(1337);
-    expect(chains.defaultEvmChain.name).toBe("Local Devchain 1337");
+    expect(chains.defaultEvmChain.name).toBe("Arc Local");
+    // Arc bills gas in USDC locally exactly as on testnet; showing ETH here
+    // would quote a currency the chain does not have.
+    expect(chains.defaultEvmChain.nativeCurrency.symbol).toBe("USDC");
+  });
+
+  it("still names an unrecognised local chain by its id", async () => {
+    const chains = await loadChains({
+      NEXT_PUBLIC_POPCHARTS_CHAIN_ID: "424242",
+      NEXT_PUBLIC_POPCHARTS_ENABLE_LOCAL_CHAIN: "true",
+    });
+
+    expect(chains.defaultEvmChain.name).toBe("Local Devchain 424242");
+    expect(chains.defaultEvmChain.nativeCurrency.symbol).toBe("ETH");
   });
 
   it("serves the configured RPC URL only for the configured chain", async () => {

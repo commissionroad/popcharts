@@ -12,26 +12,30 @@ import {
 import {
   configuredPopChartsChainId,
   configuredPopChartsRpcUrl,
+  getLocalChainProfile,
   localChainEnabled,
 } from "@/integrations/contracts/config";
 
 const localChainId = configuredPopChartsChainId;
 const localRpcUrl = configuredPopChartsRpcUrl;
-const localHardhatChain = defineChain({
+// Name and gas currency come from the chain id, because the two local chains
+// disagree on both: Hardhat's devchain is "Hardhat Local" charging ETH, Arc's
+// single-node chain is "Arc Local" charging USDC (ADR 0028 G6). The id is also
+// the only thing that can tell them apart — arc-node's `web3_clientVersion` is
+// an unmarked `reth/...` string (G15). An id neither profile claims still gets
+// the old generic "Local Devchain <id>" naming.
+const localChainProfile = getLocalChainProfile(localChainId);
+const localDevChain = defineChain({
   id: localChainId,
-  name: localChainId === 31337 ? "Hardhat Local" : `Local Devchain ${localChainId}`,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Ether",
-    symbol: "ETH",
-  },
+  name: localChainProfile.name,
+  nativeCurrency: localChainProfile.nativeCurrency,
   rpcUrls: {
     default: {
       http: [localRpcUrl],
     },
   },
 });
-const localHardhatPrivyChain = localHardhatChain as PrivyChain;
+const localDevPrivyChain = localDevChain as PrivyChain;
 
 export const arcTestnet = defineChain({
   id: ARC_TESTNET_CHAIN_ID,
@@ -57,18 +61,18 @@ export const arcTestnet = defineChain({
 });
 const arcTestnetPrivyChain = arcTestnet as PrivyChain;
 
-export const defaultEvmChain = localChainEnabled ? localHardhatChain : arcTestnet;
+export const defaultEvmChain = localChainEnabled ? localDevChain : arcTestnet;
 export const defaultPrivyChain = localChainEnabled
-  ? localHardhatPrivyChain
+  ? localDevPrivyChain
   : arcTestnetPrivyChain;
 
 export const supportedWagmiChains: readonly [Chain, ...Chain[]] = localChainEnabled
-  ? [localHardhatChain, arcTestnet]
+  ? [localDevChain, arcTestnet]
   : [arcTestnet];
 
 export const supportedPrivyChains: readonly [PrivyChain, ...PrivyChain[]] =
   localChainEnabled
-    ? [localHardhatPrivyChain, arcTestnetPrivyChain]
+    ? [localDevPrivyChain, arcTestnetPrivyChain]
     : [arcTestnetPrivyChain];
 
 export type WalletChainSummary = {
