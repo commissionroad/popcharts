@@ -29,6 +29,7 @@ to the frontend app or the Solidity protocol.
 | [0025](0025-unified-price-stream.md) | Proposed | Collapse the pre- and post-graduation price paths into one stream: a per-pool sequence emitted by the bounded hook (free before deploy), server-side derivation for both halves, one read endpoint and one point shape, and a chart that cannot tell the phases apart. |
 | [0026](0026-durable-resolution-intent.md) | Proposed | Fix the resolution runner's write ordering with a transactional outbox: record the intent in `market_resolutions` as `pending`, propose on-chain, and let the indexer confirm from the `ResolutionProposed` event. Removes the retry's model re-run and everything downstream of it. Correctness rests on the enqueue predicate counting only confirmed rows; whether a reconciliation sweep is worth building is left open. |
 | [0027](0027-verdict-quality-loop.md) | Proposed | Run a standing, catalogue-driven verdict-quality improvement loop over the AI review and resolution services — one bounded item per pass (measurement, dataset growth, red-team, eval-gated prompt work, hygiene), driven attended via /loop first and then nightly, PRs only, guarded by frozen holdouts, `--runs 3` baselines, and a two-gate-failed stop rule recorded in the ADR's own ledger. |
+| [0028](0028-arc-node-local-chain.md) | Proposed | Replace the `hardhat node` devchain with a single-process Arc node local chain (chain 1337) so local runs exercise the real Arc EVM, fee market, denylist, and predeploys. Hardhat stays the build/test/deploy toolchain. Phased: runnable chain, slot-aware resources, network identity, time-gated flows (no `evm_*` on Arc — short real windows replace warps), then control plane/CI and removal. |
 | [0029](0029-recurring-price-markets.md) | Proposed | Run recurring short-horizon crypto price markets so the board is never empty: created by a scheduled keeper duty from a trusted-creator account, resolved by a deterministic `price-feed` provider inside the normal resolution runner (not a bypass of it), and settled with a zero dispute window. Cadence starts relaxed and tightens toward five minutes on measurement, because a postgrad market can only be reached by graduating. Testnet only. |
 | [0030](0030-market-maker-agents.md) | Proposed | Run bounded unattended agents that supply liquidity, take positions and create markets on testnet, so the product is evaluable before real participants exist. Disclosure is structural — agent accounts are enumerable, agent activity is labelled in the product, and every aggregate is computable with and without it — and the ADR carries its own sunset at mainnet. Testnet only. |
 
@@ -39,8 +40,9 @@ program and is not part of the launch milestone chain; ADRs 0017 (test
 observability and coverage), 0021 (live market updates), 0022 (review-first
 market creation), 0023 (protocol security audit), 0024 (resolution dispute
 window), 0025 (unified price stream), and 0026 (durable resolution intent,
-which extends 0024's runner), 0027 (verdict-quality loop), 0029 (recurring
-price markets), and 0030 (market-maker agents) are likewise standalone tracked
+which extends 0024's runner), 0027 (verdict-quality loop), 0028 (Arc node local
+chain), 0029 (recurring price markets), and 0030 (market-maker agents) are
+likewise standalone tracked programs.
 programs.
 
 ## Related ADRs
