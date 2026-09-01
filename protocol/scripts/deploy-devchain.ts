@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { DEFAULT_LOCAL_DEV_PRIVATE_KEY } from "./shared/chain/localDevAccounts.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,8 +22,6 @@ import { createViemClients } from "./shared/viem/createViemClients.js";
 
 const DEFAULT_RPC_URL = "http://127.0.0.1:8545";
 // Hardhat's well-known dev account #0; only ever used against a local node.
-const DEFAULT_HARDHAT_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const protocolRoot = resolve(scriptDir, "..");
@@ -52,7 +51,7 @@ type DevchainManifest = {
 async function main(): Promise<void> {
   const rpcUrl = process.env.POPCHARTS_RPC_URL ?? DEFAULT_RPC_URL;
   const privateKey = normalizePrivateKey(
-    process.env.POPCHARTS_DEPLOYER_PRIVATE_KEY ?? DEFAULT_HARDHAT_PRIVATE_KEY,
+    process.env.POPCHARTS_DEPLOYER_PRIVATE_KEY ?? DEFAULT_LOCAL_DEV_PRIVATE_KEY,
     { label: "POPCHARTS_DEPLOYER_PRIVATE_KEY" },
   );
   const account = privateKeyToAccount(privateKey);

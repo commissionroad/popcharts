@@ -3,6 +3,47 @@
 Use the devchain workflow when the app should submit real protocol
 transactions without leaving the fast local feedback loop.
 
+## Arc Local Chain
+
+The Arc local chain runs the real Arc EVM — USDC gas, Arc's fee market, the
+execution-layer denylist, and the native fiat token / Multicall3 / Permit2 /
+CREATE2 predeploys — so a deploy that succeeds here has cleared constraints
+`hardhat node` cannot express. It is a single `arc-node-execution` process:
+no consensus node, no Docker.
+
+```bash
+pnpm run arc:node:fetch   # download + checksum-verify the pinned release
+pnpm run arc:node         # run it on 127.0.0.1:8545
+```
+
+The binary is pinned in `scripts/shared/chain/arcNodeRelease.ts` and installed
+under the ignored `.local-dev/arc-node/<version>/`; the chain's datadir and
+logs live under `.local-dev/arc-chain/<port>/`. Nothing is written outside the
+repository — `arcup` and arc-node's own defaults would use `$HOME/.arc` and
+`~/.cache/reth`, so both are overridden.
+
+Deploy to it with the `arcLocal` Hardhat network:
+
+```bash
+pnpm --dir protocol exec hardhat run scripts/deploy-local-pregrad.ts --network arcLocal
+```
+
+Two differences from the Hardhat devchain will bite before anything else:
+
+- **Chain id is 1337**, not 31337.
+- **There are no `evm_*` cheat methods.** No `evm_mine`, no
+  `evm_setNextBlockTimestamp` — Arc is a production node client, not a testing
+  chain. Blocks arrive every 200ms on their own, so mining calls are
+  unnecessary; time-gated flows need short real windows instead of warps
+  (`LOCAL_MARKET_GRADUATION_SECONDS`, `LOCAL_MARKET_RESOLUTION_SECONDS`,
+  `POPCHARTS_DISPUTE_WINDOW_SECONDS`).
+
+A second instance needs every port moved, not just the HTTP one — the P2P
+listener (30303) and engine AUTH RPC (8551) collide otherwise.
+`deriveArcNodePorts` in `scripts/shared/chain/arcNodePorts.ts` derives the set.
+
+See ADR 0028 for the full migration plan and the gotchas behind each of these.
+
 ## Local Hardhat Chain
 
 From the repository root:
