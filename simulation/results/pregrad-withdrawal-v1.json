@@ -1,0 +1,1685 @@
+{
+  "config": {
+    "receipt_counts": [
+      8,
+      16,
+      32,
+      64,
+      128
+    ],
+    "root_seed": 12648430,
+    "scenarios": [
+      "balanced_noise",
+      "momentum",
+      "informed",
+      "one_sided",
+      "mixed"
+    ],
+    "threads": 32,
+    "trials_per_scenario": 250000
+  },
+  "engine_version": "0.1.0",
+  "model": {
+    "coordinate_units_per_b": 1000000,
+    "opening_path_b_range": [
+      -2.0,
+      2.0
+    ],
+    "trade_width_b_range": [
+      0.05,
+      0.75
+    ],
+    "width_fee_is_capped_at_gross_cost": true
+  },
+  "performance": {
+    "elapsed_seconds": 7.694745528,
+    "receipts_per_second": 40287232.22515384,
+    "receipts_total": 310000000,
+    "trials_per_second": 812242.5851845532,
+    "trials_total": 6250000
+  },
+  "pinning": [
+    {
+      "display_move_percentage_points": 5.0,
+      "end_probability_percent": 10.0,
+      "opponent_cost": 0.6931468199544163,
+      "opponent_to_victim_cost_percent": 1282.0103052721233,
+      "start_probability_percent": 5.0,
+      "victim_cost": 0.05406718004558371
+    },
+    {
+      "display_move_percentage_points": 10.0,
+      "end_probability_percent": 20.0,
+      "opponent_cost": 0.693147849853258,
+      "opponent_to_victim_cost_percent": 588.4949154354324,
+      "start_probability_percent": 10.0,
+      "victim_cost": 0.11778315014674205
+    },
+    {
+      "display_move_percentage_points": 15.0,
+      "end_probability_percent": 35.0,
+      "opponent_cost": 0.559615634503561,
+      "opponent_to_victim_cost_percent": 269.5132655436467,
+      "start_probability_percent": 20.0,
+      "victim_cost": 0.20763936549643908
+    },
+    {
+      "display_move_percentage_points": 15.0,
+      "end_probability_percent": 50.0,
+      "opponent_cost": 0.35667480847469213,
+      "opponent_to_victim_cost_percent": 135.94645153406424,
+      "start_probability_percent": 35.0,
+      "victim_cost": 0.2623641915253079
+    },
+    {
+      "display_move_percentage_points": 15.0,
+      "end_probability_percent": 65.0,
+      "opponent_cost": 0.2623641915253079,
+      "opponent_to_victim_cost_percent": 73.55837454495303,
+      "start_probability_percent": 50.0,
+      "victim_cost": 0.35667480847469213
+    },
+    {
+      "display_move_percentage_points": 15.0,
+      "end_probability_percent": 80.0,
+      "opponent_cost": 0.20763936549643924,
+      "opponent_to_victim_cost_percent": 37.103925032515875,
+      "start_probability_percent": 65.0,
+      "victim_cost": 0.5596156345035608
+    },
+    {
+      "display_move_percentage_points": 10.0,
+      "end_probability_percent": 90.0,
+      "opponent_cost": 0.11778315014674179,
+      "opponent_to_victim_cost_percent": 16.99250025397567,
+      "start_probability_percent": 80.0,
+      "victim_cost": 0.6931478498532582
+    },
+    {
+      "display_move_percentage_points": 5.0,
+      "end_probability_percent": 95.0,
+      "opponent_cost": 0.05406718004558364,
+      "opponent_to_victim_cost_percent": 7.800249310692831,
+      "start_probability_percent": 90.0,
+      "victim_cost": 0.6931468199544164
+    }
+  ],
+  "scenarios": [
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000082,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2730.2114168552475
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000000164,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1365.1057084276238
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000057,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 546.0422833710504
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.5327207317393101,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1731.9544528845004
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 3.0654414634786202,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 865.9772264422502
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.663603658696629,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 346.39089057690035
+        }
+      ],
+      "free_escrow_percent_mean": 24.294202827658584,
+      "free_escrow_percent_p50": 16.61119203015314,
+      "free_escrow_percent_p95": 74.81145138438299,
+      "matched_width_percent_mean": 33.97111055387148,
+      "max_remaining_fragments_mean": 1.149896,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 58.451600000000006,
+      "receipts_per_trial": 8,
+      "scenario": "balanced_noise",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 29.834
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000113,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2345.9464247875503
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000000226,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1172.9732123937752
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.00000000000011,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 469.1892849575177
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.4147566631982575,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1594.5252654605777
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.829513326396515,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 797.2626327302888
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.073783315991257,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 318.9050530921141
+        }
+      ],
+      "free_escrow_percent_mean": 14.456364937329274,
+      "free_escrow_percent_p50": 8.267870805473866,
+      "free_escrow_percent_p95": 49.67187628996118,
+      "matched_width_percent_mean": 38.744312057119174,
+      "max_remaining_fragments_mean": 1.226664,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 45.253975000000004,
+      "receipts_per_trial": 16,
+      "scenario": "balanced_noise",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 16.91975
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999967,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1917.8830933980942
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999933,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 958.9415466990471
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000047,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 383.5766186796217
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.307303688019477,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1402.2693921826517
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.614607376038954,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 701.1346960913258
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.536518440097431,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 280.4538784365255
+        }
+      ],
+      "free_escrow_percent_mean": 8.439188632598892,
+      "free_escrow_percent_p50": 3.8370891666333957,
+      "free_escrow_percent_p95": 31.741016539454815,
+      "matched_width_percent_mean": 42.07870221895365,
+      "max_remaining_fragments_mean": 1.266508,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 34.0892125,
+      "receipts_per_trial": 32,
+      "scenario": "balanced_noise",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 9.172424999999999
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.000000000000008,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1494.778642937787
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000016,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 747.3893214688935
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.0000000000000755,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 298.9557285875652
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.219280421467709,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1171.3360359583241
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.438560842935418,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 585.6680179791621
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.096402107338651,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 234.26720719166406
+        }
+      ],
+      "free_escrow_percent_mean": 4.839872918817049,
+      "free_escrow_percent_p50": 1.7066365381875523,
+      "free_escrow_percent_p95": 19.43306361488331,
+      "matched_width_percent_mean": 44.4109779094622,
+      "max_remaining_fragments_mean": 1.287628,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 25.253868750000002,
+      "receipts_per_trial": 64,
+      "scenario": "balanced_noise",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 4.8579437500000004
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000024,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1124.9584173635521
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000005,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 562.4792086817761
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000009,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 224.99168347270995
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.1524320723596821,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 935.7798433875079
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.3048641447193643,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 467.88992169375393
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.762160361798369,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 187.1559686775025
+        }
+      ],
+      "free_escrow_percent_mean": 2.712706520757392,
+      "free_escrow_percent_p50": 0.6754635361487762,
+      "free_escrow_percent_p95": 11.467893717922175,
+      "matched_width_percent_mean": 46.04339426947597,
+      "max_remaining_fragments_mean": 1.295996,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 18.439021875,
+      "receipts_per_trial": 128,
+      "scenario": "balanced_noise",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 2.531340625
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000557,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2356.0778747900213
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000001115,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1178.0389373950106
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000092,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 471.2155749580033
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.4352779414527779,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1602.2350156510495
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.8705558829055557,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 801.1175078255247
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.17638970726391,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 320.44700313021355
+        }
+      ],
+      "free_escrow_percent_mean": 45.50892797884215,
+      "free_escrow_percent_p50": 41.20650033610664,
+      "free_escrow_percent_p95": 100.0,
+      "matched_width_percent_mean": 25.537818732688812,
+      "max_remaining_fragments_mean": 0.917316,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 71.54684999999999,
+      "receipts_per_trial": 8,
+      "scenario": "momentum",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 48.7862
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.000000000000008,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1849.3875734230644
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000016,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 924.6937867115322
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.0000000000000355,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 369.87751468461323
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.30746324706475,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1368.437861468169
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.6149264941295,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 684.2189307340846
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.537316235323663,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 273.68757229364235
+        }
+      ],
+      "free_escrow_percent_mean": 30.394538217508142,
+      "free_escrow_percent_p50": 23.74150299506708,
+      "free_escrow_percent_p95": 83.57539311503169,
+      "matched_width_percent_mean": 32.3380573899974,
+      "max_remaining_fragments_mean": 1.079004,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 57.897575,
+      "receipts_per_trial": 16,
+      "scenario": "momentum",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 30.679050000000004
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000115,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1399.612792579737
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000023,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 699.8063962898685
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999974,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 279.92255851595223
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.2114367555439682,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1113.740354065343
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.4228735110879365,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 556.8701770326714
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.057183777719974,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 222.74807081307063
+        }
+      ],
+      "free_escrow_percent_mean": 19.240246781338033,
+      "free_escrow_percent_p50": 12.915837665636552,
+      "free_escrow_percent_p95": 59.76108997018523,
+      "matched_width_percent_mean": 37.404857096573714,
+      "max_remaining_fragments_mean": 1.131276,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 45.0062625,
+      "receipts_per_trial": 32,
+      "scenario": "momentum",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 17.8143375
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000282,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1033.4554615756992
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000000564,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 516.7277307878496
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999987,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 206.6910923151465
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.1437771191750241,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 872.3310107724532
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.2875542383500482,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 436.1655053862266
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.71888559587524,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 174.46620215448831
+        }
+      ],
+      "free_escrow_percent_mean": 11.595928997470866,
+      "free_escrow_percent_p50": 6.56162358697575,
+      "free_escrow_percent_p95": 39.75597922978693,
+      "matched_width_percent_mean": 41.0608330316098,
+      "max_remaining_fragments_mean": 1.161196,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 34.02376875,
+      "receipts_per_trial": 64,
+      "scenario": "momentum",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 9.8350125
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000202,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 745.9887410566109
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000000404,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 372.99437052830547
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.0,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 149.19774821132572
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.0971327588522655,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 659.6041605382043
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.194265517704531,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 329.80208026910213
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.485663794261337,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 131.92083210764298
+        }
+      ],
+      "free_escrow_percent_mean": 6.732923729736252,
+      "free_escrow_percent_p50": 3.1060607593040803,
+      "free_escrow_percent_p95": 24.914542820432168,
+      "matched_width_percent_mean": 43.63825779168271,
+      "max_remaining_fragments_mean": 1.180104,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 25.239534375,
+      "receipts_per_trial": 128,
+      "scenario": "momentum",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 5.271196874999999
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999765,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 3163.5628704055775
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.999999999999953,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1581.7814352027888
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000026,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 632.712574081138
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.6508366271655073,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1841.1332899270237
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 3.3016732543310146,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 920.5666449635119
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 8.25418313582743,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 368.22665798540277
+        }
+      ],
+      "free_escrow_percent_mean": 8.08633148830451,
+      "free_escrow_percent_p50": 1.4134398944198403,
+      "free_escrow_percent_p95": 36.296224660299686,
+      "matched_width_percent_mean": 42.02649682064406,
+      "max_remaining_fragments_mean": 1.138612,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 48.8427,
+      "receipts_per_trial": 8,
+      "scenario": "informed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 12.464550000000001
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.000000000000011,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2972.6202813922346
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000022,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1486.3101406961173
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000059,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 594.5240562784381
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.5550006224201702,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1799.879686462442
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 3.1100012448403405,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 899.939843231221
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.775003112100966,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 359.97593729248837
+        }
+      ],
+      "free_escrow_percent_mean": 3.465838784956786,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 17.676335093578096,
+      "matched_width_percent_mean": 44.83630474261279,
+      "max_remaining_fragments_mean": 1.137324,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 35.553574999999995,
+      "receipts_per_trial": 16,
+      "scenario": "informed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 5.30505
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.000000000000004,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2700.0800403614194
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000008,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1350.0400201807097
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999954,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 540.0160080722783
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.4387876932578207,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1723.4710697311184
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.8775753865156415,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 861.7355348655592
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.193938466289055,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 344.69421394622873
+        }
+      ],
+      "free_escrow_percent_mean": 1.5185204945147686,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 8.662758525152476,
+      "matched_width_percent_mean": 46.48028288942643,
+      "max_remaining_fragments_mean": 1.131916,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 25.112775,
+      "receipts_per_trial": 32,
+      "scenario": "informed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 2.2499124999999998
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999948,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2363.2173149157784
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999896,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1181.6086574578892
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000032,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 472.64346298317497
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.340604403460886,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1604.5330583588452
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.681208806921772,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 802.2665291794226
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.703022017304545,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 320.9066116717712
+        }
+      ],
+      "free_escrow_percent_mean": 0.6775326866135302,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 4.202264363500607,
+      "matched_width_percent_mean": 47.55251881237509,
+      "max_remaining_fragments_mean": 1.117708,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 17.40520625,
+      "receipts_per_trial": 64,
+      "scenario": "informed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 0.9554812500000001
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999908,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1979.1609127053414
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999816,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 989.5804563526707
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000069,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 395.83218254106555
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.2563474713928988,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1434.860578508042
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.5126949427857976,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 717.430289254021
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.28173735696453,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 286.9721157016073
+        }
+      ],
+      "free_escrow_percent_mean": 0.31434595310837427,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 2.0495276788854517,
+      "matched_width_percent_mean": 48.284625561537666,
+      "max_remaining_fragments_mean": 1.1089,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 11.988909374999999,
+      "receipts_per_trial": 128,
+      "scenario": "informed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 0.42
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999948,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2104.687235726228
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999896,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1052.343617863114
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999932,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 420.9374471452481
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.380032690890426,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1501.9424117032122
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.760065381780852,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 750.9712058516061
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.900163454452063,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 300.3884823406386
+        }
+      ],
+      "free_escrow_percent_mean": 65.83137686218011,
+      "free_escrow_percent_p50": 70.87171531958207,
+      "free_escrow_percent_p95": 100.0,
+      "matched_width_percent_mean": 14.696247071387189,
+      "max_remaining_fragments_mean": 0.771608,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 81.00895,
+      "receipts_per_trial": 8,
+      "scenario": "one_sided",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 69.14155
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000036,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1262.122156500294
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000007,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 631.061078250147
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000133,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 252.4244313000614
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.2087635755588246,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1032.8053101642174
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.4175271511176493,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 516.4026550821087
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.043817877794298,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 206.56106203283636
+        }
+      ],
+      "free_escrow_percent_mean": 65.74364417303303,
+      "free_escrow_percent_p50": 69.2759604295876,
+      "free_escrow_percent_p95": 100.0,
+      "matched_width_percent_mean": 15.0230406214252,
+      "max_remaining_fragments_mean": 1.037336,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 77.509675,
+      "receipts_per_trial": 16,
+      "scenario": "one_sided",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 66.338125
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999916,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 625.0567322478295
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999831,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 312.52836612391474
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999803,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 125.01134644956586
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.1013775863474704,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 564.3892645708808
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.202755172694941,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 282.1946322854404
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.5068879317373405,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 112.8778529141736
+        }
+      ],
+      "free_escrow_percent_mean": 66.77329645765263,
+      "free_escrow_percent_p50": 68.63560169668119,
+      "free_escrow_percent_p95": 91.33292582129921,
+      "matched_width_percent_mean": 14.987907162702967,
+      "max_remaining_fragments_mean": 1.225084,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 75.79016250000001,
+      "receipts_per_trial": 32,
+      "scenario": "one_sided",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 65.17268750000001
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999951,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 302.2248190854795
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999902,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 151.11240954273975
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999985,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 60.444963817096884
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.0490454249367782,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 287.302819428097
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.0980908498735564,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 143.6514097140485
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.245227124683889,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 57.460563885620566
+        }
+      ],
+      "free_escrow_percent_mean": 67.24146766804428,
+      "free_escrow_percent_p50": 68.15209913682833,
+      "free_escrow_percent_p95": 85.0211652411343,
+      "matched_width_percent_mean": 15.005970701263497,
+      "max_remaining_fragments_mean": 1.426304,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 74.885475,
+      "receipts_per_trial": 64,
+      "scenario": "one_sided",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 64.52251249999999
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000124,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 148.30690795000106
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000025,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 74.15345397500053
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999999,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 29.661381589999372
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.0241372754229112,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 144.62038755027262
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.0482745508458224,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 72.31019377513631
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.120686377114618,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 28.924077510054445
+        }
+      ],
+      "free_escrow_percent_mean": 67.47506768650325,
+      "free_escrow_percent_p50": 67.88106688318327,
+      "free_escrow_percent_p95": 80.33411721438364,
+      "matched_width_percent_mean": 14.990885347706003,
+      "max_remaining_fragments_mean": 1.681244,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 74.443740625,
+      "receipts_per_trial": 128,
+      "scenario": "one_sided",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 64.22904375
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000084,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2834.4784838365463
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.000000000000017,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1417.2392419182731
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.0000000000000675,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 566.8956967673024
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.5611565898024187,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1761.5993883258006
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 3.1223131796048373,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 880.7996941629003
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.805782949012081,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 352.31987766515977
+        }
+      ],
+      "free_escrow_percent_mean": 19.801963727308785,
+      "free_escrow_percent_p50": 11.723935216234501,
+      "free_escrow_percent_p95": 67.35547162514202,
+      "matched_width_percent_mean": 36.49773197331917,
+      "max_remaining_fragments_mean": 1.143028,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 56.6697,
+      "receipts_per_trial": 8,
+      "scenario": "mixed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 24.927599999999998
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.00000000000001,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2543.8538878193526
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.00000000000002,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1271.9269439096763
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 5.000000000000016,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 508.7707775638826
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.4550025044097663,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1669.5071055897229
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.9100050088195326,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 834.7535527948614
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 7.275012522049125,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 333.90142111793955
+        }
+      ],
+      "free_escrow_percent_mean": 9.801505148596492,
+      "free_escrow_percent_p50": 3.6776906199032995,
+      "free_escrow_percent_p95": 39.54508796105983,
+      "matched_width_percent_mean": 41.45178227463399,
+      "max_remaining_fragments_mean": 1.182468,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 42.774625,
+      "receipts_per_trial": 16,
+      "scenario": "mixed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 11.842975
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.0000000000000027,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 2221.8741510338214
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 2.0000000000000053,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 1110.9370755169107
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999972,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 444.37483020676484
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.3515654254093104,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1544.9058992181106
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.7031308508186207,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 772.4529496090553
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.757827127046653,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 308.98117984362136
+        }
+      ],
+      "free_escrow_percent_mean": 4.425185315044623,
+      "free_escrow_percent_p50": 0.3345991245849802,
+      "free_escrow_percent_p95": 20.872633168345523,
+      "matched_width_percent_mean": 44.68758508324802,
+      "max_remaining_fragments_mean": 1.173996,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 31.207662499999998,
+      "receipts_per_trial": 32,
+      "scenario": "mixed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 4.9786875
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999719,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1897.6911135308276
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999438,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 948.8455567654138
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999901,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 379.5382227061755
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.2530214513772315,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1396.5124589531465
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.506042902754463,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 698.2562294765733
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 6.265107256886079,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 279.30249179063134
+        }
+      ],
+      "free_escrow_percent_mean": 1.7855410111131655,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 9.934507907894089,
+      "matched_width_percent_mean": 46.73766172614624,
+      "max_remaining_fragments_mean": 1.140712,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 22.074193750000003,
+      "receipts_per_trial": 64,
+      "scenario": "mixed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 1.84611875
+    },
+    {
+      "fee_policies": [
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 0.9999999999999976,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1559.896683280486
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 1.9999999999999951,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 779.948341640243
+        },
+        {
+          "basis": "cost",
+          "fee_as_percent_of_gross_withdrawal": 4.999999999999954,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 311.97933665610407
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 0.0,
+          "rate_bps": 0,
+          "retraction_probability_points_per_b_of_fee": null
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 1.1586643208421077,
+          "rate_bps": 100,
+          "retraction_probability_points_per_b_of_fee": 1214.6767833680535
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 2.3173286416842154,
+          "rate_bps": 200,
+          "retraction_probability_points_per_b_of_fee": 607.3383916840268
+        },
+        {
+          "basis": "width",
+          "fee_as_percent_of_gross_withdrawal": 5.793321604210566,
+          "rate_bps": 500,
+          "retraction_probability_points_per_b_of_fee": 242.93535667361172
+        }
+      ],
+      "free_escrow_percent_mean": 0.6664388805872601,
+      "free_escrow_percent_p50": 0.0,
+      "free_escrow_percent_p95": 4.2796450929561125,
+      "matched_width_percent_mean": 47.95414392969292,
+      "max_remaining_fragments_mean": 1.101708,
+      "max_remaining_fragments_observed": 2,
+      "retractable_receipts_percent_mean": 15.233521875000001,
+      "receipts_per_trial": 128,
+      "scenario": "mixed",
+      "trials": 250000,
+      "receipts_with_withdrawable_capital_percent_mean": 0.629415625
+    }
+  ],
+  "schema_version": 1
+}

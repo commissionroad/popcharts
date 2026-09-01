@@ -105,6 +105,24 @@ server-indexer:
 server-check:
     pnpm run server:check
 
+[doc('Run the deterministic market-mechanism simulation in release mode')]
+simulation *args:
+    CARGO_HOME="{{ justfile_directory() }}/.local-dev/cargo-home" \
+      CARGO_TARGET_DIR="{{ justfile_directory() }}/.local-dev/cargo-target" \
+      cargo run --release --manifest-path simulation/Cargo.toml -- {{args}}
+
+[doc('Format, lint, and test the Rust market-mechanism simulation')]
+simulation-check:
+    CARGO_HOME="{{ justfile_directory() }}/.local-dev/cargo-home" \
+      CARGO_TARGET_DIR="{{ justfile_directory() }}/.local-dev/cargo-target" \
+      cargo fmt --manifest-path simulation/Cargo.toml --check
+    CARGO_HOME="{{ justfile_directory() }}/.local-dev/cargo-home" \
+      CARGO_TARGET_DIR="{{ justfile_directory() }}/.local-dev/cargo-target" \
+      cargo clippy --manifest-path simulation/Cargo.toml --all-targets -- -D warnings
+    CARGO_HOME="{{ justfile_directory() }}/.local-dev/cargo-home" \
+      CARGO_TARGET_DIR="{{ justfile_directory() }}/.local-dev/cargo-target" \
+      cargo test --manifest-path simulation/Cargo.toml
+
 [group('deprecated')]
 [doc('DEPRECATED - use: pnpm run server:coverage')]
 server-coverage:

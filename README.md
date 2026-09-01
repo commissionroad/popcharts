@@ -148,6 +148,9 @@ just app-check      # app format, lint, typecheck, and unit tests
 just devchain-e2e   # local chain deploy plus chain-backed app smoke test
 just protocol-check # protocol format, lint, typecheck, and tests
 just server-check   # server typecheck and Bun unit tests
+just simulation-check # Rust simulation format, lint, and tests
+just simulation --trials 100000 --receipts 8,16,32,64,128 # run withdrawal research
+just simulation --experiment postgrad-liquidity --trials 50000 --trades 128 # compare postgrad liquidity
 just local-smoke    # deploy local protocol, run server/indexer, verify /markets
 just check          # app-check, protocol-check, and server-check
 just test           # app, protocol, and server tests
