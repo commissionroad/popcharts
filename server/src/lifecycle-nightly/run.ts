@@ -18,27 +18,21 @@ import { partialClearing } from "./scenarios/partial-clearing";
  * stack — chain, API, indexer, keeper, and the heuristic review/resolution
  * services — normally provided by `pnpm local:lifecycle-nightly`.
  *
- * Scenario order matters because chain-time jumps are global, forward-only,
- * and leave a PERMANENT chain-vs-wall offset (hardhat keeps jump offsets; they
- * never decay), while a scenario needing the resolution runner waits out
- * wall-clock time equal to its resolution window PLUS every offset accumulated
- * before its market was created — the runner's eligibility is `new Date()`,
- * which no jump can move. That coupling is quadratic in the number of
- * resolution-dependent scenarios, so the rule is: never jump a gate that is
- * already being waited out on the wall clock. The resolution-dependent
- * scenarios therefore jump nothing before their wait (see the note in
- * happy-path), which keeps each one's cost at its own window rather than its
- * window plus its predecessors'.
+ * Scenario order no longer couples the scenarios to each other. It used to:
+ * chain-time jumps were global and forward-only, so every jump left a
+ * permanent chain-vs-wall offset that each later resolution-dependent
+ * scenario had to wait out on top of its own window — a cost quadratic in the
+ * number of such scenarios, which is why they all ran first. Nothing in the
+ * suite jumps the chain clock any more (ADR 0028 G5): every gate is waited out
+ * in real time, so no scenario can hand an offset to the next one and each one
+ * costs exactly the windows it configures for itself.
  *
- * The jumps that remain are the ones with no wall-clock counterpart, and they
- * are deliberately small and late: each dispute scenario closes its proposal
- * window by jumping to the deadline (bounded by that scenario's
- * DISPUTE_WINDOW_SECONDS), failed-graduation and entry-fee's refund path jump
- * their graduation deadlines, and partial clearing's graduation fast-forwards
- * past the clearing challenge deadline. Those offsets are permanent, so the
- * resolution-dependent scenarios
- * still run FIRST and the rest trail them; appending a resolution-dependent
- * scenario after this group would put those offsets back into its wait.
+ * What that leaves is a wall-clock bill per scenario rather than a coupling:
+ * the resolution-dependent scenarios pay their resolution window, and
+ * failed-graduation, entry-fee's refund path, and dispute-window-finalize pay
+ * their graduation deadline and dispute window. Keep the windows in
+ * market-factory and the scenarios short; that, not the ordering, is what
+ * keeps the suite inside its deadline below.
  */
 const SCENARIOS: readonly Scenario[] = [
   happyPath,

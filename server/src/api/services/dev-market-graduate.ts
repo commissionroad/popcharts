@@ -61,7 +61,7 @@ import {
   type ClearingReceipt,
   type ReceiptClaim,
 } from "@popcharts/protocol";
-import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
+import { reachChainTimestamp, readDevPrivateKey } from "./local-dev-chain";
 import { ensureDevBackstopLiquidity } from "@popcharts/protocol";
 
 import {
@@ -543,9 +543,9 @@ async function selectMarketForDevGraduate({
 /**
  * Runs the server's manager-keyed on-chain graduation for one market:
  * band-pass eligibility gate → startGraduation → clearing-root submission →
- * finalize → per-receipt claims. Chain-agnostic despite the name — the
- * challenge-window fast-forward is a no-op once the deadline has passed (the
- * window defaults to 0, protocol ADR 0010). Consumed by both the dev endpoint
+ * finalize → per-receipt claims. Chain-agnostic despite the name — reaching
+ * the challenge deadline is a no-op once it has passed (the window defaults
+ * to 0, protocol ADR 0010). Consumed by both the dev endpoint
  * and the public graduation failsafe. `force` (dev-only) first mints and places
  * receipts to reach threshold; without it, a below-threshold market is reported
  * and never touched on-chain.
@@ -717,7 +717,15 @@ export async function graduateLocalMarketOnChain(
         : null;
   }
 
-  await fastForwardLocalRpc(publicClient, clearingRoot.challengeDeadline);
+  // No-op on every current deployment: the clearing challenge window defaults
+  // to zero (protocol ADR 0010), so the deadline is the block the root landed
+  // in and is already in the past. Once a window is armed, a chain that cannot
+  // warp waits it out in real time, which is why this stays bounded — a
+  // production-sized window is refused up front rather than blocking the
+  // public graduation failsafe that shares this function.
+  await reachChainTimestamp(publicClient, clearingRoot.challengeDeadline, {
+    label: `market ${marketId}'s clearing challenge window`,
+  });
   const finalizeReceipt = await write("finalizeGraduation", [
     marketId,
     config.contracts.postgradAdapter,

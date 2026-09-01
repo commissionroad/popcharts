@@ -270,16 +270,19 @@ async function markMarketRefunded({
 }
 
 /**
- * Fast-forwards the local chain to the market's graduation deadline and opens
- * refunds on-chain, reusing the shared markRefundable driver. The dev close
- * tool closes bootstrap markets before they reach their deadline, so it always
- * jumps the clock first; the projection mirror stays here in markMarketRefunded.
+ * Gets the chain past the market's graduation deadline and opens refunds
+ * on-chain, reusing the shared markRefundable driver. The dev close tool
+ * closes bootstrap markets before they reach their deadline, so it always
+ * reaches the deadline first — instantly on a chain that can warp, and by
+ * waiting out the remaining window otherwise, so this request can take as long
+ * as the market's graduation window is short (ADR 0028 G4). The projection
+ * mirror stays here in markMarketRefunded.
  */
 async function closeLocalMarketOnChain(
   marketId: bigint,
 ): Promise<ChainCloseResult> {
   const result = await markPregradMarketRefundableOnChain(marketId, {
-    fastForwardToDeadline: true,
+    reachGraduationDeadline: true,
   });
 
   if (result.kind === "already_refunded") {

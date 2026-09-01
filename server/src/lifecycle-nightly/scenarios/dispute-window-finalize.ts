@@ -11,8 +11,8 @@ import { and, db, desc, eq, schema } from "src/db/client";
 import { assertEqual, assertTruthy } from "../asserts";
 import {
   chainNowSeconds,
-  jumpChainTimeTo,
   resolutionRunnerTimeoutMs,
+  waitForChainTime,
 } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import { waitForApiStatus, waitForIndexedRows } from "../market-checks";
@@ -28,12 +28,12 @@ import type { Scenario } from "../report";
  * finalize duty settles it the moment the window closes — with nobody having
  * disputed and no operator involved.
  *
- * The window is chain time, so the scenario never waits it out: it asserts the
- * market stays pending while the window is open, then jumps the chain clock to
- * the deadline and lets the keeper act. Sixty seconds is deliberately short —
- * the jump's offset is permanent for the rest of the suite — but far longer
- * than the ~1s-per-10s of chain drift the harness's tick mining adds, so the
- * window cannot close underneath the assertions.
+ * The scenario asserts the market stays pending while the window is open, then
+ * waits the window out in real time and lets the keeper act. Sixty seconds is
+ * the whole cost of that wait, and it is long enough that the window cannot
+ * close underneath the pending assertions — nothing moves the chain clock but
+ * the chain itself now (ADR 0028 G5), so the window closes exactly when it
+ * says it will.
  */
 const DISPUTE_WINDOW_SECONDS = 60n;
 
@@ -110,9 +110,8 @@ export const disputeWindowFinalize: Scenario = {
     const disputeDeadline = await step(
       "resolution runner proposes YES instead of resolving",
       async () => {
-        // No chain jump — see the note in happy-path. The dispute-window jump
-        // further down stays: nothing waits that window out on the wall clock,
-        // so jumping it is the only way to close it.
+        // Nothing to do but wait for the runner's own eligibility clock — see
+        // the note in happy-path.
         const pending = await waitForApiStatus(
           market.marketId,
           "resolution_pending",
@@ -199,7 +198,10 @@ export const disputeWindowFinalize: Scenario = {
     });
 
     await step("keeper finalizes once the window closes", async () => {
-      await jumpChainTimeTo(disputeDeadline);
+      // The window is chain time and the chain clock is wall clock, so this
+      // costs DISPUTE_WINDOW_SECONDS of real time minus whatever the
+      // assertions above already spent.
+      await waitForChainTime(disputeDeadline);
 
       // One keeper sweep interval (30s) plus the indexer flip, with slack.
       const resolved = await waitForApiStatus(market.marketId, "resolved", {
