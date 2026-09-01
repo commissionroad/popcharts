@@ -141,7 +141,7 @@ item:
       where reported, derived cost where a price table exists. In-repo, no
       vendor. Acceptance: a unit test asserts the line shape; a full eval
       run yields per-provider aggregates from logs alone.
-- [ ] **A4 [measurement]** SQL quality views over `market_resolutions` and
+- [x] **A4 [measurement]** SQL quality views over `market_resolutions` and
       `market_draft_reviews`: parked/manual-review rate over time,
       confidence histograms, per-provider verdict drift. **GENERATED
       SURFACE:** any drizzle migration ships in a minimal generated-first
@@ -247,6 +247,15 @@ is add a `NEEDS-DECISION:` question edit for the user to answer.
       the same commit that precedes PR creation, so the number cannot be
       known; specify the two-step (commit with #TBD, amend after
       `gh pr create` returns the number) in the skill's Ship section.
+- [ ] **M3 [meta]** The `[measurement]` playbook demands proof via "a real
+      bounded run (`--limit`)", which only exists for the two eval runners.
+      A4 is a measurement item with no runner at all — its subject is SQL
+      over the audit logs — so the pass had to invent its proof shape: a
+      PGlite test over the generated view DDL, plus a reverted-fix check
+      that the test really fails. Widen the playbook to name the proof
+      obligation as observed output from the artifact under real SQL *or* a
+      real bounded run, so a non-runner measurement item is not judged
+      against a flag it cannot pass.
 - [ ] **M2 [meta]** `server/src/ai-resolution/evals/README.md` tells a pass
       to start the resolution service on `AI_RESOLUTION_PORT=3004` — the
       slot-0 user-stack port this ADR and the skill forbid. The skill sends
@@ -365,3 +374,4 @@ where the pass measured, `—` where it did not.
 | 2026-08-08 | A1   | measurement | —             | —            | #533 | shipped: resolution regression checker + fixtures; proof runs in PR body |
 | 2026-08-09 | A2   | measurement | —             | —            | #537 | shipped: review evals README + measured-iteration ledger (v3–v6); bounded claude-cli proof run in PR body; appended M2 |
 | 2026-08-10 | A3   | measurement | —             | —            | #538 | shipped: per-run verdict telemetry line + aggregator script; bounded proof run (2 cases x 3 runs, claude-cli) aggregated from the service log alone: 6 runs, 0 errors, p50 66545ms, $0.1480/run |
+| 2026-09-01 | A4   | measurement | —             | —            | #557 | shipped: three verdict-quality views + generated migration 0044; PGlite proof over the generated DDL (10 tests). Caught and fixed a float4 bucketing bug — `floor(0.7::real * 10)` = 6, so every edge confidence binned one bucket low. Appended M3 |
