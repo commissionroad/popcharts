@@ -23,7 +23,7 @@ import { config } from "src/config";
 import { and, db, eq, schema } from "src/db/client";
 import { hasGraduated } from "src/db/schema/markets";
 
-import { fastForwardLocalRpc, readDevPrivateKey } from "./local-dev-chain";
+import { reachChainTimestamp, readDevPrivateKey } from "./local-dev-chain";
 import { calculateMatchedMarketCap } from "./matched-market-cap";
 import {
   selectMarketResolution,
@@ -362,9 +362,11 @@ async function markMarketResolved({
  * With a zero window (the local default) the contract keeps its single-step
  * `resolve()` path. With a window configured, `resolve()` from Trading reverts
  * `MarketNotDirectlyResolvable` and the market must walk the optimistic path
- * instead, so the dev flow walks all of it in one call: propose, jump the local
- * chain past the dispute deadline, finalize. Either way the endpoint's contract
- * with its callers — the dev tools and the app's lifecycle specs — is unchanged.
+ * instead, so the dev flow walks all of it in one call: propose, get past the
+ * dispute deadline, finalize. Either way the endpoint's contract with its
+ * callers — the dev tools and the app's lifecycle specs — is unchanged in
+ * shape; what changes on a chain that cannot warp is how long it takes, since
+ * both gates are then waited out in real time (ADR 0028 G4).
  */
 async function resolveLocalPostgradMarketOnChain(
   postgradMarket: `0x${string}`,
@@ -400,8 +402,11 @@ async function resolveLocalPostgradMarketOnChain(
 
   const [notBefore, disputeWindow] = await Promise.all([
     // The contract's per-outcome floor guard (TooEarlyToResolve) is real even
-    // on a dev chain; a dev resolution jumps local chain time to the resolved
-    // side's gate instead of asking the caller to wait days of wall clock.
+    // on a dev chain, so a dev resolution has to reach the resolved side's
+    // gate before it can call resolve: it warps there where the chain allows
+    // it, and otherwise waits it out in real time (ADR 0028 G4). A market
+    // whose gate is further out than the wait limit is refused with a message
+    // naming the window to shorten, instead of holding the request open.
     publicClient.readContract({
       abi: completeSetBinaryMarketAbi,
       address: postgradMarket,
@@ -413,7 +418,9 @@ async function resolveLocalPostgradMarketOnChain(
       functionName: "disputeWindow",
     }),
   ]);
-  await fastForwardLocalRpc(publicClient, notBefore);
+  await reachChainTimestamp(publicClient, notBefore, {
+    label: `${postgradMarket}'s ${side} resolution gate`,
+  });
 
   const walletClient = createWalletClient(
     privateKeyToAccount(readDevPrivateKey()),
@@ -445,13 +452,14 @@ async function resolveLocalPostgradMarketOnChain(
     );
     // Read the deadline back rather than computing it: it is anchored to the
     // block the proposal actually landed in.
-    await fastForwardLocalRpc(
+    await reachChainTimestamp(
       publicClient,
       await publicClient.readContract({
         abi: completeSetBinaryMarketAbi,
         address: postgradMarket,
         functionName: "disputeDeadline",
       }),
+      { label: `${postgradMarket}'s dispute window` },
     );
     receipt = await confirmPostgradTransaction(
       publicClient,
