@@ -14,9 +14,12 @@ import {
   persistReceiptPlacedRecord,
   type ReceiptPlacedRecord,
 } from "src/indexer/handlers/receipt-placed";
+import { persistGraduationStartedRecord } from "src/indexer/handlers/settlement-graduation";
 
 const CHAIN_ID = 31337;
 const MARKET_ID = 7n;
+/** A second market, so the graduation race cannot disturb the shared one. */
+const GRADUATING_MARKET_ID = 8n;
 
 let dbc: typeof productionDb;
 let teardownDb: () => Promise<void>;
@@ -52,10 +55,18 @@ beforeAll(async () => {
     chainId: CHAIN_ID,
     name: "PregradManager",
   });
+  await insertMarket(MARKET_ID);
+});
+
+afterAll(async () => {
+  await teardownDb();
+});
+
+async function insertMarket(marketId: bigint) {
   await dbc.insert(schema.markets).values({
     chainId: CHAIN_ID,
     contractId: 1,
-    marketId: MARKET_ID,
+    marketId,
     creator: "0x00000000000000000000000000000000000000aa",
     metadataHash: `0x${"22".repeat(32)}`,
     collateral: "0x00000000000000000000000000000000000000dd",
@@ -67,18 +78,14 @@ beforeAll(async () => {
     createdBlockNumber: 99n,
     createdBlockTimestamp: new Date("2026-07-13T00:00:00Z"),
     createdTransactionHash: `0x${"33".repeat(32)}`,
-    createdLogIndex: 0,
+    createdLogIndex: Number(marketId),
     // Previously inherited the column default; a market taking receipts is on
     // the board, so say so explicitly now that the column has no default.
     status: "bootstrap",
   });
-});
+}
 
-afterAll(async () => {
-  await teardownDb();
-});
-
-async function marketCounters() {
+async function marketCounters(marketId = MARKET_ID) {
   const [row] = await dbc
     .select({
       receiptCount: schema.markets.receiptCount,
@@ -87,7 +94,7 @@ async function marketCounters() {
       noShares: schema.markets.noShares,
     })
     .from(schema.markets)
-    .where(eq(schema.markets.marketId, MARKET_ID));
+    .where(eq(schema.markets.marketId, marketId));
   return row;
 }
 
@@ -192,5 +199,68 @@ describe("persistReceiptPlacedRecord against real SQL (PGlite)", () => {
     // One YES and one NO receipt over the same band: min coverage 1 × width.
     expect(tick?.matchedUsd).toBeCloseTo(0.5, 12);
     expect(tick?.volumeUsd).toBeCloseTo(500 / 1e18, 24);
+  });
+});
+
+describe("a receipt indexed after the graduation snapshot", () => {
+  // The chain's totals once both receipts below are counted: the snapshot
+  // GraduationStarted carries is the authoritative end state.
+  const snapshot = {
+    noShares: 300n,
+    receiptCount: 2n,
+    totalEscrowed: 450n,
+    yesShares: 400n,
+  };
+
+  it("keeps the snapshot's totals instead of adding the receipt twice", async () => {
+    await insertMarket(GRADUATING_MARKET_ID);
+    const yesReceipt = receiptRecord({
+      blockNumber: 200n,
+      marketId: GRADUATING_MARKET_ID,
+      receiptId: 10n,
+      transactionHash: `0x${"66".repeat(32)}`,
+    });
+    const noReceipt = receiptRecord({
+      blockNumber: 201n,
+      cost: 200n,
+      marketId: GRADUATING_MARKET_ID,
+      receiptId: 11n,
+      sequence: 2n,
+      shares: 300n,
+      side: 1,
+      transactionHash: `0x${"77".repeat(32)}`,
+    });
+
+    // The receipt watcher has indexed the YES receipt but not yet the NO one
+    // when the settlement watcher writes the snapshot, which already counts
+    // both.
+    await persistReceiptPlacedRecord(yesReceipt, dbc);
+    await persistGraduationStartedRecord(
+      {
+        blockNumber: 202n,
+        blockTimestamp: new Date("2026-07-15T00:00:00Z"),
+        chainId: CHAIN_ID,
+        contractId: 1,
+        graduationStartedAt: new Date("2026-07-15T00:00:00Z"),
+        graduationStartedAtUnix: 1784073600n,
+        logIndex: 0,
+        manager: "0x00000000000000000000000000000000000000cc",
+        marketId: GRADUATING_MARKET_ID,
+        path: "0",
+        snapshotHash: `0x${"88".repeat(32)}`,
+        transactionHash: `0x${"99".repeat(32)}`,
+        ...snapshot,
+      },
+      dbc,
+    );
+    await persistReceiptPlacedRecord(noReceipt, dbc);
+
+    expect(await marketCounters(GRADUATING_MARKET_ID)).toEqual(snapshot);
+    // The late receipt is still recorded: the paper trail keeps every event.
+    const indexed = await dbc
+      .select({ receiptId: schema.receiptPlacedEvents.receiptId })
+      .from(schema.receiptPlacedEvents)
+      .where(eq(schema.receiptPlacedEvents.marketId, GRADUATING_MARKET_ID));
+    expect(indexed.map((row) => row.receiptId).sort()).toEqual([10n, 11n]);
   });
 });

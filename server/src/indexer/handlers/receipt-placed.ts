@@ -75,41 +75,64 @@ export async function persistReceiptPlacedRecord(
       return;
     }
 
-    const updated = await tx
-      .update(schema.markets)
-      .set({
-        receiptCount: record.sequence,
-        totalEscrowed: sql`${schema.markets.totalEscrowed} + ${costIncrement}::numeric(78, 0)`,
-        updatedAt: new Date(),
-        ...(record.side === SIDE_YES
-          ? {
-              yesShares: sql`${schema.markets.yesShares} + ${sharesIncrement}::numeric(78, 0)`,
-            }
-          : {
-              noShares: sql`${schema.markets.noShares} + ${sharesIncrement}::numeric(78, 0)`,
-            }),
-      })
-      .where(
-        and(
-          eq(schema.markets.chainId, record.chainId),
-          eq(schema.markets.marketId, record.marketId),
-        ),
-      )
-      // The post-trade share balances + static curve params: exactly the inputs
-      // the price tick needs, read back in the same statement that wrote them.
-      .returning({
-        id: schema.markets.id,
-        liquidityParameter: schema.markets.liquidityParameter,
-        noShares: schema.markets.noShares,
-        openingProbabilityWad: schema.markets.openingProbabilityWad,
-        totalEscrowed: schema.markets.totalEscrowed,
-        yesShares: schema.markets.yesShares,
-      });
+    const marketWhere = and(
+      eq(schema.markets.chainId, record.chainId),
+      eq(schema.markets.marketId, record.marketId),
+    );
+    // The post-trade share balances + static curve params: exactly the inputs
+    // the price tick needs.
+    const tickInputs = {
+      id: schema.markets.id,
+      liquidityParameter: schema.markets.liquidityParameter,
+      noShares: schema.markets.noShares,
+      openingProbabilityWad: schema.markets.openingProbabilityWad,
+      totalEscrowed: schema.markets.totalEscrowed,
+      yesShares: schema.markets.yesShares,
+    };
 
-    const market = updated[0];
+    // Lock the projection before deciding whether this receipt still moves
+    // it, so a GraduationStarted write cannot land between that decision and
+    // the increment below. The graduation handler updates the same row, so
+    // whichever transaction takes the lock second sees the other's commit.
+    const [locked] = await tx
+      .select({ id: schema.markets.id })
+      .from(schema.markets)
+      .where(marketWhere)
+      .for("update");
+
     // Roll back the event insert too: committing it without the markets
     // projection would make the onConflictDoNothing dedup skip the counter
     // updates on every future replay of this receipt.
+    if (!locked) {
+      throw new MarketNotIndexedError(record);
+    }
+
+    const [market] = (await hasGraduationSnapshot(tx, record))
+      ? // GraduationStarted already wrote the chain's absolute totals, and
+        // placeReceipt requires an Active market, so that snapshot counts
+        // every receipt the market will ever take — this one included.
+        // Adding it again would double-count it. It happens whenever this
+        // receipt is indexed after the snapshot: the settlement and receipt
+        // watchers run independently, and the dev graduation endpoint mirrors
+        // settlement logs itself.
+        await tx.select(tickInputs).from(schema.markets).where(marketWhere)
+      : await tx
+          .update(schema.markets)
+          .set({
+            receiptCount: record.sequence,
+            totalEscrowed: sql`${schema.markets.totalEscrowed} + ${costIncrement}::numeric(78, 0)`,
+            updatedAt: new Date(),
+            ...(record.side === SIDE_YES
+              ? {
+                  yesShares: sql`${schema.markets.yesShares} + ${sharesIncrement}::numeric(78, 0)`,
+                }
+              : {
+                  noShares: sql`${schema.markets.noShares} + ${sharesIncrement}::numeric(78, 0)`,
+                }),
+          })
+          .where(marketWhere)
+          .returning(tickInputs);
+
     if (!market) {
       throw new MarketNotIndexedError(record);
     }
@@ -165,4 +188,23 @@ export async function persistReceiptPlacedRecord(
       }),
     });
   });
+}
+
+/** Whether GraduationStarted has already frozen this market's totals. */
+async function hasGraduationSnapshot(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  record: ReceiptPlacedRecord,
+): Promise<boolean> {
+  const [snapshot] = await tx
+    .select({ id: schema.graduationStartedEvents.id })
+    .from(schema.graduationStartedEvents)
+    .where(
+      and(
+        eq(schema.graduationStartedEvents.chainId, record.chainId),
+        eq(schema.graduationStartedEvents.marketId, record.marketId),
+      ),
+    )
+    .limit(1);
+
+  return snapshot !== undefined;
 }
