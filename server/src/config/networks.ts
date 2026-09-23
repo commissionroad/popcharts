@@ -1,6 +1,7 @@
 import type { Chain } from "viem";
 import { hardhat } from "viem/chains";
 
+import { arcLocal } from "./arc-local";
 import {
   arcTestnet,
   ARC_TESTNET_CHAIN_ID,
@@ -12,7 +13,22 @@ import { getDatabaseConnectionString } from "./database";
 /** Sentinel for "no address configured"; config validation rejects it. */
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-/** The networks the server knows how to run against. */
+/**
+ * The networks the server knows how to run against.
+ *
+ * "local" names the *role* — a disposable devchain on this machine — not one
+ * particular chain. Two chains fill that role while ADR 0028 is in flight:
+ * Hardhat's devchain (31337) and the single-node Arc chain (1337), and the
+ * config picks between them by chain id. There is deliberately no third
+ * `NetworkId` for the Arc one, because roughly a dozen dev-only gates across
+ * the server read `config.name === "local"` (the indexer's recovery poll, the
+ * keeper's auto-graduate, draft-auth's dev header, the dev market endpoints);
+ * a second id would mean widening every one of them now and narrowing every
+ * one of them again in Phase 5. Parameterising by chain id instead leaves
+ * those gates untouched and makes Phase 5 — which deletes the Hardhat
+ * devchain — a deletion from `LOCAL_CHAINS_BY_ID` rather than another
+ * rewrite.
+ */
 export type NetworkId = "local" | "arcTestnet";
 
 /** Protocol contract addresses the server needs on the selected network. */
@@ -54,9 +70,44 @@ export type NetworkConfig = {
   rpcWssUrl: string;
 };
 
-/** Maps chain ids to network ids so CHAIN_ID alone can select a network. */
+/**
+ * The disposable local devchains, keyed by the id each one reports.
+ *
+ * Keyed by id and only by id: arc-node answers `web3_clientVersion` with a
+ * plain `reth/v2.2.0-...` string carrying no Arc marker (ADR 0028 G15), so
+ * client-version sniffing cannot tell these chains apart — or tell either of
+ * them from a production reth node. The chain id is the only honest signal.
+ *
+ * Phase 5 of ADR 0028 removes the Hardhat entry; nothing else on this file
+ * has to move when it does.
+ */
+const LOCAL_CHAINS_BY_ID: ReadonlyMap<number, Chain> = new Map(
+  [hardhat, arcLocal].map((chain) => [chain.id, chain]),
+);
+
+/**
+ * The local chain used when NETWORK=local is selected without naming a chain
+ * id. Still Hardhat: ADR 0028 removes nothing before Phase 5, so an existing
+ * stack that sets only NETWORK=local keeps the chain it has always had.
+ */
+const DEFAULT_LOCAL_CHAIN: Chain = hardhat;
+
+/**
+ * Maps chain ids to network ids so CHAIN_ID alone can select a network.
+ *
+ * The local half is derived from `LOCAL_CHAINS_BY_ID` rather than restated:
+ * every local chain maps to "local" by construction, and the id then selects
+ * which one inside `createLocalConfig`. A hand-written second list would be
+ * the thing that silently disagrees with the first — a chain present in one
+ * and missing from the other resolves to a network whose config cannot build.
+ */
 export const chainIdToNetwork: Record<number, NetworkId> = {
-  31337: "local",
+  ...Object.fromEntries(
+    [...LOCAL_CHAINS_BY_ID.keys()].map((chainId) => [
+      chainId,
+      "local" as const,
+    ]),
+  ),
   [ARC_TESTNET_CHAIN_ID]: "arcTestnet",
 };
 
@@ -97,9 +148,11 @@ export function getNetworkConfig(networkId = getNetworkId()): NetworkConfig {
 }
 
 function createLocalConfig(): NetworkConfig {
+  const chain = resolveLocalChain();
+
   return {
-    chainId: hardhat.id,
-    chain: hardhat,
+    chainId: chain.id,
+    chain,
     contracts: {
       boundedHook: readAddress([
         "LOCAL_BOUNDED_HOOK_ADDRESS",
@@ -157,6 +210,42 @@ function createLocalConfig(): NetworkConfig {
       process.env.RPC_WSS_URL ??
       "ws://localhost:8545",
   };
+}
+
+/**
+ * Picks which disposable devchain "local" means on this process, from
+ * LOCAL_CHAIN_ID then the generic CHAIN_ID — the same prefixed-then-generic
+ * precedence every other local setting uses.
+ *
+ * An id that is not a known local chain throws rather than falling back.
+ * Guessing here would be the one dangerous failure: NETWORK=local also turns
+ * on dev-only behaviour (open minting, the dev header, forced graduation), so
+ * quietly answering "Hardhat" to `NETWORK=local CHAIN_ID=5042002` would point
+ * that behaviour at a chain nobody meant. The same reasoning is why
+ * `protocol/scripts/shared/chain/localDevChainIds.ts` keeps an explicit set
+ * instead of a range or a prefix test.
+ */
+function resolveLocalChain(): Chain {
+  // `||`, not `??`: generated env files write bare `KEY=` lines, so an unset
+  // variable arrives as an empty string as readily as `undefined`, and both
+  // have to mean "not configured" rather than "chain id NaN". `readAddress`
+  // below treats env values the same way.
+  const chainIdEnv = process.env.LOCAL_CHAIN_ID || process.env.CHAIN_ID;
+  if (!chainIdEnv) {
+    return DEFAULT_LOCAL_CHAIN;
+  }
+
+  const chainId = Number.parseInt(chainIdEnv, 10);
+  const chain = LOCAL_CHAINS_BY_ID.get(chainId);
+  if (!chain) {
+    throw new Error(
+      `NETWORK=local was selected with chain id ${chainIdEnv}, which is not a ` +
+        `local development chain. Expected ` +
+        `${[...LOCAL_CHAINS_BY_ID.keys()].join(" or ")}.`,
+    );
+  }
+
+  return chain;
 }
 
 function createArcTestnetConfig(): NetworkConfig {

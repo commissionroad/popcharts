@@ -49,9 +49,11 @@ export type LifecycleMarket = {
  * PregradManager ABI, serialized and hashed by the same functions the indexer
  * verifies event payloads with. Timing anchors to whichever of chain time and
  * wall time is later: the contract validates deadlines against block
- * timestamps (which earlier scenarios may have jumped forward), while the AI
- * runners gate job eligibility on wall clock — anchoring to the later clock
- * keeps the market valid for both.
+ * timestamps while the AI runners gate job eligibility on wall clock, so
+ * anchoring to the later clock keeps the market valid for both. The two now
+ * track each other — no scenario warps the chain (ADR 0028 G5) — so the
+ * comparison is a guard against a chain running marginally behind, not the
+ * drift-absorber it once was.
  */
 export async function createLifecycleMarket(
   options: LifecycleMarketOptions,
