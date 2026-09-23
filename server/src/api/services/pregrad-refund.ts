@@ -15,8 +15,8 @@ import {
 import { getOrCreateContractId } from "src/indexer/utils/contract-registry";
 
 import {
-  fastForwardLocalRpc,
   getLatestBlockTimestamp,
+  reachChainTimestamp,
   readDevPrivateKey,
 } from "./local-dev-chain";
 
@@ -51,15 +51,19 @@ export type MarkRefundableOnChainResult =
  * Calls PregradManager.markRefundable for a market that missed graduation,
  * using the dev manager key. Only touches a market whose contract status is
  * still Active; a market already Refunded returns idempotently and any other
- * status is reported without a write. When `fastForwardToDeadline` is set the
- * local chain is jumped to the graduation deadline first (the dev close tool
- * closes markets that have not reached it yet); the automated keeper leaves it
- * false because it only refunds markets the graduation flow already reported
- * past their deadline.
+ * status is reported without a write. When `reachGraduationDeadline` is set the
+ * flow first gets the chain past the graduation deadline (the dev close tool
+ * closes markets that have not reached it yet) — by warping where the chain
+ * allows it, and otherwise by waiting it out in real time, which is why local
+ * graduation windows have to be short (ADR 0028 G4). The automated keeper
+ * leaves it false because it only refunds markets the graduation flow already
+ * reported past their deadline, so the keeper never waits.
  */
 export async function markPregradMarketRefundableOnChain(
   marketId: bigint,
-  { fastForwardToDeadline = false }: { fastForwardToDeadline?: boolean } = {},
+  {
+    reachGraduationDeadline = false,
+  }: { reachGraduationDeadline?: boolean } = {},
 ): Promise<MarkRefundableOnChainResult> {
   const publicClient = createReadOnlyClient();
   const state = await publicClient.readContract({
@@ -83,14 +87,16 @@ export async function markPregradMarketRefundableOnChain(
     };
   }
 
-  if (fastForwardToDeadline) {
+  if (reachGraduationDeadline) {
     const marketConfig = await publicClient.readContract({
       abi: pregradManagerAbi,
       address: config.contracts.pregradManager,
       functionName: "getMarketConfig",
       args: [marketId],
     });
-    await fastForwardLocalRpc(publicClient, marketConfig.graduationDeadline);
+    await reachChainTimestamp(publicClient, marketConfig.graduationDeadline, {
+      label: `market ${marketId}'s graduation deadline`,
+    });
   }
 
   const account = privateKeyToAccount(readDevPrivateKey());

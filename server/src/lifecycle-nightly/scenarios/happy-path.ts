@@ -52,10 +52,9 @@ export const happyPath: Scenario = {
         heuristicOutcome: "yes",
         // The whole pregrad phase (index → approve → trade → startGraduation)
         // must land inside the graduation window, and the scenario's real-time
-        // cost is roughly resolutionSeconds: the resolution runner's job
-        // eligibility compares resolutionTime against wall clock, which
-        // cannot be jumped. 240s gives the pregrad phase ~3x headroom over
-        // its typical ~70s while keeping the wall wait to a few minutes.
+        // cost is roughly resolutionSeconds: every gate here is waited out on
+        // the wall clock. 240s gives the pregrad phase ~3x headroom over its
+        // typical ~70s while keeping the wall wait to a few minutes.
         graduationSeconds: 240,
         resolutionSeconds: 300,
       }),
@@ -156,14 +155,12 @@ export const happyPath: Scenario = {
     });
 
     await step("resolution runner resolves YES after the gate", async () => {
-      // Deliberately no chain jump. The runner's eligibility is wall-clock
-      // (`coalesce(yesNotBefore, resolutionTime) <= now`), so this step waits
-      // out the gate in real time no matter what the chain clock says, and the
-      // poller below mines while it waits — by the time the runner fires, a
-      // freshly mined block already satisfies the contract's own
-      // `block.timestamp >= notBefore`. Jumping ahead of the wait would buy no
-      // wall time and would leave a PERMANENT chain-vs-wall offset that every
-      // later resolution scenario has to wait out on top of its own window.
+      // Nothing to do but wait. The runner's eligibility is wall-clock
+      // (`coalesce(yesNotBefore, resolutionTime) <= now`) and the chain's own
+      // clock is wall clock too, so by the time the runner fires the latest
+      // block already satisfies the contract's `block.timestamp >= notBefore`.
+      // There is no warp that could buy wall time here, and on the chain this
+      // suite is moving to there is no warp at all (ADR 0028 G1).
       const resolved = await waitForApiStatus(market.marketId, "resolved", {
         // Derived, not hardcoded: the runner's eligibility clock is wall
         // time against the chain-anchored gate, so the bound is computed

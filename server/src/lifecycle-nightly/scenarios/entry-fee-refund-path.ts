@@ -4,7 +4,7 @@ import { parseUnits } from "viem";
 import { schema } from "src/db/client";
 
 import { assertEqual, assertTruthy } from "../asserts";
-import { jumpChainTimeTo } from "../chain-time";
+import { waitForChainTime } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import {
   assertChainStatus,
@@ -34,9 +34,9 @@ export async function runRefundPath(
   const market = await step("create the refund-path market", () =>
     createLifecycleMarket({
       question: `Will the entry-fee refund market graduate? (run ${Date.now()})`,
-      // The window only needs to outlive review approval (135s budget below)
-      // plus two sequential receipts and their indexed-row waits; the
-      // deadline itself is reached by a chain-time jump.
+      // Waited out in real time (ADR 0028 G4), so the window is the smallest
+      // one that still outlives review approval (135s budget below) plus two
+      // sequential receipts and their indexed-row waits.
       graduationSeconds: 240,
       resolutionSeconds: 250,
     }),
@@ -109,7 +109,8 @@ export async function runRefundPath(
   });
 
   await step("keeper opens refunds after the deadline passes", async () => {
-    await jumpChainTimeTo(market.graduationDeadline + 1n);
+    // Real time, not a warp — see failed-graduation, which shares this shape.
+    await waitForChainTime(market.graduationDeadline + 1n);
 
     // The keeper's periodic sweep finds the past-deadline market ineligible
     // and settles the no-match outcome via markRefundable, exactly as in
