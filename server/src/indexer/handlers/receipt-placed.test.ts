@@ -100,7 +100,7 @@ describe("persistReceiptPlacedRecord", () => {
       } as unknown as ReceiptPlacedLog,
     });
 
-    // The event insert succeeds but the markets UPDATE matches no row; the
+    // The event insert succeeds but locking the markets row finds none; the
     // thrown error must roll back the transaction so a replay is not skipped
     // by the onConflictDoNothing dedup.
     const tx = {
@@ -111,10 +111,10 @@ describe("persistReceiptPlacedRecord", () => {
           }),
         }),
       }),
-      update: () => ({
-        set: () => ({
+      select: () => ({
+        from: () => ({
           where: () => ({
-            returning: async () => [],
+            for: async () => [],
           }),
         }),
       }),
