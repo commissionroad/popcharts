@@ -366,6 +366,14 @@ configuration (G4) across `dev-market-graduate`, `dev-market-resolve`,
 **This phase carries the behaviour change and should be reviewed as a design
 change, not a port.**
 
+*Found in the nightly after landing (2026-09-23):* waiting on the chain's own
+clock assumes a chain that mines while idle, which Arc does and `hardhat node`
+does not — it automines, so its block timestamp freezes between transactions
+and every lifecycle-nightly gate wait timed out. Until Phase 5 removes it, the
+nightly's Hardhat devchain also mines a block every second
+(`scripts/shared/chain/mineOnWallClock.ts`), giving it Arc's
+chain-time-is-wall-time property.
+
 ### Phase 5 — Control plane, CI, and removal
 
 Restart policy and its comment (G8), CI chain provisioning (G13), readiness

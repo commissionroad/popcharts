@@ -8,6 +8,7 @@ import { localAiReviewBaseUrl } from "./shared/aiReview/localAiReviewEndpoint.ts
 import { buildAiResolutionEnv } from "./shared/aiResolution/buildAiResolutionEnv.ts";
 import { buildAiResolutionRunnerEnv } from "./shared/aiResolution/buildAiResolutionRunnerEnv.ts";
 import { localAiResolutionBaseUrl } from "./shared/aiResolution/localAiResolutionEndpoint.ts";
+import { mineOnWallClock } from "./shared/chain/mineOnWallClock.ts";
 import { deployPostgradVenue } from "./shared/deployments/deployPostgradVenue.ts";
 import {
   parsePregradDeploy,
@@ -157,6 +158,11 @@ async function main(): Promise<void> {
     processes: localChainNode ? [localChainNode] : [],
     timeoutMs: 45_000,
   });
+  // The scenarios reach time gates by waiting on block timestamps, never by
+  // warping (server/src/lifecycle-nightly/chain-time.ts), so the chain clock
+  // has to keep moving between transactions. Applied to a reused chain too:
+  // the suite cannot pass on one that only mines when something trades.
+  await mineOnWallClock(rpcHttpUrl);
 
   const deployOutput = await run("deploy", "pnpm", [
     "--dir",

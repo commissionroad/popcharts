@@ -209,7 +209,9 @@ deployed stack via the stack-generated `server/.env.local-chain`.
       fabricates a synthetic market in the database, but the review
       runner now submits a real on-chain approval transition and reverts
       with `MarketDoesNotExist`. The repair seeds its market on-chain
-      (and rules out per-PR placement for good — it needs a chain)
+      (and rules out per-PR placement for good — it needs a chain).
+      Retired 2026-08-04 with the market-review runner it exercised (ADR
+      0022 P5); the nightly smoke step now ends at `local-market-smoke`.
 - [x] C3 — lifecycle harness (boot once, heuristic providers, time-jump
       utilities) + service/chain scenarios, tracked scenario-by-scenario
       in ADR 0014's checklist. All eight service/chain paths land

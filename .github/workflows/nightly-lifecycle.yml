@@ -65,7 +65,11 @@ jobs:
       # promise), so the smoke runs in the background and the step polls
       # for its readiness line — printed only after the created market is
       # served by the API — before handing the live stack to market-smoke.
-      - name: Chain smoke sequence (create → index → trade → resolve → review)
+      # No AI-review leg: its harness (local:ai-review-smoke) was retired with
+      # the market-review runner it exercised (8b53a35, ADR 0022 P5). Draft
+      # review runs in-process in the API and is covered by the @lifecycle
+      # UI journeys below.
+      - name: Chain smoke sequence (create → index → trade → resolve)
         run: |
           set -euo pipefail
           pnpm local:smoke -- --keep-running > smoke.log 2>&1 &
@@ -87,7 +91,6 @@ jobs:
             sleep 5
           done
           pnpm local:market-smoke
-          pnpm local:ai-review-smoke
           kill -TERM "$smoke_pid" 2>/dev/null || true
           wait "$smoke_pid" 2>/dev/null || true
 
