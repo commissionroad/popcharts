@@ -207,7 +207,7 @@ by the fees those traders paid — never as a treasury asset." The top-up broke
 that rule the moment it was added: it is not trader-funded, and unlike the fee
 pot it has no revenue behind it. Every graduation would draw on capital, every
 market's depth would be a standing cost, and nothing about that scales with
-adoption — it scales *against* it. That is the sustainability objection, and it
+adoption — it scales _against_ it. That is the sustainability objection, and it
 holds regardless of how the number is sized.
 
 The consequence has to be stated plainly, because section 4 already computed

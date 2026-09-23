@@ -49,6 +49,7 @@ import {
   VenuePoolSideSchema,
 } from "src/api/models/markets";
 import { closePregradMarketForRefund } from "src/api/services/dev-market-close";
+import { CHAIN_GATE_WAIT_LIMIT_MS } from "src/api/services/local-dev-chain";
 import {
   graduateDevMarket,
   graduateLocalMarketOnChain,
@@ -80,6 +81,7 @@ import { literalUnion } from "src/shared/typebox-literals";
  * generated client gets stable, human-named models (see
  * `src/api/models/markets.ts` and `scripts/generate-openapi.ts`).
  */
+
 const marketRoutesBase = new Elysia({ prefix: "" })
   .model({
     AiReviewEvidence: AiReviewEvidenceSchema,
@@ -170,6 +172,29 @@ const marketRoutesBase = new Elysia({ prefix: "" })
     },
   );
 
+/**
+ * How long a dev endpoint may hold its connection open, in seconds.
+ *
+ * The three time-gated dev endpoints below stay synchronous — request in,
+ * finished market out — but on a chain that cannot warp time they now spend
+ * the market's remaining window waiting for it in real time (ADR 0028 G4)
+ * instead of jumping the clock. That is longer than Bun keeps an in-flight
+ * request alive by default: measured against this Elysia version, a 25s
+ * handler returns normally while a 60s one has its socket closed at ~32s.
+ *
+ * 255s is the maximum Bun accepts, and raising it per request (rather than
+ * through the server's global `idleTimeout`) keeps every other route on the
+ * short default, where a slow handler is a bug rather than a design.
+ */
+const DEV_CHAIN_GATE_TIMEOUT_SECONDS = 255;
+
+/**
+ * The gate wait the dev descriptions below quote, in seconds. Read from the
+ * service's own limit so the published contract cannot drift from what the
+ * endpoint actually does.
+ */
+const DEV_CHAIN_GATE_WAIT_LIMIT_SECONDS = CHAIN_GATE_WAIT_LIMIT_MS / 1000;
+
 // Dev/admin endpoints are development-testing tools that must not exist in
 // production. They are mounted only on the local network, so on any deployed
 // network they are not registered at all (a 404) — not merely env-flag-gated,
@@ -182,7 +207,9 @@ const marketRoutesWithDevTools =
     ? marketRoutesBase
         .post(
           "/dev/markets/:chainId/:marketId/close",
-          async ({ params, set }) => {
+          async ({ params, request, server, set }) => {
+            server?.timeout(request, DEV_CHAIN_GATE_TIMEOUT_SECONDS);
+
             const result = await closePregradMarketForRefund({
               chainId: Number.parseInt(params.chainId, 10),
               marketId: params.marketId,
@@ -232,14 +259,17 @@ const marketRoutesWithDevTools =
               operationId: "closeDevMarket",
               summary: "Dev-only close pre-grad market for refunds",
               description:
-                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.",
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Gets the local chain past the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection. Where the local chain cannot warp its clock the deadline is waited out in real time, so the call takes as long as the market has left in its graduation window and refuses outright when that is more than " +
+                `${DEV_CHAIN_GATE_WAIT_LIMIT_SECONDS} seconds.`,
               tags: ["Development"],
             },
           },
         )
         .post(
           "/dev/markets/:chainId/:marketId/resolve/:side",
-          async ({ params, set }) => {
+          async ({ params, request, server, set }) => {
+            server?.timeout(request, DEV_CHAIN_GATE_TIMEOUT_SECONDS);
+
             const result = await resolveDevMarket({
               chainId: Number.parseInt(params.chainId, 10),
               marketId: params.marketId,
@@ -295,14 +325,17 @@ const marketRoutesWithDevTools =
               operationId: "resolveDevMarket",
               summary: "Dev-only force resolve a postgrad market",
               description:
-                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.",
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved. The market's resolution gate and any dispute window are reached first; where the local chain cannot warp its clock they are waited out in real time, so the call takes as long as those windows have left and refuses outright when either is more than " +
+                `${DEV_CHAIN_GATE_WAIT_LIMIT_SECONDS} seconds away.`,
               tags: ["Development"],
             },
           },
         )
         .post(
           "/dev/markets/:chainId/:marketId/graduate",
-          async ({ params, query, set }) => {
+          async ({ params, query, request, server, set }) => {
+            server?.timeout(request, DEV_CHAIN_GATE_TIMEOUT_SECONDS);
+
             const result = await graduateDevMarket({
               chainId: Number.parseInt(params.chainId, 10),
               force: query.force === "true",
@@ -355,7 +388,7 @@ const marketRoutesWithDevTools =
               operationId: "graduateDevMarket",
               summary: "Dev-only graduate a pre-grad market end to end",
               description:
-                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
+                "Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, gets the local chain past any configured challenge window (a no-op while the window is zero, and otherwise waited out in real time where the chain cannot warp), finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.",
               tags: ["Development"],
             },
           },

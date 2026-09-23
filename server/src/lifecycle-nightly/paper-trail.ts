@@ -53,8 +53,7 @@ type PaperTrailTarget = {
  * reconciliation run immediately after graduation can transiently see them as
  * dropped. A throwing reconciliation counts as not-ready; on timeout
  * waitForCondition surfaces the last failure (the full violations list), so a
- * genuine dropped/fabricated transfer still fails loudly. tickChain flushes
- * the indexer with the same throttled mining the other waits use.
+ * genuine dropped/fabricated transfer still fails loudly.
  */
 export async function assertMarketPaperTrailEventually(
   target: PaperTrailTarget,
@@ -66,7 +65,7 @@ export async function assertMarketPaperTrailEventually(
       await assertMarketPaperTrail(target);
       return true;
     },
-    { tickChain: true, timeoutMs },
+    { timeoutMs },
   );
 }
 
