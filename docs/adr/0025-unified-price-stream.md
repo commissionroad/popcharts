@@ -1,6 +1,7 @@
 # ADR 0025: One Price Stream Across Graduation
 
-Status: Proposed
+Status: Accepted — all six phases delivered; P1's gas delta measured and P6's
+end-to-end proof run on a local stack 2026-08-04
 
 Date: 2026-08-04
 

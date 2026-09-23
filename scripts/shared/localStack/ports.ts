@@ -1,3 +1,5 @@
+import { arcChainDataDir } from "../chain/arcNodePaths.ts";
+import { deriveArcNodePorts } from "../chain/arcNodePorts.ts";
 import {
   localChainEnvFileForSlot,
   localDevIndexerHealthFileForSlot,
@@ -10,6 +12,11 @@ import { assertValidSlot } from "./assertValidSlot.ts";
  * `deriveStackResources` offsets each base by the slot (chain id excepted —
  * see below). Slot 0 must equal the historical single-stack defaults, so these
  * numbers are load-bearing: changing one silently moves every stack (ADR 0020).
+ *
+ * The chain's other three ports have no base here on purpose. They belong to
+ * the node's own port families, which `shared/chain/arcNodePorts.ts` owns and
+ * derives from the HTTP port; restating them here would be a second source of
+ * truth for the same offsets.
  */
 export const SLOT_PORT_STRIDE = 10;
 export const BASE_CHAIN_PORT = 8545;
@@ -26,10 +33,20 @@ export const BASE_DATABASE_NAME = "popcharts";
  * slot: the ports it binds, the devchain it talks to, its Postgres database,
  * the generated env file it writes, and the indexer health marker it waits on.
  * Produced by `deriveStackResources`.
+ *
+ * The chain is four ports and a datadir, not one port. `chainPort` is the HTTP
+ * JSON-RPC everything talks to; the other three and the datadir are bound by
+ * the chain process itself and appear here so slot resolution can probe them
+ * and the launcher cannot pick a different set. See `deriveArcNodePorts` and
+ * ADR 0028 G7.
  */
 export type StackPorts = {
   slot: number;
   chainPort: number;
+  chainAuthRpcPort: number;
+  chainMetricsPort: number;
+  chainP2pPort: number;
+  chainDataDir: string;
   chainId: number;
   apiPort: number;
   appPort: number;
@@ -54,14 +71,45 @@ export function deriveStackResources(slot: number): StackPorts {
   assertValidSlot(slot);
 
   const chainPort = BASE_CHAIN_PORT + SLOT_PORT_STRIDE * slot;
+  // One HTTP port moves all four, through the module that owns the offsets, so
+  // there is no second copy of "authrpc sits six above http" to drift. The
+  // stride of 10 is what keeps the families from overlapping; the exact slot
+  // range over which that holds is asserted, and its boundary explained, by the
+  // port-disjointness test in scripts/test/local-stack-ports.test.ts.
+  const chainNodePorts = deriveArcNodePorts(chainPort);
 
   return {
     slot,
     chainPort,
-    // chainId is intentionally constant across slots: `hardhat node` takes its
-    // chainId from network config, not a CLI flag, so every slot's devchain
-    // actually reports BASE_CHAIN_ID. Isolation is provided by the per-slot
-    // chain port and database. Per-slot chainId is deferred (see ADR 0020).
+    chainAuthRpcPort: chainNodePorts.authrpc,
+    chainMetricsPort: chainNodePorts.metrics,
+    chainP2pPort: chainNodePorts.p2p,
+    chainDataDir: arcChainDataDir(slot),
+    // chainId is constant across slots — now by choice, where it used to be by
+    // constraint. ADR 0020 deferred per-slot ids because `hardhat node` read
+    // its chainId from network config and exposed no CLI flag. arc-node takes
+    // `--chain`, so that constraint is gone (ADR 0028 G7) and this is a
+    // decision rather than a limitation. The decision is still "one id":
+    //
+    //   - `--chain=arc-localdev` names a chain spec compiled into the binary.
+    //     A per-slot id means passing `--chain` a genesis *file* instead, which
+    //     means forking arc-localdev's genesis — the prefunded dev accounts and
+    //     the native fiat token / Multicall3 / Permit2 / CREATE2 predeploys —
+    //     and re-syncing it by hand on every version bump. That spends real
+    //     fidelity on isolation we already have.
+    //   - Isolation is already complete without it. The ports above, the
+    //     datadir, and the database are what stop two slots touching; a chain
+    //     id is an identity, not a lock, and no slot can reach another's chain
+    //     to be misled by a matching one.
+    //   - Every reader of the id is single-valued today — `chainIdToNetwork`,
+    //     the app's wallet chain list, `local-create-market`'s BASE_CHAIN_ID
+    //     read. Per-slot ids would multiply that surface and buy nothing.
+    //
+    // The value is still Hardhat's 31337 because the stack's chain is still
+    // `hardhat node`. Moving it to arc-localdev's 1337 is the network-identity
+    // change in ADR 0028 Phase 3 (G6), not a slot-model change: flipping it
+    // here while the stack runs Hardhat would only make the registry lie about
+    // the chain that is actually answering.
     chainId: BASE_CHAIN_ID,
     apiPort: BASE_API_PORT + SLOT_PORT_STRIDE * slot,
     appPort: BASE_APP_PORT + SLOT_PORT_STRIDE * slot,

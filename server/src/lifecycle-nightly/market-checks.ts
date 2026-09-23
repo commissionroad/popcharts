@@ -51,7 +51,7 @@ export async function waitForApiStatus(
       }
       return market;
     },
-    { tickChain: true, ...(timeoutMs === undefined ? {} : { timeoutMs }) },
+    timeoutMs === undefined ? {} : { timeoutMs },
   );
 }
 
@@ -79,7 +79,7 @@ export async function waitForIndexedRows<TTable extends MarketScopedTable>(
         ? (rows as TTable["$inferSelect"][])
         : null;
     },
-    { tickChain: true, timeoutMs },
+    { timeoutMs },
   );
 }
 

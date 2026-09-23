@@ -59,22 +59,38 @@ Phase 1 — protocol (human-reviewed, keystone) — **landed 2026-07-24**
 
 Phase 2 — indexer:
 
-- [ ] Raw tables + watchers for `ResolutionProposed`, `ResolutionDisputed`,
+- [x] Raw tables + watchers for `ResolutionProposed`, `ResolutionDisputed`,
       `DisputeBondPosted/Refunded/Forfeited` (receipt-linked, immutable —
       AGENTS.md money invariant); `MarketResolved` watcher unchanged.
-- [ ] `markets.status` projection gains `resolution_pending` and
+      *(`db/schema/postgrad-dispute-events.ts` and
+      `postgrad-dispute-bond-events.ts`; all five events subscribed in
+      `indexer/watchers/postgrad-market.ts` and handled by
+      `handlers/postgrad-dispute.ts` and `postgrad-dispute-bond.ts`.)*
+- [x] `markets.status` projection gains `resolution_pending` and
       `disputed`; guarded transitions from `graduated`; wire into the
-      ADR 0021 change-feed so the UI sees dispute state live.
+      ADR 0021 change-feed so the UI sees dispute state live. *(Statuses
+      declared in `db/schema/markets.ts`; `handlers/market-projection.ts`
+      guards the transitions and raises `market_status_out_of_order` on an
+      illegal one; `handlers/postgrad-dispute.ts` calls `recordLiveChange`
+      from the ADR 0021 change-feed writer.)*
 
 Phase 3 — runner + keeper:
 
-- [ ] Runner submits `proposeResolution` (rename chain action; drop the
+- [x] Runner submits `proposeResolution` (rename chain action; drop the
       superseded off-chain delay); requeue/gate logic unchanged.
-- [ ] Keeper: finalize-after-window duty (discover pending markets past
+      *(`ai-resolution-runner/chain-resolution.ts`; ADR 0026 made the intent
+      durable and #546 added the pre-signing re-check.)*
+- [x] Keeper: finalize-after-window duty (discover pending markets past
       deadline, submit `finalizeResolution`, idempotent on races with
-      public finalizers).
-- [ ] Lifecycle harness (ADR 0017 C3): scenario covering propose → dispute
+      public finalizers). *(`keeper/resolution-finalize.ts` and
+      `keeper/discovery.ts`; the public failsafe sibling is
+      `POST /markets/:chainId/:marketId/resolution-finalize`.)*
+- [x] Lifecycle harness (ADR 0017 C3): scenario covering propose → dispute
       → operator settle, and propose → window → auto-finalize.
+      *(`lifecycle-nightly/scenarios/dispute-settlement.ts` and
+      `dispute-window-finalize.ts`, using `setPostgradDisputeConfig` and
+      `settleDisputedPostgradMarketAsResolver` from
+      `lifecycle-nightly/operator.ts`.)*
 
 Phase 4 — API + app:
 
@@ -98,20 +114,33 @@ Phase 4 — API + app:
       v1 — a request is not a money-moving action, and quorums starve the
       long tail of small markets.
 - [ ] Market reads expose pending/disputed state, `proposedSide`,
-      countdown, bond size.
-- [ ] Dispute button (wallet-signed, injected-client contract service
+      countdown, bond size. *(Partial: `resolution_pending` and `disputed`
+      reach the app through `MarketStatusSchema`, and resolved markets carry
+      `MarketResolutionSchema`. `proposedSide`, the dispute countdown and the
+      bond size are not in the API models yet.)*
+- [x] Dispute button (wallet-signed, injected-client contract service
       pattern) with bond approve+post flow; pending/disputed surfaces on
       the market page (extends ADR 0018's terminal-surface work — that
       ADR's executor should treat `resolution_pending`/`disputed` as two
       more non-Trading states to design for).
+      *(`app/src/features/market-detail/market-dispute-panel.tsx`.)*
 - [ ] Operator: self-dispute + settle actions in the local admin tooling
-      (never the deployed API — operator model).
+      (never the deployed API — operator model). *(Partial: resolver-keyed
+      settle and cancel helpers exist in
+      `server/src/lifecycle-nightly/operator.ts` and force-resolve is a
+      dev-menu action; neither self-dispute nor settle is reachable from the
+      local admin tooling yet.)*
 
 Phase 5 — ops:
 
 - [ ] Alarm on `ResolutionDisputed` (a dispute is an operator page, not a
-      background event).
-- [ ] Update ADR 0012's delay-window checkbox to point here.
+      background event). *(Partial: the signal is emitted —
+      `shared/operator-alert-log.ts` defines `resolution_disputed` and
+      `handlers/postgrad-dispute.ts` raises it. The alarm that watches for it
+      is CloudWatch work and belongs to ADR 0015, so this box closes when the
+      stack is deployed.)*
+- [x] Update ADR 0012's delay-window checkbox to point here. *(ADR 0012's
+      dispute-story box is ticked and points at this ADR.)*
 
 ## Consequences
 

@@ -61,37 +61,58 @@ Principles:
 
 ## Progress
 
+Most of this ADR was built without its boxes being ticked; ADR 0027 is the live
+vehicle for what remains, item by item, and its catalogue supersedes the
+open items below rather than duplicating them.
+
 Harness (`server/src/ai-review/evals/`, sibling for resolution):
 
-- [ ] Eval runner: feed a scenario set through the review service N times
+- [x] Eval runner: feed a scenario set through the review service N times
       per case (service HTTP seam; no chain, no UI), recording verdict,
       scores, hard flags, latency, provider/model/prompt-version.
+      *(`ai-review/evals/run-review-evals.ts` and
+      `ai-resolution/evals/run-resolution-evals.ts`, both taking `--runs`
+      and `--limit`.)*
 - [ ] Metrics: per-case verdict agreement across runs, expected-vs-actual
       verdict accuracy per taxonomy class, rubric-dimension error, abstention
       calibration (resolution: outcome accuracy + confidence calibration
-      against labeled outcomes).
-- [ ] Report artifact (markdown/JSON) comparable across prompt versions;
+      against labeled outcomes). *(Partial: the runners report accuracy,
+      strict accuracy and unanimity per case and overall, and ADR 0027 A3
+      (#538) added per-run latency, token and cost aggregates. Rubric-dimension
+      error and confidence calibration are not computed — ADR 0027 A4 is the
+      vehicle.)*
+- [x] Report artifact (markdown/JSON) comparable across prompt versions;
       store baselines in-repo like the coverage metrics lane (ADR 0017
-      pattern: in-repo, no vendor).
+      pattern: in-repo, no vendor). *(`evals/baselines/*.json` on both sides,
+      with `check-eval-regression.ts` comparing a run against the stored
+      baseline.)*
 
 Dataset:
 
-- [ ] Failure-taxonomy doc enumerating the judgment classes: future-source
+- [x] Failure-taxonomy doc enumerating the judgment classes: future-source
       quality/authority, public knowability, temporal specificity
       (deadline, timezone, "by when" ambiguity), data-question
       verifiability (historical series exists; e.g. past temperature data),
       source timestamping / resolution race conditions, non-binary phrasing,
       private knowledge, harm classes, prompt injection, draw/edge outcomes
-      (resolution).
+      (resolution). *(`docs/ai-verdict-failure-taxonomy.md`.)*
 - [ ] ~150–200 hand-labeled seed cases covering every class (approve /
       reject / manual_review expectations for review; yes / no / draw /
       too_early / abstain for resolution), each with a one-line rationale.
+      *(Partial: labeled sets exist per class on both sides —
+      `ai-review/evals/dataset/` (good, knowability, sources, timing,
+      vagueness, disputes, adversarial) and `ai-resolution/evals/dataset/`
+      (clear-yes, clear-no, draw, too-early, abstain, adversarial) — but the
+      combined total is still short of 150. ADR 0027 section B carries the
+      growth targets, including B5's "combined total ≥ 150".)*
 - [ ] Template + LLM-assisted expansion of seeds (entities, dates,
       thresholds, sources swapped) toward a thousands-scale set with
       human spot-checks; expansion scripts and the dataset live in-repo.
-- [ ] Adversarial slice: injection attempts, reviewer-manipulating criteria,
+- [x] Adversarial slice: injection attempts, reviewer-manipulating criteria,
       look-alike public/private questions, sources that exist but will not
-      contain the answer.
+      contain the answer. *(`dataset/adversarial.ts` on both sides. It is
+      thin — 6 review cases and 3 resolution cases — and ADR 0027 B2/B3 grow
+      it; the slice itself exists.)*
 
 Guardrails (verdict policy):
 
@@ -103,7 +124,11 @@ Guardrails (verdict policy):
 - [ ] Reject-corroboration policy: on-chain reject requires hard-flag
       agreement or independent second-run concurrence; lone LLM rejects
       park as manual_review. Mirror for resolution: confident YES/NO below
-      the corroboration bar parks instead of resolving.
+      the corroboration bar parks instead of resolving. *(Partial:
+      implemented on both sides — `draft-review/corroboration.ts` and
+      `ai-resolution-runner/corroboration.ts` — and defaulted **off** in #542
+      pending measurement. ADR 0027 A5 is the rebaseline that decides whether
+      it turns on, so the box stays open until that measurement lands.)*
 - [ ] Prompt-version policy (closes the open ADR 0011 checkbox): bumping
       `AI_REVIEW_PROMPT_VERSION` requires an eval run recorded next to the
       baseline; define re-review behavior for in-flight jobs.
@@ -113,7 +138,9 @@ CI:
 - [ ] Consistency lane (nightly / on-demand, like the flake-report lane):
       run the seed set against the local model, fail on agreement or
       accuracy regression beyond a stated tolerance; publish the trend
-      in-repo.
+      in-repo. *(Still open, and tracked as ADR 0017's C5
+      `nightly-ai-verdicts` workflow — the regression check itself
+      (`check-eval-regression.ts`) exists; nothing runs it on a schedule.)*
 
 ## Exit criteria
 

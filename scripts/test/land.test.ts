@@ -113,6 +113,7 @@ esac
 type World = {
   root: string;
   repo: string;
+  server: string;
   headWorktree: string;
   env: NodeJS.ProcessEnv;
 };
@@ -167,6 +168,7 @@ function buildWorld(): World {
   return {
     root,
     repo,
+    server,
     headWorktree,
     env: {
       ...process.env,
@@ -181,8 +183,12 @@ function buildWorld(): World {
 
 // `land` reports every step through say(), which writes to stderr, so the
 // transcript under test is stderr — not stdout.
-function runLand(world: World, env: NodeJS.ProcessEnv = {}): { status: number | null; log: string } {
-  const result = spawnSync(SCRIPT, [], {
+function runLand(
+  world: World,
+  env: NodeJS.ProcessEnv = {},
+  args: readonly string[] = [],
+): { status: number | null; log: string } {
+  const result = spawnSync(SCRIPT, [...args], {
     cwd: world.headWorktree,
     encoding: "utf8",
     env: { ...world.env, ...env },
@@ -304,4 +310,123 @@ test("a remote-branch delete that fails because the remote is unreachable is fat
 
   renameSync(`${join(world.root, "origin.git")}.moved`, join(world.root, "origin.git"));
   assert.equal(remoteBranchExists(world.repo, HEAD_BRANCH), true, "branch was reported deleted but survived");
+});
+
+// --- --pr-json: environments that cannot reach the GitHub API at all --------
+//
+// A Claude Code cloud session has no `gh`, and `api.github.com` refuses it with
+// or without a token, so the script cannot make the GitHub calls itself. The
+// caller makes them and hands back the facts, and the cleanup — the part worth
+// protecting — still runs from this one script. These tests run with `gh`
+// absent from PATH entirely, so they fail if the script reaches for it.
+
+/** Performs the merge on the server clone, as the caller would, and returns its oid. */
+function mergeOnServer(world: World): string {
+  git(world.server, "fetch", "-q", "origin");
+  git(world.server, "checkout", "-q", "-B", BASE_BRANCH, `origin/${BASE_BRANCH}`);
+  git(
+    world.server,
+    "merge",
+    "-q",
+    "--no-ff",
+    `origin/${HEAD_BRANCH}`,
+    "-m",
+    `Merge pull request #${PR_NUMBER}`,
+  );
+  git(world.server, "push", "-q", "origin", BASE_BRANCH);
+  return git(world.server, "rev-parse", "HEAD");
+}
+
+/** Writes a PR-facts file and returns its path. */
+function writePrJson(world: World, overrides: Record<string, unknown> = {}): string {
+  const file = join(world.root, "pr-facts.json");
+  writeFileSync(
+    file,
+    JSON.stringify({
+      baseRefName: BASE_BRANCH,
+      headRefName: HEAD_BRANCH,
+      isCrossRepository: false,
+      mergeCommit: { oid: "0".repeat(40) },
+      number: Number(PR_NUMBER),
+      stackedPrs: [],
+      state: "MERGED",
+      url: `https://github.test/pr/${PR_NUMBER}`,
+      ...overrides,
+    }),
+  );
+  return file;
+}
+
+/** PATH with the fake `gh` removed, so the script cannot reach GitHub at all. */
+function withoutGh(): NodeJS.ProcessEnv {
+  return { PATH: process.env.PATH ?? "" };
+}
+
+test("--pr-json lands and cleans up with no gh on PATH", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  const oid = mergeOnServer(world);
+  const file = writePrJson(world, { mergeCommit: { oid } });
+
+  const { status, log } = runLand(world, withoutGh(), ["--pr-json", file]);
+
+  assert.equal(status, 0, log);
+  assertFullyCleanedUp(world);
+  assert.match(log, new RegExp(`Done: PR #${PR_NUMBER} landed into ${BASE_BRANCH}`));
+});
+
+test("--pr-json refuses a PR that is not merged, leaving the branch intact", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  // The dangerous case: cleaning up an OPEN PR would delete the head branch of
+  // unmerged work. Nothing may be removed.
+  const file = writePrJson(world, { state: "OPEN" });
+  const { status, log } = runLand(world, withoutGh(), ["--pr-json", file]);
+
+  assert.notEqual(status, 0, log);
+  assert.match(log, /requires an already-merged PR/);
+  assert.equal(branchExists(world.repo, HEAD_BRANCH), true, "head branch was deleted anyway");
+  assert.equal(remoteBranchExists(world.repo, HEAD_BRANCH), true, "remote head branch was deleted anyway");
+});
+
+test("--pr-json refuses to delete a head branch that still has stacked PRs", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  // GitHub closes any open PR whose base branch is deleted and then refuses to
+  // reopen it, so a non-empty stackedPrs must stop the delete rather than warn.
+  const oid = mergeOnServer(world);
+  const file = writePrJson(world, { mergeCommit: { oid }, stackedPrs: [601, 602] });
+
+  const { status, log } = runLand(world, withoutGh(), ["--pr-json", file]);
+
+  assert.notEqual(status, 0, log);
+  assert.match(log, /stackedPrs is not empty/);
+  assert.equal(remoteBranchExists(world.repo, HEAD_BRANCH), true, "head branch deleted despite stacked PRs");
+});
+
+test("--pr-json requires every field rather than defaulting it", function (t) {
+  const world = buildWorld();
+  t.after(function () {
+    rmSync(world.root, { recursive: true, force: true });
+  });
+
+  // An absent headRefName that silently became "" would clean up the wrong
+  // branch, or none, while still reporting success.
+  const file = join(world.root, "partial.json");
+  writeFileSync(file, JSON.stringify({ number: Number(PR_NUMBER), state: "MERGED" }));
+
+  const { status, log } = runLand(world, withoutGh(), ["--pr-json", file]);
+
+  assert.notEqual(status, 0, log);
+  assert.match(log, /missing required field/);
+  assert.equal(branchExists(world.repo, HEAD_BRANCH), true, "head branch was deleted anyway");
 });

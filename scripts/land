@@ -10,15 +10,52 @@ Land a GitHub PR, update the base branch locally, and clean up the feature
 branch/worktree. If no argument is provided, land the PR for the current branch.
 
 Options:
-  --merge        Use a merge commit (default)
-  --squash       Squash merge the PR
-  --rebase       Rebase merge the PR
-  -h, --help     Show this help
+  --merge          Use a merge commit (default)
+  --squash         Squash merge the PR
+  --rebase         Rebase merge the PR
+  --pr-json FILE   Take the PR facts from FILE instead of querying gh, and
+                   skip the merge (the caller has already performed it). For
+                   environments with no GitHub API access — see "Without gh".
+  -h, --help       Show this help
 
 Examples:
   land
   land 12
   land codex/my-feature
+  land --pr-json /tmp/pr.json
+
+Without gh:
+  Some environments (Claude Code cloud sessions) have no gh CLI and cannot
+  reach api.github.com at all — the proxy refuses it with or without a token —
+  so this script cannot perform the GitHub half itself. There, the caller does
+  the GitHub operations through whatever API access it does have, then hands
+  the results here so that the git-side cleanup, which is most of what this
+  script guarantees, still runs from one implementation.
+
+  The caller must, in this order:
+    1. Read the PR's number, state, headRefName, baseRefName, url and
+       isCrossRepository.
+    2. Merge it, and read back the merge commit oid.
+    3. List OPEN PRs whose base is this PR's head branch, and retarget each
+       onto this PR's base. This is not optional: GitHub closes any open PR
+       whose base branch is deleted and then refuses to reopen it.
+    4. Write those facts to a JSON file and run land --pr-json FILE.
+
+  The file must contain:
+    {
+      "number": 12,
+      "state": "MERGED",
+      "headRefName": "feature-branch",
+      "baseRefName": "main",
+      "url": "https://github.com/owner/repo/pull/12",
+      "isCrossRepository": false,
+      "mergeCommit": { "oid": "abc1234..." },
+      "stackedPrs": []
+    }
+
+  stackedPrs lists open PRs still based on the head branch. It is required,
+  and a non-empty list is refused: it means step 3 has not been done, and
+  deleting the head branch would destroy those PRs.
 USAGE
 }
 
@@ -75,6 +112,17 @@ delete_remote_branch() {
 # this PR's own base *before* the head branch goes away, never after.
 retarget_stacked_prs() {
   local head="$1" base="$2" stacked number
+
+  # In --pr-json mode the caller has already listed and retargeted these; all
+  # that is left is to hold it to that claim before the head branch goes away.
+  if [[ -n "$pr_json_file" ]]; then
+    stacked="$(jq -r '.stackedPrs // empty | .[]' <<<"$pr_json")"
+    if [[ -n "$stacked" ]]; then
+      die "stackedPrs is not empty ($(tr '\n' ' ' <<<"$stacked")); retarget them onto $base before landing, or GitHub will close them irrecoverably"
+    fi
+    return 0
+  fi
+
   stacked="$(gh pr list --state open --base "$head" --json number --jq '.[].number')"
   [[ -n "$stacked" ]] || return 0
 
@@ -85,11 +133,11 @@ retarget_stacked_prs() {
 }
 
 require git
-require gh
 require jq
 
 merge_method="merge"
 selector=""
+pr_json_file=""
 
 while (($#)); do
   case "$1" in
@@ -101,6 +149,11 @@ while (($#)); do
       ;;
     --rebase)
       merge_method="rebase"
+      ;;
+    --pr-json)
+      shift
+      (($#)) || die "--pr-json requires a file path"
+      pr_json_file="$1"
       ;;
     -h|--help)
       usage
@@ -117,26 +170,48 @@ while (($#)); do
   shift
 done
 
+if [[ -n "$pr_json_file" ]]; then
+  [[ -f "$pr_json_file" ]] || die "no such file: $pr_json_file"
+else
+  command -v gh >/dev/null 2>&1 || die "gh is not installed, and this environment may not be able to reach the GitHub API at all. Perform the GitHub operations with whatever API access you do have, then re-run with --pr-json FILE. See: land --help"
+fi
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || die "run this from inside a git repository"
 cd "$repo_root"
 
-current_branch="$(git branch --show-current)"
-[[ -n "$current_branch" ]] || die "current checkout is detached; provide a PR number or URL"
+if [[ -n "$pr_json_file" ]]; then
+  [[ -z "$selector" ]] || die "--pr-json supplies the PR; do not also pass a PR number, URL, or branch"
+  pr_json="$(cat "$pr_json_file")"
+  jq -e . >/dev/null 2>&1 <<<"$pr_json" || die "not valid JSON: $pr_json_file"
 
-if [[ -z "$selector" ]]; then
-  [[ "$current_branch" != "main" && "$current_branch" != "master" ]] || \
-    die "provide a PR number or branch when running from $current_branch"
-  selector="$current_branch"
-fi
-
-if [[ "$selector" =~ ^[0-9]+$ || "$selector" =~ ^https?:// ]]; then
-  pr_ref="$selector"
+  # Every field is required rather than defaulted. A missing headRefName that
+  # silently became empty would make the cleanup below operate on the wrong
+  # branch, or on none, while still reporting success.
+  for field in number state headRefName baseRefName url isCrossRepository; do
+    jq -e --arg f "$field" 'has($f) and (.[$f] != null)' >/dev/null <<<"$pr_json" \
+      || die "$pr_json_file is missing required field: $field"
+  done
+  jq -e 'has("stackedPrs")' >/dev/null <<<"$pr_json" \
+    || die "$pr_json_file is missing required field: stackedPrs (pass [] once open PRs based on the head branch have been retargeted)"
 else
-  pr_ref="$(gh pr list --state all --head "$selector" --json number --jq '.[0].number')"
-  [[ -n "$pr_ref" && "$pr_ref" != "null" ]] || die "no PR found for branch: $selector"
-fi
+  current_branch="$(git branch --show-current)"
+  [[ -n "$current_branch" ]] || die "current checkout is detached; provide a PR number or URL"
 
-pr_json="$(gh pr view "$pr_ref" --json number,state,headRefName,baseRefName,url,isCrossRepository)"
+  if [[ -z "$selector" ]]; then
+    [[ "$current_branch" != "main" && "$current_branch" != "master" ]] || \
+      die "provide a PR number or branch when running from $current_branch"
+    selector="$current_branch"
+  fi
+
+  if [[ "$selector" =~ ^[0-9]+$ || "$selector" =~ ^https?:// ]]; then
+    pr_ref="$selector"
+  else
+    pr_ref="$(gh pr list --state all --head "$selector" --json number --jq '.[0].number')"
+    [[ -n "$pr_ref" && "$pr_ref" != "null" ]] || die "no PR found for branch: $selector"
+  fi
+
+  pr_json="$(gh pr view "$pr_ref" --json number,state,headRefName,baseRefName,url,isCrossRepository)"
+fi
 
 number="$(jq -r '.number' <<<"$pr_json")"
 state="$(jq -r '.state' <<<"$pr_json")"
@@ -145,23 +220,32 @@ base_branch="$(jq -r '.baseRefName' <<<"$pr_json")"
 url="$(jq -r '.url' <<<"$pr_json")"
 is_cross_repo="$(jq -r '.isCrossRepository' <<<"$pr_json")"
 
-case "$state" in
-  MERGED)
-    say "PR #$number is already merged"
-    ;;
-  OPEN)
-    say "Merging PR #$number with method: $merge_method"
-    gh api -X PUT "repos/:owner/:repo/pulls/$number/merge" -f merge_method="$merge_method" >/dev/null
-    ;;
-  *)
-    die "PR #$number is $state, not open or merged"
-    ;;
-esac
+if [[ -n "$pr_json_file" ]]; then
+  # The caller performs the merge in this mode, so the only acceptable state
+  # is one that has already reached MERGED. Landing an OPEN PR here would
+  # delete the head branch of an unmerged PR and throw the work away.
+  [[ "$state" == "MERGED" ]] || die "PR #$number is $state; --pr-json requires an already-merged PR"
+  merge_oid="$(jq -r '.mergeCommit.oid // empty' <<<"$pr_json")"
+  say "PR #$number reported merged by the caller"
+else
+  case "$state" in
+    MERGED)
+      say "PR #$number is already merged"
+      ;;
+    OPEN)
+      say "Merging PR #$number with method: $merge_method"
+      gh api -X PUT "repos/:owner/:repo/pulls/$number/merge" -f merge_method="$merge_method" >/dev/null
+      ;;
+    *)
+      die "PR #$number is $state, not open or merged"
+      ;;
+  esac
 
-pr_json="$(gh pr view "$number" --json state,mergeCommit,mergedAt)"
-state="$(jq -r '.state' <<<"$pr_json")"
-merge_oid="$(jq -r '.mergeCommit.oid // empty' <<<"$pr_json")"
-[[ "$state" == "MERGED" ]] || die "merge did not complete for PR #$number"
+  pr_json="$(gh pr view "$number" --json state,mergeCommit,mergedAt)"
+  state="$(jq -r '.state' <<<"$pr_json")"
+  merge_oid="$(jq -r '.mergeCommit.oid // empty' <<<"$pr_json")"
+  [[ "$state" == "MERGED" ]] || die "merge did not complete for PR #$number"
+fi
 
 say "Merged $url at ${merge_oid:0:7}"
 

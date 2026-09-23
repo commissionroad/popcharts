@@ -16,7 +16,7 @@ import type {
 } from ".././models";
 
 /**
- * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Fast-forwards the local chain to the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection.
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Gets the local chain past the market graduation deadline, calls PregradManager.markRefundable, and updates the indexed market projection. Where the local chain cannot warp its clock the deadline is waited out in real time, so the call takes as long as the market has left in its graduation window and refuses outright when that is more than 90 seconds.
  * @summary Dev-only close pre-grad market for refunds
  */
 export type closeDevMarketResponse200 = {
@@ -75,7 +75,7 @@ export const closeDevMarket = async (
 };
 
 /**
- * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved.
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Calls the postgrad market resolver with side `yes` or `no`, waits for the local transaction, and updates the indexed market projection to resolved. The market's resolution gate and any dispute window are reached first; where the local chain cannot warp its clock they are waited out in real time, so the call takes as long as those windows have left and refuses outright when either is more than 90 seconds away.
  * @summary Dev-only force resolve a postgrad market
  */
 export type resolveDevMarketResponse200 = {
@@ -139,7 +139,7 @@ export const resolveDevMarket = async (
 };
 
 /**
- * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, jumps the local chain past any configured challenge window, finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.
+ * Local-network development tool: not registered on deployed networks at all. On local it additionally requires POPCHARTS_DEV_TOOLS_ENABLED=true. Settles a threshold-eligible market end to end: starts onchain graduation, submits a dev clearing root, gets the local chain past any configured challenge window (a no-op while the window is zero, and otherwise waited out in real time where the chain cannot warp), finalizes with the configured postgrad adapter, claims every receipt, and wires + seeds the postgrad venue pools. With force=true it first mints dev collateral and places receipts until the market covers its graduation threshold; without it, a below-threshold market returns 409.
  * @summary Dev-only graduate a pre-grad market end to end
  */
 export type graduateDevMarketResponse200 = {
