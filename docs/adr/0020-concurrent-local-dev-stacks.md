@@ -317,11 +317,12 @@ registry, a single launcher resolves the stack and exports the vars they read.
 - [ ] **Explicit `POPCHARTS_STACK_KIND` override** if the cwd heuristic ever
       misclassifies (e.g. an agent working outside the recognized worktree
       directories).
-- [ ] **Make `local-ai-review-smoke` stack-aware.** It reads the fixed slot-0
+- [x] ~~**Make `local-ai-review-smoke` stack-aware.** It reads the fixed slot-0
       env filename (`localChainEnvFile`), so it only ever smokes slot 0. Its
       protocol child is now chain-pinned to whatever env file it loads, which
       closes the silent-wrong-chain hole, but routing it through the registry
-      like its siblings is untouched.
+      like its siblings is untouched.~~ Moot: the smoke was deleted with the
+      market-review runner (ADR 0022 P5).
 
 ## Exit criteria
 
