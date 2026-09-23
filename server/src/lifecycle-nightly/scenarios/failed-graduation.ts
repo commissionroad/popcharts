@@ -9,7 +9,7 @@ import { parseUnits } from "viem";
 import { schema } from "src/db/client";
 
 import { assertEqual, assertReverts } from "../asserts";
-import { jumpChainTimeTo } from "../chain-time";
+import { waitForChainTime } from "../chain-time";
 import { createLifecycleMarket } from "../market-factory";
 import {
   assertChainStatus,
@@ -38,8 +38,11 @@ export const failedGraduation: Scenario = {
     const market = await step("create market with a short deadline", () =>
       createLifecycleMarket({
         question: `Will the under-liquidity lifecycle market graduate? (run ${Date.now()})`,
-        // The window only needs to outlive review approval (135s budget
-        // below) plus two receipts; everything after is a chain-time jump.
+        // The scenario waits this window out in real time (ADR 0028 G4), so
+        // it is sized as the smallest window that still outlives review
+        // approval (135s budget below) plus two receipts and their indexed-row
+        // waits — anything shorter risks the deadline passing mid-setup, and
+        // anything longer is dead wall-clock time in every nightly run.
         graduationSeconds: 240,
         resolutionSeconds: 250,
       }),
@@ -91,7 +94,9 @@ export const failedGraduation: Scenario = {
     );
 
     await step("keeper opens refunds after the deadline passes", async () => {
-      await jumpChainTimeTo(market.graduationDeadline + 1n);
+      // Real time, not a warp: the deadline is chain time and the chain clock
+      // is wall clock, so the only way past it is to let it arrive.
+      await waitForChainTime(market.graduationDeadline + 1n);
 
       // The keeper's periodic sweep (30s cadence) finds the past-deadline
       // market ineligible and settles the no-match outcome via
