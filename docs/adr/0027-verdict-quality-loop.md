@@ -152,6 +152,21 @@ item:
       regressions. Acceptance: new baseline JSONs as reviewed diffs,
       before/after numbers in the PR body, ledger rows appended. Ships
       alone — no prompt or dataset changes ride along.
+      NEEDS-DECISION: the premise does not hold on main. Both regression
+      checkers grade only `overall` + `classes`, which the resolution runner
+      computes from OUTCOMES; the flag gate (#524) moves only the ungraded
+      `verdicts` arrays. The claude-cli resolution baseline records zero
+      `resolve_yes`/`resolve_no` verdicts (78 `manual_review`, 18
+      `requeue_too_early`, 9 `cancel_draw`), so the gate cannot change any of
+      its content. The ollama resolution baseline has exactly two runs that
+      would re-record (`adv-resolve-yes-regardless`, `resolve_no` →
+      `manual_review`), and ollama is plumbing only. The review side has no
+      gate change and no claude-cli baseline at all. A full claude-cli run of
+      both sides is 87 cases × 3 = 261 sequential runs, about 4.8 h at A3's
+      measured p50 of 66.5 s — outside the ~90 min pass budget (see M4).
+      Choose one: (a) tick A5 as not-applicable; (b) replace it with "first
+      claude-cli review baseline" as a new item, and authorize a long-running
+      pass for it; (c) keep A5 as written and authorize a pass over budget.
 - **A6 — removed by user decision (2026-08-08).** This program is
   local-only: the loop never runs in, gates on, or reports through CI, and
   ADR 0019's dormant weekly lane (`verdict-evals.yml`) was deleted with
@@ -270,6 +285,16 @@ is add a `NEEDS-DECISION:` question edit for the user to answer.
       silent-bind warning the review-side README now carries (A2), and
       re-check every other port literal in both evals READMEs.
 
+- [ ] **M4 [meta]** A full-set `--runs 3` claude-cli measurement cannot
+      fit the skill's ~90 min pass budget: both runners execute runs
+      sequentially, and A3 measured p50 66.5 s per run, so the full review
+      set (52 × 3) alone takes about 2.9 h. A5, C2 and every Section D item
+      require full-set runs. Either give the runners a bounded
+      `--concurrency` flag (with a check that concurrent runs do not share
+      provider state), or give full-set items an explicit budget exemption
+      in the skill's Stop conditions — the second is a skill-text change
+      only, and the choice is a user decision.
+
 ## Guardrails
 
 These are constraints on the loop, not aspirations. The skill enforces
@@ -380,3 +405,4 @@ where the pass measured, `—` where it did not.
 | 2026-08-10 | A3   | measurement | —             | —            | #538 | shipped: per-run verdict telemetry line + aggregator script; bounded proof run (2 cases x 3 runs, claude-cli) aggregated from the service log alone: 6 runs, 0 errors, p50 66545ms, $0.1480/run |
 | 2026-08-31 | E1   | meta        | —             | —            | TBD  | docs only: reconciled stale checkboxes across ADRs 0009–0015, 0019, 0022, 0024, 0025 against the tree at `e4858ff`, with a file-path or PR anchor per tick; partial items annotated, not ticked |
 | 2026-09-01 | A4   | measurement | —             | —            | #557 | shipped: three verdict-quality views + generated migration 0044; PGlite proof over the generated DDL (10 tests). Caught and fixed a float4 bucketing bug — `floor(0.7::real * 10)` = 6, so every edge confidence binned one bucket low. Appended M3 |
+| 2026-09-24 | A5   | measurement | —             | —            | #574 | not-applicable: NEEDS-DECISION added — the flag gate moves only ungraded verdicts (0 changes in the claude-cli baseline, 2 runs in the ollama one); full rerun is ~4.8 h, over budget. Appended M4 |
