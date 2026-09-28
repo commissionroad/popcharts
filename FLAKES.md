@@ -1,12 +1,12 @@
 # Flake report
 
-Window 2026-09-14T19:02:11Z → 2026-09-21T19:02:11Z; generated 2026-09-21T19:02:11Z.
+Window 2026-09-21T20:22:02Z → 2026-09-28T20:22:02Z; generated 2026-09-28T20:22:02Z.
 
 | Workflow | Completed runs | Failures | Failure % | Rerun-passes | Flake % | >5% threshold |
 | --- | --- | --- | --- | --- | --- | --- |
-| App CI | 0 | 0 | n/a | 0 | n/a | no |
-| Protocol CI | 0 | 0 | n/a | 0 | n/a | no |
-| Server CI | 0 | 0 | n/a | 0 | n/a | no |
+| App CI | 19 | 0 | 0.0% | 0 | 0.0% | no |
+| Protocol CI | 18 | 0 | 0.0% | 0 | 0.0% | no |
+| Server CI | 18 | 0 | 0.0% | 0 | 0.0% | no |
 | Nightly Lifecycle | 7 | 7 | 100.0% | 0 | 0.0% | no |
 
 A rerun-pass is a run whose latest attempt succeeded with `run_attempt > 1`: an earlier attempt on the same commit failed and the rerun passed — the flake signal. Cancelled and skipped runs are excluded from the denominator.
