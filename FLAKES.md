@@ -1,6 +1,6 @@
 # Flake report
 
-Window 2026-11-02T23:15:44Z → 2026-11-09T23:15:44Z; generated 2026-11-09T23:15:44Z.
+Window 2026-11-09T23:11:11Z → 2026-11-16T23:11:11Z; generated 2026-11-16T23:11:11Z.
 
 | Workflow | Completed runs | Failures | Failure % | Rerun-passes | Flake % | >5% threshold |
 | --- | --- | --- | --- | --- | --- | --- |
